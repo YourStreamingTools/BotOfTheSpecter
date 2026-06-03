@@ -7,59 +7,59 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 include '../includes/userdata.php';
 session_write_close();
-$pageTitle = "Web Terminal";
+$pageTitle = t('admin_terminal_page_title');
 
 ob_start();
 ?>
 <div class="sp-card">
     <div class="sp-card-header">
-        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-terminal"></i></span> Web Terminal</h1>
+        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-terminal"></i></span> <?php echo t('admin_terminal_heading'); ?></h1>
     </div>
     <div class="sp-card-body">
-    <p style="margin-bottom:1rem;">Execute commands on remote servers and view live output. Select a server and enter commands below.</p>
+    <p style="margin-bottom:1rem;"><?php echo t('admin_terminal_intro'); ?></p>
     <div class="sp-form-group">
-        <label class="sp-label">Select Server</label>
+        <label class="sp-label"><?php echo t('admin_terminal_select_server_label'); ?></label>
         <select class="sp-select" id="server-select">
-            <option value="">Choose a server...</option>
-            <option value="bots">Bot Server</option>
-            <option value="web">Web Server</option>
-            <option value="api">API Server</option>
-            <option value="websocket">WebSocket Server</option>
-            <option value="sql">SQL Server</option>
+            <option value=""><?php echo t('admin_terminal_choose_server_option'); ?></option>
+            <option value="bots"><?php echo t('admin_terminal_server_bots'); ?></option>
+            <option value="web"><?php echo t('admin_terminal_server_web'); ?></option>
+            <option value="api"><?php echo t('admin_terminal_server_api'); ?></option>
+            <option value="websocket"><?php echo t('admin_terminal_server_websocket'); ?></option>
+            <option value="sql"><?php echo t('admin_terminal_server_sql'); ?></option>
         </select>
     </div>
     <div class="sp-form-group">
-        <label class="sp-label">Command</label>
-        <input class="sp-input" type="text" id="command-input" placeholder="Enter command..." disabled>
-        <p class="sp-help">Press Enter or click Execute. Use 'clear' to reset the terminal.</p>
+        <label class="sp-label"><?php echo t('admin_terminal_command_label'); ?></label>
+        <input class="sp-input" type="text" id="command-input" placeholder="<?php echo htmlspecialchars(t('admin_terminal_command_placeholder'), ENT_QUOTES); ?>" disabled>
+        <p class="sp-help"><?php echo t('admin_terminal_command_help'); ?></p>
     </div>
     <div class="sp-card" style="margin-bottom:1.25rem;">
         <div class="sp-card-header">
-            <h2 class="sp-card-title"><span class="icon"><i class="fas fa-toolbox"></i></span> Terminal Tools</h2>
+            <h2 class="sp-card-title"><span class="icon"><i class="fas fa-toolbox"></i></span> <?php echo t('admin_terminal_tools_heading'); ?></h2>
         </div>
         <div class="sp-card-body" style="padding:0.75rem 1rem;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
             <div>
-                <label class="sp-label">Quick Preset</label>
+                <label class="sp-label"><?php echo t('admin_terminal_quick_preset_label'); ?></label>
                 <div class="sp-btn-group">
                     <select class="sp-select" id="preset-select" disabled style="flex:1;">
-                        <option value="">Select preset command...</option>
+                        <option value=""><?php echo t('admin_terminal_select_preset_option'); ?></option>
                     </select>
                     <button class="sp-btn sp-btn-info" id="run-preset-btn" disabled>
                         <span class="icon"><i class="fas fa-bolt"></i></span>
-                        <span>Run</span>
+                        <span><?php echo t('admin_terminal_btn_run'); ?></span>
                     </button>
                 </div>
             </div>
             <div>
-                <label class="sp-label">Saved Snippets</label>
+                <label class="sp-label"><?php echo t('admin_terminal_saved_snippets_label'); ?></label>
                 <div class="sp-btn-group">
                     <select class="sp-select" id="snippet-select" style="flex:1;">
-                        <option value="">Select saved snippet...</option>
+                        <option value=""><?php echo t('admin_terminal_select_snippet_option'); ?></option>
                     </select>
                     <button class="sp-btn" id="save-snippet-btn" disabled>
                         <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save</span>
+                        <span><?php echo t('admin_terminal_btn_save'); ?></span>
                     </button>
                 </div>
             </div>
@@ -70,61 +70,119 @@ ob_start();
         <div class="sp-btn-group">
             <button class="sp-btn sp-btn-primary" id="execute-btn" disabled>
                 <span class="icon"><i class="fas fa-play"></i></span>
-                <span>Execute</span>
+                <span><?php echo t('admin_terminal_btn_execute'); ?></span>
             </button>
             <button class="sp-btn" id="clear-btn">
                 <span class="icon"><i class="fas fa-broom"></i></span>
-                <span>Clear Terminal</span>
+                <span><?php echo t('admin_terminal_btn_clear'); ?></span>
             </button>
             <button class="sp-btn sp-btn-warning" id="interrupt-btn" disabled>
                 <span class="icon"><i class="fas fa-stop"></i></span>
-                <span>Interrupt</span>
+                <span><?php echo t('admin_terminal_btn_interrupt'); ?></span>
             </button>
-            <button class="sp-btn sp-btn-danger" id="tmux-detach-btn" style="display:none;" title="Detach all clients from the active tmux session (Ctrl+B then D)">
+            <button class="sp-btn sp-btn-danger" id="tmux-detach-btn" style="display:none;" title="<?php echo htmlspecialchars(t('admin_terminal_tmux_detach_title'), ENT_QUOTES); ?>">
                 <span class="icon"><i class="fas fa-unlink"></i></span>
-                <span>Detach (Ctrl+B D)</span>
+                <span><?php echo t('admin_terminal_btn_detach'); ?></span>
             </button>
             <button class="sp-btn sp-btn-info" id="copy-output-btn">
                 <span class="icon"><i class="fas fa-copy"></i></span>
-                <span>Copy Output</span>
+                <span><?php echo t('admin_terminal_btn_copy_output'); ?></span>
             </button>
             <button class="sp-btn sp-btn-info" id="download-output-btn">
                 <span class="icon"><i class="fas fa-download"></i></span>
-                <span>Download Log</span>
+                <span><?php echo t('admin_terminal_btn_download_log'); ?></span>
             </button>
         </div>
     </div>
     <div class="sp-form-group">
         <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
-            <span class="sp-badge sp-badge-blue" id="connection-status">Status: waiting for server selection</span>
-            <span class="sp-badge sp-badge-grey" id="current-server">Server: none</span>
-            <span class="sp-badge sp-badge-grey" id="last-command">Last command: none</span>
-            <span class="sp-badge sp-badge-grey" id="runtime-stat">Runtime: 00:00</span>
-            <span class="sp-badge sp-badge-grey" id="line-count-stat">Lines: 0</span>
-            <span class="sp-badge sp-badge-amber" id="tmux-session-badge" style="display:none;">tmux: none</span>
+            <span class="sp-badge sp-badge-blue" id="connection-status"><?php echo t('admin_terminal_status_prefix'); ?> <?php echo t('admin_terminal_status_waiting'); ?></span>
+            <span class="sp-badge sp-badge-grey" id="current-server"><?php echo t('admin_terminal_server_prefix'); ?> <?php echo t('admin_terminal_value_none'); ?></span>
+            <span class="sp-badge sp-badge-grey" id="last-command"><?php echo t('admin_terminal_last_command_prefix'); ?> <?php echo t('admin_terminal_value_none'); ?></span>
+            <span class="sp-badge sp-badge-grey" id="runtime-stat"><?php echo t('admin_terminal_runtime_prefix'); ?> 00:00</span>
+            <span class="sp-badge sp-badge-grey" id="line-count-stat"><?php echo t('admin_terminal_lines_prefix'); ?> 0</span>
+            <span class="sp-badge sp-badge-amber" id="tmux-session-badge" style="display:none;"><?php echo t('admin_terminal_tmux_prefix'); ?> <?php echo t('admin_terminal_value_none'); ?></span>
         </div>
     </div>
     <div class="sp-form-group">
-        <label class="sp-label">Filter Output</label>
-        <input class="sp-input" type="text" id="output-filter" placeholder="Type to filter terminal output...">
+        <label class="sp-label"><?php echo t('admin_terminal_filter_output_label'); ?></label>
+        <input class="sp-input" type="text" id="output-filter" placeholder="<?php echo htmlspecialchars(t('admin_terminal_filter_output_placeholder'), ENT_QUOTES); ?>">
     </div>
     <div style="background-color:#1e1e1e;color:#ffffff;font-family:'Courier New',monospace;height:500px;overflow-y:auto;white-space:pre-wrap;padding:1rem;border-radius:var(--radius);margin-bottom:1.25rem;" id="terminal-output">
-        <div style="color: #00ff00;">Web Terminal Ready</div>
-        <div style="color: #888;">Select a server and enter commands to get started.</div>
+        <div style="color: #00ff00;"><?php echo t('admin_terminal_ready'); ?></div>
+        <div style="color: #888;"><?php echo t('admin_terminal_ready_hint'); ?></div>
     </div>
     <div class="sp-form-group" style="margin-top:1rem;">
         <label style="display:inline-flex;align-items:center;gap:0.5rem;margin-right:1.5rem;cursor:pointer;">
             <input type="checkbox" id="auto-scroll">
-            Auto-scroll to bottom
+            <?php echo t('admin_terminal_auto_scroll_label'); ?>
         </label>
         <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
             <input type="checkbox" id="safe-mode" checked>
-            Safe mode (blocks risky commands unless confirmed)
+            <?php echo t('admin_terminal_safe_mode_label'); ?>
         </label>
     </div>
     </div><!-- /sp-card-body --></div><!-- /sp-card -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+const T = {
+    statusPrefix: <?php echo json_encode(t('admin_terminal_status_prefix')); ?>,
+    serverPrefix: <?php echo json_encode(t('admin_terminal_server_prefix')); ?>,
+    lastCommandPrefix: <?php echo json_encode(t('admin_terminal_last_command_prefix')); ?>,
+    runtimePrefix: <?php echo json_encode(t('admin_terminal_runtime_prefix')); ?>,
+    linesPrefix: <?php echo json_encode(t('admin_terminal_lines_prefix')); ?>,
+    tmuxPrefix: <?php echo json_encode(t('admin_terminal_tmux_prefix')); ?>,
+    valueNone: <?php echo json_encode(t('admin_terminal_value_none')); ?>,
+    selectPresetOption: <?php echo json_encode(t('admin_terminal_select_preset_option')); ?>,
+    selectSnippetOption: <?php echo json_encode(t('admin_terminal_select_snippet_option')); ?>,
+    btnExecute: <?php echo json_encode(t('admin_terminal_btn_execute')); ?>,
+    executing: <?php echo json_encode(t('admin_terminal_executing')); ?>,
+    statusWaiting: <?php echo json_encode(t('admin_terminal_status_waiting')); ?>,
+    nothingToCopy: <?php echo json_encode(t('admin_terminal_nothing_to_copy')); ?>,
+    outputCopied: <?php echo json_encode(t('admin_terminal_output_copied')); ?>,
+    clipboardFailed: <?php echo json_encode(t('admin_terminal_clipboard_failed')); ?>,
+    nothingToDownload: <?php echo json_encode(t('admin_terminal_nothing_to_download')); ?>,
+    logDownloadStarted: <?php echo json_encode(t('admin_terminal_log_download_started')); ?>,
+    riskyTitle: <?php echo json_encode(t('admin_terminal_risky_title')); ?>,
+    riskyText: <?php echo json_encode(t('admin_terminal_risky_text')); ?>,
+    riskyConfirm: <?php echo json_encode(t('admin_terminal_risky_confirm')); ?>,
+    riskyCancel: <?php echo json_encode(t('admin_terminal_risky_cancel')); ?>,
+    idle: <?php echo json_encode(t('admin_terminal_idle')); ?>,
+    connectedTo: <?php echo json_encode(t('admin_terminal_connected_to')); ?>,
+    nothingToSave: <?php echo json_encode(t('admin_terminal_nothing_to_save')); ?>,
+    snippetSaved: <?php echo json_encode(t('admin_terminal_snippet_saved')); ?>,
+    terminalCleared: <?php echo json_encode(t('admin_terminal_cleared')); ?>,
+    commandInterrupted: <?php echo json_encode(t('admin_terminal_command_interrupted')); ?>,
+    commandInterruptedStatus: <?php echo json_encode(t('admin_terminal_command_interrupted_status')); ?>,
+    sendingDetach: <?php echo json_encode(t('admin_terminal_sending_detach')); ?>,
+    tmuxLabel: <?php echo json_encode(t('admin_terminal_tmux_label')); ?>,
+    viewingTmux: <?php echo json_encode(t('admin_terminal_viewing_tmux')); ?>,
+    tmuxTip: <?php echo json_encode(t('admin_terminal_tmux_tip')); ?>,
+    commandCancelled: <?php echo json_encode(t('admin_terminal_command_cancelled')); ?>,
+    executingOn: <?php echo json_encode(t('admin_terminal_executing_on')); ?>,
+    streamingOutput: <?php echo json_encode(t('admin_terminal_streaming_output')); ?>,
+    commandCompleted: <?php echo json_encode(t('admin_terminal_command_completed')); ?>,
+    commandFinishedOk: <?php echo json_encode(t('admin_terminal_command_finished_ok')); ?>,
+    commandFinishedErrors: <?php echo json_encode(t('admin_terminal_command_finished_errors')); ?>,
+    errorPrefix: <?php echo json_encode(t('admin_terminal_error_prefix')); ?>,
+    commandCompletedExit: <?php echo json_encode(t('admin_terminal_command_completed_exit')); ?>,
+    connectionClosed: <?php echo json_encode(t('admin_terminal_connection_closed')); ?>,
+    connectionLost: <?php echo json_encode(t('admin_terminal_connection_lost')); ?>,
+    reconnecting: <?php echo json_encode(t('admin_terminal_reconnecting')); ?>,
+    bannerVersion: <?php echo json_encode(t('admin_terminal_banner_version')); ?>,
+    bannerCommandsHeading: <?php echo json_encode(t('admin_terminal_banner_commands_heading')); ?>,
+    bannerHistoryNav: <?php echo json_encode(t('admin_terminal_banner_history_nav')); ?>,
+    bannerSaveSnippets: <?php echo json_encode(t('admin_terminal_banner_save_snippets')); ?>,
+    bannerPresets: <?php echo json_encode(t('admin_terminal_banner_presets')); ?>,
+    bannerClear: <?php echo json_encode(t('admin_terminal_banner_clear')); ?>,
+    bannerFilter: <?php echo json_encode(t('admin_terminal_banner_filter')); ?>,
+    bannerSafeMode: <?php echo json_encode(t('admin_terminal_banner_safe_mode')); ?>,
+    bannerInterrupt: <?php echo json_encode(t('admin_terminal_banner_interrupt')); ?>,
+    bannerTmuxAttach: <?php echo json_encode(t('admin_terminal_banner_tmux_attach')); ?>,
+    bannerTmuxDetach: <?php echo json_encode(t('admin_terminal_banner_tmux_detach')); ?>,
+    historyRestored: <?php echo json_encode(t('admin_terminal_history_restored')); ?>,
+    snippetsRestored: <?php echo json_encode(t('admin_terminal_snippets_restored')); ?>
+};
 const STATUS_CLASSES = {
     info: 'sp-badge-blue',
     success: 'sp-badge-green',
@@ -150,31 +208,31 @@ const DANGEROUS_COMMAND_PATTERNS = [
 ];
 const PRESET_COMMANDS = {
     bots: [
-        { label: 'Discord bot service status', command: 'systemctl status discordbot.service --no-pager' },
-        { label: 'Discord bot logs', command: 'journalctl -u discordbot.service -n 100 --no-pager' },
-        { label: 'Export queue worker status', command: 'systemctl status export_queue_worker.service --no-pager' },
-        { label: 'Export queue worker logs', command: 'journalctl -u export_queue_worker.service -n 100 --no-pager' },
-        { label: 'Disk usage', command: 'df -h' }
+        { label: <?php echo json_encode(t('admin_terminal_preset_discord_status')); ?>, command: 'systemctl status discordbot.service --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_discord_logs')); ?>, command: 'journalctl -u discordbot.service -n 100 --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_export_status')); ?>, command: 'systemctl status export_queue_worker.service --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_export_logs')); ?>, command: 'journalctl -u export_queue_worker.service -n 100 --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_disk_usage')); ?>, command: 'df -h' }
     ],
     web: [
-        { label: 'Apache status', command: 'systemctl status apache2 --no-pager' },
-        { label: 'Apache access log (tail)', command: 'tail -n 100 /var/log/apache2/access.log' },
-        { label: 'Apache error log (tail)', command: 'tail -n 100 /var/log/apache2/error.log' }
+        { label: <?php echo json_encode(t('admin_terminal_preset_apache_status')); ?>, command: 'systemctl status apache2 --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_apache_access_log')); ?>, command: 'tail -n 100 /var/log/apache2/access.log' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_apache_error_log')); ?>, command: 'tail -n 100 /var/log/apache2/error.log' }
     ],
     api: [
-        { label: 'FastAPI service status', command: 'systemctl status fastapi.service --no-pager' },
-        { label: 'FastAPI logs', command: 'journalctl -u fastapi.service -n 100 --no-pager' },
-        { label: 'Open ports', command: 'ss -tulpen | head -n 30' }
+        { label: <?php echo json_encode(t('admin_terminal_preset_fastapi_status')); ?>, command: 'systemctl status fastapi.service --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_fastapi_logs')); ?>, command: 'journalctl -u fastapi.service -n 100 --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_open_ports')); ?>, command: 'ss -tulpen | head -n 30' }
     ],
     websocket: [
-        { label: 'WebSocket service status', command: 'systemctl status websocket.service --no-pager' },
-        { label: 'WebSocket logs', command: 'journalctl -u websocket.service -n 100 --no-pager' },
-        { label: 'Socket connections', command: 'ss -tunap | head -n 40' }
+        { label: <?php echo json_encode(t('admin_terminal_preset_ws_status')); ?>, command: 'systemctl status websocket.service --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_ws_logs')); ?>, command: 'journalctl -u websocket.service -n 100 --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_socket_connections')); ?>, command: 'ss -tunap | head -n 40' }
     ],
     sql: [
-        { label: 'MySQL service status', command: 'systemctl status mysql.service --no-pager' },
-        { label: 'MySQL process list', command: 'mysqladmin processlist' },
-        { label: 'MySQL error log (tail)', command: 'tail -n 100 /var/log/mysql/error.log' }
+        { label: <?php echo json_encode(t('admin_terminal_preset_mysql_status')); ?>, command: 'systemctl status mysql.service --no-pager' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_mysql_processlist')); ?>, command: 'mysqladmin processlist' },
+        { label: <?php echo json_encode(t('admin_terminal_preset_mysql_error_log')); ?>, command: 'tail -n 100 /var/log/mysql/error.log' }
     ]
 };
 
@@ -244,7 +302,8 @@ function persistSnippets() {
 }
 
 function renderSnippetOptions() {
-    snippetSelect.innerHTML = '<option value="">Select saved snippet...</option>';
+    snippetSelect.innerHTML = '<option value=""></option>';
+    snippetSelect.options[0].textContent = T.selectSnippetOption;
     snippets.forEach((snippet) => {
         const option = document.createElement('option');
         option.value = snippet;
@@ -270,7 +329,8 @@ function saveSnippet(command) {
 function refreshPresetOptions() {
     const server = serverSelect.value;
     const presets = PRESET_COMMANDS[server] || [];
-    presetSelect.innerHTML = '<option value="">Select preset command...</option>';
+    presetSelect.innerHTML = '<option value=""></option>';
+    presetSelect.options[0].textContent = T.selectPresetOption;
     presets.forEach((preset) => {
         const option = document.createElement('option');
         option.value = preset.command;
@@ -343,14 +403,14 @@ function getTerminalText() {
 async function copyTerminalOutput() {
     const text = getTerminalText();
     if (!text.trim()) {
-        setStatus('Nothing to copy', 'warning');
+        setStatus(T.nothingToCopy, 'warning');
         return;
     }
     try {
         await navigator.clipboard.writeText(text);
-        setStatus('Output copied to clipboard', 'success');
+        setStatus(T.outputCopied, 'success');
     } catch (error) {
-        setStatus('Clipboard copy failed', 'danger');
+        setStatus(T.clipboardFailed, 'danger');
         console.error('Clipboard copy failed', error);
     }
 }
@@ -358,7 +418,7 @@ async function copyTerminalOutput() {
 function downloadTerminalOutput() {
     const text = getTerminalText();
     if (!text.trim()) {
-        setStatus('Nothing to download', 'warning');
+        setStatus(T.nothingToDownload, 'warning');
         return;
     }
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -371,7 +431,7 @@ function downloadTerminalOutput() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    setStatus('Log download started', 'success');
+    setStatus(T.logDownloadStarted, 'success');
 }
 
 function applyOutputFilter() {
@@ -391,9 +451,9 @@ function formatDuration(ms) {
 }
 
 function updateLiveStats() {
-    lineCountStatTag.textContent = `Lines: ${lineCount}`;
+    lineCountStatTag.textContent = `${T.linesPrefix} ${lineCount}`;
     const runtime = executionStartTime ? formatDuration(Date.now() - executionStartTime) : '00:00';
-    runtimeStatTag.textContent = `Runtime: ${runtime}`;
+    runtimeStatTag.textContent = `${T.runtimePrefix} ${runtime}`;
 }
 
 function startExecutionTimer() {
@@ -423,28 +483,28 @@ async function confirmCommandSafety(command) {
         return { proceed: true, force: false };
     }
     const result = await Swal.fire({
-        title: 'Risky command detected',
-        text: 'This command looks destructive. Continue anyway?',
+        title: T.riskyTitle,
+        text: T.riskyText,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Run anyway',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: T.riskyConfirm,
+        cancelButtonText: T.riskyCancel,
         confirmButtonColor: '#d33'
     });
     return { proceed: result.isConfirmed, force: result.isConfirmed };
 }
 
 function setStatus(message, type = 'info') {
-    connectionStatusTag.textContent = `Status: ${message}`;
+    connectionStatusTag.textContent = `${T.statusPrefix} ${message}`;
     connectionStatusTag.className = `sp-badge ${STATUS_CLASSES[type] || STATUS_CLASSES.info}`;
 }
 
 function setCurrentServer(label) {
-    currentServerTag.textContent = `Server: ${label}`;
+    currentServerTag.textContent = `${T.serverPrefix} ${label}`;
 }
 
 function setLastCommandLabel(label) {
-    lastCommandTag.textContent = `Last command: ${label}`;
+    lastCommandTag.textContent = `${T.lastCommandPrefix} ${label}`;
 }
 
 function cleanupEventSource() {
@@ -464,13 +524,15 @@ function setExecutionState(executing) {
     saveSnippetBtn.disabled = disabled;
     refreshPresetOptions();
     if (executing) {
-        executeBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Executing...</span>';;
+        executeBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span></span>';
+        executeBtn.querySelector('span:last-child').textContent = T.executing;
     } else {
-        executeBtn.innerHTML = '<span class="icon"><i class="fas fa-play"></i></span><span>Execute</span>';
+        executeBtn.innerHTML = '<span class="icon"><i class="fas fa-play"></i></span><span></span>';
+        executeBtn.querySelector('span:last-child').textContent = T.btnExecute;
     }
 }
 
-function finalizeExecution(message, type = 'info', statusLabel = 'Idle') {
+function finalizeExecution(message, type = 'info', statusLabel = T.idle) {
     if (message) {
         appendToTerminal(message, type === 'danger' ? 'error' : 'info');
     }
@@ -484,17 +546,17 @@ function finalizeExecution(message, type = 'info', statusLabel = 'Idle') {
 
 serverSelect.addEventListener('change', function() {
     const serverSelected = this.value !== '';
-    const label = serverSelected ? this.options[this.selectedIndex].text : 'none';
+    const label = serverSelected ? this.options[this.selectedIndex].text : T.valueNone;
     commandInput.disabled = !serverSelected || isExecuting;
     executeBtn.disabled = !serverSelected || isExecuting;
     saveSnippetBtn.disabled = !serverSelected || isExecuting;
     setCurrentServer(label);
     refreshPresetOptions();
     if (serverSelected) {
-        setStatus(`Connected to ${label}`, 'success');
+        setStatus(T.connectedTo.replace('%s', label), 'success');
         commandInput.focus();
     } else {
-        setStatus('Waiting for server selection', 'info');
+        setStatus(T.statusWaiting, 'info');
     }
 });
 
@@ -528,11 +590,11 @@ snippetSelect.addEventListener('change', function() {
 saveSnippetBtn.addEventListener('click', function() {
     const command = commandInput.value.trim();
     if (!command) {
-        setStatus('Nothing to save as snippet', 'warning');
+        setStatus(T.nothingToSave, 'warning');
         return;
     }
     saveSnippet(command);
-    setStatus('Snippet saved', 'success');
+    setStatus(T.snippetSaved, 'success');
 });
 
 copyOutputBtn.addEventListener('click', copyTerminalOutput);
@@ -540,16 +602,17 @@ downloadOutputBtn.addEventListener('click', downloadTerminalOutput);
 outputFilterInput.addEventListener('input', applyOutputFilter);
 
 clearBtn.addEventListener('click', function() {
-    terminalOutput.innerHTML = '<div style="color: #00ff00;">Terminal cleared</div>';
+    terminalOutput.innerHTML = '<div style="color: #00ff00;"></div>';
+    terminalOutput.firstChild.textContent = T.terminalCleared;
     lineCount = 1;
     updateLiveStats();
-    setStatus('Terminal cleared', 'info');
+    setStatus(T.terminalCleared, 'info');
 });
 
 interruptBtn.addEventListener('click', function() {
     if (!currentEventSource) return;
     cleanupEventSource();
-    finalizeExecution('Command interrupted by user', 'danger', 'Command interrupted');
+    finalizeExecution(T.commandInterrupted, 'danger', T.commandInterruptedStatus);
 });
 
 tmuxDetachBtn.addEventListener('click', async function() {
@@ -558,7 +621,7 @@ tmuxDetachBtn.addEventListener('click', async function() {
     tmuxSessionActive = null;
     tmuxDetachBtn.style.display = 'none';
     tmuxSessionBadge.style.display = 'none';
-    appendToTerminal(`Sending detach to tmux session: ${session}`, 'info');
+    appendToTerminal(`${T.sendingDetach} ${session}`, 'info');
     commandInput.value = `tmux detach-client -s ${session}`;
     await executeCommand();
 });
@@ -579,21 +642,21 @@ async function executeCommand() {
         tmuxSessionActive = session;
         tmuxDetachBtn.style.display = '';
         tmuxSessionBadge.style.display = '';
-        tmuxSessionBadge.textContent = `tmux: ${session}`;
+        tmuxSessionBadge.textContent = `${T.tmuxLabel} ${session}`;
         command = `tmux capture-pane -t ${session} -p -S -2000`;
-        appendToTerminal(`Viewing tmux session: ${session}`, 'info');
-        appendToTerminal(`Tip: Click "Detach (Ctrl+B D)" to detach all clients from this session.`, 'info');
+        appendToTerminal(`${T.viewingTmux} ${session}`, 'info');
+        appendToTerminal(T.tmuxTip, 'info');
     }
     const safetyDecision = await confirmCommandSafety(command);
     if (!safetyDecision.proceed) {
-        setStatus('Command cancelled', 'warning');
+        setStatus(T.commandCancelled, 'warning');
         return;
     }
     addToHistory(command);
     historyIndex = -1;
     appendToTerminal(`$ ${command}`, 'command');
     setLastCommandLabel(command);
-    setStatus(`Executing command on ${serverSelect.options[serverSelect.selectedIndex].text}`, 'warning');
+    setStatus(T.executingOn.replace('%s', serverSelect.options[serverSelect.selectedIndex].text), 'warning');
     setExecutionState(true);
     startExecutionTimer();
     const encodedCommand = encodeURIComponent(command);
@@ -609,24 +672,24 @@ async function executeCommand() {
     };
 
     currentEventSource.addEventListener('open', function() {
-        setStatus('Streaming output...', 'warning');
+        setStatus(T.streamingOutput, 'warning');
     });
 
     currentEventSource.addEventListener('done', function(event) {
-        let message = 'Command completed';
+        let message = T.commandCompleted;
         let eventType = 'success';
-        let statusLabel = 'Command finished successfully';
+        let statusLabel = T.commandFinishedOk;
         try {
             const payload = JSON.parse(event.data);
             if (payload.error) {
-                message = `Error: ${payload.error}`;
+                message = `${T.errorPrefix} ${payload.error}`;
                 eventType = 'danger';
-                statusLabel = 'Command finished with errors';
+                statusLabel = T.commandFinishedErrors;
             } else {
-                message = `Command completed (exit code: ${payload.exit_code || 0})`;
+                message = T.commandCompletedExit.replace('%s', payload.exit_code || 0);
             }
         } catch (error) {
-            message = 'Command completed';
+            message = T.commandCompleted;
         }
         finalizeExecution(message, eventType === 'danger' ? 'danger' : 'info', statusLabel);
     });
@@ -636,33 +699,33 @@ async function executeCommand() {
             return;
         }
         if (currentEventSource.readyState === EventSource.CLOSED) {
-            finalizeExecution('Connection closed unexpectedly', 'danger', 'Connection lost');
+            finalizeExecution(T.connectionClosed, 'danger', T.connectionLost);
         } else if (currentEventSource.readyState === EventSource.CONNECTING) {
-            setStatus('Reconnecting to stream...', 'warning');
+            setStatus(T.reconnecting, 'warning');
         }
     };
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    setStatus('Waiting for server selection', 'info');
+    setStatus(T.statusWaiting, 'info');
     renderSnippetOptions();
     refreshPresetOptions();
     appendToTerminal('='.repeat(60), 'info');
-    appendToTerminal('BotOfTheSpecter Web Terminal v1.2', 'success');
+    appendToTerminal(T.bannerVersion, 'success');
     appendToTerminal('='.repeat(60), 'info');
-    appendToTerminal('Commands:', 'info');
-    appendToTerminal('  - Use ↑/↓ arrows to navigate command history', 'info');
-    appendToTerminal('  - Save snippets for commands you run frequently', 'info');
-    appendToTerminal('  - Choose server-specific presets from Terminal Tools', 'info');
-    appendToTerminal('  - Type "clear" to clear the terminal', 'info');
-    appendToTerminal('  - Use output filter, copy output, or download log anytime', 'info');
-    appendToTerminal('  - Safe mode warns on risky commands', 'info');
-    appendToTerminal('  - Press Ctrl+C or click Interrupt to stop running commands', 'info');
-    appendToTerminal('  - Type "tmux attach -t <session>" to view a tmux session (e.g. specter_username)', 'info');
-    appendToTerminal('  - Use the "Detach (Ctrl+B D)" button to detach all clients from the active tmux session', 'info');
+    appendToTerminal(T.bannerCommandsHeading, 'info');
+    appendToTerminal('  - ' + T.bannerHistoryNav, 'info');
+    appendToTerminal('  - ' + T.bannerSaveSnippets, 'info');
+    appendToTerminal('  - ' + T.bannerPresets, 'info');
+    appendToTerminal('  - ' + T.bannerClear, 'info');
+    appendToTerminal('  - ' + T.bannerFilter, 'info');
+    appendToTerminal('  - ' + T.bannerSafeMode, 'info');
+    appendToTerminal('  - ' + T.bannerInterrupt, 'info');
+    appendToTerminal('  - ' + T.bannerTmuxAttach, 'info');
+    appendToTerminal('  - ' + T.bannerTmuxDetach, 'info');
     appendToTerminal('='.repeat(60), 'info');
-    appendToTerminal('Command history restored: ' + commandHistory.length + ' entries', 'info');
-    appendToTerminal('Saved snippets restored: ' + snippets.length + ' entries', 'info');
+    appendToTerminal(T.historyRestored.replace('%s', commandHistory.length), 'info');
+    appendToTerminal(T.snippetsRestored.replace('%s', snippets.length), 'info');
     appendToTerminal('');
     updateLiveStats();
 });

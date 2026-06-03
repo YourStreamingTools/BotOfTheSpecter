@@ -455,6 +455,7 @@ ob_start();
     <script>
     (function () {
         var apiKey = <?php echo json_encode($api_key); ?>;
+        var copiedLabel = <?php echo json_encode(t('overlays_counter_copied')); ?>;
         var $name  = document.getElementById('counter-builder-name');
         var $color = document.getElementById('counter-builder-color');
         var $bg    = document.getElementById('counter-builder-bg');
@@ -483,7 +484,7 @@ ob_start();
             $url.select(); $url.setSelectionRange(0, 99999);
             navigator.clipboard.writeText($url.value).then(function () {
                 var orig = $copy.innerHTML;
-                $copy.innerHTML = '<i class="fas fa-check"></i> Copied';
+                $copy.innerHTML = '<i class="fas fa-check"></i> ' + copiedLabel;
                 setTimeout(function () { $copy.innerHTML = orig; }, 1500);
             }).catch(function () { document.execCommand('copy'); });
             if (wasMasked) setTimeout(function () { $url.type = 'password'; }, 200);

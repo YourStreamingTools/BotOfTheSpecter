@@ -9,6 +9,21 @@ require_once "/var/www/config/twitch.php";
 require_once "userdata.php";
 // Note: session_write_close() deferred - this file writes $_SESSION['tier'] at the end
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 function cs_json_response($status, $payload) {
     if (ob_get_length() !== false) { ob_clean(); }
     http_response_code($status);
@@ -18,7 +33,7 @@ function cs_json_response($status, $payload) {
 
 // Ensure user is logged in
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['twitchUserId'])) {
-    cs_json_response(401, ['error' => 'Not authenticated']);
+    cs_json_response(401, ['error' => t('check_subscription_error_not_authenticated')]);
     exit;
 }
 $userTwitchId = $_SESSION['twitchUserId'];
@@ -26,14 +41,14 @@ $broadcasterId = '140296994'; // Your Twitch ID
 // Get the broadcaster's access token from twitch_bot_access database
 $stmt = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?");
 if (!$stmt) {
-    cs_json_response(500, ['error' => 'Database query preparation failed']);
+    cs_json_response(500, ['error' => t('check_subscription_error_db_prepare')]);
     exit;
 }
 $stmt->bind_param("s", $broadcasterId);
 $stmt->execute();
 $result = $stmt->get_result();
 if ($result->num_rows === 0) {
-    cs_json_response(500, ['error' => 'Broadcaster token not found']);
+    cs_json_response(500, ['error' => t('check_subscription_error_broadcaster_token_not_found')]);
     $stmt->close();
     exit;
 }
@@ -55,7 +70,7 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 if ($response === false || $httpCode !== 200) {
     error_log("Twitch subscription API failed. HTTP Code: $httpCode, Response: $response");
-    cs_json_response($httpCode ?: 500, ['error' => 'Twitch API request failed', 'http_code' => $httpCode]);
+    cs_json_response($httpCode ?: 500, ['error' => t('check_subscription_error_twitch_api'), 'http_code' => $httpCode]);
     exit;
 }
 $data = json_decode($response, true);

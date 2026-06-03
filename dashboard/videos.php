@@ -177,7 +177,7 @@ function countChannelClips($broadcasterId, $accessToken, $clientID, $maxItems = 
 		return [
 			'count' => 0,
 			'capped' => false,
-			'error' => 'No Twitch broadcaster ID found for this account.',
+			'error' => t('videos_error_no_broadcaster_id'),
 		];
 	}
 	$count = 0;
@@ -361,7 +361,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'clips') {
 	if ($channelUserId === '' || $accessToken === '') {
 		echo json_encode([
 			'success' => false,
-			'message' => 'No Twitch channel ID is available for this login session.',
+			'message' => t('videos_error_no_channel_id'),
 		]);
 		exit();
 	}
@@ -596,6 +596,29 @@ ob_start();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+	const i18n = {
+		deleteTitle: <?php echo json_encode(t('videos_js_delete_title')); ?>,
+		deleteText: <?php echo json_encode(t('videos_js_delete_text')); ?>,
+		deleteConfirm: <?php echo json_encode(t('videos_js_delete_confirm')); ?>,
+		cancel: <?php echo json_encode(t('videos_js_cancel')); ?>,
+		loadAll: <?php echo json_encode(t('videos_load_all')); ?>,
+		loadAllRemaining: <?php echo json_encode(t('videos_js_load_all_remaining')); ?>,
+		statusCapped: <?php echo json_encode(t('videos_js_status_capped')); ?>,
+		statusOfTotal: <?php echo json_encode(t('videos_js_status_of_total')); ?>,
+		statusLoaded: <?php echo json_encode(t('videos_js_status_loaded')); ?>,
+		unableLoadMore: <?php echo json_encode(t('videos_js_unable_load_more')); ?>,
+		unableLoadTitle: <?php echo json_encode(t('videos_js_unable_load_title')); ?>,
+		tryAgain: <?php echo json_encode(t('videos_js_try_again')); ?>,
+		loadAllConfirmTitle: <?php echo json_encode(t('videos_js_load_all_confirm_title')); ?>,
+		loadAllConfirmRemaining: <?php echo json_encode(t('videos_js_load_all_confirm_remaining')); ?>,
+		loadAllConfirmNone: <?php echo json_encode(t('videos_js_load_all_confirm_none')); ?>,
+		loadAllConfirmBtn: <?php echo json_encode(t('videos_js_load_all_confirm_btn')); ?>
+	};
+	const formatI18n = function (template, values) {
+		return template.replace(/:(\w+)/g, function (match, name) {
+			return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : match;
+		});
+	};
 	const deleteForm = document.getElementById('deleteVideoForm');
 	const deleteVideoIdInput = document.getElementById('deleteVideoIdInput');
 	document.querySelectorAll('.delete-video-btn').forEach(function (button) {
@@ -605,14 +628,14 @@ document.addEventListener('DOMContentLoaded', function () {
 				return;
 			}
 			Swal.fire({
-				title: 'Delete Twitch Video?',
-				text: 'This video will be deleted from Twitch and this action is irreversible.',
+				title: i18n.deleteTitle,
+				text: i18n.deleteText,
 				icon: 'warning',
 				showCancelButton: true,
 				confirmButtonColor: '#d33',
 				cancelButtonColor: '#3085d6',
-				confirmButtonText: 'Yes, delete video',
-				cancelButtonText: 'Cancel',
+				confirmButtonText: i18n.deleteConfirm,
+				cancelButtonText: i18n.cancel,
 				background: '#333',
 				color: '#fff'
 			}).then((result) => {
@@ -645,18 +668,18 @@ document.addEventListener('DOMContentLoaded', function () {
 			loadAllBtn.disabled = loading || !hasMore;
 			if (totalCount !== null) {
 				const remaining = Math.max(totalCount - loadedCount, 0);
-				loadAllBtn.textContent = remaining > 0 ? `Load All (${remaining} more)` : 'Load All';
+				loadAllBtn.textContent = remaining > 0 ? formatI18n(i18n.loadAllRemaining, { count: remaining }) : i18n.loadAll;
 			} else {
-				loadAllBtn.textContent = 'Load All';
+				loadAllBtn.textContent = i18n.loadAll;
 			}
 		}
 		if (statusLabel) {
 			if (totalCount !== null) {
 				statusLabel.textContent = totalCapped
-					? `Loaded ${loadedCount} clips (count capped at ${totalCount}).`
-					: `Loaded ${loadedCount} of ${totalCount} clips.`;
+					? formatI18n(i18n.statusCapped, { count: loadedCount, total: totalCount })
+					: formatI18n(i18n.statusOfTotal, { count: loadedCount, total: totalCount });
 			} else {
-				statusLabel.textContent = `Loaded ${loadedCount} clips.`;
+				statusLabel.textContent = formatI18n(i18n.statusLoaded, { count: loadedCount });
 			}
 		}
 	}
@@ -701,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			.then(response => response.json())
 			.then(data => {
 				if (!data || !data.success) {
-					throw new Error(data && data.message ? data.message : 'Unable to load more clips.');
+					throw new Error(data && data.message ? data.message : i18n.unableLoadMore);
 				}
 				if (data.html && cardsContainer) {
 					cardsContainer.insertAdjacentHTML('beforeend', data.html);
@@ -718,8 +741,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			})
 			.catch(error => {
 				Swal.fire({
-					title: 'Unable to load clips',
-					text: error.message || 'Please try again.',
+					title: i18n.unableLoadTitle,
+					text: error.message || i18n.tryAgain,
 					icon: 'error',
 					background: '#333',
 					color: '#fff'
@@ -740,14 +763,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			const knownTotal = totalCount !== null ? totalCount : loadedCount;
 			const remaining = Math.max(knownTotal - loadedCount, 0);
 			Swal.fire({
-				title: 'Load all clips?',
+				title: i18n.loadAllConfirmTitle,
 				text: remaining > 0
-					? `You have ${knownTotal} clips in total (${remaining} remaining to load). This can take a long time. Continue?`
-					: `You currently have ${knownTotal} loaded clips. Loading all remaining clips can take a long time. Continue?`,
+					? formatI18n(i18n.loadAllConfirmRemaining, { total: knownTotal, remaining: remaining })
+					: formatI18n(i18n.loadAllConfirmNone, { total: knownTotal }),
 				icon: 'warning',
 				showCancelButton: true,
-				confirmButtonText: 'Yes, load all',
-				cancelButtonText: 'Cancel',
+				confirmButtonText: i18n.loadAllConfirmBtn,
+				cancelButtonText: i18n.cancel,
 				confirmButtonColor: '#d33',
 				cancelButtonColor: '#3085d6',
 				background: '#333',

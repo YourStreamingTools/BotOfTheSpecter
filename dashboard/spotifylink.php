@@ -319,7 +319,7 @@ ob_start();
                         <div class="sp-card-body">
                             <ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
                                 <li><?php echo t('spotify_feature_current_song'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!song</code></li>
-                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (or <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
+                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (<?php echo t('spotify_feature_or'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
                                 <li><?php echo t('spotify_feature_example'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest Stick Season Noah Kahan</code></li>
                             </ul>
                         </div>
@@ -346,7 +346,7 @@ ob_start();
                         <div class="sp-card-body">
                             <ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; text-align: left;">
                                 <li><?php echo t('spotify_feature_current_song'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!song</code></li>
-                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (or <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
+                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (<?php echo t('spotify_feature_or'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
                                 <li><?php echo t('spotify_feature_example'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest Stick Season Noah Kahan</code></li>
                             </ul>
                         </div>

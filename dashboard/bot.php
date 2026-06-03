@@ -804,19 +804,19 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
           // Revert toggle on failure
           try { customBotToggle.checked = !isEnabled; } catch(e) {}
-          showNotification('Failed to save preference: ' + (data.message || 'Unknown'), 'danger');
+          showNotification(<?php echo json_encode(t('bot_save_preference_failed', [':message' => ':message'])); ?>.replace(':message', (data.message || <?php echo json_encode(t('bot_unknown_value')); ?>)), 'danger');
           updateCustomBotWarningVisibility();
         }
       })
       .catch(err => {
         try { customBotToggle.checked = !isEnabled; } catch(e) {}
         updateCustomBotWarningVisibility();
-        showNotification('Network error: could not save preference', 'danger');
+        showNotification(<?php echo json_encode(t('bot_network_error_save_preference')); ?>, 'danger');
       });
       if (isEnabled) {
-        showNotification('Custom Bot Name enabled - Your custom bot will be used when starting the beta bot', 'success');
+        showNotification(<?php echo json_encode(t('bot_custom_name_enabled')); ?>, 'success');
       } else {
-        showNotification('Custom Bot Name disabled - The default bot will be used', 'info');
+        showNotification(<?php echo json_encode(t('bot_custom_name_disabled')); ?>, 'info');
       }
     });
   }
@@ -881,7 +881,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try { if (typeof data.use_self !== 'undefined') window.serverUseSelf = parseInt(data.use_self); } catch(e) {}
             try { if (typeof data.use_custom !== 'undefined') window.serverUseCustom = parseInt(data.use_custom); } catch(e) {}
           } else {
-            showNotification('Failed to save Use Self preference', 'danger');
+            showNotification(<?php echo json_encode(t('bot_save_use_self_failed')); ?>, 'danger');
           }
         }).catch(() => {
           // network/save failure is non-fatal
@@ -890,7 +890,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // ignore
       }
       updateUseSelfWarningVisibility();
-      showNotification(isEnabled ? 'Use Self enabled' : 'Use Self disabled', isEnabled ? 'success' : 'info');
+      showNotification(isEnabled ? <?php echo json_encode(t('bot_use_self_enabled')); ?> : <?php echo json_encode(t('bot_use_self_disabled')); ?>, isEnabled ? 'success' : 'info');
     });
     // Initial visibility update
     updateUseSelfToggleVisibility();
@@ -966,17 +966,17 @@ document.addEventListener('DOMContentLoaded', function() {
   attachBotButtonListeners();  // Function to handle bot actions
   function handleStableBotAction(action) {
     if (isActingAs) {
-      showNotification('Bot start/stop is disabled while acting as another channel.', 'danger');
+      showNotification(<?php echo json_encode(t('bot_acting_as_disabled')); ?>, 'danger');
       return;
     }
     if (action === 'run' && !isBotMod) {
-      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      showNotification(<?php echo json_encode(t('bot_not_moderator_message')); ?>, 'danger');
       return;
     }
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     // Show immediate feedback that action was initiated
-    showNotification(`Stable bot ${action} command sent...`, 'info');
+    showNotification(<?php echo json_encode(t('bot_command_sent_stable', [':action' => ':action'])); ?>.replace(':action', action), 'info');
     btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
     // Set global flag for run operations
@@ -996,7 +996,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log('Stable bot action response:', data);
           // Check if token expired and redirect needed
           if (data.redirect) {
-            showNotification('Session expired. Redirecting to login...', 'warning');
+            showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
             setTimeout(() => { window.location.href = data.redirect; }, 1500);
             return;
           }
@@ -1024,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', function() {
               botRunOperationInProgress = false;
               currentBotBeingStarted = null;
             }
-            showNotification(`Failed to ${action} stable bot: ${data.message}`, 'danger'); 
+            showNotification(<?php echo json_encode(t('bot_action_failed_stable', [':action' => ':action', ':message' => ':message'])); ?>.replace(':action', action).replace(':message', data.message), 'danger');
             // Always restore button state
             btn.innerHTML = originalContent;
             btn.disabled = false;
@@ -1037,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', function() {
             botRunOperationInProgress = false;
             currentBotBeingStarted = null;
           }
-          showNotification(`Error processing request: ${error}`, 'danger');
+          showNotification(<?php echo json_encode(t('bot_error_processing_request', [':error' => ':error'])); ?>.replace(':error', error), 'danger');
           // Always restore button state
           btn.innerHTML = originalContent;
           btn.disabled = false;
@@ -1046,21 +1046,21 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function handleBetaBotAction(action) {
     if (isActingAs) {
-      showNotification('Bot start/stop is disabled while acting as another channel.', 'danger');
+      showNotification(<?php echo json_encode(t('bot_acting_as_disabled')); ?>, 'danger');
       return;
     }
     if (action === 'run' && !isBotMod) {
-      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      showNotification(<?php echo json_encode(t('bot_not_moderator_message')); ?>, 'danger');
       return;
     }
     if (action === 'run' && !hasBetaAccess) {
-      showNotification("You do not have access to the beta bot. Please subscribe to access beta features.", 'danger');
+      showNotification(<?php echo json_encode(t('bot_no_beta_access')); ?>, 'danger');
       return;
     }
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     // Show immediate feedback that action was initiated
-    showNotification(`Beta bot ${action} command sent...`, 'info');
+    showNotification(<?php echo json_encode(t('bot_command_sent_beta', [':action' => ':action'])); ?>.replace(':action', action), 'info');
     btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
     // Set global flag for run operations
@@ -1095,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log('Beta bot action response:', data);
           // Check if token expired and redirect needed
           if (data.redirect) {
-            showNotification('Session expired. Redirecting to login...', 'warning');
+            showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
             setTimeout(() => { window.location.href = data.redirect; }, 1500);
             return;
           }
@@ -1123,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', function() {
               botRunOperationInProgress = false;
               currentBotBeingStarted = null;
             }
-            showNotification(`Failed to ${action} beta bot: ${data.message}`, 'danger');
+            showNotification(<?php echo json_encode(t('bot_action_failed_beta', [':action' => ':action', ':message' => ':message'])); ?>.replace(':action', action).replace(':message', data.message), 'danger');
             // Always restore button state
             btn.innerHTML = originalContent;
             btn.disabled = false;
@@ -1136,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
             botRunOperationInProgress = false;
             currentBotBeingStarted = null;
           }
-          showNotification(`Error processing request: ${error}`, 'danger');
+          showNotification(<?php echo json_encode(t('bot_error_processing_request', [':error' => ':error'])); ?>.replace(':error', error), 'danger');
           // Always restore button state
           btn.innerHTML = originalContent;
           btn.disabled = false;
@@ -1145,16 +1145,16 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function handleV6BotAction(action) {
     if (isActingAs) {
-      showNotification('Bot start/stop is disabled while acting as another channel.', 'danger');
+      showNotification(<?php echo json_encode(t('bot_acting_as_disabled')); ?>, 'danger');
       return;
     }
     if (action === 'run' && !isBotMod) {
-      showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
+      showNotification(<?php echo json_encode(t('bot_not_moderator_message')); ?>, 'danger');
       return;
     }
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
-    showNotification(`Version 6 bot ${action} command sent...`, 'info');
+    showNotification(<?php echo json_encode(t('bot_command_sent_v6', [':action' => ':action'])); ?>.replace(':action', action), 'info');
     btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
     if (action === 'run') {
@@ -1172,7 +1172,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log('V6 bot action response:', data);
           // Check if token expired and redirect needed
           if (data.redirect) {
-            showNotification('Session expired. Redirecting to login...', 'warning');
+            showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
             setTimeout(() => { window.location.href = data.redirect; }, 1500);
             return;
           }
@@ -1186,7 +1186,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
           } else {
             if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
-            showNotification(`Failed to ${action} v6 bot: ${data.message}`, 'danger');
+            showNotification(<?php echo json_encode(t('bot_action_failed_v6', [':action' => ':action', ':message' => ':message'])); ?>.replace(':action', action).replace(':message', data.message), 'danger');
             btn.innerHTML = originalContent;
             btn.disabled = false;
           }
@@ -1194,7 +1194,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
           console.error('Error:', error);
           if (action === 'run') { botRunOperationInProgress = false; currentBotBeingStarted = null; }
-          showNotification(`Error processing request: ${error}`, 'danger');
+          showNotification(<?php echo json_encode(t('bot_error_processing_request', [':error' => ':error'])); ?>.replace(':error', error), 'danger');
           btn.innerHTML = originalContent;
           btn.disabled = false;
         });
@@ -1205,13 +1205,13 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentAttempt = 0;
     let pollInterval;
     // Show initial progress
-    showNotification(`Checking ${botType} bot status...`, 'info');
+    showNotification(<?php echo json_encode(t('bot_checking_status_progress', [':bot' => ':bot'])); ?>.replace(':bot', botType), 'info');
     pollInterval = setInterval(() => {
       currentAttempt++;
       // Check if we've exceeded max attempts
       if (currentAttempt > maxAttempts) {
         clearInterval(pollInterval);
-        showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot status check timed out. Please refresh the page to check current status.`, 'warning');
+        showNotification(<?php echo json_encode(t('bot_status_check_timed_out', [':bot' => ':bot'])); ?>.replace(':bot', botType.charAt(0).toUpperCase() + botType.slice(1)), 'warning');
         // Reset the global flag even on timeout
         if (currentBotBeingStarted === botType) {
           botRunOperationInProgress = false;
@@ -1221,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       // Show progress every few attempts to avoid spam
       if (currentAttempt % 4 === 0) {
-        showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
+        showNotification(<?php echo json_encode(t('bot_checking_status_progress_count', [':bot' => ':bot', ':current' => ':current', ':max' => ':max'])); ?>.replace(':bot', botType).replace(':current', currentAttempt).replace(':max', maxAttempts), 'info');
       }
       // Make the status check request
       fetchWithTimeout(`/api/check_bot_status.php?bot=${botType}&_t=${Date.now()}`, {}, 8000)
@@ -1236,7 +1236,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (data.running && data.pid && parseInt(data.pid) > 0) {
                 // Bot is now running with a valid PID - success!
                 clearInterval(pollInterval);
-                showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot is now running with PID ${data.pid}!`, 'success');
+                showNotification(<?php echo json_encode(t('bot_now_running_with_pid', [':bot' => ':bot', ':pid' => ':pid'])); ?>.replace(':bot', botType.charAt(0).toUpperCase() + botType.slice(1)).replace(':pid', data.pid), 'success');
                 updateBotStatus();
                 // Reset the global flag and clean up persistent notifications
                 if (currentBotBeingStarted === botType) {
@@ -1256,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', function() {
               // If on attempt 5 or later and we have success but no PID, show alternative success
               if (currentAttempt >= 5 && data.message && (data.message.includes('running') || data.message.includes('started'))) {
                 clearInterval(pollInterval);
-                showNotification(`${botType.charAt(0).toUpperCase() + botType.slice(1)} bot appears to be running! Refreshing status...`, 'success');
+                showNotification(<?php echo json_encode(t('bot_appears_running', [':bot' => ':bot'])); ?>.replace(':bot', botType.charAt(0).toUpperCase() + botType.slice(1)), 'success');
                 updateBotStatus();
                 // Reset the global flag
                 if (currentBotBeingStarted === botType) {
@@ -1287,7 +1287,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const maxAttempts = 15; // Check for up to 15 seconds
     const checkInterval = 1000; // Check every second
     if (attempt >= maxAttempts) {
-      showNotification(`${botType} bot status verification timed out. The bot may take longer to ${expectedRunning ? 'start' : 'stop'}.`, 'warning');
+      const verifyAction = expectedRunning ? <?php echo json_encode(t('bot_verb_start')); ?> : <?php echo json_encode(t('bot_verb_stop')); ?>;
+      showNotification(<?php echo json_encode(t('bot_status_verification_timed_out', [':bot' => ':bot', ':action' => ':action'])); ?>.replace(':bot', botType).replace(':action', verifyAction), 'warning');
       return;
     }
     // Wait before checking (except for the first attempt)
@@ -1298,9 +1299,9 @@ document.addEventListener('DOMContentLoaded', function() {
           if (data && typeof data.running !== 'undefined') {
             if (data.running === expectedRunning) {
               // State has changed as expected!
-              const actionText = expectedRunning ? 'started' : 'stopped';
-              const statusText = expectedRunning ? 'online' : 'offline';
-              showNotification(`${botType} bot ${actionText} successfully and is now ${statusText}!`, 'success');
+              const actionText = expectedRunning ? <?php echo json_encode(t('bot_verb_started')); ?> : <?php echo json_encode(t('bot_verb_stopped')); ?>;
+              const statusText = expectedRunning ? <?php echo json_encode(t('bot_word_online')); ?> : <?php echo json_encode(t('bot_word_offline')); ?>;
+              showNotification(<?php echo json_encode(t('bot_action_success_status', [':bot' => ':bot', ':action' => ':action', ':status' => ':status'])); ?>.replace(':bot', botType).replace(':action', actionText).replace(':status', statusText), 'success');
               // If bot just started, remove update notifications since the restart has occurred
               if (expectedRunning) {
                 const latestVersion = botType.toLowerCase() === 'beta' ? window.latestBetaVersion : window.latestStableVersion;
@@ -1350,8 +1351,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     return c;
   }
+  // Language-independent marker substrings used for notification de-duplication.
+  // Each marker is guaranteed to appear verbatim inside the corresponding translated
+  // message in every language, so the .includes() heuristics keep working when localized.
+  const NOTIF_MARKERS = {
+    commandSent: <?php echo json_encode(t('bot_marker_command_sent')); ?>,
+    checking: <?php echo json_encode(t('bot_marker_checking')); ?>,
+    isNowRunning: <?php echo json_encode(t('bot_marker_now_running')); ?>,
+    statusCheckTimedOut: <?php echo json_encode(t('bot_marker_status_check_timed_out')); ?>,
+    startingUp: <?php echo json_encode(t('bot_marker_starting_up')); ?>,
+    cannotSwitch: <?php echo json_encode(t('bot_marker_cannot_switch')); ?>,
+    versionAvailable: <?php echo json_encode(t('bot_marker_version_available')); ?>,
+    codeUpdated: <?php echo json_encode(t('bot_marker_code_updated')); ?>,
+    updateAvailable: <?php echo json_encode(t('bot_marker_update_available')); ?>,
+    betaCodeUpdated: <?php echo json_encode(t('bot_marker_beta_code_updated')); ?>,
+    restartToApply: <?php echo json_encode(t('bot_marker_restart_to_apply')); ?>,
+    botWord: <?php echo json_encode(t('bot_marker_bot_word')); ?>
+  };
   // Function to show notifications
   function showNotification(message, type) {
+    const dismissLabel = <?php echo json_encode(t('bot_dismiss')); ?>;
     // Remove existing notifications with the same message and type
     document.querySelectorAll(`.sp-notif.sp-notif-${type}`).forEach(n => {
       // Skip removing update notifications here; they are persistent and handled separately
@@ -1359,10 +1378,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (n.textContent.trim() === message.trim()) n.remove();
     });
     // Remove previous status checking notifications when showing new ones
-    if (message.includes('command sent') || message.includes('Checking') || message.includes('is now running')) {
+    if (message.includes(NOTIF_MARKERS.commandSent) || message.includes(NOTIF_MARKERS.checking) || message.includes(NOTIF_MARKERS.isNowRunning)) {
       document.querySelectorAll('.sp-notif.sp-notif-info').forEach(n => {
         if (n.classList.contains('bot-operation-persistent') || n.querySelector('.fas.fa-exclamation-triangle')) return;
-        if (n.textContent.includes('command sent') || n.textContent.includes('Checking') || n.textContent.includes('status check timed out')) {
+        if (n.textContent.includes(NOTIF_MARKERS.commandSent) || n.textContent.includes(NOTIF_MARKERS.checking) || n.textContent.includes(NOTIF_MARKERS.statusCheckTimedOut)) {
           n.remove();
         }
       });
@@ -1372,9 +1391,9 @@ document.addEventListener('DOMContentLoaded', function() {
     notification.className = `sp-alert ${notifClass(type)} sp-notif sp-notif-${type}`;
     notification.style.cssText = 'display:flex; align-items:flex-start; gap:0.5rem; pointer-events:auto; box-shadow:0 4px 14px rgba(0,0,0,0.3); margin:0;';
     // Add special handling for bot run operations in progress
-    const isPersistentBotOperation = message.includes('currently starting up') || message.includes('Cannot switch bot types');
+    const isPersistentBotOperation = message.includes(NOTIF_MARKERS.startingUp) || message.includes(NOTIF_MARKERS.cannotSwitch);
     // Add special handling for update notifications
-    const isUpdateNotification = type === 'update' || message.includes('version is available');
+    const isUpdateNotification = type === 'update' || message.includes(NOTIF_MARKERS.versionAvailable);
     // If this is an update notification, avoid creating duplicate persistent update notices
     if (isUpdateNotification) {
       try {
@@ -1394,11 +1413,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (isUpdateNotification) {
         notification.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
       } else {
-        notification.innerHTML = `<button class="sp-notif-close" aria-label="Dismiss">&times;</button><i class="fas fa-exclamation-triangle"></i> ${message}`;
+        notification.innerHTML = `<button class="sp-notif-close" aria-label="${dismissLabel}">&times;</button><i class="fas fa-exclamation-triangle"></i> ${message}`;
         notification.querySelector('.sp-notif-close').addEventListener('click', () => notification.remove());
       }
     } else {
-      notification.innerHTML = `<button class="sp-notif-close" aria-label="Dismiss">&times;</button> ${message}`;
+      notification.innerHTML = `<button class="sp-notif-close" aria-label="${dismissLabel}">&times;</button> ${message}`;
       notification.querySelector('.sp-notif-close').addEventListener('click', () => notification.remove());
     }
     // Append to fixed overlay — never touches page layout
@@ -1430,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Function to update UI optimistically (immediately) when an action succeeds
   function updateUIOptimistically(expectedRunning, botType) {
-    const statusText = expectedRunning ? 'ONLINE' : 'OFFLINE';
+    const statusText = expectedRunning ? <?php echo json_encode(t('bot_online')); ?> : <?php echo json_encode(t('bot_offline')); ?>;
     const statusClass = expectedRunning ? 'success' : 'danger';
     // Update the heartbeat icon
     const heartIconContainer = document.getElementById('botStatusIcon');
@@ -1485,9 +1504,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Show a small indicator that we're verifying the status
     if (expectedRunning) {
-      showNotification(`${botType} bot started - verifying status...`, 'info');
+      showNotification(<?php echo json_encode(t('bot_started_verifying', [':bot' => ':bot'])); ?>.replace(':bot', botType), 'info');
     } else {
-      showNotification(`${botType} bot stopped - verifying status...`, 'info');
+      showNotification(<?php echo json_encode(t('bot_stopped_verifying', [':bot' => ':bot'])); ?>.replace(':bot', botType), 'info');
     }
   }
   // Function to check for latest version updates
@@ -1525,7 +1544,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function removeUpdateNotifications() {
     // Remove all update notifications
     document.querySelectorAll('.bot-operation-persistent').forEach(notification => {
-      if (notification.textContent.includes('version is available') || notification.textContent.includes('Update Available') || notification.textContent.includes('code has been updated')) {
+      if (notification.textContent.includes(NOTIF_MARKERS.versionAvailable) || notification.textContent.includes(NOTIF_MARKERS.updateAvailable) || notification.textContent.includes(NOTIF_MARKERS.codeUpdated)) {
         notification.parentNode.removeChild(notification);
       }
     });
@@ -1537,7 +1556,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const selector = '.bot-operation-persistent';
     document.querySelectorAll(selector).forEach(notification => {
       const text = (notification.textContent || '');
-      if (text.includes('Beta bot code has been updated') || text.includes('restart the bot to apply changes')) {
+      if (text.includes(NOTIF_MARKERS.betaCodeUpdated) || text.includes(NOTIF_MARKERS.restartToApply)) {
         if (notification.parentNode) notification.parentNode.removeChild(notification);
       }
     });
@@ -1546,7 +1565,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window._seenUpdateNotifications && window._seenUpdateNotifications.size) {
         const toRemove = [];
         window._seenUpdateNotifications.forEach(msg => {
-          if (msg.includes('Beta bot code has been updated') || msg.includes('restart the bot to apply changes')) {
+          if (msg.includes(NOTIF_MARKERS.betaCodeUpdated) || msg.includes(NOTIF_MARKERS.restartToApply)) {
             toRemove.push(msg);
           }
         });
@@ -1557,9 +1576,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // Remove update notifications for a specific bot type (stable/beta) or globally
   function removeUpdateNotificationsForBot(botType, latestVersion) {
     const selector = '.bot-operation-persistent';
+    const botWordLower = NOTIF_MARKERS.botWord.toLowerCase();
     document.querySelectorAll(selector).forEach(notification => {
       const text = (notification.textContent || '').toLowerCase();
-      if (text.includes('version is available') || text.includes('update available') || text.includes('code has been updated') || (botType && text.includes(botType + ' bot'))) {
+      if (text.includes(NOTIF_MARKERS.versionAvailable.toLowerCase()) || text.includes(NOTIF_MARKERS.updateAvailable.toLowerCase()) || text.includes(NOTIF_MARKERS.codeUpdated.toLowerCase()) || (botType && text.includes(botType + ' ' + botWordLower))) {
         // If latestVersion provided, try to match it too (safe substring match)
         if (!latestVersion || text.includes(String(latestVersion).toLowerCase())) {
           if (notification.parentNode) notification.parentNode.removeChild(notification);
@@ -1572,7 +1592,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const toRemove = [];
         window._seenUpdateNotifications.forEach(msg => {
           const lower = (msg || '').toLowerCase();
-          if (lower.includes('version is available') || lower.includes('code has been updated') || (botType && lower.includes(botType + ' bot')) || (latestVersion && lower.includes(String(latestVersion).toLowerCase()))) {
+          if (lower.includes(NOTIF_MARKERS.versionAvailable.toLowerCase()) || lower.includes(NOTIF_MARKERS.codeUpdated.toLowerCase()) || (botType && lower.includes(botType + ' ' + botWordLower)) || (latestVersion && lower.includes(String(latestVersion).toLowerCase()))) {
             toRemove.push(msg);
           }
         });
@@ -1582,6 +1602,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Function to update bot status
   function updateBotStatus(silentUpdate = false) {
+    const txtUnknown = <?php echo json_encode(t('bot_value_unknown')); ?>;
+    const txtNever = <?php echo json_encode(t('bot_value_never')); ?>;
+    const txtOffline = <?php echo json_encode(t('bot_value_offline')); ?>;
+    const txtErrorLoading = <?php echo json_encode(t('bot_value_error_loading')); ?>;
     const urlParams = new URLSearchParams(window.location.search);
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
@@ -1616,11 +1640,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let isBetaCodeUpdate = false;
             if (data.version && normalizedRunning !== normalizedLatest && latestVersion !== 'N/A') {
               // Always show update notification when there's an update available
-              showNotification(`A new ${selectedBot} bot version is available! Current: ${data.version}, Latest: ${latestVersion}`, 'update');
+              showNotification(<?php echo json_encode(t('bot_new_version_available', [':bot' => ':bot', ':current' => ':current', ':latest' => ':latest'])); ?>.replace(':bot', selectedBot).replace(':current', data.version).replace(':latest', latestVersion), 'update');
               hasUpdate = true;
             } else if (selectedBot === 'beta' && data.running && data.lastModified && data.lastRun && data.lastRun !== 'Never' && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)) {
               // Check for beta code changes only if bot is currently running
-              showNotification('Beta bot code has been updated since your last run. Please restart the bot to apply changes.', 'update');
+              showNotification(<?php echo json_encode(t('bot_beta_code_updated_notice')); ?>, 'update');
               hasUpdate = true;
               isBetaCodeUpdate = true;
             }
@@ -1630,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (updateIndicator) {
                 const tag = updateIndicator.querySelector('.tag');
                 if (tag) {
-                  tag.textContent = selectedBot === 'beta' ? 'Code Update Available' : 'Update Available';
+                  tag.textContent = selectedBot === 'beta' ? <?php echo json_encode(t('bot_code_update_available')); ?> : <?php echo json_encode(t('bot_update_available')); ?>;
                 }
                 updateIndicator.style.display = 'block';
               }
@@ -1647,7 +1671,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 removeBetaCodeUpdateNotification();
               }
             }
-            const statusText = data.running ? 'ONLINE' : 'OFFLINE';
+            const statusText = data.running ? <?php echo json_encode(t('bot_online')); ?> : <?php echo json_encode(t('bot_offline')); ?>;
             const statusClass = data.running ? 'success' : 'danger';
             // Update status text
             const statusTextElement = document.getElementById('bot-status-text');
@@ -1705,21 +1729,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const lastRunElement = document.getElementById('last-run');
             const runningVersionElement = document.getElementById('running-version');
             if (lastUpdatedElement) {
-              lastUpdatedElement.textContent = data.lastModified || 'Unknown';
-              console.log('Updated last-updated to:', data.lastModified || 'Unknown');
+              lastUpdatedElement.textContent = data.lastModified || txtUnknown;
+              console.log('Updated last-updated to:', data.lastModified || txtUnknown);
             }
             if (lastRunElement) {
-              lastRunElement.textContent = data.lastRun || 'Never';
-              console.log('Updated last-run to:', data.lastRun || 'Never');
+              lastRunElement.textContent = data.lastRun || txtNever;
+              console.log('Updated last-run to:', data.lastRun || txtNever);
             }
             if (runningVersionElement) {
               let displayedVersion;
               if (data.running) {
                 // If the bot is running, show the version it is running (prefer lastRunVersion)
-                displayedVersion = data.lastRunVersion || data.version || 'Offline';
+                displayedVersion = data.lastRunVersion || data.version || txtOffline;
               } else {
                 // If the bot is not running, show Offline in the left panel
-                displayedVersion = 'Offline';
+                displayedVersion = txtOffline;
               }
               runningVersionElement.textContent = displayedVersion;
               console.log('Updated running-version to:', displayedVersion);
@@ -1745,10 +1769,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const lastRunElement = document.getElementById('last-run');
             const runningVersionElement = document.getElementById('running-version');
             if (lastUpdatedElement) {
-              lastUpdatedElement.textContent = 'Error loading';
+              lastUpdatedElement.textContent = txtErrorLoading;
             }
             if (lastRunElement) {
-              lastRunElement.textContent = 'Error loading';
+              lastRunElement.textContent = txtErrorLoading;
             }
             if (runningVersionElement) {
               const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
@@ -1763,10 +1787,10 @@ document.addEventListener('DOMContentLoaded', function() {
           const lastRunElement = document.getElementById('last-run');
           const runningVersionElement = document.getElementById('running-version');
           if (lastUpdatedElement) {
-            lastUpdatedElement.textContent = 'Error loading';
+            lastUpdatedElement.textContent = txtErrorLoading;
           }
           if (lastRunElement) {
-            lastRunElement.textContent = 'Error loading';
+            lastRunElement.textContent = txtErrorLoading;
           }
           if (runningVersionElement) {
             const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
@@ -1786,10 +1810,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const lastRunElement = document.getElementById('last-run');
         const runningVersionElement = document.getElementById('running-version');
         if (lastUpdatedElement) {
-          lastUpdatedElement.textContent = 'Error loading';
+          lastUpdatedElement.textContent = txtErrorLoading;
         }
         if (lastRunElement) {
-          lastRunElement.textContent = 'Error loading';
+          lastRunElement.textContent = txtErrorLoading;
         }
         if (runningVersionElement) {
           const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
@@ -1967,6 +1991,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const runningNormallyText = <?php echo json_encode(t('bot_running_normally')); ?>;
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
+    const monitoringDisabledText = <?php echo json_encode(t('bot_monitoring_disabled')); ?>;
+    const deadText = <?php echo json_encode(t('bot_dead')); ?>;
+    const errorLabelText = <?php echo json_encode(t('bot_error_label')); ?>;
     services.forEach(svc => {
       fetchWithTimeout('/api/api_status.php?service=' + svc.api, {}, 8000)
         .then(r => r.json())
@@ -1991,7 +2018,7 @@ document.addEventListener('DOMContentLoaded', function() {
               statusElem.textContent = data.message || serviceDegradedText;
               statusElem.style.color = 'var(--red)';
             } else if (data.status === 'DISABLED') {
-              statusElem.textContent = 'Monitoring Disabled';
+              statusElem.textContent = monitoringDisabledText;
               statusElem.style.color = 'var(--text-muted)';
             } else {
               statusElem.textContent = serviceDegradedText;
@@ -2006,7 +2033,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (pidElem) {
                 if (data.pid) {
                   const pidColor = data.pid_running ? 'var(--green)' : 'var(--red)';
-                  pidElem.innerHTML = `<span style="color:${pidColor}">${data.pid}${!data.pid_running ? ' (Dead)' : ''}</span>`;
+                  pidElem.innerHTML = `<span style="color:${pidColor}">${data.pid}${!data.pid_running ? ' (' + deadText + ')' : ''}</span>`;
                 } else {
                   pidElem.innerHTML = '<span style="color:var(--text-muted)">--</span>';
                 }
@@ -2052,13 +2079,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (svc.pidId) {
               const pidElem = document.getElementById(svc.pidId);
               if (pidElem) {
-                pidElem.innerHTML = '<span style="color:var(--red)">ERROR</span>';
+                pidElem.innerHTML = '<span style="color:var(--red)">' + errorLabelText + '</span>';
               }
             }
             const latencyElem = document.getElementById(svc.latencyId);
             const lastCheckElem = document.getElementById(svc.lastCheckId);
             if (latencyElem) {
-              latencyElem.innerHTML = '<span style="color:var(--red)">ERROR</span>';
+              latencyElem.innerHTML = '<span style="color:var(--red)">' + errorLabelText + '</span>';
             }
             if (lastCheckElem) {
               const now = new Date();
@@ -2211,7 +2238,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Disable button and show loading state
       unbanBotBtn.disabled = true;
       const originalHTML = unbanBotBtn.innerHTML;
-      unbanBotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing...</span>';
+      unbanBotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?php echo json_encode(t('bot_processing')); ?> + '</span>';
       try {
         const response = await fetch('https://api.twitch.tv/helix/moderation/bans?broadcaster_id=<?php echo htmlspecialchars($twitchUserId); ?>&moderator_id=<?php echo htmlspecialchars($twitchUserId); ?>&user_id=971436498', {
           method: 'DELETE',
@@ -2222,27 +2249,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if (response.status === 204) {
           // Success - show success notification
-          showNotification('Bot successfully unbanned! Refreshing page...', 'success');
+          showNotification(<?php echo json_encode(t('bot_unban_success')); ?>, 'success');
           // Reload the page after a short delay to show the updated status
           setTimeout(() => {
             window.location.reload();
           }, 2000);
         } else if (response.status === 401) {
           // Token expired
-          showNotification('Session expired. Redirecting to login...', 'warning');
+          showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
           setTimeout(() => { window.location.href = 'login.php'; }, 1500);
           return;
         } else {
           const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.message || 'Failed to unban bot';
-          showNotification('Error: ' + errorMessage, 'danger');
+          const errorMessage = errorData.message || <?php echo json_encode(t('bot_unban_failed')); ?>;
+          showNotification(<?php echo json_encode(t('bot_error_prefix', [':message' => ':message'])); ?>.replace(':message', errorMessage), 'danger');
           // Re-enable button
           unbanBotBtn.disabled = false;
           unbanBotBtn.innerHTML = originalHTML;
         }
       } catch (error) {
         console.error('Error unbanning bot:', error);
-        showNotification('Network error: Could not connect to Twitch API', 'danger');
+        showNotification(<?php echo json_encode(t('bot_twitch_network_error')); ?>, 'danger');
         // Re-enable button
         unbanBotBtn.disabled = false;
         unbanBotBtn.innerHTML = originalHTML;
@@ -2256,7 +2283,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Disable button and show loading state
       makeModBtn.disabled = true;
       const originalHTML = makeModBtn.innerHTML;
-      makeModBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing...</span>';
+      makeModBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?php echo json_encode(t('bot_processing')); ?> + '</span>';
       try {
         const response = await fetch('https://api.twitch.tv/helix/moderation/moderators', {
           method: 'POST',
@@ -2272,27 +2299,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if (response.status === 204) {
           // Success - show success notification
-          showNotification('Bot successfully added as moderator! Refreshing page...', 'success');
+          showNotification(<?php echo json_encode(t('bot_make_mod_success')); ?>, 'success');
           // Reload the page after a short delay to show the updated status
           setTimeout(() => {
             window.location.reload();
           }, 2000);
         } else if (response.status === 401) {
           // Token expired
-          showNotification('Session expired. Redirecting to login...', 'warning');
+          showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
           setTimeout(() => { window.location.href = 'login.php'; }, 1500);
           return;
         } else {
           const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.message || 'Failed to add bot as moderator';
-          showNotification('Error: ' + errorMessage, 'danger');
+          const errorMessage = errorData.message || <?php echo json_encode(t('bot_make_mod_failed')); ?>;
+          showNotification(<?php echo json_encode(t('bot_error_prefix', [':message' => ':message'])); ?>.replace(':message', errorMessage), 'danger');
           // Re-enable button
           makeModBtn.disabled = false;
           makeModBtn.innerHTML = originalHTML;
         }
       } catch (error) {
         console.error('Error making bot moderator:', error);
-        showNotification('Network error: Could not connect to Twitch API', 'danger');
+        showNotification(<?php echo json_encode(t('bot_twitch_network_error')); ?>, 'danger');
         // Re-enable button
         makeModBtn.disabled = false;
         makeModBtn.innerHTML = originalHTML;
@@ -2360,13 +2387,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (onlineBtn) {
       onlineBtn.addEventListener('click', function() {
         Swal.fire({
-          title: 'Force Online',
-          text: "Forcing Online will tell the entire bot system that you're online, even if you're not online on Twitch",
+          title: <?php echo json_encode(t('bot_force_online')); ?>,
+          text: <?php echo json_encode(t('bot_force_online_confirm_text')); ?>,
           icon: 'warning',
           showCancelButton: true,
           confirmButtonColor: '#3085d6',
           cancelButtonColor: '#d33',
-          confirmButtonText: 'Yes, Force Online'
+          confirmButtonText: <?php echo json_encode(t('bot_force_online_confirm_button')); ?>
         }).then((result) => {
           if (result.isConfirmed) {
             onlineBtn.disabled = true;
@@ -2387,13 +2414,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (offlineBtn) {
       offlineBtn.addEventListener('click', function() {
         Swal.fire({
-          title: 'Force Offline',
-          text: "Forcing Offline will tell the bot system that you're offline, even if you're online on Twitch, doing so will result in the bot resetting certain information it's holding, for example, Users Seen today for welcome messages, credits overlay data and timed messages.",
+          title: <?php echo json_encode(t('bot_force_offline')); ?>,
+          text: <?php echo json_encode(t('bot_force_offline_confirm_text')); ?>,
           icon: 'warning',
           showCancelButton: true,
           confirmButtonColor: '#3085d6',
           cancelButtonColor: '#d33',
-          confirmButtonText: 'Yes, Force Offline'
+          confirmButtonText: <?php echo json_encode(t('bot_force_offline_confirm_button')); ?>
         }).then((result) => {
           if (result.isConfirmed) {
             offlineBtn.disabled = true;
@@ -2416,7 +2443,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Prevent page refresh/navigation when bot run operation is in progress
   window.addEventListener('beforeunload', function(e) {
     if (botRunOperationInProgress) {
-      const message = `${currentBotBeingStarted ? currentBotBeingStarted.charAt(0).toUpperCase() + currentBotBeingStarted.slice(1) : 'Bot'} is currently starting up. Are you sure you want to leave?`;
+      const botName = currentBotBeingStarted ? currentBotBeingStarted.charAt(0).toUpperCase() + currentBotBeingStarted.slice(1) : NOTIF_MARKERS.botWord;
+      const message = <?php echo json_encode(t('bot_beforeunload_warning', [':bot' => ':bot'])); ?>.replace(':bot', botName);
       e.preventDefault();
       e.returnValue = message;
       return message;
@@ -2426,7 +2454,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if a bot run operation is in progress
     if (botRunOperationInProgress) {
       // Show warning notification
-      showNotification(`Please wait! ${currentBotBeingStarted ? currentBotBeingStarted.charAt(0).toUpperCase() + currentBotBeingStarted.slice(1) : 'Bot'} is currently starting up. Cannot switch bot types until the bot is running with a valid PID.`, 'warning');
+      const switchBotName = currentBotBeingStarted ? currentBotBeingStarted.charAt(0).toUpperCase() + currentBotBeingStarted.slice(1) : NOTIF_MARKERS.botWord;
+      showNotification(<?php echo json_encode(t('bot_cannot_switch_warning', [':bot' => ':bot'])); ?>.replace(':bot', switchBotName), 'warning');
       // Reset the dropdown to the current selection to prevent visual confusion
       const botSelector = document.getElementById('bot-selector');
       if (botSelector) {

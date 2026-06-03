@@ -117,12 +117,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     curl_close($ch);
     if ($httpcode == 204) {
       $ajaxSuccess = true;
-      $ajaxStatus = "Operation successful: User '$VIPusername' has been " . ($action === 'add' ? 'added' : 'removed') . " as a VIP.";
+      $ajaxStatus = ($action === 'add')
+        ? t('vips_status_added', ['name' => $VIPusername])
+        : t('vips_status_removed', ['name' => $VIPusername]);
     } else {
-      $ajaxStatus = "Operation failed: Unable to $action user '$VIPusername' as a VIP. Response code: $httpcode";
+      $actionVerb = ($action === 'add') ? t('vips_verb_add') : t('vips_verb_remove');
+      $ajaxStatus = t('vips_status_failed', ['action' => $actionVerb, 'name' => $VIPusername, 'code' => $httpcode]);
     }
   } else {
-    $ajaxStatus = "Could not retrieve user ID for username: $VIPusername";
+    $ajaxStatus = t('vips_status_no_user', ['name' => $VIPusername]);
   }
   // Re-fetch the full VIP list to return the updated data
   $freshVIPs = [];
@@ -277,6 +280,10 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+var VIP_I18N = {
+    noneFound: <?php echo json_encode(t('vips_none_found')); ?>,
+    ajaxError: <?php echo json_encode(t('vips_js_ajax_error')); ?>
+};
 $(document).ready(function() {
     // Fade in all VIP cards
     function fadeInCards() {
@@ -321,7 +328,7 @@ $(document).ready(function() {
             $body.append(
                 '<div style="text-align:center;padding:3rem 0;">' +
                   '<span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;"><i class="fas fa-star fa-3x"></i></span>' +
-                  '<p class="sp-text-muted" style="font-size:1.1rem;">No VIPs found</p>' +
+                  '<p class="sp-text-muted" style="font-size:1.1rem;">' + VIP_I18N.noneFound + '</p>' +
                 '</div>'
             );
         } else {
@@ -390,7 +397,7 @@ $(document).ready(function() {
                 }
             },
             error: function() {
-                $('#vip-status-text').text('An error occurred. Please try again.');
+                $('#vip-status-text').text(VIP_I18N.ajaxError);
                 $('#vip-status-msg').show();
             },
             complete: function() {

@@ -1,5 +1,21 @@
 <?php
 require_once '/var/www/config/database.php';
+
+// Load translations so user-facing messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 $dbname = $_SESSION['username'] ?? '';
 
 $commands = [];
@@ -28,7 +44,7 @@ $quotesData = [];
 // Only use $db for user dashboard queries
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
+    die(t('user_db_error_connection_failed', [$db->connect_error]));
 }
 
 $commands = $db->query("SELECT * FROM custom_commands")->fetch_all(MYSQLI_ASSOC);

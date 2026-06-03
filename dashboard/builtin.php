@@ -67,16 +67,16 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 if ($httpCode !== 200 || !$jsonText) {
-    die('Failed to load builtin commands information from API (HTTP ' . $httpCode . ')');
+    die(t('builtin_commands_error_api_load', [$httpCode]));
 }
 
 $jsonData = json_decode($jsonText, true);
 if (json_last_error() !== JSON_ERROR_NONE) {
-    die('Failed to parse builtin commands JSON: ' . json_last_error_msg());
+    die(t('builtin_commands_error_json_parse', [json_last_error_msg()]));
 }
 
 if (!isset($jsonData['commands']) || !is_array($jsonData['commands'])) {
-    die('Invalid builtin commands data structure received from API');
+    die(t('builtin_commands_error_invalid_data'));
 }
 
 $cmdData = $jsonData['commands'];
@@ -148,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $decoded_options = json_decode($options, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 while (ob_get_level()) ob_end_clean();
-                echo json_encode(['success' => false, 'message' => 'Invalid JSON options: ' . json_last_error_msg()]);
+                echo json_encode(['success' => false, 'message' => t('builtin_commands_error_invalid_json_options', [json_last_error_msg()])]);
                 exit();
             }
             // Save cooldown options to builtin_commands table
@@ -161,7 +161,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $cooldown_stmt->bind_param('iiss', $cooldown_rate, $cooldown_time, $cooldown_bucket, $command_name);
                     if (!$cooldown_stmt->execute()) {
                         while (ob_get_level()) ob_end_clean();
-                        echo json_encode(['success' => false, 'message' => 'Database error updating cooldown: ' . $cooldown_stmt->error]);
+                        echo json_encode(['success' => false, 'message' => t('builtin_commands_error_db_cooldown', [$cooldown_stmt->error])]);
                         $cooldown_stmt->close();
                         exit();
                     }
@@ -178,7 +178,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt->bind_param('sss', $command_name, $command_options_json, $command_options_json);
                     if (!$stmt->execute()) {
                         while (ob_get_level()) ob_end_clean();
-                        echo json_encode(['success' => false, 'message' => 'Database error saving command options: ' . $stmt->error]);
+                        echo json_encode(['success' => false, 'message' => t('builtin_commands_error_db_save_options', [$stmt->error])]);
                         $stmt->close();
                         exit();
                     }
@@ -272,7 +272,7 @@ ob_start();
                             $hasForceLevel = isset($cmdForceLevels[$cmdKey]);
                             $forceLevel = $hasForceLevel ? $cmdForceLevels[$cmdKey] : null;
                             $aliases = isset($cmdAliases[$cmdKey]) ? $cmdAliases[$cmdKey] : [];
-                            $tooltipText = !empty($aliases) ? 'Aliases: !' . implode(', !', $aliases) : '';
+                            $tooltipText = !empty($aliases) ? t('builtin_commands_aliases_tooltip', ['aliases' => '!' . implode(', !', $aliases)]) : '';
                         ?>
                         <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
                             <td style="text-align:center; font-weight:600; color:var(--blue); vertical-align:middle;">
@@ -356,6 +356,30 @@ ob_start();
 ?>
 <script>
 const cookieConsent = <?php echo $cookieConsent ? 'true' : 'false'; ?>;
+const BC_I18N = {
+    loading: <?php echo json_encode(t('builtin_commands_js_loading')); ?>,
+    errorParsing: <?php echo json_encode(t('builtin_commands_js_error_parsing')); ?>,
+    errorLoadingOptions: <?php echo json_encode(t('builtin_commands_js_error_loading_options')); ?>,
+    errorSavingOptions: <?php echo json_encode(t('builtin_commands_js_error_saving_options')); ?>,
+    errorSavingPrefix: <?php echo json_encode(t('builtin_commands_js_error_saving_prefix')); ?>,
+    saving: <?php echo json_encode(t('builtin_commands_js_saving')); ?>,
+    saveSuccess: <?php echo json_encode(t('builtin_commands_js_save_success')); ?>,
+    cooldownRateLabel: <?php echo json_encode(t('builtin_commands_js_cooldown_rate_label')); ?>,
+    cooldownRateHelp: <?php echo json_encode(t('builtin_commands_js_cooldown_rate_help')); ?>,
+    cooldownTimeLabel: <?php echo json_encode(t('builtin_commands_js_cooldown_time_label')); ?>,
+    cooldownTimeHelp: <?php echo json_encode(t('builtin_commands_js_cooldown_time_help')); ?>,
+    cooldownBucketLabel: <?php echo json_encode(t('builtin_commands_js_cooldown_bucket_label')); ?>,
+    cooldownBucketDefault: <?php echo json_encode(t('builtin_commands_js_cooldown_bucket_default')); ?>,
+    cooldownBucketUser: <?php echo json_encode(t('builtin_commands_js_cooldown_bucket_user')); ?>,
+    cooldownBucketMod: <?php echo json_encode(t('builtin_commands_js_cooldown_bucket_mod')); ?>,
+    cooldownBucketHelp: <?php echo json_encode(t('builtin_commands_js_cooldown_bucket_help')); ?>,
+    lurkTimerLabel: <?php echo json_encode(t('builtin_commands_js_lurk_timer_label')); ?>,
+    lurkTimerCheckbox: <?php echo json_encode(t('builtin_commands_js_lurk_timer_checkbox')); ?>,
+    lurkTimerHelp: <?php echo json_encode(t('builtin_commands_js_lurk_timer_help')); ?>,
+    unlurkTimerLabel: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_label')); ?>,
+    unlurkTimerCheckbox: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_checkbox')); ?>,
+    unlurkTimerHelp: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_help')); ?>
+};
 // Remember search query using localStorage and attach filter listeners after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     var searchInput = document.getElementById('searchInput');
@@ -481,7 +505,7 @@ function closeCommandModal() {
 function loadCommandOptions(commandName) {
     const modalContent = document.getElementById('modalContent');
     // Show loading state
-    modalContent.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    modalContent.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> ' + BC_I18N.loading + '</div>';
     // Fetch command options
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '', true);
@@ -497,10 +521,10 @@ function loadCommandOptions(commandName) {
                         modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + response.message + '</div>';
                     }
                 } catch (e) {
-                    modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error parsing response</div>';
+                    modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + BC_I18N.errorParsing + '</div>';
                 }
             } else {
-                modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading command options</div>';
+                modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + BC_I18N.errorLoadingOptions + '</div>';
             }
         }
     };
@@ -516,23 +540,23 @@ function renderCommandOptions(commandName, options) {
     // Build cooldown options HTML
     let html = `
         <div class="sp-form-group">
-            <label class="sp-label">Cooldown Rate</label>
+            <label class="sp-label">${BC_I18N.cooldownRateLabel}</label>
             <input class="sp-input" type="number" id="cooldownRate" value="${cooldownRate}" min="1">
-            <small class="sp-help">Number of times the command can be used before triggering cooldown. 1 means once used, you must wait the cooldown time before using it again.</small>
+            <small class="sp-help">${BC_I18N.cooldownRateHelp}</small>
         </div>
         <div class="sp-form-group">
-            <label class="sp-label">Cooldown Time (seconds)</label>
+            <label class="sp-label">${BC_I18N.cooldownTimeLabel}</label>
             <input class="sp-input" type="number" id="cooldownTime" value="${cooldownTime}" min="0">
-            <small class="sp-help">Time in seconds before the command can be used again after reaching the rate limit.</small>
+            <small class="sp-help">${BC_I18N.cooldownTimeHelp}</small>
         </div>
         <div class="sp-form-group">
-            <label class="sp-label">Cooldown Bucket</label>
+            <label class="sp-label">${BC_I18N.cooldownBucketLabel}</label>
             <select class="sp-select" id="cooldownBucket">
-                <option value="default" ${cooldownBucket === 'default' ? 'selected' : ''}>Default (all users)</option>
-                <option value="user" ${cooldownBucket === 'user' ? 'selected' : ''}>User (per-user cooldown)</option>
-                <option value="mod" ${cooldownBucket === 'mod' ? 'selected' : ''}>Mod (only cooldown for mods)</option>
+                <option value="default" ${cooldownBucket === 'default' ? 'selected' : ''}>${BC_I18N.cooldownBucketDefault}</option>
+                <option value="user" ${cooldownBucket === 'user' ? 'selected' : ''}>${BC_I18N.cooldownBucketUser}</option>
+                <option value="mod" ${cooldownBucket === 'mod' ? 'selected' : ''}>${BC_I18N.cooldownBucketMod}</option>
             </select>
-            <small class="sp-help">Bucket name for grouping cooldowns.</small>
+            <small class="sp-help">${BC_I18N.cooldownBucketHelp}</small>
         </div>
     `;
     // Add command-specific options
@@ -541,12 +565,12 @@ function renderCommandOptions(commandName, options) {
         html += `
             <hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">
             <div class="sp-form-group">
-                <label class="sp-label">Lurk Timer</label>
+                <label class="sp-label">${BC_I18N.lurkTimerLabel}</label>
                 <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-primary); cursor:pointer;">
                     <input type="checkbox" id="lurkTimer" ${timerEnabled ? 'checked' : ''}>
-                    Enable lurk timer (shows how long user has been lurking when they use !lurk again)
+                    ${BC_I18N.lurkTimerCheckbox}
                 </label>
-                <small class="sp-help">When enabled, the bot will track how long users have been lurking and display the duration when they use the !lurk command again.</small>
+                <small class="sp-help">${BC_I18N.lurkTimerHelp}</small>
             </div>
         `;
     } else if (commandName === 'unlurk') {
@@ -554,12 +578,12 @@ function renderCommandOptions(commandName, options) {
         html += `
             <hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">
             <div class="sp-form-group">
-                <label class="sp-label">Unlurk Timer</label>
+                <label class="sp-label">${BC_I18N.unlurkTimerLabel}</label>
                 <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-primary); cursor:pointer;">
                     <input type="checkbox" id="unlurkTimer" ${timerEnabled ? 'checked' : ''}>
-                    Enable unlurk timer (resets lurk timer when user returns from lurking)
+                    ${BC_I18N.unlurkTimerCheckbox}
                 </label>
-                <small class="sp-help">When enabled, the bot will reset the user's lurk timer instead of removing them from lurk tracking when they use !unlurk. This allows continuous lurk time tracking.</small>
+                <small class="sp-help">${BC_I18N.unlurkTimerHelp}</small>
             </div>
         `;
     }
@@ -591,7 +615,7 @@ function saveCommandOptions() {
     // Show saving state
     const saveButton = document.getElementById('saveOptionsBtn');
     const originalText = saveButton.textContent;
-    saveButton.textContent = 'Saving...';
+    saveButton.textContent = BC_I18N.saving;
     saveButton.disabled = true;
     // Save options via AJAX
     var xhr = new XMLHttpRequest();
@@ -608,15 +632,15 @@ function saveCommandOptions() {
                     if (response.success) {
                         closeCommandModal();
                         // Show success message
-                        showNotification('Command options saved successfully!', 'sp-alert-success');
+                        showNotification(BC_I18N.saveSuccess, 'sp-alert-success');
                     } else {
-                        showNotification('Error saving options: ' + response.message, 'sp-alert-danger');
+                        showNotification(BC_I18N.errorSavingPrefix + response.message, 'sp-alert-danger');
                     }
                 } catch (e) {
-                    showNotification('Error parsing response', 'sp-alert-danger');
+                    showNotification(BC_I18N.errorParsing, 'sp-alert-danger');
                 }
             } else {
-                showNotification('Error saving command options', 'sp-alert-danger');
+                showNotification(BC_I18N.errorSavingOptions, 'sp-alert-danger');
             }
         }
     };

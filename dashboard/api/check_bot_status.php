@@ -13,16 +13,31 @@ $operationStart = microtime(true);
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+  $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+  $i18nPath = __DIR__ . '/../lang/i18n.php';
+  if (file_exists($i18nPath)) {
+    include_once $i18nPath;
+  }
+  if (!function_exists('t')) {
+    function t($key, $replacements = [])
+    {
+      return $key;
+    }
+  }
+}
+
 if (!isset($_GET['bot'])) {
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Missing bot parameter']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_missing_bot')]);
   exit();
 }
 
 $bot = $_GET['bot'];
 if (!in_array($bot, ['stable', 'beta', 'v6'])) {
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_invalid_bot_type')]);
   exit();
 }
 
@@ -32,7 +47,7 @@ $username = $_SESSION['username'] ?? '';
 // Require username for bot status checks
 if (empty($username)) {
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Username not found in session']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_username_not_found')]);
   exit();
 }
 
@@ -151,8 +166,8 @@ $response = [
   'lastRunVersion' => $remoteFileVersion ?: null,
   'latestVersion' => $latestVersion,
   'updateAvailable' => !empty($preferredVersion) && !empty($latestVersion) && version_compare($preferredVersion, $latestVersion, '<'),
-  'lastModified' => isset($botStatus['lastModified']) && $botStatus['lastModified'] ? formatTimeAgo($botStatus['lastModified']) : 'Unknown',
-  'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : 'Never'
+  'lastModified' => isset($botStatus['lastModified']) && $botStatus['lastModified'] ? formatTimeAgo($botStatus['lastModified']) : t('bot_value_unknown'),
+  'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : t('bot_value_never')
 ];
 
 // Add status message - show helpful messages even when SSH succeeds
@@ -165,20 +180,20 @@ echo json_encode($response);
 exit();
 
 function formatTimeAgo($timestamp) {
-  if (!$timestamp) return 'Never';
+  if (!$timestamp) return t('bot_value_never');
   $current = time();
   $diff = $current - $timestamp;
   if ($diff < 60) {
-    return "{$diff} seconds ago";
+    return t('time_seconds_ago', ['count' => $diff]);
   } elseif ($diff < 3600) {
     $minutes = floor($diff / 60);
-    return "{$minutes} minute" . ($minutes != 1 ? 's' : '') . " ago";
+    return t('time_minutes_ago', ['count' => $minutes]);
   } elseif ($diff < 86400) {
     $hours = floor($diff / 3600);
-    return "{$hours} hour" . ($hours != 1 ? 's' : '') . " ago";
+    return t('time_hours_ago', ['count' => $hours]);
   } else {
     $days = floor($diff / 86400);
-    return "{$days} day" . ($days != 1 ? 's' : '') . " ago";
+    return t('time_days_ago', ['count' => $days]);
   }
 }
 ?>

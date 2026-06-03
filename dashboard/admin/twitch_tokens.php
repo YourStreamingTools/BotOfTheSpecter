@@ -73,7 +73,7 @@ function fetchWebsiteTwitchSettings($conn) {
 
 function requestTwitchAppAccessToken($clientID, $clientSecret) {
     if (empty($clientID) || empty($clientSecret)) {
-        return ['success' => false, 'error' => 'Client credentials are required'];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_client_credentials_required')];
     }
     $url = 'https://id.twitch.tv/oauth2/token';
     $data = [
@@ -83,7 +83,7 @@ function requestTwitchAppAccessToken($clientID, $clientSecret) {
     ];
     $ch = curl_init($url);
     if (!$ch) {
-        return ['success' => false, 'error' => 'cURL initialization failed.'];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_curl_init')];
     }
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
@@ -97,16 +97,16 @@ function requestTwitchAppAccessToken($clientID, $clientSecret) {
     $curlError = curl_error($ch);
     curl_close($ch);
     if ($curlError) {
-        return ['success' => false, 'error' => 'cURL error: ' . $curlError];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])];
     }
     if ($httpCode !== 200) {
         $error = json_decode($response, true);
-        $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to generate token (HTTP ' . $httpCode . ').';
+        $errorMsg = isset($error['message']) ? $error['message'] : t('admin_twitch_tokens_err_generate_http', [$httpCode]);
         return ['success' => false, 'error' => $errorMsg];
     }
     $result = json_decode($response, true);
     if ($result === null || !isset($result['access_token'])) {
-        return ['success' => false, 'error' => 'Invalid response from Twitch API.'];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_invalid_response')];
     }
     return [
         'success' => true,
@@ -118,7 +118,7 @@ function requestTwitchAppAccessToken($clientID, $clientSecret) {
 
 function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
     if (!isset($conn) || !$conn) {
-        return ['success' => false, 'error' => 'Database connection failed'];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_db_connection')];
     }
     $settings = fetchWebsiteTwitchSettings($conn);
     $tokenColumn = $settings['columns']['chat_token'];
@@ -131,19 +131,19 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
     if (!$hasRow) {
         $insert = $conn->prepare("INSERT INTO bot_chat_token (oauth, twitch_oauth_api_token, twitch_oauth_api_expires_at) VALUES (?, ?, ?)");
         if (!$insert) {
-            return ['success' => false, 'error' => 'Failed to prepare bot_chat_token insert: ' . $conn->error];
+            return ['success' => false, 'error' => t('admin_twitch_tokens_err_prepare_insert', [$conn->error])];
         }
         $insert->bind_param('sss', $accessToken, $accessToken, $expiresAt);
         if (!$insert->execute()) {
             $error = $insert->error;
             $insert->close();
-            return ['success' => false, 'error' => 'Failed to insert bot_chat_token row: ' . $error];
+            return ['success' => false, 'error' => t('admin_twitch_tokens_err_insert_row', [$error])];
         }
         $insert->close();
         return ['success' => true];
     }
     if (!$tokenColumn || !isSafeColumnName($tokenColumn)) {
-        return ['success' => false, 'error' => 'No suitable chat token column found in bot_chat_token table'];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_no_token_column')];
     }
     $setSql = [];
     $types = '';
@@ -159,13 +159,13 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
     $sql = "UPDATE bot_chat_token SET " . implode(', ', $setSql) . " LIMIT 1";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        return ['success' => false, 'error' => 'Failed to prepare bot_chat_token update: ' . $conn->error];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_prepare_update', [$conn->error])];
     }
     $stmt->bind_param($types, ...$values);
     if (!$stmt->execute()) {
         $error = $stmt->error;
         $stmt->close();
-        return ['success' => false, 'error' => 'Failed to update bot_chat_token token: ' . $error];
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_update_token', [$error])];
     }
     $stmt->close();
     return ['success' => true];
@@ -193,17 +193,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
             $clientSecret = $settings['client_secret'] ?? '';
         }
         if (empty($clientID) || empty($clientSecret)) {
-            echo json_encode(['success' => false, 'error' => 'Client ID and Client Secret are required. Please configure them in your config file or enter them manually.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_client_id_secret_required')]);
             exit;
         }
         $tokenResult = requestTwitchAppAccessToken($clientID, $clientSecret);
         if ($tokenResult['success']) {
             echo json_encode($tokenResult);
         } else {
-            echo json_encode(['success' => false, 'error' => $tokenResult['error'] ?? 'Token generation failed']);
+            echo json_encode(['success' => false, 'error' => $tokenResult['error'] ?? t('admin_twitch_tokens_err_token_generation_failed')]);
         }
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -217,13 +217,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
         $autoRenewIf24h = isset($_POST['auto_renew_if_24h']) && $_POST['auto_renew_if_24h'] === '1';
         $syncChatExpiry = isset($_POST['sync_chat_expiry']) && $_POST['sync_chat_expiry'] === '1';
         if (empty($token)) {
-            echo json_encode(['success' => false, 'error' => 'Access token is required.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_access_token_required')]);
             exit;
         }
         $url = 'https://id.twitch.tv/oauth2/validate';
         $ch = curl_init($url);
         if (!$ch) {
-            echo json_encode(['success' => false, 'error' => 'cURL initialization failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl_init')]);
             exit;
         }
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -236,13 +236,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
         $curlError = curl_error($ch);
         curl_close($ch);
         if ($curlError) {
-            echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlError]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
         if ($httpCode === 200) {
             $result = json_decode($response, true);
             if ($result === null) {
-                echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
+                echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_invalid_json')]);
                 exit;
             }
             $expiresIn = intval($result['expires_in'] ?? 0);
@@ -250,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
             if ($syncChatExpiry) {
                 $syncPersistResult = persistWebsiteChatToken($conn, $token, $expiresIn);
                 if (empty($syncPersistResult['success'])) {
-                    $syncWarning = $syncPersistResult['error'] ?? 'Failed to persist chat token expiry';
+                    $syncWarning = $syncPersistResult['error'] ?? t('admin_twitch_tokens_err_persist_expiry');
                 }
             }
             if ($autoRenewIf24h && $expiresIn > 0 && $expiresIn <= 86400) {
@@ -279,11 +279,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
             echo json_encode($resp);
         } else {
             $error = json_decode($response, true);
-            $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to validate token (HTTP ' . $httpCode . ').';
+            $errorMsg = isset($error['message']) ? $error['message'] : t('admin_twitch_tokens_err_validate_http', [$httpCode]);
             echo json_encode(['success' => false, 'error' => $errorMsg]);
         }
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -305,17 +305,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_chat_token'])) 
             }
         }
         if (empty($clientID) || empty($clientSecret)) {
-            echo json_encode(['success' => false, 'error' => 'Client credentials not configured.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_client_credentials_not_configured')]);
             exit;
         }
         $tokenResult = requestTwitchAppAccessToken($clientID, $clientSecret);
         if (empty($tokenResult['success'])) {
-            echo json_encode(['success' => false, 'error' => $tokenResult['error'] ?? 'Failed to renew token']);
+            echo json_encode(['success' => false, 'error' => $tokenResult['error'] ?? t('admin_twitch_tokens_err_renew_token')]);
             exit;
         }
         $persistResult = persistWebsiteChatToken($conn, $tokenResult['access_token'], $tokenResult['expires_in'] ?? 0);
         if (empty($persistResult['success'])) {
-            echo json_encode(['success' => false, 'error' => $persistResult['error'] ?? 'Failed to persist token']);
+            echo json_encode(['success' => false, 'error' => $persistResult['error'] ?? t('admin_twitch_tokens_err_persist_token')]);
             exit;
         }
         echo json_encode([
@@ -325,7 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_chat_token'])) 
             'token_type' => $tokenResult['token_type'] ?? 'bearer'
         ]);
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -337,29 +337,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
     try {
         $userId = isset($_POST['twitch_user_id']) ? trim($_POST['twitch_user_id']) : '';
         if (empty($userId)) {
-            echo json_encode(['success' => false, 'error' => 'User ID is required.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_user_id_required')]);
             exit;
         }
         $clientID = $GLOBALS['clientID'] ?? '';
         $clientSecret = $GLOBALS['clientSecret'] ?? '';
         if (empty($clientID) || empty($clientSecret)) {
-            echo json_encode(['success' => false, 'error' => 'Client credentials not configured.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_client_credentials_not_configured')]);
             exit;
         }
         // Validate database connection
         if (!isset($conn) || !$conn) {
-            echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_connection')]);
             exit;
         }
         // Get the user's refresh token from the users table
         $stmt = $conn->prepare("SELECT refresh_token FROM users WHERE twitch_user_id = ? LIMIT 1");
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'DB error: ' . $conn->error]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db', [$conn->error])]);
             exit;
         }
         $stmt->bind_param('s', $userId);
         if (!$stmt->execute()) {
-            echo json_encode(['success' => false, 'error' => 'DB query failed: ' . $stmt->error]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_query', [$stmt->error])]);
             $stmt->close();
             exit;
         }
@@ -367,12 +367,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
         $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         if (!$row) {
-            echo json_encode(['success' => false, 'error' => 'User not found']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_user_not_found')]);
             exit;
         }
         $refreshToken = $row['refresh_token'] ?? '';
         if (empty($refreshToken)) {
-            echo json_encode(['success' => false, 'error' => 'No refresh token available for this user. User may need to re-authenticate.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_no_refresh_token_user')]);
             exit;
         }
         // Call Twitch token endpoint to refresh using refresh_token
@@ -385,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
         ];
         $ch = curl_init($url);
         if (!$ch) {
-            echo json_encode(['success' => false, 'error' => 'cURL initialization failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl_init')]);
             exit;
         }
         curl_setopt($ch, CURLOPT_POST, true);
@@ -400,21 +400,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
         $curlError = curl_error($ch);
         curl_close($ch);
         if ($curlError) {
-            echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlError]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
         if ($httpCode !== 200) {
             $errMsg = $response ? (json_decode($response, true)['message'] ?? $response) : 'HTTP ' . $httpCode;
-            echo json_encode(['success' => false, 'error' => 'Failed to refresh token: ' . $errMsg]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_refresh_token', [$errMsg])]);
             exit;
         }
         $result = json_decode($response, true);
         if ($result === null) {
-            echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_invalid_json')]);
             exit;
         }
         if (!isset($result['access_token'])) {
-            echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch: ' . json_encode($result)]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_invalid_response_detail', [json_encode($result)])]);
             exit;
         }
         $newAccess = $result['access_token'];
@@ -423,14 +423,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
         // Update the users table with new tokens
         $upd = $conn->prepare("UPDATE users SET access_token = ?, refresh_token = ? WHERE twitch_user_id = ? LIMIT 1");
         if (!$upd) {
-            echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $conn->error]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_update', [$conn->error])]);
             exit;
         }
         $upd->bind_param('sss', $newAccess, $newRefresh, $userId);
         if (!$upd->execute()) {
             $err = $upd->error;
             $upd->close();
-            echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $err]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_update', [$err])]);
             exit;
         }
         $upd->close();
@@ -442,13 +442,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
             if (!$upd2->execute()) {
                 // non-fatal: log or include in response
                 $upd2->close();
-                echo json_encode(['success' => false, 'error' => 'Failed to update twitch_bot_access: ' . $conn->error]);
+                echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_update_bot_access', [$conn->error])]);
                 exit;
             }
             $upd2->close();
         } else {
             // non-fatal but inform caller
-            echo json_encode(['success' => false, 'error' => 'Failed to prepare twitch_bot_access update: ' . $conn->error]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_prepare_bot_access', [$conn->error])]);
             exit;
         }
         echo json_encode([
@@ -457,7 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
             'expires_in' => $newExpiresIn ?? 0
         ]);
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -472,7 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) 
         $expiresIn = isset($_POST['expires_in']) ? intval($_POST['expires_in']) : 0;
         $isValid = isset($_POST['is_valid']) ? filter_var($_POST['is_valid'], FILTER_VALIDATE_BOOLEAN) : false;
         if (empty($tokenId) || empty($tokenType)) {
-            echo json_encode(['success' => false, 'error' => 'token_id and token_type are required']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_token_id_type_required')]);
             exit;
         }
         // Define cache file location (outside web root or in a secure directory)
@@ -499,12 +499,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) 
         ];
         // Save cache
         if (file_put_contents($cacheFile, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX)) {
-            echo json_encode(['success' => true, 'message' => 'Token validation cached']);
+            echo json_encode(['success' => true, 'message' => t('admin_twitch_tokens_msg_validation_cached')]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Failed to save cache file']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_save_cache')]);
         }
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -516,23 +516,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_user_token'])) 
     try {
         $userId = isset($_POST['twitch_user_id']) ? trim($_POST['twitch_user_id']) : '';
         if (empty($userId)) {
-            echo json_encode(['success' => false, 'error' => 'User ID is required.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_user_id_required')]);
             exit;
         }
         // Validate database connection
         if (!isset($conn) || !$conn) {
-            echo json_encode(['success' => false, 'error' => 'Database connection failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_connection')]);
             exit;
         }
         // Fetch current token from twitch_bot_access table
         $stmt = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ? LIMIT 1");
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Database query preparation failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_query_prepare')]);
             exit;
         }
         $stmt->bind_param('s', $userId);
         if (!$stmt->execute()) {
-            echo json_encode(['success' => false, 'error' => 'Database query execution failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_query_execute')]);
             $stmt->close();
             exit;
         }
@@ -540,7 +540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_user_token'])) 
         $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         if (!$row) {
-            echo json_encode(['success' => false, 'error' => 'User token not found in twitch_bot_access table.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_user_token_not_found')]);
             exit;
         }
         echo json_encode([
@@ -548,7 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_user_token'])) 
             'access_token' => $row['twitch_access_token'] ?? ''
         ]);
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -561,12 +561,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
         $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
         $botUsername = isset($_POST['bot_username']) ? trim($_POST['bot_username']) : '';
         if (empty($botChannelId) && empty($botUsername)) {
-            echo json_encode(['success' => false, 'error' => 'Bot channel ID or bot username is required.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_bot_id_or_username_required')]);
             exit;
         }
         // Validate database connection
         if (!isset($conn) || !$conn) {
-            echo json_encode(['success' => false, 'error' => 'Database connection failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_connection')]);
             exit;
         }
         // Fetch current token from database using channel id if available, otherwise username
@@ -582,11 +582,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
             }
         }
         if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Database query preparation failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_query_prepare')]);
             exit;
         }
         if (!$stmt->execute()) {
-            echo json_encode(['success' => false, 'error' => 'Database query execution failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_query_execute')]);
             $stmt->close();
             exit;
         }
@@ -617,7 +617,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
             }
         }
         if (!$row) {
-            echo json_encode(['success' => false, 'error' => 'Custom bot not found.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_custom_bot_not_found')]);
             exit;
         }
         echo json_encode([
@@ -626,7 +626,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
             'token_expires' => $row['token_expires'] ?? '-'
         ]);
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -646,7 +646,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['load_token_cache'])) {
             echo json_encode(['success' => true, 'cache' => []]);
         }
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
     }
     exit;
 }
@@ -659,19 +659,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
         $botUsername = isset($_POST['bot_username']) ? trim($_POST['bot_username']) : '';
         if (empty($botChannelId) && empty($botUsername)) {
-            echo json_encode(['success' => false, 'error' => 'bot_channel_id or bot_username is required']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_bot_id_or_username_required')]);
             exit;
         }
         // Load client credentials from config
         $clientID = $GLOBALS['clientID'] ?? '';
         $clientSecret = $GLOBALS['clientSecret'] ?? '';
         if (empty($clientID) || empty($clientSecret)) {
-            echo json_encode(['success' => false, 'error' => 'Client credentials not configured.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_client_credentials_not_configured')]);
             exit;
         }
         // Validate database connection
         if (!isset($conn) || !$conn) {
-            echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_connection')]);
             exit;
         }
         // Find the custom bot row (search custom_bots first, then custom_module_bots)
@@ -701,12 +701,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
             }
         }
         if (!$row) {
-            echo json_encode(['success' => false, 'error' => 'Custom bot not found']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_custom_bot_not_found')]);
             exit;
         }
         $refreshToken = $row['refresh_token'] ?? '';
         if (empty($refreshToken)) {
-            echo json_encode(['success' => false, 'error' => 'No refresh token available for this custom bot']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_no_refresh_token_custom')]);
             exit;
         }
         // Call Twitch token endpoint to refresh
@@ -719,7 +719,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         ];
         $ch = curl_init($url);
         if (!$ch) {
-            echo json_encode(['success' => false, 'error' => 'cURL initialization failed.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl_init')]);
             exit;
         }
         curl_setopt($ch, CURLOPT_POST, true);
@@ -734,21 +734,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         $curlError = curl_error($ch);
         curl_close($ch);
         if ($curlError) {
-            echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlError]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
         if ($httpCode !== 200) {
             $errMsg = $response ? (json_decode($response, true)['message'] ?? $response) : 'HTTP ' . $httpCode;
-            echo json_encode(['success' => false, 'error' => 'Failed to refresh token: ' . $errMsg]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_refresh_token', [$errMsg])]);
             exit;
         }
         $result = json_decode($response, true);
         if ($result === null) {
-            echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_invalid_json')]);
             exit;
         }
         if (!isset($result['access_token'])) {
-            echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch: ' . json_encode($result)]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_invalid_response_detail', [json_encode($result)])]);
             exit;
         }
         $newAccess = $result['access_token'];
@@ -776,13 +776,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
             }
         }
         if (!$upd) {
-            echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $conn->error]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_update', [$conn->error])]);
             exit;
         }
         if (!$upd->execute()) {
             $err = $upd->error;
             $upd->close();
-            echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $err]);
+            echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_db_update', [$err])]);
             exit;
         }
         $upd->close();
@@ -790,7 +790,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         exit;
     } catch (Exception $e) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_server', [$e->getMessage()])]);
         exit;
     }
 }
@@ -799,39 +799,39 @@ ob_start();
 ?>
 <div class="sp-card">
     <div class="sp-card-body">
-    <h1 style="font-size:1.25rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-twitch"></i></span> Twitch App Access Tokens</h1>
-    <p class="mb-4">Generate App Access Tokens for Twitch API usage, such as for chatbot badge display.</p>
+    <h1 style="font-size:1.25rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-twitch"></i></span> <?php echo t('admin_twitch_tokens_page_title'); ?></h1>
+    <p class="mb-4"><?php echo t('admin_twitch_tokens_intro'); ?></p>
     <div style="margin-bottom:1rem;">
         <button class="sp-btn sp-btn-info" id="learn-more-btn">
             <span class="icon"><i class="fas fa-info-circle"></i></span>
-            <span>What is an App Access Token?</span>
+            <span><?php echo t('admin_twitch_tokens_learn_more'); ?></span>
         </button>
     </div>
     <div class="sp-card">
         <div class="sp-card-body">
-        <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Enter Twitch Application Credentials</h3>
-        <p class="mb-4">Fields are pre-populated with your configured credentials. You can modify them if needed.</p>
+        <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('admin_twitch_tokens_credentials_heading'); ?></h3>
+        <p class="mb-4"><?php echo t('admin_twitch_tokens_credentials_intro'); ?></p>
         <div class="sp-form-group">
-            <label class="sp-label">Client ID</label>
-            <input class="sp-input" type="text" id="client-id" placeholder="Enter your Twitch Client ID" value="<?php echo htmlspecialchars($clientID ?? ''); ?>" required>
-            <small class="sp-text-muted">Found in your Twitch Developer Console application settings</small>
+            <label class="sp-label"><?php echo t('admin_twitch_tokens_client_id_label'); ?></label>
+            <input class="sp-input" type="text" id="client-id" placeholder="<?php echo htmlspecialchars(t('admin_twitch_tokens_client_id_placeholder')); ?>" value="<?php echo htmlspecialchars($clientID ?? ''); ?>" required>
+            <small class="sp-text-muted"><?php echo t('admin_twitch_tokens_client_id_help'); ?></small>
         </div>
         <div class="sp-form-group">
-            <label class="sp-label">Client Secret</label>
-            <input class="sp-input" type="password" id="client-secret" placeholder="Enter your Twitch Client Secret" value="<?php echo htmlspecialchars($clientSecret ?? ''); ?>" required>
-            <small class="sp-text-muted">Keep this secret! Found in your Twitch Developer Console application settings</small>
+            <label class="sp-label"><?php echo t('admin_twitch_tokens_client_secret_label'); ?></label>
+            <input class="sp-input" type="password" id="client-secret" placeholder="<?php echo htmlspecialchars(t('admin_twitch_tokens_client_secret_placeholder')); ?>" value="<?php echo htmlspecialchars($clientSecret ?? ''); ?>" required>
+            <small class="sp-text-muted"><?php echo t('admin_twitch_tokens_client_secret_help'); ?></small>
         </div>
         <div style="margin-bottom:1rem;">
             <button class="sp-btn sp-btn-primary" id="generate-token-btn">
                 <span class="icon"><i class="fas fa-key"></i></span>
-                <span>Generate App Access Token</span>
+                <span><?php echo t('admin_twitch_tokens_generate_button'); ?></span>
             </button>
         </div>
         <div class="sp-alert sp-alert-info">
-            <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;">&#x2139;&#xFE0F; Redirect URI Setup</h4>
-            <p><strong>Current Status:</strong> Your system has redirect URIs configured for user authentication flows.</p>
-            <p><strong>For App Access Tokens:</strong> No additional redirect setup needed - you're good to go!</p>
-            <p><strong>For User Authentication:</strong> Make sure these URIs are added to your Twitch Developer Console application settings.</p>
+            <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;">&#x2139;&#xFE0F; <?php echo t('admin_twitch_tokens_redirect_setup_heading'); ?></h4>
+            <p><strong><?php echo t('admin_twitch_tokens_redirect_current_status_label'); ?></strong> <?php echo t('admin_twitch_tokens_redirect_current_status_text'); ?></p>
+            <p><strong><?php echo t('admin_twitch_tokens_redirect_app_tokens_label'); ?></strong> <?php echo t('admin_twitch_tokens_redirect_app_tokens_text'); ?></p>
+            <p><strong><?php echo t('admin_twitch_tokens_redirect_user_auth_label'); ?></strong> <?php echo t('admin_twitch_tokens_redirect_user_auth_text'); ?></p>
         </div>
         </div>
     </div>
@@ -844,53 +844,53 @@ ob_start();
 <div class="sp-modal-backdrop" id="info-modal" style="display:none;">
     <div class="sp-modal">
         <div class="sp-modal-head">
-            <span class="sp-modal-title">What is an App Access Token?</span>
-            <button class="sp-modal-close" aria-label="close" id="close-modal">&#x2715;</button>
+            <span class="sp-modal-title"><?php echo t('admin_twitch_tokens_learn_more'); ?></span>
+            <button class="sp-modal-close" aria-label="<?php echo htmlspecialchars(t('admin_twitch_tokens_close')); ?>" id="close-modal">&#x2715;</button>
         </div>
         <div class="sp-modal-body">
-                <h2>How to Get a Twitch App Access Token</h2>
-                <p>To obtain an App Access Token, you need:</p>
+                <h2><?php echo t('admin_twitch_tokens_modal_how_to_heading'); ?></h2>
+                <p><?php echo t('admin_twitch_tokens_modal_how_to_intro'); ?></p>
                 <ol>
-                    <li>A registered Twitch application in the <a href="https://dev.twitch.tv/console/apps" target="_blank">Twitch Developer Console</a></li>
-                    <li>Your application's Client ID and Client Secret</li>
-                    <li>Use the OAuth endpoint to request the token</li>
+                    <li><?php echo t('admin_twitch_tokens_modal_step_registered_app_prefix'); ?> <a href="https://dev.twitch.tv/console/apps" target="_blank"><?php echo t('admin_twitch_tokens_modal_dev_console'); ?></a></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_step_client_credentials'); ?></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_step_oauth_endpoint'); ?></li>
                 </ol>
-                <p>The token is generated using the Client Credentials flow and is not tied to a specific user.</p>
-                <h3>Redirect URI Configuration</h3>
-                <p><strong>For App Access Tokens (Client Credentials):</strong> No redirect URI is required in the Twitch Developer Console.</p>
-                <p><strong>For User Access Tokens (Authorization Code):</strong> You need to configure redirect URIs in your Twitch application settings.</p>
-                <p><strong>Current Configuration:</strong></p>
+                <p><?php echo t('admin_twitch_tokens_modal_client_credentials_note'); ?></p>
+                <h3><?php echo t('admin_twitch_tokens_modal_redirect_heading'); ?></h3>
+                <p><strong><?php echo t('admin_twitch_tokens_modal_redirect_app_label'); ?></strong> <?php echo t('admin_twitch_tokens_modal_redirect_app_text'); ?></p>
+                <p><strong><?php echo t('admin_twitch_tokens_modal_redirect_user_label'); ?></strong> <?php echo t('admin_twitch_tokens_modal_redirect_user_text'); ?></p>
+                <p><strong><?php echo t('admin_twitch_tokens_modal_current_config_label'); ?></strong></p>
                 <ul>
-                    <li>Production: <code><?php echo htmlspecialchars($redirectURI ?? 'Not configured'); ?></code></li>
-                    <li>Beta: <code><?php echo htmlspecialchars($betaRedirectURI ?? 'Not configured'); ?></code></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_production_label'); ?> <code><?php echo htmlspecialchars($redirectURI ?? t('admin_twitch_tokens_not_configured')); ?></code></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_beta_label'); ?> <code><?php echo htmlspecialchars($betaRedirectURI ?? t('admin_twitch_tokens_not_configured')); ?></code></li>
                 </ul>
-                <h3>Requirements for Chat Bot Badge</h3>
-                <p>For a chatbot to display the Chat Bot Badge:</p>
+                <h3><?php echo t('admin_twitch_tokens_modal_badge_heading'); ?></h3>
+                <p><?php echo t('admin_twitch_tokens_modal_badge_intro'); ?></p>
                 <ul>
-                    <li>Use the Send Chat Message API</li>
-                    <li>Use an App Access Token</li>
-                    <li>Have the <code>channel:bot</code> scope authorized by the broadcaster or moderator status</li>
-                    <li>The chatbot's user account is not the channel's broadcaster</li>
+                    <li><?php echo t('admin_twitch_tokens_modal_badge_send_api'); ?></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_badge_use_app_token'); ?></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_badge_scope_prefix'); ?> <code>channel:bot</code> <?php echo t('admin_twitch_tokens_modal_badge_scope_suffix'); ?></li>
+                    <li><?php echo t('admin_twitch_tokens_modal_badge_not_broadcaster'); ?></li>
                 </ul>
         </div>
         <div style="padding:1rem;display:flex;justify-content:flex-end;border-top:1px solid var(--border);">
-            <button class="sp-btn sp-btn-success" id="close-modal-footer">Got it!</button>
+            <button class="sp-btn sp-btn-success" id="close-modal-footer"><?php echo t('admin_twitch_tokens_got_it'); ?></button>
         </div>
     </div>
 </div>
 <div class="sp-card">
     <div class="sp-card-body">
-    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Validate Access Token</h3>
-    <p class="mb-4">Enter an access token to validate its status and details.</p>
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('admin_twitch_tokens_validate_heading'); ?></h3>
+    <p class="mb-4"><?php echo t('admin_twitch_tokens_validate_intro'); ?></p>
     <div class="sp-form-group">
-        <label class="sp-label">Access Token</label>
-        <input class="sp-input" type="password" id="validate-token" placeholder="Enter access token to validate" required>
-        <small class="sp-text-muted">The token will be validated against Twitch's API</small>
+        <label class="sp-label"><?php echo t('admin_twitch_tokens_access_token_label'); ?></label>
+        <input class="sp-input" type="password" id="validate-token" placeholder="<?php echo htmlspecialchars(t('admin_twitch_tokens_access_token_placeholder')); ?>" required>
+        <small class="sp-text-muted"><?php echo t('admin_twitch_tokens_access_token_help'); ?></small>
     </div>
     <div style="margin-bottom:1rem;">
         <button class="sp-btn sp-btn-info" id="validate-token-btn">
             <span class="icon"><i class="fas fa-check"></i></span>
-            <span>Validate Token</span>
+            <span><?php echo t('admin_twitch_tokens_validate_button'); ?></span>
         </button>
     </div>
     </div>
@@ -900,18 +900,18 @@ ob_start();
 </div>
 <div class="sp-card">
     <div class="sp-card-body">
-    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Twitch Chat Token</h3>
-    <p class="mb-4">Status of the configured Twitch Chat OAuth token.</p>
-    <p><strong>Status:</strong> <span id="chat-status">Checking...</span></p>
-    <p><strong>Expires In:</strong> <span id="chat-expiry">-</span></p>
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('admin_twitch_tokens_chat_heading'); ?></h3>
+    <p class="mb-4"><?php echo t('admin_twitch_tokens_chat_intro'); ?></p>
+    <p><strong><?php echo t('admin_twitch_tokens_status_label'); ?></strong> <span id="chat-status"><?php echo t('admin_twitch_tokens_status_checking'); ?></span></p>
+    <p><strong><?php echo t('admin_twitch_tokens_expires_in_label'); ?></strong> <span id="chat-expiry">-</span></p>
     <div style="margin-bottom:1rem;">
         <button class="sp-btn sp-btn-info" id="validate-chat-btn">
             <span class="icon"><i class="fas fa-check"></i></span>
-            <span>Validate Chat Token</span>
+            <span><?php echo t('admin_twitch_tokens_validate_chat_button'); ?></span>
         </button>
         <button class="sp-btn sp-btn-warning" id="renew-chat-btn" style="margin-left:10px;">
             <span class="icon"><i class="fas fa-sync-alt"></i></span>
-            <span>Renew Chat Token</span>
+            <span><?php echo t('admin_twitch_tokens_renew_chat_button'); ?></span>
         </button>
     </div>
     </div>
@@ -921,35 +921,35 @@ ob_start();
 </div>
 <div class="sp-card">
     <div class="sp-card-body">
-    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">View Existing User Tokens</h3>
-    <p class="mb-4">List of all stored Twitch User Tokens with their associated users. These are OAuth tokens with the scopes required for the system to operate (chat, moderation, channel management, analytics, etc.). When renewed, they use the refresh token to maintain authorization with the same scopes.</p>
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('admin_twitch_tokens_user_tokens_heading'); ?></h3>
+    <p class="mb-4"><?php echo t('admin_twitch_tokens_user_tokens_intro'); ?></p>
     <div class="sp-alert sp-alert-info">
-        <p><strong>&#x2139;&#xFE0F; User Token Information:</strong></p>
+        <p><strong>&#x2139;&#xFE0F; <?php echo t('admin_twitch_tokens_user_info_heading'); ?></strong></p>
         <ul>
-            <li>These are authenticated user tokens, not app-level tokens</li>
-            <li>They maintain all required scopes for bot and dashboard functionality</li>
-            <li>Renewal uses the refresh token to keep authorization valid</li>
-            <li>If a token shows as "Invalid" repeatedly, the user may need to re-authenticate</li>
+            <li><?php echo t('admin_twitch_tokens_user_info_authenticated'); ?></li>
+            <li><?php echo t('admin_twitch_tokens_user_info_scopes'); ?></li>
+            <li><?php echo t('admin_twitch_tokens_user_info_renewal'); ?></li>
+            <li><?php echo t('admin_twitch_tokens_user_info_reauth'); ?></li>
         </ul>
     </div>
     <div style="margin-bottom:1rem;">
         <button class="sp-btn sp-btn-info" id="validate-all-btn">
             <span class="icon"><i class="fas fa-check-circle"></i></span>
-            <span>Validate All Tokens</span>
+            <span><?php echo t('admin_twitch_tokens_validate_all_button'); ?></span>
         </button>
         <button class="sp-btn sp-btn-danger" id="renew-invalid-btn" disabled style="margin-left: 10px;">
             <span class="icon"><i class="fas fa-refresh"></i></span>
-            <span>Renew Invalid Tokens</span>
+            <span><?php echo t('admin_twitch_tokens_renew_invalid_button'); ?></span>
         </button>
     </div>
     <div class="sp-table-wrap">
         <table class="sp-table">
             <thead>
                 <tr>
-                    <th>Username</th>
-                    <th>Status</th>
-                    <th>Expires In</th>
-                    <th>Actions</th>
+                    <th><?php echo t('admin_twitch_tokens_th_username'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_status'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_expires_in'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_actions'); ?></th>
                 </tr>
             </thead>
             <tbody id="tokens-table-body">
@@ -968,13 +968,13 @@ ob_start();
                     $tokenId = md5($userId . $token); // Use hash for unique ID
                     echo "<tr id='row-$tokenId' data-user-id='$userId'>";
                     echo "<td>$username</td>";
-                    echo "<td id='status-$tokenId'>Not Validated</td>";
+                    echo "<td id='status-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . "</td>";
                     echo "<td id='expiry-$tokenId'>-</td>";
-                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateToken(null, \"$tokenId\")'>Validate</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewToken(\"$userId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateToken(null, \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_validate')) . "</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewToken(\"$userId\", \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_renew')) . "</button></td>";
                     echo "</tr>";
                 }
             } else {
-                echo "<tr><td colspan='4'>No tokens found.</td></tr>";
+                echo "<tr><td colspan='4'>" . htmlspecialchars(t('admin_twitch_tokens_no_tokens')) . "</td></tr>";
             }
             ?>
         </tbody>
@@ -984,17 +984,17 @@ ob_start();
 </div>
 <div class="sp-card">
     <div class="sp-card-body">
-    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Custom Bot Tokens</h3>
-    <p class="mb-4">List of stored custom bot tokens with their associated bot accounts.</p>
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('admin_twitch_tokens_custom_heading'); ?></h3>
+    <p class="mb-4"><?php echo t('admin_twitch_tokens_custom_intro'); ?></p>
     <div class="sp-table-wrap">
         <table class="sp-table">
             <thead>
                 <tr>
-                    <th>Bot Username</th>
-                    <th>Bot Channel ID</th>
-                    <th>Status</th>
-                    <th>Expires At</th>
-                    <th>Actions</th>
+                    <th><?php echo t('admin_twitch_tokens_th_bot_username'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_bot_channel_id'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_status'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_expires_at'); ?></th>
+                    <th><?php echo t('admin_twitch_tokens_th_actions'); ?></th>
                 </tr>
             </thead>
             <tbody id="custom-tokens-table-body">
@@ -1020,9 +1020,9 @@ ob_start();
                             echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($botChannelId) . "' data-bot-username='" . htmlspecialchars($botUsername) . "'>";
                     echo "<td>$botUsername</td>";
                     echo "<td>$botChannelId</td>";
-                    echo "<td id='status-custom-$tokenId'>Not Validated</td>";
+                    echo "<td id='status-custom-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . "</td>";
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
-                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_validate')) . "</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_renew')) . "</button></td>";
                     echo "</tr>";
                 }
             }
@@ -1058,17 +1058,17 @@ ob_start();
                     }
                     $tokenId = md5(($mbChannelId ?: $mbUsername) . ($accessToken ?? '') . 'module');
                     echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($mbChannelId) . "' data-bot-username='" . htmlspecialchars($mbUsername) . "'>";
-                    echo "<td>$mbUsername <small style='color:#666'> (module)</small></td>";
+                    echo "<td>$mbUsername <small style='color:#666'> " . htmlspecialchars(t('admin_twitch_tokens_module_tag')) . "</small></td>";
                     echo "<td>$mbChannelId</td>";
-                    echo "<td id='status-custom-$tokenId'>Not Validated" . ($isVerified ? " (<span class='sp-text-success'>Verified</span>)" : "") . "</td>";
+                    echo "<td id='status-custom-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . ($isVerified ? " (<span class='sp-text-success'>" . htmlspecialchars(t('admin_twitch_tokens_verified')) . "</span>)" : "") . "</td>";
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
-                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$mbChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_validate')) . "</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$mbChannelId\", \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_renew')) . "</button></td>";
                     echo "</tr>";
                 }
             }
 
             if (!$foundAny) {
-                echo "<tr><td colspan='5'>No custom bots found.</td></tr>";
+                echo "<tr><td colspan='5'>" . htmlspecialchars(t('admin_twitch_tokens_no_custom_bots')) . "</td></tr>";
             }
             ?>
         </tbody>
@@ -1081,6 +1081,68 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+const TT_I18N = {
+    statusValid: <?php echo json_encode(t('admin_twitch_tokens_status_valid')); ?>,
+    statusInvalid: <?php echo json_encode(t('admin_twitch_tokens_status_invalid')); ?>,
+    statusExpired: <?php echo json_encode(t('admin_twitch_tokens_status_expired')); ?>,
+    statusValidating: <?php echo json_encode(t('admin_twitch_tokens_status_validating')); ?>,
+    statusFetching: <?php echo json_encode(t('admin_twitch_tokens_status_fetching')); ?>,
+    statusRenewing: <?php echo json_encode(t('admin_twitch_tokens_status_renewing')); ?>,
+    statusRenewed: <?php echo json_encode(t('admin_twitch_tokens_status_renewed')); ?>,
+    statusRenewFailed: <?php echo json_encode(t('admin_twitch_tokens_status_renew_failed')); ?>,
+    statusAutoRenewed: <?php echo json_encode(t('admin_twitch_tokens_status_auto_renewed')); ?>,
+    statusRefreshing: <?php echo json_encode(t('admin_twitch_tokens_status_refreshing')); ?>,
+    statusError: <?php echo json_encode(t('admin_twitch_tokens_status_error')); ?>,
+    statusNoToken: <?php echo json_encode(t('admin_twitch_tokens_status_no_token')); ?>,
+    errNoToken: <?php echo json_encode(t('admin_twitch_tokens_js_no_token')); ?>,
+    errInvalidToken: <?php echo json_encode(t('admin_twitch_tokens_js_invalid_token')); ?>,
+    errNetwork: <?php echo json_encode(t('admin_twitch_tokens_js_network_error')); ?>,
+    tokenGenerated: <?php echo json_encode(t('admin_twitch_tokens_js_token_generated')); ?>,
+    accessTokenLabel: <?php echo json_encode(t('admin_twitch_tokens_access_token_label')); ?>,
+    expiresInSeconds: <?php echo json_encode(t('admin_twitch_tokens_js_expires_in_seconds')); ?>,
+    copyToken: <?php echo json_encode(t('admin_twitch_tokens_js_copy_token')); ?>,
+    generateAuthLink: <?php echo json_encode(t('admin_twitch_tokens_js_generate_auth_link')); ?>,
+    errGenerating: <?php echo json_encode(t('admin_twitch_tokens_js_err_generating')); ?>,
+    tokenValidated: <?php echo json_encode(t('admin_twitch_tokens_js_token_validated')); ?>,
+    expiresInLabel: <?php echo json_encode(t('admin_twitch_tokens_expires_in_label')); ?>,
+    expirationDateLabel: <?php echo json_encode(t('admin_twitch_tokens_js_expiration_date_label')); ?>,
+    errValidating: <?php echo json_encode(t('admin_twitch_tokens_js_err_validating')); ?>,
+    missingCredentialsTitle: <?php echo json_encode(t('admin_twitch_tokens_js_missing_credentials_title')); ?>,
+    missingCredentialsRenew: <?php echo json_encode(t('admin_twitch_tokens_js_missing_credentials_renew')); ?>,
+    missingCredentialsGenerate: <?php echo json_encode(t('admin_twitch_tokens_js_missing_credentials_generate')); ?>,
+    missingCredentialsSimple: <?php echo json_encode(t('admin_twitch_tokens_js_missing_credentials_simple')); ?>,
+    missingTokenTitle: <?php echo json_encode(t('admin_twitch_tokens_js_missing_token_title')); ?>,
+    missingTokenText: <?php echo json_encode(t('admin_twitch_tokens_js_missing_token_text')); ?>,
+    generatingChat: <?php echo json_encode(t('admin_twitch_tokens_js_generating_chat')); ?>,
+    chatGeneratedTitle: <?php echo json_encode(t('admin_twitch_tokens_js_chat_generated_title')); ?>,
+    chatTokenLabel: <?php echo json_encode(t('admin_twitch_tokens_js_chat_token_label')); ?>,
+    showHideToken: <?php echo json_encode(t('admin_twitch_tokens_js_show_hide_token')); ?>,
+    tokenExpiresAt: <?php echo json_encode(t('admin_twitch_tokens_js_token_expires_at')); ?>,
+    savedNotice: <?php echo json_encode(t('admin_twitch_tokens_js_saved_notice')); ?>,
+    errChatGenerate: <?php echo json_encode(t('admin_twitch_tokens_js_err_chat_generate')); ?>,
+    errChatGenerating: <?php echo json_encode(t('admin_twitch_tokens_js_err_chat_generating')); ?>,
+    renewalFailedTitle: <?php echo json_encode(t('admin_twitch_tokens_js_renewal_failed_title')); ?>,
+    renewalFailedText: <?php echo json_encode(t('admin_twitch_tokens_js_renewal_failed_text')); ?>,
+    errorTitle: <?php echo json_encode(t('admin_twitch_tokens_js_error_title')); ?>,
+    copiedTitle: <?php echo json_encode(t('admin_twitch_tokens_js_copied_title')); ?>,
+    chatTokenCopied: <?php echo json_encode(t('admin_twitch_tokens_js_chat_token_copied')); ?>,
+    tokenCopied: <?php echo json_encode(t('admin_twitch_tokens_js_token_copied')); ?>,
+    copyFailedTitle: <?php echo json_encode(t('admin_twitch_tokens_js_copy_failed_title')); ?>,
+    copyFailedText: <?php echo json_encode(t('admin_twitch_tokens_js_copy_failed_text')); ?>,
+    authLinkTitle: <?php echo json_encode(t('admin_twitch_tokens_js_auth_link_title')); ?>,
+    authLinkHtml: <?php echo json_encode(t('admin_twitch_tokens_js_auth_link_html')); ?>,
+    unitMonth: <?php echo json_encode(t('admin_twitch_tokens_unit_month')); ?>,
+    unitMonths: <?php echo json_encode(t('admin_twitch_tokens_unit_months')); ?>,
+    unitDay: <?php echo json_encode(t('admin_twitch_tokens_unit_day')); ?>,
+    unitDays: <?php echo json_encode(t('admin_twitch_tokens_unit_days')); ?>,
+    unitHour: <?php echo json_encode(t('admin_twitch_tokens_unit_hour')); ?>,
+    unitHours: <?php echo json_encode(t('admin_twitch_tokens_unit_hours')); ?>,
+    unitMinute: <?php echo json_encode(t('admin_twitch_tokens_unit_minute')); ?>,
+    unitMinutes: <?php echo json_encode(t('admin_twitch_tokens_unit_minutes')); ?>,
+    unitSecond: <?php echo json_encode(t('admin_twitch_tokens_unit_second')); ?>,
+    unitSeconds: <?php echo json_encode(t('admin_twitch_tokens_unit_seconds')); ?>,
+    zeroSeconds: <?php echo json_encode(t('admin_twitch_tokens_zero_seconds')); ?>
+};
 document.addEventListener('DOMContentLoaded', function() {
     const generateBtn = document.getElementById('generate-token-btn');
     const tokenResult = document.getElementById('token-result');
@@ -1124,10 +1186,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const statusCell = document.getElementById(`status-${tokenId}`);
                 const expiryCell = document.getElementById(`expiry-${tokenId}`);
                 if (cached.is_valid) {
-                    statusCell.textContent = 'Valid';
+                    statusCell.textContent = TT_I18N.statusValid;
                     statusCell.className = 'sp-text-success';
                 } else {
-                    statusCell.textContent = 'Invalid';
+                    statusCell.textContent = TT_I18N.statusInvalid;
                     statusCell.className = 'sp-text-danger';
                 }
                 if (cached.expires_in && cached.timestamp) {
@@ -1139,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (remaining > 0) {
                         expiryCell.textContent = formatTimeRemaining(remaining);
                     } else {
-                        expiryCell.textContent = 'Expired';
+                        expiryCell.textContent = TT_I18N.statusExpired;
                         expiryCell.className = 'sp-text-danger';
                     }
                 }
@@ -1154,10 +1216,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const statusCell = document.getElementById(`status-custom-${tokenId}`);
                 const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
                 if (cached.is_valid) {
-                    statusCell.textContent = 'Valid';
+                    statusCell.textContent = TT_I18N.statusValid;
                     statusCell.className = 'sp-text-success';
                 } else {
-                    statusCell.textContent = 'Invalid';
+                    statusCell.textContent = TT_I18N.statusInvalid;
                     statusCell.className = 'sp-text-danger';
                 }
                 if (cached.expires_in && cached.timestamp) {
@@ -1170,7 +1232,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         expiryCell.textContent = formatTimeRemaining(remaining);
                         expiryCell.className = '';
                     } else {
-                        expiryCell.textContent = 'Expired';
+                        expiryCell.textContent = TT_I18N.statusExpired;
                         expiryCell.className = 'sp-text-danger';
                     }
                 }
@@ -1189,12 +1251,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const minutes = Math.floor(remaining / 60);
         const secs = remaining % 60;
         let timeParts = [];
-        if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
-        if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
-        if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-        if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-        if (secs > 0) timeParts.push(`${secs} second${secs > 1 ? 's' : ''}`);
-        return timeParts.join(', ') || '0 seconds';
+        if (months > 0) timeParts.push(`${months} ${months > 1 ? TT_I18N.unitMonths : TT_I18N.unitMonth}`);
+        if (days > 0) timeParts.push(`${days} ${days > 1 ? TT_I18N.unitDays : TT_I18N.unitDay}`);
+        if (hours > 0) timeParts.push(`${hours} ${hours > 1 ? TT_I18N.unitHours : TT_I18N.unitHour}`);
+        if (minutes > 0) timeParts.push(`${minutes} ${minutes > 1 ? TT_I18N.unitMinutes : TT_I18N.unitMinute}`);
+        if (secs > 0) timeParts.push(`${secs} ${secs > 1 ? TT_I18N.unitSeconds : TT_I18N.unitSecond}`);
+        return timeParts.join(', ') || TT_I18N.zeroSeconds;
     }
     // Load cache on page load
     loadTokenCache();
@@ -1228,7 +1290,7 @@ document.addEventListener('DOMContentLoaded', function() {
             rows.forEach(row => {
                 const tokenId = row.id.replace('row-', '');
                 const status = document.getElementById(`status-${tokenId}`).textContent;
-                if (status === 'Invalid') {
+                if (status === TT_I18N.statusInvalid) {
                     invalidTokens.push(row.getAttribute('data-user-id'));
                 }
             });
@@ -1265,8 +1327,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const clientSecret = document.getElementById('client-secret').value.trim();
             if (!clientId || !clientSecret) {
                 Swal.fire({
-                    title: 'Missing Credentials',
-                    text: 'Please enter both Client ID and Client Secret above to renew the chat token.',
+                    title: TT_I18N.missingCredentialsTitle,
+                    text: TT_I18N.missingCredentialsRenew,
                     icon: 'warning'
                 });
                 return;
@@ -1279,8 +1341,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const clientSecret = document.getElementById('client-secret').value.trim();
         if (!clientId || !clientSecret) {
             Swal.fire({
-                title: 'Missing Credentials',
-                text: 'Please enter both Client ID and Client Secret, or ensure they are configured in your config file.',
+                title: TT_I18N.missingCredentialsTitle,
+                text: TT_I18N.missingCredentialsGenerate,
                 icon: 'warning'
             });
             return;
@@ -1299,22 +1361,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             if (data.success) {
                 tokenContent.innerHTML = `
-                    <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">Token Generated Successfully</h4>
+                    <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">${TT_I18N.tokenGenerated}</h4>
                     <div class="sp-form-group">
-                        <label class="sp-label">Access Token</label>
+                        <label class="sp-label">${TT_I18N.accessTokenLabel}</label>
                         <input class="sp-input" type="text" value="${data.access_token}" readonly id="token-input">
-                        <small class="sp-text-muted">Expires in: ${data.expires_in} seconds (${Math.floor(data.expires_in / 3600)} hours)</small>
+                        <small class="sp-text-muted">${TT_I18N.expiresInSeconds.replace(':seconds', data.expires_in).replace(':hours', Math.floor(data.expires_in / 3600))}</small>
                     </div>
                     <div style="margin-bottom:0.5rem;">
                         <button class="sp-btn sp-btn-sm" onclick="copyToken()">
                             <span class="icon"><i class="fas fa-copy"></i></span>
-                            <span>Copy Token</span>
+                            <span>${TT_I18N.copyToken}</span>
                         </button>
                     </div>
                     <div style="margin-top:0.5rem;">
                         <button class="sp-btn sp-btn-info sp-btn-sm" onclick="generateAuthLink()">
                             <span class="icon"><i class="fas fa-link"></i></span>
-                            <span>Generate Auth Link</span>
+                            <span>${TT_I18N.generateAuthLink}</span>
                         </button>
                         </div>
                     </div>
@@ -1327,7 +1389,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 tokenResult.className = 'sp-alert sp-alert-danger';
             }
         } catch (error) {
-            tokenContent.innerHTML = '<p class="sp-text-danger">An error occurred while generating the token.</p>';
+            tokenContent.innerHTML = `<p class="sp-text-danger">${TT_I18N.errGenerating}</p>`;
             tokenResult.style.display = '';
             tokenResult.className = 'sp-alert sp-alert-danger';
         }
@@ -1338,8 +1400,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const token = document.getElementById('validate-token').value.trim();
         if (!token) {
             Swal.fire({
-                title: 'Missing Token',
-                text: 'Please enter an access token to validate.',
+                title: TT_I18N.missingTokenTitle,
+                text: TT_I18N.missingTokenText,
                 icon: 'warning'
             });
             return;
@@ -1372,17 +1434,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const seconds = remaining % 60;
                 // Build time string, only including non-zero units
                 let timeParts = [];
-                if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
-                if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
-                if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-                if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-                if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
-                const timeString = timeParts.join(', ') || '0 seconds';
+                if (months > 0) timeParts.push(`${months} ${months > 1 ? TT_I18N.unitMonths : TT_I18N.unitMonth}`);
+                if (days > 0) timeParts.push(`${days} ${days > 1 ? TT_I18N.unitDays : TT_I18N.unitDay}`);
+                if (hours > 0) timeParts.push(`${hours} ${hours > 1 ? TT_I18N.unitHours : TT_I18N.unitHour}`);
+                if (minutes > 0) timeParts.push(`${minutes} ${minutes > 1 ? TT_I18N.unitMinutes : TT_I18N.unitMinute}`);
+                if (seconds > 0) timeParts.push(`${seconds} ${seconds > 1 ? TT_I18N.unitSeconds : TT_I18N.unitSecond}`);
+                const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
                 const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
                 validationContent.innerHTML = `
-                    <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">Token Validated Successfully</h4>
-                    <p><strong>Expires In:</strong> ${timeString}</p>
-                    <p><strong>Expiration Date:</strong> ${expiryDate.toLocaleString('en-AU', dateOptions)}</p>
+                    <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">${TT_I18N.tokenValidated}</h4>
+                    <p><strong>${TT_I18N.expiresInLabel}</strong> ${timeString}</p>
+                    <p><strong>${TT_I18N.expirationDateLabel}</strong> ${expiryDate.toLocaleString('en-AU', dateOptions)}</p>
                 `;
                 validationResult.style.display = '';
                 validationResult.className = 'sp-alert sp-alert-success';
@@ -1394,7 +1456,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 validationResult.className = 'sp-alert sp-alert-danger';
             }
         } catch (error) {
-            validationContent.innerHTML = '<p class="sp-text-danger">An error occurred while validating the token.</p>';
+            validationContent.innerHTML = `<p class="sp-text-danger">${TT_I18N.errValidating}</p>`;
             validationResult.style.display = '';
             ;
             validationResult.className = 'sp-alert sp-alert-danger';
@@ -1408,7 +1470,7 @@ function validateChatToken(token) {
     const statusCell = document.getElementById('chat-status');
     const expiryCell = document.getElementById('chat-expiry');
     const button = document.getElementById('validate-chat-btn');
-    statusCell.textContent = 'Validating...';
+    statusCell.textContent = TT_I18N.statusValidating;
     button.disabled = true;
     button.classList.add('sp-btn-loading');
     const formData = new FormData();
@@ -1425,9 +1487,9 @@ function validateChatToken(token) {
         if (data.success) {
             if (data.auto_renewed && data.renewed_token) {
                 chatToken = data.renewed_token;
-                statusCell.textContent = 'Auto-Renewed';
+                statusCell.textContent = TT_I18N.statusAutoRenewed;
                 statusCell.className = 'sp-text-warning';
-                expiryCell.textContent = 'Refreshing...';
+                expiryCell.textContent = TT_I18N.statusRefreshing;
                 setTimeout(() => validateChatToken(chatToken), 500);
                 return;
             }
@@ -1447,25 +1509,25 @@ function validateChatToken(token) {
             const seconds = remaining % 60;
             // Build time string
             let timeParts = [];
-            if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
-            if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
-            if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-            if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-            if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
-            const timeString = timeParts.join(', ') || '0 seconds';
-            statusCell.textContent = 'Valid';
+            if (months > 0) timeParts.push(`${months} ${months > 1 ? TT_I18N.unitMonths : TT_I18N.unitMonth}`);
+            if (days > 0) timeParts.push(`${days} ${days > 1 ? TT_I18N.unitDays : TT_I18N.unitDay}`);
+            if (hours > 0) timeParts.push(`${hours} ${hours > 1 ? TT_I18N.unitHours : TT_I18N.unitHour}`);
+            if (minutes > 0) timeParts.push(`${minutes} ${minutes > 1 ? TT_I18N.unitMinutes : TT_I18N.unitMinute}`);
+            if (seconds > 0) timeParts.push(`${seconds} ${seconds > 1 ? TT_I18N.unitSeconds : TT_I18N.unitSecond}`);
+            const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
+            statusCell.textContent = TT_I18N.statusValid;
             statusCell.className = 'sp-text-success';
             expiryCell.textContent = timeString;
             expiryCell.className = '';
         } else {
-            statusCell.textContent = 'Invalid';
+            statusCell.textContent = TT_I18N.statusInvalid;
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = '-';
             expiryCell.className = 'sp-text-danger';
         }
     })
     .catch(error => {
-        statusCell.textContent = 'Error';
+        statusCell.textContent = TT_I18N.statusError;
         statusCell.className = 'sp-text-danger';
         expiryCell.textContent = '-';
         expiryCell.className = 'sp-text-danger';
@@ -1482,7 +1544,7 @@ function validateToken(token, tokenId) {
     const row = document.getElementById(`row-${tokenId}`);
     const userId = row.getAttribute('data-user-id');
     const button = document.querySelector(`#row-${tokenId} button:first-child`);
-    statusCell.textContent = 'Fetching current token...';
+    statusCell.textContent = TT_I18N.statusFetching;
     button.disabled = true;
     button.classList.add('sp-btn-loading');
     // First fetch the current token from database
@@ -1493,16 +1555,16 @@ function validateToken(token, tokenId) {
         .then(response => response.json())
         .then(fetchData => {
             if (!fetchData.success) {
-                statusCell.textContent = 'No Token';
+                statusCell.textContent = TT_I18N.statusNoToken;
                 statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 button.disabled = false;
                 button.classList.remove('sp-btn-loading');
-                return Promise.reject(new Error(fetchData.error || 'No token'));
+                return Promise.reject(new Error(fetchData.error || TT_I18N.errNoToken));
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
-            statusCell.textContent = 'Validating...';
+            statusCell.textContent = TT_I18N.statusValidating;
             const formData = new FormData();
             formData.append('validate_token', '1');
             formData.append('access_token', currentToken);
@@ -1527,21 +1589,21 @@ function validateToken(token, tokenId) {
             const seconds = remaining % 60;
             // Build time string
             let timeParts = [];
-            if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
-            if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
-            if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-            if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-            if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
-            const timeString = timeParts.join(', ') || '0 seconds';
-            statusCell.textContent = 'Valid';
+            if (months > 0) timeParts.push(`${months} ${months > 1 ? TT_I18N.unitMonths : TT_I18N.unitMonth}`);
+            if (days > 0) timeParts.push(`${days} ${days > 1 ? TT_I18N.unitDays : TT_I18N.unitDay}`);
+            if (hours > 0) timeParts.push(`${hours} ${hours > 1 ? TT_I18N.unitHours : TT_I18N.unitHour}`);
+            if (minutes > 0) timeParts.push(`${minutes} ${minutes > 1 ? TT_I18N.unitMinutes : TT_I18N.unitMinute}`);
+            if (seconds > 0) timeParts.push(`${seconds} ${seconds > 1 ? TT_I18N.unitSeconds : TT_I18N.unitSecond}`);
+            const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
+            statusCell.textContent = TT_I18N.statusValid;
             statusCell.className = 'sp-text-success';
             expiryCell.textContent = timeString;
             expiryCell.className = '';
             // Save to cache
             saveTokenToCache(tokenId, 'regular', expiresIn, true);
         } else {
-            const errMsg = data.error || 'Invalid token';
-            statusCell.textContent = 'Invalid';
+            const errMsg = data.error || TT_I18N.errInvalidToken;
+            statusCell.textContent = TT_I18N.statusInvalid;
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = errMsg;
             expiryCell.className = 'sp-text-danger';
@@ -1551,8 +1613,8 @@ function validateToken(token, tokenId) {
         return data;
     })
     .catch(error => {
-        const msg = (error && error.message) ? error.message : 'Network error';
-        statusCell.textContent = 'Error';
+        const msg = (error && error.message) ? error.message : TT_I18N.errNetwork;
+        statusCell.textContent = TT_I18N.statusError;
         statusCell.className = 'sp-text-danger';
         expiryCell.textContent = msg;
         expiryCell.className = 'sp-text-danger';
@@ -1573,7 +1635,7 @@ function renewToken(userId, tokenId) {
         btn.disabled = true;
         btn.classList.add('sp-btn-loading');
     });
-    statusCell.textContent = 'Renewing...';
+    statusCell.textContent = TT_I18N.statusRenewing;
     const formData = new FormData();
     formData.append('renew_token', '1');
     formData.append('twitch_user_id', userId);
@@ -1586,19 +1648,19 @@ function renewToken(userId, tokenId) {
         if (data.success) {
             // Update the row's data-token
             row.setAttribute('data-token', data.new_token);
-            statusCell.textContent = 'Renewed';
+            statusCell.textContent = TT_I18N.statusRenewed;
             statusCell.className = 'sp-text-warning';
             expiryCell.textContent = '-';
             expiryCell.className = '';
             // Optionally, auto-validate
             setTimeout(() => validateToken(data.new_token, tokenId), 500);
         } else {
-            statusCell.textContent = 'Renew Failed';
+            statusCell.textContent = TT_I18N.statusRenewFailed;
             statusCell.className = 'sp-text-danger';
         }
     })
     .catch(error => {
-        statusCell.textContent = 'Error';
+        statusCell.textContent = TT_I18N.statusError;
         statusCell.className = 'sp-text-danger';
     })
     .finally(() => {
@@ -1616,7 +1678,7 @@ function renewChatToken(clientId, clientSecret) {
     const renewBtn = document.getElementById('renew-chat-btn');
     if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.add('sp-btn-loading'); }
     if (validateBtn) { validateBtn.disabled = true; }
-    resultContent.innerHTML = '<p>Generating new chat token...</p>';
+    resultContent.innerHTML = `<p>${TT_I18N.generatingChat}</p>`;
     resultBox.style.display = '';
     const formData = new FormData();
     formData.append('renew_chat_token', '1');
@@ -1634,15 +1696,15 @@ function renewChatToken(clientId, clientSecret) {
                 // Show masked input with eye toggle and copy
                 resultContent.innerHTML = `
                     <div class="sp-alert sp-alert-success">
-                        <p><strong>✓ New Chat Token Generated Successfully</strong></p>
-                        <p style="margin-top:0.75rem;"><strong>Token:</strong></p>
+                        <p><strong>✓ ${TT_I18N.chatGeneratedTitle}</strong></p>
+                        <p style="margin-top:0.75rem;"><strong>${TT_I18N.chatTokenLabel}</strong></p>
                         <div style="display:flex;gap:0.5rem;align-items:center;">
                             <input class="sp-input" type="password" id="chat-token-input" value="${newToken}" readonly style="flex:1;">
-                            <button class="sp-btn sp-btn-sm" id="toggle-chat-eye" title="Show/Hide Token"><span class="icon"><i class="fas fa-eye"></i></span></button>
+                            <button class="sp-btn sp-btn-sm" id="toggle-chat-eye" title="${TT_I18N.showHideToken}"><span class="icon"><i class="fas fa-eye"></i></span></button>
                             <button class="sp-btn sp-btn-sm" id="copy-chat-token"><span class="icon"><i class="fas fa-copy"></i></span></button>
                         </div>
-                        <small class="sp-text-muted">Token expires at: ${expiryDate}</small><br>
-                        <small class="sp-text-muted"><strong>&#x2139;&#xFE0F; Saved:</strong> This token was stored in the website database.</small>
+                        <small class="sp-text-muted">${TT_I18N.tokenExpiresAt.replace(':date', expiryDate)}</small><br>
+                        <small class="sp-text-muted"><strong>&#x2139;&#xFE0F; ${TT_I18N.savedNotice}</strong></small>
                     </div>
                 `;
                 // attach handlers
@@ -1654,12 +1716,12 @@ function renewChatToken(clientId, clientSecret) {
                 });
                 setTimeout(() => validateChatToken(chatToken), 400);
             } else {
-                const err = data.error || 'Failed to generate new chat token.';
+                const err = data.error || TT_I18N.errChatGenerate;
                 resultContent.innerHTML = `<p class="sp-text-danger">${err}</p>`;
             }
         })
         .catch(() => {
-            resultContent.innerHTML = '<p class="sp-text-danger">An error occurred while generating the chat token.</p>';
+            resultContent.innerHTML = `<p class="sp-text-danger">${TT_I18N.errChatGenerating}</p>`;
         })
         .finally(() => {
             if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('sp-btn-loading'); }
@@ -1672,7 +1734,7 @@ function validateCustomToken(token, tokenId) {
     const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
     const row = document.getElementById(`custom-row-${tokenId}`);
     const botChannelId = row.getAttribute('data-bot-channel-id');
-    statusCell.textContent = 'Fetching current token...';
+    statusCell.textContent = TT_I18N.statusFetching;
     // Disable the validate button in this row
     const btn = row.querySelector('button');
     if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
@@ -1688,15 +1750,15 @@ function validateCustomToken(token, tokenId) {
         .then(response => response.json())
         .then(fetchData => {
             if (!fetchData.success) {
-                statusCell.textContent = 'No Token';
+                statusCell.textContent = TT_I18N.statusNoToken;
                 statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
-                return Promise.reject(new Error(fetchData.error || 'No token'));
+                return Promise.reject(new Error(fetchData.error || TT_I18N.errNoToken));
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
-            statusCell.textContent = 'Validating...';
+            statusCell.textContent = TT_I18N.statusValidating;
             const formData = new FormData();
             formData.append('validate_token', '1');
             formData.append('access_token', currentToken);
@@ -1717,21 +1779,21 @@ function validateCustomToken(token, tokenId) {
                 const minutes = Math.floor(remaining / 60);
                 const seconds = remaining % 60;
                 let timeParts = [];
-                if (months > 0) timeParts.push(`${months} month${months > 1 ? 's' : ''}`);
-                if (days > 0) timeParts.push(`${days} day${days > 1 ? 's' : ''}`);
-                if (hours > 0) timeParts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-                if (minutes > 0) timeParts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-                if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
-                const timeString = timeParts.join(', ') || '0 seconds';
-                statusCell.textContent = 'Valid';
+                if (months > 0) timeParts.push(`${months} ${months > 1 ? TT_I18N.unitMonths : TT_I18N.unitMonth}`);
+                if (days > 0) timeParts.push(`${days} ${days > 1 ? TT_I18N.unitDays : TT_I18N.unitDay}`);
+                if (hours > 0) timeParts.push(`${hours} ${hours > 1 ? TT_I18N.unitHours : TT_I18N.unitHour}`);
+                if (minutes > 0) timeParts.push(`${minutes} ${minutes > 1 ? TT_I18N.unitMinutes : TT_I18N.unitMinute}`);
+                if (seconds > 0) timeParts.push(`${seconds} ${seconds > 1 ? TT_I18N.unitSeconds : TT_I18N.unitSecond}`);
+                const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
+                statusCell.textContent = TT_I18N.statusValid;
                 statusCell.className = 'sp-text-success';
                 expiryCell.textContent = timeString;
                 expiryCell.className = '';
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', expiresIn, true);
             } else {
-                const errMsg = data.error || 'Invalid token';
-                statusCell.textContent = 'Invalid';
+                const errMsg = data.error || TT_I18N.errInvalidToken;
+                statusCell.textContent = TT_I18N.statusInvalid;
                 statusCell.className = 'sp-text-danger';
                 expiryCell.textContent = errMsg;
                 expiryCell.className = 'sp-text-danger';
@@ -1740,8 +1802,8 @@ function validateCustomToken(token, tokenId) {
             }
         })
         .catch((err) => {
-            const msg = (err && err.message) ? err.message : 'Network error';
-            statusCell.textContent = 'Error';
+            const msg = (err && err.message) ? err.message : TT_I18N.errNetwork;
+            statusCell.textContent = TT_I18N.statusError;
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = msg;
             expiryCell.className = 'sp-text-danger';
@@ -1757,7 +1819,7 @@ function renewCustomToken(botChannelId, tokenId) {
     buttons.forEach(btn => { btn.disabled = true; btn.classList.add('sp-btn-loading'); });
     const statusCell = document.getElementById(`status-custom-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
-    statusCell.textContent = 'Renewing...';
+    statusCell.textContent = TT_I18N.statusRenewing;
     const formData = new FormData();
     formData.append('renew_custom', '1');
     formData.append('bot_channel_id', botChannelId);
@@ -1776,28 +1838,28 @@ function renewCustomToken(botChannelId, tokenId) {
                 row.setAttribute('data-token', newToken);
                 expiryCell.textContent = expiresAt || '-';
                 expiryCell.className = '';
-                statusCell.textContent = 'Renewed';
+                statusCell.textContent = TT_I18N.statusRenewed;
                 statusCell.className = 'sp-text-warning';
                 // Optionally auto-validate
                 setTimeout(() => validateCustomToken(newToken, tokenId), 500);
             } else {
-                statusCell.textContent = 'Renew Failed';
+                statusCell.textContent = TT_I18N.statusRenewFailed;
                 statusCell.className = 'sp-text-danger';
                 console.error('Renew failed:', data.error);
                 Swal.fire({
-                    title: 'Renewal Failed',
-                    text: data.error || 'An error occurred while renewing the custom bot token.',
+                    title: TT_I18N.renewalFailedTitle,
+                    text: data.error || TT_I18N.renewalFailedText,
                     icon: 'error'
                 });
             }
         })
         .catch(err => {
-            statusCell.textContent = 'Error';
+            statusCell.textContent = TT_I18N.statusError;
             statusCell.className = 'sp-text-danger';
             console.error('Fetch error:', err);
             Swal.fire({
-                title: 'Error',
-                text: 'An error occurred while renewing the custom bot token.',
+                title: TT_I18N.errorTitle,
+                text: TT_I18N.renewalFailedText,
                 icon: 'error'
             });
         })
@@ -1825,15 +1887,15 @@ function copyChatToken(inputId) {
         // Use clipboard api when available
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(input.value).then(() => {
-                Swal.fire({ title: 'Copied!', text: 'Chat token copied to clipboard', icon: 'success', timer: 1500, showConfirmButton: false });
+                Swal.fire({ title: TT_I18N.copiedTitle, text: TT_I18N.chatTokenCopied, icon: 'success', timer: 1500, showConfirmButton: false });
             });
         } else {
             input.select();
             document.execCommand('copy');
-            Swal.fire({ title: 'Copied!', text: 'Chat token copied to clipboard', icon: 'success', timer: 1500, showConfirmButton: false });
+            Swal.fire({ title: TT_I18N.copiedTitle, text: TT_I18N.chatTokenCopied, icon: 'success', timer: 1500, showConfirmButton: false });
         }
     } catch (e) {
-        Swal.fire({ title: 'Copy failed', text: 'Unable to copy token', icon: 'error' });
+        Swal.fire({ title: TT_I18N.copyFailedTitle, text: TT_I18N.copyFailedText, icon: 'error' });
     }
 }
 
@@ -1843,8 +1905,8 @@ function copyToken() {
     document.execCommand('copy');
     // Optional: Show a brief success message
     Swal.fire({
-        title: 'Copied!',
-        text: 'Token copied to clipboard',
+        title: TT_I18N.copiedTitle,
+        text: TT_I18N.tokenCopied,
         icon: 'success',
         timer: 1500,
         showConfirmButton: false
@@ -1856,8 +1918,8 @@ function generateAuthLink() {
     const clientSecret = document.getElementById('client-secret').value.trim();
     if (!clientId || !clientSecret) {
         Swal.fire({
-            title: 'Missing Credentials',
-            text: 'Please enter both Client ID and Client Secret.',
+            title: TT_I18N.missingCredentialsTitle,
+            text: TT_I18N.missingCredentialsSimple,
             icon: 'warning'
         });
         return;
@@ -1866,8 +1928,8 @@ function generateAuthLink() {
     // Copy to clipboard
     navigator.clipboard.writeText(authUrl).then(() => {
         Swal.fire({
-            title: 'Auth Link Generated!',
-            html: `The authorization URL has been copied to your clipboard:<br><br><code>${authUrl}</code>`,
+            title: TT_I18N.authLinkTitle,
+            html: `${TT_I18N.authLinkHtml}<br><br><code>${authUrl}</code>`,
             icon: 'success'
         });
     }).catch(() => {
@@ -1879,8 +1941,8 @@ function generateAuthLink() {
         document.execCommand('copy');
         document.body.removeChild(textArea);
         Swal.fire({
-            title: 'Auth Link Generated!',
-            html: `The authorization URL has been copied to your clipboard:<br><br><code>${authUrl}</code>`,
+            title: TT_I18N.authLinkTitle,
+            html: `${TT_I18N.authLinkHtml}<br><br><code>${authUrl}</code>`,
             icon: 'success'
         });
     });

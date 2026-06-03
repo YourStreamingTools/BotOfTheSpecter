@@ -3,6 +3,12 @@ require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
+if (!function_exists('t')) {
+    function t($key, $replacements = [])
+    {
+        return $key;
+    }
+}
 ob_start();
 
 require_once '/var/www/lib/require_auth_ajax.php';
@@ -14,7 +20,7 @@ $isTechnical = isset($_SESSION['access_token']) && isset($_SESSION['username']);
 // For debugging, let's not block non-technical users and see what happens
 if (!$isTechnical) {
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Technical access required', 'debug' => [
+    echo json_encode(['error' => t('server_metrics_error_technical_access'), 'debug' => [
         'has_access_token' => isset($_SESSION['access_token']),
         'has_username' => isset($_SESSION['username']),
         'session_keys' => array_keys($_SESSION)
@@ -99,7 +105,7 @@ try {
     $metrics = getServerMetrics();
 } catch (Exception $e) {
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Error getting server metrics', 'message' => $e->getMessage()]);
+    echo json_encode(['error' => t('server_metrics_error_getting_metrics'), 'message' => $e->getMessage()]);
     exit();
 }
 

@@ -137,13 +137,13 @@ document.querySelectorAll('.mark-completed-btn').forEach(function(btn) {
     e.preventDefault();
     const form = btn.closest('form');
     Swal.fire({
-      title: 'Mark as completed?',
-      text: "This will mark the task as completed.",
+      title: <?php echo json_encode(t('todo_completed_confirm_title')); ?>,
+      text: <?php echo json_encode(t('todo_completed_confirm_text')); ?>,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#38c172',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, mark completed!'
+      confirmButtonText: <?php echo json_encode(t('todo_completed_confirm_button')); ?>
     }).then((result) => {
       if (result.isConfirmed) {
         form.submit();

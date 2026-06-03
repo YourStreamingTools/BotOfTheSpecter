@@ -105,36 +105,36 @@ if ($subResponse !== false && $httpCode === 200) {
         $twitchSubTierString = (string) $subData['tier'];
         if (array_key_exists($twitchSubTierString, $plans)) { 
             $currentPlan = $twitchSubTierString;
-            if ($betaAccess) { 
+            if ($betaAccess) {
                 // Convert tier code to user-friendly name
                 $tierName = match($twitchSubTierString) {
-                    '1000' => 'Tier 1',
-                    '2000' => 'Tier 2', 
-                    '3000' => 'Tier 3',
-                    default => "Tier $twitchSubTierString"
+                    '1000' => t('premium_tier1_label'),
+                    '2000' => t('premium_tier2_label'),
+                    '3000' => t('premium_tier3_label'),
+                    default => t('premium_tier_generic', [$twitchSubTierString])
                 };
-                $subscription_message = "You have beta access and are also subscribed at $tierName."; 
+                $subscription_message = t('premium_subscription_beta_subscribed', [$tierName]);
             }
         }
     } else {
         // No subscription found
-        if ($betaAccess) { 
-            $subscription_message = "You have beta access but are not currently subscribed on Twitch."; 
-        } else { 
-            $error_message = "You are not subscribed or we couldn't find a subscription on Twitch."; 
+        if ($betaAccess) {
+            $subscription_message = t('premium_subscription_beta_unsubscribed');
+        } else {
+            $error_message = t('premium_subscription_not_subscribed');
         }
     }
 } else {
     // API call failed
     if (!$betaAccess) {
-        $error_message = "Unable to determine your subscription status.";
+        $error_message = t('premium_subscription_unknown');
         if ($subResponse !== false) {
             $subData = json_decode($subResponse, true);
             if (is_array($subData) && !empty($subData['error'])) {
-                $error_message .= " Details: " . $subData['error'];
+                $error_message .= ' ' . t('premium_subscription_error_details', [$subData['error']]);
             }
         } elseif (!empty($curlError)) {
-            $error_message .= " Details: $curlError";
+            $error_message .= ' ' . t('premium_subscription_error_details', [$curlError]);
         }
     }
 }

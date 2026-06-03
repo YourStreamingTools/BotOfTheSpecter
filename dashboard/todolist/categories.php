@@ -33,7 +33,7 @@ $stmt->execute();
 $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 if (!$result) {
-  die("Error retrieving categories: " . $db->error);
+  die(t('todo_categories_msg_error_retrieving') . " " . $db->error);
 }
 
 // Handle remove category form submission
@@ -113,13 +113,14 @@ document.querySelectorAll('.remove-category-btn').forEach(function(btn) {
     e.preventDefault();
     const form = btn.closest('form');
     Swal.fire({
-      title: 'Are you sure?',
-      text: "This will remove the category.",
+      title: <?php echo json_encode(t('todo_categories_swal_title')); ?>,
+      text: <?php echo json_encode(t('todo_categories_swal_text')); ?>,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, remove it!'
+      confirmButtonText: <?php echo json_encode(t('todo_categories_swal_confirm')); ?>,
+      cancelButtonText: <?php echo json_encode(t('todo_categories_swal_cancel')); ?>
     }).then((result) => {
       if (result.isConfirmed) {
         form.submit();

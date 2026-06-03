@@ -48,12 +48,12 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   do {
       $response = fetchFollowers($followersURL, $authToken, $clientID);
       if ($response === false) {
-        echo json_encode(["status" => "error", "message" => "Failed to fetch followers"]);
+        echo json_encode(["status" => "error", "message" => t('followers_fetch_failed')]);
         exit();
       }
       $followerData = json_decode($response, true);
       if (json_last_error() !== JSON_ERROR_NONE) {
-        echo json_encode(["status" => "error", "message" => "Error decoding JSON response"]);
+        echo json_encode(["status" => "error", "message" => t('followers_json_decode_error')]);
         exit();
       }
       foreach ($followerData["data"] as $follower) {
@@ -259,6 +259,13 @@ function getInitials(name) {
   if (!name) return "?";
   return name.charAt(0).toUpperCase();
 }
+const FOLLOWERS_LOADING_PROGRESS = <?php echo json_encode(t('followers_loading_progress')); ?>;
+function formatLoadingProgress(loaded, total) {
+  // Replaces the two %s placeholders in order (loaded, then total)
+  var i = 0;
+  var args = [loaded, total];
+  return FOLLOWERS_LOADING_PROGRESS.replace(/%s/g, function() { return args[i++]; });
+}
 $(document).ready(function() {
   let followerChart = null; // To hold the chart instance
   // Initialize empty chart on page load
@@ -268,7 +275,7 @@ $(document).ready(function() {
       type: 'line',
       data: {
         datasets: [{
-          label: 'Follower Growth',
+          label: <?php echo json_encode(t('followers_chart_label')); ?>,
           data: [],
           borderColor: 'rgb(75, 192, 192)',
           backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -342,7 +349,7 @@ $(document).ready(function() {
             return;
           }
           // Update loading text with total count
-          $('#live-data').text(`Loading 0/${totalFollowers} followers`);
+          $('#live-data').text(formatLoadingProgress(0, totalFollowers));
           // Process followers in original order (newest first for display)
           response.data.forEach(function(follower, index) {
             setTimeout(function() {
@@ -374,7 +381,7 @@ $(document).ready(function() {
               $('#followers-list').append($followerElement);
               // Update progress counter
               loadedFollowers++;
-              $('#live-data').text(`Loading ${loadedFollowers}/${totalFollowers} followers`);
+              $('#live-data').text(formatLoadingProgress(loadedFollowers, totalFollowers));
               // Hide loading text when all followers are loaded
               if (loadedFollowers === totalFollowers) {
                 setTimeout(function() {

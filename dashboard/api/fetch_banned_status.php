@@ -4,6 +4,21 @@ ob_start();
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 function fbs_json_response($status, $payload) {
     if (ob_get_length() !== false) { ob_clean(); }
     http_response_code($status);
@@ -13,7 +28,7 @@ function fbs_json_response($status, $payload) {
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    fbs_json_response(401, ['error' => 'Not authenticated']);
+    fbs_json_response(401, ['error' => t('fetch_banned_status_error_not_authenticated')]);
     exit();
 }
 
@@ -54,7 +69,7 @@ function getBannedUsers($userIds, $accessToken, $broadcasterID, $clientID) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernames'])) {
     $usernames = json_decode($_POST['usernames'], true);
-    if (!is_array($usernames)) { fbs_json_response(400, ['error' => 'Invalid usernames format']); exit(); }
+    if (!is_array($usernames)) { fbs_json_response(400, ['error' => t('fetch_banned_status_error_invalid_usernames')]); exit(); }
     $userMap = getTwitchUserIds($usernames, $access_token, $clientID);
     $userIds = array_values($userMap);
     $bannedUserIds = getBannedUsers($userIds, $access_token, $broadcasterID, $clientID);
@@ -66,6 +81,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernames'])) {
     }
     fbs_json_response(200, $result);
 } else {
-    fbs_json_response(400, ['error' => 'Bad request']);
+    fbs_json_response(400, ['error' => t('fetch_banned_status_error_bad_request')]);
 }
 ?>

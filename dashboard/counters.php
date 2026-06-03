@@ -305,26 +305,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('is', $typoCount, $formUsername);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Typo count updated successfully for user {$formUsername}.";
+                        $_SESSION['status'] = t('counters_flash_typo_updated', [$formUsername]);
                         $_SESSION['notification_status'] = "is-success";
                     } else {
-                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['status'] = t('counters_flash_error', [$stmt->error]);
                         $_SESSION['notification_status'] = "is-danger";
                     }
                     $stmt->close();
                 }
             }
-            
+
             // Update command count
             if ($formCommand && is_numeric($commandCount)) {
                 $stmt = $db->prepare("UPDATE custom_counts SET count = ? WHERE command = ?");
                 if ($stmt) {
                     $stmt->bind_param('is', $commandCount, $formCommand);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Count updated successfully for the command {$formCommand}.";
+                        $_SESSION['status'] = t('counters_flash_command_updated', [$formCommand]);
                         $_SESSION['notification_status'] = "is-success";
                     } else {
-                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['status'] = t('counters_flash_error', [$stmt->error]);
                         $_SESSION['notification_status'] = "is-danger";
                     }
                     $stmt->close();
@@ -354,7 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 $stmt2->execute();
                                 $stmt2->close();
                             }
-                            $_SESSION['status'] = "Death count updated successfully for game {$formGame}.";
+                            $_SESSION['status'] = t('counters_flash_death_updated', [$formGame]);
                             $_SESSION['notification_status'] = "is-success";
                         }
                         $stmt->close();
@@ -368,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('is', $hugCount, $formHugUser);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Hug count updated successfully for user {$formHugUser}.";
+                        $_SESSION['status'] = t('counters_flash_hug_updated', [$formHugUser]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -380,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('is', $kissCount, $formKissUser);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Kiss count updated successfully for user {$formKissUser}.";
+                        $_SESSION['status'] = t('counters_flash_kiss_updated', [$formKissUser]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -392,7 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('is', $highfiveCount, $formHighfiveUser);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "High-five count updated successfully for user {$formHighfiveUser}.";
+                        $_SESSION['status'] = t('counters_flash_highfive_updated', [$formHighfiveUser]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -405,7 +405,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('iss', $userCountValue, $formUserCountCommand, $formUserCountUser);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "User count updated successfully.";
+                        $_SESSION['status'] = t('counters_flash_usercount_updated');
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -431,7 +431,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('s', $typoUsernameRemove);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Typo record removed successfully for {$typoUsernameRemove}.";
+                        $_SESSION['status'] = t('counters_flash_typo_removed', [$typoUsernameRemove]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -443,7 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('s', $commandRemove);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Command counter removed successfully for {$commandRemove}.";
+                        $_SESSION['status'] = t('counters_flash_command_removed', [$commandRemove]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -471,7 +471,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $stmt2->execute();
                             $stmt2->close();
                         }
-                        $_SESSION['status'] = "Death counter removed successfully for {$deathGameRemove}.";
+                        $_SESSION['status'] = t('counters_flash_death_removed', [$deathGameRemove]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -483,7 +483,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('s', $hugUsernameRemove);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Hug record removed successfully for {$hugUsernameRemove}.";
+                        $_SESSION['status'] = t('counters_flash_hug_removed', [$hugUsernameRemove]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -495,7 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('s', $kissUsernameRemove);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Kiss record removed successfully for {$kissUsernameRemove}.";
+                        $_SESSION['status'] = t('counters_flash_kiss_removed', [$kissUsernameRemove]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -507,7 +507,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('s', $highfiveUsernameRemove);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "High-five record removed successfully for {$highfiveUsernameRemove}.";
+                        $_SESSION['status'] = t('counters_flash_highfive_removed', [$highfiveUsernameRemove]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -519,7 +519,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('ss', $usercountCommandRemove, $usercountUserRemove);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "User count removed successfully.";
+                        $_SESSION['status'] = t('counters_flash_usercount_removed');
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -544,7 +544,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             $stmt2->execute();
                             $stmt2->close();
                         }
-                        $_SESSION['status'] = "Game death counter added successfully for {$deathGameAdd}.";
+                        $_SESSION['status'] = t('counters_flash_death_added', [$deathGameAdd]);
                         $_SESSION['notification_status'] = "is-success";
                     }
                     $stmt->close();
@@ -560,10 +560,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('s', $quoteText);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Quote added successfully.";
+                        $_SESSION['status'] = t('counters_flash_quote_added');
                         $_SESSION['notification_status'] = "is-success";
                     } else {
-                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['status'] = t('counters_flash_error', [$stmt->error]);
                         $_SESSION['notification_status'] = "is-danger";
                     }
                     $stmt->close();
@@ -580,10 +580,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('si', $quoteText, $quoteId);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Quote updated successfully.";
+                        $_SESSION['status'] = t('counters_flash_quote_updated');
                         $_SESSION['notification_status'] = "is-success";
                     } else {
-                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['status'] = t('counters_flash_error', [$stmt->error]);
                         $_SESSION['notification_status'] = "is-danger";
                     }
                     $stmt->close();
@@ -599,10 +599,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($stmt) {
                     $stmt->bind_param('i', $quoteId);
                     if ($stmt->execute()) {
-                        $_SESSION['status'] = "Quote removed successfully.";
+                        $_SESSION['status'] = t('counters_flash_quote_removed');
                         $_SESSION['notification_status'] = "is-success";
                     } else {
-                        $_SESSION['status'] = "Error: " . $stmt->error;
+                        $_SESSION['status'] = t('counters_flash_error', [$stmt->error]);
                         $_SESSION['notification_status'] = "is-danger";
                     }
                     $stmt->close();
@@ -616,7 +616,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         case 'update_reward_usage':
         case 'remove_reward_usage':
             // Handle reward streaks and usage (to be implemented)
-            $_SESSION['status'] = "Action {$action} processed.";
+            $_SESSION['status'] = t('counters_flash_action_processed', [$action]);
             $_SESSION['notification_status'] = "is-info";
             header('Location: counters.php');
             exit();
@@ -699,7 +699,7 @@ if (isset($userData['data']) && is_array($userData['data'])) {
     if (isset($usernames[$lurker['user_id']])) {
       $lurkers[$key]['username'] = $usernames[$lurker['user_id']];
     } else {
-      $lurkers[$key]['username'] = 'Unknown'; // Fallback if username not found
+      $lurkers[$key]['username'] = t('counters_unknown_user'); // Fallback if username not found
     }
   }
 } else {
@@ -1191,14 +1191,14 @@ document.addEventListener('DOMContentLoaded', function() {
     loadData(defaultType);
   }
   // Wire up remove form confirmations
-  wireRemoveForm('typo-remove-form', 'typo-username-remove', 'typo');
-  wireRemoveForm('command-remove-form', 'command-remove', 'custom command');
-  wireRemoveForm('death-remove-form', 'death-game-remove', 'death counter');
-  wireRemoveForm('hug-remove-form', 'hug-username-remove', 'hug');
-  wireRemoveForm('kiss-remove-form', 'kiss-username-remove', 'kiss');
-  wireRemoveForm('highfive-remove-form', 'highfive-username-remove', 'high-five');
-  wireRemoveForm('usercount-remove-form', 'usercount-user-remove', 'user count');
-  wireRemoveForm('quote-remove-form', 'quote-id-remove', 'quote');
+  wireRemoveForm('typo-remove-form', 'typo-username-remove', <?php echo json_encode(t('counters_type_typo')); ?>);
+  wireRemoveForm('command-remove-form', 'command-remove', <?php echo json_encode(t('counters_type_custom_command')); ?>);
+  wireRemoveForm('death-remove-form', 'death-game-remove', <?php echo json_encode(t('counters_type_death_counter')); ?>);
+  wireRemoveForm('hug-remove-form', 'hug-username-remove', <?php echo json_encode(t('counters_type_hug')); ?>);
+  wireRemoveForm('kiss-remove-form', 'kiss-username-remove', <?php echo json_encode(t('counters_type_kiss')); ?>);
+  wireRemoveForm('highfive-remove-form', 'highfive-username-remove', <?php echo json_encode(t('counters_type_highfive')); ?>);
+  wireRemoveForm('usercount-remove-form', 'usercount-user-remove', <?php echo json_encode(t('counters_type_user_count')); ?>);
+  wireRemoveForm('quote-remove-form', 'quote-id-remove', <?php echo json_encode(t('counters_type_quote')); ?>);
 });
 
 function formatWatchTime(seconds) {
@@ -1212,11 +1212,19 @@ function formatWatchTime(seconds) {
       hour: 3600,
       minute: 60
   };
+  const unitLabels = {
+    year: { one: <?php echo json_encode(t('counters_unit_year_one')); ?>, other: <?php echo json_encode(t('counters_unit_year_other')); ?> },
+    month: { one: <?php echo json_encode(t('counters_unit_month_one')); ?>, other: <?php echo json_encode(t('counters_unit_month_other')); ?> },
+    day: { one: <?php echo json_encode(t('counters_unit_day_one')); ?>, other: <?php echo json_encode(t('counters_unit_day_other')); ?> },
+    hour: { one: <?php echo json_encode(t('counters_unit_hour_one')); ?>, other: <?php echo json_encode(t('counters_unit_hour_other')); ?> },
+    minute: { one: <?php echo json_encode(t('counters_unit_minute_one')); ?>, other: <?php echo json_encode(t('counters_unit_minute_other')); ?> }
+  };
   const parts = [];
   for (const [name, divisor] of Object.entries(units)) {
     const quotient = Math.floor(seconds / divisor);
     if (quotient > 0) {
-      parts.push(`${quotient} ${name}${quotient > 1 ? 's' : ''}`);
+      const label = quotient > 1 ? unitLabels[name].other : unitLabels[name].one;
+      parts.push(`${quotient} ${label}`);
       seconds -= quotient * divisor;
     }
   }
@@ -1531,14 +1539,16 @@ function wireRemoveForm(formId, selectId, type) {
     e.preventDefault();
     const select = document.getElementById(selectId);
     const value = select ? select.value : '';
+    const confirmText = <?php echo json_encode(t('counters_remove_confirm_text', ['type' => ':type'])); ?>.replace(':type', type);
     Swal.fire({
-      title: 'Are you sure?',
-      text: `Do you want to remove this ${type} record?`,
+      title: <?php echo json_encode(t('edit_counters_swal_title')); ?>,
+      text: confirmText,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#3085d6',
       cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, remove it!'
+      cancelButtonText: <?php echo json_encode(t('edit_counters_swal_cancel')); ?>,
+      confirmButtonText: <?php echo json_encode(t('edit_counters_swal_confirm')); ?>
     }).then((result) => {
       if (result.isConfirmed) {
         form.submit();

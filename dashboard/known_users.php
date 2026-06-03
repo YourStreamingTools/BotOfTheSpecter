@@ -44,7 +44,7 @@ $cacheWarningMessage = null; // Initialize warning message
 
 if (!is_dir($cacheBaseDir)) {
   if (!mkdir($cacheBaseDir, 0755, true) && !is_dir($cacheBaseDir)) {
-    $cacheWarningMessage = "Error: Could not create cache directory: $cacheBaseDir. Please check server permissions.";
+    $cacheWarningMessage = t('known_users_cache_dir_error', ['dir' => $cacheBaseDir]);
     error_log($cacheWarningMessage . " User: " . $loggedInUsername);
   }
 }
@@ -421,21 +421,21 @@ document.addEventListener('DOMContentLoaded', function() {
               const response = JSON.parse(xhr.responseText);
               if (response.success) {
                 loadToastify().then(function() {
-                  showToast('✓ Test Sent: ' + response.message, true);
+                  showToast(<?php echo json_encode(t('known_users_test_sent')); ?> + ': ' + response.message, true);
                 });
               } else {
                 loadToastify().then(function() {
-                  showToast('✗ Error: ' + (response.message || 'Failed to send test message'), false);
+                  showToast(<?php echo json_encode(t('known_users_test_error')); ?> + ': ' + (response.message || <?php echo json_encode(t('known_users_test_failed')); ?>), false);
                 });
               }
             } catch (e) {
               loadToastify().then(function() {
-                showToast('✗ Error: Invalid response from server', false);
+                showToast(<?php echo json_encode(t('known_users_test_error')); ?> + ': ' + <?php echo json_encode(t('known_users_test_invalid_response')); ?>, false);
               });
             }
           } else {
             loadToastify().then(function() {
-              showToast('✗ Error: Failed to send test message. Status: ' + xhr.status, false);
+              showToast(<?php echo json_encode(t('known_users_test_error')); ?> + ': ' + <?php echo json_encode(t('known_users_test_failed_status')); ?> + ' ' + xhr.status, false);
             });
           }
         }

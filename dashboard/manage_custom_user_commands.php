@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $result = $checkSTMT->get_result();
         
         if ($result->num_rows > 0) {
-            $status = "Command '" . $newCommand . "' already exists. Please choose a different name.";
+            $status = t('user_commands_msg_already_exists', ['command' => $newCommand]);
             $notification_status = "sp-alert-danger";
         } else {
             // Insert new command into MySQL database
@@ -55,10 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $user_id);
                 $insertSTMT->execute();
                 if ($insertSTMT->affected_rows > 0) {
-                    $status = "User command '" . $newCommand . "' for user '" . $user_id . "' added successfully!";
+                    $status = t('user_commands_msg_add_success', ['command' => $newCommand, 'user' => $user_id]);
                     $notification_status = "sp-alert-success";
                 } else {
-                    $status = "Error: Command was not added to the database.";
+                    $status = t('user_commands_msg_add_error');
                     $notification_status = "sp-alert-danger";
                 }
                 $insertSTMT->close();
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $userCommands = $result->fetch_all(MYSQLI_ASSOC);
                 $commandsSTMT->close();
             } catch (Exception $e) {
-                $status = "Error adding command: " . $e->getMessage();
+                $status = t('user_commands_msg_add_exception') . " " . $e->getMessage();
                 $notification_status = "sp-alert-danger";
             }
         }
@@ -94,10 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $updateSTMT->bind_param("ssis", $new_command_name, $command_response, $cooldown, $command_to_edit);
             $updateSTMT->execute();
             if ($updateSTMT->affected_rows > 0) {
-                $status = "User command ". $command_to_edit . " updated successfully!";
+                $status = t('user_commands_msg_update_success', ['command' => $command_to_edit]);
                 $notification_status = "sp-alert-success";
             } else {
-                $status = $command_to_edit . " not found or no changes made.";
+                $status = t('user_commands_msg_update_not_found', ['command' => $command_to_edit]);
                 $notification_status = "sp-alert-danger";
             }
             $updateSTMT->close();
@@ -107,11 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $userCommands = $result->fetch_all(MYSQLI_ASSOC);
             $commandsSTMT->close();
         } catch (Exception $e) {
-            $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
+            $status = t('user_commands_msg_update_exception', ['command' => $command_to_edit]) . " " . $e->getMessage();
             $notification_status = "sp-alert-danger";
         }
     }
-    
+
     // Approving User Commands
     if (isset($_POST['approve_command'])) {
         $command = $_POST['approve_command'];
@@ -121,10 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $statusSTMT->bind_param("ss", $status_value, $command);
             $statusSTMT->execute();
             if ($statusSTMT->affected_rows > 0) {
-                $status = "User command ". $command . " approved successfully!";
+                $status = t('user_commands_msg_approve_success', ['command' => $command]);
                 $notification_status = "sp-alert-success";
             } else {
-                $status = $command . " not found or no changes made.";
+                $status = t('user_commands_msg_update_not_found', ['command' => $command]);
                 $notification_status = "sp-alert-danger";
             }
             $statusSTMT->close();
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $userCommands = $result->fetch_all(MYSQLI_ASSOC);
             $commandsSTMT->close();
         } catch (Exception $e) {
-            $status = "Error approving command: " . $e->getMessage();
+            $status = t('user_commands_msg_approve_exception') . " " . $e->getMessage();
             $notification_status = "sp-alert-danger";
         }
     }
@@ -147,10 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $deleteSTMT->bind_param("s", $command);
             $deleteSTMT->execute();
             if ($deleteSTMT->affected_rows > 0) {
-                $status = "User command ". $command . " deleted successfully!";
+                $status = t('user_commands_msg_delete_success', ['command' => $command]);
                 $notification_status = "sp-alert-success";
             } else {
-                $status = $command . " not found.";
+                $status = t('user_commands_msg_delete_not_found', ['command' => $command]);
                 $notification_status = "sp-alert-danger";
             }
             $deleteSTMT->close();
@@ -160,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $userCommands = $result->fetch_all(MYSQLI_ASSOC);
             $commandsSTMT->close();
         } catch (Exception $e) {
-            $status = "Error deleting command: " . $e->getMessage();
+            $status = t('user_commands_msg_delete_exception') . " " . $e->getMessage();
             $notification_status = "sp-alert-danger";
         }
     }
@@ -346,7 +346,7 @@ ob_start();
                                 <?php endif; ?>
                                 <form method="post" style="display: inline;">
                                     <input type="hidden" name="delete_command" value="<?php echo $command['command']; ?>">
-                                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo htmlspecialchars(t('manage_custom_user_commands_delete_tooltip')); ?>" onclick="return confirm('Are you sure you want to delete this command?')">
+                                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo htmlspecialchars(t('manage_custom_user_commands_delete_tooltip')); ?>" onclick="return confirm(<?php echo htmlspecialchars(json_encode(t('user_commands_js_delete_confirm')), ENT_QUOTES); ?>)">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
@@ -367,6 +367,10 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+const i18nCharacters = <?php echo json_encode(t('custom_commands_characters')); ?>;
+const i18nExceedsLimit = <?php echo json_encode(t('user_commands_js_exceeds_limit')); ?>;
+const i18nCharLimitAlert = <?php echo json_encode(t('user_commands_js_char_limit_alert')); ?>;
+
 document.addEventListener("DOMContentLoaded", function() {
     var searchInput = document.getElementById("searchInput");
     if (searchInput) {
@@ -406,7 +410,7 @@ function updateCharCount(inputId, counterId) {
     const maxLength = 255;
     const currentLength = input.value.length;
     // Update the counter text
-    counter.textContent = currentLength + '/' + maxLength + ' characters';
+    counter.textContent = currentLength + '/' + maxLength + ' ' + i18nCharacters;
     // Update styling based on character count
     if (currentLength > maxLength) {
         counter.className = 'sp-help sp-help-danger';
@@ -436,7 +440,7 @@ function validateForm(form) {
             const helpId = input.id + 'CharCount';
             const helpText = document.getElementById(helpId);
             if (helpText) {
-                helpText.textContent = input.value.length + '/' + maxLength + ' characters - Exceeds limit!';
+                helpText.textContent = input.value.length + '/' + maxLength + ' ' + i18nCharacters + i18nExceedsLimit;
                 helpText.className = 'sp-help sp-help-danger';
             }
         }
@@ -464,7 +468,7 @@ window.onload = function() {
         form.addEventListener('submit', function(event) {
             if (!validateForm(this)) {
                 event.preventDefault();
-                alert('Please ensure all fields meet the character limits before submitting.');
+                alert(i18nCharLimitAlert);
             }
         });
     });

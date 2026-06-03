@@ -1,36 +1,53 @@
 <?php
+// Ensure translations are available even when this partial is included by a
+// page that did not load i18n (e.g. admin_access.php). The guard prevents
+// double-loading when the including page (e.g. login.php) already defined t().
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 $accessMode = isset($accessMode) ? (string) $accessMode : 'restricted';
 $isAccessDenied = ($accessMode === 'denied');
 $isMemorial = ($accessMode === 'memorial');
 
 $restrictedDetails = [
-    'Restrictions are applied when security, abuse-prevention, or platform policy checks detect behavior that puts services, users, or integrations at risk.',
-    'While restricted, access to dashboard pages, bot command controls, token and integration management, and other account-level actions may be blocked.',
-    'Restrictions may be temporary or permanent based on severity, frequency, and prior account history.',
-    'Repeated login attempts, API misuse, automation abuse, or attempts to bypass limits may delay or prevent restoration of access.',
-    'Do not create alternate accounts to bypass this restriction. Circumvention attempts may result in broader enforcement actions.',
-    'If you believe this is an error, contact support with your Twitch username, the approximate time of your last successful login, and any relevant context so we can review your case quickly.'
+    t('restricted_detail_1'),
+    t('restricted_detail_2'),
+    t('restricted_detail_3'),
+    t('restricted_detail_4'),
+    t('restricted_detail_5'),
+    t('restricted_detail_6')
 ];
 
 if (!isset($info) || trim((string) $info) === '') {
     if ($isMemorial) {
-        $info = 'This account has been preserved in memory of the account holder who has passed away.';
+        $info = t('restricted_info_memorial');
     } elseif ($isAccessDenied) {
-        $info = 'Access denied.';
+        $info = t('restricted_info_denied');
     } else {
-        $info = "Your account has been restricted from accessing BotOfTheSpecter due to activity that violated our platform rules or acceptable use policies.";
+        $info = t('restricted_info_default');
     }
 }
 
 if ($isMemorial) {
-    $pageTitle = 'Memorial Account - BotOfTheSpecter';
-    $headingTitle = 'Account Preserved in Memory';
+    $pageTitle = t('restricted_page_title_memorial');
+    $headingTitle = t('restricted_heading_memorial');
 } elseif ($isAccessDenied) {
-    $pageTitle = 'Access Denied - BotOfTheSpecter';
-    $headingTitle = 'Access Denied';
+    $pageTitle = t('restricted_page_title_denied');
+    $headingTitle = t('restricted_heading_denied');
 } else {
-    $pageTitle = 'Access Restricted - BotOfTheSpecter';
-    $headingTitle = 'Access Restricted';
+    $pageTitle = t('restricted_page_title_default');
+    $headingTitle = t('restricted_heading_default');
 }
 ?>
 <!DOCTYPE html>
@@ -124,7 +141,7 @@ if ($isMemorial) {
             </header>
             <div class="card-content">
                 <div class="content has-text-centered">
-                    <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" width="100" class="mb-4">
+                    <img src="https://cdn.botofthespecter.com/logo.png" alt="<?php echo htmlspecialchars(t('restricted_logo_alt'), ENT_QUOTES, 'UTF-8'); ?>" width="100" class="mb-4">
                     <p class="mb-4"><?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?></p>
                     <?php if (!$isAccessDenied && !$isMemorial): ?>
                         <ul class="restricted-details">
@@ -139,14 +156,14 @@ if ($isMemorial) {
                                 <span class="icon">
                                     <i class="fas fa-envelope"></i>
                                 </span>
-                                <span>Contact Support</span>
+                                <span><?php echo htmlspecialchars(t('restricted_btn_contact_support'), ENT_QUOTES, 'UTF-8'); ?></span>
                             </a>
                         <?php endif; ?>
                         <a href="https://botofthespecter.com" class="button is-light">
                             <span class="icon">
                                 <i class="fas fa-home"></i>
                             </span>
-                            <span>Return to Homepage</span>
+                            <span><?php echo htmlspecialchars(t('restricted_btn_return_home'), ENT_QUOTES, 'UTF-8'); ?></span>
                         </a>
                     </div>
                 </div>

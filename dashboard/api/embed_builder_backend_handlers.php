@@ -1,13 +1,30 @@
 <?php
 /**
  * Custom Embed Builder Backend Handlers
- * 
+ *
  * USAGE: Copy the case statements from the switch below and add them to
  * save_discord_channel_config.php around line 90, after 'send_stream_schedule_message' case
- * 
+ *
  * This file is structured as valid PHP for syntax checking purposes.
  * The actual implementation should be integrated into the existing switch statement.
  */
+
+// Load translations so user-facing messages are localized when these handlers
+// run inside save_discord_channel_config.php. Guarded so the file also lints
+// and runs standalone (the t() fallback returns the key as a passthrough).
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
 
 // Simulated context for syntax validation
 if (false) {
@@ -41,7 +58,7 @@ if (false) {
     if (empty($embed_name)) {
         http_response_code(400);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Embed name is required', 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_name_required'), 'debug_logs' => $debug_logs]);
         exit();
     }
     // Prepare timestamp value
@@ -53,7 +70,7 @@ if (false) {
             debug_log('Failed to prepare update statement: ' . $discord_conn->error);
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_database_error', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
             exit();
         }
         $updateStmt->bind_param("sssssssssssssiis", $embed_name, $title, $description, $color, $url, $thumbnail_url, $image_url, $footer_text, $footer_icon_url, $author_name, $author_url, $author_icon_url, $fields, $timestamp_value, $embed_id, $server_id);
@@ -65,7 +82,7 @@ if (false) {
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
-                'message' => 'Embed updated successfully',
+                'message' => t('embed_builder_updated_success'),
                 'embed_id' => $embed_id,
                 'debug_logs' => $debug_logs
             ]);
@@ -73,7 +90,7 @@ if (false) {
         } else {
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Failed to update embed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_update_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
             exit();
         }
     } else {
@@ -83,7 +100,7 @@ if (false) {
             debug_log('Failed to prepare insert statement: ' . $discord_conn->error);
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_database_error', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
             exit();
         }
         $insertStmt->bind_param("ssssssssssssssi", $server_id, $embed_name, $title, $description, $color, $url, $thumbnail_url, $image_url, $footer_text, $footer_icon_url, $author_name, $author_url, $author_icon_url, $fields, $timestamp_value);
@@ -96,7 +113,7 @@ if (false) {
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
-                'message' => 'Embed created successfully',
+                'message' => t('embed_builder_created_success'),
                 'embed_id' => $new_embed_id,
                 'debug_logs' => $debug_logs
             ]);
@@ -104,7 +121,7 @@ if (false) {
         } else {
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Failed to create embed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_create_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
             exit();
         }
     }
@@ -117,7 +134,7 @@ case 'send_custom_embed':
         debug_log('Missing embed_id or channel_id in input');
         http_response_code(400);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Embed ID and Channel ID are required', 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_id_channel_required'), 'debug_logs' => $debug_logs]);
         exit();
     }
     $embed_id = (int)$input['embed_id'];
@@ -125,7 +142,7 @@ case 'send_custom_embed':
     if (empty($channel_id)) {
         http_response_code(400);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_channel_id_empty'), 'debug_logs' => $debug_logs]);
         exit();
     }
     // Fetch embed data from database
@@ -140,7 +157,7 @@ case 'send_custom_embed':
             debug_log('api_key not found for user_id: ' . $user_id);
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_api_key_not_found'), 'debug_logs' => $debug_logs]);
             exit();
         }
         // Send websocket notification to post the embed to Discord channel
@@ -185,7 +202,7 @@ case 'send_custom_embed':
             debug_log('Failed to initialize cURL');
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request', 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_http_init_failed'), 'debug_logs' => $debug_logs]);
             exit();
         }
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -197,7 +214,7 @@ case 'send_custom_embed':
             curl_close($ch);
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
             exit();
         }
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -207,7 +224,7 @@ case 'send_custom_embed':
             debug_log("Failed to send websocket notification for custom embed: HTTP $http_code, Response: $response");
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Failed to send embed to Discord channel', 'debug_logs' => $debug_logs]);
+            echo json_encode(['success' => false, 'message' => t('embed_builder_send_failed'), 'debug_logs' => $debug_logs]);
             exit();
         } else {
             debug_log("Successfully sent websocket notification for custom embed");
@@ -215,7 +232,7 @@ case 'send_custom_embed':
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
-                'message' => 'Embed sent to Discord channel successfully',
+                'message' => t('embed_builder_sent_success'),
                 'embed_id' => $embed_id,
                 'channel_id' => $channel_id,
                 'debug_logs' => $debug_logs
@@ -226,7 +243,7 @@ case 'send_custom_embed':
         $fetchStmt->close();
         http_response_code(404);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Embed not found', 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_not_found'), 'debug_logs' => $debug_logs]);
         exit();
     }
     break;
@@ -237,7 +254,7 @@ case 'delete_custom_embed':
     if (!isset($input['embed_id'])) {
         http_response_code(400);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Embed ID is required', 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_id_required'), 'debug_logs' => $debug_logs]);
         exit();
     }
     $embed_id = (int)$input['embed_id'];
@@ -247,7 +264,7 @@ case 'delete_custom_embed':
         debug_log('Failed to prepare delete statement: ' . $discord_conn->error);
         http_response_code(500);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_database_error', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
         exit();
     }
     $deleteStmt->bind_param("is", $embed_id, $server_id);
@@ -259,14 +276,14 @@ case 'delete_custom_embed':
         header('Content-Type: application/json');
         echo json_encode([
             'success' => true,
-            'message' => 'Embed deleted successfully',
+            'message' => t('embed_builder_deleted_success'),
             'debug_logs' => $debug_logs
         ]);
         exit();
     } else {
         http_response_code(500);
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Failed to delete embed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+        echo json_encode(['success' => false, 'message' => t('embed_builder_delete_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
         exit();
     }
     break;

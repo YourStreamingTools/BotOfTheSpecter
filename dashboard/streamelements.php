@@ -55,9 +55,9 @@ if ($twitchUserId) {
                 $hours = floor(($expires_in % 86400) / 3600);
                 $minutes = floor(($expires_in % 3600) / 60);
                 $parts = [];
-                if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-                if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-                if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+                if ($days > 0) $parts[] = ($days > 1 ? t('streamelements_duration_days', [$days]) : t('streamelements_duration_day', [$days]));
+                if ($hours > 0) $parts[] = ($hours > 1 ? t('streamelements_duration_hours', [$hours]) : t('streamelements_duration_hour', [$hours]));
+                if ($minutes > 0 && count($parts) < 2) $parts[] = ($minutes > 1 ? t('streamelements_duration_minutes', [$minutes]) : t('streamelements_duration_minute', [$minutes]));
                 $expires_str = implode(', ', $parts);
             }
             // Fetch StreamElements user profile
@@ -139,10 +139,10 @@ $scope = 'channel:read tips:read';
 
 // Handle user denial (error=true in query string)
 if ($isActAsUser && isset($_GET['code'])) {
-    $linkingMessage = "Linking StreamElements is disabled while using Act As mode.";
+    $linkingMessage = t('streamelements_msg_actas_disabled');
     $linkingMessageType = "is-warning";
 } elseif (isset($_GET['error']) && $_GET['error'] === 'true') {
-    $linkingMessage = "Authorization was denied. Please allow access to link your StreamElements account.";
+    $linkingMessage = t('streamelements_msg_auth_denied');
     $linkingMessageType = "is-danger";
 }
 
@@ -150,7 +150,7 @@ if ($isActAsUser && isset($_GET['code'])) {
 if (isset($_GET['code']) && !$isActAsUser) {
     // Optional: Validate state parameter
     if (!isset($_GET['state']) || !isset($_SESSION['streamelements_oauth_state']) || $_GET['state'] !== $_SESSION['streamelements_oauth_state']) {
-        $linkingMessage = "Invalid state parameter. Please try again.";
+        $linkingMessage = t('streamelements_msg_invalid_state');
         $linkingMessageType = "is-danger";
     } else {
         unset($_SESSION['streamelements_oauth_state']);
@@ -244,40 +244,40 @@ if (isset($_GET['code']) && !$isActAsUser) {
                     }
                     if ($stmt) {
                         if ($stmt->execute()) {
-                            $linkingMessage = "StreamElements account successfully linked!";
+                            $linkingMessage = t('streamelements_msg_link_success');
                             $linkingMessageType = "is-success";
                             $isLinked = true;
                             // Redirect to refresh page and show linked status
                             header("Location: streamelements.php");
                             exit();
-                        } else { 
-                            $linkingMessage = "Linked, but failed to save tokens.";
+                        } else {
+                            $linkingMessage = t('streamelements_msg_link_save_failed');
                             $linkingMessageType = "is-warning";
                         }
                         $stmt->close();
-                    } else { 
-                        $linkingMessage = "Linked, but failed to prepare statement.";
+                    } else {
+                        $linkingMessage = t('streamelements_msg_link_prepare_failed');
                         $linkingMessageType = "is-warning";
                     }
-                } else { 
-                    $linkingMessage = "Linked, but missing Twitch user ID or refresh token.";
+                } else {
+                    $linkingMessage = t('streamelements_msg_link_missing_ids');
                     $linkingMessageType = "is-warning";
                 }
             } else {
-                $linkingMessage = "Token validation failed.";
+                $linkingMessage = t('streamelements_msg_token_validation_failed');
                 $linkingMessageType = "is-danger";
-                if (isset($validate_data['message'])) { 
-                    $linkingMessage .= " Error: " . htmlspecialchars($validate_data['message']);
+                if (isset($validate_data['message'])) {
+                    $linkingMessage .= " " . t('streamelements_msg_error_prefix') . " " . htmlspecialchars($validate_data['message']);
                 }
             }
         } else {
-            $linkingMessage = "Failed to link StreamElements account.";
+            $linkingMessage = t('streamelements_msg_link_failed');
             $linkingMessageType = "is-danger";
-            if (isset($token_data['error'])) { 
-                $linkingMessage .= " Error: " . htmlspecialchars($token_data['error']);
+            if (isset($token_data['error'])) {
+                $linkingMessage .= " " . t('streamelements_msg_error_prefix') . " " . htmlspecialchars($token_data['error']);
             }
-            if (isset($token_data['error_description'])) { 
-                $linkingMessage .= " Description: " . htmlspecialchars($token_data['error_description']);
+            if (isset($token_data['error_description'])) {
+                $linkingMessage .= " " . t('streamelements_msg_description_prefix') . " " . htmlspecialchars($token_data['error_description']);
             }
         }
     }
@@ -627,6 +627,16 @@ if ($isLinked && (isset($apiToken) || isset($stored_jwt_token))):
 ob_start();
 ?>
 <script>
+const seRevealApiTitle = <?php echo json_encode(t('streamelements_js_reveal_api_title')); ?>;
+const seRevealApiText = <?php echo json_encode(t('streamelements_js_reveal_api_text')); ?>;
+const seRevealJwtTitle = <?php echo json_encode(t('streamelements_js_reveal_jwt_title')); ?>;
+const seRevealJwtText = <?php echo json_encode(t('streamelements_js_reveal_jwt_text')); ?>;
+const seConfirmShow = <?php echo json_encode(t('streamelements_js_confirm_show')); ?>;
+const seConfirmCancel = <?php echo json_encode(t('streamelements_js_confirm_cancel')); ?>;
+const seHideApiTitle = <?php echo json_encode(t('streamelements_show_api_token')); ?>;
+const seHideApiToken = <?php echo json_encode(t('streamelements_js_hide_api_token')); ?>;
+const seHideJwtTitle = <?php echo json_encode(t('streamelements_show_jwt_token')); ?>;
+const seHideJwtToken = <?php echo json_encode(t('streamelements_js_hide_jwt_token')); ?>;
 <?php if (isset($apiToken)): ?>
 const apiToken = "<?php echo addslashes($apiToken) ?>";
 const apiTokenDotCount = <?php echo (int)strlen($apiToken); ?>;
@@ -648,12 +658,12 @@ document.addEventListener('DOMContentLoaded', function() {
         apiBtn.addEventListener('click', function() {
             if (!apiTokenVisible) {
                 Swal.fire({
-                    title: 'Reveal API Token?',
-                    text: 'Are you sure you want to show your API Token? Keep it secret!',
+                    title: seRevealApiTitle,
+                    text: seRevealApiText,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Show',
-                    cancelButtonText: 'Cancel',
+                    confirmButtonText: seConfirmShow,
+                    cancelButtonText: seConfirmCancel,
                     confirmButtonColor: '#f39c12',
                     cancelButtonColor: '#6c757d'
                 }).then((result) => {
@@ -661,7 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         apiDisplay.value = apiToken;
                         apiEye.classList.remove('fa-eye');
                         apiEye.classList.add('fa-eye-slash');
-                        apiBtn.title = "Hide API Token";
+                        apiBtn.title = seHideApiToken;
                         apiBtn.classList.remove('sp-btn-warning');
                         apiBtn.classList.add('sp-btn-danger');
                         apiTokenVisible = true;
@@ -671,7 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 apiDisplay.value = '•'.repeat(apiTokenDotCount);
                 apiEye.classList.remove('fa-eye-slash');
                 apiEye.classList.add('fa-eye');
-                apiBtn.title = "Show API Token";
+                apiBtn.title = seHideApiTitle;
                 apiBtn.classList.remove('sp-btn-danger');
                 apiBtn.classList.add('sp-btn-warning');
                 apiTokenVisible = false;
@@ -688,12 +698,12 @@ document.addEventListener('DOMContentLoaded', function() {
         jwtBtn.addEventListener('click', function() {
             if (!jwtTokenVisible) {
                 Swal.fire({
-                    title: 'Reveal JWT Token?',
-                    text: 'Are you sure you want to show your JWT Token? Keep it secret!',
+                    title: seRevealJwtTitle,
+                    text: seRevealJwtText,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Show',
-                    cancelButtonText: 'Cancel',
+                    confirmButtonText: seConfirmShow,
+                    cancelButtonText: seConfirmCancel,
                     confirmButtonColor: '#3273dc',
                     cancelButtonColor: '#6c757d'
                 }).then((result) => {
@@ -701,7 +711,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         jwtDisplay.value = jwtToken;
                         jwtEye.classList.remove('fa-eye');
                         jwtEye.classList.add('fa-eye-slash');
-                        jwtBtn.title = "Hide JWT Token";
+                        jwtBtn.title = seHideJwtToken;
                         jwtBtn.classList.remove('sp-btn-info');
                         jwtBtn.classList.add('sp-btn-danger');
                         jwtTokenVisible = true;
@@ -711,7 +721,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 jwtDisplay.value = '•'.repeat(jwtTokenDotCount);
                 jwtEye.classList.remove('fa-eye-slash');
                 jwtEye.classList.add('fa-eye');
-                jwtBtn.title = "Show JWT Token";
+                jwtBtn.title = seHideJwtTitle;
                 jwtBtn.classList.remove('sp-btn-danger');
                 jwtBtn.classList.add('sp-btn-info');
                 jwtTokenVisible = false;

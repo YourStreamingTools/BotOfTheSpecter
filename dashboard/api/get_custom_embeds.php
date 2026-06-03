@@ -2,11 +2,26 @@
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Check if user is logged in
 if (!isset($_SESSION['access_token']) || !isset($_SESSION['user_id'])) {
     http_response_code(401);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
+    echo json_encode(['success' => false, 'message' => t('get_custom_embeds_error_not_authenticated')]);
     exit();
 }
 
@@ -22,7 +37,7 @@ $server_id = isset($_GET['server_id']) ? trim($_GET['server_id']) : '';
 if (!$server_id) {
     http_response_code(400);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Missing server ID']);
+    echo json_encode(['success' => false, 'message' => t('get_custom_embeds_error_missing_server_id')]);
     exit();
 }
 
@@ -30,7 +45,7 @@ try {
     // Connect to Discord bot database
     $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
     if ($discord_conn->connect_error) {
-        throw new Exception('Discord database connection failed');
+        throw new Exception(t('get_custom_embeds_error_discord_db_connection'));
     }
     
     // Fetch all embeds for this server
@@ -56,6 +71,6 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => t('get_custom_embeds_error_server', [$e->getMessage()])]);
 }
 ?>

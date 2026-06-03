@@ -8,12 +8,27 @@ include '../includes/userdata.php';
 session_write_close();
 require_once '/var/www/config/ssh.php';
 
+// Load translations so user-facing SSE messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Check if user is logged in and is an admin
 if (!isset($_SESSION['access_token']) || !isset($_SESSION['username'])) {
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
     echo "event: error\n";
-    echo "data: Unauthorized - Please log in\n\n";
+    echo "data: " . t('admin_stream_command_unauthorized_login') . "\n\n";
     echo "event: done\n";
     echo "data: {\"success\":false}\n\n";
     exit;
@@ -24,7 +39,7 @@ if (!isset($is_admin) || !$is_admin) {
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
     echo "event: error\n";
-    echo "data: Unauthorized - Admin access required\n\n";
+    echo "data: " . t('admin_stream_command_unauthorized_admin') . "\n\n";
     echo "event: done\n";
     echo "data: {\"success\":false}\n\n";
     exit;
@@ -43,7 +58,7 @@ if (!isset($mapping[$script_key])) {
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
     echo "event: error\n";
-    echo "data: Invalid script requested\n\n";
+    echo "data: " . t('admin_stream_command_invalid_script') . "\n\n";
     echo "event: done\n";
     echo "data: {\"success\":false}\n\n";
     exit;
@@ -88,7 +103,7 @@ try {
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     if (!$connection) {
         admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => 'Failed to connect to bot server'], 'script', $script);
-        sse_send('Failed to connect to bot server', 'error');
+        sse_send(t('admin_stream_command_connect_failed'), 'error');
         sse_send(json_encode(['success' => false]), 'done');
         exit;
     }
@@ -96,7 +111,7 @@ try {
     $streams = SSHConnectionManager::executeCommandStream($connection, $cmd);
     if (!$streams || !isset($streams['stdout'])) {
         admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => 'Failed to start remote command'], 'script', $script);
-        sse_send('Failed to start remote command', 'error');
+        sse_send(t('admin_stream_command_start_failed'), 'error');
         sse_send(json_encode(['success' => false]), 'done');
         exit;
     }
@@ -128,7 +143,7 @@ try {
     sse_send(json_encode(['success' => true]), 'done');
 } catch (Exception $e) {
     admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => $e->getMessage()], 'script', $script);
-    sse_send('Exception: ' . $e->getMessage(), 'error');
+    sse_send(t('admin_stream_command_exception', [$e->getMessage()]), 'error');
     sse_send(json_encode(['success' => false]), 'done');
 }
 exit;

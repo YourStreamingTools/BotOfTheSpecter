@@ -88,7 +88,7 @@ if ($row = mysqli_fetch_assoc($heartrateResult)) {
 
 // Format join and last login times
 function formatUserDate($datetime, $timezone) {
-    if (!$datetime) return 'Unknown';
+    if (!$datetime) return t('profile_unknown');
     try {
         $serverTz = new DateTimeZone('Australia/Sydney');
         $dt = new DateTime($datetime, $serverTz);
@@ -101,8 +101,8 @@ function formatUserDate($datetime, $timezone) {
 
 // Determine user's timezone preference (from profile, fallback to UTC)
 $userTimezone = isset($profileData['timezone']) && $profileData['timezone'] ? $profileData['timezone'] : 'UTC';
-$joinedFormatted = isset($user['signup_date']) ? formatUserDate($user['signup_date'], $userTimezone) : 'Unknown';
-$lastLoginFormatted = isset($user['last_login']) ? formatUserDate($user['last_login'], $userTimezone) : 'Unknown';
+$joinedFormatted = isset($user['signup_date']) ? formatUserDate($user['signup_date'], $userTimezone) : t('profile_unknown');
+$lastLoginFormatted = isset($user['last_login']) ? formatUserDate($user['last_login'], $userTimezone) : t('profile_unknown');
 
 // Handle profile update
 $message = '';
@@ -312,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $alertClass = 'is-danger';
             }
         } else {
-            $message = t('streamelements_disconnect_error') . ': No Twitch user ID found';
+            $message = t('streamelements_disconnect_error') . ': ' . t('profile_no_twitch_user_id');
             $alertClass = 'is-danger';
         }
     } elseif ($action === 'disconnect_streamlabs') {
@@ -328,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $alertClass = 'is-danger';
             }
         } else {
-            $message = t('streamlabs_disconnect_error') . ': No Twitch user ID found';
+            $message = t('streamlabs_disconnect_error') . ': ' . t('profile_no_twitch_user_id');
             $alertClass = 'is-danger';
         }
     } elseif ($action === 'disconnect_twitch') {
@@ -342,32 +342,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPassword = $_POST['app_password'] ?? '';
         $confirmPassword = $_POST['app_password_confirm'] ?? '';
         if ($newPassword === '') {
-            $message = 'Password cannot be empty.';
+            $message = t('profile_app_password_empty');
             $alertClass = 'is-danger';
         } elseif ($newPassword !== $confirmPassword) {
-            $message = 'Passwords do not match.';
+            $message = t('profile_app_passwords_no_match');
             $alertClass = 'is-danger';
         } elseif (strlen($newPassword) < 6) {
-            $message = 'Password must be at least 6 characters.';
+            $message = t('profile_app_password_too_short');
             $alertClass = 'is-danger';
         } else {
             $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
             $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = ? WHERE id = ?");
             if ($stmt === false) {
                 error_log('profile.php set_app_password prepare failed: ' . mysqli_error($conn));
-                $message = 'Unable to set app password right now. Please try again later.';
+                $message = t('profile_app_password_set_unavailable');
                 $alertClass = 'is-danger';
             } else {
                 mysqli_stmt_bind_param($stmt, 'si', $hashed, $userId);
                 if (mysqli_stmt_execute($stmt)) {
                     mysqli_stmt_close($stmt);
                     $user['app_password'] = $hashed;
-                    $_SESSION['profile_message'] = 'App password set successfully.';
+                    $_SESSION['profile_message'] = t('profile_app_password_set_success');
                     $_SESSION['profile_alert_class'] = 'is-success';
                     header("Location: " . $_SERVER['REQUEST_URI']);
                     exit();
                 } else {
-                    $message = 'Failed to set app password: ' . mysqli_error($conn);
+                    $message = t('profile_app_password_set_failed') . ': ' . mysqli_error($conn);
                     $alertClass = 'is-danger';
                     mysqli_stmt_close($stmt);
                 }
@@ -377,19 +377,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = NULL WHERE id = ?");
         if ($stmt === false) {
             error_log('profile.php clear_app_password prepare failed: ' . mysqli_error($conn));
-            $message = 'Unable to remove app password right now. Please try again later.';
+            $message = t('profile_app_password_remove_unavailable');
             $alertClass = 'is-danger';
         } else {
             mysqli_stmt_bind_param($stmt, 'i', $userId);
             if (mysqli_stmt_execute($stmt)) {
                 mysqli_stmt_close($stmt);
                 $user['app_password'] = null;
-                $_SESSION['profile_message'] = 'App password removed.';
+                $_SESSION['profile_message'] = t('profile_app_password_removed');
                 $_SESSION['profile_alert_class'] = 'is-success';
                 header("Location: " . $_SERVER['REQUEST_URI']);
                 exit();
             } else {
-                $message = 'Failed to remove app password: ' . mysqli_error($conn);
+                $message = t('profile_app_password_remove_failed') . ': ' . mysqli_error($conn);
                 $alertClass = 'is-danger';
                 mysqli_stmt_close($stmt);
             }
@@ -399,7 +399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $botName = trim($_POST['bot_username'] ?? '');
         $botId = trim($_POST['bot_channel_id'] ?? '');
         if ($botName === '') {
-            $_SESSION['profile_message'] = 'Please provide a bot username.';
+            $_SESSION['profile_message'] = t('profile_bot_username_required');
             $_SESSION['profile_alert_class'] = 'is-danger';
             header("Location: " . $_SERVER['REQUEST_URI']);
             exit();
@@ -1170,12 +1170,12 @@ ob_start();
                 setStatus('<i class="fas fa-check" style="color:var(--green);"></i>','');
             } else {
                 setStatus('<i class="fas fa-times" style="color:var(--red);"></i>','');
-                alert(j.error || 'Unable to resolve bot ID');
+                alert(j.error || <?php echo json_encode(t('profile_resolve_bot_failed')); ?>);
             }
         }).catch(err=>{
             setStatus('<i class="fas fa-times" style="color:var(--red);"></i>','');
             console.error(err);
-            alert('Error resolving bot ID');
+            alert(<?php echo json_encode(t('profile_resolve_bot_error')); ?>);
         });
     });
 })();
@@ -1372,17 +1372,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (clearAppPasswordBtn) {
         clearAppPasswordBtn.addEventListener('click', function() {
             Swal.fire({
-                title: 'Remove app password?',
-                text: 'This will allow anyone with your API key to access the mobile app without a password.',
+                title: <?php echo json_encode(t('profile_remove_app_password_title')); ?>,
+                text: <?php echo json_encode(t('profile_remove_app_password_text')); ?>,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'Yes, remove it',
-                cancelButtonText: 'Cancel',
+                confirmButtonText: <?php echo json_encode(t('profile_yes_remove_it')); ?>,
+                cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
                 confirmButtonColor: '#e74c3c',
                 cancelButtonColor: '#6c757d'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    showProcessingOverlay('Removing app password...');
+                    showProcessingOverlay(<?php echo json_encode(t('profile_removing_app_password')); ?>);
                     document.getElementById('clear-app-password-form').submit();
                 }
             });
@@ -1647,26 +1647,26 @@ function exportProfileData() {
     const email = btn.getAttribute('data-user-email') || '';
     const uname = btn.getAttribute('data-user-username') || '';
     Swal.fire({
-        title: 'Request data export?',
-        html: '<p>Data exports can take anywhere from <strong>5 minutes</span> to <strong>several days</span> depending on queue length.</p>' +
-              '<p>Once the request has been completed, all information will be emailed to <strong>' + (email || 'the email linked to your Twitch account') + '</span>.</p>' +
-              '<p>You will receive a notification when the export is ready.</p>',
+        title: <?php echo json_encode(t('profile_export_request_title')); ?>,
+        html: <?php echo json_encode(t('profile_export_duration_line')); ?> +
+              <?php echo json_encode(t('profile_export_email_prefix')); ?> + (email || <?php echo json_encode(t('profile_export_email_fallback')); ?>) + <?php echo json_encode(t('profile_export_email_suffix')); ?> +
+              <?php echo json_encode(t('profile_export_notify_line')); ?>,
         icon: 'info',
         showCancelButton: true,
-        confirmButtonText: 'Request export',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: <?php echo json_encode(t('profile_export_request_btn')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>
     }).then((result)=>{
         if (!result.isConfirmed) return;
         $.post('admin/export_user_data.php', { username: uname }, function(resp){
             let data = {};
             try { data = typeof resp === 'object' ? resp : JSON.parse(resp); } catch(e){}
             if (data && data.success) {
-                Swal.fire('Queued','Your data export has been queued. You will receive an email when it is complete.','success');
+                Swal.fire(<?php echo json_encode(t('profile_export_queued_title')); ?>, <?php echo json_encode(t('profile_export_queued_text')); ?>, 'success');
             } else {
-                Swal.fire('Error', data.msg || 'Could not start export.', 'error');
+                Swal.fire(<?php echo json_encode(t('profile_export_error_title')); ?>, data.msg || <?php echo json_encode(t('profile_export_error_start')); ?>, 'error');
             }
         }).fail(function(){
-            Swal.fire('Error','Could not contact export endpoint.','error');
+            Swal.fire(<?php echo json_encode(t('profile_export_error_title')); ?>, <?php echo json_encode(t('profile_export_error_contact')); ?>, 'error');
         });
     });
 }

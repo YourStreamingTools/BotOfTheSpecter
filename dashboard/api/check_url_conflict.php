@@ -5,6 +5,21 @@ require_once "/var/www/config/db_connect.php";
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Get username from session
 $username = $_SESSION['username'];
 
@@ -12,7 +27,7 @@ $username = $_SESSION['username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $username);
 if ($db->connect_error) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed']);
+    echo json_encode(['error' => t('check_url_conflict_error_db_connection')]);
     exit();
 }
 

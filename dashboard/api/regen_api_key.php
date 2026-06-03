@@ -4,10 +4,25 @@ require '/var/www/config/db_connect.php';
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
+// Load translations so user-facing messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'regen_api_key') {
     // Ensure the Twitch user ID exists in the session
     if (!isset($_SESSION['twitchUserId'])) {
-        die("Twitch user ID not set. Please log in again.");
+        die(t('regen_api_key_error_no_user_id'));
     }
     // Retrieve Twitch user ID from session
     $twitchUserId = $_SESSION['twitchUserId'];
@@ -26,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'regen_api_key
         echo $new_api_key;
     } else {
         // If the query fails, return an error
-        echo "Error updating API key: " . $stmt->error;
+        echo t('regen_api_key_error_update_failed', [$stmt->error]);
     }
     // Close the prepared statement
     $stmt->close();

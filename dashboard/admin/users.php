@@ -28,23 +28,23 @@ if (isset($_GET['act_as'])) {
     $actAsState = (string) $_GET['act_as'];
     switch ($actAsState) {
         case 'invalid':
-            $actAsNotice = 'Invalid user selected for Act As.';
+            $actAsNotice = t('admin_users_act_as_invalid');
             $actAsNoticeClass = 'is-danger';
             break;
         case 'not_found':
-            $actAsNotice = 'The selected user could not be found.';
+            $actAsNotice = t('admin_users_act_as_not_found');
             $actAsNoticeClass = 'is-danger';
             break;
         case 'no_token':
-            $actAsNotice = 'Cannot Act As this user because no access token is available.';
+            $actAsNotice = t('admin_users_act_as_no_token');
             $actAsNoticeClass = 'is-warning';
             break;
         case 'error':
-            $actAsNotice = 'Unable to start Act As mode due to an internal error.';
+            $actAsNotice = t('admin_users_act_as_error');
             $actAsNoticeClass = 'is-danger';
             break;
         case 'started':
-            $actAsNotice = 'Act As mode started.';
+            $actAsNotice = t('admin_users_act_as_started');
             $actAsNoticeClass = 'is-success';
             break;
     }
@@ -127,13 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
         $stmt->close();
     }
     if (!$username) {
-        $response['msg'] = 'User not found.';
+        $response['msg'] = t('admin_users_msg_user_not_found');
         echo json_encode($response);
         exit;
     }
     // Cannot delete yourself
     if ($user_id === $currentAdminUserId) {
-        $response['msg'] = 'You cannot delete your own account.';
+        $response['msg'] = t('admin_users_msg_cannot_delete_self');
         echo json_encode($response);
         exit;
     }
@@ -146,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
         $chkStmt->fetch();
         $chkStmt->close();
         if ($targetIsAdminFlag || $targetIsSuperAdminFlag) {
-            $response['msg'] = 'You do not have permission to delete admin users.';
+            $response['msg'] = t('admin_users_msg_no_permission_delete_admin');
             echo json_encode($response);
             exit;
         }
@@ -157,15 +157,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
         require_once "/var/www/config/database.php";
         $mysqli = new mysqli($db_servername, $db_username, $db_password);
         if ($mysqli->connect_errno) {
-            $response['msg'] = 'Failed to connect to MySQL for DB drop.';
+            $response['msg'] = t('admin_users_msg_db_connect_failed');
             echo json_encode($response);
             exit;
         }
         if ($mysqli->query("DROP DATABASE `" . $mysqli->real_escape_string($db_name) . "`")) {
             $response['success'] = true;
-            $response['msg'] = 'User database deleted.';
+            $response['msg'] = t('admin_users_msg_db_deleted');
         } else {
-            $response['msg'] = 'Could not delete user database.';
+            $response['msg'] = t('admin_users_msg_db_delete_failed');
         }
         $mysqli->close();
         echo json_encode($response);
@@ -178,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
             $response['success'] = true;
             $response['username'] = $username;
         } else {
-            $response['msg'] = 'Could not delete user.';
+            $response['msg'] = t('admin_users_msg_delete_user_failed');
         }
         $stmt->close();
         echo json_encode($response);
@@ -211,12 +211,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
     $targetStmt->close();
     if ($action === 'restrict') {
         if ($targetIsSuperAdmin) {
-            $response['msg'] = 'Super admins cannot be restricted.';
+            $response['msg'] = t('admin_users_msg_super_admin_cannot_restrict');
             echo json_encode($response);
             exit;
         }
         if ($targetIsAdmin && !$currentAdminIsSuperAdmin) {
-            $response['msg'] = 'Only super admins can restrict admins.';
+            $response['msg'] = t('admin_users_msg_only_super_restrict_admins');
             echo json_encode($response);
             exit;
         }
@@ -224,13 +224,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
         $stmt->bind_param("ss", $username, $twitch_user_id);
         $response['success'] = $stmt->execute();
         $stmt->close();
-        if (!$response['success']) $response['msg'] = 'Could not restrict user.';
+        if (!$response['success']) $response['msg'] = t('admin_users_msg_restrict_failed');
     } elseif ($action === 'unrestrict') {
         $stmt = $conn->prepare("DELETE FROM restricted_users WHERE username = ? OR twitch_user_id = ?");
         $stmt->bind_param("ss", $username, $twitch_user_id);
         $response['success'] = $stmt->execute();
         $stmt->close();
-        if (!$response['success']) $response['msg'] = 'Could not unrestrict user.';
+        if (!$response['success']) $response['msg'] = t('admin_users_msg_unrestrict_failed');
     }
     echo json_encode($response);
     exit;
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_programs_action'
     $program  = isset($_POST['program'])  ? trim($_POST['program'])             : '';
     $response = ['success' => false, 'msg' => ''];
     if (($action !== 'add' && $action !== 'remove') || $user_id <= 0 || $program === '') {
-        $response['msg'] = 'Invalid beta programs request.';
+        $response['msg'] = t('admin_users_msg_invalid_beta_programs_request');
         echo json_encode($response);
         exit;
     }
@@ -267,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_programs_action'
     if ($updStmt->execute()) {
         $response['success'] = true;
     } else {
-        $response['msg'] = 'Could not update beta programs.';
+        $response['msg'] = t('admin_users_msg_update_beta_programs_failed');
     }
     $updStmt->close();
     echo json_encode($response);
@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_action'])) {
     $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
     $response = ['success' => false, 'msg' => ''];
     if (($action !== 'grant_beta' && $action !== 'remove_beta') || $user_id <= 0) {
-        $response['msg'] = 'Invalid beta access request.';
+        $response['msg'] = t('admin_users_msg_invalid_beta_access_request');
         echo json_encode($response);
         exit;
     }
@@ -293,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_action'])) {
         $saChk->fetch();
         $saChk->close();
         if ((int) $targetSAFlag === 1) {
-            $response['msg'] = 'Only super admins can manage super admin users.';
+            $response['msg'] = t('admin_users_msg_only_super_manage_super');
             echo json_encode($response);
             exit;
         }
@@ -304,7 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_action'])) {
     if ($stmt->execute()) {
         $response['success'] = true;
     } else {
-        $response['msg'] = 'Could not update beta access.';
+        $response['msg'] = t('admin_users_msg_update_beta_access_failed');
     }
     $stmt->close();
     echo json_encode($response);
@@ -317,12 +317,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
     $response = ['success' => false, 'msg' => ''];
     if (!$currentAdminIsSuperAdmin) {
-        $response['msg'] = 'Only super admins can grant admin access.';
+        $response['msg'] = t('admin_users_msg_only_super_grant_admin');
         echo json_encode($response);
         exit;
     }
     if (($action !== 'grant_admin' && $action !== 'remove_admin') || $user_id <= 0) {
-        $response['msg'] = 'Invalid admin access request.';
+        $response['msg'] = t('admin_users_msg_invalid_admin_access_request');
         echo json_encode($response);
         exit;
     }
@@ -332,7 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     if ($stmt->execute()) {
         $response['success'] = true;
     } else {
-        $response['msg'] = 'Could not update admin access.';
+        $response['msg'] = t('admin_users_msg_update_admin_access_failed');
     }
     $stmt->close();
     echo json_encode($response);
@@ -346,12 +346,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
     $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
     $response = ['success' => false, 'msg' => ''];
     if (!$currentAdminIsSuperAdmin) {
-        $response['msg'] = 'Only super admins can manage memorial accounts.';
+        $response['msg'] = t('admin_users_msg_only_super_manage_memorial');
         echo json_encode($response);
         exit;
     }
     if (($action !== 'mark_deceased' && $action !== 'unmark_deceased') || $user_id <= 0) {
-        $response['msg'] = 'Invalid memorial request.';
+        $response['msg'] = t('admin_users_msg_invalid_memorial_request');
         echo json_encode($response);
         exit;
     }
@@ -377,7 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
             $response['success'] = true;
         } else {
             $stmt->close();
-            $response['msg'] = 'Could not mark account as memorial.';
+            $response['msg'] = t('admin_users_msg_mark_memorial_failed');
         }
     } elseif ($action === 'unmark_deceased') {
         $stmt = $conn->prepare("UPDATE users SET is_deceased = 0, deceased_date = NULL WHERE id = ?");
@@ -385,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
         if ($stmt->execute()) {
             $response['success'] = true;
         } else {
-            $response['msg'] = 'Could not remove memorial status.';
+            $response['msg'] = t('admin_users_msg_remove_memorial_failed');
         }
         $stmt->close();
     }
@@ -401,10 +401,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
 <?php endif; ?>
 <div class="sp-card">
     <div class="sp-card-header">
-        <h1 class="sp-card-title"><i class="fas fa-users-cog" style="margin-right:0.5rem;"></i>User Management</h1>
+        <h1 class="sp-card-title"><i class="fas fa-users-cog" style="margin-right:0.5rem;"></i><?php echo t('admin_user_management_title'); ?></h1>
         <div class="search-wrapper" style="max-width:320px;">
             <span class="search-icon"><i class="fas fa-search"></i></span>
-            <input class="search-input" type="text" placeholder="Search users..." id="user-search" autocomplete="off">
+            <input class="search-input" type="text" placeholder="<?php echo htmlspecialchars(t('admin_users_search_placeholder')); ?>" id="user-search" autocomplete="off">
             <button type="button" class="search-clear" id="user-search-clear" style="display:none;" onclick="document.getElementById('user-search').value='';this.style.display='none';filterUsers();"><i class="fas fa-times"></i></button>
         </div>
     </div>
@@ -413,16 +413,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
             <table class="sp-table admin-users-table">
                 <thead>
                     <tr>
-                        <th style="text-align:center;">ID</th>
-                        <th>User</th>
-                        <th style="text-align:center;">Admin</th>
-                        <th style="text-align:center;">Super Admin</th>
-                        <th style="text-align:center;">Beta</th>
-                        <th style="text-align:center;">Beta Programs</th>
-                        <th style="text-align:center;">Premium</th>
-                        <th style="text-align:center;">Signup</th>
-                        <th style="text-align:center;">Last Login</th>
-                        <th style="text-align:center;">Actions</th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_id'); ?></th>
+                        <th><?php echo t('admin_users_th_user'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_admin'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_super_admin'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_beta'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_beta_programs'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_premium'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_signup'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_last_login'); ?></th>
+                        <th style="text-align:center;"><?php echo t('admin_users_th_actions'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -468,31 +468,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                 <img src="<?php echo htmlspecialchars($user['profile_image']); ?>" alt="" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:28px;height:28px;border-radius:50%;flex-shrink:0;">
                                 <span><?php echo htmlspecialchars($user['username']); ?></span>
                                 <?php if ($is_deceased): ?>
-                                    <span class="sp-badge memorial-label"><i class="fas fa-dove"></i>&nbsp;Memorial</span>
+                                    <span class="sp-badge memorial-label"><i class="fas fa-dove"></i>&nbsp;<?php echo t('admin_users_label_memorial'); ?></span>
                                 <?php elseif ($is_restricted): ?>
-                                    <span class="sp-badge sp-badge-amber restricted-label">Restricted</span>
+                                    <span class="sp-badge sp-badge-amber restricted-label"><?php echo t('admin_users_label_restricted'); ?></span>
                                 <?php endif; ?>
                             </div>
                         </td>
                         <td style="text-align:center;vertical-align:middle;">
                             <?php if ($user['is_admin']): ?>
-                                <span class="sp-badge sp-badge-green" title="Admin"><i class="fas fa-check"></i></span>
+                                <span class="sp-badge sp-badge-green" title="<?php echo htmlspecialchars(t('admin_users_th_admin')); ?>"><i class="fas fa-check"></i></span>
                             <?php else: ?>
-                                <span class="sp-badge sp-badge-grey" title="Not Admin"><i class="fas fa-minus"></i></span>
+                                <span class="sp-badge sp-badge-grey" title="<?php echo htmlspecialchars(t('admin_users_title_not_admin')); ?>"><i class="fas fa-minus"></i></span>
                             <?php endif; ?>
                         </td>
                         <td style="text-align:center;vertical-align:middle;">
                             <?php if ($is_super_admin): ?>
-                                <span class="sp-badge sp-badge-green" title="Super Admin"><i class="fas fa-check"></i></span>
+                                <span class="sp-badge sp-badge-green" title="<?php echo htmlspecialchars(t('admin_users_th_super_admin')); ?>"><i class="fas fa-check"></i></span>
                             <?php else: ?>
-                                <span class="sp-badge sp-badge-grey" title="Not Super Admin"><i class="fas fa-minus"></i></span>
+                                <span class="sp-badge sp-badge-grey" title="<?php echo htmlspecialchars(t('admin_users_title_not_super_admin')); ?>"><i class="fas fa-minus"></i></span>
                             <?php endif; ?>
                         </td>
                         <td style="text-align:center;vertical-align:middle;">
                             <?php if ($user['beta_access']): ?>
-                                <span class="sp-badge sp-badge-blue" title="Beta Access"><i class="fas fa-check"></i></span>
+                                <span class="sp-badge sp-badge-blue" title="<?php echo htmlspecialchars(t('admin_users_title_beta_access')); ?>"><i class="fas fa-check"></i></span>
                             <?php else: ?>
-                                <span class="sp-badge sp-badge-grey" title="No Beta Access"><i class="fas fa-minus"></i></span>
+                                <span class="sp-badge sp-badge-grey" title="<?php echo htmlspecialchars(t('admin_users_title_no_beta_access')); ?>"><i class="fas fa-minus"></i></span>
                             <?php endif; ?>
                         </td>
                         <td style="text-align:center;vertical-align:middle;">
@@ -512,16 +512,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                             if (!empty($user['twitch_user_id'])) {
                                 $tier = getTwitchSubTier($user['twitch_user_id']);
                                 if ($tier === "1000") {
-                                    echo '<span class="sp-badge sp-badge-amber">Tier 1</span>';
+                                    echo '<span class="sp-badge sp-badge-amber">' . htmlspecialchars(t('admin_users_tier_1')) . '</span>';
                                 } elseif ($tier === "2000") {
-                                    echo '<span class="sp-badge sp-badge-blue">Tier 2</span>';
+                                    echo '<span class="sp-badge sp-badge-blue">' . htmlspecialchars(t('admin_users_tier_2')) . '</span>';
                                 } elseif ($tier === "3000") {
-                                    echo '<span class="sp-badge sp-badge-red">Tier 3</span>';
+                                    echo '<span class="sp-badge sp-badge-red">' . htmlspecialchars(t('admin_users_tier_3')) . '</span>';
                                 } else {
-                                    echo '<span class="sp-badge sp-badge-grey">None</span>';
+                                    echo '<span class="sp-badge sp-badge-grey">' . htmlspecialchars(t('admin_users_tier_none')) . '</span>';
                                 }
                             } else {
-                                echo '<span class="sp-badge sp-badge-grey">None</span>';
+                                echo '<span class="sp-badge sp-badge-grey">' . htmlspecialchars(t('admin_users_tier_none')) . '</span>';
                             }
                             ?>
                         </td>
@@ -529,23 +529,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
                         <td style="text-align:center;vertical-align:middle;">
                             <div class="actions-wrap">
-                                <button class="sp-btn sp-btn-sm" title="View Details" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
+                                <button class="sp-btn sp-btn-sm" title="<?php echo htmlspecialchars(t('admin_users_btn_view_details')); ?>" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
                                     <span class="icon"><i class="fas fa-eye"></i></span>
                                 </button>
                                 <?php
-                                $deleteTitle = 'Delete User';
-                                if ((int) $user['id'] === $currentAdminUserId) $deleteTitle = 'Cannot delete your own account';
-                                elseif (!$currentAdminIsSuperAdmin && ($is_admin_user || $is_super_admin)) $deleteTitle = 'Only super admins can delete admin users';
-                                elseif ($is_deceased) $deleteTitle = 'Memorial users cannot be deleted';
+                                $deleteTitle = t('admin_users_btn_delete_user');
+                                if ((int) $user['id'] === $currentAdminUserId) $deleteTitle = t('admin_users_title_cannot_delete_self');
+                                elseif (!$currentAdminIsSuperAdmin && ($is_admin_user || $is_super_admin)) $deleteTitle = t('admin_users_title_only_super_delete_admin');
+                                elseif ($is_deceased) $deleteTitle = t('admin_users_title_memorial_cannot_delete');
                                 ?>
-                                <button class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo $deleteTitle; ?>" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if (!$can_delete_user || $is_deceased): ?>disabled<?php endif; ?>>
+                                <button class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo htmlspecialchars($deleteTitle); ?>" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if (!$can_delete_user || $is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-trash"></i></span>
                                 </button>
                                 <?php if ((int) $user['is_admin']): ?>
                                     <button
                                         class="sp-btn sp-btn-warning sp-btn-sm"
                                         onclick="removeAdminAccess(<?php echo (int) $user['id']; ?>)"
-                                        title="Remove Admin"
+                                        title="<?php echo htmlspecialchars(t('admin_users_btn_remove_admin')); ?>"
                                         <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
                                     >
                                         <span class="icon"><i class="fas fa-user-shield"></i></span>
@@ -554,55 +554,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                     <button
                                         class="sp-btn sp-btn-primary sp-btn-sm"
                                         onclick="grantAdminAccess(<?php echo (int) $user['id']; ?>)"
-                                        title="Give Admin"
+                                        title="<?php echo htmlspecialchars(t('admin_users_btn_give_admin')); ?>"
                                         <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
                                     >
                                         <span class="icon"><i class="fas fa-user-shield"></i></span>
                                     </button>
                                 <?php endif; ?>
                                 <?php if ((int) $user['beta_access']): ?>
-                                    <button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo $target_locked_for_admin ? 'Only super admins can manage super admin users' : 'Remove Beta'; ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
+                                    <button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo htmlspecialchars($target_locked_for_admin ? t('admin_users_title_only_super_manage_super') : t('admin_users_btn_remove_beta')); ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-flask"></i></span>
                                     </button>
                                 <?php else: ?>
-                                    <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo $target_locked_for_admin ? 'Only super admins can manage super admin users' : 'Give Beta'; ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
+                                    <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo htmlspecialchars($target_locked_for_admin ? t('admin_users_title_only_super_manage_super') : t('admin_users_btn_give_beta')); ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-flask"></i></span>
                                     </button>
                                 <?php endif; ?>
-                                <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="manageBetaPrograms(<?php echo (int) $user['id']; ?>)" title="Manage Beta Programs" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="manageBetaPrograms(<?php echo (int) $user['id']; ?>)" title="<?php echo htmlspecialchars(t('admin_users_btn_manage_beta_programs')); ?>" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-list-check"></i></span>
                                 </button>
                                 <?php if ($is_restricted): ?>
-                                    <button class="sp-btn sp-btn-warning sp-btn-sm" title="Unrestrict"
+                                    <button class="sp-btn sp-btn-warning sp-btn-sm" title="<?php echo htmlspecialchars(t('admin_users_btn_unrestrict')); ?>"
                                         onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-user-lock"></i></span>
                                     </button>
                                 <?php else: ?>
-                                    <button class="sp-btn sp-btn-sm" title="<?php echo $can_restrict_user ? 'Restrict' : 'Only super admins can restrict admins. Super admins cannot be restricted.'; ?>"
+                                    <button class="sp-btn sp-btn-sm" title="<?php echo htmlspecialchars($can_restrict_user ? t('admin_users_btn_restrict') : t('admin_users_title_cannot_restrict')); ?>"
                                         onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)"
                                         <?php if (!$can_restrict_user || $is_deceased): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-user-lock"></i></span>
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($is_deceased): ?>
-                                    <button class="sp-btn sp-btn-sm memorial-action-btn" title="Remove Memorial"
+                                    <button class="sp-btn sp-btn-sm memorial-action-btn" title="<?php echo htmlspecialchars(t('admin_users_btn_remove_memorial')); ?>"
                                         onclick="unmarkDeceased(<?php echo (int) $user['id']; ?>)"
                                         <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-dove"></i></span>
                                     </button>
                                 <?php else: ?>
-                                    <button class="sp-btn sp-btn-sm memorial-action-btn" title="Mark as Memorial"
+                                    <button class="sp-btn sp-btn-sm memorial-action-btn" title="<?php echo htmlspecialchars(t('admin_users_btn_mark_memorial')); ?>"
                                         onclick="markDeceased(<?php echo (int) $user['id']; ?>)"
                                         <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-dove"></i></span>
                                     </button>
                                 <?php endif; ?>
                                 <?php if ((int) $user['id'] !== $currentAdminUserId): ?>
-                                    <a class="sp-btn sp-btn-info sp-btn-sm" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="Act As">
+                                    <a class="sp-btn sp-btn-info sp-btn-sm" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="<?php echo htmlspecialchars(t('admin_users_btn_act_as')); ?>">
                                         <span class="icon"><i class="fas fa-user-secret"></i></span>
                                     </a>
                                 <?php else: ?>
-                                    <button class="sp-btn sp-btn-info sp-btn-sm" type="button" disabled title="You are already viewing your own dashboard">
+                                    <button class="sp-btn sp-btn-info sp-btn-sm" type="button" disabled title="<?php echo htmlspecialchars(t('admin_users_title_already_own_dashboard')); ?>">
                                         <span class="icon"><i class="fas fa-user-secret"></i></span>
                                     </button>
                                 <?php endif; ?>
@@ -619,20 +619,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
 <div class="sp-modal-backdrop" id="sensitive-modal" onclick="closeSensitiveModal()">
     <div class="sp-modal" style="max-width:800px;" onclick="event.stopPropagation()">
         <div class="sp-modal-head">
-            <h2 class="sp-modal-title"><i class="fas fa-user-secret" style="margin-right:0.5rem;"></i>User Details</h2>
-            <button class="sp-modal-close" aria-label="close" onclick="closeSensitiveModal()"><i class="fas fa-times"></i></button>
+            <h2 class="sp-modal-title"><i class="fas fa-user-secret" style="margin-right:0.5rem;"></i><?php echo t('admin_users_modal_title'); ?></h2>
+            <button class="sp-modal-close" aria-label="<?php echo htmlspecialchars(t('admin_users_aria_close')); ?>" onclick="closeSensitiveModal()"><i class="fas fa-times"></i></button>
         </div>
         <div class="sp-modal-body" id="sensitive-modal-content">
             <!-- Populated by JS -->
         </div>
         <div style="padding:1rem;display:flex;justify-content:flex-end;gap:0.5rem;border-top:1px solid var(--border);">
-            <button class="sp-btn sp-btn-primary" id="export-sensitive-btn" onclick="exportSensitiveUser()" title="Export user data"><i class="fas fa-download" style="margin-right:0.4rem;"></i>Export Data</button>
-            <button class="sp-btn sp-btn-secondary" onclick="closeSensitiveModal()">Close</button>
+            <button class="sp-btn sp-btn-primary" id="export-sensitive-btn" onclick="exportSensitiveUser()" title="<?php echo htmlspecialchars(t('admin_users_btn_export_user_data')); ?>"><i class="fas fa-download" style="margin-right:0.4rem;"></i><?php echo t('admin_users_btn_export_data'); ?></button>
+            <button class="sp-btn sp-btn-secondary" onclick="closeSensitiveModal()"><?php echo t('admin_users_btn_close'); ?></button>
         </div>
     </div>
 </div>
 <script>
 const usersData = <?php echo json_encode($users); ?>;
+const T = {
+    twitch_id: <?php echo json_encode(t('admin_users_modal_twitch_id')); ?>,
+    th_admin: <?php echo json_encode(t('admin_users_th_admin')); ?>,
+    beta_access: <?php echo json_encode(t('admin_users_modal_beta_access')); ?>,
+    beta_programs: <?php echo json_encode(t('admin_users_th_beta_programs')); ?>,
+    premium_access: <?php echo json_encode(t('admin_users_modal_premium_access')); ?>,
+    signup_date: <?php echo json_encode(t('admin_users_modal_signup_date')); ?>,
+    last_login: <?php echo json_encode(t('admin_users_th_last_login')); ?>,
+    email: <?php echo json_encode(t('admin_users_modal_email')); ?>,
+    api_key: <?php echo json_encode(t('admin_users_modal_api_key')); ?>,
+    val_true: <?php echo json_encode(t('admin_users_val_true')); ?>,
+    val_false: <?php echo json_encode(t('admin_users_val_false')); ?>,
+    tier_1: <?php echo json_encode(t('admin_users_tier_1')); ?>,
+    tier_2: <?php echo json_encode(t('admin_users_tier_2')); ?>,
+    tier_3: <?php echo json_encode(t('admin_users_tier_3')); ?>,
+    tier_none: <?php echo json_encode(t('admin_users_tier_none')); ?>,
+    none: <?php echo json_encode(t('admin_users_val_none')); ?>,
+    reveal_title: <?php echo json_encode(t('admin_users_js_reveal_title')); ?>,
+    reveal_text: <?php echo json_encode(t('admin_users_js_reveal_text')); ?>,
+    reveal_confirm: <?php echo json_encode(t('admin_users_js_reveal_confirm')); ?>,
+    cancel: <?php echo json_encode(t('admin_users_js_cancel')); ?>,
+    label_email: <?php echo json_encode(t('admin_users_modal_email')); ?>,
+    label_api_key: <?php echo json_encode(t('admin_users_modal_api_key')); ?>,
+    memorial_delete_warning: <?php echo json_encode(t('admin_users_js_memorial_delete_warning')); ?>,
+    delete_user_title: <?php echo json_encode(t('admin_users_js_delete_user_title')); ?>,
+    delete_user_html: <?php echo json_encode(t('admin_users_js_delete_user_html')); ?>,
+    yes: <?php echo json_encode(t('admin_users_js_yes')); ?>,
+    no: <?php echo json_encode(t('admin_users_js_no')); ?>,
+    delete_db_title: <?php echo json_encode(t('admin_users_js_delete_db_title')); ?>,
+    delete_db_html: <?php echo json_encode(t('admin_users_js_delete_db_html')); ?>,
+    final_confirm_title: <?php echo json_encode(t('admin_users_js_final_confirm_title')); ?>,
+    final_confirm_with_db: <?php echo json_encode(t('admin_users_js_final_confirm_with_db')); ?>,
+    final_confirm_no_db: <?php echo json_encode(t('admin_users_js_final_confirm_no_db')); ?>,
+    yes_delete: <?php echo json_encode(t('admin_users_js_yes_delete')); ?>,
+    deleted_title: <?php echo json_encode(t('admin_users_js_deleted_title')); ?>,
+    deleted_user_and_db: <?php echo json_encode(t('admin_users_js_deleted_user_and_db')); ?>,
+    user_deleted_title: <?php echo json_encode(t('admin_users_js_user_deleted_title')); ?>,
+    db_delete_failed_html: <?php echo json_encode(t('admin_users_js_db_delete_failed_html')); ?>,
+    db_delete_reason: <?php echo json_encode(t('admin_users_js_db_delete_reason')); ?>,
+    unknown_error: <?php echo json_encode(t('admin_users_js_unknown_error')); ?>,
+    deleted_user_no_db: <?php echo json_encode(t('admin_users_js_deleted_user_no_db')); ?>,
+    error: <?php echo json_encode(t('admin_users_js_error')); ?>,
+    could_not_delete_user: <?php echo json_encode(t('admin_users_msg_delete_user_failed')); ?>,
+    restrict_note_label: <?php echo json_encode(t('admin_users_js_restrict_note_label')); ?>,
+    restrict_note_1: <?php echo json_encode(t('admin_users_js_restrict_note_1')); ?>,
+    restrict_note_2: <?php echo json_encode(t('admin_users_js_restrict_note_2')); ?>,
+    restrict_note_3: <?php echo json_encode(t('admin_users_js_restrict_note_3')); ?>,
+    unrestrict_word: <?php echo json_encode(t('admin_users_btn_unrestrict')); ?>,
+    confirm_restrict_html: <?php echo json_encode(t('admin_users_js_confirm_restrict_html')); ?>,
+    action_restrict_word: <?php echo json_encode(t('admin_users_js_action_word_restrict')); ?>,
+    action_unrestrict_word: <?php echo json_encode(t('admin_users_js_action_word_unrestrict')); ?>,
+    restrict_user_title: <?php echo json_encode(t('admin_users_js_restrict_user_title')); ?>,
+    remove_restriction_title: <?php echo json_encode(t('admin_users_js_remove_restriction_title')); ?>,
+    confirm_restrict_word: <?php echo json_encode(t('admin_users_btn_restrict')); ?>,
+    success: <?php echo json_encode(t('admin_users_js_success')); ?>,
+    user_restricted: <?php echo json_encode(t('admin_users_js_user_restricted')); ?>,
+    restriction_removed: <?php echo json_encode(t('admin_users_js_restriction_removed')); ?>,
+    could_not_update_restriction: <?php echo json_encode(t('admin_users_js_could_not_update_restriction')); ?>,
+    grant_beta_title: <?php echo json_encode(t('admin_users_js_grant_beta_title')); ?>,
+    grant_beta_html: <?php echo json_encode(t('admin_users_js_grant_beta_html')); ?>,
+    grant_word: <?php echo json_encode(t('admin_users_js_grant_word')); ?>,
+    updated: <?php echo json_encode(t('admin_users_js_updated')); ?>,
+    beta_access_granted: <?php echo json_encode(t('admin_users_js_beta_access_granted')); ?>,
+    could_not_update_beta_access: <?php echo json_encode(t('admin_users_msg_update_beta_access_failed')); ?>,
+    remove_beta_title: <?php echo json_encode(t('admin_users_js_remove_beta_title')); ?>,
+    remove_beta_html: <?php echo json_encode(t('admin_users_js_remove_beta_html')); ?>,
+    remove_word: <?php echo json_encode(t('admin_users_js_remove_word')); ?>,
+    beta_access_removed: <?php echo json_encode(t('admin_users_js_beta_access_removed')); ?>,
+    beta_programs_title: <?php echo json_encode(t('admin_users_js_beta_programs_title')); ?>,
+    current_programs_label: <?php echo json_encode(t('admin_users_js_current_programs_label')); ?>,
+    none_em: <?php echo json_encode(t('admin_users_js_none')); ?>,
+    program_placeholder: <?php echo json_encode(t('admin_users_js_program_placeholder')); ?>,
+    add_word: <?php echo json_encode(t('admin_users_js_add_word')); ?>,
+    close_word: <?php echo json_encode(t('admin_users_js_close')); ?>,
+    added: <?php echo json_encode(t('admin_users_js_added')); ?>,
+    added_program_html: <?php echo json_encode(t('admin_users_js_added_program_html')); ?>,
+    could_not_update_beta_programs: <?php echo json_encode(t('admin_users_msg_update_beta_programs_failed')); ?>,
+    remove_program_title: <?php echo json_encode(t('admin_users_js_remove_program_title')); ?>,
+    remove_program_html: <?php echo json_encode(t('admin_users_js_remove_program_html')); ?>,
+    removed: <?php echo json_encode(t('admin_users_js_removed')); ?>,
+    removed_program_html: <?php echo json_encode(t('admin_users_js_removed_program_html')); ?>,
+    grant_admin_title: <?php echo json_encode(t('admin_users_js_grant_admin_title')); ?>,
+    grant_admin_html: <?php echo json_encode(t('admin_users_js_grant_admin_html')); ?>,
+    admin_access_granted: <?php echo json_encode(t('admin_users_js_admin_access_granted')); ?>,
+    could_not_update_admin_access: <?php echo json_encode(t('admin_users_msg_update_admin_access_failed')); ?>,
+    remove_admin_title: <?php echo json_encode(t('admin_users_js_remove_admin_title')); ?>,
+    remove_admin_html: <?php echo json_encode(t('admin_users_js_remove_admin_html')); ?>,
+    admin_access_removed: <?php echo json_encode(t('admin_users_js_admin_access_removed')); ?>,
+    mark_memorial_title: <?php echo json_encode(t('admin_users_js_mark_memorial_title')); ?>,
+    mark_memorial_html: <?php echo json_encode(t('admin_users_js_mark_memorial_html')); ?>,
+    mark_memorial_confirm: <?php echo json_encode(t('admin_users_js_mark_memorial_confirm')); ?>,
+    preserved: <?php echo json_encode(t('admin_users_js_preserved')); ?>,
+    marked_memorial: <?php echo json_encode(t('admin_users_js_marked_memorial')); ?>,
+    could_not_mark_memorial: <?php echo json_encode(t('admin_users_msg_mark_memorial_failed')); ?>,
+    remove_memorial_title: <?php echo json_encode(t('admin_users_js_remove_memorial_title')); ?>,
+    remove_memorial_html: <?php echo json_encode(t('admin_users_js_remove_memorial_html')); ?>,
+    memorial_status_removed: <?php echo json_encode(t('admin_users_js_memorial_status_removed')); ?>,
+    could_not_remove_memorial: <?php echo json_encode(t('admin_users_msg_remove_memorial_failed')); ?>,
+    no_user_export: <?php echo json_encode(t('admin_users_js_no_user_export')); ?>,
+    export_title: <?php echo json_encode(t('admin_users_js_export_title')); ?>,
+    export_html: <?php echo json_encode(t('admin_users_js_export_html')); ?>,
+    export_account_email: <?php echo json_encode(t('admin_users_js_export_account_email')); ?>,
+    yes_export: <?php echo json_encode(t('admin_users_js_yes_export')); ?>,
+    queued: <?php echo json_encode(t('admin_users_js_queued')); ?>,
+    export_started: <?php echo json_encode(t('admin_users_js_export_started')); ?>,
+    could_not_start_export: <?php echo json_encode(t('admin_users_js_could_not_start_export')); ?>,
+    could_not_reach_export: <?php echo json_encode(t('admin_users_js_could_not_reach_export')); ?>,
+    profile_alt: <?php echo json_encode(t('admin_users_modal_profile_alt')); ?>
+};
 function maskEmail(email) {
     if (!email) return '';
     const atPos = email.indexOf('@');
@@ -665,10 +774,10 @@ function showSensitiveModal(userId) {
     <div class="sp-card">
       <div class="sp-card-body">
         <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;">
-            <img class="admin-bot-avatar" src="${user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png'}" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:48px;height:48px;flex-shrink:0;">
+            <img class="admin-bot-avatar" src="${user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png'}" alt="${T.profile_alt}" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:48px;height:48px;flex-shrink:0;">
             <div>
                 <p style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;">${user.twitch_display_name ? user.twitch_display_name : ''}</p>
-                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">Twitch ID: <span class="sp-text-danger">${user.twitch_user_id}</span></p>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">${T.twitch_id} <span class="sp-text-danger">${user.twitch_user_id}</span></p>
             </div>
         </div>
         <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">
@@ -676,43 +785,42 @@ function showSensitiveModal(userId) {
             <table class="sp-table">
                 <tbody>
                     <tr>
-                        <th>Admin</th>
-                        <td>${user.is_admin ? '<span class="sp-badge sp-badge-green">True</span>' : '<span class="sp-badge sp-badge-red">False</span>'}</td>
+                        <th>${T.th_admin}</th>
+                        <td>${user.is_admin ? `<span class="sp-badge sp-badge-green">${T.val_true}</span>` : `<span class="sp-badge sp-badge-red">${T.val_false}</span>`}</td>
                     </tr>
                     <tr>
-                        <th>Beta Access</th>
-                        <td>${user.beta_access ? '<span class="sp-badge sp-badge-green">True</span>' : '<span class="sp-badge sp-badge-red">False</span>'}</td>
+                        <th>${T.beta_access}</th>
+                        <td>${user.beta_access ? `<span class="sp-badge sp-badge-green">${T.val_true}</span>` : `<span class="sp-badge sp-badge-red">${T.val_false}</span>`}</td>
                     </tr>
                     <tr>
-                        <th>Beta Programs</th>
-                        <td>${(user.beta_programs && JSON.parse(user.beta_programs || '[]').length) ? JSON.parse(user.beta_programs).map(p => `<span class="sp-badge sp-badge-blue">${p}</span>`).join(' ') : '<span class="sp-badge sp-badge-grey">None</span>'}</td>
+                        <th>${T.beta_programs}</th>
+                        <td>${(user.beta_programs && JSON.parse(user.beta_programs || '[]').length) ? JSON.parse(user.beta_programs).map(p => `<span class="sp-badge sp-badge-blue">${p}</span>`).join(' ') : `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`}</td>
                     </tr>
                     <tr>
-                        <th>Premium Access</th>
+                        <th>${T.premium_access}</th>
                         <td>
                             ${
                                 user.twitch_user_id
                                 ? (() => {
-                                    let tier = '';
-                                    if (user.twitch_sub_tier === "1000") return '<span class="sp-badge sp-badge-amber">Tier 1</span>';
-                                    if (user.twitch_sub_tier === "2000") return '<span class="sp-badge sp-badge-blue">Tier 2</span>';
-                                    if (user.twitch_sub_tier === "3000") return '<span class="sp-badge sp-badge-red">Tier 3</span>';
-                                    return '<span class="sp-badge sp-badge-grey">None</span>';
+                                    if (user.twitch_sub_tier === "1000") return `<span class="sp-badge sp-badge-amber">${T.tier_1}</span>`;
+                                    if (user.twitch_sub_tier === "2000") return `<span class="sp-badge sp-badge-blue">${T.tier_2}</span>`;
+                                    if (user.twitch_sub_tier === "3000") return `<span class="sp-badge sp-badge-red">${T.tier_3}</span>`;
+                                    return `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`;
                                 })()
-                                : '<span class="sp-badge sp-badge-grey">None</span>'
+                                : `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`
                             }
                         </td>
                     </tr>
                     <tr>
-                        <th>Signup Date</th>
+                        <th>${T.signup_date}</th>
                         <td>${pretty(user.signup_date)}</td>
                     </tr>
                     <tr>
-                        <th>Last Login</th>
+                        <th>${T.last_login}</th>
                         <td>${pretty(user.last_login)}</td>
                     </tr>
                     <tr>
-                        <th>Email</th>
+                        <th>${T.email}</th>
                         <td>
                             ${user.email ? `
                                 <span id="modal-email-masked">${maskEmail(user.email)}</span>
@@ -723,11 +831,11 @@ function showSensitiveModal(userId) {
                                 <button class="sp-btn sp-btn-sm ml-2" id="modal-email-eye-slash" style="display:none;vertical-align:middle;" onclick="toggleModalInfo('email', false)">
                                     <span class="icon"><i class="fas fa-eye-slash"></i></span>
                                 </button>
-                            ` : '<span class="sp-text-muted">None</span>'}
+                            ` : `<span class="sp-text-muted">${T.none}</span>`}
                         </td>
                     </tr>
                     <tr>
-                        <th>API Key</th>
+                        <th>${T.api_key}</th>
                         <td>
                             <span id="modal-api-masked">${maskApiKey(user.api_key)}</span>
                             <span id="modal-api-unmasked" style="display:none;">${user.api_key}</span>
@@ -756,15 +864,15 @@ function closeSensitiveModal() {
     document.getElementById('sensitive-modal').classList.remove('is-active');
 }
 function toggleModalInfo(type, reveal) {
-    let label = type === 'email' ? 'Email' : 'API Key';
+    let label = type === 'email' ? T.label_email : T.label_api_key;
     if (reveal) {
         Swal.fire({
-            title: `Reveal ${label}?`,
-            text: `Are you sure you want to view this user's ${label.toLowerCase()}?`,
+            title: T.reveal_title.replace(':label', label),
+            text: T.reveal_text.replace(':label', label.toLowerCase()),
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Reveal',
-            cancelButtonText: 'Cancel'
+            confirmButtonText: T.reveal_confirm,
+            cancelButtonText: T.cancel
         }).then((result) => {
             if (result.isConfirmed) {
                 if (type === 'email') {
@@ -818,36 +926,36 @@ function filterUsers() {
 function deleteUser(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
-    const memorialWarning = user.is_deceased ? '<br><br><span style="color:#7b2fa8;"><strong>&#128540; This is a memorial account for a deceased user. All data will be permanently lost.</strong></span>' : '';
+    const memorialWarning = user.is_deceased ? `<br><br><span style="color:#7b2fa8;"><strong>&#128540; ${T.memorial_delete_warning}</strong></span>` : '';
     Swal.fire({
-        title: 'Delete User?',
-        html: `Are you sure you want to delete <b>${user.username}</b> from the users table?${memorialWarning}`,
+        title: T.delete_user_title,
+        html: `${T.delete_user_html.replace(':name', `<b>${user.username}</b>`)}${memorialWarning}`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes',
-        cancelButtonText: 'No'
+        confirmButtonText: T.yes,
+        cancelButtonText: T.no
     }).then((result) => {
         if (result.isConfirmed) {
             // Ask about DB deletion BEFORE deleting user
             Swal.fire({
-                title: 'Delete User Database?',
-                html: `Do you also want to delete the database <b>${user.username}</b>?`,
+                title: T.delete_db_title,
+                html: T.delete_db_html.replace(':name', `<b>${user.username}</b>`),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Yes',
-                cancelButtonText: 'No'
+                confirmButtonText: T.yes,
+                cancelButtonText: T.no
             }).then((dbResult) => {
                 const deleteDb = dbResult.isConfirmed;
                 // Final confirmation
                 Swal.fire({
-                    title: 'Are you absolutely sure?',
+                    title: T.final_confirm_title,
                     text: deleteDb
-                        ? `This will permanently delete the user and the database "${user.username}". This action cannot be undone.`
-                        : `This will permanently delete the user "${user.username}". The database will NOT be deleted.`,
+                        ? T.final_confirm_with_db.replace(':name', user.username)
+                        : T.final_confirm_no_db.replace(':name', user.username),
                     icon: 'error',
                     showCancelButton: true,
-                    confirmButtonText: 'Yes, delete',
-                    cancelButtonText: 'Cancel'
+                    confirmButtonText: T.yes_delete,
+                    cancelButtonText: T.cancel
                 }).then((finalResult) => {
                     if (finalResult.isConfirmed) {
                         // Always delete user first
@@ -861,21 +969,21 @@ function deleteUser(userId) {
                                         let dbData = {};
                                         try { dbData = JSON.parse(dbResp); } catch {}
                                         if (dbData.success) {
-                                            Swal.fire('Deleted!', 'User and database deleted.', 'success').then(() => location.reload());
+                                            Swal.fire(T.deleted_title, T.deleted_user_and_db, 'success').then(() => location.reload());
                                         } else {
                                             Swal.fire(
-                                                'User deleted!',
-                                                'User was deleted, but the database could not be deleted.<br>' +
-                                                (dbData.msg ? `Reason: ${dbData.msg}` : 'Unknown error.'),
+                                                T.user_deleted_title,
+                                                T.db_delete_failed_html + '<br>' +
+                                                (dbData.msg ? T.db_delete_reason.replace(':reason', dbData.msg) : T.unknown_error),
                                                 'warning'
                                             ).then(() => location.reload());
                                         }
                                     });
                                 } else {
-                                    Swal.fire('Deleted!', 'User deleted. Database was not deleted.', 'success').then(() => location.reload());
+                                    Swal.fire(T.deleted_title, T.deleted_user_no_db, 'success').then(() => location.reload());
                                 }
                             } else {
-                                Swal.fire('Error', data.msg || 'Could not delete user.', 'error');
+                                Swal.fire(T.error, data.msg || T.could_not_delete_user, 'error');
                             }
                         });
                     }
@@ -886,26 +994,29 @@ function deleteUser(userId) {
 }
 function toggleRestrictUser(userId, username, twitch_user_id, restrict) {
     const action = restrict ? 'restrict' : 'unrestrict';
-    const actionText = restrict ? 'restrict' : 'remove restriction for';
-    const confirmText = restrict ? 'Restrict' : 'Unrestrict';
+    const actionText = restrict ? T.action_restrict_word : T.action_unrestrict_word;
+    const confirmText = restrict ? T.confirm_restrict_word : T.unrestrict_word;
     const restrictInfoHtml = `
         <div style="text-align:left;margin-top:0.75rem;">
-            <p style="margin-bottom:0.5rem;font-weight:700;">Admin note:</p>
-            <p style="margin-bottom:0.5rem;">Restricting a user blocks dashboard access.</p>
-            <p style="margin-bottom:0.5rem;">They will not be able to use dashboard controls, including starting or stopping the bot.</p>
-            <p style="margin-bottom:0;">This can be temporary - you can restore access anytime by clicking <span style="font-weight:700;">Unrestrict</span>.</p>
+            <p style="margin-bottom:0.5rem;font-weight:700;">${T.restrict_note_label}</p>
+            <p style="margin-bottom:0.5rem;">${T.restrict_note_1}</p>
+            <p style="margin-bottom:0.5rem;">${T.restrict_note_2}</p>
+            <p style="margin-bottom:0;">${T.restrict_note_3.replace(':unrestrict', `<span style="font-weight:700;">${T.unrestrict_word}</span>`)}</p>
         </div>
     `;
+    const baseConfirm = T.confirm_restrict_html
+        .replace(':action', actionText)
+        .replace(':name', `<b>${username}</b>`);
     const modalHtml = restrict
-        ? `Are you sure you want to ${actionText} <b>${username}</b>?${restrictInfoHtml}`
-        : `Are you sure you want to ${actionText} <b>${username}</b>?`;
+        ? `${baseConfirm}${restrictInfoHtml}`
+        : baseConfirm;
     Swal.fire({
-        title: restrict ? 'Restrict User?' : 'Remove Restriction?',
+        title: restrict ? T.restrict_user_title : T.remove_restriction_title,
         html: modalHtml,
         icon: restrict ? 'warning' : 'info',
         showCancelButton: true,
         confirmButtonText: confirmText,
-        cancelButtonText: 'Cancel'
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (result.isConfirmed) {
             $.post('', {
@@ -917,9 +1028,9 @@ function toggleRestrictUser(userId, username, twitch_user_id, restrict) {
                 let data = {};
                 try { data = JSON.parse(resp); } catch {}
                 if (data.success) {
-                    Swal.fire('Success', restrict ? 'User restricted.' : 'Restriction removed.', 'success').then(() => location.reload());
+                    Swal.fire(T.success, restrict ? T.user_restricted : T.restriction_removed, 'success').then(() => location.reload());
                 } else {
-                    Swal.fire('Error', data.msg || 'Could not update restriction.', 'error');
+                    Swal.fire(T.error, data.msg || T.could_not_update_restriction, 'error');
                 }
             });
         }
@@ -929,12 +1040,12 @@ function grantBetaAccess(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
     Swal.fire({
-        title: 'Grant Beta Access?',
-        html: `Give <b>${user.username}</b> beta access? This sets beta_access to <b>1</b>.`,
+        title: T.grant_beta_title,
+        html: T.grant_beta_html.replace(':name', `<b>${user.username}</b>`),
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Grant',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.grant_word,
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (!result.isConfirmed) return;
         $.post('', {
@@ -944,9 +1055,9 @@ function grantBetaAccess(userId) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Updated', 'Beta access granted.', 'success').then(() => location.reload());
+                Swal.fire(T.updated, T.beta_access_granted, 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not update beta access.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_update_beta_access, 'error');
             }
         });
     });
@@ -955,12 +1066,12 @@ function removeBetaAccess(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
     Swal.fire({
-        title: 'Remove Beta Access?',
-        html: `Remove beta access for <b>${user.username}</b>? This sets beta_access to <b>0</b>.`,
+        title: T.remove_beta_title,
+        html: T.remove_beta_html.replace(':name', `<b>${user.username}</b>`),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Remove',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.remove_word,
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (!result.isConfirmed) return;
         $.post('', {
@@ -970,9 +1081,9 @@ function removeBetaAccess(userId) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Updated', 'Beta access removed.', 'success').then(() => location.reload());
+                Swal.fire(T.updated, T.beta_access_removed, 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not update beta access.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_update_beta_access, 'error');
             }
         });
     });
@@ -983,19 +1094,19 @@ function manageBetaPrograms(userId) {
     const programs = JSON.parse(user.beta_programs || '[]');
     const currentList = programs.length
         ? programs.map(p => `<span class="sp-badge sp-badge-blue" style="margin:2px;cursor:pointer;" onclick="removeBetaProgram(${userId},'${p}')">${p} &times;</span>`).join(' ')
-        : '<em>None</em>';
+        : `<em>${T.none_em}</em>`;
     Swal.fire({
-        title: `Beta Programs — ${user.username}`,
+        title: T.beta_programs_title.replace(':name', user.username),
         html: `
-            <p style="margin-bottom:0.5rem;">Current programs (click to remove):</p>
+            <p style="margin-bottom:0.5rem;">${T.current_programs_label}</p>
             <div id="swal-programs-list" style="margin-bottom:1rem;">${currentList}</div>
             <div style="display:flex;gap:0.5rem;">
-                <input id="swal-program-input" class="swal2-input" style="margin:0;flex:1;" placeholder="Program name (e.g. streaming)">
-                <button class="swal2-confirm swal2-styled" style="margin:0;" onclick="addBetaProgram(${userId})">Add</button>
+                <input id="swal-program-input" class="swal2-input" style="margin:0;flex:1;" placeholder="${T.program_placeholder}">
+                <button class="swal2-confirm swal2-styled" style="margin:0;" onclick="addBetaProgram(${userId})">${T.add_word}</button>
             </div>`,
         showConfirmButton: false,
         showCancelButton: true,
-        cancelButtonText: 'Close',
+        cancelButtonText: T.close_word,
     });
 }
 function addBetaProgram(userId) {
@@ -1005,29 +1116,29 @@ function addBetaProgram(userId) {
         let data = {};
         try { data = JSON.parse(resp); } catch {}
         if (data.success) {
-            Swal.fire('Added', `Added <b>${program}</b> to beta programs.`, 'success').then(() => location.reload());
+            Swal.fire(T.added, T.added_program_html.replace(':program', `<b>${program}</b>`), 'success').then(() => location.reload());
         } else {
-            Swal.fire('Error', data.msg || 'Could not update beta programs.', 'error');
+            Swal.fire(T.error, data.msg || T.could_not_update_beta_programs, 'error');
         }
     });
 }
 function removeBetaProgram(userId, program) {
     Swal.fire({
-        title: 'Remove program?',
-        html: `Remove <b>${program}</b> from this user's beta programs?`,
+        title: T.remove_program_title,
+        html: T.remove_program_html.replace(':program', `<b>${program}</b>`),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Remove',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.remove_word,
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (!result.isConfirmed) return;
         $.post('', { beta_programs_action: 'remove', user_id: userId, program }, function(resp) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Removed', `Removed <b>${program}</b> from beta programs.`, 'success').then(() => location.reload());
+                Swal.fire(T.removed, T.removed_program_html.replace(':program', `<b>${program}</b>`), 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not update beta programs.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_update_beta_programs, 'error');
             }
         });
     });
@@ -1036,12 +1147,12 @@ function grantAdminAccess(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
     Swal.fire({
-        title: 'Grant Admin Access?',
-        html: `Give <b>${user.username}</b> admin access? This sets is_admin to <b>1</b>.`,
+        title: T.grant_admin_title,
+        html: T.grant_admin_html.replace(':name', `<b>${user.username}</b>`),
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Grant',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.grant_word,
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (!result.isConfirmed) return;
         $.post('', {
@@ -1051,9 +1162,9 @@ function grantAdminAccess(userId) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Updated', 'Admin access granted.', 'success').then(() => location.reload());
+                Swal.fire(T.updated, T.admin_access_granted, 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not update admin access.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_update_admin_access, 'error');
             }
         });
     });
@@ -1062,12 +1173,12 @@ function removeAdminAccess(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
     Swal.fire({
-        title: 'Remove Admin Access?',
-        html: `Remove admin access for <b>${user.username}</b>? This sets is_admin to <b>0</b>.`,
+        title: T.remove_admin_title,
+        html: T.remove_admin_html.replace(':name', `<b>${user.username}</b>`),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Remove',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.remove_word,
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (!result.isConfirmed) return;
         $.post('', {
@@ -1077,9 +1188,9 @@ function removeAdminAccess(userId) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Updated', 'Admin access removed.', 'success').then(() => location.reload());
+                Swal.fire(T.updated, T.admin_access_removed, 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not update admin access.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_update_admin_access, 'error');
             }
         });
     });
@@ -1093,13 +1204,12 @@ function markDeceased(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
     Swal.fire({
-        title: 'Mark Account as Memorial?',
-        html: `<p>This will preserve <b>${user.username}</b>'s account in memory of the account holder who has passed away.</p>
-               <p class="mt-2">The account will be restricted to prevent login. All data will be permanently retained.</p>`,
+        title: T.mark_memorial_title,
+        html: T.mark_memorial_html.replace(':name', `<b>${user.username}</b>`),
         icon: 'info',
         showCancelButton: true,
-        confirmButtonText: 'Mark as Memorial',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: T.mark_memorial_confirm,
+        cancelButtonText: T.cancel,
         confirmButtonColor: '#7b2fa8'
     }).then((result) => {
         if (!result.isConfirmed) return;
@@ -1110,9 +1220,9 @@ function markDeceased(userId) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Preserved', 'Account has been marked as memorial and restricted.', 'success').then(() => location.reload());
+                Swal.fire(T.preserved, T.marked_memorial, 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not mark account as memorial.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_mark_memorial, 'error');
             }
         });
     });
@@ -1121,12 +1231,12 @@ function unmarkDeceased(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
     Swal.fire({
-        title: 'Remove Memorial Status?',
-        html: `Remove memorial status from <b>${user.username}</b>?<br>Note: this does not automatically unrestrict the account.`,
+        title: T.remove_memorial_title,
+        html: T.remove_memorial_html.replace(':name', `<b>${user.username}</b>`),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Remove',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.remove_word,
+        cancelButtonText: T.cancel
     }).then((result) => {
         if (!result.isConfirmed) return;
         $.post('', {
@@ -1136,9 +1246,9 @@ function unmarkDeceased(userId) {
             let data = {};
             try { data = JSON.parse(resp); } catch {}
             if (data.success) {
-                Swal.fire('Updated', 'Memorial status removed.', 'success').then(() => location.reload());
+                Swal.fire(T.updated, T.memorial_status_removed, 'success').then(() => location.reload());
             } else {
-                Swal.fire('Error', data.msg || 'Could not remove memorial status.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_remove_memorial, 'error');
             }
         });
     });
@@ -1147,14 +1257,17 @@ function exportSensitiveUser() {
     const uid = window.currentSensitiveUserId;
     const email = window.currentSensitiveUserEmail || '';
     const username = window.currentSensitiveUsername || '';
-    if (!uid) return Swal.fire('Error','No user selected for export.','error');
+    if (!uid) return Swal.fire(T.error, T.no_user_export, 'error');
     Swal.fire({
-        title: 'Export user data?',
-        html: `Queue export for <b>${username}</b> (${uid}) and email to <b>${email || 'their account email'}</b>?`,
+        title: T.export_title,
+        html: T.export_html
+            .replace(':name', `<b>${username}</b>`)
+            .replace(':id', uid)
+            .replace(':email', `<b>${email || T.export_account_email}</b>`),
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Yes, export',
-        cancelButtonText: 'Cancel'
+        confirmButtonText: T.yes_export,
+        cancelButtonText: T.cancel
     }).then((res)=>{
         if (!res.isConfirmed) return;
         const postData = { user_id: uid, email: email, username: username };
@@ -1162,13 +1275,13 @@ function exportSensitiveUser() {
             let data = {};
             try { data = typeof resp === 'object' ? resp : JSON.parse(resp); } catch(e){}
             if (data && data.success) {
-                Swal.fire('Queued','User export has been started in background.','success');
+                Swal.fire(T.queued, T.export_started, 'success');
                 closeSensitiveModal();
             } else {
-                Swal.fire('Error', data.msg || 'Could not start export.', 'error');
+                Swal.fire(T.error, data.msg || T.could_not_start_export, 'error');
             }
         }).fail(function(){
-            Swal.fire('Error','Could not reach export endpoint.','error');
+            Swal.fire(T.error, T.could_not_reach_export, 'error');
         });
     });
 }

@@ -140,13 +140,13 @@ document.querySelectorAll('.remove-task-btn').forEach(function(btn) {
     e.preventDefault();
     const form = btn.closest('form');
     Swal.fire({
-      title: 'Are you sure?',
-      text: "This will remove the task.",
+      title: <?php echo json_encode(t('todo_remove_confirm_title')); ?>,
+      text: <?php echo json_encode(t('todo_remove_confirm_text')); ?>,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, remove it!'
+      confirmButtonText: <?php echo json_encode(t('todo_remove_confirm_button')); ?>
     }).then((result) => {
       if (result.isConfirmed) {
         form.submit();

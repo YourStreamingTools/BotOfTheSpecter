@@ -1043,6 +1043,47 @@ $(document).ready(function() {
     const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
     const bingoSubtypes = <?php echo json_encode($bingoSubtypes); ?>;
     const variantLimits = <?php echo json_encode($variantLimits); ?>;
+    // Translated UI strings injected from PHP so JS never carries English literals.
+    const i18n = {
+        noRewardsSynced: <?php echo json_encode(t('alerts_no_rewards_synced')); ?>,
+        unknownReward: <?php echo json_encode(t('alerts_unknown_reward')); ?>,
+        unsavedSwitchConfirm: <?php echo json_encode(t('alerts_unsaved_switch_confirm')); ?>,
+        previewUser: <?php echo json_encode(t('alerts_preview_user')); ?>,
+        alertImageAlt: <?php echo json_encode(t('alerts_alert_image')); ?>,
+        noImageSelected: <?php echo json_encode(t('alerts_no_image_selected')); ?>,
+        noSoundSelected: <?php echo json_encode(t('alerts_no_sound_selected')); ?>,
+        savedTitle: <?php echo json_encode(t('alerts_saved_title')); ?>,
+        errorTitle: <?php echo json_encode(t('alerts_error_title')); ?>,
+        saveFailed: <?php echo json_encode(t('alerts_save_failed')); ?>,
+        discardConfirmTitle: <?php echo json_encode(t('alerts_discard_confirm_title')); ?>,
+        discardConfirmText: <?php echo json_encode(t('alerts_discard_confirm_text')); ?>,
+        discardConfirmYes: <?php echo json_encode(t('alerts_discard_confirm_yes')); ?>,
+        keepEditing: <?php echo json_encode(t('alerts_keep_editing')); ?>,
+        adding: <?php echo json_encode(t('alerts_adding')); ?>,
+        cannotAddTitle: <?php echo json_encode(t('alerts_cannot_add_title')); ?>,
+        addFailed: <?php echo json_encode(t('alerts_add_failed')); ?>,
+        dragReorder: <?php echo json_encode(t('alerts_drag_reorder')); ?>,
+        noVariantsYet: <?php echo json_encode(t('alerts_no_variants_yet')); ?>,
+        deleteConfirmTitle: <?php echo json_encode(t('alerts_delete_confirm_title')); ?>,
+        deleteConfirmText: <?php echo json_encode(t('alerts_delete_confirm_text')); ?>,
+        deleteConfirmYes: <?php echo json_encode(t('alerts_delete_confirm_yes')); ?>,
+        cancel: <?php echo json_encode(t('alerts_cancel')); ?>,
+        deleting: <?php echo json_encode(t('alerts_deleting')); ?>,
+        deleteFailed: <?php echo json_encode(t('alerts_delete_failed')); ?>,
+        uploadFailedTitle: <?php echo json_encode(t('alerts_upload_failed_title')); ?>,
+        bingoPickTitle: <?php echo json_encode(t('alerts_bingo_pick_title')); ?>,
+        bingoPickText: <?php echo json_encode(t('alerts_bingo_pick_text')); ?>,
+        testUnavailableTitle: <?php echo json_encode(t('alerts_test_unavailable_title')); ?>,
+        testUnavailableText: <?php echo json_encode(t('alerts_test_unavailable_text')); ?>,
+        testSentTitle: <?php echo json_encode(t('alerts_test_sent_title')); ?>,
+        testSentText: <?php echo json_encode(t('alerts_test_sent_text')); ?>,
+        testSendFailed: <?php echo json_encode(t('alerts_test_send_failed')); ?>,
+        copied: <?php echo json_encode(t('alerts_copied')); ?>,
+        editMultipleTitle: <?php echo json_encode(t('alerts_edit_multiple_title')); ?>,
+        editMultipleText: <?php echo json_encode(t('alerts_edit_multiple_text')); ?>,
+        chooseImage: <?php echo json_encode(t('alerts_choose_image')); ?>,
+        chooseSound: <?php echo json_encode(t('alerts_choose_sound')); ?>
+    };
     // Enable/disable-only categories — selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
     const simpleCategories = ['weather', 'deaths', 'walkons'];
@@ -1138,7 +1179,7 @@ $(document).ready(function() {
     (function populateRewardDropdown() {
         var sel = $('#set-reward-id');
         if (!channelPointRewards.length) {
-            sel.append('<option value="" disabled>No rewards synced yet</option>');
+            sel.append('<option value="" disabled>' + escapeHtml(i18n.noRewardsSynced) + '</option>');
             return;
         }
         channelPointRewards.forEach(function(r) {
@@ -1174,7 +1215,7 @@ $(document).ready(function() {
             // If the variant references a reward that no longer exists, add a
             // synthetic option so the user can see the dangling reference
             if (rid && sel.find('option[value="' + $('<div>').text(rid).html() + '"]').length === 0) {
-                sel.append('<option value="' + $('<div>').text(rid).html() + '" data-missing="1">Unknown reward (' + $('<div>').text(rid).html() + ')</option>');
+                sel.append('<option value="' + $('<div>').text(rid).html() + '" data-missing="1">' + escapeHtml(i18n.unknownReward.replace('%s', rid)) + '</option>');
             }
             sel.val(rid || '');
         } else if (category === 'stream_bingo') {
@@ -1227,7 +1268,7 @@ $(document).ready(function() {
         if ($(e.target).closest('.alerts-mini-toggle').length) return;
         if ($(e.target).closest('.alerts-variant-handle').length) return;
         var id = $(this).data('id');
-        if (isDirty && !confirm('You have unsaved changes. Discard them and switch variant?')) return;
+        if (isDirty && !confirm(i18n.unsavedSwitchConfirm)) return;
         $('.alerts-variant-item').removeClass('active');
         $(this).addClass('active');
         loadVariant(id);
@@ -1354,13 +1395,13 @@ $(document).ready(function() {
                 if (['webm'].includes(ext)) {
                     $('#image-preview').html('<video src="' + url + '" autoplay loop muted></video>');
                 } else {
-                    $('#image-preview').html('<img src="' + url + '" alt="Alert image">');
+                    $('#image-preview').html('<img src="' + url + '" alt="' + escapeHtml(i18n.alertImageAlt) + '">');
                 }
                 $('#image-filename').text(filename);
                 $('#image-remove-btn').show();
             } else {
                 $('#image-preview').empty();
-                $('#image-filename').text('No image selected');
+                $('#image-filename').text(i18n.noImageSelected);
                 $('#image-remove-btn').hide();
             }
         } else {
@@ -1368,7 +1409,7 @@ $(document).ready(function() {
                 $('#sound-filename').text(filename);
                 $('#sound-remove-btn').show();
             } else {
-                $('#sound-filename').text('No sound selected');
+                $('#sound-filename').text(i18n.noSoundSelected);
                 $('#sound-remove-btn').hide();
             }
         }
@@ -1430,7 +1471,7 @@ $(document).ready(function() {
             $('#preview-img').hide();
         }
         var displayMsg = msg
-            .replace(/\{username\}/g, '<span class="preview-accent">PreviewUser</span>')
+            .replace(/\{username\}/g, '<span class="preview-accent">' + escapeHtml(i18n.previewUser) + '</span>')
             .replace(/\{amount\}/g, '<span class="preview-accent">100</span>')
             .replace(/\{months\}/g, '<span class="preview-accent">3</span>')
             .replace(/\{viewers\}/g, '<span class="preview-accent">42</span>')
@@ -1546,21 +1587,21 @@ $(document).ready(function() {
                     $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-name').text(data.variant_name);
                     $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-condition').text(data.alert_condition || '');
                     clearDirty();
-                    Swal.fire({ icon: 'success', title: 'Saved', text: resp.message, timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: i18n.savedTitle, text: resp.message, timer: 1500, showConfirmButton: false });
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: resp.message });
+                    Swal.fire({ icon: 'error', title: i18n.errorTitle, text: resp.message });
                 }
             },
-            error: function() { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save. Please try again.' }); }
+            error: function() { Swal.fire({ icon: 'error', title: i18n.errorTitle, text: i18n.saveFailed }); }
         });
     });
     $('#alerts-discard-btn').on('click', function() {
         if (!currentAlertId || !isDirty) return;
         Swal.fire({
-            title: 'Discard changes?',
-            text: 'Your unsaved changes to this variant will be lost.',
+            title: i18n.discardConfirmTitle,
+            text: i18n.discardConfirmText,
             icon: 'warning', showCancelButton: true,
-            confirmButtonText: 'Yes, discard', cancelButtonText: 'Keep editing'
+            confirmButtonText: i18n.discardConfirmYes, cancelButtonText: i18n.keepEditing
         }).then(function(result) {
             if (result.isConfirmed) loadVariant(currentAlertId);
         });
@@ -1611,11 +1652,11 @@ $(document).ready(function() {
         if ($btn.prop('disabled')) return;
         var category = $btn.data('category');
         var origHtml = $btn.html();
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Adding…');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> ' + escapeHtml(i18n.adding));
         $.post('', { action: 'create_variant', category: category }, function(resp) {
             $btn.prop('disabled', false).html(origHtml);
             if (!resp.success) {
-                Swal.fire({ icon: 'error', title: 'Cannot add variant', text: resp.message });
+                Swal.fire({ icon: 'error', title: i18n.cannotAddTitle, text: resp.message });
                 return;
             }
             var v = resp.variant;
@@ -1625,7 +1666,7 @@ $(document).ready(function() {
             var $list = $cat.find('.alerts-variant-list');
             var html = ''
                 + '<li class="alerts-variant-item" data-id="' + v.id + '">'
-                +   '<span class="alerts-variant-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>'
+                +   '<span class="alerts-variant-handle" title="' + escapeHtml(i18n.dragReorder) + '"><i class="fas fa-grip-vertical"></i></span>'
                 +   '<span class="alerts-variant-priority">' + (parseInt(v.variant_index) + 1) + '</span>'
                 +   '<div class="alerts-variant-info">'
                 +     '<div class="variant-name">' + escapeHtml(v.variant_name) + '</div>'
@@ -1643,7 +1684,7 @@ $(document).ready(function() {
             $('.alerts-variant-item[data-id="' + v.id + '"]').click();
         }, 'json').fail(function() {
             $btn.prop('disabled', false).html(origHtml);
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to add variant. Please try again.' });
+            Swal.fire({ icon: 'error', title: i18n.errorTitle, text: i18n.addFailed });
         });
     });
     $('#delete-variant-btn').on('click', function() {
@@ -1651,19 +1692,19 @@ $(document).ready(function() {
         if ($btn.prop('disabled') || !currentAlertId) return;
         var a = alertsData[currentAlertId];
         Swal.fire({
-            title: 'Delete "' + a.variant_name + '"?',
-            text: 'This variant will be permanently removed.',
+            title: i18n.deleteConfirmTitle.replace('%s', a.variant_name),
+            text: i18n.deleteConfirmText,
             icon: 'warning', showCancelButton: true,
-            confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
+            confirmButtonColor: '#d33', confirmButtonText: i18n.deleteConfirmYes, cancelButtonText: i18n.cancel
         }).then(function(result) {
             if (!result.isConfirmed) return;
             var origHtml = $btn.html();
             var idToDelete = currentAlertId;
-            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Deleting…');
+            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> ' + escapeHtml(i18n.deleting));
             $.post('', { action: 'delete_variant', id: idToDelete }, function(resp) {
                 $btn.prop('disabled', false).html(origHtml);
                 if (!resp.success) {
-                    Swal.fire({ icon: 'error', title: 'Error', text: resp.message });
+                    Swal.fire({ icon: 'error', title: i18n.errorTitle, text: resp.message });
                     return;
                 }
                 var $row = $('.alerts-variant-item[data-id="' + idToDelete + '"]');
@@ -1674,7 +1715,7 @@ $(document).ready(function() {
                 var remaining = $cat.find('.alerts-variant-item').length;
                 $cat.find('.alerts-category-count').text(remaining);
                 if (remaining === 0) {
-                    $cat.find('.alerts-variant-list').append('<li class="alerts-variant-empty">No variants yet — add one above.</li>');
+                    $cat.find('.alerts-variant-list').append('<li class="alerts-variant-empty">' + escapeHtml(i18n.noVariantsYet) + '</li>');
                 }
                 updateAddButtonFor($cat.data('category'));
                 updateVariantCount();
@@ -1686,7 +1727,7 @@ $(document).ready(function() {
                 clearDirty();
             }, 'json').fail(function() {
                 $btn.prop('disabled', false).html(origHtml);
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete variant. Please try again.' });
+                Swal.fire({ icon: 'error', title: i18n.errorTitle, text: i18n.deleteFailed });
             });
         });
     });
@@ -1714,7 +1755,7 @@ $(document).ready(function() {
                     updatePreview();
                     markDirty();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Upload failed', text: resp.message });
+                    Swal.fire({ icon: 'error', title: i18n.uploadFailedTitle, text: resp.message });
                 }
             }
         });
@@ -1745,7 +1786,7 @@ $(document).ready(function() {
                     updateMediaPreview('sound', resp.filename);
                     markDirty();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Upload failed', text: resp.message });
+                    Swal.fire({ icon: 'error', title: i18n.uploadFailedTitle, text: resp.message });
                 }
             }
         });
@@ -1817,7 +1858,7 @@ $(document).ready(function() {
         if (!config && a.alert_category === 'stream_bingo') {
             var be = extractBingoEvent(a.alert_condition);
             if (!be) {
-                Swal.fire({ icon: 'info', title: 'Pick a bingo event first', text: 'Choose a bingo event from the dropdown and save before testing.' });
+                Swal.fire({ icon: 'info', title: i18n.bingoPickTitle, text: i18n.bingoPickText });
                 return;
             }
             var bingoParams = {};
@@ -1828,15 +1869,15 @@ $(document).ready(function() {
             config = { event: be, params: bingoParams };
         }
         if (!config) {
-            Swal.fire({ icon: 'info', title: 'Live test not available yet', text: 'Test events for this category aren\'t wired up here yet. Use the trigger in your bot to test live.' });
+            Swal.fire({ icon: 'info', title: i18n.testUnavailableTitle, text: i18n.testUnavailableText });
             return;
         }
         var params = Object.assign({ event: config.event, api_key: apiKey, channel_name: channelName }, config.params);
         $.post('/api/notify_event.php', params, function(resp) {
             if (resp.success) {
-                Swal.fire({ icon: 'success', title: 'Test sent', text: 'Check your OBS browser source.', timer: 2000, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: i18n.testSentTitle, text: i18n.testSentText, timer: 2000, showConfirmButton: false });
             } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: resp.message || 'Failed to send test event.' });
+                Swal.fire({ icon: 'error', title: i18n.errorTitle, text: resp.message || i18n.testSendFailed });
             }
         }, 'json');
     });
@@ -1859,7 +1900,7 @@ $(document).ready(function() {
             navigator.clipboard.writeText($input.val()).then(function() {
                 var $btn = $('#alerts-copy-url-btn');
                 var orig = $btn.html();
-                $btn.html('<i class="fas fa-check"></i> Copied');
+                $btn.html('<i class="fas fa-check"></i> ' + escapeHtml(i18n.copied));
                 setTimeout(function() { $btn.html(orig); }, 1500);
             });
         } catch (_) {
@@ -1870,15 +1911,15 @@ $(document).ready(function() {
     $('#alerts-edit-multiple-link').on('click', function(e) {
         e.preventDefault();
         Swal.fire({
-            icon: 'info', title: 'Edit multiple — coming soon',
-            text: 'Bulk-editing several variants at once is on the roadmap. For now, open each variant and use Save changes individually.'
+            icon: 'info', title: i18n.editMultipleTitle,
+            text: i18n.editMultipleText
         });
     });
     var libraryMode = null; // 'image' | 'sound'
     function openLibrary(mode) {
         libraryMode = mode;
         var files = mode === 'image' ? libraryImages : librarySounds;
-        $('#alerts-library-modal-title').text(mode === 'image' ? 'Choose an alert image' : 'Choose an alert sound');
+        $('#alerts-library-modal-title').text(mode === 'image' ? i18n.chooseImage : i18n.chooseSound);
         renderLibrary(files, '');
         $('#alerts-library-search').val('');
         $('#alerts-library-modal').css('display', 'flex');

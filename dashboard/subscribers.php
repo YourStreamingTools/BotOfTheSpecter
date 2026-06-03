@@ -37,7 +37,7 @@ $totalPages = 0;
 $currentPage = 1;
 $subscribersError = null;
 $showNoSubscriberAccessMessage = false;
-$channelDisplayName = 'This channel';
+$channelDisplayName = t('subscribers_default_channel_name');
 
 // Determine broadcaster type first, so non-affiliate/partner channels show a friendly message.
 $usersUrl = "https://api.twitch.tv/helix/users?id=$broadcasterID";
@@ -57,7 +57,7 @@ if ($usersResponse === false) {
         $subscribersError = t('subscribers_error_eligibility');
     } else {
         $usersData = json_decode($usersResponse, true);
-        $channelDisplayName = $usersData['data'][0]['display_name'] ?? ($usersData['data'][0]['login'] ?? 'This channel');
+        $channelDisplayName = $usersData['data'][0]['display_name'] ?? ($usersData['data'][0]['login'] ?? t('subscribers_default_channel_name'));
         $broadcasterType = $usersData['data'][0]['broadcaster_type'] ?? '';
         $channelTwitchId = $usersData['data'][0]['id'] ?? '';
         $isOwner = (isset($twitchUserId) && $twitchUserId === $channelTwitchId);

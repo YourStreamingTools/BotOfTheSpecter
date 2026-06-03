@@ -232,6 +232,31 @@ ob_start();
 </div>
 
 <script>
+// Translated UI strings injected from PHP so JS never carries English literals.
+const bingoI18n = {
+    callRandomSuccess: <?php echo json_encode(t('bingo_js_call_random_success')); ?>,
+    callRandomError: <?php echo json_encode(t('bingo_js_call_random_error')); ?>,
+    callAllSuccess: <?php echo json_encode(t('bingo_js_call_all_success')); ?>,
+    callAllError: <?php echo json_encode(t('bingo_js_call_all_error')); ?>,
+    startVoteSuccess: <?php echo json_encode(t('bingo_js_start_vote_success')); ?>,
+    startVoteError: <?php echo json_encode(t('bingo_js_start_vote_error')); ?>,
+    loadingPlayers: <?php echo json_encode(t('bingo_js_loading_players')); ?>,
+    errorLoadingPlayers: <?php echo json_encode(t('bingo_js_error_loading_players')); ?>,
+    errorLoadingPlayersDetail: <?php echo json_encode(t('bingo_js_error_loading_players_detail')); ?>,
+    noPlayers: <?php echo json_encode(t('bingo_js_no_players')); ?>,
+    playerCountSingular: <?php echo json_encode(t('bingo_js_player_count_singular')); ?>,
+    playerCountPlural: <?php echo json_encode(t('bingo_js_player_count_plural')); ?>,
+    loadingWinners: <?php echo json_encode(t('bingo_js_loading_winners')); ?>,
+    errorLoadingWinners: <?php echo json_encode(t('bingo_js_error_loading_winners')); ?>,
+    errorLoadingWinnersDetail: <?php echo json_encode(t('bingo_js_error_loading_winners_detail')); ?>,
+    noWinners: <?php echo json_encode(t('bingo_js_no_winners')); ?>,
+    rank1: <?php echo json_encode(t('bingo_js_rank_1')); ?>,
+    rank2: <?php echo json_encode(t('bingo_js_rank_2')); ?>,
+    rank3: <?php echo json_encode(t('bingo_js_rank_3')); ?>,
+    rank4: <?php echo json_encode(t('bingo_js_rank_4')); ?>,
+    rank5: <?php echo json_encode(t('bingo_js_rank_5')); ?>,
+    rankNth: <?php echo json_encode(t('bingo_js_rank_nth')); ?>
+};
 document.addEventListener('DOMContentLoaded', function() {
     const apiKeyField = document.getElementById('api-key-field');
     const visibilityIcon = document.getElementById('api-key-visibility-icon');
@@ -255,13 +280,13 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             if (response.ok) {
-                showNotification('Random number called successfully!', 'success');
+                showNotification(bingoI18n.callRandomSuccess, 'success');
             } else {
                 throw new Error('HTTP ' + response.status + ': ' + response.statusText);
             }
         })
         .catch(error => {
-            showNotification('Error calling random number: ' + error.message, 'danger');
+            showNotification(bingoI18n.callRandomError + error.message, 'danger');
         });
     }
     function callAll() {
@@ -270,13 +295,13 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             if (response.ok) {
-                showNotification('All numbers called successfully!', 'success');
+                showNotification(bingoI18n.callAllSuccess, 'success');
             } else {
                 throw new Error('HTTP ' + response.status + ': ' + response.statusText);
             }
         })
         .catch(error => {
-            showNotification('Error calling all numbers: ' + error.message, 'danger');
+            showNotification(bingoI18n.callAllError + error.message, 'danger');
         });
     }
     function startVote() {
@@ -285,13 +310,13 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => {
             if (response.ok) {
-                showNotification('Vote started successfully!', 'success');
+                showNotification(bingoI18n.startVoteSuccess, 'success');
             } else {
                 throw new Error('HTTP ' + response.status + ': ' + response.statusText);
             }
         })
         .catch(error => {
-            showNotification('Error starting vote: ' + error.message, 'danger');
+            showNotification(bingoI18n.startVoteError + error.message, 'danger');
         });
     }
     function showNotification(message, type) {
@@ -334,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loadPlayers(gameId) {
         modalPlayersGameId.textContent = gameId;
-        playersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading players...</div>';
+        playersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> ' + bingoI18n.loadingPlayers + '</div>';
 
         fetch('/api/bingo_players.php?game_id=' + encodeURIComponent(gameId))
             .then(response => response.json())
@@ -342,11 +367,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     displayPlayers(data.players);
                 } else {
-                    playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading players</div>';
+                    playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingPlayers + '</div>';
                 }
             })
             .catch(error => {
-                playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading players: ' + error.message + '</div>';
+                playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingPlayersDetail + error.message + '</div>';
             });
 
         playersModal.classList.remove('hidden');
@@ -354,11 +379,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function displayPlayers(players) {
         if (players.length === 0) {
-            playersContent.innerHTML = '<div class="sp-alert sp-alert-info">No players joined this game</div>';
+            playersContent.innerHTML = '<div class="sp-alert sp-alert-info">' + bingoI18n.noPlayers + '</div>';
             return;
         }
 
-        let html = '<div style="margin-bottom:0.5rem; color:var(--text-muted); font-size:0.875rem;">' + players.length + ' player' + (players.length !== 1 ? 's' : '') + '</div>';
+        const playerCountLabel = (players.length === 1 ? bingoI18n.playerCountSingular : bingoI18n.playerCountPlural).replace('%s', players.length);
+        let html = '<div style="margin-bottom:0.5rem; color:var(--text-muted); font-size:0.875rem;">' + playerCountLabel + '</div>';
         players.forEach(function(player, index) {
             html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border);">';
             html += '<div style="display:flex; align-items:center; gap:0.75rem;">';
@@ -391,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loadWinners(gameId) {
         modalGameId.textContent = gameId;
-        winnersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading winners...</div>';
+        winnersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> ' + bingoI18n.loadingWinners + '</div>';
 
         fetch('/api/bingo_winners.php?game_id=' + encodeURIComponent(gameId))
             .then(response => response.json())
@@ -399,11 +425,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     displayWinners(data.winners);
                 } else {
-                    winnersContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading winners</div>';
+                    winnersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingWinners + '</div>';
                 }
             })
             .catch(error => {
-                winnersContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading winners: ' + error.message + '</div>';
+                winnersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingWinnersDetail + error.message + '</div>';
             });
 
         winnersModal.classList.remove('hidden');
@@ -411,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function displayWinners(winners) {
         if (winners.length === 0) {
-            winnersContent.innerHTML = '<div class="sp-alert sp-alert-info">No winners for this game yet</div>';
+            winnersContent.innerHTML = '<div class="sp-alert sp-alert-info">' + bingoI18n.noWinners + '</div>';
             return;
         }
 
@@ -432,13 +458,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getRankText(rank) {
         const rankNames = {
-            1: '1st Place',
-            2: '2nd Place',
-            3: '3rd Place',
-            4: '4th Place',
-            5: '5th Place'
+            1: bingoI18n.rank1,
+            2: bingoI18n.rank2,
+            3: bingoI18n.rank3,
+            4: bingoI18n.rank4,
+            5: bingoI18n.rank5
         };
-        return rankNames[rank] || rank + 'th Place';
+        return rankNames[rank] || bingoI18n.rankNth.replace('%s', rank);
     }
 
     function getRankClass(rank) {

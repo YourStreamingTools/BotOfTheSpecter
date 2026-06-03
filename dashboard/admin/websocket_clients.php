@@ -12,15 +12,15 @@ require_once "/var/www/config/admin_actions.php";
 function getUserDisplayName($apiKey, $conn) {
     $stmt = $conn->prepare("SELECT twitch_display_name FROM users WHERE api_key = ? LIMIT 1");
     if (!$stmt) {
-        return "Unknown";
+        return t('admin_websocket_clients_unknown_user');
     }
     $stmt->bind_param("s", $apiKey);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($result && $row = $result->fetch_assoc()) {
-        return $row['twitch_display_name'] ?: "Unknown";
+        return $row['twitch_display_name'] ?: t('admin_websocket_clients_unknown_user');
     }
-    return "Unknown";
+    return t('admin_websocket_clients_unknown_user');
 }
 
 // Clean listener name by removing common prefixes
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_user_clients'])) {
     if (isset($data['registered_clients'][$apiKey])) {
         echo json_encode($data['registered_clients'][$apiKey]);
     } else {
-        echo json_encode(['error' => 'User not found']);
+        echo json_encode(['error' => t('admin_websocket_clients_user_not_found')]);
     }
     exit;
 }
@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['disconnect_client']))
     header('Content-Type: application/json');
     $sid = $_POST['sid'] ?? '';
     if (empty($sid)) {
-        echo json_encode(['success' => false, 'message' => 'Socket ID is required']);
+        echo json_encode(['success' => false, 'message' => t('admin_websocket_clients_msg_sid_required')]);
         exit;
     }
     // Send disconnect command to the websocket server
@@ -161,14 +161,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['disconnect_client']))
     ]);
     $response = @file_get_contents($disconnectUrl, false, $context);
     if ($response === false) {
-        echo json_encode(['success' => false, 'message' => 'Failed to connect to websocket server']);
+        echo json_encode(['success' => false, 'message' => t('admin_websocket_clients_msg_connect_failed')]);
         exit;
     }
     $result = json_decode($response, true);
     if ($result && isset($result['success']) && $result['success']) {
-        echo json_encode(['success' => true, 'message' => 'Client disconnected successfully']);
+        echo json_encode(['success' => true, 'message' => t('admin_websocket_clients_msg_disconnect_success')]);
     } else {
-        $errorMsg = $result['message'] ?? 'Unknown error occurred';
+        $errorMsg = $result['message'] ?? t('admin_websocket_clients_msg_unknown_error');
         echo json_encode(['success' => false, 'message' => $errorMsg]);
     }
     exit;
@@ -188,41 +188,41 @@ ob_start();
 <div class="sp-card">
     <div class="sp-card-header">
         <div>
-            <h1 class="sp-card-title"><span class="icon"><i class="fas fa-plug"></i></span> Websocket Clients Overview</h1>
-            <p style="margin-bottom:1rem;">Monitor active websocket connections, registered clients, and global listeners in real-time.</p>
+            <h1 class="sp-card-title"><span class="icon"><i class="fas fa-plug"></i></span> <?php echo t('admin_websocket_clients_title'); ?></h1>
+            <p style="margin-bottom:1rem;"><?php echo t('admin_websocket_clients_subtitle'); ?></p>
         </div>
         <button class="sp-btn sp-btn-primary" onclick="refreshData()">
             <span class="icon"><i class="fas fa-sync-alt"></i></span>
-            <span>Refresh</span>
+            <span><?php echo t('admin_websocket_clients_refresh'); ?></span>
         </button>
     </div>
     <div class="sp-card-body">
     <?php if ($apiError): ?>
         <div class="sp-alert sp-alert-warning">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-            Warning: Unable to connect to the websocket server API. Displaying cached or empty data.
+            <?php echo t('admin_websocket_clients_api_warning'); ?>
         </div>
     <?php else: ?>
         <div class="sp-alert sp-alert-info" id="last-updated" data-last-updated="<?php echo htmlspecialchars($lastUpdatedIso); ?>">
-            <small>Last Updated: <?php echo htmlspecialchars($lastUpdated); ?></small>
+            <small><?php echo t('admin_websocket_clients_last_updated', [htmlspecialchars($lastUpdated)]); ?></small>
         </div>
     <?php endif; ?>
     <!-- Statistics Cards -->
     <div class="sp-stat-row" style="grid-template-columns:repeat(4,1fr);">
         <div class="sp-stat" style="border-color:var(--blue);background:var(--blue-bg);">
-            <span class="sp-stat-label">Total Connections</span>
+            <span class="sp-stat-label"><?php echo t('admin_websocket_clients_stat_total'); ?></span>
             <span class="sp-stat-value" style="color:var(--blue);" id="stat-total"><?php echo $totalConnections; ?></span>
         </div>
         <div class="sp-stat" style="border-color:var(--accent);background:var(--accent-light);">
-            <span class="sp-stat-label">Registered Clients</span>
+            <span class="sp-stat-label"><?php echo t('admin_websocket_clients_stat_registered'); ?></span>
             <span class="sp-stat-value" style="color:var(--accent);" id="stat-clients"><?php echo $totalClients; ?></span>
         </div>
         <div class="sp-stat" style="border-color:var(--amber);background:var(--amber-bg);">
-            <span class="sp-stat-label">Active Codes</span>
+            <span class="sp-stat-label"><?php echo t('admin_websocket_clients_stat_codes'); ?></span>
             <span class="sp-stat-value" style="color:var(--amber);" id="stat-codes"><?php echo $totalCodes; ?></span>
         </div>
         <div class="sp-stat" style="border-color:var(--green);background:var(--green-bg);">
-            <span class="sp-stat-label">Listeners</span>
+            <span class="sp-stat-label"><?php echo t('admin_websocket_clients_stat_listeners'); ?></span>
             <span class="sp-stat-value" style="color:var(--green);" id="stat-global"><?php echo $totalGlobalListeners; ?></span>
         </div>
     </div>
@@ -231,33 +231,33 @@ ob_start();
 <!-- Registered Clients Section -->
 <div class="sp-card">
     <div class="sp-card-header">
-        <h2 class="sp-card-title"><i class="fas fa-users" style="margin-right:0.5rem;"></i>Registered Users</h2>
+        <h2 class="sp-card-title"><i class="fas fa-users" style="margin-right:0.5rem;"></i><?php echo t('admin_websocket_clients_registered_heading'); ?></h2>
     </div>
     <div class="sp-card-body">
-    <p style="margin-bottom:1rem;">Users with active websocket connections grouped by their API keys.</p>
+    <p style="margin-bottom:1rem;"><?php echo t('admin_websocket_clients_registered_desc'); ?></p>
     <div style="margin-bottom:1rem;">
         <div class="search-wrapper">
             <span class="search-icon"><i class="fas fa-search"></i></span>
-            <input type="text" id="client-search" placeholder="Search by display name or API key..." class="search-input" aria-label="Search clients">
-            <button type="button" id="client-search-clear" class="sp-btn sp-btn-sm search-clear" aria-label="Clear search" title="Clear search" style="display:none;">
+            <input type="text" id="client-search" placeholder="<?php echo htmlspecialchars(t('admin_websocket_clients_search_placeholder')); ?>" class="search-input" aria-label="<?php echo htmlspecialchars(t('admin_websocket_clients_search_aria')); ?>">
+            <button type="button" id="client-search-clear" class="sp-btn sp-btn-sm search-clear" aria-label="<?php echo htmlspecialchars(t('admin_websocket_clients_search_clear_aria')); ?>" title="<?php echo htmlspecialchars(t('admin_websocket_clients_search_clear_aria')); ?>" style="display:none;">
                 <span class="icon"><i class="fas fa-times"></i></span>
             </button>
-            <span id="client-search-count" class="search-count" aria-live="polite">0 results</span>
+            <span id="client-search-count" class="search-count" aria-live="polite"><?php echo t('admin_websocket_clients_results', [0]); ?></span>
         </div>
     </div>
     <?php if (empty($websocketData['registered_clients'])): ?>
         <div class="sp-alert sp-alert-info">
-            <p>No registered clients are currently connected.</p>
+            <p><?php echo t('admin_websocket_clients_none_connected'); ?></p>
         </div>
     <?php else: ?>
         <div class="sp-table-wrap">
             <table class="sp-table" id="clients-table">
                 <thead>
                     <tr>
-                        <th>Display Name</th>
-                        <th>API Key</th>
-                        <th>Connected Clients</th>
-                        <th>Actions</th>
+                        <th><?php echo t('admin_websocket_clients_th_display_name'); ?></th>
+                        <th><?php echo t('admin_websocket_clients_th_api_key'); ?></th>
+                        <th><?php echo t('admin_websocket_clients_th_connected_clients'); ?></th>
+                        <th><?php echo t('admin_websocket_clients_th_actions'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -271,19 +271,19 @@ ob_start();
                                     <?php $maskLen = min(strlen($apiKey), 32); $masked = str_repeat('•', $maskLen); ?>
                                     <code class="masked-api-key"><?php echo htmlspecialchars($masked); ?></code>
                                     <code class="full-api-key" style="display:none;"><?php echo htmlspecialchars($apiKey); ?></code>
-                                    <button class="sp-btn sp-btn-sm" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                                    <button class="sp-btn sp-btn-sm" aria-label="<?php echo htmlspecialchars(t('admin_websocket_clients_toggle_api_key_aria')); ?>" onclick="toggleApiKey(this)">
                                         <span class="icon"><i class="fas fa-eye"></i></span>
                                     </button>
                                 </div>
                             </td>
                             <td>
-                                <span class="sp-badge sp-badge-blue"><?php echo $userData['client_count']; ?> clients</span>
+                                <span class="sp-badge sp-badge-blue"><?php echo t('admin_websocket_clients_client_count', [$userData['client_count']]); ?></span>
                             </td>
                             <td>
                                 <div class="sp-btn-group">
                                     <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showUserClients('<?php echo htmlspecialchars($apiKey); ?>', '<?php echo htmlspecialchars($userData['twitch_display_name']); ?>')">
                                         <span class="icon"><i class="fas fa-eye"></i></span>
-                                        <span>View Clients</span>
+                                        <span><?php echo t('admin_websocket_clients_view_clients'); ?></span>
                                     </button>
                                 </div>
                             </td>
@@ -300,18 +300,18 @@ ob_start();
 <?php if (!empty($websocketData['global_listeners'])): ?>
 <div class="sp-card">
     <div class="sp-card-header">
-        <h2 class="sp-card-title"><i class="fas fa-globe" style="margin-right:0.5rem;"></i>Global Listeners</h2>
+        <h2 class="sp-card-title"><i class="fas fa-globe" style="margin-right:0.5rem;"></i><?php echo t('admin_websocket_clients_global_heading'); ?></h2>
     </div>
     <div class="sp-card-body">
-    <p style="margin-bottom:1rem;">Global Listeners are admin-authenticated websocket connections that receive real-time events from all channels simultaneously. These connections are typically used for system monitoring, administrative dashboards, and global event tracking. Unlike regular clients which are tied to specific user API keys, Global Listeners have elevated permissions to observe activity across the entire platform.</p>
+    <p style="margin-bottom:1rem;"><?php echo t('admin_websocket_clients_global_desc'); ?></p>
     <div class="sp-table-wrap">
         <table class="sp-table" id="global-listeners-table">
             <thead>
                 <tr>
-                    <th>Listener</th>
-                    <th>Status</th>
-                    <th>Socket ID</th>
-                    <th>Actions</th>
+                    <th><?php echo t('admin_websocket_clients_th_listener'); ?></th>
+                    <th><?php echo t('admin_websocket_clients_th_status'); ?></th>
+                    <th><?php echo t('admin_websocket_clients_th_socket_id'); ?></th>
+                    <th><?php echo t('admin_websocket_clients_th_actions'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -326,7 +326,7 @@ ob_start();
                         <td>
                             <span class="sp-badge sp-badge-green">
                                 <span class="icon"><i class="fas fa-circle" style="font-size: 0.5rem;"></i></span>
-                                <span>Active</span>
+                                <span><?php echo t('admin_websocket_clients_status_active'); ?></span>
                             </span>
                         </td>
                         <td>
@@ -336,11 +336,11 @@ ob_start();
                             <div class="sp-btn-group">
                                 <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showListenerDetails('<?php echo htmlspecialchars($listener['sid']); ?>', '<?php echo htmlspecialchars($listener['name']); ?>')">
                                     <span class="icon"><i class="fas fa-info"></i></span>
-                                    <span>Details</span>
+                                    <span><?php echo t('admin_websocket_clients_details'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="disconnectClient('<?php echo htmlspecialchars($listener['sid']); ?>')">
                                     <span class="icon"><i class="fas fa-times"></i></span>
-                                    <span>Disconnect</span>
+                                    <span><?php echo t('admin_websocket_clients_disconnect'); ?></span>
                                 </button>
                             </div>
                         </td>
@@ -358,15 +358,15 @@ ob_start();
         <div class="sp-modal-head">
             <h2 class="sp-modal-title">
                 <span class="icon"><i class="fas fa-users"></i></span>
-                User Clients: <span id="modal-user-name"></span>
+                <?php echo t('admin_websocket_clients_modal_title'); ?> <span id="modal-user-name"></span>
             </h2>
-            <button class="sp-modal-close" aria-label="close" onclick="closeUserClientsModal()"><i class="fas fa-times"></i></button>
+            <button class="sp-modal-close" aria-label="<?php echo htmlspecialchars(t('admin_websocket_clients_modal_close_aria')); ?>" onclick="closeUserClientsModal()"><i class="fas fa-times"></i></button>
         </div>
         <div class="sp-modal-body" id="user-clients-content">
             <!-- Content will be loaded dynamically -->
         </div>
         <div style="padding:1rem;display:flex;justify-content:flex-end;border-top:1px solid var(--border);">
-            <button class="sp-btn sp-btn-secondary" onclick="closeUserClientsModal()">Close</button>
+            <button class="sp-btn sp-btn-secondary" onclick="closeUserClientsModal()"><?php echo t('admin_websocket_clients_close'); ?></button>
         </div>
     </div>
 </div>
@@ -376,6 +376,46 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+const i18n = {
+    lastUpdated: <?php echo json_encode(t('admin_websocket_clients_last_updated', ['%s'])); ?>,
+    refreshFailedTitle: <?php echo json_encode(t('admin_websocket_clients_swal_refresh_failed_title')); ?>,
+    refreshFailedText: <?php echo json_encode(t('admin_websocket_clients_swal_refresh_failed_text')); ?>,
+    noneConnected: <?php echo json_encode(t('admin_websocket_clients_none_connected')); ?>,
+    clientCountSuffix: <?php echo json_encode(t('admin_websocket_clients_client_count_suffix')); ?>,
+    viewClients: <?php echo json_encode(t('admin_websocket_clients_view_clients')); ?>,
+    toggleApiKeyAria: <?php echo json_encode(t('admin_websocket_clients_toggle_api_key_aria')); ?>,
+    statusActive: <?php echo json_encode(t('admin_websocket_clients_status_active')); ?>,
+    details: <?php echo json_encode(t('admin_websocket_clients_details')); ?>,
+    disconnect: <?php echo json_encode(t('admin_websocket_clients_disconnect')); ?>,
+    resultSingular: <?php echo json_encode(t('admin_websocket_clients_result_singular')); ?>,
+    resultPlural: <?php echo json_encode(t('admin_websocket_clients_result_plural')); ?>,
+    apiKeyLabel: <?php echo json_encode(t('admin_websocket_clients_modal_api_key_label')); ?>,
+    connectedClientsSuffix: <?php echo json_encode(t('admin_websocket_clients_modal_connected_clients_suffix')); ?>,
+    thClientName: <?php echo json_encode(t('admin_websocket_clients_th_client_name')); ?>,
+    thSocketId: <?php echo json_encode(t('admin_websocket_clients_th_socket_id')); ?>,
+    thAdmin: <?php echo json_encode(t('admin_websocket_clients_th_admin')); ?>,
+    thConnectedAt: <?php echo json_encode(t('admin_websocket_clients_th_connected_at')); ?>,
+    thLastActivity: <?php echo json_encode(t('admin_websocket_clients_th_last_activity')); ?>,
+    thActions: <?php echo json_encode(t('admin_websocket_clients_th_actions')); ?>,
+    badgeAdmin: <?php echo json_encode(t('admin_websocket_clients_badge_admin')); ?>,
+    badgeUser: <?php echo json_encode(t('admin_websocket_clients_badge_user')); ?>,
+    notAvailable: <?php echo json_encode(t('admin_websocket_clients_not_available')); ?>,
+    errorTitle: <?php echo json_encode(t('admin_websocket_clients_swal_error_title')); ?>,
+    loadClientsFailed: <?php echo json_encode(t('admin_websocket_clients_swal_load_failed')); ?>,
+    listenerDetailsTitle: <?php echo json_encode(t('admin_websocket_clients_swal_listener_title')); ?>,
+    listenerName: <?php echo json_encode(t('admin_websocket_clients_swal_listener_name')); ?>,
+    socketIdLabel: <?php echo json_encode(t('admin_websocket_clients_swal_socket_id')); ?>,
+    typeLabel: <?php echo json_encode(t('admin_websocket_clients_swal_type')); ?>,
+    typeValue: <?php echo json_encode(t('admin_websocket_clients_swal_type_value')); ?>,
+    permissionsLabel: <?php echo json_encode(t('admin_websocket_clients_swal_permissions')); ?>,
+    permissionsValue: <?php echo json_encode(t('admin_websocket_clients_swal_permissions_value')); ?>,
+    closeBtn: <?php echo json_encode(t('admin_websocket_clients_close')); ?>,
+    disconnectTitle: <?php echo json_encode(t('admin_websocket_clients_swal_disconnect_title')); ?>,
+    disconnectText: <?php echo json_encode(t('admin_websocket_clients_swal_disconnect_text')); ?>,
+    disconnectConfirm: <?php echo json_encode(t('admin_websocket_clients_swal_disconnect_confirm')); ?>,
+    disconnectedTitle: <?php echo json_encode(t('admin_websocket_clients_swal_disconnected_title')); ?>,
+    disconnectFailed: <?php echo json_encode(t('admin_websocket_clients_swal_disconnect_failed')); ?>
+};
 document.addEventListener('DOMContentLoaded', function() {
     // Auto-refresh the data every 60 seconds
     setInterval(function() {
@@ -414,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (iso) {
                 const dt = new Date(iso);
                 if (!isNaN(dt.getTime())) {
-                    lastUpdatedEl.innerHTML = `<small>Last Updated: ${dt.toLocaleString()}</small>`;
+                    lastUpdatedEl.innerHTML = `<small>${i18n.lastUpdated.replace('%s', dt.toLocaleString())}</small>`;
                 }
             }
         }
@@ -458,8 +498,8 @@ async function refreshData(silent = false) {
         updateClientsTable(data.registered_clients);
         updateGlobalListenersTable(data.global_listeners);
         // Update last updated timestamp
-        document.getElementById('last-updated').innerHTML = 
-            `<small>Last Updated: ${new Date().toLocaleString()}</small>`;
+        document.getElementById('last-updated').innerHTML =
+            `<small>${i18n.lastUpdated.replace('%s', new Date().toLocaleString())}</small>`;
         if (!silent) {
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
@@ -471,8 +511,8 @@ async function refreshData(silent = false) {
         if (!silent) {
             Swal.fire({
                 icon: 'error',
-                title: 'Refresh Failed',
-                text: 'Could not fetch updated websocket client data. Please try again later.'
+                title: i18n.refreshFailedTitle,
+                text: i18n.refreshFailedText
             });
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
@@ -503,7 +543,7 @@ function updateClientsTable(registeredClients) {
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
     if (Object.keys(registeredClients).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No registered clients are currently connected.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${escapeHtml(i18n.noneConnected)}</td></tr>`;
         return;
     }
     // Sort clients by client count (descending)
@@ -518,17 +558,17 @@ function updateClientsTable(registeredClients) {
                 <div style="display:flex;align-items:center;gap:0.5rem;">
                     <code class="masked-api-key">${'•'.repeat(Math.min(apiKey.length, 32))}</code>
                     <code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
-                    <button class="sp-btn sp-btn-sm" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                    <button class="sp-btn sp-btn-sm" aria-label="${escapeHtml(i18n.toggleApiKeyAria)}" onclick="toggleApiKey(this)">
                         <span class="icon"><i class="fas fa-eye"></i></span>
                     </button>
                 </div>
             </td>
-            <td><span class="sp-badge sp-badge-blue">${userData.client_count} clients</span></td>
+            <td><span class="sp-badge sp-badge-blue">${userData.client_count} ${escapeHtml(i18n.clientCountSuffix)}</span></td>
             <td>
                 <div class="sp-btn-group">
                     <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showUserClients('${escapeHtml(apiKey)}', '${escapeHtml(userData.twitch_display_name)}')">
                         <span class="icon"><i class="fas fa-eye"></i></span>
-                        <span>View Clients</span>
+                        <span>${escapeHtml(i18n.viewClients)}</span>
                     </button>
                 </div>
             </td>
@@ -579,7 +619,7 @@ function updateGlobalListenersTable(globalListeners) {
                     <span class="icon">
                         <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
                     </span>
-                    <span>Active</span>
+                    <span>${escapeHtml(i18n.statusActive)}</span>
                 </span>
             </td>
             <td>
@@ -589,11 +629,11 @@ function updateGlobalListenersTable(globalListeners) {
                 <div class="sp-btn-group">
                     <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showListenerDetails('${escapeHtml(listener.sid)}', '${escapeHtml(listener.name)}')">
                         <span class="icon"><i class="fas fa-info"></i></span>
-                        <span>Details</span>
+                        <span>${escapeHtml(i18n.details)}</span>
                     </button>
                     <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="disconnectClient('${escapeHtml(listener.sid)}')">
                         <span class="icon"><i class="fas fa-times"></i></span>
-                        <span>Disconnect</span>
+                        <span>${escapeHtml(i18n.disconnect)}</span>
                     </button>
                 </div>
             </td>
@@ -675,7 +715,7 @@ function filterClients() {
     // Update result count
     const countEl = document.getElementById('client-search-count');
     if (countEl) {
-        countEl.textContent = visibleCount + (visibleCount === 1 ? ' result' : ' results');
+        countEl.textContent = (visibleCount === 1 ? i18n.resultSingular : i18n.resultPlural).replace('%s', visibleCount);
     }
 }
 
@@ -692,12 +732,12 @@ async function showUserClients(apiKey, displayName) {
             <div class="sp-card" style="margin-bottom:1rem;">
                 <div style="display:flex;align-items:center;gap:1rem;">
                     <div>
-                        <p style="font-size:1rem;font-weight:700;margin:0 0 0.25rem;">API Key: <code class="masked-api-key">${maskedKey}</code><code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
-                            <button class="sp-btn sp-btn-sm" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                        <p style="font-size:1rem;font-weight:700;margin:0 0 0.25rem;">${escapeHtml(i18n.apiKeyLabel)} <code class="masked-api-key">${maskedKey}</code><code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
+                            <button class="sp-btn sp-btn-sm" aria-label="${escapeHtml(i18n.toggleApiKeyAria)}" onclick="toggleApiKey(this)">
                                 <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
                         </p>
-                        <p style="color:var(--text-muted);font-size:0.85rem;">${data.client_count} connected clients</p>
+                        <p style="color:var(--text-muted);font-size:0.85rem;">${data.client_count} ${escapeHtml(i18n.connectedClientsSuffix)}</p>
                     </div>
                 </div>
             </div>
@@ -705,12 +745,12 @@ async function showUserClients(apiKey, displayName) {
                 <table class="sp-table">
                     <thead>
                         <tr>
-                            <th>Client Name</th>
-                            <th>Socket ID</th>
-                            <th>Admin</th>
-                            <th>Connected At</th>
-                            <th>Last Activity</th>
-                            <th>Actions</th>
+                            <th>${escapeHtml(i18n.thClientName)}</th>
+                            <th>${escapeHtml(i18n.thSocketId)}</th>
+                            <th>${escapeHtml(i18n.thAdmin)}</th>
+                            <th>${escapeHtml(i18n.thConnectedAt)}</th>
+                            <th>${escapeHtml(i18n.thLastActivity)}</th>
+                            <th>${escapeHtml(i18n.thActions)}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -721,14 +761,14 @@ async function showUserClients(apiKey, displayName) {
                     <td>${escapeHtml(client.name)}</td>
                     <td><code>${escapeHtml(client.sid)}</code></td>
                     <td>
-                        ${client.is_admin ? '<span class="sp-badge sp-badge-red">Admin</span>' : '<span class="sp-badge sp-badge-blue">User</span>'}
+                        ${client.is_admin ? `<span class="sp-badge sp-badge-red">${escapeHtml(i18n.badgeAdmin)}</span>` : `<span class="sp-badge sp-badge-blue">${escapeHtml(i18n.badgeUser)}</span>`}
                     </td>
-                    <td>${client.connected_at || 'N/A'}</td>
-                    <td>${client.last_activity || 'N/A'}</td>
+                    <td>${client.connected_at || i18n.notAvailable}</td>
+                    <td>${client.last_activity || i18n.notAvailable}</td>
                     <td>
                         <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="disconnectClient('${escapeHtml(client.sid)}')">
                             <span class="icon"><i class="fas fa-times"></i></span>
-                            <span>Disconnect</span>
+                            <span>${escapeHtml(i18n.disconnect)}</span>
                         </button>
                     </td>
                 </tr>
@@ -746,8 +786,8 @@ async function showUserClients(apiKey, displayName) {
         console.error('Failed to load user clients:', error);
         Swal.fire({
             icon: 'error',
-            title: 'Error',
-            text: 'Failed to load user clients: ' + error.message
+            title: i18n.errorTitle,
+            text: i18n.loadClientsFailed.replace('%s', error.message)
         });
     }
 }
@@ -759,17 +799,17 @@ function closeUserClientsModal() {
 
 function showListenerDetails(sid, name) {
     Swal.fire({
-        title: 'Listener Details',
+        title: i18n.listenerDetailsTitle,
         html: `
             <div class="content">
-                <p><span class="has-text-weight-bold">Listener Name:</span> ${escapeHtml(name)}</p>
-                <p><span class="has-text-weight-bold">Socket ID:</span> <code>${escapeHtml(sid)}</code></p>
-                <p><span class="has-text-weight-bold">Type:</span> Admin-authenticated listener</p>
-                <p><span class="has-text-weight-bold">Permissions:</span> Receives events from all channels</p>
+                <p><span class="has-text-weight-bold">${escapeHtml(i18n.listenerName)}</span> ${escapeHtml(name)}</p>
+                <p><span class="has-text-weight-bold">${escapeHtml(i18n.socketIdLabel)}</span> <code>${escapeHtml(sid)}</code></p>
+                <p><span class="has-text-weight-bold">${escapeHtml(i18n.typeLabel)}</span> ${escapeHtml(i18n.typeValue)}</p>
+                <p><span class="has-text-weight-bold">${escapeHtml(i18n.permissionsLabel)}</span> ${escapeHtml(i18n.permissionsValue)}</p>
             </div>
         `,
         icon: 'info',
-        confirmButtonText: 'Close',
+        confirmButtonText: i18n.closeBtn,
         width: 600,
         customClass: {
             htmlContainer: 'text-left'
@@ -779,13 +819,13 @@ function showListenerDetails(sid, name) {
 
 function disconnectClient(sid) {
     Swal.fire({
-        title: 'Disconnect Client?',
-        text: 'Are you sure you want to disconnect this client?',
+        title: i18n.disconnectTitle,
+        text: i18n.disconnectText,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
         cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, disconnect'
+        confirmButtonText: i18n.disconnectConfirm
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
@@ -800,7 +840,7 @@ function disconnectClient(sid) {
                 if (data.success) {
                     Swal.fire({
                         icon: 'success',
-                        title: 'Disconnected',
+                        title: i18n.disconnectedTitle,
                         text: data.message,
                         timer: 2000,
                         showConfirmButton: false
@@ -811,16 +851,16 @@ function disconnectClient(sid) {
                 } else {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Error',
-                        text: data.message || 'Failed to disconnect client.'
+                        title: i18n.errorTitle,
+                        text: data.message || i18n.disconnectFailed
                     });
                 }
             } catch (error) {
                 console.error('Failed to disconnect client:', error);
                 Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: 'Failed to disconnect client.'
+                    title: i18n.errorTitle,
+                    text: i18n.disconnectFailed
                 });
             }
         }

@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'get_random_pick_options') {
         $commandName = sanitize_command_name($_POST['command_name'] ?? '');
         if ($commandName === '') {
-            echo json_encode(['success' => false, 'message' => 'Command name is required.']);
+            echo json_encode(['success' => false, 'message' => t('custom_commands_msg_command_name_required')]);
             exit;
         }
         $stmt = $db->prepare("SELECT many_options_enabled, options FROM custom_command_random_pick_options WHERE command = ?");
@@ -93,12 +93,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'save_random_pick_options') {
         $commandName = sanitize_command_name($_POST['command_name'] ?? '');
         if ($commandName === '') {
-            echo json_encode(['success' => false, 'message' => 'Command name is required.']);
+            echo json_encode(['success' => false, 'message' => t('custom_commands_msg_command_name_required')]);
             exit;
         }
         $decoded = json_decode($_POST['options'] ?? '[]', true);
         if (!is_array($decoded)) {
-            echo json_encode(['success' => false, 'message' => 'Options payload is invalid.']);
+            echo json_encode(['success' => false, 'message' => t('custom_commands_msg_options_invalid')]);
             exit;
         }
         $cleanOptions = [];
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
         $success = $stmt->execute();
         $stmt->close();
         if (!$success) {
-            echo json_encode(['success' => false, 'message' => 'Failed to save options.']);
+            echo json_encode(['success' => false, 'message' => t('custom_commands_msg_save_options_failed')]);
             exit;
         }
         echo json_encode([
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
         ]);
         exit;
     }
-    echo json_encode(['success' => false, 'message' => 'Unsupported action.']);
+    echo json_encode(['success' => false, 'message' => t('custom_commands_msg_unsupported_action')]);
     exit;
 }
 
@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $new_command_name = sanitize_command_name($_POST['new_command_name']);
         // Check if new command name is built-in
         if (array_key_exists($new_command_name, $builtinCommands['commands'])) {
-            $status = "Failed to update: The new command name matches a built-in command.";
+            $status = t('custom_commands_msg_update_builtin_conflict');
             $notification_status = "sp-alert-danger";
         } else {
             try {
@@ -169,10 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $renameOptionsSTMT->close();
                 }
                 if ($updateSTMT->affected_rows > 0) {
-                    $status = "Command ". $command_to_edit . " updated successfully!";
+                    $status = t('custom_commands_msg_update_success', [$command_to_edit]);
                     $notification_status = "sp-alert-success";
                 } else {
-                    $status = $command_to_edit . " not found or no changes made.";
+                    $status = t('custom_commands_msg_update_not_found', [$command_to_edit]);
                     $notification_status = "sp-alert-danger";
                 }
                 $updateSTMT->close();
@@ -182,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $commands = $result->fetch_all(MYSQLI_ASSOC);
                 $commandsSTMT->close();
             } catch (Exception $e) {
-                $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
+                $status = t('custom_commands_msg_update_error', [$command_to_edit]) . " " . $e->getMessage();
                 $notification_status = "sp-alert-danger";
             }
         }
@@ -195,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $permission = isset($_POST['permission']) ? $_POST['permission'] : 'Everyone';
         // Check if command is built-in
         if (array_key_exists($newCommand, $builtinCommands['commands'])) {
-            $status = "Failed to add: The custom command name matches a built-in command.";
+            $status = t('custom_commands_msg_add_builtin_conflict');
             $notification_status = "sp-alert-danger";
         } else {
             // Check if command already exists
@@ -206,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $alreadyExists = $checkSTMT->num_rows > 0;
             $checkSTMT->close();
             if ($alreadyExists) {
-                $status = "Failed to add: The command '!" . $newCommand . "' already exists in the list.";
+                $status = t('custom_commands_msg_add_already_exists', [$newCommand]);
                 $notification_status = "sp-alert-danger";
             } else {
                 // Insert new command into MySQL database
@@ -247,8 +247,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
             if ($result && $affected_rows > 0) {
                 echo json_encode([
-                    'success' => true, 
-                    'message' => 'Status updated successfully', 
+                    'success' => true,
+                    'message' => t('custom_commands_msg_status_updated'),
                     'affected_rows' => $affected_rows,
                     'database' => $db->host_info,
                     'database_name' => $_SESSION['username'] ?? 'unknown',
@@ -256,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     'new_status' => $status_val
                 ]);
             }else {
-                echo json_encode(['success' => false, 'message' => 'No rows were updated', 'affected_rows' => $affected_rows]);
+                echo json_encode(['success' => false, 'message' => t('custom_commands_msg_no_rows_updated'), 'affected_rows' => $affected_rows]);
             }
             exit;
         }
@@ -273,9 +273,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $deleteOptionsStmt->execute();
             $deleteOptionsStmt->close();
             $dataUpdated = true;
-            $status = "Command removed successfully";
+            $status = t('custom_commands_msg_remove_success');
         } catch (mysqli_sql_exception $e) {
-            $status = "Error removing command: " . $e->getMessage();
+            $status = t('custom_commands_msg_remove_error') . " " . $e->getMessage();
         }
     }
     // Refresh commands data after any database changes
@@ -691,8 +691,8 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
     if (!normalizedCommand) {
         Swal.fire({
             icon: 'info',
-            title: 'Command name required',
-            text: 'Set your command name first, then manage many options for (random.pick).'
+            title: <?php echo json_encode(t('custom_commands_js_name_required_title')); ?>,
+            text: <?php echo json_encode(t('custom_commands_js_name_required_text')); ?>
         });
         return;
     }
@@ -713,11 +713,11 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
     responseInput.dataset.randomPickPrompted = promptSignature;
     Swal.fire({
         icon: 'question',
-        title: 'Use the new many options mode?',
-        text: 'You used (random.pick). Do you want to manage a large option list in a modal instead of inline text?',
+        title: <?php echo json_encode(t('custom_commands_js_many_options_prompt_title')); ?>,
+        text: <?php echo json_encode(t('custom_commands_js_many_options_prompt_text')); ?>,
         showCancelButton: true,
-        confirmButtonText: 'Yes, use many options',
-        cancelButtonText: 'No, keep legacy syntax'
+        confirmButtonText: <?php echo json_encode(t('custom_commands_js_many_options_confirm')); ?>,
+        cancelButtonText: <?php echo json_encode(t('custom_commands_js_many_options_cancel')); ?>
     }).then(function(result) {
         if (result.isConfirmed) {
             openManyOptionsModal(normalizedCommand, responseInputId, true);
@@ -748,7 +748,7 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
     var inlineOptions = extractLegacyInlineRandomPickOptions(responseInput ? responseInput.value : '');
     if (!randomPickOptionsCache[commandName]) {
         Swal.fire({
-            title: 'Loading options...',
+            title: <?php echo json_encode(t('custom_commands_js_loading_options')); ?>,
             allowOutsideClick: false,
             didOpen: function() {
                 Swal.showLoading();
@@ -762,8 +762,8 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
             if (err || !data || !data.success) {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Unable to load options',
-                    text: (data && data.message) ? data.message : 'Please try again.'
+                    title: <?php echo json_encode(t('custom_commands_js_load_failed_title')); ?>,
+                    text: (data && data.message) ? data.message : <?php echo json_encode(t('custom_commands_js_try_again')); ?>
                 });
                 return;
             }
@@ -773,21 +773,21 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
             var isEnabled = !!autoEnable || data.many_options_enabled || inlineOptions.length > 0;
             var checked = isEnabled ? 'checked' : '';
             Swal.fire({
-                title: 'Many options for !' + commandName,
+                title: <?php echo json_encode(t('custom_commands_js_modal_title')); ?> + '!' + commandName,
                 html:
                     '<div class="field has-text-left">' +
                         '<label class="checkbox">' +
-                            '<input type="checkbox" id="manyOptionsEnabled" ' + checked + '> Enable many options for (random.pick)' +
+                            '<input type="checkbox" id="manyOptionsEnabled" ' + checked + '> ' + <?php echo json_encode(t('custom_commands_js_enable_many_options')); ?> +
                         '</label>' +
                     '</div>' +
                     '<div class="field has-text-left mt-3">' +
-                        '<label class="label has-text-black">Options (one per line)</label>' +
-                        '<textarea id="manyOptionsList" class="textarea" rows="10" placeholder="Item 1\nItem 2\nItem 3">' + initialOptions + '</textarea>' +
-                        '<p class="help has-text-black">No limit on item count. Empty lines are ignored.</p>' +
+                        '<label class="label has-text-black">' + <?php echo json_encode(t('custom_commands_js_options_one_per_line')); ?> + '</label>' +
+                        '<textarea id="manyOptionsList" class="textarea" rows="10" placeholder="' + <?php echo json_encode(t('custom_commands_js_options_placeholder')); ?> + '">' + initialOptions + '</textarea>' +
+                        '<p class="help has-text-black">' + <?php echo json_encode(t('custom_commands_js_options_help')); ?> + '</p>' +
                     '</div>',
                 width: 700,
                 showCancelButton: true,
-                confirmButtonText: 'Save options',
+                confirmButtonText: <?php echo json_encode(t('custom_commands_js_save_options')); ?>,
                 preConfirm: function() {
                     var enabled = document.getElementById('manyOptionsEnabled').checked;
                     var raw = document.getElementById('manyOptionsList').value || '';
@@ -815,8 +815,8 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
                         if (saveErr || !saveData || !saveData.success) {
                             Swal.fire({
                                 icon: 'error',
-                                title: 'Unable to save options',
-                                text: (saveData && saveData.message) ? saveData.message : 'Please try again.'
+                                title: <?php echo json_encode(t('custom_commands_js_save_failed_title')); ?>,
+                                text: (saveData && saveData.message) ? saveData.message : <?php echo json_encode(t('custom_commands_js_try_again')); ?>
                             });
                             return;
                         }
@@ -844,8 +844,8 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
                         }
                         Swal.fire({
                             icon: 'success',
-                            title: 'Saved',
-                            text: 'Many options were saved for !' + commandName + '.'
+                            title: <?php echo json_encode(t('custom_commands_js_saved_title')); ?>,
+                            text: <?php echo json_encode(t('custom_commands_js_saved_text_prefix')); ?> + '!' + commandName + '.'
                         });
                     }
                 );
@@ -904,13 +904,13 @@ function toggleStatus(command, isChecked, elem) {
                         }
                         if (response.affected_rows === 0) {
                             console.warn('No rows were affected by the update');
-                            alert('Warning: Command may not exist in database');
+                            alert(<?php echo json_encode(t('custom_commands_js_alert_command_missing')); ?>);
                         }
                     } else {
                         // On error, revert the checkbox
                         elem.checked = !isChecked;
                         icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
-                        alert('Error: ' + response.message);
+                        alert(<?php echo json_encode(t('custom_commands_js_alert_error_prefix')); ?> + ' ' + response.message);
                     }
                 } catch (e) {
                     console.error('Error parsing response:', e);
@@ -918,12 +918,12 @@ function toggleStatus(command, isChecked, elem) {
                     // On error, revert the checkbox
                     elem.checked = !isChecked;
                     icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
-                    alert('Error parsing server response');
+                    alert(<?php echo json_encode(t('custom_commands_js_alert_parse_error')); ?>);
                 }            } else {
                 // On error, revert the checkbox
                 elem.checked = !isChecked;
                 icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
-                alert('HTTP Error: ' + xhr.status);
+                alert(<?php echo json_encode(t('custom_commands_js_alert_http_error')); ?> + ' ' + xhr.status);
             }
             // Reset processing flag in all cases
             elem.dataset.processing = 'false';

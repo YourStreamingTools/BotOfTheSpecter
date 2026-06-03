@@ -14,7 +14,7 @@ $dashboardVersion = $config['dashboardVersion'];
 
 if ($isLoggedIn) {
     // User is logged in - show dashboard interface
-    $pageTitle = 'Management Dashboard';
+    $pageTitle = t('dashboard_page_title_management');
     // Include authentication and user data
     require_once "/var/www/config/db_connect.php";
     include '/var/www/config/twitch.php';
@@ -141,18 +141,18 @@ session_write_close();
         }
     }
     $todoOpenCount = max(0, $todoTotalCount - $todoCompletedCount);
-    $stableRunningVersion = $stableRunning ? ($versionRunning ?? 'Unknown') : 'Not Running';
-    $betaRunningVersion = $betaRunning ? ($betaVersionRunning ?? 'Unknown') : 'Not Running';
-    $v6RunningVersion = $v6Running ? ($v6VersionRunning ?? 'Unknown') : 'Not Running';
-    $stableLatestVersion = $newVersion ?? 'N/A';
-    $betaLatestVersion = $betaNewVersion ?? 'N/A';
-    $v6LatestVersion = $v6NewVersion ?? 'N/A';
+    $stableRunningVersion = $stableRunning ? ($versionRunning ?? t('dashboard_version_unknown')) : t('dashboard_not_running');
+    $betaRunningVersion = $betaRunning ? ($betaVersionRunning ?? t('dashboard_version_unknown')) : t('dashboard_not_running');
+    $v6RunningVersion = $v6Running ? ($v6VersionRunning ?? t('dashboard_version_unknown')) : t('dashboard_not_running');
+    $stableLatestVersion = $newVersion ?? t('dashboard_version_na');
+    $betaLatestVersion = $betaNewVersion ?? t('dashboard_version_na');
+    $v6LatestVersion = $v6NewVersion ?? t('dashboard_version_na');
     // Determine single active bot runtime (only one should run at a time)
     $activeBotSystem = 'none';
-    $activeBotLabel = 'Not Running';
+    $activeBotLabel = t('dashboard_not_running');
     $activeBotRunning = false;
-    $activeBotCurrentVersion = 'Not Running';
-    $activeBotLatestVersion = 'N/A';
+    $activeBotCurrentVersion = t('dashboard_not_running');
+    $activeBotLatestVersion = t('dashboard_version_na');
     if ($stableRunning) {
         $activeBotSystem = 'stable';
         $activeBotLabel = 'Stable';
@@ -190,7 +190,7 @@ session_write_close();
         </div>
         <div class="sp-stat">
             <div class="sp-stat-label"><?= t('dashboard_subscribers') ?></div>
-            <div class="sp-stat-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : 'N/A'; ?></div>
+            <div class="sp-stat-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : t('dashboard_version_na'); ?></div>
             <div class="sp-stat-sub"><?php echo htmlspecialchars($subscriberSubtext); ?></div>
         </div>
         <div class="sp-stat">
@@ -332,11 +332,11 @@ session_write_close();
     include "layout.php";
 } else {
     // User is not logged in - show landing page
-    $pageTitle = 'Dashboard Information';
     // This branch renders its own HTML document (no layout.php), so load the
     // i18n helper here to make t() available for the landing-page strings.
     $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
     include_once __DIR__ . '/lang/i18n.php';
+    $pageTitle = t('dashboard_page_title_landing');
     ?>
     <!DOCTYPE html>
     <html lang="en">

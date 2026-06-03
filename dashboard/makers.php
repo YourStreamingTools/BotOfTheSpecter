@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $title = trim($_POST['title'] ?? '');
         $validStatus = ['current', 'finished', 'upcoming'];
         $status = in_array($_POST['status'] ?? '', $validStatus, true) ? $_POST['status'] : 'current';
-        if ($title === '') { maker_json(['success' => false, 'error' => 'Title is required']); }
+        if ($title === '') { maker_json(['success' => false, 'error' => t('makers_err_title_required')]); }
         $title = mb_substr($title, 0, 255);
         $completed = ($status === 'finished') ? date('Y-m-d H:i:s') : null;
         $stmt = $db->prepare("INSERT INTO maker_projects (title, status, completed_at) VALUES (?, ?, ?)");
@@ -132,10 +132,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $status = in_array($_POST['status'] ?? '', $validStatus, true) ? $_POST['status'] : 'current';
         $link = trim($_POST['link_url'] ?? '');
         if ($link !== '' && !preg_match('#^https?://#i', $link)) {
-            maker_json(['success' => false, 'error' => 'Link must start with http:// or https://']);
+            maker_json(['success' => false, 'error' => t('makers_err_link_scheme')]);
         }
         $link = ($link === '') ? null : mb_substr($link, 0, 500);
-        if ($id <= 0 || $title === '') { maker_json(['success' => false, 'error' => 'Invalid project']); }
+        if ($id <= 0 || $title === '') { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
         // Stamp completed_at when moving into finished and it's not already set.
         $completedSql = ($status === 'finished') ? ", completed_at = COALESCE(completed_at, NOW())" : "";
         $stmt = $db->prepare("UPDATE maker_projects SET title = ?, description = ?, status = ?, link_url = ?" . $completedSql . " WHERE id = ?");
@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
     // --- Delete a project (+ its images) ---
     if ($action === 'delete_project') {
         $id = intval($_POST['id'] ?? 0);
-        if ($id <= 0) { maker_json(['success' => false, 'error' => 'Invalid project']); }
+        if ($id <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
         $delImgs = $db->prepare("DELETE FROM maker_project_images WHERE project_id = ?");
         $delImgs->bind_param("i", $id);
         $delImgs->execute();
@@ -170,13 +170,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
     // --- Feature a project as the current one ---
     if ($action === 'set_current') {
         $id = intval($_POST['id'] ?? 0);
-        if ($id <= 0) { maker_json(['success' => false, 'error' => 'Invalid project']); }
+        if ($id <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
         $chk = $db->prepare("SELECT id FROM maker_projects WHERE id = ?");
         $chk->bind_param("i", $id);
         $chk->execute();
         $exists = $chk->get_result()->fetch_assoc();
         $chk->close();
-        if (!$exists) { maker_json(['success' => false, 'error' => 'No such project']); }
+        if (!$exists) { maker_json(['success' => false, 'error' => t('makers_err_no_such_project')]); }
         $stmt = $db->prepare("UPDATE maker_overlay_settings SET current_project_id = ?, display_mode = 'current' WHERE id = 1");
         $stmt->bind_param("i", $id);
         $ok = $stmt->execute();
@@ -188,8 +188,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
     // --- Upload image file(s) and attach them to a project ---
     if ($action === 'upload_image') {
         $projectId = intval($_POST['project_id'] ?? 0);
-        if ($projectId <= 0) { maker_json(['success' => false, 'error' => 'Invalid project']); }
-        if (!isset($_FILES['imageFiles'])) { maker_json(['success' => false, 'error' => 'No files received']); }
+        if ($projectId <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
+        if (!isset($_FILES['imageFiles'])) { maker_json(['success' => false, 'error' => t('makers_err_no_files')]); }
         ensureDirectoryWritable($media_path);
         $added = [];
         $errors = [];
@@ -199,11 +199,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
             $fileSize = $_FILES['imageFiles']['size'][$key];
             $fileError = $_FILES['imageFiles']['error'][$key] ?? 0;
             $display = htmlspecialchars(basename($origName));
-            if ($fileError !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) { $errors[] = "Upload failed: $display"; continue; }
-            if ($current_storage_used + $fileSize > $max_storage_size) { $errors[] = "Storage limit exceeded: $display"; continue; }
+            if ($fileError !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) { $errors[] = t('makers_err_upload_failed', [$display]); continue; }
+            if ($current_storage_used + $fileSize > $max_storage_size) { $errors[] = t('makers_err_storage_limit', [$display]); continue; }
             $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
-            if (!in_array($ext, $makerImageExts, true)) { $errors[] = "Not an image (png/jpg/gif): $display"; continue; }
-            if (!upload_validate_extension_and_mime($tmp, $ext, $makerImageExts)) { $errors[] = "Contents do not match type: $display"; continue; }
+            if (!in_array($ext, $makerImageExts, true)) { $errors[] = t('makers_err_not_image', [$display]); continue; }
+            if (!upload_validate_extension_and_mime($tmp, $ext, $makerImageExts)) { $errors[] = t('makers_err_mime_mismatch', [$display]); continue; }
             $safeName = upload_sanitize_filename($origName, $ext);
             $target = upload_unique_target($media_path, $safeName);
             if (move_uploaded_file($tmp, $target['path'])) {
@@ -213,11 +213,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
                 if ($stmt->execute()) {
                     $added[] = $target['name'];
                 } else {
-                    $errors[] = "Saved file but could not record it: " . htmlspecialchars($target['name']);
+                    $errors[] = t('makers_err_saved_not_recorded', [htmlspecialchars($target['name'])]);
                 }
                 $stmt->close();
             } else {
-                $errors[] = "Could not save: $display";
+                $errors[] = t('makers_err_could_not_save', [$display]);
             }
         }
         if (!empty($added)) { maker_notify_overlay($makerApiKey); }
@@ -229,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $projectId = intval($_POST['project_id'] ?? 0);
         $file = preg_replace('/[^A-Za-z0-9._-]/', '', $_POST['media_file'] ?? '');
         $caption = mb_substr(trim($_POST['caption'] ?? ''), 0, 255);
-        if ($projectId <= 0 || $file === '') { maker_json(['success' => false, 'error' => 'Project and filename required']); }
+        if ($projectId <= 0 || $file === '') { maker_json(['success' => false, 'error' => t('makers_err_project_file_required')]); }
         $caption = ($caption === '') ? null : $caption;
         $stmt = $db->prepare("INSERT INTO maker_project_images (project_id, media_file, caption) VALUES (?, ?, ?)");
         $stmt->bind_param("iss", $projectId, $file, $caption);
@@ -242,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
     // --- Remove an image row (file stays in the library) ---
     if ($action === 'delete_image') {
         $imgId = intval($_POST['image_id'] ?? 0);
-        if ($imgId <= 0) { maker_json(['success' => false, 'error' => 'Invalid image']); }
+        if ($imgId <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_image')]); }
         $stmt = $db->prepare("DELETE FROM maker_project_images WHERE id = ?");
         $stmt->bind_param("i", $imgId);
         $ok = $stmt->execute();
@@ -251,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok]);
     }
 
-    maker_json(['success' => false, 'error' => 'Unknown action']);
+    maker_json(['success' => false, 'error' => t('makers_err_unknown_action')]);
 }
 
 // ---------------------------------------------------------------------------
@@ -503,7 +503,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var fd = new FormData(settingsForm);
             fd.append('maker_action', 'save_settings');
             post(fd, true).then(function (res) {
-                status.textContent = res.success ? 'Saved!' : ('Error: ' + (res.error || 'failed'));
+                status.textContent = res.success ? <?= json_encode(t('makers_js_saved')) ?> : (<?= json_encode(t('makers_js_error_prefix')) ?> + (res.error || <?= json_encode(t('makers_js_failed_generic')) ?>));
                 status.style.color = res.success ? 'var(--green, #23d160)' : 'var(--red, #ff5252)';
                 setTimeout(function () { status.textContent = ''; }, 2500);
             });
@@ -519,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fd.append('maker_action', 'create_project');
             post(fd, true).then(function (res) {
                 if (res.success) { location.reload(); }
-                else { alert(res.error || 'Could not add project'); }
+                else { alert(res.error || <?= json_encode(t('makers_js_add_failed')) ?>); }
             });
         });
     }
@@ -531,19 +531,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (t.classList.contains('maker-set-current')) {
             post({ maker_action: 'set_current', id: t.dataset.id }).then(function (res) {
-                if (res.success) { location.reload(); } else { alert(res.error || 'Failed'); }
+                if (res.success) { location.reload(); } else { alert(res.error || <?= json_encode(t('makers_js_failed')) ?>); }
             });
         } else if (t.classList.contains('maker-delete')) {
-            if (!confirm('Delete this project and its images?')) { return; }
+            if (!confirm(<?= json_encode(t('makers_js_confirm_delete')) ?>)) { return; }
             post({ maker_action: 'delete_project', id: t.dataset.id }).then(function (res) {
-                if (res.success) { location.reload(); } else { alert('Failed'); }
+                if (res.success) { location.reload(); } else { alert(<?= json_encode(t('makers_js_failed')) ?>); }
             });
         } else if (t.classList.contains('maker-edit-toggle')) {
             var f = document.querySelector('.maker-edit-form[data-id="' + t.dataset.id + '"]');
             if (f) { f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none'; }
         } else if (t.classList.contains('maker-delete-image')) {
             post({ maker_action: 'delete_image', image_id: t.dataset.image }).then(function (res) {
-                if (res.success) { location.reload(); } else { alert('Failed'); }
+                if (res.success) { location.reload(); } else { alert(<?= json_encode(t('makers_js_failed')) ?>); }
             });
         }
     });
@@ -556,7 +556,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fd.append('maker_action', 'update_project');
             fd.append('id', form.dataset.id);
             post(fd, true).then(function (res) {
-                if (res.success) { location.reload(); } else { alert(res.error || 'Failed'); }
+                if (res.success) { location.reload(); } else { alert(res.error || <?= json_encode(t('makers_js_failed')) ?>); }
             });
         });
     });
@@ -570,7 +570,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fd.append('project_id', form.dataset.id);
             post(fd, true).then(function (res) {
                 if (res.success) { location.reload(); }
-                else { alert((res.errors && res.errors.join('\n')) || res.error || 'Upload failed'); }
+                else { alert((res.errors && res.errors.join('\n')) || res.error || <?= json_encode(t('makers_js_upload_failed')) ?>); }
             });
         });
     });

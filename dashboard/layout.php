@@ -4,8 +4,6 @@ include_once __DIR__ . '/includes/mod_access.php';
 
 if (!isset($pageTitle))
     $pageTitle = "BotOfTheSpecter";
-if (!isset($pageDescription))
-    $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.";
 if (!isset($pageContent))
     $pageContent = "";
 if (!isset($scripts))
@@ -14,6 +12,8 @@ if (!isset($scripts))
 // Add language support for layout
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
+if (!isset($pageDescription))
+    $pageDescription = t('layout_meta_description');
 $profileUsername = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8') : (isset($user['username']) ? htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') : '');
 $profileNavLabel = t('navbar_profile') . ' | ' . $profileUsername;
 $showAdminPanelLink = isset($is_admin) && $is_admin === true;

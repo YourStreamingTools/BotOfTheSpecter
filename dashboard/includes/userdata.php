@@ -1,4 +1,19 @@
 <?php
+// Load translations so user-facing messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 $isActAs = !defined('ADMIN_PANEL_CONTEXT') && isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
 $sessionAccessToken = $_SESSION['access_token'] ?? null;
 $originalContext = (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original']))
@@ -32,7 +47,7 @@ if (!$userSTMT) {
 
 if (!$userSTMT->execute()) {
     error_log("Database query failed: " . $userSTMT->error);
-    die("An error occurred.");
+    die(t('userdata_db_query_error'));
 }
 $userResult = $userSTMT->get_result();
 if ($userResult->num_rows === 0) {

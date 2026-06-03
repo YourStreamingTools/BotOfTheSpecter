@@ -4,10 +4,25 @@ header('Content-Type: application/json');
 // Require DB connection
 require_once "/var/www/config/db_connect.php";
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Ensure user is authenticated
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
+    echo json_encode(['success' => false, 'message' => t('update_use_custom_error_not_authenticated')]);
     exit();
 }
 
@@ -16,7 +31,7 @@ $user_id = $_SESSION['user_id'];
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+    echo json_encode(['success' => false, 'message' => t('update_use_custom_error_method_not_allowed')]);
     exit();
 }
 
@@ -34,7 +49,7 @@ if (isset($data['use_custom'])) {
     $use_custom = intval($data['use_custom']);
     if ($use_custom !== 0 && $use_custom !== 1) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid value for use_custom']);
+        echo json_encode(['success' => false, 'message' => t('update_use_custom_error_invalid_use_custom')]);
         exit();
     }
     $updates[] = 'use_custom = ?';
@@ -46,7 +61,7 @@ if (isset($data['use_self'])) {
     $use_self = intval($data['use_self']);
     if ($use_self !== 0 && $use_self !== 1) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid value for use_self']);
+        echo json_encode(['success' => false, 'message' => t('update_use_custom_error_invalid_use_self')]);
         exit();
     }
     $updates[] = 'use_self = ?';
@@ -56,7 +71,7 @@ if (isset($data['use_self'])) {
 
 if (empty($updates)) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'No valid parameters provided']);
+    echo json_encode(['success' => false, 'message' => t('update_use_custom_error_no_valid_parameters')]);
     exit();
 }
 

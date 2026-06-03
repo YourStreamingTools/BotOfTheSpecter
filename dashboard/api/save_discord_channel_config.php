@@ -3,6 +3,21 @@ require_once '/var/www/lib/session_bootstrap.php';
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Include database connection
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/database.php';
@@ -11,7 +26,7 @@ include '/var/www/config/database.php';
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'User session not found']);
+    echo json_encode(['success' => false, 'message' => t('discord_cfg_error_session_not_found')]);
     exit();
 }
 $user_id = $_SESSION['user_id'];
@@ -48,7 +63,7 @@ session_write_close();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+    echo json_encode(['success' => false, 'message' => t('discord_cfg_error_method_not_allowed')]);
     exit();
 }
 
@@ -61,7 +76,7 @@ debug_log('save_discord_channel_config received: ' . json_encode($input));
 if (!isset($input['action']) || !isset($input['server_id'])) {
     http_response_code(400);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+    echo json_encode(['success' => false, 'message' => t('discord_cfg_error_missing_params')]);
     exit();
 }
 
@@ -72,7 +87,7 @@ $server_id = $input['server_id'];
 if (empty($server_id)) {
     http_response_code(400);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Server ID is required']);
+    echo json_encode(['success' => false, 'message' => t('discord_cfg_error_server_id_required')]);
     exit();
 }
 
@@ -110,7 +125,7 @@ try {
             if ($discord_conn->connect_error) {
                 http_response_code(500);
                 header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'message' => 'Discord database connection failed']);
+                echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_connection_failed')]);
                 exit();
             }
             // Handle server management settings (existing logic)
@@ -119,7 +134,7 @@ try {
                     if (!isset($input['welcome_channel_id'])) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Welcome channel ID is required']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_welcome_channel_required')]);
                         exit();
                     }
                     $welcome_channel_id = $input['welcome_channel_id'];
@@ -130,14 +145,14 @@ try {
                     if (empty($welcome_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Welcome channel ID cannot be empty']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_welcome_channel_empty')]);
                         exit();
                     }
                     // If not using default message, require custom welcome message text
                     if (!$welcome_use_default && empty($welcome_message)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Please enter a welcome message or enable "Use default welcome message"']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_welcome_message_required')]);
                         exit();
                     }
                     // Check if record exists for this server
@@ -164,7 +179,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Welcome message configuration saved successfully',
+                            'message' => t('discord_cfg_welcome_saved'),
                             'channel_id' => $welcome_channel_id,
                             'use_default' => $welcome_use_default,
                             'enable_embed' => $welcome_enable_embed,
@@ -174,20 +189,20 @@ try {
                     } else {
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_update_failed', [$discord_conn->error])]);
                         exit(); // Add exit to prevent further execution
                     }
                     break;
                 case 'save_auto_role':
                     if (!isset($input['auto_role_id'])) {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'message' => 'Auto role ID is required']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_auto_role_required')]);
                         exit();
                     }
                     $auto_role_id = $input['auto_role_id'];
                     if (empty($auto_role_id)) {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'message' => 'Auto role ID cannot be empty']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_auto_role_empty')]);
                         exit();
                     }
                     // Check if record exists for this server
@@ -212,19 +227,19 @@ try {
                     if ($success) {
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Auto role configuration saved successfully',
+                            'message' => t('discord_cfg_auto_role_saved'),
                             'role_id' => $auto_role_id
                         ]);
                     } else {
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_update_failed', [$discord_conn->error])]);
                     }
                     break;
                 case 'save_reaction_roles':
                     debug_log('Processing save_reaction_roles with input: ' . json_encode($input));
                     if (!isset($input['reaction_roles_channel_id'])) {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_reaction_channel_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
@@ -233,7 +248,7 @@ try {
                     $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool) $input['allow_multiple_reactions'] : false;
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_reaction_channel_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Build the JSON configuration object
@@ -247,7 +262,7 @@ try {
                     if ($reaction_roles_json === false) {
                         debug_log('Failed to encode reaction roles JSON: ' . json_last_error_msg());
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Failed to encode configuration data', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_encode_config'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Check if record exists for this server
@@ -255,7 +270,7 @@ try {
                     if (!$checkStmt) {
                         debug_log('Failed to prepare record check statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error: Failed to check record existence', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_check_existence'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $checkStmt->bind_param("s", $server_id);
@@ -263,7 +278,7 @@ try {
                         debug_log('Failed to execute record check: ' . $checkStmt->error);
                         $checkStmt->close();
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error: Failed to check record', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_check_record'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $result = $checkStmt->get_result();
@@ -274,7 +289,7 @@ try {
                             debug_log('Failed to prepare update statement: ' . $discord_conn->error);
                             $checkStmt->close();
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare update', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_prepare_update'), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $updateStmt->bind_param("ss", $reaction_roles_json, $server_id);
@@ -290,7 +305,7 @@ try {
                             debug_log('Failed to prepare insert statement: ' . $discord_conn->error);
                             $checkStmt->close();
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Database error: Failed to prepare insert', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_prepare_insert'), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $insertStmt->bind_param("ss", $server_id, $reaction_roles_json);
@@ -308,7 +323,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Reaction roles configuration saved successfully',
+                            'message' => t('discord_cfg_reaction_saved'),
                             'channel_id' => $reaction_roles_channel_id,
                             'allow_multiple' => $allow_multiple_reactions,
                             'debug_logs' => $debug_logs
@@ -349,7 +364,7 @@ try {
                     } else {
                         debug_log('Database operation failed: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_update_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'send_reaction_roles_message':
@@ -358,7 +373,7 @@ try {
                         debug_log('Missing reaction_roles_channel_id in input');
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID is required']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_reaction_channel_required')]);
                         exit();
                     }
                     $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
@@ -369,19 +384,19 @@ try {
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_reaction_channel_empty')]);
                         exit();
                     }
                     if (empty($reaction_roles_message)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles message cannot be empty']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_reaction_message_empty')]);
                         exit();
                     }
                     if (empty($reaction_roles_mappings)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Reaction roles mappings cannot be empty']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_reaction_mappings_empty')]);
                         exit();
                     }
                     // Send websocket notification to post the message to Discord channel
@@ -391,7 +406,7 @@ try {
                         debug_log('api_key not found for user_id: ' . $user_id);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_api_key_missing'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
@@ -414,7 +429,7 @@ try {
                         debug_log('Failed to initialize cURL');
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request']);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_init')]);
                         exit();
                     }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -426,7 +441,7 @@ try {
                         curl_close($ch);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -437,7 +452,7 @@ try {
                         debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to send message to Discord channel', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_send_message'), 'debug_logs' => $debug_logs]);
                         exit();
                     } else {
                         debug_log("Successfully sent websocket notification for reaction roles");
@@ -445,7 +460,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Reaction roles message sent to Discord channel successfully',
+                            'message' => t('discord_cfg_reaction_sent'),
                             'channel_id' => $reaction_roles_channel_id,
                             'allow_multiple' => $allow_multiple_reactions,
                             'debug_logs' => $debug_logs
@@ -458,7 +473,7 @@ try {
                     if (!isset($input['rules_channel_id'])) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules channel ID is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_channel_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $rules_channel_id = trim($input['rules_channel_id']);
@@ -469,19 +484,19 @@ try {
                     if (empty($rules_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_channel_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($rules_title)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules title cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_title_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($rules_content)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules content cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_content_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Build the JSON configuration object
@@ -497,7 +512,7 @@ try {
                         debug_log('Failed to encode rules configuration as JSON');
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to encode rules configuration', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_encode_rules'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Check if record exists for this server
@@ -506,7 +521,7 @@ try {
                         debug_log('Failed to prepare SELECT statement: ' . $discord_conn->error);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $checkStmt->bind_param("s", $server_id);
@@ -514,7 +529,7 @@ try {
                         debug_log('Failed to execute SELECT statement: ' . $checkStmt->error);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database query failed: ' . $checkStmt->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_query_failed', [$checkStmt->error]), 'debug_logs' => $debug_logs]);
                         $checkStmt->close();
                         exit();
                     }
@@ -526,7 +541,7 @@ try {
                             debug_log('Failed to prepare UPDATE statement: ' . $discord_conn->error);
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             $checkStmt->close();
                             exit();
                         }
@@ -543,7 +558,7 @@ try {
                             debug_log('Failed to prepare INSERT statement: ' . $discord_conn->error);
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             $checkStmt->close();
                             exit();
                         }
@@ -561,7 +576,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Rules configuration saved successfully',
+                            'message' => t('discord_cfg_rules_saved'),
                             'channel_id' => $rules_channel_id,
                             'title' => $rules_title,
                             'color' => $rules_color,
@@ -571,7 +586,7 @@ try {
                     } else {
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_update_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     break;
@@ -581,7 +596,7 @@ try {
                         debug_log('Missing rules_channel_id in input');
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules channel ID is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_channel_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $rules_channel_id = trim($input['rules_channel_id']);
@@ -593,19 +608,19 @@ try {
                     if (empty($rules_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_channel_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($rules_title)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules title cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_title_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($rules_content)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Rules content cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_rules_content_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Send websocket notification to post the rules message to Discord channel
@@ -615,7 +630,7 @@ try {
                         debug_log('api_key not found for user_id: ' . $user_id);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_api_key_missing'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
@@ -639,7 +654,7 @@ try {
                         debug_log('Failed to initialize cURL');
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_init'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -651,7 +666,7 @@ try {
                         curl_close($ch);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -662,7 +677,7 @@ try {
                         debug_log("Failed to send websocket notification for rules message: HTTP $http_code, Response: $response");
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to send rules message to Discord channel', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_send_rules'), 'debug_logs' => $debug_logs]);
                         exit();
                     } else {
                         debug_log("Successfully sent websocket notification for rules message");
@@ -670,7 +685,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Rules message sent to Discord channel successfully',
+                            'message' => t('discord_cfg_rules_sent'),
                             'channel_id' => $rules_channel_id,
                             'title' => $rules_title,
                             'color' => $rules_color,
@@ -685,7 +700,7 @@ try {
                         debug_log('Missing stream_schedule_channel_id in input');
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_channel_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $schedule_channel_id = trim($input['stream_schedule_channel_id']);
@@ -696,19 +711,19 @@ try {
                     if (empty($schedule_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_channel_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($schedule_title)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule title cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_title_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($schedule_content)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule content cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_content_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Build the JSON configuration object
@@ -724,7 +739,7 @@ try {
                         debug_log('Failed to encode stream schedule configuration to JSON');
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to encode stream schedule configuration', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_encode_schedule'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Check if record exists for this server
@@ -733,7 +748,7 @@ try {
                         debug_log('Failed to prepare check statement: ' . $discord_conn->error);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $checkStmt->bind_param("s", $server_id);
@@ -742,7 +757,7 @@ try {
                         $checkStmt->close();
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $checkStmt->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$checkStmt->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $result = $checkStmt->get_result();
@@ -755,7 +770,7 @@ try {
                             $checkStmt->close();
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $updateStmt->bind_param("ss", $schedule_json, $server_id);
@@ -770,7 +785,7 @@ try {
                             $checkStmt->close();
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $insertStmt->bind_param("ss", $server_id, $schedule_json);
@@ -784,7 +799,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Stream schedule configuration saved successfully',
+                            'message' => t('discord_cfg_schedule_saved'),
                             'debug_logs' => $debug_logs
                         ]);
                         exit();
@@ -792,7 +807,7 @@ try {
                         debug_log('Failed to save stream schedule configuration: ' . $discord_conn->error);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_update_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     break;
@@ -802,7 +817,7 @@ try {
                         debug_log('Missing stream_schedule_channel_id in input');
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_channel_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $schedule_channel_id = trim($input['stream_schedule_channel_id']);
@@ -814,19 +829,19 @@ try {
                     if (empty($schedule_channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_channel_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($schedule_title)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule title cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_title_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     if (empty($schedule_content)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Stream schedule content cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_schedule_content_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     // Send websocket notification to post the stream schedule message to Discord channel
@@ -836,7 +851,7 @@ try {
                         debug_log('api_key not found for user_id: ' . $user_id);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_api_key_missing'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
@@ -860,7 +875,7 @@ try {
                         debug_log('Failed to initialize cURL');
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_init'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -872,7 +887,7 @@ try {
                         curl_close($ch);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -883,7 +898,7 @@ try {
                         debug_log("Failed to send websocket notification for stream schedule message: HTTP $http_code, Response: $response");
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to send stream schedule message to Discord channel', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_send_schedule'), 'debug_logs' => $debug_logs]);
                         exit();
                     } else {
                         debug_log("Successfully sent websocket notification for stream schedule message");
@@ -891,7 +906,7 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Stream schedule message sent to Discord channel successfully',
+                            'message' => t('discord_cfg_schedule_sent'),
                             'channel_id' => $schedule_channel_id,
                             'title' => $schedule_title,
                             'color' => $schedule_color,
@@ -929,7 +944,7 @@ try {
                     if (empty($embed_name)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Embed name is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_name_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
 
@@ -941,7 +956,7 @@ try {
                             debug_log('Failed to prepare update statement: ' . $discord_conn->error);
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $updateStmt->bind_param("sssssssssssssiis", $embed_name, $title, $description, $color, $url, $thumbnail_url, $image_url, $footer_text, $footer_icon_url, $author_name, $author_url, $author_icon_url, $fields, $timestamp_value, $embed_id, $server_id);
@@ -953,7 +968,7 @@ try {
                             header('Content-Type: application/json');
                             echo json_encode([
                                 'success' => true,
-                                'message' => 'Embed updated successfully',
+                                'message' => t('discord_cfg_embed_updated'),
                                 'embed_id' => $embed_id,
                                 'debug_logs' => $debug_logs
                             ]);
@@ -961,7 +976,7 @@ try {
                         } else {
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Failed to update embed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_update_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                     } else {
@@ -970,7 +985,7 @@ try {
                             debug_log('Failed to prepare insert statement: ' . $discord_conn->error);
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $insertStmt->bind_param("ssssssssssssssi", $server_id, $embed_name, $title, $description, $color, $url, $thumbnail_url, $image_url, $footer_text, $footer_icon_url, $author_name, $author_url, $author_icon_url, $fields, $timestamp_value);
@@ -983,7 +998,7 @@ try {
                             header('Content-Type: application/json');
                             echo json_encode([
                                 'success' => true,
-                                'message' => 'Embed created successfully',
+                                'message' => t('discord_cfg_embed_created'),
                                 'embed_id' => $new_embed_id,
                                 'debug_logs' => $debug_logs
                             ]);
@@ -991,7 +1006,7 @@ try {
                         } else {
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Failed to create embed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_create_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                     }
@@ -1003,7 +1018,7 @@ try {
                         debug_log('Missing embed_id or channel_id in input');
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Embed ID and Channel ID are required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_id_channel_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $embed_id = (int) $input['embed_id'];
@@ -1011,7 +1026,7 @@ try {
                     if (empty($channel_id)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Channel ID cannot be empty', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_channel_empty'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
 
@@ -1025,7 +1040,7 @@ try {
                             debug_log('api_key not found for user_id: ' . $user_id);
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_api_key_missing'), 'debug_logs' => $debug_logs]);
                             exit();
                         }
 
@@ -1070,7 +1085,7 @@ try {
                             debug_log('Failed to initialize cURL');
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Failed to initialize HTTP request', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_init'), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -1082,7 +1097,7 @@ try {
                             curl_close($ch);
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'HTTP request failed: ' . $curl_error, 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -1092,7 +1107,7 @@ try {
                             debug_log("Failed to send websocket notification for custom embed: HTTP $http_code, Response: $response");
                             http_response_code(500);
                             header('Content-Type: application/json');
-                            echo json_encode(['success' => false, 'message' => 'Failed to send embed to Discord channel', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_send_embed'), 'debug_logs' => $debug_logs]);
                             exit();
                         } else {
                             debug_log("Successfully sent websocket notification for custom embed");
@@ -1122,7 +1137,7 @@ try {
                             header('Content-Type: application/json');
                             echo json_encode([
                                 'success' => true,
-                                'message' => 'Embed sent to Discord channel successfully',
+                                'message' => t('discord_cfg_embed_sent'),
                                 'embed_id' => $embed_id,
                                 'channel_id' => $channel_id,
                                 'debug_logs' => $debug_logs
@@ -1133,7 +1148,7 @@ try {
                         $fetchStmt->close();
                         http_response_code(404);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Embed not found', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_not_found'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     break;
@@ -1143,7 +1158,7 @@ try {
                     if (!isset($input['embed_id'])) {
                         http_response_code(400);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Embed ID is required', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_id_required'), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $embed_id = (int) $input['embed_id'];
@@ -1153,7 +1168,7 @@ try {
                         debug_log('Failed to prepare delete statement: ' . $discord_conn->error);
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Database error: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $deleteStmt->bind_param("is", $embed_id, $server_id);
@@ -1165,14 +1180,14 @@ try {
                         header('Content-Type: application/json');
                         echo json_encode([
                             'success' => true,
-                            'message' => 'Embed deleted successfully',
+                            'message' => t('discord_cfg_embed_deleted'),
                             'debug_logs' => $debug_logs
                         ]);
                         exit();
                     } else {
                         http_response_code(500);
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Failed to delete embed: ' . $discord_conn->error, 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_embed_delete_failed', [$discord_conn->error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     break;
@@ -1185,17 +1200,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Reaction roles data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Reaction roles data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_reaction_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear reaction roles data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear reaction roles data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_reaction'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_rules':
@@ -1206,17 +1221,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Rules data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Rules data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_rules_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear rules data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear rules data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_rules'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_stream_schedule':
@@ -1227,17 +1242,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Stream schedule data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Stream schedule data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_schedule_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear stream schedule data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear stream schedule data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_schedule'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_welcome_message':
@@ -1248,17 +1263,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Welcome message data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Welcome message data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_welcome_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear welcome message data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear welcome message data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_welcome'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_auto_role':
@@ -1269,17 +1284,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Auto role data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Auto role data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_auto_role_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear auto role data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear auto role data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_auto_role'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_role_history':
@@ -1290,17 +1305,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Role history data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Role history data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_role_history_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear role history data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear role history data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_role_history'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_message_tracking':
@@ -1311,17 +1326,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Message tracking data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Message tracking data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_message_tracking_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear message tracking data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear message tracking data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_message_tracking'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_role_tracking':
@@ -1332,17 +1347,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Role tracking data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Role tracking data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_role_tracking_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear role tracking data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear role tracking data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_role_tracking'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_server_role_management':
@@ -1353,17 +1368,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('Server role management data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Server role management data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_server_role_mgmt_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear server role management data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear server role management data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_server_role_mgmt'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_user_tracking':
@@ -1374,17 +1389,17 @@ try {
                         $clearStmt->bind_param("s", $server_id);
                         if ($clearStmt->execute()) {
                             debug_log('User tracking data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'User tracking data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_user_tracking_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear user tracking data: ' . $clearStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear user tracking data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_user_tracking'), 'debug_logs' => $debug_logs]);
                         }
                         $clearStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
                 case 'clear_freestuff':
@@ -1403,17 +1418,17 @@ try {
                             }
 
                             debug_log('Free Games data cleared successfully');
-                            echo json_encode(['success' => true, 'message' => 'Free Games data cleared successfully', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => true, 'message' => t('discord_cfg_freestuff_cleared'), 'debug_logs' => $debug_logs]);
                         } else {
                             debug_log('Failed to clear free games data: ' . $deleteStmt->error);
                             http_response_code(500);
-                            echo json_encode(['success' => false, 'message' => 'Failed to clear free games data', 'debug_logs' => $debug_logs]);
+                            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_clear_freestuff'), 'debug_logs' => $debug_logs]);
                         }
                         $deleteStmt->close();
                     } else {
                         debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
                         http_response_code(500);
-                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                        echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_error'), 'debug_logs' => $debug_logs]);
                     }
                     break;
             }
@@ -1423,7 +1438,7 @@ try {
             // This saves the main Discord configuration to the website database discord_users table
             if (!isset($input['guild_id']) || !isset($input['live_channel_id'])) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Guild ID and Live Channel ID are required']);
+                echo json_encode(['success' => false, 'message' => t('discord_cfg_error_guild_channel_required')]);
                 exit();
             }
             $guild_id = $input['guild_id'];
@@ -1437,12 +1452,12 @@ try {
             // Validate character limits for online/offline text
             if (strlen($online_text) > 20) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Online text cannot exceed 20 characters']);
+                echo json_encode(['success' => false, 'message' => t('discord_cfg_error_online_text_length')]);
                 exit();
             }
             if (strlen($offline_text) > 20) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Offline text cannot exceed 20 characters']);
+                echo json_encode(['success' => false, 'message' => t('discord_cfg_error_offline_text_length')]);
                 exit();
             }
             // Update the discord_users table in the website database
@@ -1451,26 +1466,26 @@ try {
             if ($updateStmt->execute()) {
                 echo json_encode([
                     'success' => true,
-                    'message' => 'Discord configuration saved successfully',
+                    'message' => t('discord_cfg_channels_saved'),
                     'guild_id' => $guild_id,
                     'live_channel_id' => $live_channel_id
                 ]);
             } else {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'message' => 'Database update failed: ' . $conn->error]);
+                echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_update_failed', [$conn->error])]);
             }
             $updateStmt->close();
             break;
         default:
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'Invalid action']);
+            echo json_encode(['success' => false, 'message' => t('discord_cfg_error_invalid_action')]);
             break;
     }
 } catch (Exception $e) {
     debug_log('Exception caught in save_discord_channel_config.php: ' . $e->getMessage());
     debug_log('Exception trace: ' . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage(), 'debug_logs' => $debug_logs]);
+    echo json_encode(['success' => false, 'message' => t('discord_cfg_error_db_generic', [$e->getMessage()]), 'debug_logs' => $debug_logs]);
 } finally {
     // Close database connections if they exist
     if (isset($discord_conn)) {

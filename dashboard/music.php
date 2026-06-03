@@ -7,7 +7,7 @@ $today = new DateTime();
 require_once '/var/www/lib/require_auth.php';
 
 // Page Title and Initial Variables
-$pageTitle = "Music Dashboard";
+$pageTitle = t('music_dashboard_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -80,16 +80,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
         $fileError = $_FILES['userMusicFiles']['error'][$key];
         $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
         if ($ext !== 'mp3') {
-            $userMusicStatus .= "Failed to upload " . htmlspecialchars($origName) . ". Only MP3 files are allowed.<br>";
+            $userMusicStatus .= t('music_upload_fail_not_mp3', [htmlspecialchars($origName)]) . "<br>";
             continue;
         }
         // Check storage limits
         if ($current_storage_used + $fileSize > $max_storage_size) {
-            $userMusicStatus .= "Failed to upload " . htmlspecialchars($origName) . ". Storage limit exceeded.<br>";
+            $userMusicStatus .= t('music_upload_fail_storage', [htmlspecialchars($origName)]) . "<br>";
             continue;
         }
         if ($fileError !== 0) {
-            $userMusicStatus .= "Error uploading " . htmlspecialchars($origName) . ". Error code: $fileError<br>";
+            $userMusicStatus .= t('music_upload_error_code', ['name' => htmlspecialchars($origName), 'code' => $fileError]) . "<br>";
             continue;
         }
         // Ensure user music path exists (storage_used.php creates it but double-check)
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
         }
         if (move_uploaded_file($tmp_name, $target)) {
             $current_storage_used += filesize($target);
-            $userMusicStatus .= "Uploaded: " . htmlspecialchars(basename($target)) . "<br>";
+            $userMusicStatus .= t('music_status_uploaded', [htmlspecialchars(basename($target))]) . "<br>";
             // Ensure a public copy/symlink exists under /var/www/usermusic/<username> so
             // overlays and external players can fetch the file via music.botspecter.com
             if (isset($public_user_music_path)) {
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
                 @chmod($publicTarget, 0644);
             }
         } else {
-            $userMusicStatus .= "Failed to move uploaded file " . htmlspecialchars($origName) . ".<br>";
+            $userMusicStatus .= t('music_status_move_failed', [htmlspecialchars($origName)]) . "<br>";
         }
     }
     // Recalculate storage percentage
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_music']))
         $full = $user_music_path . '/' . $file;
         $fileSizeBefore = is_file($full) ? filesize($full) : 0;
         if (is_file($full) && unlink($full)) {
-            $userMusicStatus .= "Deleted: " . htmlspecialchars($file) . "<br>";
+            $userMusicStatus .= t('music_status_deleted', [htmlspecialchars($file)]) . "<br>";
             $current_storage_used -= $fileSizeBefore;
             if ($current_storage_used < 0) $current_storage_used = 0;
             // Also remove public copy/symlink if present
@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_music']))
                 }
             }
         } else {
-            $userMusicStatus .= "Failed to delete " . htmlspecialchars($file) . ".<br>";
+            $userMusicStatus .= t('music_status_delete_failed', [htmlspecialchars($file)]) . "<br>";
         }
     }
     if ($max_storage_size > 0) {
@@ -604,7 +604,7 @@ ob_start();
                     const tr = document.createElement('tr');
                     tr.className = 'playlist-row placeholder';
                     tr.style.color = 'var(--text-muted)';
-                    tr.innerHTML = `<td colspan="3" style="padding:1.25rem; text-align:center;">No tracks for the selected music source.</td>`;
+                    tr.innerHTML = `<td colspan="3" style="padding:1.25rem; text-align:center;">${<?php echo json_encode(t('music_no_tracks_for_source')); ?>}</td>`;
                     tbody.prepend(tr);
                 }
             } else if (existingPlaceholder) {
@@ -833,7 +833,7 @@ ob_start();
             if (userFileInput && userFileList) {
                 userFileInput.addEventListener('change', (e) => {
                     const files = Array.from(e.target.files).map(f => f.name).join(', ');
-                    userFileList.textContent = files || 'No files selected';
+                    userFileList.textContent = files || <?php echo json_encode(t('sound_alerts_no_files_selected')); ?>;
                 });
             }
             MusicPlayer.listenersInitialized = true;
@@ -862,7 +862,7 @@ ob_start();
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const file = btn.getAttribute('data-file');
-                    if (!confirm(`Delete ${file}? This cannot be undone.`)) return;
+                    if (!confirm(<?php echo json_encode(t('music_confirm_delete_file')); ?>.replace('%s', file))) return;
                     const form = new FormData();
                     form.append('delete_user_music[]', file);
                     try {
@@ -870,11 +870,11 @@ ob_start();
                         if (resp.ok) {
                             location.reload();
                         } else {
-                            alert('Failed to delete file');
+                            alert(<?php echo json_encode(t('music_delete_file_failed')); ?>);
                         }
                     } catch (err) {
                         console.error(err);
-                        alert('Delete failed');
+                        alert(<?php echo json_encode(t('music_delete_failed')); ?>);
                     }
                 });
             });
@@ -937,7 +937,7 @@ ob_start();
                             toast.style.bottom = '1rem';
                             toast.style.right = '1rem';
                             toast.style.zIndex = 10000;
-                            toast.innerText = 'Music source saved';
+                            toast.innerText = <?php echo json_encode(t('music_source_saved')); ?>;
                             document.body.appendChild(toast);
                             setTimeout(() => toast.remove(), 2200);
                             // Update the playlist display immediately for the new source
@@ -945,11 +945,11 @@ ob_start();
                                 DOM.updatePlaylistForSource(val);
                             }
                         } else {
-                            alert('Failed to save music source');
+                            alert(<?php echo json_encode(t('music_source_save_failed')); ?>);
                         }
                     } catch (err) {
                         console.error(err);
-                        alert('Error saving music source');
+                        alert(<?php echo json_encode(t('music_source_save_error')); ?>);
                     }
                 });
             }
@@ -1065,7 +1065,7 @@ ob_start();
             });
             MusicPlayer.elements.audioPlayer.addEventListener('error', (e) => {
                 console.error('Audio playback error:', e);
-                DOM.updateNowPlaying('Error loading song', false);
+                DOM.updateNowPlaying(<?php echo json_encode(t('music_error_loading_song')); ?>, false);
             });
         },
         initSearchEvents() {
@@ -1086,7 +1086,7 @@ ob_start();
                 ev.preventDefault();
                 const files = fileInput.files;
                 if (!files || files.length === 0) {
-                    alert('Please select one or more MP3 files to upload.');
+                    alert(<?php echo json_encode(t('music_select_files_prompt')); ?>);
                     return;
                 }
                 const fd = new FormData();
@@ -1097,7 +1097,7 @@ ob_start();
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('sp-btn-loading'); }
                 const statusText = document.getElementById('userUploadStatusText');
-                if (statusText) { statusText.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Uploading ' + files.length + ' file(s)...'; }
+                if (statusText) { statusText.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('music_uploading_files')); ?>.replace('%s', files.length); }
                 progressContainer.style.display = 'block';
                 progressBar.value = 0; progressPercent.textContent = '0%';
                 responseEl.style.display = 'none'; responseEl.innerHTML = '';
@@ -1138,16 +1138,16 @@ ob_start();
                         }
                         // reset input
                         fileInput.value = '';
-                        if (fileListLabel) fileListLabel.textContent = 'No files selected';
+                        if (fileListLabel) fileListLabel.textContent = <?php echo json_encode(t('sound_alerts_no_files_selected')); ?>;
                     } else {
-                        responseEl.innerHTML = 'Upload failed';
+                        responseEl.innerHTML = <?php echo json_encode(t('music_upload_failed')); ?>;
                         responseEl.style.display = 'block';
                     }
                 };
                 xhr.onerror = function() {
                     if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('sp-btn-loading'); }
                     progressContainer.style.display = 'none';
-                    responseEl.innerHTML = 'Upload failed (network error)';
+                    responseEl.innerHTML = <?php echo json_encode(t('music_upload_failed_network')); ?>;
                     responseEl.style.display = 'block';
                 };
                 xhr.send(fd);
@@ -1169,7 +1169,7 @@ ob_start();
         const countTag = document.getElementById('playlistCountTag');
         if (countTag) {
             const visible = document.querySelectorAll('.playlist-row:not([style*="display:none"])').length;
-            countTag.textContent = visible + ' ' + (countTag.getAttribute('data-label') || 'songs');
+            countTag.textContent = visible + ' ' + (countTag.getAttribute('data-label') || <?php echo json_encode(t('music_songs')); ?>);
         }
         // Initialize button states
         DOM.updateButtonState(MusicPlayer.elements.repeatBtn, false);

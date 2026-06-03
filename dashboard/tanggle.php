@@ -44,18 +44,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['api_token']) || isse
             $stmt = mysqli_prepare($db, "UPDATE profile SET tanggle_api_token = ?, tanggle_community_uuid = ?");
         }
         if ($stmt === false) {
-            $message = "Database error: " . mysqli_error($db);
+            $message = t('tanggle_msg_db_error') . mysqli_error($db);
+            $message_is_success = false;
         } else {
             mysqli_stmt_bind_param($stmt, "ss", $api_token, $community_uuid);
             if (mysqli_stmt_execute($stmt)) {
-                $message = "Tanggle credentials saved successfully!";
+                $message = t('tanggle_msg_saved_success');
+                $message_is_success = true;
             } else {
-                $message = "Failed to save Tanggle credentials: " . mysqli_error($db);
+                $message = t('tanggle_msg_save_failed') . mysqli_error($db);
+                $message_is_success = false;
             }
             mysqli_stmt_close($stmt);
         }
     } else {
-        $message = "Please enter both API Token and Community UUID.";
+        $message = t('tanggle_msg_enter_both');
+        $message_is_success = false;
     }
 }
 
@@ -114,7 +118,7 @@ if ($credentials_exist) {
             }
         }
     } else {
-        $api_error = "Failed to fetch room data from Tanggle API";
+        $api_error = t('tanggle_api_fetch_error');
     }
 
     // Fetch queue
@@ -157,7 +161,7 @@ if ($credentials_exist) {
 ob_start();
 ?>
 <?php if (isset($message)): ?>
-    <div class="sp-alert <?php echo strpos($message, 'successfully') !== false ? 'sp-alert-success' : 'sp-alert-danger'; ?>" style="margin-bottom:1.5rem;">
+    <div class="sp-alert <?php echo (!empty($message_is_success)) ? 'sp-alert-success' : 'sp-alert-danger'; ?>" style="margin-bottom:1.5rem;">
         <?php echo htmlspecialchars($message); ?>
     </div>
 <?php endif; ?>
@@ -263,7 +267,7 @@ ob_start();
                             <p style="color:var(--text-secondary);">
                                 <strong style="color:var(--text-primary);"><?= t('tanggle_stats_last_completed') ?></strong>
                                 <?php
-                                $last_completed_display = 'N/A';
+                                $last_completed_display = t('tanggle_not_available');
                                 if (!empty($puzzle_stats['last_completed_at'])) {
                                     $last_completed_ts = strtotime($puzzle_stats['last_completed_at']);
                                     if ($last_completed_ts !== false) {
@@ -421,7 +425,7 @@ ob_start();
                                             <td>
                                                 <?php
                                                 $completed_source = $completion['completed_at'] ?: $completion['recorded_at'];
-                                                $completed_display = 'N/A';
+                                                $completed_display = t('tanggle_not_available');
                                                 if (!empty($completed_source)) {
                                                     $completed_ts = strtotime($completed_source);
                                                     if ($completed_ts !== false) {
@@ -435,7 +439,7 @@ ob_start();
                                                 <?php if (!empty($completion['redirect_url'])): ?>
                                                     <a href="<?php echo htmlspecialchars($completion['redirect_url']); ?>" target="_blank" class="sp-btn sp-btn-info sp-btn-sm"><?= t('tanggle_open_btn') ?></a>
                                                 <?php else: ?>
-                                                    <span style="color:var(--text-muted);">N/A</span>
+                                                    <span style="color:var(--text-muted);"><?= t('tanggle_not_available') ?></span>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>

@@ -5,13 +5,28 @@ header('Content-Type: application/json');
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 $broadcasterId = $_SESSION['twitchUserId'];
 $token = $_SESSION['access_token'];
 
 include '/var/www/config/twitch.php';
 
 if (empty($clientID)) {
-    echo json_encode(['success' => false, 'error' => 'Client ID not configured']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_client_id')]);
     exit();
 }
 
@@ -42,7 +57,7 @@ function twitchApiCall($method, $url, $token, $clientID, $body = null, $isMultip
 }
 
 if (!isset($_POST['title']) || !isset($_POST['cost'])) {
-    echo json_encode(['success' => false, 'error' => 'Missing required fields (title, cost)']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_missing_fields')]);
     exit();
 }
 
@@ -62,27 +77,27 @@ $shouldSkipQueue = isset($_POST['should_redemptions_skip_request_queue']) ? filt
 
 // Basic validation per Twitch API
 if ($title === '' || mb_strlen($title) > 45) {
-    echo json_encode(['success' => false, 'error' => 'Invalid title: required and max 45 characters']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_invalid_title')]);
     exit();
 }
 if ($cost < 1) {
-    echo json_encode(['success' => false, 'error' => 'Invalid cost: must be at least 1']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_invalid_cost')]);
     exit();
 }
 if ($prompt !== '' && mb_strlen($prompt) > 200) {
-    echo json_encode(['success' => false, 'error' => 'Invalid prompt: maximum 200 characters']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_invalid_prompt')]);
     exit();
 }
 if ($isMaxPerStreamEnabled && $maxPerStream < 1) {
-    echo json_encode(['success' => false, 'error' => 'Invalid max_per_stream: must be at least 1 when enabled']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_invalid_max_per_stream')]);
     exit();
 }
 if ($isMaxPerUserPerStreamEnabled && $maxPerUserPerStream < 1) {
-    echo json_encode(['success' => false, 'error' => 'Invalid max_per_user_per_stream: must be at least 1 when enabled']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_invalid_max_per_user_per_stream')]);
     exit();
 }
 if ($isGlobalCooldownEnabled && $globalCooldownSeconds < 1) {
-    echo json_encode(['success' => false, 'error' => 'Invalid global_cooldown_seconds: must be at least 1 when enabled']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_invalid_global_cooldown')]);
     exit();
 }
 
@@ -130,11 +145,11 @@ if ($existingResult['code'] >= 200 && $existingResult['code'] < 300) {
                         error_log('Reward upsert prepare failed: ' . $db->error);
                     }
                     $db->close();
-                    echo json_encode(['success' => true, 'message' => 'Reward already exists', 'existing_reward_id' => $rewardId, 'db_synced' => true]);
+                    echo json_encode(['success' => true, 'message' => t('create_reward_msg_already_exists'), 'existing_reward_id' => $rewardId, 'db_synced' => true]);
                     exit();
                 }
                 // DB failed - still return the existing reward id but note sync failed
-                echo json_encode(['success' => true, 'message' => 'Reward already exists', 'existing_reward_id' => $rewardId, 'db_synced' => false, 'db_error' => $db->connect_error]);
+                echo json_encode(['success' => true, 'message' => t('create_reward_msg_already_exists'), 'existing_reward_id' => $rewardId, 'db_synced' => false, 'db_error' => $db->connect_error]);
                 exit();
             }
         }
@@ -181,28 +196,28 @@ if ($createResult['code'] < 200 || $createResult['code'] >= 300) {
                                 error_log('Reward upsert prepare failed: ' . $db->error);
                             }
                             $db->close();
-                            echo json_encode(['success' => true, 'message' => 'Reward already exists', 'existing_reward_id' => $rewardId, 'db_synced' => true]);
+                            echo json_encode(['success' => true, 'message' => t('create_reward_msg_already_exists'), 'existing_reward_id' => $rewardId, 'db_synced' => true]);
                             exit();
                         }
 
-                        echo json_encode(['success' => true, 'message' => 'Reward already exists', 'existing_reward_id' => $rewardId, 'db_synced' => false, 'db_error' => $db->connect_error]);
+                        echo json_encode(['success' => true, 'message' => t('create_reward_msg_already_exists'), 'existing_reward_id' => $rewardId, 'db_synced' => false, 'db_error' => $db->connect_error]);
                         exit();
                     }
                 }
             }
         }
         // If not found, return the raw error
-        echo json_encode(['success' => false, 'error' => 'Twitch API Error (duplicate): ' . $errMsg, 'http_code' => $createResult['code']]);
+        echo json_encode(['success' => false, 'error' => t('create_reward_error_twitch_duplicate', [$errMsg]), 'http_code' => $createResult['code']]);
         exit();
     }
     // Handle max rewards reached
     if ($createResult['code'] === 400 && stripos($errMsg, 'maximum number of rewards') !== false) {
-        echo json_encode(['success' => false, 'error' => 'Twitch API Error: channel has reached maximum number of custom rewards', 'http_code' => $createResult['code']]);
+        echo json_encode(['success' => false, 'error' => t('create_reward_error_twitch_max_rewards'), 'http_code' => $createResult['code']]);
         exit();
     }
     echo json_encode([
         'success' => false,
-        'error' => 'Twitch API Error: ' . $errMsg,
+        'error' => t('create_reward_error_twitch_generic', [$errMsg]),
         'http_code' => $createResult['code']
     ]);
     exit();
@@ -212,7 +227,7 @@ $newRewardData = json_decode($createResult['response'], true);
 $newRewardId = $newRewardData['data'][0]['id'] ?? null;
 
 if (!$newRewardId) {
-    echo json_encode(['success' => false, 'error' => 'Created but no ID returned']);
+    echo json_encode(['success' => false, 'error' => t('create_reward_error_no_id')]);
     exit();
 }
 
@@ -221,7 +236,7 @@ $dbname = $_SESSION['username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
     // Reward created on Twitch but DB connection failed
-    echo json_encode(['success' => true, 'message' => 'Created on Twitch (DB Sync Failed)', 'new_reward_id' => $newRewardId]);
+    echo json_encode(['success' => true, 'message' => t('create_reward_msg_created_db_sync_failed'), 'new_reward_id' => $newRewardId]);
     exit();
 }
 
