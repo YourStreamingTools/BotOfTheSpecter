@@ -3632,6 +3632,493 @@ async def delete_timer(
         logging.error(f"Error deleting timer for user '{username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting timer: {str(e)}")
 
+VALID_RAFFLE_STATUS = {"scheduled", "running", "ended"}
+VALID_FOLLOW_UNITS = {"days", "weeks", "months", "years"}
+
+def _raffle_config_params(name, prize, number_of_winners, is_weighted,
+                          weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip,
+                          exclude_mods, subscribers_only, followers_only,
+                          followers_min_enabled, followers_min_value, followers_min_unit):
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="name is required")
+    if number_of_winners is None or number_of_winners <= 0:
+        raise HTTPException(status_code=400, detail="number_of_winners must be a positive integer")
+    for label, w in (("weight_sub_t1", weight_sub_t1), ("weight_sub_t2", weight_sub_t2),
+                     ("weight_sub_t3", weight_sub_t3), ("weight_vip", weight_vip)):
+        if w is None or w < 1 or w > 999.99:
+            raise HTTPException(status_code=400, detail=f"{label} must be between 1.00 and 999.99")
+    unit = (followers_min_unit or "days").strip().lower()
+    if unit not in VALID_FOLLOW_UNITS:
+        unit = "days"
+    fo = 1 if followers_only else 0
+    fme = 1 if followers_min_enabled else 0
+    fmv = max(0, int(followers_min_value or 0))
+    if not fo:
+        fme, fmv, unit = 0, 0, "days"
+    if not fme:
+        fmv, unit = 0, "days"
+    return {
+        "name": name.strip(),
+        "prize": (prize or "").strip(),
+        "number_of_winners": int(number_of_winners),
+        "is_weighted": 1 if is_weighted else 0,
+        "weight_sub_t1": float(weight_sub_t1),
+        "weight_sub_t2": float(weight_sub_t2),
+        "weight_sub_t3": float(weight_sub_t3),
+        "weight_vip": float(weight_vip),
+        "exclude_mods": 1 if exclude_mods else 0,
+        "subscribers_only": 1 if subscribers_only else 0,
+        "followers_only": fo,
+        "followers_min_enabled": fme,
+        "followers_min_value": fmv,
+        "followers_min_unit": unit,
+    }
+
+@app.get(
+    "/raffles",
+    summary="Get list of raffles (giveaways) for your account",
+    description="Retrieve all raffles for your account with their config, status, entry/winner counts, and drawn winners.",
+    tags=["Commands"],
+    operation_id="get_raffles"
+)
+async def get_raffles(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, name, prize, number_of_winners, status, is_weighted, "
+                    "weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, "
+                    "subscribers_only, followers_only, followers_min_enabled, followers_min_value, "
+                    "followers_min_unit, created_at, "
+                    "(SELECT COUNT(*) FROM raffle_entries e WHERE e.raffle_id = raffles.id) AS entry_count, "
+                    "(SELECT COUNT(*) FROM raffle_winners w WHERE w.raffle_id = raffles.id) AS winner_count "
+                    "FROM raffles ORDER BY created_at DESC LIMIT 100"
+                )
+                rows = await cursor.fetchall()
+                # Attach winner usernames in one extra query (avoid N+1 over the list).
+                winners_by_raffle = {}
+                ids = [row['id'] for row in rows]
+                if ids:
+                    placeholders = ", ".join(["%s"] * len(ids))
+                    await cursor.execute(
+                        f"SELECT raffle_id, username FROM raffle_winners WHERE raffle_id IN ({placeholders}) ORDER BY id ASC",
+                        ids,
+                    )
+                    for wr in await cursor.fetchall():
+                        winners_by_raffle.setdefault(wr['raffle_id'], []).append(wr['username'])
+            raffles = []
+            for row in rows:
+                raffles.append({
+                    "id": row['id'],
+                    "name": row['name'],
+                    "prize": row['prize'],
+                    "number_of_winners": row['number_of_winners'],
+                    "status": row['status'],
+                    "is_weighted": bool(row['is_weighted']),
+                    "weight_sub_t1": float(row['weight_sub_t1']) if row['weight_sub_t1'] is not None else None,
+                    "weight_sub_t2": float(row['weight_sub_t2']) if row['weight_sub_t2'] is not None else None,
+                    "weight_sub_t3": float(row['weight_sub_t3']) if row['weight_sub_t3'] is not None else None,
+                    "weight_vip": float(row['weight_vip']) if row['weight_vip'] is not None else None,
+                    "exclude_mods": bool(row['exclude_mods']),
+                    "subscribers_only": bool(row['subscribers_only']),
+                    "followers_only": bool(row['followers_only']),
+                    "followers_min_enabled": bool(row['followers_min_enabled']),
+                    "followers_min_value": row['followers_min_value'],
+                    "followers_min_unit": row['followers_min_unit'],
+                    "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                    "entry_count": int(row['entry_count'] or 0),
+                    "winner_count": int(row['winner_count'] or 0),
+                    "winners": winners_by_raffle.get(row['id'], []),
+                })
+            return {"user": username, "total_raffles": len(raffles), "raffles": raffles}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving raffles for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving raffles: {str(e)}")
+
+@app.get(
+    "/raffles/entries",
+    summary="Get the entries for a raffle",
+    description="Retrieve all entrants for a raffle (written by viewers via !joinraffle). Read-only.",
+    tags=["Commands"],
+    operation_id="get_raffle_entries"
+)
+async def get_raffle_entries(api_key: str = Query(...), raffle_id: int = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, raffle_id, user_id, username, weight, source, entered_at "
+                    "FROM raffle_entries WHERE raffle_id = %s ORDER BY id ASC",
+                    (raffle_id,),
+                )
+                rows = await cursor.fetchall()
+            entries = [{
+                "id": r['id'],
+                "raffle_id": r['raffle_id'],
+                "user_id": r['user_id'],
+                "username": r['username'],
+                "weight": int(r['weight']) if r['weight'] is not None else 1,
+                "source": r['source'],
+                "entered_at": r['entered_at'].isoformat() if r['entered_at'] else None,
+            } for r in rows]
+            return {"user": username, "raffle_id": raffle_id, "total_entries": len(entries), "entries": entries}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving raffle entries for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving raffle entries: {str(e)}")
+
+@app.get(
+    "/raffles/winners",
+    summary="Get the winners for a raffle",
+    description="Retrieve the drawn winners for a raffle.",
+    tags=["Commands"],
+    operation_id="get_raffle_winners"
+)
+async def get_raffle_winners(api_key: str = Query(...), raffle_id: int = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, raffle_id, entry_id, user_id, username, source, won_at "
+                    "FROM raffle_winners WHERE raffle_id = %s ORDER BY id ASC",
+                    (raffle_id,),
+                )
+                rows = await cursor.fetchall()
+            winners = [{
+                "id": r['id'],
+                "raffle_id": r['raffle_id'],
+                "entry_id": r['entry_id'],
+                "user_id": r['user_id'],
+                "username": r['username'],
+                "source": r['source'],
+                "won_at": r['won_at'].isoformat() if r['won_at'] else None,
+            } for r in rows]
+            return {"user": username, "raffle_id": raffle_id, "total_winners": len(winners), "winners": winners}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving raffle winners for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving raffle winners: {str(e)}")
+
+@app.post(
+    "/raffles/add",
+    summary="Create a raffle (giveaway)",
+    description="Create a new raffle in the 'scheduled' state. Configure winners, optional weighting (sub tiers + VIP multipliers), and entry restrictions (exclude mods, subscribers only, followers only with an optional minimum follow time).",
+    tags=["Commands"],
+    operation_id="add_raffle"
+)
+async def add_raffle(
+    api_key: str = Query(...),
+    name: str = Query(..., description="Raffle name", max_length=255),
+    prize: str = Query("", description="Prize description"),
+    number_of_winners: int = Query(1, description="How many winners to draw", ge=1),
+    is_weighted: bool = Query(False, description="Weight entries by sub tier / VIP"),
+    weight_sub_t1: float = Query(2.0, description="Tier 1 sub weight multiplier"),
+    weight_sub_t2: float = Query(3.0, description="Tier 2 sub weight multiplier"),
+    weight_sub_t3: float = Query(4.0, description="Tier 3 sub weight multiplier"),
+    weight_vip: float = Query(1.5, description="VIP weight multiplier"),
+    exclude_mods: bool = Query(False, description="Exclude moderators"),
+    subscribers_only: bool = Query(False, description="Subscribers only"),
+    followers_only: bool = Query(False, description="Followers only"),
+    followers_min_enabled: bool = Query(False, description="Require a minimum follow time"),
+    followers_min_value: int = Query(0, description="Minimum follow time amount", ge=0),
+    followers_min_unit: str = Query("days", description="days | weeks | months | years"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    cfg = _raffle_config_params(name, prize, number_of_winners, is_weighted,
+                                weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip,
+                                exclude_mods, subscribers_only, followers_only,
+                                followers_min_enabled, followers_min_value, followers_min_unit)
+    cols = list(cfg.keys())
+    vals = [cfg[c] for c in cols]
+    placeholders = ", ".join(["%s"] * len(cols))
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                # Plain AUTO_INCREMENT id, matching how the dashboard (raffles.php) and the
+                # bot (!createraffle) create raffles in this same table.
+                await cursor.execute(
+                    f"INSERT INTO raffles (status, {', '.join(cols)}) VALUES ('scheduled', {placeholders})",
+                    vals,
+                )
+                new_id = cursor.lastrowid
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=500, detail="Raffle was not added to the database")
+            return {"status": "success", "user": username, "id": new_id, "message": "Raffle added successfully"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error adding raffle for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error adding raffle: {str(e)}")
+
+@app.put(
+    "/raffles/update",
+    summary="Update a raffle's configuration",
+    description="Update a raffle by id. Allowed only while the raffle is 'scheduled' (entry weights are baked in at join time, so editing once it is running/ended is rejected with 409).",
+    tags=["Commands"],
+    operation_id="update_raffle"
+)
+async def update_raffle(
+    api_key: str = Query(...),
+    id: int = Query(..., description="Raffle id to update"),
+    name: str = Query(..., description="Raffle name", max_length=255),
+    prize: str = Query("", description="Prize description"),
+    number_of_winners: int = Query(1, description="How many winners to draw", ge=1),
+    is_weighted: bool = Query(False, description="Weight entries by sub tier / VIP"),
+    weight_sub_t1: float = Query(2.0, description="Tier 1 sub weight multiplier"),
+    weight_sub_t2: float = Query(3.0, description="Tier 2 sub weight multiplier"),
+    weight_sub_t3: float = Query(4.0, description="Tier 3 sub weight multiplier"),
+    weight_vip: float = Query(1.5, description="VIP weight multiplier"),
+    exclude_mods: bool = Query(False, description="Exclude moderators"),
+    subscribers_only: bool = Query(False, description="Subscribers only"),
+    followers_only: bool = Query(False, description="Followers only"),
+    followers_min_enabled: bool = Query(False, description="Require a minimum follow time"),
+    followers_min_value: int = Query(0, description="Minimum follow time amount", ge=0),
+    followers_min_unit: str = Query("days", description="days | weeks | months | years"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    cfg = _raffle_config_params(name, prize, number_of_winners, is_weighted,
+                                weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip,
+                                exclude_mods, subscribers_only, followers_only,
+                                followers_min_enabled, followers_min_value, followers_min_unit)
+    cols = list(cfg.keys())
+    set_clause = ", ".join(f"{c} = %s" for c in cols)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT status FROM raffles WHERE id = %s", (id,))
+                existing = await cursor.fetchone()
+                if not existing:
+                    raise HTTPException(status_code=404, detail=f"Raffle {id} not found")
+                if existing['status'] != 'scheduled':
+                    raise HTTPException(status_code=409, detail="Only scheduled raffles can be edited")
+                await cursor.execute(
+                    f"UPDATE raffles SET {set_clause} WHERE id = %s",
+                    [*[cfg[c] for c in cols], id],
+                )
+                await connection.commit()
+            return {"status": "success", "user": username, "id": id, "message": "Raffle updated successfully"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating raffle for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating raffle: {str(e)}")
+
+@app.put(
+    "/raffles/start",
+    summary="Start a scheduled raffle",
+    description="Move a raffle from 'scheduled' to 'running' so viewers can enter with !joinraffle.",
+    tags=["Commands"],
+    operation_id="start_raffle"
+)
+async def start_raffle(api_key: str = Query(...), id: int = Query(..., description="Raffle id to start"), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT status FROM raffles WHERE id = %s", (id,))
+                existing = await cursor.fetchone()
+                if not existing:
+                    raise HTTPException(status_code=404, detail=f"Raffle {id} not found")
+                if existing['status'] != 'scheduled':
+                    raise HTTPException(status_code=409, detail="Only scheduled raffles can be started")
+                await cursor.execute("UPDATE raffles SET status = 'running' WHERE id = %s", (id,))
+                await connection.commit()
+            return {"status": "success", "user": username, "id": id, "raffle_status": "running", "message": "Raffle started"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error starting raffle for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error starting raffle: {str(e)}")
+
+@app.put(
+    "/raffles/stop",
+    summary="Stop a running raffle without drawing",
+    description="End a running raffle ('running' -> 'ended') without selecting winners. Entries are kept.",
+    tags=["Commands"],
+    operation_id="stop_raffle"
+)
+async def stop_raffle(api_key: str = Query(...), id: int = Query(..., description="Raffle id to stop"), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT status FROM raffles WHERE id = %s", (id,))
+                existing = await cursor.fetchone()
+                if not existing:
+                    raise HTTPException(status_code=404, detail=f"Raffle {id} not found")
+                if existing['status'] != 'running':
+                    raise HTTPException(status_code=409, detail="Only running raffles can be stopped")
+                await cursor.execute("UPDATE raffles SET status = 'ended' WHERE id = %s", (id,))
+                await connection.commit()
+            return {"status": "success", "user": username, "id": id, "raffle_status": "ended", "message": "Raffle stopped"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error stopping raffle for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error stopping raffle: {str(e)}")
+
+@app.post(
+    "/raffles/draw",
+    summary="Draw the winners of a running raffle",
+    description="Select winners from a running raffle using weighted random selection without replacement (using each entry's stored weight), record them, mark the raffle 'ended', and broadcast a RAFFLE_WINNER event so the bot announces the winner(s) in chat.",
+    tags=["Commands"],
+    operation_id="draw_raffle"
+)
+async def draw_raffle(api_key: str = Query(...), id: int = Query(..., description="Raffle id to draw"), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        winners = []
+        raffle_name = None
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, name, prize, number_of_winners, status FROM raffles WHERE id = %s",
+                    (id,),
+                )
+                raffle = await cursor.fetchone()
+                if not raffle:
+                    raise HTTPException(status_code=404, detail=f"Raffle {id} not found")
+                if raffle['status'] != 'running':
+                    raise HTTPException(status_code=409, detail="Raffle must be running to draw winners")
+                raffle_name = raffle['name']
+                num = int(raffle['number_of_winners'] or 1)
+                await cursor.execute(
+                    "SELECT id, username, user_id, weight FROM raffle_entries WHERE raffle_id = %s",
+                    (id,),
+                )
+                entry_rows = await cursor.fetchall()
+                if not entry_rows:
+                    raise HTTPException(status_code=400, detail="Raffle has no entries to draw from")
+                # Weighted roulette without replacement (mirrors bot/dashboard draw).
+                available = [{
+                    "id": e['id'], "username": e['username'], "user_id": e['user_id'],
+                    "weight": max(1, int(e['weight'] or 1)),
+                } for e in entry_rows]
+                for _ in range(min(num, len(available))):
+                    total = sum(e['weight'] for e in available)
+                    pick = random.randint(1, total)
+                    running = 0
+                    win_idx = -1
+                    for idx, e in enumerate(available):
+                        running += e['weight']
+                        if running >= pick:
+                            win_idx = idx
+                            break
+                    if win_idx < 0:
+                        break
+                    winners.append(available.pop(win_idx))
+                if not winners:
+                    raise HTTPException(status_code=500, detail="Failed to select winners")
+                for w in winners:
+                    await cursor.execute(
+                        "INSERT INTO raffle_winners (raffle_id, entry_id, username, user_id) VALUES (%s, %s, %s, %s)",
+                        (id, w['id'], w['username'], w['user_id']),
+                    )
+                await cursor.execute("UPDATE raffles SET status = 'ended' WHERE id = %s", (id,))
+                await connection.commit()
+        finally:
+            connection.close()
+        # Best-effort: broadcast each winner so the bot shouts them in chat. The draw is
+        # already committed; a notify failure must not fail the request.
+        winner_names = [w['username'] for w in winners]
+        try:
+            for wname in winner_names:
+                params = {"event": "RAFFLE_WINNER", "channel": username, "raffle_name": raffle_name, "winner": wname}
+                await websocket_notice("RAFFLE_WINNER", params, api_key)
+        except Exception as notify_err:
+            logging.warning(f"Raffle {id} drawn but winner notify failed: {notify_err}")
+        return {"status": "success", "user": username, "id": id, "winners": winner_names, "message": "Raffle winners drawn"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error drawing raffle for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error drawing raffle: {str(e)}")
+
+@app.delete(
+    "/raffles/delete",
+    summary="Delete a raffle",
+    description="Remove a raffle (and, via cascade, its entries and winners) by id. Allowed in any state.",
+    tags=["Commands"],
+    operation_id="delete_raffle"
+)
+async def delete_raffle(api_key: str = Query(...), id: int = Query(..., description="Raffle id to delete"), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("DELETE FROM raffles WHERE id = %s", (id,))
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Raffle {id} not found")
+            return {"status": "success", "user": username, "id": id, "message": "Raffle deleted successfully"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting raffle for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting raffle: {str(e)}")
+
 # Built-in Commands Endpoints
 @app.get(
     "/builtin-commands",
