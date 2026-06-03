@@ -14,12 +14,12 @@ $dashboardVersion = $config['dashboardVersion'];
 
 if ($isLoggedIn) {
     // User is logged in - show dashboard interface
-    $pageTitle = t('dashboard_page_title_management');
     // Include authentication and user data
     require_once "/var/www/config/db_connect.php";
     include '/var/www/config/twitch.php';
     include '/var/www/config/ssh.php';
     include 'userdata.php';
+    $pageTitle = t('dashboard_page_title_management');
     include 'bot_control.php';
     include "mod_access.php";
     include_once 'usr_database.php';
