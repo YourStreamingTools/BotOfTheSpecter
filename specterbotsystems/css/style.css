@@ -49,6 +49,45 @@
 }
 
 /* ----------------------------------------------------------
+   0b. Light theme token overrides
+   Applied when <html data-theme="light"> is set. Only overrides
+   the colour tokens that exist in :root above — layout, radii and
+   transitions are inherited unchanged.
+   ---------------------------------------------------------- */
+[data-theme="light"] {
+    color-scheme: light;
+    /* Backgrounds */
+    --bg-base:        #f4f4f7;
+    --bg-surface:     #ffffff;
+    --bg-card:        #ffffff;
+    --bg-card-hover:  #eeeef2;
+    --bg-input:       #ffffff;
+    /* Brand / Accent — darkened for AA contrast on light surfaces */
+    --accent:         #6b48b0;
+    --accent-hover:   #5a3a98;
+    --accent-light:   rgba(124, 92, 191, 0.10);
+    --accent-glow:    rgba(124, 92, 191, 0.20);
+    /* Text */
+    --text-primary:   #1a1a20;
+    --text-secondary: #555567;
+    --text-muted:     #6e6e84;
+    /* Borders */
+    --border:         rgba(0, 0, 0, 0.10);
+    --border-hover:   rgba(0, 0, 0, 0.18);
+    /* Status colours — hues kept, darkened for AA on white; denser tints */
+    --green:          #1f9d6b;
+    --green-bg:       rgba(62, 207, 142, 0.18);
+    --blue:           #2080d6;
+    --blue-bg:        rgba(92, 184, 255, 0.18);
+    --amber:          #b67200;
+    --amber-bg:       rgba(251, 191, 36, 0.20);
+    --red:            #c84040;
+    --red-bg:         rgba(248, 113, 113, 0.18);
+    --grey:           #6c6c80;
+    --grey-bg:        rgba(108, 108, 132, 0.10);
+}
+
+/* ----------------------------------------------------------
    1. Reset / Base
    ---------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -3343,4 +3382,46 @@ label.checkbox input[type="checkbox"] {
     .table-container {
         -webkit-overflow-scrolling: touch;
     }
+}
+
+/* ----------------------------------------------------------
+   Theme toggle button (light / dark)
+   Used by specterbotsystems/index.php and mybot/custombot.php.
+   Floats top-right since these pages have no sp-topbar.
+   ---------------------------------------------------------- */
+.sa-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.sa-theme-toggle:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.sa-theme-toggle:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Fixed placement for pages without a top navbar (custombot.php) */
+.sa-theme-toggle-fixed {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 100;
 }

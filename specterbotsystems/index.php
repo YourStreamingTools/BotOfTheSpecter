@@ -184,32 +184,45 @@ function checkServiceStatus($serviceName, $serviceData) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter Status</title>
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (!t) t = (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                if (t !== 'light') t = 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 5px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-base); color: var(--text-primary); min-height: 100vh; padding: 5px; }
         .container { max-width: 1200px; margin: 0 auto; }
-        .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0px; }
+        .title-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0px; }
         .columns { margin-bottom: 0; }
         h1 { text-align: center; margin-bottom: 0px; font-size: 1.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 10px; backdrop-filter: blur(10px); margin: 0; }
-        .section h2 { margin-bottom: 5px; font-size: 1.1em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
+        .section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 10px; backdrop-filter: blur(10px); margin: 0; }
+        .section h2 { margin-bottom: 5px; font-size: 1.1em; border-bottom: 2px solid var(--border-hover); padding-bottom: 5px; }
         .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 5px; }
-        .status-item { background: rgba(255,255,255,0.05); padding: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .status-item { background: var(--bg-card-hover); padding: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
         .status-item strong { font-size: 1.1em; }
-        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
-        .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
+        .heartbeat { color: var(--red); transition: transform 0.2s ease; font-size: 1.2em; }
+        .heartbeat.beating { color: var(--green); animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .info-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #292929; }
+        .info-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); }
         .info-item:last-child { border-bottom: none; }
-        .error { color: #ff4d4d; }
+        .error { color: var(--red); }
         .last-updated { text-align: center; margin-top: 5px; font-size: 0.9em; opacity: 0.8; }
         #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; }
         #system-metrics .status-item > div:last-child { text-align: left; }
@@ -228,6 +241,9 @@ function checkServiceStatus($serviceName, $serviceData) {
     <div class="title-row">
         <h1>BotOfTheSpecter System Status</h1>
         <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
+        <button class="sa-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+            <i class="fa-solid fa-moon" id="spThemeIcon"></i>
+        </button>
     </div>
     <!-- Service Statuses -->
     <div class="section">
@@ -465,6 +481,29 @@ function fetchAndUpdateStatus() {
 setInterval(fetchAndUpdateStatus, 60000);
 // Also fetch immediately on load
 fetchAndUpdateStatus();
+</script>
+<script>
+// Light/dark theme toggle. The <head> bootstrap sets the initial theme.
+(function () {
+    var btn = document.getElementById('spThemeToggle');
+    if (!btn) return;
+    function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+    function syncIcon(theme) {
+        var icon = document.getElementById('spThemeIcon');
+        if (icon) icon.className = (theme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon');
+    }
+    function apply(theme, persist) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+        syncIcon(theme);
+        if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+    }
+    syncIcon(current());
+    btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+    window.addEventListener('storage', function (e) {
+        if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+    });
+})();
 </script>
 </body>
 </html>
