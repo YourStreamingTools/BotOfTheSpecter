@@ -1185,7 +1185,7 @@ ob_start();
 </div>
 <!-- Bot Console Viewer Modal -->
 <div id="console-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;justify-content:center;align-items:center;padding:1rem;" onclick="consoleModalBackdropClick(event)">
-    <div style="background:var(--card-bg,#1a1a2e);border-radius:var(--radius,8px);width:100%;max-width:960px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onclick="event.stopPropagation()">
+    <div style="background:var(--bg-card,#1a1a20);border-radius:var(--radius,8px);width:100%;max-width:960px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onclick="event.stopPropagation()">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
             <div style="display:flex;align-items:center;gap:0.75rem;">
                 <span class="icon"><i class="fas fa-terminal"></i></span>
@@ -1197,7 +1197,7 @@ ob_start();
                 <span><?php echo t('admin_start_bots_console_close'); ?></span>
             </button>
         </div>
-        <pre id="console-modal-output" style="background:#1e1e1e;color:#d4d4d4;font-family:'Courier New',monospace;flex:1;overflow-y:auto;white-space:pre-wrap;word-break:break-all;padding:1rem;margin:0;min-height:420px;max-height:calc(90vh - 60px);"></pre>
+        <pre id="console-modal-output" style="background:var(--bg-input);color:var(--text-primary);font-family:'Courier New',monospace;flex:1;overflow-y:auto;white-space:pre-wrap;word-break:break-all;padding:1rem;margin:0;min-height:420px;max-height:calc(90vh - 60px);"></pre>
     </div>
 </div>
 <script>

@@ -80,7 +80,7 @@ if ($sessionCount >= 3) {
             </div>
         <?php endforeach; ?>
         <?php if (count($data['websocketSubsDisabled']) > 0): ?>
-            <div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">
+            <div class="stat-secondary" style="color: var(--red); margin-top: 4px;">
                 <?php echo count($data['websocketSubsDisabled']); ?> <?= t('notifications_content_disabled_stale_word') ?>
             </div>
         <?php endif; ?>
@@ -141,12 +141,12 @@ if ($sessionCount >= 3) {
                             <tr>
                                 <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
                                 <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
-                                <td style="font-size: 12px; color: #aaa;">
+                                <td style="font-size: 12px; color: var(--text-muted);">
                                     <?php 
                                     $conditions = [];
                                     foreach ($sub['condition'] as $key => $value) {
                                         if ($value === $data['userId']) {
-                                            $conditions[] = "$key: <strong style='color: #00ff00;'>" . t('notifications_content_condition_you') . "</strong>";
+                                            $conditions[] = "$key: <strong style='color: var(--green);'>" . t('notifications_content_condition_you') . "</strong>";
                                         } else {
                                             $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
                                         }
@@ -161,7 +161,7 @@ if ($sessionCount >= 3) {
                                     ?>
                                     <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
                                 </td>
-                                <td style="font-size: 12px; color: #aaa;">
+                                <td style="font-size: 12px; color: var(--text-muted);">
                                     <?php 
                                     $created = new DateTime($sub['created_at']);
                                     echo $created->format('M d, H:i:s');
@@ -225,12 +225,12 @@ if ($sessionCount >= 3) {
                             <tr style="opacity: 0.7;">
                                 <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
                                 <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
-                                <td style="font-size: 12px; color: #aaa;">
+                                <td style="font-size: 12px; color: var(--text-muted);">
                                     <?php 
                                     $conditions = [];
                                     foreach ($sub['condition'] as $key => $value) {
                                         if ($value === $data['userId']) {
-                                            $conditions[] = "$key: <strong style='color: #00ff00;'>" . t('notifications_content_condition_you') . "</strong>";
+                                            $conditions[] = "$key: <strong style='color: var(--green);'>" . t('notifications_content_condition_you') . "</strong>";
                                         } else {
                                             $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
                                         }
@@ -245,7 +245,7 @@ if ($sessionCount >= 3) {
                                     ?>
                                     <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
                                 </td>
-                                <td style="font-size: 12px; color: #aaa;">
+                                <td style="font-size: 12px; color: var(--text-muted);">
                                     <?php 
                                     $created = new DateTime($sub['created_at']);
                                     echo $created->format('M d, H:i:s');
@@ -285,7 +285,7 @@ if ($sessionCount >= 3) {
                     <tr>
                         <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
                         <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
-                        <td style="font-size: 11px; color: #aaa; word-break: break-all;">
+                        <td style="font-size: 11px; color: var(--text-muted); word-break: break-all;">
                             <?php echo htmlspecialchars($sub['transport']['callback'] ?? 'N/A'); ?>
                         </td>
                         <td>

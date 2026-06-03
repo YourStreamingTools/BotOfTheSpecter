@@ -67,7 +67,7 @@ ob_start();
                         <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
                     </div>
                     <div class="sp-card-body">
-                        <div style="font-size:2rem;color:#00d1b2;margin-bottom:0.75rem;"><i class="fas fa-object-group"></i></div>
+                        <div style="font-size:2rem;color:var(--green);margin-bottom:0.75rem;"><i class="fas fa-object-group"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_scene_control_title'); ?></p>
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_scene_control_desc'); ?></p>
                     </div>
@@ -209,7 +209,7 @@ ob_start();
                         <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
                     </div>
                     <div class="sp-card-body">
-                        <div style="font-size:2rem;color:#00d1b2;margin-bottom:0.75rem;"><i class="fas fa-walking"></i></div>
+                        <div style="font-size:2rem;color:var(--green);margin-bottom:0.75rem;"><i class="fas fa-walking"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_walkons_title'); ?></p>
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_walkons_desc'); ?></p>
                     </div>
