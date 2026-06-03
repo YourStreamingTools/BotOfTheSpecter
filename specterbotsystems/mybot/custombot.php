@@ -326,14 +326,30 @@ if (isset($_GET['action']) && $_GET['action'] === 'login'
 session_write_close();
 ?>
 <!doctype html>
-<html lang="en" class="theme-dark">
+<html lang="en" data-theme="dark" class="theme-dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>BotOfTheSpecter - Verify Custom Bot</title>
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (!t) t = (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                if (t !== 'light') t = 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
+    <button class="sa-theme-toggle sa-theme-toggle-fixed" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+        <i class="fa-solid fa-moon" id="spThemeIcon"></i>
+    </button>
     <section class="section">
         <div class="container">
             <div class="columns is-centered">
@@ -369,5 +385,28 @@ session_write_close();
             </div>
         </div>
     </section>
+    <script>
+    // Light/dark theme toggle. The <head> bootstrap sets the initial theme.
+    (function () {
+        var btn = document.getElementById('spThemeToggle');
+        if (!btn) return;
+        function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+        function syncIcon(theme) {
+            var icon = document.getElementById('spThemeIcon');
+            if (icon) icon.className = (theme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon');
+        }
+        function apply(theme, persist) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+            syncIcon(theme);
+            if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+        }
+        syncIcon(current());
+        btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+        window.addEventListener('storage', function (e) {
+            if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+        });
+    })();
+    </script>
 </body>
 </html>
