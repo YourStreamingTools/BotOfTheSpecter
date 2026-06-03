@@ -523,3 +523,90 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ----------------------------------------------------------
+   Light theme overrides (additive)
+   dashboard.css already provides the [data-theme="light"] token
+   block, the <head> bootstrap and the toggle. This block ONLY
+   re-maps admin.css's own hardcoded colours that assume a dark
+   surface, so they read correctly under <html data-theme="light">.
+   Dark-mode rules above are untouched.
+   ---------------------------------------------------------- */
+[data-theme="light"] .sp-table thead {
+    /* Dark slate gradient -> light neutral surface so header text reads */
+    background: linear-gradient(90deg, var(--bg-card-hover), var(--bg-surface));
+}
+
+[data-theme="light"] .sp-table tbody tr:hover {
+    background: var(--accent-light);
+}
+
+[data-theme="light"] .admin-subtitle {
+    color: var(--text-secondary);
+}
+
+/* Search bar: built for a dark navy input; recolour for light */
+[data-theme="light"] .search-wrapper .search-icon {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .search-input {
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .search-input::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 6px 18px var(--accent-light);
+}
+
+[data-theme="light"] .search-clear {
+    background: var(--bg-card-hover);
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .search-clear:hover {
+    background: var(--border-hover);
+}
+
+[data-theme="light"] .search-count {
+    color: var(--text-muted);
+}
+
+/* Discord config card content: near-white text -> dark tokens */
+[data-theme="light"] .config-card .sp-card-body .content p {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .config-card .sp-card-body .content strong {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .config-card .sp-card-body .content em {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .config-card .sp-badge-light {
+    background-color: var(--blue-bg) !important;
+    color: var(--blue) !important;
+    border: 1px solid var(--blue);
+}
+
+[data-theme="light"] .config-card .sp-badge-info {
+    background-color: var(--blue-bg);
+    color: var(--blue);
+}
+
+/* Bot message counts: flagged #3273dc / #7a7a7a */
+[data-theme="light"] .bot-message-count-number {
+    color: var(--blue);
+}
+
+[data-theme="light"] .bot-message-count-timestamp {
+    color: var(--text-muted);
+}
