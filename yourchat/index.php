@@ -687,6 +687,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     <label class="feature-item">
                         <input type="checkbox" id="ding-sound-checkbox">&nbsp;Play a ding sound on each new chat message
                     </label>
+                    <div class="ding-volume-row is-collapsed" id="ding-volume-row">
+                        <label for="ding-volume-slider" class="ding-volume-label">Ding volume</label>
+                        <input type="range" id="ding-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Ding volume">
+                        <span class="ding-volume-value" id="ding-volume-value">100%</span>
+                        <button type="button" id="ding-volume-test" class="ding-volume-test">Test</button>
+                    </div>
                 </div>
             </div>
             <div class="two-column-container">
@@ -1419,7 +1425,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 filters_messages: [],
                 nicknames: {},
                 presence_enabled: false,
-                ding_sound_enabled: true
+                ding_sound_enabled: true,
+                ding_volume: 1
             };
             async function loadSettingsFromServer() {
                 try {
@@ -1437,6 +1444,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         if (userSettings.presence_enabled === undefined) userSettings.presence_enabled = false;
                         // Ding sound defaults to ON when never configured before
                         if (userSettings.ding_sound_enabled === undefined) userSettings.ding_sound_enabled = true;
+                        // Ding volume defaults to 100% (1.0) when never configured before
+                        if (typeof userSettings.ding_volume !== 'number') userSettings.ding_volume = 1;
                         return true;
                     }
                     return false;
@@ -3547,6 +3556,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         function playDingSound() {
             if (!dingSoundEnabled) return;
+            if (dingVolume <= 0) return; // muted via the volume slider
             // Throttle bursts so rapid-fire chat doesn't machine-gun the sound
             const now = Date.now();
             if (now - lastDingAtMs < DING_MIN_GAP_MS) return;
@@ -3566,8 +3576,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(880, t);        // A5
                 osc.frequency.exponentialRampToValueAtTime(1320, t + 0.06); // ~E6
+                const peak = Math.max(0.0001, DING_PEAK_GAIN * dingVolume); // scaled by the volume slider
                 gain.gain.setValueAtTime(0.0001, t);
-                gain.gain.exponentialRampToValueAtTime(0.18, t + 0.01); // quick attack, modest volume
+                gain.gain.exponentialRampToValueAtTime(peak, t + 0.01); // quick attack
                 gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35); // smooth decay
                 osc.connect(gain);
                 gain.connect(ctx.destination);
@@ -3592,6 +3603,31 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             try { localStorage.setItem(DING_STORAGE_KEY, enabled ? 'true' : 'false'); } catch (e) { /* ignore */ }
             // Mirror to server-side per-user settings to match the page's other toggles
             userSettings.ding_sound_enabled = enabled;
+            saveSettingsToServer();
+        }
+        // ----- Ding volume: a 0..1 multiplier applied to the ding's peak gain -----
+        const DING_VOLUME_STORAGE_KEY = 'yourchat-ding-volume';
+        const DING_PEAK_GAIN = 0.18;  // peak gain at 100% volume (the original loudness)
+        let dingVolume = 1;           // 0..1; default 100% (persisted in localStorage + userSettings)
+        function loadDingVolumeSetting() {
+            // localStorage first (immediate, survives reloads), then server setting, else 100%.
+            try {
+                const stored = localStorage.getItem(DING_VOLUME_STORAGE_KEY);
+                if (stored !== null) {
+                    const v = parseFloat(stored);
+                    if (!isNaN(v)) return Math.min(1, Math.max(0, v));
+                }
+            } catch (e) { /* localStorage may be unavailable */ }
+            if (typeof userSettings.ding_volume === 'number') {
+                return Math.min(1, Math.max(0, userSettings.ding_volume));
+            }
+            return 1;
+        }
+        function saveDingVolumeSetting(vol) {
+            const v = Math.min(1, Math.max(0, vol));
+            try { localStorage.setItem(DING_VOLUME_STORAGE_KEY, String(v)); } catch (e) { /* ignore */ }
+            // Mirror to server-side per-user settings to match the page's other settings
+            userSettings.ding_volume = v;
             saveSettingsToServer();
         }
         function handleChatMessage(event) {
@@ -4400,6 +4436,58 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             } catch (e) {
                 console.error('Error initializing ding sound setting', e);
+            }
+            // Initialize the ding-volume slider (revealed only while the ding is enabled)
+            try {
+                const volRow = document.getElementById('ding-volume-row');
+                const volSlider = document.getElementById('ding-volume-slider');
+                const volValue = document.getElementById('ding-volume-value');
+                const volTest = document.getElementById('ding-volume-test');
+                const dingCb = document.getElementById('ding-sound-checkbox');
+                dingVolume = loadDingVolumeSetting();
+                const pct = Math.round(dingVolume * 100);
+                if (volSlider) volSlider.value = pct;
+                if (volValue) volValue.textContent = pct + '%';
+                // Reveal the row only when the ding sound is on (reads the live checkbox state)
+                const syncVolumeRowVisibility = () => {
+                    const enabled = dingCb ? dingCb.checked : dingSoundEnabled;
+                    if (volRow) volRow.classList.toggle('is-collapsed', !enabled);
+                };
+                syncVolumeRowVisibility();
+                if (dingCb) dingCb.addEventListener('change', syncVolumeRowVisibility);
+                // Resume the audio context (if needed) then play, so the preview is
+                // audible even when it's the very first user gesture on the page.
+                const preview = () => {
+                    const ctx = getDingAudioContext();
+                    if (!ctx) return;
+                    if (ctx.state === 'suspended') {
+                        ctx.resume().then(() => { dingAudioUnlocked = true; playDingSound(); }).catch(() => {});
+                    } else {
+                        dingAudioUnlocked = true;
+                        playDingSound();
+                    }
+                };
+                if (volSlider) {
+                    // Live readout while dragging (avoid hitting the server on every tick)
+                    volSlider.addEventListener('input', (e) => {
+                        const p = parseInt(e.target.value, 10) || 0;
+                        dingVolume = p / 100;
+                        if (volValue) volValue.textContent = p + '%';
+                    });
+                    // Persist + preview once the slider is released
+                    volSlider.addEventListener('change', (e) => {
+                        const p = parseInt(e.target.value, 10) || 0;
+                        dingVolume = p / 100;
+                        saveDingVolumeSetting(dingVolume);
+                        preview();
+                        console.log(`Ding volume set to ${p}%`);
+                    });
+                }
+                if (volTest) {
+                    volTest.addEventListener('click', preview);
+                }
+            } catch (e) {
+                console.error('Error initializing ding volume setting', e);
             }
             // Unlock Web Audio on the first user gesture (browser autoplay policy)
             try {
