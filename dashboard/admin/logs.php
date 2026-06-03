@@ -318,7 +318,7 @@ function highlight_apache2_logs($text, $logType) {
 
 function highlight_admin_audit_logs($rows) {
     if (!is_array($rows) || empty($rows)) {
-        return '(no audit records found)';
+        return t('admin_logs_audit_none');
     }
     $html = [];
     foreach ($rows as $row) {
@@ -378,7 +378,7 @@ if (isset($_GET['admin_audit_log'])) {
     }
     $tableCheck = $conn->query("SHOW TABLES LIKE 'admin_audit_log'");
     if (!$tableCheck || $tableCheck->num_rows === 0) {
-        echo json_encode(['data' => '(admin audit log table has not been created yet)']);
+        echo json_encode(['data' => t('admin_logs_audit_table_missing')]);
         exit();
     }
     $stmt = $conn->prepare("SELECT created_at, actor_username, action, status, target_type, target_value, details_json, request_method, request_path FROM admin_audit_log ORDER BY id DESC LIMIT ?");
@@ -395,7 +395,7 @@ if (isset($_GET['admin_audit_log'])) {
     }
     $stmt->close();
     if (empty($rows)) {
-        echo json_encode(['data' => '(no audit records found)', 'empty' => true]);
+        echo json_encode(['data' => t('admin_logs_audit_none'), 'empty' => true]);
         exit();
     }
     echo json_encode(['data' => highlight_admin_audit_logs($rows)]);
@@ -415,7 +415,7 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     if (isset($result['error'])) {
         // If file not found, return empty log message
         if ($result['error'] === 'not_found') {
-            echo json_encode(['data' => '(log file is empty)']);
+            echo json_encode(['data' => t('admin_logs_user_file_empty')]);
         } else {
             echo json_encode(['error' => 'connection_failed']);
         }
@@ -755,72 +755,72 @@ if (isset($_GET['admin_token_log_type'])) {
 // Define system log types in a single PHP array for both PHP and JS
 $systemLogTypes = [
     [
-        'label' => 'Standard Apache2 Logs',
+        'label' => t('admin_logs_group_standard_apache'),
         'options' => [
-            ['value' => 'apache2-access', 'label' => 'Apache2 Access Log (Combined)'],
-            ['value' => 'apache2-error', 'label' => 'Apache2 Error Log (Combined)'],
-            ['value' => 'other_vhosts_access', 'label' => 'Other Virtual Hosts Access'],
+            ['value' => 'apache2-access', 'label' => t('admin_logs_opt_apache2_access_combined')],
+            ['value' => 'apache2-error', 'label' => t('admin_logs_opt_apache2_error_combined')],
+            ['value' => 'other_vhosts_access', 'label' => t('admin_logs_opt_other_vhosts_access')],
         ]
     ],
     [
-        'label' => 'Apache2 Access Logs',
+        'label' => t('admin_logs_group_apache_access'),
         'options' => [
-            ['value' => 'beta.dashboard.botofthespecter.com_access', 'label' => 'Beta Dashboard Access'],
-            ['value' => 'botofthespecter.com_access', 'label' => 'Main Site Access'],
-            ['value' => 'cdn.botofthespecter.com_access', 'label' => 'CDN Access'],
-            ['value' => 'dashboard.botofthespecter.com_access', 'label' => 'Dashboard Access'],
-            ['value' => 'extension.botofthespecter.com_access', 'label' => 'Extension Access'],
-            ['value' => 'help.botofthespecter.com_access', 'label' => 'Help Site Access'],
-            ['value' => 'members.botofthespecter.com_access', 'label' => 'Members Access'],
-            ['value' => 'overlay.botofthespecter.com_access', 'label' => 'Overlay Access'],
-            ['value' => 'roadmap.botofthespecter.com_access', 'label' => 'Roadmap Access'],
-            ['value' => 'soundalerts.botofthespecter.com_access', 'label' => 'Sound Alerts Access'],
-            ['value' => 'tts.botofthespecter.com_access', 'label' => 'TTS Access'],
-            ['value' => 'videoalerts.botofthespecter.com_access', 'label' => 'Video Alerts Access'],
-            ['value' => 'walkons.botofthespecter.com_access', 'label' => 'Walkons Access'],
-            ['value' => 'yourchat.botofthespecter.com_access', 'label' => 'YourChat Access'],
-            ['value' => 'specterbot.app_access', 'label' => 'Specterbot App Access'],
-            ['value' => 'mybot.specterbot.systems_access', 'label' => 'MyBot Specterbot Systems Access'],
-            ['value' => 'specterbot.systems_access', 'label' => 'Specterbot Systems Access'],
-            ['value' => 'ghostbot.au_access', 'label' => 'GhostBot AU Access'],
-            ['value' => 'yourlinks.click_access', 'label' => 'YourLinks Click Access'],
-            ['value' => 'streamersconnect_ssl_access', 'label' => 'StreamersConnect SSL Access (combined)'],
+            ['value' => 'beta.dashboard.botofthespecter.com_access', 'label' => t('admin_logs_opt_beta_dashboard_access')],
+            ['value' => 'botofthespecter.com_access', 'label' => t('admin_logs_opt_main_site_access')],
+            ['value' => 'cdn.botofthespecter.com_access', 'label' => t('admin_logs_opt_cdn_access')],
+            ['value' => 'dashboard.botofthespecter.com_access', 'label' => t('admin_logs_opt_dashboard_access')],
+            ['value' => 'extension.botofthespecter.com_access', 'label' => t('admin_logs_opt_extension_access')],
+            ['value' => 'help.botofthespecter.com_access', 'label' => t('admin_logs_opt_help_access')],
+            ['value' => 'members.botofthespecter.com_access', 'label' => t('admin_logs_opt_members_access')],
+            ['value' => 'overlay.botofthespecter.com_access', 'label' => t('admin_logs_opt_overlay_access')],
+            ['value' => 'roadmap.botofthespecter.com_access', 'label' => t('admin_logs_opt_roadmap_access')],
+            ['value' => 'soundalerts.botofthespecter.com_access', 'label' => t('admin_logs_opt_soundalerts_access')],
+            ['value' => 'tts.botofthespecter.com_access', 'label' => t('admin_logs_opt_tts_access')],
+            ['value' => 'videoalerts.botofthespecter.com_access', 'label' => t('admin_logs_opt_videoalerts_access')],
+            ['value' => 'walkons.botofthespecter.com_access', 'label' => t('admin_logs_opt_walkons_access')],
+            ['value' => 'yourchat.botofthespecter.com_access', 'label' => t('admin_logs_opt_yourchat_access')],
+            ['value' => 'specterbot.app_access', 'label' => t('admin_logs_opt_specterbot_app_access')],
+            ['value' => 'mybot.specterbot.systems_access', 'label' => t('admin_logs_opt_mybot_systems_access')],
+            ['value' => 'specterbot.systems_access', 'label' => t('admin_logs_opt_specterbot_systems_access')],
+            ['value' => 'ghostbot.au_access', 'label' => t('admin_logs_opt_ghostbot_access')],
+            ['value' => 'yourlinks.click_access', 'label' => t('admin_logs_opt_yourlinks_access')],
+            ['value' => 'streamersconnect_ssl_access', 'label' => t('admin_logs_opt_streamersconnect_access')],
         ]
     ],
     [
-        'label' => 'Apache2 Error Logs',
+        'label' => t('admin_logs_group_apache_error'),
         'options' => [
-            ['value' => 'beta.dashboard.botofthespecter.com_error', 'label' => 'Beta Dashboard Errors'],
-            ['value' => 'botofthespecter.com_error', 'label' => 'Main Site Errors'],
-            ['value' => 'cdn.botofthespecter.com_error', 'label' => 'CDN Errors'],
-            ['value' => 'dashboard.botofthespecter.com_error', 'label' => 'Dashboard Errors'],
-            ['value' => 'extension.botofthespecter.com_error', 'label' => 'Extension Errors'],
-            ['value' => 'help.botofthespecter.com_error', 'label' => 'Help Site Errors'],
-            ['value' => 'members.botofthespecter.com_error', 'label' => 'Members Errors'],
-            ['value' => 'overlay.botofthespecter.com_error', 'label' => 'Overlay Errors'],
-            ['value' => 'roadmap.botofthespecter.com_error', 'label' => 'Roadmap Error'],
-            ['value' => 'soundalerts.botofthespecter.com_error', 'label' => 'Sound Alerts Errors'],
-            ['value' => 'tts.botofthespecter.com_error', 'label' => 'TTS Errors'],
-            ['value' => 'videoalerts.botofthespecter.com_error', 'label' => 'Video Alerts Errors'],
-            ['value' => 'walkons.botofthespecter.com_error', 'label' => 'Walkons Errors'],
-            ['value' => 'yourchat.botofthespecter.com_error', 'label' => 'YourChat Errors'],
-            ['value' => 'specterbot.app_error', 'label' => 'Specterbot App Error'],
-            ['value' => 'mybot.specterbot.systems_error', 'label' => 'MyBot Specterbot Systems Error'],
-            ['value' => 'specterbot.systems_error', 'label' => 'Specterbot Systems Error'],
-            ['value' => 'ghostbot.au_error', 'label' => 'GhostBot AU Error'],
-            ['value' => 'yourlinks.click_error', 'label' => 'YourLinks Click Error'],
-            ['value' => 'streamersconnect_ssl_error', 'label' => 'StreamersConnect SSL Error'],
+            ['value' => 'beta.dashboard.botofthespecter.com_error', 'label' => t('admin_logs_opt_beta_dashboard_error')],
+            ['value' => 'botofthespecter.com_error', 'label' => t('admin_logs_opt_main_site_error')],
+            ['value' => 'cdn.botofthespecter.com_error', 'label' => t('admin_logs_opt_cdn_error')],
+            ['value' => 'dashboard.botofthespecter.com_error', 'label' => t('admin_logs_opt_dashboard_error')],
+            ['value' => 'extension.botofthespecter.com_error', 'label' => t('admin_logs_opt_extension_error')],
+            ['value' => 'help.botofthespecter.com_error', 'label' => t('admin_logs_opt_help_error')],
+            ['value' => 'members.botofthespecter.com_error', 'label' => t('admin_logs_opt_members_error')],
+            ['value' => 'overlay.botofthespecter.com_error', 'label' => t('admin_logs_opt_overlay_error')],
+            ['value' => 'roadmap.botofthespecter.com_error', 'label' => t('admin_logs_opt_roadmap_error')],
+            ['value' => 'soundalerts.botofthespecter.com_error', 'label' => t('admin_logs_opt_soundalerts_error')],
+            ['value' => 'tts.botofthespecter.com_error', 'label' => t('admin_logs_opt_tts_error')],
+            ['value' => 'videoalerts.botofthespecter.com_error', 'label' => t('admin_logs_opt_videoalerts_error')],
+            ['value' => 'walkons.botofthespecter.com_error', 'label' => t('admin_logs_opt_walkons_error')],
+            ['value' => 'yourchat.botofthespecter.com_error', 'label' => t('admin_logs_opt_yourchat_error')],
+            ['value' => 'specterbot.app_error', 'label' => t('admin_logs_opt_specterbot_app_error')],
+            ['value' => 'mybot.specterbot.systems_error', 'label' => t('admin_logs_opt_mybot_systems_error')],
+            ['value' => 'specterbot.systems_error', 'label' => t('admin_logs_opt_specterbot_systems_error')],
+            ['value' => 'ghostbot.au_error', 'label' => t('admin_logs_opt_ghostbot_error')],
+            ['value' => 'yourlinks.click_error', 'label' => t('admin_logs_opt_yourlinks_error')],
+            ['value' => 'streamersconnect_ssl_error', 'label' => t('admin_logs_opt_streamersconnect_error')],
         ]
     ],
     [
-        'label' => 'Other System Logs',
+        'label' => t('admin_logs_group_other_system'),
         'options' => [
-            ['value' => 'api', 'label' => 'API Server Log'],
-            ['value' => 'websocket', 'label' => 'WebSocket Server Log'],
-            ['value' => 'mysql-error', 'label' => 'MySQL Error Log'],
-            ['value' => 'discordbot', 'label' => 'Discord Bot Log'],
-            ['value' => 'streamersconnect-cleanup', 'label' => 'StreamersConnect Cleanup Log'],
-            ['value' => 'twitch-recorder', 'label' => 'Twitch Auto-Recorder Log'],
+            ['value' => 'api', 'label' => t('admin_logs_opt_api_server')],
+            ['value' => 'websocket', 'label' => t('admin_logs_opt_websocket_server')],
+            ['value' => 'mysql-error', 'label' => t('admin_logs_opt_mysql_error')],
+            ['value' => 'discordbot', 'label' => t('admin_logs_opt_discord_bot')],
+            ['value' => 'streamersconnect-cleanup', 'label' => t('admin_logs_opt_streamersconnect_cleanup')],
+            ['value' => 'twitch-recorder', 'label' => t('admin_logs_opt_twitch_recorder')],
         ]
     ],
 ];
@@ -833,20 +833,20 @@ ob_start();
 ?>
 <div class="sp-card">
     <div class="sp-card-header">
-        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-clipboard-list"></i></span> Admin Logs</h1>
+        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-clipboard-list"></i></span> <?php echo t('admin_logs_heading'); ?></h1>
     </div>
     <div class="sp-card-body">
     <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1rem;">
         <select class="sp-select" id="admin-log-category-select">
-                            <option value="">Select Log Category</option>
-                            <option value="audit">Admin Audit Log</option>
-                            <option value="system">System Logs</option>
-                            <option value="user">User Logs</option>
-                            <option value="token">Token Logs</option>
+                            <option value=""><?php echo t('admin_logs_cat_select'); ?></option>
+                            <option value="audit"><?php echo t('admin_logs_cat_audit'); ?></option>
+                            <option value="system"><?php echo t('admin_logs_cat_system'); ?></option>
+                            <option value="user"><?php echo t('admin_logs_cat_user'); ?></option>
+                            <option value="token"><?php echo t('admin_logs_cat_token'); ?></option>
                         </select>
         <div id="admin-log-user-control">
         <select class="sp-select" id="admin-log-user-select" disabled>
-                            <option value="">Select Log Category First</option>
+                            <option value=""><?php echo t('admin_logs_select_category_first'); ?></option>
                             <?php foreach ($users as $u): ?>
                                 <option value="<?php echo htmlspecialchars($u); ?>"><?php echo htmlspecialchars($u); ?></option>
                             <?php endforeach; ?>
@@ -854,22 +854,22 @@ ob_start();
         </div><!-- /admin-log-user-control -->
         <div id="user-log-type-control" style="display: none;">
         <select class="sp-select" id="admin-log-type-select" disabled>
-                            <option value="">Select Log Type</option>
-                            <option value="bot">Bot Log</option>
-                            <option value="chat">Chat Log</option>
-                            <option value="twitch">Twitch Log</option>
-                            <option value="api">API Log</option>
-                            <option value="chat_history">Chat History</option>
-                            <option value="event_log">Event Log</option>
-                            <option value="websocket">Websocket Log</option>
-                            <option value="system">System Log</option>
-                            <option value="integrations">Integrations Log</option>
-                            <option value="crash">Crash Log</option>
+                            <option value=""><?php echo t('admin_logs_type_select'); ?></option>
+                            <option value="bot"><?php echo t('admin_logs_type_bot'); ?></option>
+                            <option value="chat"><?php echo t('admin_logs_type_chat'); ?></option>
+                            <option value="twitch"><?php echo t('admin_logs_type_twitch'); ?></option>
+                            <option value="api"><?php echo t('admin_logs_type_api'); ?></option>
+                            <option value="chat_history"><?php echo t('admin_logs_type_chat_history'); ?></option>
+                            <option value="event_log"><?php echo t('admin_logs_type_event'); ?></option>
+                            <option value="websocket"><?php echo t('admin_logs_type_websocket'); ?></option>
+                            <option value="system"><?php echo t('admin_logs_type_system'); ?></option>
+                            <option value="integrations"><?php echo t('admin_logs_type_integrations'); ?></option>
+                            <option value="crash"><?php echo t('admin_logs_type_crash'); ?></option>
                         </select>
         </div><!-- /user-log-type-control -->
         <div id="system-log-type-control" style="display: none;">
         <select class="sp-select" id="admin-system-log-type-select" disabled>
-                            <option value="">Select System Log Type</option>
+                            <option value=""><?php echo t('admin_logs_system_type_select'); ?></option>
                             <?php
                             foreach ($systemLogTypes as $group) {
                                 echo '<optgroup label="' . htmlspecialchars($group['label']) . '">';
@@ -883,20 +883,20 @@ ob_start();
         </div><!-- /system-log-type-control -->
         <div id="token-log-type-control" style="display: none;">
         <select class="sp-select" id="admin-token-log-type-select" disabled>
-                            <option value="">Select Token Log</option>
-                            <option value="spotify_refresh">Spotify Log</option>
-                            <option value="refresh_streamelements_tokens">StreamElements Log</option>
-                            <option value="refresh_discord_tokens">Discord Log</option>
-                            <option value="custom_bot_token_refresh_cron">Custom Bot Logs (cron)</option>
-                            <option value="custom_bot_token_refresh">Custom Bot Logs (manual)</option>
+                            <option value=""><?php echo t('admin_logs_token_select'); ?></option>
+                            <option value="spotify_refresh"><?php echo t('admin_logs_token_spotify'); ?></option>
+                            <option value="refresh_streamelements_tokens"><?php echo t('admin_logs_token_streamelements'); ?></option>
+                            <option value="refresh_discord_tokens"><?php echo t('admin_logs_token_discord'); ?></option>
+                            <option value="custom_bot_token_refresh_cron"><?php echo t('admin_logs_token_custom_bot_cron'); ?></option>
+                            <option value="custom_bot_token_refresh"><?php echo t('admin_logs_token_custom_bot_manual'); ?></option>
                         </select>
         </div><!-- /token-log-type-control -->
-        <button class="sp-btn sp-btn-info" id="admin-log-reload" disabled>Reload</button>
+        <button class="sp-btn sp-btn-info" id="admin-log-reload" disabled><?php echo t('admin_logs_btn_reload'); ?></button>
         <button class="sp-btn" id="admin-log-auto-refresh" disabled>
             <span class="icon">
                 <i class="fas fa-play"></i>
             </span>
-            <span>Auto Refresh</span>
+            <span><?php echo t('admin_logs_btn_auto_refresh'); ?></span>
         </button>
     </div><!-- /filter-row -->
     <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"></div>
@@ -909,6 +909,29 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+const ADMIN_LOGS_I18N = {
+    chooseUser: <?php echo json_encode(t('admin_logs_choose_user')); ?>,
+    selectCategoryFirst: <?php echo json_encode(t('admin_logs_select_category_first')); ?>,
+    systemTypeSelect: <?php echo json_encode(t('admin_logs_system_type_select')); ?>,
+    autoRefresh: <?php echo json_encode(t('admin_logs_btn_auto_refresh')); ?>,
+    stopAutoRefresh: <?php echo json_encode(t('admin_logs_btn_stop_auto_refresh')); ?>,
+    pathLabel: <?php echo json_encode(t('admin_logs_js_path_label')); ?>,
+    connectionFailed: <?php echo json_encode(t('admin_logs_js_connection_failed')); ?>,
+    unknownError: <?php echo json_encode(t('admin_logs_js_unknown_error')); ?>,
+    permissionDenied: <?php echo json_encode(t('admin_logs_js_permission_denied')); ?>,
+    userNotFound: <?php echo json_encode(t('admin_logs_js_user_not_found')); ?>,
+    userFileEmpty: <?php echo json_encode(t('admin_logs_js_user_file_empty')); ?>,
+    userEmptyOrNotFound: <?php echo json_encode(t('admin_logs_js_user_empty_or_not_found')); ?>,
+    auditLoadFailed: <?php echo json_encode(t('admin_logs_js_audit_load_failed')); ?>,
+    auditNone: <?php echo json_encode(t('admin_logs_audit_none')); ?>,
+    auditEmpty: <?php echo json_encode(t('admin_logs_js_audit_empty')); ?>,
+    systemNotFound: <?php echo json_encode(t('admin_logs_js_system_not_found')); ?>,
+    systemFileEmpty: <?php echo json_encode(t('admin_logs_js_system_file_empty')); ?>,
+    systemEmptyOrNotFound: <?php echo json_encode(t('admin_logs_js_system_empty_or_not_found')); ?>,
+    tokenNotFound: <?php echo json_encode(t('admin_logs_js_token_not_found')); ?>,
+    tokenFileEmpty: <?php echo json_encode(t('admin_logs_js_token_file_empty')); ?>,
+    tokenEmptyOrNotFound: <?php echo json_encode(t('admin_logs_js_token_empty_or_not_found')); ?>
+};
 document.addEventListener('DOMContentLoaded', function() {
     const userSelect = document.getElementById('admin-log-user-select');
     const userSelectControl = document.getElementById('admin-log-user-control');
@@ -960,7 +983,7 @@ document.addEventListener('DOMContentLoaded', function() {
             systemLogTypeControl.style.display = 'none';
             tokenLogTypeControl.style.display = 'none';
             systemTypeSelect.disabled = true;
-            userSelect.innerHTML = '<option value="">Choose a User</option>';
+            userSelect.innerHTML = '<option value="">' + ADMIN_LOGS_I18N.chooseUser + '</option>';
             <?php foreach ($users as $u): ?>
             userSelect.innerHTML += '<option value="<?php echo htmlspecialchars($u); ?>"><?php echo htmlspecialchars($u); ?></option>';
             <?php endforeach; ?>
@@ -970,7 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
             systemLogTypeControl.style.display = 'block';
             tokenLogTypeControl.style.display = 'none';
             systemTypeSelect.disabled = false;
-            let html = '<option value="">Select System Log Type</option>';
+            let html = '<option value="">' + ADMIN_LOGS_I18N.systemTypeSelect + '</option>';
             for (const group of systemLogTypes) {
                 html += `<optgroup label="${group.label}">`;
                 for (const opt of group.options) {
@@ -991,8 +1014,8 @@ document.addEventListener('DOMContentLoaded', function() {
             userLogTypeControl.style.display = 'none';
             systemLogTypeControl.style.display = 'none';
             tokenLogTypeControl.style.display = 'none';
-            userSelect.innerHTML = '<option value="">Select Log Category First</option>';
-            systemTypeSelect.innerHTML = '<option value="">Select Log Category First</option>';
+            userSelect.innerHTML = '<option value="">' + ADMIN_LOGS_I18N.selectCategoryFirst + '</option>';
+            systemTypeSelect.innerHTML = '<option value="">' + ADMIN_LOGS_I18N.selectCategoryFirst + '</option>';
             systemTypeSelect.disabled = true;
         }
     });
@@ -1105,12 +1128,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Active state - red stop button
             autoRefreshBtn.className = 'sp-btn sp-btn-danger';
             icon.className = 'fas fa-stop';
-            text.textContent = 'Stop Auto Refresh';
+            text.textContent = ADMIN_LOGS_I18N.stopAutoRefresh;
         } else {
             // Inactive state - light play button
             autoRefreshBtn.className = 'sp-btn';
             icon.className = 'fas fa-play';
-            text.textContent = 'Auto Refresh';
+            text.textContent = ADMIN_LOGS_I18N.autoRefresh;
         }
     }
     async function fetchAdminLog() {
@@ -1120,24 +1143,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
-                    logTextarea.innerHTML = "Log file not found.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.userNotFound;
                 } else if (json.error === "connection_failed") {
-                    logTextarea.innerHTML = "Unable to connect to the logging system.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
                 } else {
-                    logTextarea.innerHTML = "An unknown error occurred.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.unknownError;
                 }
                 return;
             }
             if (json.empty) {
-                logTextarea.innerHTML = "(log file is empty)";
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.userFileEmpty;
             } else if (!json.data || json.data.trim() === "") {
-                logTextarea.innerHTML = "(log is empty or not found)";
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.userEmptyOrNotFound;
             } else {
                 logTextarea.innerHTML = json.data;
             }
             scrollLogToBottom();
         } catch (e) {
-            logTextarea.innerHTML = "Unable to connect to the logging system.";
+            logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
             console.error(e);
         }
     }
@@ -1146,19 +1169,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const resp = await fetch('logs.php?admin_audit_log=1');
             const json = await resp.json();
             if (json.error) {
-                logTextarea.innerHTML = 'Unable to load audit log.';
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.auditLoadFailed;
                 return;
             }
             if (json.empty) {
-                logTextarea.innerHTML = '(no audit records found)';
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.auditNone;
             } else if (!json.data || json.data.trim() === '') {
-                logTextarea.innerHTML = '(audit log is empty)';
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.auditEmpty;
             } else {
                 logTextarea.innerHTML = json.data;
             }
             logTextarea.scrollTop = 0;
         } catch (e) {
-            logTextarea.innerHTML = 'Unable to connect to the logging system.';
+            logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
             console.error(e);
         }
     }
@@ -1169,26 +1192,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
-                    logTextarea.innerHTML = "System log file not found." + (json.path ? " Path: " + json.path : "");
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.systemNotFound + (json.path ? " " + ADMIN_LOGS_I18N.pathLabel + " " + json.path : "");
                 } else if (json.error === "permission_denied") {
-                    logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions." + (json.path ? " Path: " + json.path : "");
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.permissionDenied + (json.path ? " " + ADMIN_LOGS_I18N.pathLabel + " " + json.path : "");
                 } else if (json.error === "connection_failed") {
-                    logTextarea.innerHTML = "Unable to connect to the logging system.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
                 } else {
-                    logTextarea.innerHTML = "An unknown error occurred.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.unknownError;
                 }
                 return;
             }
             if (json.empty) {
-                logTextarea.innerHTML = "(system log file is empty)";
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.systemFileEmpty;
             } else if (!json.data || json.data.trim() === "") {
-                logTextarea.innerHTML = "(system log is empty or not found)";
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.systemEmptyOrNotFound;
             } else {
                 logTextarea.innerHTML = json.data;
             }
             scrollLogToBottom();
         } catch (e) {
-            logTextarea.innerHTML = "Unable to connect to the logging system.";
+            logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
             console.error(e);
         }
     }
@@ -1199,26 +1222,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
-                    logTextarea.innerHTML = "Token log file not found.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.tokenNotFound;
                 } else if (json.error === "permission_denied") {
-                    logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.permissionDenied;
                 } else if (json.error === "connection_failed") {
-                    logTextarea.innerHTML = "Unable to connect to the logging system.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
                 } else {
-                    logTextarea.innerHTML = "An unknown error occurred.";
+                    logTextarea.innerHTML = ADMIN_LOGS_I18N.unknownError;
                 }
                 return;
             }
             if (json.empty) {
-                logTextarea.innerHTML = "(token log file is empty)";
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.tokenFileEmpty;
             } else if (!json.data || json.data.trim() === "") {
-                logTextarea.innerHTML = "(token log is empty or not found)";
+                logTextarea.innerHTML = ADMIN_LOGS_I18N.tokenEmptyOrNotFound;
             } else {
                 logTextarea.innerHTML = json.data;
             }
             scrollLogToBottom();
         } catch (e) {
-            logTextarea.innerHTML = "Unable to connect to the logging system.";
+            logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
             console.error(e);
         }
     }

@@ -6,7 +6,7 @@ include_once __DIR__ . '/lang/i18n.php';
 require_once '/var/www/lib/require_auth.php';
 
 // Page Title
-$pageTitle = 'Stream Watch Streaks';
+$pageTitle = t('stream_streak_page_title');
 
 // Includes
 require_once "/var/www/config/db_connect.php";

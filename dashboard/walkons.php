@@ -38,20 +38,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
+            $status .= t('walkons_upload_failed_storage', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
             continue;
         }
         $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
         if ($fileType != "mp3" && $fileType != "mp4") {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 and MP4 files are allowed.<br>";
+            $status .= t('walkons_upload_failed_filetype', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
             continue;
         }
         if (move_uploaded_file($tmp_name, $targetFile)) {
             $current_storage_used += $fileSize;
-            $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
+            $status .= t('walkons_upload_success', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
         } else {
-            $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
+            $status .= t('walkons_upload_failed_generic', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
         }
     }
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
@@ -62,9 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
     foreach ($_POST['delete_files'] as $file_to_delete) {
         $file_to_delete = $walkon_path . '/' . basename($file_to_delete);
         if (is_file($file_to_delete) && unlink($file_to_delete)) {
-            $status .= "The file " . htmlspecialchars(basename($file_to_delete)) . " has been deleted.<br>";
+            $status .= t('walkons_delete_success', [htmlspecialchars(basename($file_to_delete))]) . "<br>";
         } else {
-            $status .= "Failed to delete " . htmlspecialchars(basename($file_to_delete)) . ".<br>";
+            $status .= t('walkons_delete_failed', [htmlspecialchars(basename($file_to_delete))]) . "<br>";
         }
     }
     $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
@@ -235,8 +235,8 @@ $(document).ready(function() {
         if (files.length === 0) {
             Swal.fire({
                 icon: 'warning',
-                title: 'No Files Selected',
-                text: 'Please select at least one file to upload.',
+                title: <?php echo json_encode(t('walkons_no_files_title')); ?>,
+                text: <?php echo json_encode(t('walkons_no_files_text')); ?>,
                 confirmButtonColor: '#3273dc'
             });
             return;
@@ -244,12 +244,12 @@ $(document).ready(function() {
         var formData = new FormData(this);
         // Show upload status and update UI
         $('#uploadStatusContainer').show();
-        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading ' + files.length + ' file(s)...');
+        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('walkons_uploading_files')); ?>.replace('%s', files.length));
         $('#uploadProgressPercent').text('0%');
         $('#uploadProgress').val(0);
         // Update button state
         $('#uploadBtn').prop('disabled', true).addClass('sp-btn-loading');
-        $('#uploadBtnText').text('Uploading...');
+        $('#uploadBtnText').text(<?php echo json_encode(t('walkons_uploading')); ?>);
         $.ajax({
             url: '',
             type: 'POST',
@@ -264,16 +264,16 @@ $(document).ready(function() {
                         $('#uploadProgress').val(percentComplete);
                         $('#uploadProgressPercent').text(percentComplete + '%');
                         if (percentComplete < 100) {
-                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + percentComplete + '%)');
+                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('walkons_uploading_percent')); ?>.replace('%s', percentComplete));
                         } else {
-                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Processing files on server...');
+                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + <?php echo json_encode(t('walkons_processing_files')); ?>);
                         }
                     }
                 }, false);
                 return xhr;
             },
             success: function(response) {
-                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
+                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + <?php echo json_encode(t('walkons_upload_complete')); ?>);
                 $('#uploadProgressPercent').text('100%');
                 setTimeout(function() {
                     location.reload();
@@ -282,11 +282,11 @@ $(document).ready(function() {
             error: function() {
                 $('#uploadStatusContainer').hide();
                 $('#uploadBtn').prop('disabled', false).removeClass('sp-btn-loading');
-                $('#uploadBtnText').text('<?php echo t("walkons_upload_btn"); ?>');
+                $('#uploadBtnText').text(<?php echo json_encode(t('walkons_upload_btn')); ?>);
                 Swal.fire({
                     icon: 'error',
-                    title: 'Upload Failed',
-                    text: '<?php echo t("walkons_upload_error"); ?>',
+                    title: <?php echo json_encode(t('walkons_upload_failed_title')); ?>,
+                    text: <?php echo json_encode(t('walkons_upload_error')); ?>,
                     confirmButtonColor: '#3273dc'
                 });
             }
@@ -298,7 +298,7 @@ $(document).ready(function() {
         if (checkedBoxes.length > 0) {
             Swal.fire({
                 title: '<?php echo t('walkons_delete_file_confirm_title'); ?>',
-                text: 'Are you sure you want to delete the selected ' + checkedBoxes.length + ' file(s)?',
+                text: <?php echo json_encode(t('walkons_delete_selected_confirm')); ?>.replace('%s', checkedBoxes.length),
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',

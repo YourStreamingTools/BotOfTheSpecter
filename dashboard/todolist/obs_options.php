@@ -79,7 +79,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($stmt->execute()) {
             header("Location: obs_options.php");
         } else {
-            echo "Error updating settings: " . htmlspecialchars($stmt->error);
+            echo t('todo_obs_options_error_update') . htmlspecialchars($stmt->error);
         }
     } else {
         $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size, show_completed) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -87,7 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($stmt->execute()) {
             header("Location: obs_options.php");
         } else {
-            echo "Error inserting settings: " . htmlspecialchars($stmt->error);
+            echo t('todo_obs_options_error_insert') . htmlspecialchars($stmt->error);
         }
     }
 } 

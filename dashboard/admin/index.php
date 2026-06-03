@@ -279,27 +279,27 @@ ob_start();
 ?>
 <div style="display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-bottom: 0.5rem;">
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <span class="admin-heading">Total Input Tokens</span>
+        <span class="admin-heading"><?php echo t('admin_index_total_input_tokens'); ?></span>
         <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo number_format($total_input_tokens); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <span class="admin-heading">Total Output Tokens</span>
+        <span class="admin-heading"><?php echo t('admin_index_total_output_tokens'); ?></span>
         <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo number_format($total_output_tokens); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <span class="admin-heading">Estimated Cost</span>
+        <span class="admin-heading"><?php echo t('admin_index_estimated_cost'); ?></span>
         <p style="font-size:1.1rem; font-weight:700; margin:0;">$<?php echo number_format($ai_total_estimated_cost, 4); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <span class="admin-heading">Token Efficiency (Out/In)</span>
+        <span class="admin-heading"><?php echo t('admin_index_token_efficiency_out_in'); ?></span>
         <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo $total_efficiency_ratio !== null ? number_format($total_efficiency_ratio, 2) . 'x' : 'N/A'; ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <span class="admin-heading">Total Requests</span>
+        <span class="admin-heading"><?php echo t('admin_index_total_requests'); ?></span>
         <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo number_format((int)$ai_total_requests); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <span class="admin-heading">Requests/Day</span>
+        <span class="admin-heading"><?php echo t('admin_index_requests_per_day'); ?></span>
         <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo $ai_requests_per_day !== null ? number_format($ai_requests_per_day, 1) : 'N/A'; ?></p>
     </div>
 </div>
@@ -308,11 +308,11 @@ ob_start();
     <table class="sp-table">
         <thead>
             <tr>
-                <th>Model</th>
-                <th>Input Tokens</th>
-                <th>Output Tokens</th>
-                <th>Token Efficiency</th>
-                <th>Estimated Cost</th>
+                <th><?php echo t('admin_index_th_model'); ?></th>
+                <th><?php echo t('admin_index_th_input_tokens'); ?></th>
+                <th><?php echo t('admin_index_th_output_tokens'); ?></th>
+                <th><?php echo t('admin_index_th_token_efficiency'); ?></th>
+                <th><?php echo t('admin_index_th_estimated_cost'); ?></th>
             </tr>
         </thead>
         <tbody>
@@ -333,7 +333,7 @@ ob_start();
             <?php endforeach; ?>
         <?php else: ?>
             <tr>
-                <td colspan="5" class="sp-text-muted">No AI usage data available for this window.</td>
+                <td colspan="5" class="sp-text-muted"><?php echo t('admin_index_no_ai_usage_data'); ?></td>
             </tr>
         <?php endif; ?>
         </tbody>
@@ -431,7 +431,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
             $output = 'Exception: ' . $e->getMessage();
         }
     } else {
-        $output = 'Invalid service requested';
+        $output = t('admin_index_invalid_service');
         $success = false;
     }
     // Return JSON response instead of redirect. Include command output for diagnostics.
@@ -610,7 +610,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     $success = false;
     $message = '';
     if (empty($username)) {
-        $message = 'Username is required';
+        $message = t('admin_index_username_required_short');
     } else {
         try {
             // Get user data including refresh_token and api_key from users table
@@ -663,17 +663,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $result = performBotAction('run', $botType, $params);
                     client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
-                    $message = $result['message'] ?? 'Bot restart completed';
+                    $message = $result['message'] ?? t('admin_index_bot_restart_completed');
                 } else {
-                    $message = 'Bot access token not found for user';
+                    $message = t('admin_index_bot_token_not_found');
                 }
                 $stmt2->close();
             } else {
-                $message = 'User not found';
+                $message = t('admin_index_user_not_found');
             }
             $stmt->close();
         } catch (Exception $e) {
-            $message = 'Error restarting bot: ' . $e->getMessage();
+            $message = t('admin_index_err_restarting_bot') . ' ' . $e->getMessage();
             client_console_log("Bot restart error: " . $e->getMessage());
         }
     }
@@ -705,7 +705,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     $channel_id = $_POST['channel_id'];
     if (!empty($message) && !empty($channel_id) && !empty($chatClientId) && !empty($chatOAuth)) {
         if (strlen($message) > 255) {
-            $error_message = "Message too long: " . strlen($message) . " characters (max 255)";
+            $error_message = t('admin_index_msg_too_long', [strlen($message)]);
         } else {
             // Send message directly via Twitch API using bot token
             $url = "https://api.twitch.tv/helix/chat/messages";
@@ -730,7 +730,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
             $curl_error = curl_error($ch);
             curl_close($ch);
             if ($curl_errno) {
-                $error_message = "Failed to send message: " . $curl_error;
+                $error_message = t('admin_index_msg_send_failed') . ' ' . $curl_error;
             } elseif ($http_code === 200) {
                 $response_data = json_decode($response, true);
                 if ($response_data && isset($response_data['data']) && is_array($response_data['data']) && count($response_data['data']) > 0) {
@@ -738,18 +738,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
                     $is_sent = $msg_data['is_sent'] ?? false;
                     $drop_reason = $msg_data['drop_reason'] ?? null;
                     if ($is_sent) {
-                        $success_message = "Message sent successfully as bot! It should appear in chat shortly.";
+                        $success_message = t('admin_index_msg_sent_success');
                     } else {
-                        $error_message = "Message not sent.";
+                        $error_message = t('admin_index_msg_not_sent');
                         if ($drop_reason) {
-                            $error_message .= " Drop reason: " . $drop_reason;
+                            $error_message .= ' ' . t('admin_index_msg_drop_reason') . ' ' . $drop_reason;
                         }
                     }
                 } else {
-                    $error_message = "Invalid response from Twitch API.";
+                    $error_message = t('admin_index_msg_invalid_response');
                 }
             } else {
-                $error_message = "Failed to send message. HTTP $http_code";
+                $error_message = t('admin_index_msg_send_failed_http', [$http_code]);
                 if ($response) {
                     $response_data = json_decode($response, true);
                     if ($response_data && isset($response_data['message'])) {
@@ -762,9 +762,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
         }
     } else {
         if (empty($chatClientId) || empty($chatOAuth)) {
-            $error_message = "Twitch app credentials are missing. Check bot_chat_token table token/client ID settings.";
+            $error_message = t('admin_index_creds_missing');
         } else {
-        $error_message = "Message and channel are required.";
+        $error_message = t('admin_index_msg_channel_required');
         }
     }
     admin_audit_log(
@@ -784,7 +784,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     header('Content-Type: application/json');
     echo json_encode([
         'success' => isset($success_message),
-        'message' => $success_message ?? $error_message ?? 'Unknown error'
+        'message' => $success_message ?? $error_message ?? t('admin_index_unknown_error')
     ]);
     exit;
 }
@@ -802,11 +802,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
     $response_message = 'Unknown error';
     $resolved_target_id = '';
     if (empty($chatClientId) || empty($chatOAuth)) {
-        $response_message = 'Twitch app credentials are missing. Check bot_chat_token table token/client ID settings.';
+        $response_message = t('admin_index_creds_missing');
     } elseif (empty($from_broadcaster_id) || empty($target_login)) {
-        $response_message = 'Channel and shoutout username are required.';
+        $response_message = t('admin_index_shoutout_channel_required');
     } elseif (!preg_match('/^[a-z0-9_]{3,25}$/', $target_login)) {
-        $response_message = 'Invalid Twitch username format.';
+        $response_message = t('admin_index_invalid_username_format');
     } else {
         $lookup_url = 'https://api.twitch.tv/helix/users?login=' . rawurlencode($target_login);
         $headers = [
@@ -824,9 +824,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
         $lookup_curl_error = curl_error($lookup_ch);
         curl_close($lookup_ch);
         if ($lookup_curl_errno) {
-            $response_message = 'Failed to validate user: ' . $lookup_curl_error;
+            $response_message = t('admin_index_validate_user_failed') . ' ' . $lookup_curl_error;
         } elseif ($lookup_http_code !== 200) {
-            $response_message = 'Failed to validate user. HTTP ' . $lookup_http_code;
+            $response_message = t('admin_index_validate_user_failed_http', [$lookup_http_code]);
             $lookup_error_json = json_decode((string)$lookup_response, true);
             if (is_array($lookup_error_json) && !empty($lookup_error_json['message'])) {
                 $response_message .= ': ' . $lookup_error_json['message'];
@@ -835,13 +835,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
             $lookup_data = json_decode((string)$lookup_response, true);
             $resolved_user = (is_array($lookup_data) && isset($lookup_data['data'][0]) && is_array($lookup_data['data'][0])) ? $lookup_data['data'][0] : null;
             if (!$resolved_user || empty($resolved_user['id'])) {
-                $response_message = 'Twitch user not found for username: ' . $target_login;
+                $response_message = t('admin_index_user_not_found_for', [$target_login]);
             } else {
                 $resolved_target_id = (string)$resolved_user['id'];
                 $resolved_target_login = (string)($resolved_user['login'] ?? $target_login);
                 $resolved_target_display = (string)($resolved_user['display_name'] ?? $resolved_target_login);
                 if ($resolved_target_id === $from_broadcaster_id) {
-                    $response_message = 'You cannot send a shoutout to the same broadcaster.';
+                    $response_message = t('admin_index_shoutout_same_broadcaster');
                 } else {
                     $shoutout_query = http_build_query([
                         'from_broadcaster_id' => $from_broadcaster_id,
@@ -860,12 +860,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
                     $shoutout_curl_error = curl_error($shoutout_ch);
                     curl_close($shoutout_ch);
                     if ($shoutout_curl_errno) {
-                        $response_message = 'Failed to send shoutout: ' . $shoutout_curl_error;
+                        $response_message = t('admin_index_shoutout_send_failed') . ' ' . $shoutout_curl_error;
                     } elseif ($shoutout_http_code === 204) {
                         $success = true;
-                        $response_message = 'Shoutout sent to ' . $resolved_target_display . ' successfully.';
+                        $response_message = t('admin_index_shoutout_sent_success', [$resolved_target_display]);
                     } else {
-                        $response_message = 'Failed to send shoutout. HTTP ' . $shoutout_http_code;
+                        $response_message = t('admin_index_shoutout_send_failed_http', [$shoutout_http_code]);
                         $shoutout_error_json = json_decode((string)$shoutout_response, true);
                         if (is_array($shoutout_error_json) && !empty($shoutout_error_json['message'])) {
                             $response_message .= ': ' . $shoutout_error_json['message'];
@@ -1060,17 +1060,17 @@ if (isset($_GET['ajax'])) {
         $chatClientId = $twitchAppCreds['client_id'] ?? '';
         $chatOAuth = $twitchAppCreds['oauth'] ?? '';
         if (empty($chatClientId) || empty($chatOAuth)) {
-            echo json_encode(['valid' => false, 'message' => 'Twitch app credentials are missing.']);
+            echo json_encode(['valid' => false, 'message' => t('admin_index_creds_missing_short')]);
             exit;
         }
         $login_raw = trim((string)($_GET['login'] ?? ''));
         $login = ltrim(strtolower($login_raw), '@');
         if (empty($login)) {
-            echo json_encode(['valid' => false, 'message' => 'Username is required.']);
+            echo json_encode(['valid' => false, 'message' => t('admin_index_username_required')]);
             exit;
         }
         if (!preg_match('/^[a-z0-9_]{3,25}$/', $login)) {
-            echo json_encode(['valid' => false, 'message' => 'Invalid Twitch username format.']);
+            echo json_encode(['valid' => false, 'message' => t('admin_index_invalid_username_format')]);
             exit;
         }
 
@@ -1091,11 +1091,11 @@ if (isset($_GET['ajax'])) {
         curl_close($lookup_ch);
 
         if ($lookup_curl_errno) {
-            echo json_encode(['valid' => false, 'message' => 'Validation request failed: ' . $lookup_curl_error]);
+            echo json_encode(['valid' => false, 'message' => t('admin_index_validation_request_failed') . ' ' . $lookup_curl_error]);
             exit;
         }
         if ($lookup_http_code !== 200) {
-            $error_message = 'Validation failed. HTTP ' . $lookup_http_code;
+            $error_message = t('admin_index_validation_failed_http', [$lookup_http_code]);
             $lookup_error_json = json_decode((string)$lookup_response, true);
             if (is_array($lookup_error_json) && !empty($lookup_error_json['message'])) {
                 $error_message .= ': ' . $lookup_error_json['message'];
@@ -1107,7 +1107,7 @@ if (isset($_GET['ajax'])) {
         $lookup_data = json_decode((string)$lookup_response, true);
         $resolved_user = (is_array($lookup_data) && isset($lookup_data['data'][0]) && is_array($lookup_data['data'][0])) ? $lookup_data['data'][0] : null;
         if (!$resolved_user || empty($resolved_user['id'])) {
-            echo json_encode(['valid' => false, 'message' => 'Twitch user not found.']);
+            echo json_encode(['valid' => false, 'message' => t('admin_index_twitch_user_not_found')]);
             exit;
         }
 
@@ -1258,10 +1258,10 @@ if ($conn) {
 // Fetch bot message counts and last updated times
 $botMessageStats = [];
 $messageSystemNames = [
-    'discordbot' => 'Discord Bot',
-    'twitch_stable' => 'Chat Bot Stable',
-    'twitch_beta' => 'Chat Bot Beta',
-    'twitch_custom' => 'Chat Bot Custom'
+    'discordbot' => t('admin_index_msgsys_discord_bot'),
+    'twitch_stable' => t('admin_index_msgsys_chat_bot_stable'),
+    'twitch_beta' => t('admin_index_msgsys_chat_bot_beta'),
+    'twitch_custom' => t('admin_index_msgsys_chat_bot_custom')
 ];
 if ($conn) {
     $result = $conn->query("SELECT bot_system, messages_sent, last_updated FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
@@ -1661,42 +1661,42 @@ ob_start();
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header">
-        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-shield-alt"></i></span> Administrator Dashboard</h1>
+        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-shield-alt"></i></span> <?php echo t('admin_index_heading'); ?></h1>
     </div>
     <div class="sp-card-body">
-        <p style="margin-bottom:1rem;">This is the admin dashboard. Use the links below to manage users, view logs, and perform other administrative tasks.</p>
+        <p style="margin-bottom:1rem;"><?php echo t('admin_index_intro'); ?></p>
         <div class="sp-btn-group" style="flex-wrap:wrap;">
             <a href="users.php" class="sp-btn sp-btn-primary">
                 <span class="icon"><i class="fas fa-users-cog"></i></span>
-                <span>User Management</span>
+                <span><?php echo t('admin_index_link_user_management'); ?></span>
             </a>
             <a href="start_bots.php" class="sp-btn sp-btn-success">
                 <span class="icon"><i class="fas fa-play-circle"></i></span>
-                <span>Start User Bots</span>
+                <span><?php echo t('admin_index_link_start_bots'); ?></span>
             </a>
             <a href="logs.php" class="sp-btn sp-btn-info">
                 <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-                <span>Log Management</span>
+                <span><?php echo t('admin_index_link_logs'); ?></span>
             </a>
             <a href="twitch_tokens.php" class="sp-btn sp-btn-primary">
                 <span class="icon"><i class="fab fa-twitch"></i></span>
-                <span>Twitch Tokens</span>
+                <span><?php echo t('admin_index_link_twitch_tokens'); ?></span>
             </a>
             <a href="discordbot_overview.php" class="sp-btn sp-btn-info">
                 <span class="icon"><i class="fab fa-discord"></i></span>
-                <span>Discord Bot Overview</span>
+                <span><?php echo t('admin_index_link_discord_overview'); ?></span>
             </a>
             <a href="websocket_clients.php" class="sp-btn sp-btn-success">
                 <span class="icon"><i class="fas fa-plug"></i></span>
-                <span>Websocket Clients</span>
+                <span><?php echo t('admin_index_link_websocket_clients'); ?></span>
             </a>
             <a href="terminal.php" class="sp-btn sp-btn-warning">
                 <span class="icon"><i class="fas fa-terminal"></i></span>
-                <span>Web Terminal</span>
+                <span><?php echo t('admin_index_link_terminal'); ?></span>
             </a>
             <a href="beta_programs.php" class="sp-btn sp-btn-secondary">
                 <span class="icon"><i class="fas fa-flask"></i></span>
-                <span>Beta Programs</span>
+                <span><?php echo t('admin_index_link_beta_programs'); ?></span>
             </a>
         </div>
     </div>
@@ -1704,9 +1704,9 @@ ob_start();
 
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header">
-        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
-        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="refresh-server-overview" onclick="refreshServerOverview()" title="Refresh server status">
-            <span class="icon"><i class="fas fa-sync-alt"></i></span> Refresh
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-server"></i></span> <?php echo t('admin_index_server_overview'); ?></h2>
+        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="refresh-server-overview" onclick="refreshServerOverview()" title="<?php echo t('admin_index_refresh_server_status'); ?>">
+            <span class="icon"><i class="fas fa-sync-alt"></i></span> <?php echo t('admin_index_refresh'); ?>
         </button>
     </div>
     <div class="sp-card-body">
@@ -1720,8 +1720,8 @@ ob_start();
                             <i class="fab fa-discord fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <span class="admin-heading">Discord Bot</span>
-                            <span class="admin-service-status sp-text-info" id="discord-status">Loading...</span>
+                            <span class="admin-heading"><?php echo t('admin_index_svc_discord_bot'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="discord-status"><?php echo t('admin_index_status_loading'); ?></span>
                         </div>
                     </div>
                     <div>
@@ -1750,8 +1750,8 @@ ob_start();
                             <i class="fas fa-code fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <span class="admin-heading">API Server</span>
-                            <span class="admin-service-status sp-text-info" id="api-status">Loading...</span>
+                            <span class="admin-heading"><?php echo t('admin_index_svc_api_server'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="api-status"><?php echo t('admin_index_status_loading'); ?></span>
                         </div>
                     </div>
                     <div>
@@ -1780,8 +1780,8 @@ ob_start();
                             <i class="fas fa-plug fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <span class="admin-heading">WebSocket Server</span>
-                            <span class="admin-service-status sp-text-info" id="websocket-status">Loading...</span>
+                            <span class="admin-heading"><?php echo t('admin_index_svc_websocket_server'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="websocket-status"><?php echo t('admin_index_status_loading'); ?></span>
                         </div>
                     </div>
                     <div>
@@ -1810,8 +1810,8 @@ ob_start();
                             <i class="fas fa-database fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <span class="admin-heading">MySQL Server</span>
-                            <span class="admin-service-status sp-text-info" id="mysql-status">Loading...</span>
+                            <span class="admin-heading"><?php echo t('admin_index_svc_mysql_server'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="mysql-status"><?php echo t('admin_index_status_loading'); ?></span>
                         </div>
                     </div>
                     <div>
@@ -1840,8 +1840,8 @@ ob_start();
                             <i class="fas fa-file-export fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <span class="admin-heading">Export Queue Worker</span>
-                            <span class="admin-service-status sp-text-info" id="export-queue-status">Loading...</span>
+                            <span class="admin-heading"><?php echo t('admin_index_svc_export_queue_worker'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="export-queue-status"><?php echo t('admin_index_status_loading'); ?></span>
                         </div>
                     </div>
                     <div>
@@ -1870,8 +1870,8 @@ ob_start();
                             <i class="fas fa-video fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <span class="admin-heading">Twitch Recorder</span>
-                            <span class="admin-service-status sp-text-info" id="twitch-recorder-status">Loading...</span>
+                            <span class="admin-heading"><?php echo t('admin_index_svc_twitch_recorder'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="twitch-recorder-status"><?php echo t('admin_index_status_loading'); ?></span>
                         </div>
                     </div>
                     <div>
@@ -1896,7 +1896,7 @@ ob_start();
 </div>
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header">
-        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-key"></i></span> <?php echo t('admin_index_token_management'); ?></h2>
     </div>
     <div class="sp-card-body">
         <div class="admin-token-grid">
@@ -1905,13 +1905,13 @@ ob_start();
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
                         <span class="icon sp-text-success"><i class="fab fa-spotify fa-lg"></i></span>
                         <div>
-                            <span class="admin-heading">Token Service</span>
+                            <span class="admin-heading"><?php echo t('admin_index_token_service'); ?></span>
                             <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">Spotify</span>
                         </div>
                     </div>
                     <button type="button" class="sp-btn sp-btn-success" style="width:100%;" onclick="refreshSpotifyTokens()">
                         <span class="icon"><i class="fas fa-sync"></i></span>
-                        <span>Refresh Spotify Tokens</span>
+                        <span><?php echo t('admin_index_refresh_spotify_tokens'); ?></span>
                     </button>
                 </div>
             </div>
@@ -1920,13 +1920,13 @@ ob_start();
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
                         <span class="icon sp-text-info"><i class="fas fa-stream fa-lg"></i></span>
                         <div>
-                            <span class="admin-heading">Token Service</span>
+                            <span class="admin-heading"><?php echo t('admin_index_token_service'); ?></span>
                             <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">StreamElements</span>
                         </div>
                     </div>
                     <button type="button" class="sp-btn sp-btn-info" style="width:100%;" onclick="refreshStreamElementsTokens()">
                         <span class="icon"><i class="fas fa-sync"></i></span>
-                        <span>Refresh StreamElements Tokens</span>
+                        <span><?php echo t('admin_index_refresh_streamelements_tokens'); ?></span>
                     </button>
                 </div>
             </div>
@@ -1935,13 +1935,13 @@ ob_start();
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
                         <span class="icon sp-text-accent"><i class="fab fa-discord fa-lg"></i></span>
                         <div>
-                            <span class="admin-heading">Token Service</span>
+                            <span class="admin-heading"><?php echo t('admin_index_token_service'); ?></span>
                             <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">Discord</span>
                         </div>
                     </div>
                     <button type="button" class="sp-btn sp-btn-primary" style="width:100%;" onclick="refreshDiscordTokens()">
                         <span class="icon"><i class="fas fa-sync"></i></span>
-                        <span>Refresh Discord Tokens</span>
+                        <span><?php echo t('admin_index_refresh_discord_tokens'); ?></span>
                     </button>
                 </div>
             </div>
@@ -1950,13 +1950,13 @@ ob_start();
                     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
                         <span class="icon sp-text-warning"><i class="fas fa-robot fa-lg"></i></span>
                         <div>
-                            <span class="admin-heading">Token Service</span>
-                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">Custom Bots</span>
+                            <span class="admin-heading"><?php echo t('admin_index_token_service'); ?></span>
+                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);"><?php echo t('admin_index_custom_bots'); ?></span>
                         </div>
                     </div>
                     <button type="button" class="sp-btn sp-btn-warning" style="width:100%;" onclick="refreshCustomBotTokens()">
                         <span class="icon"><i class="fas fa-sync"></i></span>
-                        <span>Refresh Custom Bot Tokens</span>
+                        <span><?php echo t('admin_index_refresh_custom_bot_tokens'); ?></span>
                     </button>
                 </div>
             </div>
@@ -1973,7 +1973,7 @@ $botIconMap = [
 ?>
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header">
-        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-comments"></i></span> <?php echo t('admin_index_bot_message_counts'); ?></h2>
     </div>
     <div class="sp-card-body">
         <div class="admin-msg-grid">
@@ -1985,18 +1985,18 @@ $botIconMap = [
                 <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
                     <span class="icon <?php echo $iconCfg['color']; ?>"><i class="<?php echo $iconCfg['icon']; ?> fa-lg"></i></span>
                     <div>
-                        <span class="admin-heading">Message Count</span>
+                        <span class="admin-heading"><?php echo t('admin_index_message_count'); ?></span>
                         <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);"><?php echo $label; ?></span>
                     </div>
                 </div>
                 <div class="bot-message-count-display">
                     <div class="bot-message-count-number" style="color:var(--blue);">
-                        <?php echo $hasData ? number_format($botMessageStats[$key]['messages_sent']) : '<span style="font-size:0.9rem; color:var(--text-muted);">Not Counting Yet</span>'; ?>
+                        <?php echo $hasData ? number_format($botMessageStats[$key]['messages_sent']) : '<span style="font-size:0.9rem; color:var(--text-muted);">' . t('admin_index_not_counting_yet') . '</span>'; ?>
                     </div>
                     <div class="bot-message-count-timestamp">
                         <?php echo isset($botMessageStats[$key]['last_updated'])
-                            ? 'Last Updated: ' . date('M d, Y H:i:s', strtotime($botMessageStats[$key]['last_updated']))
-                            : 'No data yet'; ?>
+                            ? t('admin_index_last_updated_prefix') . ' ' . date('M d, Y H:i:s', strtotime($botMessageStats[$key]['last_updated']))
+                            : t('admin_index_no_data_yet'); ?>
                     </div>
                 </div>
             </div>
@@ -2006,13 +2006,13 @@ $botIconMap = [
 </div>
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header" style="cursor:pointer;" onclick="toggleCollapsible('bot-overview', event)">
-        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-robot"></i></span> <?php echo t('admin_index_bot_overview'); ?></h2>
         <span class="collapse-icon" data-section="bot-overview">▼</span>
     </div>
     <div class="collapsible-content" id="bot-overview">
         <div class="sp-card-body">
             <div id="bot-overview-container">
-                <p style="margin-bottom:1.25rem;">Loading bot overview...</p>
+                <p style="margin-bottom:1.25rem;"><?php echo t('admin_index_loading_bot_overview'); ?></p>
             </div>
         </div>
     </div>
@@ -2021,7 +2021,7 @@ $botIconMap = [
     <div style="display:none;">
         <div class="sp-card" style="height: 100%; display: flex; flex-direction: column;">
             <div class="sp-card-header">
-                <h2 class="sp-card-title"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
+                <h2 class="sp-card-title"><span class="icon"><i class="fas fa-chart-pie"></i></span> <?php echo t('admin_index_user_overview'); ?></h2>
             </div>
             <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; flex:1;">
@@ -2032,18 +2032,18 @@ $botIconMap = [
                     </div>
                     <div style="display: flex; flex-direction: column; justify-content: space-between;">
                         <div>
-                            <p style="margin-bottom:1rem;">Quick stats on user distribution:</p>
+                            <p style="margin-bottom:1rem;"><?php echo t('admin_index_user_distribution'); ?></p>
                             <ul>
-                                <li><strong>Total Users:</strong> <?php echo $total_users; ?></li>
-                                <li><strong>Admins:</strong> <?php echo $admin_count; ?></li>
-                                <li><strong>Beta Users:</strong> <?php echo $beta_count; ?></li>
-                                <li><strong>Premium Users:</strong> <?php echo $premium_count; ?></li>
-                                <li><strong>Regular Users:</strong> <?php echo $regular_count; ?></li>
+                                <li><strong><?php echo t('admin_index_total_users'); ?></strong> <?php echo $total_users; ?></li>
+                                <li><strong><?php echo t('admin_index_admins'); ?></strong> <?php echo $admin_count; ?></li>
+                                <li><strong><?php echo t('admin_index_beta_users'); ?></strong> <?php echo $beta_count; ?></li>
+                                <li><strong><?php echo t('admin_index_premium_users'); ?></strong> <?php echo $premium_count; ?></li>
+                                <li><strong><?php echo t('admin_index_regular_users'); ?></strong> <?php echo $regular_count; ?></li>
                             </ul>
                         </div>
                         <a href="users.php" class="sp-btn sp-btn-primary" style="margin-top:1rem;">
                             <span class="icon"><i class="fas fa-users-cog"></i></span>
-                            <span>Manage Users</span>
+                            <span><?php echo t('admin_index_manage_users'); ?></span>
                         </a>
                     </div>
                 </div>
@@ -2052,62 +2052,62 @@ $botIconMap = [
     </div>
     <div class="sp-card">
         <div class="sp-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
-            <h2 class="sp-card-title" style="margin:0;"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
+            <h2 class="sp-card-title" style="margin:0;"><span class="icon"><i class="fas fa-brain"></i></span> <?php echo t('admin_index_ai_platform_stats'); ?></h2>
             <button id="refresh-ai-stats" type="button" class="sp-btn sp-btn-sm">
                 <span class="icon is-small"><i class="fas fa-sync-alt"></i></span>
-                <span>Refresh</span>
+                <span><?php echo t('admin_index_refresh'); ?></span>
             </button>
         </div>
         <div class="sp-card-body">
             <div id="ai-platform-stats-content">
-                <p class="sp-text-muted">Loading AI platform stats…</p>
+                <p class="sp-text-muted"><?php echo t('admin_index_loading_ai_stats'); ?></p>
             </div>
         </div>
     </div>
     <div class="sp-card">
         <div class="sp-card-header">
-            <h2 class="sp-card-title"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
+            <h2 class="sp-card-title"><span class="icon"><i class="fas fa-paper-plane"></i></span> <?php echo t('admin_index_send_bot_message'); ?></h2>
         </div>
         <div class="sp-card-body">
             <form id="send-message-form" method="post">
                 <div class="sp-form-group">
-                    <label class="sp-label">Select Channel</label>
+                    <label class="sp-label"><?php echo t('admin_index_select_channel'); ?></label>
                     <select class="sp-select" name="channel_id" id="channel-select" required>
-                        <option value="">Loading channels...</option>
+                        <option value=""><?php echo t('admin_index_loading_channels'); ?></option>
                     </select>
                 </div>
                 <div class="sp-form-group">
                     <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-secondary); cursor:pointer;">
                         <input type="checkbox" id="include-offline">
-                        Include offline channels
+                        <?php echo t('admin_index_include_offline_channels'); ?>
                     </label>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label">Template</label>
+                    <label class="sp-label"><?php echo t('admin_index_template'); ?></label>
                     <select class="sp-select" id="message-template-select">
-                        <option value="">- Choose Template -</option>
+                        <option value=""><?php echo t('admin_index_choose_template'); ?></option>
                         <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
                             <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label">Message</label>
-                    <textarea class="sp-textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
-                    <small id="char-count" class="sp-text-muted">0 / 255 characters</small>
+                    <label class="sp-label"><?php echo t('admin_index_message_label'); ?></label>
+                    <textarea class="sp-textarea" name="message" id="message" placeholder="<?php echo t('admin_index_message_placeholder'); ?>" required></textarea>
+                    <small id="char-count" class="sp-text-muted"><?php echo t('admin_index_char_count', [0]); ?></small>
                 </div>
                 <div class="sp-form-group">
-                    <button class="sp-btn sp-btn-primary" type="submit" name="send_message" id="send" disabled>Send Message</button>
+                    <button class="sp-btn sp-btn-primary" type="submit" name="send_message" id="send" disabled><?php echo t('admin_index_send_message_btn'); ?></button>
                 </div>
             </form>
             <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
             <div class="sp-form-group">
-                <label class="sp-label">Shoutout Username</label>
-                <input class="sp-input" type="text" id="shoutout-username" placeholder="Enter Twitch username (for example: BotOfTheSpecter)">
-                <small id="shoutout-helper-text" class="sp-text-muted">Please select a channel above</small>
+                <label class="sp-label"><?php echo t('admin_index_shoutout_username'); ?></label>
+                <input class="sp-input" type="text" id="shoutout-username" placeholder="<?php echo t('admin_index_shoutout_username_placeholder'); ?>">
+                <small id="shoutout-helper-text" class="sp-text-muted"><?php echo t('admin_index_select_channel_above'); ?></small>
             </div>
             <div class="sp-form-group">
-                <button class="sp-btn sp-btn-primary" type="button" id="send-shoutout" disabled>Send Shoutout</button>
+                <button class="sp-btn sp-btn-primary" type="button" id="send-shoutout" disabled><?php echo t('admin_index_send_shoutout_btn'); ?></button>
             </div>
         </div>
     </div>
@@ -2117,6 +2117,87 @@ $content = ob_get_clean();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Localized strings injected from PHP
+    const adminI18n = {
+        chartAdmins: <?php echo json_encode(t('admin_index_chart_admins')); ?>,
+        chartBeta: <?php echo json_encode(t('admin_index_chart_beta_users')); ?>,
+        chartPremium: <?php echo json_encode(t('admin_index_chart_premium_users')); ?>,
+        chartRegular: <?php echo json_encode(t('admin_index_chart_regular_users')); ?>,
+        noUserData: <?php echo json_encode(t('admin_index_no_user_data')); ?>,
+        commandFailed: <?php echo json_encode(t('admin_index_command_failed')); ?>,
+        checkLogs: <?php echo json_encode(t('admin_index_check_logs')); ?>,
+        errorTitle: <?php echo json_encode(t('admin_index_error_title')); ?>,
+        invalidJson: <?php echo json_encode(t('admin_index_invalid_json')); ?>,
+        okBtn: <?php echo json_encode(t('admin_index_ok')); ?>,
+        confirmTitle: <?php echo json_encode(t('admin_index_confirm_title')); ?>,
+        confirmStopText: <?php echo json_encode(t('admin_index_confirm_stop_text')); ?>,
+        confirmStopBtn: <?php echo json_encode(t('admin_index_confirm_stop_btn')); ?>,
+        confirmRestartText: <?php echo json_encode(t('admin_index_confirm_restart_text')); ?>,
+        confirmRestartBtn: <?php echo json_encode(t('admin_index_confirm_restart_btn')); ?>,
+        restartingBot: <?php echo json_encode(t('admin_index_restarting_bot')); ?>,
+        botRestarted: <?php echo json_encode(t('admin_index_bot_restarted')); ?>,
+        failRestartBot: <?php echo json_encode(t('admin_index_fail_restart_bot')); ?>,
+        netErrRestartBot: <?php echo json_encode(t('admin_index_net_err_restart_bot')); ?>,
+        spotifyRefreshed: <?php echo json_encode(t('admin_index_spotify_refreshed')); ?>,
+        failRefreshTokens: <?php echo json_encode(t('admin_index_fail_refresh_tokens')); ?>,
+        refreshing: <?php echo json_encode(t('admin_index_refreshing')); ?>,
+        refreshSpotifyBtn: <?php echo json_encode(t('admin_index_refresh_spotify_tokens')); ?>,
+        refreshStreamElementsBtn: <?php echo json_encode(t('admin_index_refresh_streamelements_tokens')); ?>,
+        refreshDiscordBtn: <?php echo json_encode(t('admin_index_refresh_discord_tokens')); ?>,
+        refreshCustomBotBtn: <?php echo json_encode(t('admin_index_refresh_custom_bot_tokens')); ?>,
+        connecting: <?php echo json_encode(t('admin_index_connecting')); ?>,
+        liveOutputSuffix: <?php echo json_encode(t('admin_index_live_output_suffix')); ?>,
+        closeBtn: <?php echo json_encode(t('admin_index_close')); ?>,
+        anErrorOccurred: <?php echo json_encode(t('admin_index_an_error_occurred')); ?>,
+        processDone: <?php echo json_encode(t('admin_index_process_done')); ?>,
+        success: <?php echo json_encode(t('admin_index_success')); ?>,
+        failed: <?php echo json_encode(t('admin_index_failed')); ?>,
+        statusError: <?php echo json_encode(t('admin_index_status_error')); ?>,
+        none: <?php echo json_encode(t('admin_index_none')); ?>,
+        errLoadBotOverview: <?php echo json_encode(t('admin_index_err_load_bot_overview')); ?>,
+        updatedJustNow: <?php echo json_encode(t('admin_index_updated_just_now')); ?>,
+        updatedPrefix: <?php echo json_encode(t('admin_index_updated_prefix')); ?>,
+        agoSeconds: <?php echo json_encode(t('admin_index_ago_seconds')); ?>,
+        agoMinutes: <?php echo json_encode(t('admin_index_ago_minutes')); ?>,
+        agoHours: <?php echo json_encode(t('admin_index_ago_hours')); ?>,
+        msgsysDiscordBot: <?php echo json_encode(t('admin_index_msgsys_discord_bot')); ?>,
+        msgsysChatBotStable: <?php echo json_encode(t('admin_index_msgsys_chat_bot_stable')); ?>,
+        msgsysChatBotBeta: <?php echo json_encode(t('admin_index_msgsys_chat_bot_beta')); ?>,
+        msgsysChatBotCustom: <?php echo json_encode(t('admin_index_msgsys_chat_bot_custom')); ?>,
+        notCountingYet: <?php echo json_encode(t('admin_index_not_counting_yet')); ?>,
+        lastUpdatedPrefix: <?php echo json_encode(t('admin_index_last_updated_prefix')); ?>,
+        failLoadAiStats: <?php echo json_encode(t('admin_index_fail_load_ai_stats')); ?>,
+        charCountSuffix: <?php echo json_encode(t('admin_index_char_count_suffix')); ?>,
+        selectChannelAbove: <?php echo json_encode(t('admin_index_select_channel_above')); ?>,
+        channelWillShoutout: <?php echo json_encode(t('admin_index_channel_will_shoutout')); ?>,
+        usernameValidated: <?php echo json_encode(t('admin_index_username_validated')); ?>,
+        invalidUsernameFormat: <?php echo json_encode(t('admin_index_invalid_username_format')); ?>,
+        validatingUsername: <?php echo json_encode(t('admin_index_validating_username')); ?>,
+        usernameValidationFailed: <?php echo json_encode(t('admin_index_username_validation_failed')); ?>,
+        unableValidateUsername: <?php echo json_encode(t('admin_index_unable_validate_username')); ?>,
+        noChannelsFound: <?php echo json_encode(t('admin_index_no_channels_found')); ?>,
+        noOnlineChannels: <?php echo json_encode(t('admin_index_no_online_channels')); ?>,
+        chooseChannel: <?php echo json_encode(t('admin_index_choose_channel')); ?>,
+        offlineSuffix: <?php echo json_encode(t('admin_index_offline_suffix')); ?>,
+        errLoadingChannels: <?php echo json_encode(t('admin_index_err_loading_channels')); ?>,
+        sending: <?php echo json_encode(t('admin_index_sending')); ?>,
+        failSendShoutout: <?php echo json_encode(t('admin_index_fail_send_shoutout')); ?>,
+        netErrorPrefix: <?php echo json_encode(t('admin_index_net_error_prefix')); ?>,
+        serviceLabels: <?php echo json_encode([
+            'discordbot.service' => t('admin_index_svc_discord_bot'),
+            'fastapi.service' => 'FastAPI',
+            'websocket.service' => 'WebSocket',
+            'mysql.service' => 'MySQL',
+            'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
+            'twitch-recorder.service' => t('admin_index_svc_twitch_recorder')
+        ]); ?>,
+        actionLabels: <?php echo json_encode([
+            'start' => t('admin_index_action_started'),
+            'stop' => t('admin_index_action_stopped'),
+            'restart' => t('admin_index_action_restarted')
+        ]); ?>,
+        serviceActionSuccess: <?php echo json_encode(t('admin_index_service_action_success')); ?>
+    };
     // ===== Cookie Management for Collapsible Sections =====
     function setCookie(name, value, days = 365) {
         const date = new Date();
@@ -2224,7 +2305,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const userChart = new Chart(chartCtx, {
                 type: 'pie',
                 data: {
-                    labels: ['Admins', 'Beta Users', 'Premium Users', 'Regular Users'],
+                    labels: [adminI18n.chartAdmins, adminI18n.chartBeta, adminI18n.chartPremium, adminI18n.chartRegular],
                     datasets: [{
                         data: data,
                         backgroundColor: [
@@ -2248,7 +2329,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             ctx.style.display = 'none';
             const noDataMsg = document.createElement('p');
-            noDataMsg.textContent = 'No user data available to display.';
+            noDataMsg.textContent = adminI18n.noUserData;
             ctx.parentNode.appendChild(noDataMsg);
         }
     }
@@ -2267,15 +2348,8 @@ document.addEventListener('DOMContentLoaded', function() {
             updateServiceStatus(meta.statusKey, meta.statusId, meta.pidId, meta.buttonsId);
         }, 500);
     }
-    const serviceLabels = {
-        'discordbot.service': 'Discord Bot',
-        'fastapi.service': 'FastAPI',
-        'websocket.service': 'WebSocket',
-        'mysql.service': 'MySQL',
-        'export_queue_worker.service': 'Export Queue Worker',
-        'twitch-recorder.service': 'Twitch Recorder'
-    };
-    const actionLabels = { 'start': 'started', 'stop': 'stopped', 'restart': 'restarted' };
+    const serviceLabels = adminI18n.serviceLabels;
+    const actionLabels = adminI18n.actionLabels;
     // Function to control service
     window.controlService = function(service, action) {
         const meta = serviceConfig[service];
@@ -2309,7 +2383,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         toast: true,
                         position: 'top-end',
                         icon: 'success',
-                        title: `${svcLabel} ${actLabel} successfully`,
+                        title: adminI18n.serviceActionSuccess.replace('{svc}', svcLabel).replace('{act}', actLabel),
                         showConfirmButton: false,
                         timer: 3500,
                         timerProgressBar: true
@@ -2324,8 +2398,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         toast: true,
                         position: 'top-end',
                         icon: 'error',
-                        title: 'Command failed',
-                        text: output || 'Check logs for details.',
+                        title: adminI18n.commandFailed,
+                        text: output || adminI18n.checkLogs,
                         showConfirmButton: false,
                         timer: 5000,
                         timerProgressBar: true
@@ -2342,10 +2416,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Not valid JSON - log raw text for diagnosis and show it to user
                 console.error('[admin control] invalid JSON response:', text);
                 Swal.fire({
-                    title: 'Error',
-                    html: '<p>Invalid server response (not JSON).</p><pre style="text-align:left; white-space:pre-wrap;">' + text + '</pre>',
+                    title: adminI18n.errorTitle,
+                    html: '<p>' + adminI18n.invalidJson + '</p><pre style="text-align:left; white-space:pre-wrap;">' + text + '</pre>',
                     icon: 'error',
-                    confirmButtonText: 'OK',
+                    confirmButtonText: adminI18n.okBtn,
                     width: 800
                 });
             }
@@ -2354,10 +2428,10 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('[admin control] fetch error:', error);
             Swal.fire({
-                title: 'Error',
-                text: 'Network error: ' + error.message,
+                title: adminI18n.errorTitle,
+                text: adminI18n.netErrorPrefix + ' ' + error.message,
                 icon: 'error',
-                confirmButtonText: 'OK'
+                confirmButtonText: adminI18n.okBtn
             });
             buttons.forEach(btn => btn.disabled = false);
         });
@@ -2365,13 +2439,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to stop bot
     window.stopBot = function(pid, element, username) {
         Swal.fire({
-            title: 'Are you sure?',
-            text: 'Do you want to stop this bot?',
+            title: adminI18n.confirmTitle,
+            text: adminI18n.confirmStopText,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
             cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, stop it!'
+            confirmButtonText: adminI18n.confirmStopBtn
         }).then((result) => {
             if (result.isConfirmed) {
                 const formData = new FormData();
@@ -2398,13 +2472,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to restart bot
     window.restartBot = function(username, botType, pid, element) {
         Swal.fire({
-            title: 'Are you sure?',
-            text: 'Do you want to restart this bot? It will be stopped and started again.',
+            title: adminI18n.confirmTitle,
+            text: adminI18n.confirmRestartText,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
             cancelButtonColor: '#aaa',
-            confirmButtonText: 'Yes, restart it!'
+            confirmButtonText: adminI18n.confirmRestartBtn
         }).then((result) => {
             if (result.isConfirmed) {
                 // Log the restart details for debugging
@@ -2415,7 +2489,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     toast: true,
                     position: 'top-end',
                     icon: 'info',
-                    title: 'Restarting ' + botType + ' bot...',
+                    title: adminI18n.restartingBot.replace('{type}', botType),
                     showConfirmButton: false,
                     timer: 2000
                 });
@@ -2442,7 +2516,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             toast: true,
                             position: 'top-end',
                             icon: 'success',
-                            title: data.message || 'Bot restarted successfully',
+                            title: data.message || adminI18n.botRestarted,
                             showConfirmButton: false,
                             timer: 3000
                         });
@@ -2451,7 +2525,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             toast: true,
                             position: 'top-end',
                             icon: 'error',
-                            title: data.message || 'Failed to restart bot',
+                            title: data.message || adminI18n.failRestartBot,
                             showConfirmButton: false,
                             timer: 3000
                         });
@@ -2463,7 +2537,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         toast: true,
                         position: 'top-end',
                         icon: 'error',
-                        title: 'Network error restarting bot',
+                        title: adminI18n.netErrRestartBot,
                         showConfirmButton: false,
                         timer: 3000
                     });
@@ -2475,7 +2549,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.refreshSpotifyTokens = function() {
         const button = document.querySelector('button[onclick="refreshSpotifyTokens()"]');
         button.disabled = true;
-        button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Refreshing...</span>';
+        button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + adminI18n.refreshing + '</span>';
         const formData = new FormData();
         formData.append('refresh_spotify_tokens', '1');
         fetch(window.location.href, {
@@ -2488,32 +2562,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const output = data.output || '';
             if (success) {
                 Swal.fire({
-                    title: 'Spotify Tokens Refreshed',
+                    title: adminI18n.spotifyRefreshed,
                     html: '<pre style="text-align: left; white-space: pre-wrap;">' + output + '</pre>',
                     icon: 'success',
-                    confirmButtonText: 'OK',
+                    confirmButtonText: adminI18n.okBtn,
                     width: '600px'
                 });
             } else {
                 Swal.fire({
-                    title: 'Error',
-                    text: 'Failed to refresh tokens: ' + output,
+                    title: adminI18n.errorTitle,
+                    text: adminI18n.failRefreshTokens + ' ' + output,
                     icon: 'error',
-                    confirmButtonText: 'OK'
+                    confirmButtonText: adminI18n.okBtn
                 });
             }
             button.disabled = false;
-            button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
+            button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshSpotifyBtn + '</span>';
         })
         .catch(error => {
             Swal.fire({
-                title: 'Error',
-                text: 'Network error: ' + error.message,
+                title: adminI18n.errorTitle,
+                text: adminI18n.netErrorPrefix + ' ' + error.message,
                 icon: 'error',
-                confirmButtonText: 'OK'
+                confirmButtonText: adminI18n.okBtn
             });
             button.disabled = false;
-            button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
+            button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshSpotifyBtn + '</span>';
         });
     };
     // Generic function to stream command output via SSE
@@ -2521,15 +2595,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const button = document.querySelector(buttonSelector);
         if (button) {
             button.disabled = true;
-            button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Refreshing...</span>';
+            button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + adminI18n.refreshing + '</span>';
         }
         // Create modal with an output container
-        let outputHtml = '<div style="text-align:left; max-height:500px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">Connecting...\n</div>';
+        let outputHtml = '<div style="text-align:left; max-height:500px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">' + adminI18n.connecting + '\n</div>';
         Swal.fire({
-            title: serviceName + ' - Live Output',
+            title: serviceName + ' - ' + adminI18n.liveOutputSuffix,
             html: outputHtml,
             showCancelButton: true,
-            cancelButtonText: 'Close',
+            cancelButtonText: adminI18n.closeBtn,
             showConfirmButton: false,
             width: 800,
             didOpen: () => {
@@ -2541,25 +2615,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     outputEl.scrollTop = outputEl.scrollHeight;
                 };
                 es.addEventListener('error', function(e) {
-                    outputEl.textContent += '[ERROR] ' + (e.data || 'An error occurred') + '\n';
+                    outputEl.textContent += '[ERROR] ' + (e.data || adminI18n.anErrorOccurred) + '\n';
                     outputEl.scrollTop = outputEl.scrollHeight;
                 });
                 es.addEventListener('done', function(e) {
                     try {
                         const info = JSON.parse(e.data);
-                        outputEl.textContent += '\n[PROCESS DONE] ' + (info.success ? 'Success' : 'Failed') + '\n';
+                        outputEl.textContent += '\n' + adminI18n.processDone + ' ' + (info.success ? adminI18n.success : adminI18n.failed) + '\n';
                     } catch (err) {
-                        outputEl.textContent += '\n[PROCESS DONE]\n';
+                        outputEl.textContent += '\n' + adminI18n.processDone + '\n';
                     }
                     outputEl.scrollTop = outputEl.scrollHeight;
                     es.close();
                     if (button) {
                         button.disabled = false;
                         // reset button label based on selector
-                        if (buttonSelector.includes('Spotify')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Spotify Tokens</span>';
-                        else if (buttonSelector.includes('StreamElements')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh StreamElements Tokens</span>';
-                        else if (buttonSelector.includes('CustomBot')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Custom Bot Tokens</span>';
-                        else button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>Refresh Discord Tokens</span>';
+                        if (buttonSelector.includes('Spotify')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshSpotifyBtn + '</span>';
+                        else if (buttonSelector.includes('StreamElements')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshStreamElementsBtn + '</span>';
+                        else if (buttonSelector.includes('CustomBot')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshCustomBotBtn + '</span>';
+                        else button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshDiscordBtn + '</span>';
                     }
                 });
                 es.onerror = function(ev) {
@@ -2625,7 +2699,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error(`Error fetching ${service} status:`, error);
                 const statusElement = document.getElementById(statusElementId);
-                statusElement.textContent = 'Error';
+                statusElement.textContent = adminI18n.statusError;
                 statusElement.className = 'admin-service-status sp-text-danger';
             });
     }
@@ -2665,15 +2739,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!el || !botLastUpdated) return;
         const delta = Math.floor((Date.now() - botLastUpdated) / 1000);
         if (delta < 5) {
-            el.textContent = 'Updated: just now';
+            el.textContent = adminI18n.updatedJustNow;
         } else if (delta < 60) {
-            el.textContent = 'Updated: ' + delta + 's ago';
+            el.textContent = adminI18n.updatedPrefix + ' ' + delta + adminI18n.agoSeconds;
         } else if (delta < 3600) {
             const mins = Math.floor(delta / 60);
-            el.textContent = 'Updated: ' + mins + 'm ago';
+            el.textContent = adminI18n.updatedPrefix + ' ' + mins + adminI18n.agoMinutes;
         } else {
             const hours = Math.floor(delta / 3600);
-            el.textContent = 'Updated: ' + hours + 'h ago';
+            el.textContent = adminI18n.updatedPrefix + ' ' + hours + adminI18n.agoHours;
         }
     }
     function setBotUpdatedNow() {
@@ -2760,7 +2834,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     botHasLoadedOnce = true;
                     setBotUpdatedNow();
                     // No bots: clear columns and show message
-                    columns.innerHTML = '<div class="admin-bot-card"><p>' + (data.error || 'None') + '</p></div>';
+                    columns.innerHTML = '<div class="admin-bot-card"><p>' + (data.error || adminI18n.none) + '</p></div>';
                     return;
                 }
                 Array.from(columns.children).forEach(child => {
@@ -2907,7 +2981,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error loading bot overview:', error);
                 botHasLoadedOnce = true;
                 setBotUpdatedNow();
-                columns.innerHTML = '<div class="column"><p>Error loading bot overview.</p></div>';
+                columns.innerHTML = '<div class="column"><p>' + adminI18n.errLoadBotOverview + '</p></div>';
             });
     };
     // Smart refresh for bot overview - only refresh if section is open
@@ -2953,10 +3027,10 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.botMessageStats) {
                     const messageSystemNames = {
-                        'discordbot': 'Discord Bot',
-                        'twitch_stable': 'Chat Bot Stable',
-                        'twitch_beta': 'Chat Bot Beta',
-                        'twitch_custom': 'Chat Bot Custom'
+                        'discordbot': adminI18n.msgsysDiscordBot,
+                        'twitch_stable': adminI18n.msgsysChatBotStable,
+                        'twitch_beta': adminI18n.msgsysChatBotBeta,
+                        'twitch_custom': adminI18n.msgsysChatBotCustom
                     };
                     for (const [key, label] of Object.entries(messageSystemNames)) {
                         const stats = data.botMessageStats[key];
@@ -2967,7 +3041,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (stats.messages_sent > 0) {
                                     countElement.textContent = new Intl.NumberFormat().format(stats.messages_sent);
                                 } else {
-                                    countElement.textContent = 'Not Counting Yet';
+                                    countElement.textContent = adminI18n.notCountingYet;
                                 }
                             }
                             // Update timestamp
@@ -2975,7 +3049,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (timestampElement && stats.last_updated) {
                                 const date = new Date(stats.last_updated);
                                 const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                                timestampElement.textContent = 'Last Updated: ' + formattedDate;
+                                timestampElement.textContent = adminI18n.lastUpdatedPrefix + ' ' + formattedDate;
                             }
                         }
                     }
@@ -3007,12 +3081,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data && data.success && typeof data.html === 'string') {
                     aiStatsContainer.innerHTML = data.html;
                 } else {
-                    aiStatsContainer.innerHTML = '<p class="sp-text-danger">Failed to load AI platform stats.</p>';
+                    aiStatsContainer.innerHTML = '<p class="sp-text-danger">' + adminI18n.failLoadAiStats + '</p>';
                 }
             })
             .catch(err => {
                 console.error('Error loading AI platform stats:', err);
-                aiStatsContainer.innerHTML = '<p class="sp-text-danger">Failed to load AI platform stats.</p>';
+                aiStatsContainer.innerHTML = '<p class="sp-text-danger">' + adminI18n.failLoadAiStats + '</p>';
             })
             .finally(() => {
                 aiStatsLoading = false;
@@ -3062,7 +3136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateCharCount() {
         if (!messageTextarea || !charCountElement) return;
         const length = messageTextarea.value.length;
-        charCountElement.textContent = length + ' / 255 characters';
+        charCountElement.textContent = length + adminI18n.charCountSuffix;
         if (length > 255) {
             charCountElement.className = 'sp-text-danger';
         } else if (length > 230) {
@@ -3088,15 +3162,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
         const username = shoutoutUsernameInput ? shoutoutUsernameInput.value.trim() : '';
         if (!hasChannel) {
-            shoutoutHelperText.textContent = 'Please select a channel above';
+            shoutoutHelperText.textContent = adminI18n.selectChannelAbove;
             return;
         }
         if (!username) {
-            shoutoutHelperText.textContent = 'The selected channel above will send this shoutout';
+            shoutoutHelperText.textContent = adminI18n.channelWillShoutout;
             return;
         }
         if (shoutoutUsernameValid) {
-            shoutoutHelperText.textContent = 'Username validated. Ready to send shoutout.';
+            shoutoutHelperText.textContent = adminI18n.usernameValidated;
         }
     }
     function setShoutoutInputState(state) {
@@ -3127,13 +3201,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (!/^[a-z0-9_]{3,25}$/i.test(username.replace(/^@+/, ''))) {
             setShoutoutInputState('error');
-            if (shoutoutHelperText) shoutoutHelperText.textContent = 'Invalid Twitch username format.';
+            if (shoutoutHelperText) shoutoutHelperText.textContent = adminI18n.invalidUsernameFormat;
             updateShoutoutButtonState();
             return;
         }
 
         setShoutoutInputState('loading');
-        if (shoutoutHelperText) shoutoutHelperText.textContent = 'Validating username...';
+        if (shoutoutHelperText) shoutoutHelperText.textContent = adminI18n.validatingUsername;
 
         const currentRequestId = ++shoutoutValidationRequestId;
         shoutoutValidationTimer = setTimeout(() => {
@@ -3150,7 +3224,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         setShoutoutInputState('error');
                         if (shoutoutHelperText) {
-                            shoutoutHelperText.textContent = data.message || 'Username validation failed.';
+                            shoutoutHelperText.textContent = data.message || adminI18n.usernameValidationFailed;
                         }
                     }
                     updateShoutoutButtonState();
@@ -3161,7 +3235,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Shoutout username validation failed:', err);
                     shoutoutUsernameValid = false;
                     setShoutoutInputState('error');
-                    if (shoutoutHelperText) shoutoutHelperText.textContent = 'Unable to validate username right now.';
+                    if (shoutoutHelperText) shoutoutHelperText.textContent = adminI18n.unableValidateUsername;
                     updateShoutoutButtonState();
                 });
         }, 1000);
@@ -3180,19 +3254,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (channels.length === 0) {
                     const opt = document.createElement('option');
                     opt.value = '';
-                    opt.textContent = includeOffline ? 'No channels found' : 'No online channels';
+                    opt.textContent = includeOffline ? adminI18n.noChannelsFound : adminI18n.noOnlineChannels;
                     channelSelect.appendChild(opt);
                     channelSelect.disabled = true;
                 } else {
                     const placeholder = document.createElement('option');
                     placeholder.value = '';
-                    placeholder.textContent = 'Choose a channel...';
+                    placeholder.textContent = adminI18n.chooseChannel;
                     channelSelect.appendChild(placeholder);
                     channels.forEach(ch => {
                         const opt = document.createElement('option');
                         opt.value = ch.twitch_user_id;
                         const displayName = ch.twitch_display_name || ch.twitch_user_id;
-                        opt.textContent = ch.is_online ? displayName : displayName + ' (Offline)';
+                        opt.textContent = ch.is_online ? displayName : displayName + ' ' + adminI18n.offlineSuffix;
                         channelSelect.appendChild(opt);
                     });
                     channelSelect.disabled = false;
@@ -3207,7 +3281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     channelSelect.innerHTML = '';
                     const opt = document.createElement('option');
                     opt.value = '';
-                    opt.textContent = 'Error loading channels';
+                    opt.textContent = adminI18n.errLoadingChannels;
                     channelSelect.appendChild(opt);
                     channelSelect.disabled = true;
                 }
@@ -3255,7 +3329,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const sendButton = document.getElementById('send');
             const originalText = sendButton.innerHTML;
             sendButton.disabled = true;
-            sendButton.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Sending...</span>';
+            sendButton.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + adminI18n.sending + '</span>';
             fetch(window.location.href, {
                 method: 'POST',
                 body: formData
@@ -3307,7 +3381,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     timer: 5000,
                     timerProgressBar: true,
                     icon: 'error',
-                    title: 'Network error: ' + error.message
+                    title: adminI18n.netErrorPrefix + ' ' + error.message
                 });
             })
             .finally(() => {
@@ -3331,7 +3405,7 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('shoutout_username', username);
             const originalText = sendShoutoutButton.innerHTML;
             sendShoutoutButton.disabled = true;
-            sendShoutoutButton.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Sending...</span>';
+            sendShoutoutButton.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + adminI18n.sending + '</span>';
             fetch(window.location.href, {
                 method: 'POST',
                 body: formData
@@ -3361,7 +3435,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         timer: 5000,
                         timerProgressBar: true,
                         icon: 'error',
-                        title: data.message || 'Failed to send shoutout'
+                        title: data.message || adminI18n.failSendShoutout
                     });
                 }
             })
@@ -3374,7 +3448,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     timer: 5000,
                     timerProgressBar: true,
                     icon: 'error',
-                    title: 'Network error: ' + error.message
+                    title: adminI18n.netErrorPrefix + ' ' + error.message
                 });
             })
             .finally(() => {

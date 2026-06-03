@@ -6,6 +6,21 @@ require_once "/var/www/config/ssh.php";
 include '../includes/userdata.php';
 session_write_close();
 
+// Load translations so user-facing SSE/error messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 @set_time_limit(0);
 ignore_user_abort(true);
 
@@ -68,7 +83,7 @@ register_shutdown_function(function() {
     }
     $error = error_get_last();
     if ($error) {
-        sse_send('Unhandled error: ' . $error['message'], 'error');
+        sse_send(t('admin_terminal_stream_unhandled_error', [$error['message']]), 'error');
         sendDoneEvent(['error' => $error['message']]);
     } else {
         sendDoneEvent([]);
@@ -94,7 +109,7 @@ function isAdmin() {
 // Check admin access
 if (!isAdmin()) {
     http_response_code(403);
-    exit('Access denied');
+    exit(t('admin_terminal_stream_access_denied'));
 }
 
 // Set headers for Server-Sent Events
@@ -110,20 +125,20 @@ $safeMode = ($_GET['safe'] ?? '1') === '1';
 $forceExecution = ($_GET['force'] ?? '0') === '1';
 
 if (empty($server) || empty($command)) {
-    sse_send('Error: Missing server or command parameter', 'error');
-    sendDoneEvent(['error' => 'Missing parameters']);
+    sse_send(t('admin_terminal_stream_err_missing_param'), 'error');
+    sendDoneEvent(['error' => t('admin_terminal_stream_err_missing_param_short')]);
     exit;
 }
 
 if (strlen($command) > 2000) {
-    sse_send('Error: Command exceeds maximum length (2000 characters)', 'error');
-    sendDoneEvent(['error' => 'Command too long']);
+    sse_send(t('admin_terminal_stream_err_too_long', [2000]), 'error');
+    sendDoneEvent(['error' => t('admin_terminal_stream_err_too_long_short')]);
     exit;
 }
 
 if ($safeMode && !$forceExecution && isDangerousCommand($command)) {
-    sse_send('Error: Command blocked by safe mode. Disable safe mode or force execution from UI.', 'error');
-    sendDoneEvent(['error' => 'Blocked by safe mode']);
+    sse_send(t('admin_terminal_stream_err_safe_mode'), 'error');
+    sendDoneEvent(['error' => t('admin_terminal_stream_err_safe_mode_short')]);
     exit;
 }
 
@@ -162,8 +177,8 @@ $ssh_configs = [
 ];
 
 if (!isset($ssh_configs[$server])) {
-    sse_send('Error: Invalid server specified', 'error');
-    sendDoneEvent(['error' => 'Invalid server']);
+    sse_send(t('admin_terminal_stream_err_invalid_server'), 'error');
+    sendDoneEvent(['error' => t('admin_terminal_stream_err_invalid_server_short')]);
     exit;
 }
 
@@ -181,16 +196,16 @@ try {
     // Get SSH connection
     $connection = SSHConnectionManager::getConnection($config['host'], $config['username'], $config['password']);
     if (!$connection) {
-        sse_send("Error: Could not connect to {$config['name']}", 'error');
-        sendDoneEvent(['error' => 'SSH connection failed']);
+        sse_send(t('admin_terminal_stream_err_connect', [$config['name']]), 'error');
+        sendDoneEvent(['error' => t('admin_terminal_stream_err_ssh_failed_short')]);
         exit;
     }
-    sse_send("Executing on {$config['name']}: {$command}");
+    sse_send(t('admin_terminal_stream_executing_on', [$config['name'], $command]));
     // Execute command with streaming output
     $stream = SSHConnectionManager::executeCommandStream($connection, $command);
     if (!$stream) {
-        sse_send('Error: Could not execute command', 'error');
-        sendDoneEvent(['error' => 'Command execution failed']);
+        sse_send(t('admin_terminal_stream_err_exec'), 'error');
+        sendDoneEvent(['error' => t('admin_terminal_stream_err_exec_short')]);
         exit;
     }
     if (is_array($stream)) {
@@ -224,7 +239,7 @@ try {
     if ($stderr && is_resource($stderr)) { fclose($stderr); }
     sendDoneEvent(['success' => true, 'exit_code' => 0]);
 } catch (Exception $e) {
-    sse_send("Error: " . $e->getMessage(), 'error');
+    sse_send(t('admin_terminal_stream_err_prefix', [$e->getMessage()]), 'error');
     sendDoneEvent(['error' => $e->getMessage()]);
 }
 ?>

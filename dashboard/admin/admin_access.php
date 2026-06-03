@@ -32,6 +32,23 @@ if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] 
     }
 }
 
+// Load translations so user-facing messages (JSON/SSE errors, restricted page
+// info text) are localized. Guarded so we don't double-load when an including
+// page already defined t().
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 function admin_access_is_json_request() {
     $accept = isset($_SERVER['HTTP_ACCEPT']) ? strtolower((string) $_SERVER['HTTP_ACCEPT']) : '';
     $contentType = isset($_SERVER['CONTENT_TYPE']) ? strtolower((string) $_SERVER['CONTENT_TYPE']) : '';
@@ -46,7 +63,10 @@ function admin_access_is_sse_request() {
     return strpos($accept, 'text/event-stream') !== false;
 }
 
-function admin_access_deny($message = 'Access denied. Administrator access required.') {
+function admin_access_deny($message = null) {
+    if ($message === null) {
+        $message = t('admin_access_deny_default');
+    }
     http_response_code(403);
     if (admin_access_is_sse_request()) {
         header('Content-Type: text/event-stream');
@@ -328,7 +348,7 @@ $access_token = $_SESSION['access_token'];
 $adminStmt = $conn->prepare("SELECT id, username, is_admin FROM users WHERE access_token = ? LIMIT 1");
 
 if (!$adminStmt) {
-    admin_access_deny('Access denied. Unable to validate account permissions.');
+    admin_access_deny(t('admin_access_deny_validate'));
 }
 
 $adminStmt->bind_param('s', $access_token);
@@ -348,7 +368,7 @@ $_SESSION['username'] = $adminRow['username'] ?? ($_SESSION['username'] ?? '');
 $_SESSION['is_admin'] = $is_admin;
 
 if (!$is_admin) {
-    admin_access_deny('Access denied. This section is restricted to administrators only.');
+    admin_access_deny(t('admin_access_deny_restricted'));
 }
 
 if (!defined('ADMIN_AUDIT_REQUEST_LOGGED')) {

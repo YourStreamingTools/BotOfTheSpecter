@@ -3,10 +3,25 @@
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 if (!isset($_SESSION['username'])) {
     $errorMsg = 'User session not found.';
     error_log("update_banned_users_cache.php: " . $errorMsg);
-    echo json_encode(['status' => 'failed', 'error' => $errorMsg]);
+    echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_no_session')]);
     exit();
 }
 
@@ -19,14 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($data === null) {
         $errorMsg = 'Invalid JSON received.';
         error_log("update_banned_users_cache.php: " . $errorMsg . " User: " . $loggedInUsername);
-        echo json_encode(['status' => 'failed', 'error' => $errorMsg]);
+        echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_invalid_json')]);
         exit();
     }
     if (!is_dir($cacheBaseDir)) {
         if (!mkdir($cacheBaseDir, 0755, true) && !is_dir($cacheBaseDir)) {
             $errorMsg = "Could not create cache directory: $cacheBaseDir. Check permissions.";
             error_log("update_banned_users_cache.php: " . $errorMsg . " User: " . $loggedInUsername);
-            echo json_encode(['status' => 'failed', 'error' => $errorMsg]);
+            echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_create_dir')]);
             exit();
         }
     }
@@ -50,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $errorMsg = "Could not acquire lock on temporary cache file: $tempCacheFile.";
                 error_log("update_banned_users_cache.php: " . $errorMsg . " User: " . $loggedInUsername);
                 if (file_exists($tempCacheFile)) @unlink($tempCacheFile);
-                echo json_encode(['status' => 'failed', 'error' => $errorMsg]);
+                echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_lock')]);
                 exit();
             }
             fclose($tempFileHandle);
@@ -63,20 +78,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if (file_exists($tempCacheFile)) {
                     @unlink($tempCacheFile);
                 }
-                echo json_encode(['status' => 'failed', 'error' => 'Could not save cache file. Check server logs and permissions.']);
+                echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_save')]);
             }
         } else {
             $errorMsg = "Could not open temporary cache file for writing: $tempCacheFile. Check permissions.";
             error_log("update_banned_users_cache.php: " . $errorMsg . " User: " . $loggedInUsername);
-            echo json_encode(['status' => 'failed', 'error' => $errorMsg]);
+            echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_open')]);
         }
     } else {
         error_log("update_banned_users_cache.php: Received empty or invalid data for user: $loggedInUsername. Data: " . json_encode($data));
-        echo json_encode(['status' => 'failed', 'error' => 'No valid data received to cache.']);
+        echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_no_data')]);
     }
 } else {
     $errorMsg = 'Invalid request method.';
     error_log("update_banned_users_cache.php: " . $errorMsg);
-    echo json_encode(['status' => 'failed', 'error' => $errorMsg]);
+    echo json_encode(['status' => 'failed', 'error' => t('update_banned_users_cache_error_invalid_method')]);
 }
 ?>

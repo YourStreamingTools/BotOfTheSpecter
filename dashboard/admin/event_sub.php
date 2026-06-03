@@ -3,7 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
-$pageTitle = 'EventSub Connections';
+$pageTitle = t('admin_eventsub_page_title');
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include '../includes/userdata.php';
@@ -57,7 +57,7 @@ function fetchUserEventSubSummary($accessToken, $clientID) {
 			return [
 				'ok' => false,
 				'http_code' => $httpCode,
-				'error' => 'Invalid JSON from Twitch'
+				'error' => t('admin_eventsub_err_invalid_json')
 			];
 		}
 		if (isset($payload['total'])) {
@@ -126,7 +126,7 @@ function fetchAllEventSubConnections($conn, $clientID) {
 	if (!$result) {
 		return [
 			'success' => false,
-			'error' => 'Failed to load users with Twitch tokens.',
+			'error' => t('admin_eventsub_err_load_users'),
 			'generated_at' => date('c')
 		];
 	}
@@ -220,75 +220,75 @@ ob_start();
 ?>
 <div class="sp-card">
 	<div class="sp-card-header">
-		<h1 class="sp-card-title"><span class="icon"><i class="fas fa-bell"></i></span> EventSub Connections</h1>
+		<h1 class="sp-card-title"><span class="icon"><i class="fas fa-bell"></i></span> <?php echo t('admin_eventsub_page_title'); ?></h1>
 		<button class="sp-btn sp-btn-primary" id="refresh-eventsub-btn" onclick="refreshEventSubData()">
 			<span class="icon"><i class="fas fa-sync-alt"></i></span>
-			<span>Refresh</span>
+			<span><?php echo t('admin_eventsub_refresh'); ?></span>
 		</button>
 	</div>
 	<div class="sp-card-body">
-	<p style="margin-bottom:1rem;">Admin overview of Twitch EventSub connections for all users with stored bot tokens.</p>
+	<p style="margin-bottom:1rem;"><?php echo t('admin_eventsub_description'); ?></p>
 	<div class="sp-alert sp-alert-info" id="last-updated">
-		<small>Loading EventSub data...</small>
+		<small><?php echo t('admin_eventsub_loading'); ?></small>
 	</div>
 	<div class="stats-grid">
 		<div class="stat-card accent-card">
-			<p class="stat-label">Users Scanned</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_users_scanned'); ?></p>
 			<p class="stat-value" id="stat-users-scanned">0</p>
 		</div>
 		<div class="stat-card success-card">
-			<p class="stat-label">Healthy Users</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_healthy_users'); ?></p>
 			<p class="stat-value" id="stat-healthy-users">0</p>
 		</div>
 		<div class="stat-card warning-card">
-			<p class="stat-label">Users With Active WS</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_users_active_ws'); ?></p>
 			<p class="stat-value" id="stat-users-active-ws">0</p>
 		</div>
 		<div class="stat-card danger-card">
-			<p class="stat-label">Users With Errors</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_users_errors'); ?></p>
 			<p class="stat-value" id="stat-users-errors">0</p>
 		</div>
 		<div class="stat-card">
-			<p class="stat-label">Enabled WS Connections</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_enabled_connections'); ?></p>
 			<p class="stat-value" id="stat-enabled-connections">0</p>
 		</div>
 		<div class="stat-card">
-			<p class="stat-label">Enabled WS Subs</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_enabled_ws_subs'); ?></p>
 			<p class="stat-value" id="stat-enabled-ws-subs">0</p>
 		</div>
 		<div class="stat-card">
-			<p class="stat-label">Disabled WS Subs</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_disabled_ws_subs'); ?></p>
 			<p class="stat-value" id="stat-disabled-ws-subs">0</p>
 		</div>
 		<div class="stat-card">
-			<p class="stat-label">Webhook Subs</p>
+			<p class="stat-label"><?php echo t('admin_eventsub_stat_webhook_subs'); ?></p>
 			<p class="stat-value" id="stat-webhook-subs">0</p>
 		</div>
 	</div>
 	</div><!-- /sp-card-body --></div><!-- /sp-card -->
 <div class="sp-card">
 	<div class="sp-card-header">
-		<h2 class="sp-card-title">Per-user Twitch Connection Status</h2>
+		<h2 class="sp-card-title"><?php echo t('admin_eventsub_table_heading'); ?></h2>
 	</div>
 	<div class="sp-card-body">
 	<div class="sp-table-wrap">
 		<table class="sp-table">
 			<thead>
 				<tr>
-					<th>User</th>
-					<th>Twitch ID</th>
-					<th>Status</th>
-					<th>Connections</th>
-					<th>Enabled WS</th>
-					<th>Disabled WS</th>
-					<th>Webhook</th>
-					<th>Cost</th>
-					<th>Error</th>
+					<th><?php echo t('admin_eventsub_th_user'); ?></th>
+					<th><?php echo t('admin_eventsub_th_twitch_id'); ?></th>
+					<th><?php echo t('admin_eventsub_th_status'); ?></th>
+					<th><?php echo t('admin_eventsub_th_connections'); ?></th>
+					<th><?php echo t('admin_eventsub_th_enabled_ws'); ?></th>
+					<th><?php echo t('admin_eventsub_th_disabled_ws'); ?></th>
+					<th><?php echo t('admin_eventsub_th_webhook'); ?></th>
+					<th><?php echo t('admin_eventsub_th_cost'); ?></th>
+					<th><?php echo t('admin_eventsub_th_error'); ?></th>
 				</tr>
 			</thead>
 			<tbody id="eventsub-users-body">
 				<tr>
-					<td colspan="9" class="sp-text-muted" style="text-align:center;">Loading...</td>
+					<td colspan="9" class="sp-text-muted" style="text-align:center;"><?php echo t('admin_eventsub_loading_short'); ?></td>
 				</tr>
 			</tbody>
 		</table>
@@ -297,6 +297,19 @@ ob_start();
 </div><!-- /sp-card -->
 <script>
 const initialEventSubData = <?php echo json_encode($initialData, JSON_UNESCAPED_SLASHES); ?>;
+const ESUB_I18N = {
+	unknown: <?php echo json_encode(t('admin_eventsub_js_unknown')); ?>,
+	statusError: <?php echo json_encode(t('admin_eventsub_js_status_error')); ?>,
+	statusHighUsage: <?php echo json_encode(t('admin_eventsub_js_status_high_usage')); ?>,
+	statusConnected: <?php echo json_encode(t('admin_eventsub_js_status_connected')); ?>,
+	statusNoActive: <?php echo json_encode(t('admin_eventsub_js_status_no_active')); ?>,
+	failedToLoad: <?php echo json_encode(t('admin_eventsub_js_failed_to_load')); ?>,
+	failedToLoadData: <?php echo json_encode(t('admin_eventsub_js_failed_to_load_data')); ?>,
+	noUsersFound: <?php echo json_encode(t('admin_eventsub_js_no_users_found')); ?>,
+	lastUpdated: <?php echo json_encode(t('admin_eventsub_js_last_updated')); ?>,
+	disabledSuffix: <?php echo json_encode(t('admin_eventsub_js_disabled_suffix')); ?>,
+	refreshing: <?php echo json_encode(t('admin_eventsub_js_refreshing')); ?>
+};
 function escapeHtml(text) {
 	const div = document.createElement('div');
 	div.textContent = (text ?? '').toString();
@@ -304,23 +317,23 @@ function escapeHtml(text) {
 }
 
 function formatTimestamp(isoString) {
-	if (!isoString) return 'Unknown';
+	if (!isoString) return ESUB_I18N.unknown;
 	const date = new Date(isoString);
-	if (isNaN(date.getTime())) return 'Unknown';
+	if (isNaN(date.getTime())) return ESUB_I18N.unknown;
 	return date.toLocaleString();
 }
 
 function statusTag(user) {
 	if (!user.ok) {
-		return '<span class="sp-badge sp-badge-red">Error</span>';
+		return '<span class="sp-badge sp-badge-red">' + escapeHtml(ESUB_I18N.statusError) + '</span>';
 	}
 	if ((user.enabled_connections || 0) >= 3) {
-		return '<span class="sp-badge sp-badge-amber">High Usage</span>';
+		return '<span class="sp-badge sp-badge-amber">' + escapeHtml(ESUB_I18N.statusHighUsage) + '</span>';
 	}
 	if ((user.enabled_connections || 0) > 0) {
-		return '<span class="sp-badge sp-badge-green">Connected</span>';
+		return '<span class="sp-badge sp-badge-green">' + escapeHtml(ESUB_I18N.statusConnected) + '</span>';
 	}
-	return '<span class="sp-badge sp-badge-blue">No Active Connections</span>';
+	return '<span class="sp-badge sp-badge-blue">' + escapeHtml(ESUB_I18N.statusNoActive) + '</span>';
 }
 
 function renderEventSubData(data) {
@@ -328,9 +341,9 @@ function renderEventSubData(data) {
 	const updated = document.getElementById('last-updated');
 	if (!data || !data.success) {
 		if (updated) {
-			updated.innerHTML = '<small class="sp-text-danger">Failed to load data.</small>';
+			updated.innerHTML = '<small class="sp-text-danger">' + escapeHtml(ESUB_I18N.failedToLoad) + '</small>';
 		}
-		body.innerHTML = '<tr><td colspan="9" class="sp-text-danger" style="text-align:center;">Failed to load EventSub data.</td></tr>';
+		body.innerHTML = '<tr><td colspan="9" class="sp-text-danger" style="text-align:center;">' + escapeHtml(ESUB_I18N.failedToLoadData) + '</td></tr>';
 		return;
 	}
 	const s = data.summary || {};
@@ -343,18 +356,18 @@ function renderEventSubData(data) {
 	document.getElementById('stat-disabled-ws-subs').textContent = s.total_disabled_ws_subs || 0;
 	document.getElementById('stat-webhook-subs').textContent = s.total_webhook_subs || 0;
 	if (updated) {
-		updated.innerHTML = `<small>Last Updated: ${escapeHtml(formatTimestamp(data.generated_at))}</small>`;
+		updated.innerHTML = `<small>${escapeHtml(ESUB_I18N.lastUpdated)} ${escapeHtml(formatTimestamp(data.generated_at))}</small>`;
 	}
 	const users = Array.isArray(data.users) ? data.users : [];
 	if (users.length === 0) {
-		body.innerHTML = '<tr><td colspan="9" class="sp-text-muted" style="text-align:center;">No users found.</td></tr>';
+		body.innerHTML = '<tr><td colspan="9" class="sp-text-muted" style="text-align:center;">' + escapeHtml(ESUB_I18N.noUsersFound) + '</td></tr>';
 		return;
 	}
 	const rows = users.map(user => {
-		const displayName = user.display_name || user.username || 'Unknown';
+		const displayName = user.display_name || user.username || ESUB_I18N.unknown;
 		const username = user.username ? `@${user.username}` : '';
 		const errorText = user.ok ? '-' : (user.error || `HTTP ${user.http_code || 0}`);
-		const connectionText = `${user.enabled_connections || 0}` + ((user.disabled_connections || 0) > 0 ? ` (+${user.disabled_connections} disabled)` : '');
+		const connectionText = `${user.enabled_connections || 0}` + ((user.disabled_connections || 0) > 0 ? ` ${ESUB_I18N.disabledSuffix.replace('%d', user.disabled_connections)}` : '');
 		const costText = user.ok ? `${user.total_cost || 0}/${user.max_cost || 0}` : '-';
 		return `
 			<tr>
@@ -381,7 +394,7 @@ async function refreshEventSubData() {
 	const original = button ? button.innerHTML : null;
 	if (button) {
 		button.disabled = true;
-		button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Refreshing...</span>';
+		button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + escapeHtml(ESUB_I18N.refreshing) + '</span>';
 	}
 	try {
 		const response = await fetch('?refresh_data=1');

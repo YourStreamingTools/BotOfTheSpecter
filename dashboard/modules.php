@@ -42,7 +42,7 @@ if ($db->connect_error) {
 function resolveModuleBotTwitchUserId($username) {
     global $clientID, $authToken;
     $username = trim($username);
-    if ($username === '') return [false, 'Bot username cannot be empty.'];
+    if ($username === '') return [false, t('modules_err_bot_username_empty')];
     $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($username);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -55,11 +55,11 @@ function resolveModuleBotTwitchUserId($username) {
     $err = curl_error($ch);
     curl_close($ch);
     if ($resp === false || $code !== 200) {
-        return [false, 'Twitch API error: ' . ($err ?: "HTTP {$code}")];
+        return [false, t('modules_err_twitch_api', [$err ?: "HTTP {$code}"])];
     }
     $data = json_decode($resp, true);
     if (!isset($data['data'][0]['id'])) {
-        return [false, 'Twitch user not found.'];
+        return [false, t('modules_err_twitch_user_not_found')];
     }
     return [$data['data'][0]['id'], null];
 }
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     header('Content-Type: application/json');
     $botName = trim($_POST['bot_username'] ?? '');
     if ($botName === '') {
-        echo json_encode(['success' => false, 'error' => 'Bot username cannot be empty.']);
+        echo json_encode(['success' => false, 'error' => t('modules_err_bot_username_empty')]);
         exit();
     }
     [$resolvedId, $resolveErr] = resolveModuleBotTwitchUserId($botName);
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $botName = trim($_POST['bot_username'] ?? '');
     $botId   = trim($_POST['bot_channel_id'] ?? '');
     if ($botName === '') {
-        $_SESSION['update_message'] = 'Please provide a bot username.';
+        $_SESSION['update_message'] = t('modules_err_provide_bot_username');
         header("Location: ?tab=custom-module-bot");
         exit();
     }
@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $dupStmt->close();
     }
     if ($isDupe) {
-        $_SESSION['update_message'] = 'That bot is already linked to your channel.';
+        $_SESSION['update_message'] = t('modules_err_bot_already_linked');
         header("Location: ?tab=custom-module-bot");
         exit();
     }
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmt->bind_param('iss', $user_id, $botName, $botId);
         $stmt->execute();
     }
-    $_SESSION['update_message'] = 'Module bot added. Please verify it using the link below.';
+    $_SESSION['update_message'] = t('modules_msg_bot_added');
     header("Location: ?tab=custom-module-bot");
     exit();
 }
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt->bind_param('ii', $recordId, $user_id);
             $stmt->execute();
         }
-        $_SESSION['update_message'] = 'Module bot removed.';
+        $_SESSION['update_message'] = t('modules_msg_bot_removed');
     }
     header("Location: ?tab=custom-module-bot");
     exit();
@@ -1853,7 +1853,8 @@ ob_start();
                                                         <?php endif; ?>
                                                     </td>
                                                     <td style="text-align:right;">
-                                                        <form method="post" style="display:inline;" onsubmit="return confirm('Remove <?php echo htmlspecialchars(addslashes($mb['bot_username'])); ?>?');">
+                                                        <?php $removeBotConfirm = json_encode(t('modules_js_confirm_remove_bot', ['name' => $mb['bot_username']]), JSON_HEX_QUOT | JSON_HEX_APOS | JSON_HEX_TAG | JSON_HEX_AMP); ?>
+                                                        <form method="post" style="display:inline;" onsubmit="return confirm(<?php echo htmlspecialchars($removeBotConfirm, ENT_QUOTES); ?>);">
                                                             <input type="hidden" name="action" value="remove_module_bot">
                                                             <input type="hidden" name="record_id" value="<?php echo intval($mb['id']); ?>">
                                                             <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
@@ -1879,6 +1880,40 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+    const MODULES_I18N = {
+        uploadingWait: <?php echo json_encode(t('modules_js_uploading_wait')); ?>,
+        uploadCompleted: <?php echo json_encode(t('modules_js_upload_completed')); ?>,
+        uploadFailedPrefix: <?php echo json_encode(t('modules_js_upload_failed_prefix')); ?>,
+        unknownError: <?php echo json_encode(t('modules_js_unknown_error')); ?>,
+        errorProcessingResponse: <?php echo json_encode(t('modules_js_error_processing_response')); ?>,
+        checkSizeNote: <?php echo json_encode(t('modules_js_check_size_note')); ?>,
+        noFilesSelectedTitle: <?php echo json_encode(t('modules_js_no_files_selected_title')); ?>,
+        noFilesSelectedText: <?php echo json_encode(t('modules_js_no_files_selected_text')); ?>,
+        uploading: <?php echo json_encode(t('modules_js_uploading')); ?>,
+        processingServer: <?php echo json_encode(t('modules_js_processing_server')); ?>,
+        uploadFailedTitle: <?php echo json_encode(t('modules_js_upload_failed_title')); ?>,
+        uploadErrorRetry: <?php echo json_encode(t('modules_js_upload_error_retry')); ?>,
+        saving: <?php echo json_encode(t('modules_js_saving')); ?>,
+        saved: <?php echo json_encode(t('modules_js_saved')); ?>,
+        errorLabel: <?php echo json_encode(t('modules_js_error')); ?>,
+        cooldownReady: <?php echo json_encode(t('modules_cooldown_ready')); ?>,
+        cooldownMin: <?php echo json_encode(t('modules_cooldown_min')); ?>,
+        cantWhitelistBlocked: <?php echo json_encode(t('modules_js_cant_whitelist_blocked')); ?>,
+        noSpacesUrls: <?php echo json_encode(t('modules_js_no_spaces_urls')); ?>,
+        urlAlreadyBlacklist: <?php echo json_encode(t('modules_js_url_already_blacklist')); ?>,
+        urlAlreadyWhitelist: <?php echo json_encode(t('modules_js_url_already_whitelist')); ?>,
+        globallyBlocked: <?php echo json_encode(t('modules_js_globally_blocked')); ?>,
+        oneWordNoSpaces: <?php echo json_encode(t('modules_js_one_word_no_spaces')); ?>,
+        unableResolveBot: <?php echo json_encode(t('modules_js_unable_resolve_bot')); ?>,
+        errorResolvingBot: <?php echo json_encode(t('modules_js_error_resolving_bot')); ?>,
+        noFilesSelectedFileList: <?php echo json_encode(t('modules_no_files_selected')); ?>,
+        uploadMp3Files: <?php echo json_encode(t('modules_upload_mp3_files')); ?>,
+        confirmDeleteFile: <?php echo json_encode(t('modules_js_confirm_delete_file')); ?>,
+        confirmDeleteSelected: <?php echo json_encode(t('modules_js_confirm_delete_selected')); ?>,
+        confirmRemoveGame: <?php echo json_encode(t('modules_js_confirm_remove_game')); ?>,
+        uploadingFiles: <?php echo json_encode(t('modules_js_uploading_files')); ?>,
+        uploadingPercent: <?php echo json_encode(t('modules_js_uploading_percent')); ?>
+    };
     document.addEventListener('DOMContentLoaded', function () {
         // File upload handling
         let dropArea = document.getElementById('drag-area');
@@ -1931,7 +1966,7 @@ ob_start();
                 formData.append('filesToUpload[]', files[i]);
             }
             // Show upload status indicator
-            $('#file-list').append('<div class="sp-alert sp-alert-info">Uploading files, please wait...</div>');
+            $('#file-list').append('<div class="sp-alert sp-alert-info">' + MODULES_I18N.uploadingWait + '</div>');
             $.ajax({
                 url: '/api/module_data_post.php',
                 type: 'POST',
@@ -1963,17 +1998,17 @@ ob_start();
                                 $('#uploadProgressBar').text(Math.round(result.storage_percentage * 100) / 100 + '%');
                             }
                             // Show success message
-                            $('#file-list').html('<div class="sp-alert sp-alert-success">Upload completed successfully!</div>');
+                            $('#file-list').html('<div class="sp-alert sp-alert-success">' + MODULES_I18N.uploadCompleted + '</div>');
                             // Reload the page after a short delay
                             setTimeout(function () {
                                 location.reload();
                             }, 1500);
                         } else {
-                            $('#file-list').html('<div class="sp-alert sp-alert-danger">Upload failed: ' + (result.status || 'Unknown error') + '</div>');
+                            $('#file-list').html('<div class="sp-alert sp-alert-danger">' + MODULES_I18N.uploadFailedPrefix + ' ' + (result.status || MODULES_I18N.unknownError) + '</div>');
                         }
                     } catch (e) {
                         console.error("Error parsing response:", e);
-                        $('#file-list').html('<div class="sp-alert sp-alert-danger">Error processing server response</div>');
+                        $('#file-list').html('<div class="sp-alert sp-alert-danger">' + MODULES_I18N.errorProcessingResponse + '</div>');
                         setTimeout(function () {
                             location.reload();
                         }, 2000);
@@ -1982,7 +2017,7 @@ ob_start();
                 error: function (jqXHR, textStatus, errorThrown) {
                     console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
                     console.error('Response:', jqXHR.responseText);
-                    $('#file-list').html('<div class="sp-alert sp-alert-danger">Upload failed: ' + textStatus + '<br>Please check file size limits and try again.</div>');
+                    $('#file-list').html('<div class="sp-alert sp-alert-danger">' + MODULES_I18N.uploadFailedPrefix + ' ' + textStatus + '<br>' + MODULES_I18N.checkSizeNote + '</div>');
                 }
             });
         }
@@ -1997,7 +2032,7 @@ ob_start();
         document.querySelectorAll('.delete-single').forEach(function (button) {
             button.addEventListener('click', function () {
                 const fileName = this.getAttribute('data-file');
-                if (confirm('Are you sure you want to delete "' + fileName + '"?')) {
+                if (confirm(MODULES_I18N.confirmDeleteFile.replace(':name', fileName))) {
                     let form = document.getElementById('deleteForm');
                     let input = document.createElement('input');
                     input.type = 'hidden';
@@ -2012,7 +2047,7 @@ ob_start();
         $('#deleteSelectedBtn').on('click', function () {
             var checkedBoxes = $('input[name="delete_files[]"]:checked');
             if (checkedBoxes.length > 0) {
-                if (confirm('Are you sure you want to delete the selected ' + checkedBoxes.length + ' file(s)?')) {
+                if (confirm(MODULES_I18N.confirmDeleteSelected.replace(':count', checkedBoxes.length))) {
                     $('#deleteForm').submit();
                 }
             }
@@ -2029,7 +2064,7 @@ ob_start();
             for (let i = 0; i < files.length; i++) {
                 fileNames.push(files[i].name);
             }
-            $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('modules_no_files_selected'); ?>');
+            $('#file-list').text(fileNames.length ? fileNames.join(', ') : MODULES_I18N.noFilesSelectedFileList);
         });
         // AJAX upload with progress bar
         $('#uploadForm').on('submit', function (e) {
@@ -2038,8 +2073,8 @@ ob_start();
             if (files.length === 0) {
                 Swal.fire({
                     icon: 'warning',
-                    title: 'No Files Selected',
-                    text: 'Please select at least one file to upload.',
+                    title: MODULES_I18N.noFilesSelectedTitle,
+                    text: MODULES_I18N.noFilesSelectedText,
                     confirmButtonColor: '#3273dc'
                 });
                 return;
@@ -2047,12 +2082,12 @@ ob_start();
             let formData = new FormData(this);
             // Show upload status and update UI
             $('#uploadStatusContainer').show();
-            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading ' + files.length + ' file(s)...');
+            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + MODULES_I18N.uploadingFiles.replace(':count', files.length));
             $('#uploadProgressPercent').text('0%');
             $('#uploadProgress').val(0);
             // Update button state
             $('#uploadBtn').prop('disabled', true).removeClass('sp-btn-primary').addClass('sp-btn-loading');
-            $('#uploadBtnText').text('Uploading...');
+            $('#uploadBtnText').text(MODULES_I18N.uploading);
             $.ajax({
                 url: '/api/module_data_post.php',
                 type: 'POST',
@@ -2067,16 +2102,16 @@ ob_start();
                             $('#uploadProgress').val(percentComplete);
                             $('#uploadProgressPercent').text(percentComplete + '%');
                             if (percentComplete < 100) {
-                                $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + percentComplete + '%)');
+                                $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + MODULES_I18N.uploadingPercent.replace(':percent', percentComplete));
                             } else {
-                                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Processing files on server...');
+                                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + MODULES_I18N.processingServer);
                             }
                         }
                     }, false);
                     return xhr;
                 },
                 success: function (response) {
-                    $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
+                    $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + MODULES_I18N.uploadCompleted);
                     $('#uploadProgressPercent').text('100%');
                     setTimeout(function() {
                         location.reload();
@@ -2086,11 +2121,11 @@ ob_start();
                     console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
                     $('#uploadStatusContainer').hide();
                     $('#uploadBtn').prop('disabled', false).removeClass('sp-btn-loading').addClass('sp-btn-primary');
-                    $('#uploadBtnText').text('<?php echo t("modules_upload_mp3_files"); ?>');
+                    $('#uploadBtnText').text(MODULES_I18N.uploadMp3Files);
                     Swal.fire({
                         icon: 'error',
-                        title: 'Upload Failed',
-                        text: 'An error occurred during upload. Please try again.',
+                        title: MODULES_I18N.uploadFailedTitle,
+                        text: MODULES_I18N.uploadErrorRetry,
                         confirmButtonColor: '#3273dc'
                     });
                 }
@@ -2175,7 +2210,7 @@ ob_start();
         if (saveAllBtn) {
             saveAllBtn.addEventListener('click', function (e) {
                 // Change button to loading state
-                this.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Saving...</span>';
+                this.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + MODULES_I18N.saving + '</span>';
                 this.disabled = true;
                 // Form will submit naturally since this is type="submit"
             });
@@ -2186,7 +2221,7 @@ ob_start();
                 const section = this.getAttribute('data-section');
                 const originalText = this.innerHTML;
                 // Change button to loading state
-                this.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Saving...</span>';
+                this.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + MODULES_I18N.saving + '</span>';
                 this.disabled = true;
                 // Collect form data for the specific section
                 const formData = new FormData();
@@ -2238,7 +2273,7 @@ ob_start();
                         this.innerHTML = originalText;
                         this.disabled = false;
                         // Show success feedback
-                        this.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>Saved!</span>';
+                        this.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>' + MODULES_I18N.saved + '</span>';
                         this.classList.remove('sp-btn-success');
                         this.classList.add('sp-btn-info');
                         // Reset button after 2 seconds
@@ -2254,7 +2289,7 @@ ob_start();
                         this.innerHTML = originalText;
                         this.disabled = false;
                         // Show error feedback
-                        this.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>Error</span>';
+                        this.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>' + MODULES_I18N.errorLabel + '</span>';
                         this.classList.remove('sp-btn-success');
                         this.classList.add('sp-btn-danger');
                         // Reset button after 2 seconds
@@ -2346,7 +2381,7 @@ ob_start();
     }
     // Function to remove an ignored game
     function removeIgnoredGame(gameName) {
-        if (confirm('Are you sure you want to remove "' + gameName + '" from the ignored games list?')) {
+        if (confirm(MODULES_I18N.confirmRemoveGame.replace(':name', gameName))) {
             // Create a form to submit the removal request
             const form = document.createElement('form');
             form.method = 'POST';
@@ -2450,9 +2485,9 @@ ob_start();
             data.tracking.forEach(tracking => {
                 const isExpired = tracking.is_expired;
                 const rowClass = isExpired ? ' style="color:var(--text-muted);"' : '';
-                const statusTag = isExpired 
-                    ? '<span class="sp-badge sp-badge-green">Ready</span>'
-                    : `<span class="sp-badge sp-badge-amber">${tracking.remaining_minutes} min</span>`;
+                const statusTag = isExpired
+                    ? `<span class="sp-badge sp-badge-green">${MODULES_I18N.cooldownReady}</span>`
+                    : `<span class="sp-badge sp-badge-amber">${tracking.remaining_minutes} ${MODULES_I18N.cooldownMin}</span>`;
                 html += `
                     <tr${rowClass}>
                         <td>${escapeHtml(tracking.user_name)}</td>
@@ -2506,7 +2541,7 @@ ob_start();
         const whitelistErrorMessage = document.createElement('p');
         whitelistErrorMessage.className = 'field-help text-danger';
         whitelistErrorMessage.style.display = 'none';
-        whitelistErrorMessage.textContent = "Can't whitelist a globally blocked term";
+        whitelistErrorMessage.textContent = MODULES_I18N.cantWhitelistBlocked;
         whitelistInput.parentElement.parentElement.appendChild(whitelistErrorMessage);
         whitelistInput.addEventListener('input', function() {
             // Clear any existing timeout
@@ -2514,7 +2549,7 @@ ob_start();
             // Check for spaces FIRST using raw value - immediate validation
             if (whitelistInput.value.includes(' ')) {
                 whitelistInput.classList.add('input-error');
-                whitelistErrorMessage.textContent = 'No spaces allowed in URLs.';
+                whitelistErrorMessage.textContent = MODULES_I18N.noSpacesUrls;
                 whitelistErrorMessage.style.display = 'block';
                 whitelistButton.disabled = true;
                 return;
@@ -2541,7 +2576,7 @@ ob_start();
                     if (data.matches === true) {
                         // Show error state
                         whitelistInput.classList.add('input-error');
-                        whitelistErrorMessage.textContent = "Can't whitelist a globally blocked term";
+                        whitelistErrorMessage.textContent = MODULES_I18N.cantWhitelistBlocked;
                         whitelistErrorMessage.style.display = 'block';
                         whitelistButton.disabled = true;
                         return;
@@ -2560,7 +2595,7 @@ ob_start();
                     if (data && data.exists === true) {
                         // URL already in blacklist
                         whitelistInput.classList.add('input-error');
-                        whitelistErrorMessage.textContent = 'This URL is already in your blacklist.';
+                        whitelistErrorMessage.textContent = MODULES_I18N.urlAlreadyBlacklist;
                         whitelistErrorMessage.style.display = 'block';
                         whitelistButton.disabled = true;
                     }
@@ -2588,7 +2623,7 @@ ob_start();
         const blacklistErrorMessage = document.createElement('p');
         blacklistErrorMessage.className = 'field-help text-danger';
         blacklistErrorMessage.style.display = 'none';
-        blacklistErrorMessage.textContent = 'Globally Blocked, unable to add to personal block list';
+        blacklistErrorMessage.textContent = MODULES_I18N.globallyBlocked;
         blacklistInput.parentElement.parentElement.appendChild(blacklistErrorMessage);
         blacklistInput.addEventListener('input', function() {
             // Clear any existing timeout
@@ -2596,7 +2631,7 @@ ob_start();
             // Check for spaces FIRST using raw value - immediate validation
             if (blacklistInput.value.includes(' ')) {
                 blacklistInput.classList.add('input-error');
-                blacklistErrorMessage.textContent = 'No spaces allowed in URLs.';
+                blacklistErrorMessage.textContent = MODULES_I18N.noSpacesUrls;
                 blacklistErrorMessage.style.display = 'block';
                 blacklistButton.disabled = true;
                 return;
@@ -2623,7 +2658,7 @@ ob_start();
                     if (data.matches === true) {
                         // Show error state
                         blacklistInput.classList.add('input-error');
-                        blacklistErrorMessage.textContent = 'Globally Blocked, unable to add to personal block list';
+                        blacklistErrorMessage.textContent = MODULES_I18N.globallyBlocked;
                         blacklistErrorMessage.style.display = 'block';
                         blacklistButton.disabled = true;
                         return;
@@ -2642,7 +2677,7 @@ ob_start();
                     if (data && data.exists === true) {
                         // URL already in whitelist
                         blacklistInput.classList.add('input-error');
-                        blacklistErrorMessage.textContent = 'This URL is already in your whitelist.';
+                        blacklistErrorMessage.textContent = MODULES_I18N.urlAlreadyWhitelist;
                         blacklistErrorMessage.style.display = 'block';
                         blacklistButton.disabled = true;
                     }
@@ -2678,7 +2713,7 @@ ob_start();
             // Check for spaces FIRST using raw value (before trim) - immediate validation
             if (blockedTermInput.value.includes(' ')) {
                 blockedTermInput.classList.add('input-error');
-                blockedTermErrorMessage.textContent = 'Only one word per entry allowed. No spaces permitted.';
+                blockedTermErrorMessage.textContent = MODULES_I18N.oneWordNoSpaces;
                 blockedTermErrorMessage.style.display = 'block';
                 blockedTermButton.disabled = true;
                 return;
@@ -2766,13 +2801,13 @@ ob_start();
                         setStatus('<i class="fas fa-check" style="color:var(--green);"></i>', true);
                     } else {
                         setStatus('<i class="fas fa-times" style="color:var(--red);"></i>', false);
-                        alert(j.error || 'Unable to resolve bot ID');
+                        alert(j.error || MODULES_I18N.unableResolveBot);
                     }
                 })
                 .catch(function(err) {
                     setStatus('<i class="fas fa-times" style="color:var(--red);"></i>', false);
                     console.error(err);
-                    alert('Error resolving bot ID');
+                    alert(MODULES_I18N.errorResolvingBot);
                 });
             });
         }

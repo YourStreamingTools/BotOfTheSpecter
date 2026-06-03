@@ -55,13 +55,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'unlink') {
         $stmt = $conn->prepare("DELETE FROM streamlabs_tokens WHERE twitch_user_id = ?");
         $stmt->bind_param("s", $twitchUserId);
         if ($stmt->execute()) {
-            $linkingMessage = "StreamLabs account successfully unlinked.";
+            $linkingMessage = t('streamlabs_msg_unlinked');
             $linkingMessageType = "is-success";
             $isLinked = false;
             unset($access_token);
             unset($socketToken);
         } else {
-            $linkingMessage = "Failed to unlink StreamLabs account.";
+            $linkingMessage = t('streamlabs_msg_unlink_failed');
             $linkingMessageType = "is-danger";
         }
         $stmt->close();
@@ -70,10 +70,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'unlink') {
 
 // Handle user denial (error=true in query string)
 if ($isActAsUser && isset($_GET['code'])) {
-    $linkingMessage = "Linking StreamLabs is disabled while using Act As mode.";
+    $linkingMessage = t('streamlabs_msg_actas_link_disabled');
     $linkingMessageType = "is-warning";
 } elseif (isset($_GET['error']) && $_GET['error'] === 'true') {
-    $linkingMessage = "Authorization was denied. Please allow access to link your StreamLabs account.";
+    $linkingMessage = t('streamlabs_msg_auth_denied');
     $linkingMessageType = "is-danger";
 }
 
@@ -81,7 +81,7 @@ if ($isActAsUser && isset($_GET['code'])) {
 if (isset($_GET['code']) && !$isActAsUser) {
     // Validate state parameter
     if (!isset($_GET['state']) || !isset($_SESSION['streamlabs_oauth_state']) || $_GET['state'] !== $_SESSION['streamlabs_oauth_state']) {
-        $linkingMessage = "Invalid state parameter. Please try again.";
+        $linkingMessage = t('streamlabs_msg_invalid_state');
         $linkingMessageType = "is-danger";
     } else {
         unset($_SESSION['streamlabs_oauth_state']);
@@ -119,7 +119,7 @@ if (isset($_GET['code']) && !$isActAsUser) {
                 if ($stmt = $conn->prepare($query)) {
                     $stmt->bind_param('sssii', $twitchUserId, $new_access_token, $new_refresh_token, $new_expires_in, $created_at_timestamp);
                     if ($stmt->execute()) {
-                        $linkingMessage = "StreamLabs account successfully linked!";
+                        $linkingMessage = t('streamlabs_msg_linked');
                         $linkingMessageType = "is-success";
                         $isLinked = true;
                         $access_token = $new_access_token;
@@ -129,21 +129,21 @@ if (isset($_GET['code']) && !$isActAsUser) {
                         // Redirect to refresh page and show linked status
                         header("Location: streamlabs.php");
                         exit();
-                    } else { 
-                        $linkingMessage = "Linked, but failed to save tokens. Error: " . $stmt->error;
+                    } else {
+                        $linkingMessage = t('streamlabs_msg_save_tokens_failed') . " " . $stmt->error;
                         $linkingMessageType = "is-warning";
                     }
                     $stmt->close();
-                } else { 
-                    $linkingMessage = "Linked, but failed to prepare statement. Error: " . $conn->error;
+                } else {
+                    $linkingMessage = t('streamlabs_msg_prepare_failed') . " " . $conn->error;
                     $linkingMessageType = "is-warning";
                 }
-            } else { 
-                $linkingMessage = "Linked, but missing Twitch user ID or refresh token.";
+            } else {
+                $linkingMessage = t('streamlabs_msg_missing_ids');
                 $linkingMessageType = "is-warning";
             }
         } else {
-            $linkingMessage = "Failed to link StreamLabs account.";
+            $linkingMessage = t('streamlabs_msg_link_failed');
             $linkingMessageType = "is-danger";
             if (isset($token_data['error'])) { 
                 $linkingMessage .= " Error: " . htmlspecialchars($token_data['error']);
@@ -447,12 +447,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (unlinkHeaderBtn) {
         unlinkHeaderBtn.addEventListener('click', function() {
             Swal.fire({
-                title: 'Unlink StreamLabs Account?',
-                text: 'Are you sure you want to unlink your StreamLabs account? This will remove all associated tokens and data.',
+                title: <?php echo json_encode(t('streamlabs_swal_unlink_title')); ?>,
+                text: <?php echo json_encode(t('streamlabs_swal_unlink_text')); ?>,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'Unlink',
-                cancelButtonText: 'Cancel',
+                confirmButtonText: <?php echo json_encode(t('streamlabs_unlink')); ?>,
+                cancelButtonText: <?php echo json_encode(t('streamlabs_cancel')); ?>,
                 confirmButtonColor: '#f14668',
                 cancelButtonColor: '#6c757d'
             }).then((result) => {
@@ -502,8 +502,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(() => {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Copy Failed',
-                    text: 'Could not copy token to clipboard'
+                    title: <?php echo json_encode(t('streamlabs_swal_copy_failed_title')); ?>,
+                    text: <?php echo json_encode(t('streamlabs_swal_copy_failed_text')); ?>
                 });
             });
         });
@@ -512,12 +512,12 @@ document.addEventListener('DOMContentLoaded', function() {
         accessBtn.addEventListener('click', function() {
             if (!accessTokenVisible) {
                 Swal.fire({
-                    title: 'Reveal Access Token?',
-                    text: 'Are you sure you want to show your Access Token? Keep it secret!',
+                    title: <?php echo json_encode(t('streamlabs_swal_reveal_access_title')); ?>,
+                    text: <?php echo json_encode(t('streamlabs_swal_reveal_access_text')); ?>,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Show',
-                    cancelButtonText: 'Cancel',
+                    confirmButtonText: <?php echo json_encode(t('streamlabs_swal_show')); ?>,
+                    cancelButtonText: <?php echo json_encode(t('streamlabs_cancel')); ?>,
                     confirmButtonColor: '#f39c12',
                     cancelButtonColor: '#6c757d'
                 }).then((result) => {
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         accessDisplay.value = accessToken;
                         accessEye.classList.remove('fa-eye');
                         accessEye.classList.add('fa-eye-slash');
-                        accessBtn.title = "Hide Access Token";
+                        accessBtn.title = <?php echo json_encode(t('streamlabs_hide_access_token_title')); ?>;
                         accessBtn.classList.remove('sp-btn-warning');
                         accessBtn.classList.add('sp-btn-danger');
                         accessTokenVisible = true;
@@ -535,7 +535,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 accessDisplay.value = '•'.repeat(accessTokenDotCount);
                 accessEye.classList.remove('fa-eye-slash');
                 accessEye.classList.add('fa-eye');
-                accessBtn.title = "Show Access Token";
+                accessBtn.title = <?php echo json_encode(t('streamlabs_show_access_token_title')); ?>;
                 accessBtn.classList.remove('sp-btn-danger');
                 accessBtn.classList.add('sp-btn-warning');
                 accessTokenVisible = false;
@@ -564,8 +564,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(() => {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Copy Failed',
-                    text: 'Could not copy token to clipboard'
+                    title: <?php echo json_encode(t('streamlabs_swal_copy_failed_title')); ?>,
+                    text: <?php echo json_encode(t('streamlabs_swal_copy_failed_text')); ?>
                 });
             });
         });
@@ -574,12 +574,12 @@ document.addEventListener('DOMContentLoaded', function() {
         socketBtn.addEventListener('click', function() {
             if (!socketTokenVisible) {
                 Swal.fire({
-                    title: 'Reveal Socket Token?',
-                    text: 'Are you sure you want to show your Socket Token? Keep it secret!',
+                    title: <?php echo json_encode(t('streamlabs_swal_reveal_socket_title')); ?>,
+                    text: <?php echo json_encode(t('streamlabs_swal_reveal_socket_text')); ?>,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Show',
-                    cancelButtonText: 'Cancel',
+                    confirmButtonText: <?php echo json_encode(t('streamlabs_swal_show')); ?>,
+                    cancelButtonText: <?php echo json_encode(t('streamlabs_cancel')); ?>,
                     confirmButtonColor: '#3273dc',
                     cancelButtonColor: '#6c757d'
                 }).then((result) => {
@@ -587,7 +587,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         socketDisplay.value = socketToken;
                         socketEye.classList.remove('fa-eye');
                         socketEye.classList.add('fa-eye-slash');
-                        socketBtn.title = "Hide Socket Token";
+                        socketBtn.title = <?php echo json_encode(t('streamlabs_hide_socket_token_title')); ?>;
                         socketBtn.classList.remove('sp-btn-info');
                         socketBtn.classList.add('sp-btn-danger');
                         socketTokenVisible = true;
@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 socketDisplay.value = '•'.repeat(socketTokenDotCount);
                 socketEye.classList.remove('fa-eye-slash');
                 socketEye.classList.add('fa-eye');
-                socketBtn.title = "Show Socket Token";
+                socketBtn.title = <?php echo json_encode(t('streamlabs_show_socket_token_title')); ?>;
                 socketBtn.classList.remove('sp-btn-danger');
                 socketBtn.classList.add('sp-btn-info');
                 socketTokenVisible = false;

@@ -541,7 +541,7 @@ ob_start();
                                                         data-reward-id="<?php echo $rId; ?>"
                                                         maxlength="255" style="height:auto; min-height:4rem;"><?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                                                     <div class="character-count" id="count-<?php echo $rId; ?>"
-                                                        style="margin-top: 5px; font-size: 0.8em;">0 / 255 characters
+                                                        style="margin-top: 5px; font-size: 0.8em;"><?php echo t('channel_rewards_char_count', ['count' => '0', 'limit' => '255']); ?>
                                                     </div>
                                                 </div>
                                             <?php else: ?>
@@ -875,6 +875,8 @@ if (!empty($twitchRewards)) {
     const rewardMap = <?php echo json_encode($rewardMap); ?>;
     const allRewardIds = Object.keys(rewardMap);
     const specterRewardsData = <?php echo json_encode($specterRewardsData); ?>;
+    const rewardsApproveTitle = <?php echo json_encode(t('channel_rewards_approve_redemption')); ?>;
+    const rewardsRejectTitle = <?php echo json_encode(t('channel_rewards_reject_refund')); ?>;
     let allRedemptions = [];
     var charLimit = 255;
     function applyBetaBotCharLimit(enabled) {
@@ -915,7 +917,7 @@ if (!empty($twitchRewards)) {
             allRedemptions = allRedemptions.slice(0, 50);
             renderRedemptions(allRedemptions);
         } catch (error) {
-            document.getElementById('redemptions-table-body').innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--red);">Failed to load redemptions.</td></tr>';
+            document.getElementById('redemptions-table-body').innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--red);">' + <?php echo json_encode(t('channel_rewards_failed_load_redemptions')); ?> + '</td></tr>';
         }
     }
     function renderRedemptions(redemptions) {
@@ -927,7 +929,7 @@ if (!empty($twitchRewards)) {
         }
         redemptions.forEach(r => {
             const rewardName = r.reward.title || rewardMap[r.reward.id] || r.reward.id;
-            const input = r.user_input || '<span style="color:var(--text-muted); font-style:italic;">No input</span>';
+            const input = r.user_input || '<span style="color:var(--text-muted); font-style:italic;">' + <?php echo json_encode(t('channel_rewards_no_input')); ?> + '</span>';
             const cost = r.reward.cost;
             let statusColor = 'sp-badge sp-badge-amber';
             let actions = '';
@@ -941,10 +943,10 @@ if (!empty($twitchRewards)) {
                 // UNFULFILLED
                 actions = `
                     <div style="display:flex; gap:0.25rem; justify-content:center;">
-                        <button class="sp-btn sp-btn-success sp-btn-sm" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'FULFILLED', this)" title="Approve Redemption">
+                        <button class="sp-btn sp-btn-success sp-btn-sm" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'FULFILLED', this)" title="${rewardsApproveTitle}">
                             <i class="fas fa-check"></i>
                         </button>
-                        <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'CANCELED', this)" title="Reject (Refund)">
+                        <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'CANCELED', this)" title="${rewardsRejectTitle}">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
@@ -1003,8 +1005,8 @@ if (!empty($twitchRewards)) {
                     parentDiv.parentNode.innerHTML = newHtml;
                 } else {
                     Swal.fire({
-                        title: 'Error',
-                        text: data.error || 'Failed to update status',
+                        title: <?php echo json_encode(t('channel_rewards_error')); ?>,
+                        text: data.error || <?php echo json_encode(t('channel_rewards_failed_update_status')); ?>,
                         icon: 'error',
                         background: '#333',
                         color: '#fff'
@@ -1017,8 +1019,8 @@ if (!empty($twitchRewards)) {
             .catch(err => {
                 console.error(err);
                 Swal.fire({
-                    title: 'Error',
-                    text: 'Network error occurred',
+                    title: <?php echo json_encode(t('channel_rewards_error')); ?>,
+                    text: <?php echo json_encode(t('channel_rewards_network_error')); ?>,
                     icon: 'error',
                     background: '#333',
                     color: '#fff'
@@ -1077,7 +1079,7 @@ if (!empty($twitchRewards)) {
                     controls.querySelector('.edit-btn').style.display = 'block';
                     controls.querySelector('.save-cancel').style.display = 'none';
                 } else {
-                    alert('Error saving message');
+                    alert(<?php echo json_encode(t('channel_rewards_error_saving_message')); ?>);
                 }
             }
         };
@@ -1125,13 +1127,13 @@ if (!empty($twitchRewards)) {
                     })
                     .then(data => {
                         if (data.success) {
-                            Swal.fire({ icon: 'success', title: 'Deleted', text: data.message || '' }).then(() => location.reload());
+                            Swal.fire({ icon: 'success', title: <?php echo json_encode(t('channel_rewards_deleted')); ?>, text: data.message || '' }).then(() => location.reload());
                         } else {
-                            Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to delete reward.' });
+                            Swal.fire({ icon: 'error', title: <?php echo json_encode(t('channel_rewards_error')); ?>, text: data.error || <?php echo json_encode(t('channel_rewards_failed_delete')); ?> });
                         }
                     })
                     .catch(err => {
-                        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Request failed' });
+                        Swal.fire({ icon: 'error', title: <?php echo json_encode(t('channel_rewards_error')); ?>, text: err.message || <?php echo json_encode(t('channel_rewards_request_failed')); ?> });
                     });
             }
         });
@@ -1187,8 +1189,8 @@ if (!empty($twitchRewards)) {
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
             cancelButtonColor: '#d33',
-            confirmButtonText: 'Continue',
-            cancelButtonText: 'Cancel',
+            confirmButtonText: <?php echo json_encode(t('channel_rewards_continue')); ?>,
+            cancelButtonText: <?php echo json_encode(t('channel_rewards_cancel')); ?>,
             background: '#333',
             color: '#fff'
         }).then((result) => {
@@ -1203,7 +1205,7 @@ if (!empty($twitchRewards)) {
                     .then(data => {
                         if (data.success) {
                             Swal.fire({
-                                title: 'Success!',
+                                title: <?php echo json_encode(t('channel_rewards_success_title')); ?>,
                                 text: <?php echo json_encode(t('channel_rewards_managed_success')); ?>,
                                 icon: 'success',
                                 background: '#333',
@@ -1214,7 +1216,7 @@ if (!empty($twitchRewards)) {
                         } else if (data.error === 'manual_delete_required') {
                             // MANUAL DELETE FLOW
                             let msg = <?php echo json_encode(t('channel_rewards_manual_delete_msg')); ?>;
-                            msg = msg.replace('{reward}', data.title || 'the reward');
+                            msg = msg.replace('{reward}', data.title || <?php echo json_encode(t('channel_rewards_the_reward')); ?>);
                             Swal.fire({
                                 title: <?php echo json_encode(t('channel_rewards_manual_delete_title')); ?>,
                                 html: msg,
@@ -1243,7 +1245,7 @@ if (!empty($twitchRewards)) {
                                         .then(d2 => {
                                             if (d2.success) {
                                                 Swal.fire({
-                                                    title: 'Success!',
+                                                    title: <?php echo json_encode(t('channel_rewards_success_title')); ?>,
                                                     text: <?php echo json_encode(t('channel_rewards_managed_success')); ?>,
                                                     icon: 'success',
                                                     background: '#333',
@@ -1253,8 +1255,8 @@ if (!empty($twitchRewards)) {
                                                 });
                                             } else {
                                                 Swal.fire({
-                                                    title: 'Error!',
-                                                    text: 'Error: ' + (d2.error || 'Unknown error'),
+                                                    title: <?php echo json_encode(t('channel_rewards_error_title')); ?>,
+                                                    text: <?php echo json_encode(t('channel_rewards_error_prefix')); ?> + (d2.error || <?php echo json_encode(t('channel_rewards_unknown_error')); ?>),
                                                     icon: 'error',
                                                     background: '#333',
                                                     color: '#fff'
@@ -1266,8 +1268,8 @@ if (!empty($twitchRewards)) {
                                         .catch(err2 => {
                                             console.error('Error Step 2:', err2);
                                             Swal.fire({
-                                                title: 'Error!',
-                                                text: 'An error occurred during creation.',
+                                                title: <?php echo json_encode(t('channel_rewards_error_title')); ?>,
+                                                text: <?php echo json_encode(t('channel_rewards_error_during_creation')); ?>,
                                                 icon: 'error',
                                                 background: '#333',
                                                 color: '#fff'
@@ -1282,8 +1284,8 @@ if (!empty($twitchRewards)) {
                             });
                         } else {
                             Swal.fire({
-                                title: 'Error!',
-                                text: 'Error: ' + (data.error || 'Unknown error') + (data.http_code ? ' (Code: ' + data.http_code + ')' : ''),
+                                title: <?php echo json_encode(t('channel_rewards_error_title')); ?>,
+                                text: <?php echo json_encode(t('channel_rewards_error_prefix')); ?> + (data.error || <?php echo json_encode(t('channel_rewards_unknown_error')); ?>) + (data.http_code ? <?php echo json_encode(t('channel_rewards_code_prefix')); ?> + data.http_code + ')' : ''),
                                 icon: 'error',
                                 background: '#333',
                                 color: '#fff'
@@ -1295,8 +1297,8 @@ if (!empty($twitchRewards)) {
                     .catch(error => {
                         console.error('Error:', error);
                         Swal.fire({
-                            title: 'Error!',
-                            text: 'An error occurred while processing your request.',
+                            title: <?php echo json_encode(t('channel_rewards_error_title')); ?>,
+                            text: <?php echo json_encode(t('channel_rewards_error_processing_request')); ?>,
                             icon: 'error',
                             background: '#333',
                             color: '#fff'
@@ -1359,7 +1361,7 @@ if (!empty($twitchRewards)) {
         }
         syncOutputElement.textContent = '';
         showSyncResult();
-        appendSyncOutputLine('Connecting to the sync service...');
+        appendSyncOutputLine(<?php echo json_encode(t('channel_rewards_sync_connecting')); ?>);
         syncEventSource = new EventSource('/api/channel_rewards_stream.php');
         syncEventSource.onmessage = function (e) {
             appendSyncOutputLine(e.data || '');
@@ -1369,14 +1371,14 @@ if (!empty($twitchRewards)) {
             try {
                 info = JSON.parse(e.data || '{}');
             } catch (err) {
-                appendSyncOutputLine('[ERROR] Unable to read completion details.');
+                appendSyncOutputLine(<?php echo json_encode(t('channel_rewards_sync_read_error')); ?>);
             }
             appendSyncOutputLine('');
-            appendSyncOutputLine('[PROCESS DONE] ' + (info.success ? 'Success' : 'Failed') + ' (exit code: ' + (typeof info.exit_code !== 'undefined' ? info.exit_code : 'unknown') + ')');
+            appendSyncOutputLine(<?php echo json_encode(t('channel_rewards_sync_process_done')); ?> + ' ' + (info.success ? <?php echo json_encode(t('channel_rewards_sync_success')); ?> : <?php echo json_encode(t('channel_rewards_sync_failed')); ?>) + ' ' + <?php echo json_encode(t('channel_rewards_sync_exit_code')); ?> + (typeof info.exit_code !== 'undefined' ? info.exit_code : <?php echo json_encode(t('channel_rewards_sync_unknown')); ?>) + ')');
             finalizeSync(Boolean(info.success), btn, spinner, text);
         });
         syncEventSource.onerror = function () {
-            appendSyncOutputLine('[ERROR] Connection interrupted; waiting for the script to finish.');
+            appendSyncOutputLine(<?php echo json_encode(t('channel_rewards_sync_interrupted')); ?>);
         };
     }
     document.querySelectorAll('.cancel-btn').forEach(btn => {
@@ -1416,7 +1418,7 @@ if (!empty($twitchRewards)) {
         const textarea = document.querySelector(`.custom-message[data-reward-id="${rewardid}"]`);
         const countDiv = document.getElementById('count-' + rewardid);
         const length = textarea.value.length;
-        countDiv.textContent = length + ' / ' + charLimit + ' characters';
+        countDiv.textContent = <?php echo json_encode(t('channel_rewards_char_count', ['count' => '__COUNT__', 'limit' => '__LIMIT__'])); ?>.replace('__COUNT__', length).replace('__LIMIT__', charLimit);
         if (length > charLimit) {
             countDiv.style.color = 'red';
         } else {
@@ -1474,8 +1476,8 @@ if (!empty($twitchRewards)) {
                 const cost = form.querySelector('[name="cost"]').value;
                 if (!title || !cost) {
                     Swal.fire({
-                        title: 'Error',
-                        text: 'Please fill in Title and Cost.',
+                        title: <?php echo json_encode(t('channel_rewards_error')); ?>,
+                        text: <?php echo json_encode(t('channel_rewards_fill_title_cost')); ?>,
                         icon: 'error',
                         background: '#333',
                         color: '#fff'
@@ -1484,7 +1486,7 @@ if (!empty($twitchRewards)) {
                 }
                 submitBtn.disabled = true;
                 submitBtn.style.opacity = '0.7';
-                submitBtn.textContent = 'Creating...';
+                submitBtn.textContent = <?php echo json_encode(t('channel_rewards_creating')); ?>;
                 const formData = new FormData(form);
                 fetch('/api/create_reward.php', {
                     method: 'POST',
@@ -1497,7 +1499,7 @@ if (!empty($twitchRewards)) {
                         submitBtn.textContent = <?php echo json_encode(t('channel_rewards_create_btn')); ?>;
                         if (data.success) {
                             Swal.fire({
-                                title: 'Success!',
+                                title: <?php echo json_encode(t('channel_rewards_success_title')); ?>,
                                 text: <?php echo json_encode(t('channel_rewards_created_success')); ?>,
                                 icon: 'success',
                                 background: '#333',
@@ -1507,8 +1509,8 @@ if (!empty($twitchRewards)) {
                             });
                         } else {
                             Swal.fire({
-                                title: 'Error!',
-                                text: data.error || 'Unknown error occurred',
+                                title: <?php echo json_encode(t('channel_rewards_error_title')); ?>,
+                                text: data.error || <?php echo json_encode(t('channel_rewards_unknown_error_occurred')); ?>,
                                 icon: 'error',
                                 background: '#333',
                                 color: '#fff'
@@ -1521,8 +1523,8 @@ if (!empty($twitchRewards)) {
                         submitBtn.style.opacity = '';
                         submitBtn.textContent = <?php echo json_encode(t('channel_rewards_create_btn')); ?>;
                         Swal.fire({
-                            title: 'Error!',
-                            text: 'A network error occurred.',
+                            title: <?php echo json_encode(t('channel_rewards_error_title')); ?>,
+                            text: <?php echo json_encode(t('channel_rewards_network_error_period')); ?>,
                             icon: 'error',
                             background: '#333',
                             color: '#fff'
@@ -1535,7 +1537,7 @@ if (!empty($twitchRewards)) {
     function openEditRewardModal(rewardId) {
         var r = specterRewardsData[rewardId];
         if (!r) {
-            Swal.fire({ title: 'Error', text: 'Could not find reward data. Try syncing first.', icon: 'error', background: '#333', color: '#fff' });
+            Swal.fire({ title: <?php echo json_encode(t('channel_rewards_error')); ?>, text: <?php echo json_encode(t('channel_rewards_no_reward_data')); ?>, icon: 'error', background: '#333', color: '#fff' });
             return;
         }
         document.getElementById('edit-reward-id').value = rewardId;
@@ -1578,12 +1580,12 @@ if (!empty($twitchRewards)) {
             var title = document.getElementById('edit-reward-title').value.trim();
             var cost = document.getElementById('edit-reward-cost').value;
             if (!title || !cost) {
-                Swal.fire({ title: 'Error', text: 'Title and Cost are required.', icon: 'error', background: '#333', color: '#fff' });
+                Swal.fire({ title: <?php echo json_encode(t('channel_rewards_error')); ?>, text: <?php echo json_encode(t('channel_rewards_title_cost_required')); ?>, icon: 'error', background: '#333', color: '#fff' });
                 return;
             }
             var btn = this;
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + <?php echo json_encode(t('channel_rewards_saving')); ?>;
             var formData = new FormData();
             formData.append('reward_id', rewardId);
             formData.append('title', title);
@@ -1609,24 +1611,24 @@ if (!empty($twitchRewards)) {
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
                     btn.disabled = false;
-                    btn.innerHTML = 'Save Changes';
+                    btn.innerHTML = <?php echo json_encode(t('channel_rewards_save_changes')); ?>;
                     if (data.success) {
                         closeEditRewardModal();
                         Swal.fire({
-                            title: 'Success!',
-                            text: 'Reward updated successfully.',
+                            title: <?php echo json_encode(t('channel_rewards_success_title')); ?>,
+                            text: <?php echo json_encode(t('channel_rewards_reward_updated_success')); ?>,
                             icon: 'success',
                             background: '#333',
                             color: '#fff'
                         }).then(function () { location.reload(); });
                     } else {
-                        Swal.fire({ title: 'Error', text: data.error || 'Failed to update reward.', icon: 'error', background: '#333', color: '#fff' });
+                        Swal.fire({ title: <?php echo json_encode(t('channel_rewards_error')); ?>, text: data.error || <?php echo json_encode(t('channel_rewards_failed_update_reward')); ?>, icon: 'error', background: '#333', color: '#fff' });
                     }
                 })
                 .catch(function () {
                     btn.disabled = false;
-                    btn.innerHTML = 'Save Changes';
-                    Swal.fire({ title: 'Error', text: 'Network error occurred.', icon: 'error', background: '#333', color: '#fff' });
+                    btn.innerHTML = <?php echo json_encode(t('channel_rewards_save_changes')); ?>;
+                    Swal.fire({ title: <?php echo json_encode(t('channel_rewards_error')); ?>, text: <?php echo json_encode(t('channel_rewards_network_error_period')); ?>, icon: 'error', background: '#333', color: '#fff' });
                 });
         });
     });

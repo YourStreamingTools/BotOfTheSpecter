@@ -2,6 +2,22 @@
 // This file renders the subscription content and can be called via AJAX or initial page load
 // Expects: $subscriptions, $userId, $sessionNames from parent scope or passed data
 
+// Ensure translations are available even if this partial is rendered without its parent
+// loading i18n first. The guard prevents double-loading when the parent already defined t().
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 if (!isset($renderData)) {
     // Initial page load - use existing variables
     $data = [

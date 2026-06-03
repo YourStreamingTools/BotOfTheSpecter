@@ -48,14 +48,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 echo json_encode(['success' => true, 'id' => $toggle_id, 'new_status' => $new_status]);
                 exit();
             }
-            $successMessage = 'Message ID ' . $toggle_id . ' has been ' . ($new_status ? 'enabled' : 'disabled') . '.';
+            $successMessage = $new_status
+                ? t('timed_messages_msg_enabled', [$toggle_id])
+                : t('timed_messages_msg_disabled', [$toggle_id]);
         } catch (mysqli_sql_exception $e) {
             if ($is_ajax) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
                 exit();
             }
-            $errorMessage = "Error updating status: " . $e->getMessage();
+            $errorMessage = t('timed_messages_err_updating_status') . $e->getMessage();
         }
     }
     // Check if the form was submitted for adding a new message
@@ -70,14 +72,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => $int_min, "max_range" => 480)));
             if ($interval === false || $interval === null) {
                 $errorMessage = $has_shoutout_var
-                    ? "Interval must be at least 60 minutes when using (shoutout.username)."
-                    : "Interval must be a valid integer between 5 and 480.";
+                    ? t('timed_messages_err_interval_shoutout')
+                    : t('timed_messages_err_interval_range');
             }
         }
         if (empty($errorMessage) && ($trigger_type === 'chat_lines' || $trigger_type === 'both')) {
             $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
             if ($chat_line_trigger === false || $chat_line_trigger === null) {
-                $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
+                $errorMessage = t('timed_messages_err_chat_line_min');
             }
         }
         if (empty($errorMessage)) {
@@ -117,16 +119,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 $stmt->execute();
                 if ($trigger_type === 'both') {
-                    $modeLabel = 'timer: ' . $interval . ' min & chat lines: ' . $chat_line_trigger;
+                    $modeLabel = t('timed_messages_mode_both', ['interval' => $interval, 'chat' => $chat_line_trigger]);
                 } elseif ($trigger_type === 'timer') {
-                    $modeLabel = 'interval: ' . $interval . ' minute(s)';
+                    $modeLabel = t('timed_messages_mode_timer', [$interval]);
                 } else {
-                    $modeLabel = 'chat lines: ' . $chat_line_trigger;
+                    $modeLabel = t('timed_messages_mode_chat_lines', [$chat_line_trigger]);
                 }
-                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with ' . $modeLabel . ' has been successfully added to the database.';
+                $successMessage = t('timed_messages_msg_added', ['message' => $_POST['message'], 'mode' => $modeLabel]);
                 $stmt->close();
             } catch (mysqli_sql_exception $e) {
-                $errorMessage = "Error adding message: " . $e->getMessage();
+                $errorMessage = t('timed_messages_err_adding') . $e->getMessage();
             }
         }
     }
@@ -141,13 +143,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Check if the deletion was successful and provide feedback to the user
             $deleted = $stmt->affected_rows > 0; // Check if any rows were affected
             if ($deleted) {
-                $successMessage = "Message removed successfully.";
+                $successMessage = t('timed_messages_msg_removed');
             } else {
-                $errorMessage = "Failed to remove message.";
+                $errorMessage = t('timed_messages_err_remove_failed');
             }
             $stmt->close();
         } catch (mysqli_sql_exception $e) {
-            $errorMessage = "Error removing message: " . $e->getMessage();
+            $errorMessage = t('timed_messages_err_removing') . $e->getMessage();
         }
     }
     // Check if the form was submitted for editing the message, interval, or status
@@ -164,14 +166,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => $edit_int_min, "max_range" => 480)));
             if ($edit_interval === false || $edit_interval === null) {
                 $errorMessage = $edit_has_shoutout_var
-                    ? "Interval must be at least 60 minutes when using (shoutout.username)."
-                    : "Interval must be a valid integer between 5 and 480.";
+                    ? t('timed_messages_err_interval_shoutout')
+                    : t('timed_messages_err_interval_range');
             }
         }
         if (empty($errorMessage) && ($edit_trigger_type === 'chat_lines' || $edit_trigger_type === 'both')) {
             $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
             if ($edit_chat_line_trigger === false || $edit_chat_line_trigger === null) {
-                $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
+                $errorMessage = t('timed_messages_err_chat_line_min');
             }
         }
         if (empty($errorMessage)) {
@@ -198,16 +200,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt->execute();
                     $updated = $stmt->affected_rows > 0;
                     if ($updated) {
-                        $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
+                        $successMessage = t('timed_messages_msg_updated', [$edit_message_id]);
                     } else {
-                        $errorMessage = "Failed to update message.";
+                        $errorMessage = t('timed_messages_err_update_failed');
                     }
                     $stmt->close();
                 } catch (mysqli_sql_exception $e) {
-                    $errorMessage = "Error updating message: " . $e->getMessage();
+                    $errorMessage = t('timed_messages_err_updating') . $e->getMessage();
                 }
             } else {
-                $errorMessage = "Invalid input data.";
+                $errorMessage = t('timed_messages_err_invalid_input');
             }
         }
     }
@@ -476,6 +478,20 @@ ob_start();
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
 <script>
 var charLimit = 255;
+const TM_I18N = {
+    charactersSuffix: <?php echo json_encode(t('timed_messages_characters')); ?>,
+    intervalShoutout: <?php echo json_encode(t('timed_messages_err_interval_shoutout')); ?>,
+    intervalRange: <?php echo json_encode(t('timed_messages_alert_interval_range')); ?>,
+    swalTitle: <?php echo json_encode(t('timed_messages_swal_title')); ?>,
+    swalText: <?php echo json_encode(t('timed_messages_swal_text')); ?>,
+    swalConfirm: <?php echo json_encode(t('timed_messages_swal_confirm')); ?>,
+    swalCancel: <?php echo json_encode(t('timed_messages_swal_cancel')); ?>,
+    updating: <?php echo json_encode(t('timed_messages_updating')); ?>,
+    clickToDisable: <?php echo json_encode(t('timed_messages_click_to_disable')); ?>,
+    clickToEnable: <?php echo json_encode(t('timed_messages_click_to_enable')); ?>,
+    statusEnabled: <?php echo json_encode(t('timed_messages_status_enabled')); ?>,
+    statusDisabled: <?php echo json_encode(t('timed_messages_status_disabled')); ?>
+};
 function applyBetaBotCharLimit(enabled) {
     charLimit = enabled ? 500 : 255;
     localStorage.setItem('betaBotMode', enabled ? '1' : '0');
@@ -531,7 +547,7 @@ function showResponse() {
         editChatLineTriggerInput.value = '';
         if (editStatus) editStatus.value = '';
         if (editTriggerType) editTriggerType.value = 'timer';
-        document.getElementById('editCharCount').textContent = '0/255 characters';
+        document.getElementById('editCharCount').textContent = '0/255 ' + TM_I18N.charactersSuffix;
         document.getElementById('editCharCount').className = 'sp-help';
         updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint');
         toggleEditTriggerType();
@@ -560,7 +576,7 @@ function updateCharCount(inputId, counterId) {
     const maxLength = charLimit;
     const currentLength = input.value.length;
     // Update the counter text
-    counter.textContent = currentLength + '/' + maxLength + ' characters';
+    counter.textContent = currentLength + '/' + maxLength + ' ' + TM_I18N.charactersSuffix;
     // Update styling based on character count
     if (currentLength > maxLength) {
         counter.className = 'sp-help sp-help-danger';
@@ -668,7 +684,7 @@ function validateEditForm() {
         const editIntMin = hasShoutoutVar('edit_message_content') ? 60 : 5;
         const editIntervalInput = document.getElementById('edit_interval');
         if (editIntervalInput && (Number(editIntervalInput.value) < editIntMin || Number(editIntervalInput.value) > 480)) {
-            alert(editIntMin === 60 ? 'Interval must be at least 60 minutes when using (shoutout.username).' : 'Interval must be between 5 and 480 minutes.');
+            alert(editIntMin === 60 ? TM_I18N.intervalShoutout : TM_I18N.intervalRange);
             return false;
         }
     }
@@ -695,13 +711,14 @@ document.addEventListener('DOMContentLoaded', function() {
             var select = document.getElementById('remove_message');
             if (!select.value) return;
             Swal.fire({
-                title: 'Are you sure?',
-                text: "This will permanently remove the selected message.",
+                title: TM_I18N.swalTitle,
+                text: TM_I18N.swalText,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Yes, remove it!',
+                confirmButtonText: TM_I18N.swalConfirm,
+                cancelButtonText: TM_I18N.swalCancel,
                 reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
@@ -780,7 +797,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var currentStatus = btn.dataset.status;
         btn.disabled = true;
         // Show spinner while processing
-        btn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Updating...</span>';
+        btn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + TM_I18N.updating + '</span>';
         var body = new URLSearchParams();
         body.append('ajax_action', 'toggle_status');
         body.append('toggle_id', id);
@@ -796,14 +813,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 var newStatus = data.new_status;
                 btn.dataset.status = newStatus;
                 btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (newStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
-                btn.title = newStatus == 1 ? 'Click to disable' : 'Click to enable';
+                btn.title = newStatus == 1 ? TM_I18N.clickToDisable : TM_I18N.clickToEnable;
                 btn.innerHTML = '<span class="icon"><i class="fas ' + (newStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
-                              + '<span>' + (newStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
+                              + '<span>' + (newStatus == 1 ? TM_I18N.statusEnabled : TM_I18N.statusDisabled) + '</span>';
             } else {
                 // Restore original state on failure
                 btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (currentStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
                 btn.innerHTML = '<span class="icon"><i class="fas ' + (currentStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
-                              + '<span>' + (currentStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
+                              + '<span>' + (currentStatus == 1 ? TM_I18N.statusEnabled : TM_I18N.statusDisabled) + '</span>';
             }
             btn.disabled = false;
         })
@@ -811,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Restore original state on network error
             btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (currentStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
             btn.innerHTML = '<span class="icon"><i class="fas ' + (currentStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
-                          + '<span>' + (currentStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
+                          + '<span>' + (currentStatus == 1 ? TM_I18N.statusEnabled : TM_I18N.statusDisabled) + '</span>';
             btn.disabled = false;
         });
     });

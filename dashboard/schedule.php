@@ -49,7 +49,7 @@ if (isset($_GET['ajax'])) {
         curl_close($ch);
         if ($resp === false) {
             http_response_code(502);
-            echo json_encode(['error' => 'Twitch request failed: ' . $err]);
+            echo json_encode(['error' => t('schedule_error_request_failed') . ' ' . $err]);
             exit();
         } elseif ($code === 200) {
             $data = json_decode($resp, true);
@@ -57,7 +57,7 @@ if (isset($_GET['ajax'])) {
             exit();
         } else {
             http_response_code($code);
-            echo json_encode(['error' => 'Twitch API returned ' . $code, 'body' => $resp]);
+            echo json_encode(['error' => t('schedule_error_twitch_returned', [$code]), 'body' => $resp]);
             exit();
         }
     }
@@ -80,7 +80,7 @@ if (isset($_GET['ajax'])) {
         curl_close($ch);
         if ($resp === false) {
             http_response_code(502);
-            echo json_encode(['error' => 'Twitch request failed: ' . $err]);
+            echo json_encode(['error' => t('schedule_error_request_failed') . ' ' . $err]);
             exit();
         } elseif ($code === 200) {
             $data = json_decode($resp, true);
@@ -90,7 +90,7 @@ if (isset($_GET['ajax'])) {
             exit();
         } else {
             http_response_code($code);
-            echo json_encode(['error' => 'Twitch API returned ' . $code, 'body' => $resp]);
+            echo json_encode(['error' => t('schedule_error_twitch_returned', [$code]), 'body' => $resp]);
             exit();
         }
     }
@@ -98,13 +98,13 @@ if (isset($_GET['ajax'])) {
         $broadcasterId = $_SESSION['twitchUserId'] ?? null;
         if (empty($broadcasterId)) {
             http_response_code(403);
-            echo json_encode(['ok' => false, 'error' => 'Broadcaster ID not available. Please re-login.']);
+            echo json_encode(['ok' => false, 'error' => t('schedule_error_no_broadcaster_relogin')]);
             exit();
         }
         $op = trim($_POST['action'] ?? '');
         if ($op !== 'cancel_segment') {
             http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'Unsupported segment action for AJAX request.']);
+            echo json_encode(['ok' => false, 'error' => t('schedule_error_unsupported_ajax_action')]);
             exit();
         }
         $segId = trim($_POST['segment_id'] ?? '');
@@ -112,7 +112,7 @@ if (isset($_GET['ajax'])) {
         $cancelState = in_array($cancelRaw, ['1', 'true', 'yes', 'on'], true);
         if ($segId === '') {
             http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'Segment ID is required to cancel.']);
+            echo json_encode(['ok' => false, 'error' => t('schedule_error_segment_id_required_cancel')]);
             exit();
         }
         $cancelQuery = [
@@ -186,7 +186,7 @@ if (isset($_GET['ajax'])) {
                 'segment_id' => $segId,
                 'is_canceled' => $responseCanceledState,
                 'requested_is_canceled' => $cancelState,
-                'message' => $responseCanceledState ? 'Segment canceled.' : 'Segment uncanceled.',
+                'message' => $responseCanceledState ? t('schedule_msg_segment_canceled') : t('schedule_msg_segment_uncanceled'),
                 'debug' => $debugMeta
             ]);
             exit();
@@ -194,13 +194,13 @@ if (isset($_GET['ajax'])) {
         http_response_code($codeCancel > 0 ? $codeCancel : 500);
         echo json_encode([
             'ok' => false,
-            'error' => 'Twitch API returned HTTP ' . $codeCancel . '. ' . htmlspecialchars($respCancel ?: $errCancel),
+            'error' => t('schedule_error_twitch_http', [$codeCancel]) . ' ' . htmlspecialchars($respCancel ?: $errCancel),
             'debug' => $debugMeta
         ]);
         exit();
     }
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid ajax request']);
+    echo json_encode(['error' => t('schedule_error_invalid_ajax')]);
     exit();
 }
 // Handle schedule settings updates (vacation) via Twitch Helix PATCH
@@ -208,7 +208,7 @@ $success = null; // used for UI feedback
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) {
     $broadcasterId = $_SESSION['twitchUserId'] ?? null;
     if (empty($broadcasterId)) {
-        $error = 'Broadcaster ID not available. Please re-login to update schedule settings.';
+        $error = t('schedule_error_no_broadcaster_settings');
     } else {
         $action = $_POST['action'] ?? ($_POST['submit'] ?? 'save');
         $params = [];
@@ -224,13 +224,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
             $endLocal = trim($_POST['vacation_end'] ?? '');
             $tzPost = $timezone;
             if ($startLocal === '' || $endLocal === '') {
-                $error = 'Start and end are required to start vacation.';
+                $error = t('schedule_error_vacation_dates_required');
             } else {
                 try {
                     $dtStart = new DateTime($startLocal, new DateTimeZone($tzPost));
                     $dtEnd = new DateTime($endLocal, new DateTimeZone($tzPost));
                     if ($dtEnd <= $dtStart) {
-                        $error = 'Vacation end must be after start.';
+                        $error = t('schedule_error_vacation_end_after_start');
                     } else {
                         $dtStart->setTimezone(new DateTimeZone('UTC'));
                         $dtEnd->setTimezone(new DateTimeZone('UTC'));
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                         ];
                     }
                 } catch (Exception $e) {
-                    $error = 'Invalid date/time or timezone provided.';
+                    $error = t('schedule_error_invalid_datetime_timezone');
                 }
             }
         }
@@ -257,16 +257,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
             $sCat = trim($_POST['segment_category_id'] ?? '');
             $sTitle = trim($_POST['segment_title'] ?? '');
             if ($sStart === '' || $sEnd === '') {
-                $error = 'Start and end times are required to create a segment.';
+                $error = t('schedule_error_create_times_required');
             } elseif (strlen($sTitle) > 140) {
-                $error = 'Title cannot exceed 140 characters.';
+                $error = t('schedule_error_title_too_long');
             } else {
                 try {
                     $dtStart = new DateTime($sStart, new DateTimeZone($sTz));
                     $dtEnd = new DateTime($sEnd, new DateTimeZone($sTz));
                     $durationMins = (int)floor(($dtEnd->getTimestamp() - $dtStart->getTimestamp()) / 60);
                     if ($durationMins < 30 || $durationMins > 1380) {
-                        $error = 'Duration must be between 30 minutes and 23 hours (1380 minutes).';
+                        $error = t('schedule_error_duration_range');
                     }
                     if (empty($error)) {
                         $dtStart->setTimezone(new DateTimeZone('UTC'));
@@ -296,20 +296,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                         $errSeg = curl_error($chSeg);
                         curl_close($chSeg);
                         if ($codeSeg === 200) {
-                            $success = 'Schedule segment created successfully.';
+                            $success = t('schedule_msg_segment_created');
                         } else {
-                            $error = 'Twitch API returned HTTP ' . $codeSeg . '. ' . htmlspecialchars($respSeg ?: $errSeg);
+                            $error = t('schedule_error_twitch_http', [$codeSeg]) . ' ' . htmlspecialchars($respSeg ?: $errSeg);
                         }
                     }
                 } catch (Exception $e) {
-                    $error = 'Invalid start or end time for new segment.';
+                    $error = t('schedule_error_invalid_create_time');
                 }
             }
         }
         if (empty($error) && $op === 'update_segment') {
             $segId = trim($_POST['segment_id'] ?? '');
             if ($segId === '') {
-                $error = 'Segment ID is required to update.';
+                $error = t('schedule_error_segment_id_required_update');
             } else {
                 $payload = [];
                 $startRaw = trim($_POST['segment_start'] ?? '');
@@ -320,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                         $dtEnd = new DateTime($endRaw, new DateTimeZone($timezone));
                         $durationMins = (int)floor(($dtEnd->getTimestamp() - $dtStart->getTimestamp()) / 60);
                         if ($durationMins < 30 || $durationMins > 1380) {
-                            $error = 'Duration must be between 30 minutes and 23 hours (1380 minutes).';
+                            $error = t('schedule_error_duration_range');
                         } else {
                             $dtStart->setTimezone(new DateTimeZone('UTC'));
                             $payload['start_time'] = $dtStart->format('Y-m-d\TH:i:s\Z');
@@ -328,19 +328,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                             $payload['timezone'] = $timezone;
                         }
                     } catch (Exception $e) {
-                        $error = 'Invalid segment start or end time.';
+                        $error = t('schedule_error_invalid_segment_time');
                     }
                 } elseif ($startRaw !== '' || $endRaw !== '') {
-                    $error = 'Please provide both start and end times.';
+                    $error = t('schedule_error_both_times_required');
                 }
                 if (isset($_POST['segment_title'])) {
                     $t = trim($_POST['segment_title']);
-                    if (strlen($t) > 140) $error = 'Title cannot exceed 140 characters.';
+                    if (strlen($t) > 140) $error = t('schedule_error_title_too_long');
                     else $payload['title'] = mb_substr($t,0,140);
                 }
                 if (!empty($_POST['segment_category_id'])) $payload['category_id'] = trim($_POST['segment_category_id']);
                 if (empty($error) && empty($payload)) {
-                    $error = 'No update fields provided for segment.';
+                    $error = t('schedule_error_no_update_fields');
                 }
                 if (empty($error)) {
                     $urlUpd = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
@@ -361,9 +361,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                     $errUpd = curl_error($chUpd);
                     curl_close($chUpd);
                     if ($codeUpd === 200) {
-                        $success = 'Schedule segment updated successfully.';
+                        $success = t('schedule_msg_segment_updated');
                     } else {
-                        $error = 'Twitch API returned HTTP ' . $codeUpd . '. ' . htmlspecialchars($respUpd ?: $errUpd);
+                        $error = t('schedule_error_twitch_http', [$codeUpd]) . ' ' . htmlspecialchars($respUpd ?: $errUpd);
                     }
                 }
             }
@@ -373,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
             $cancelRaw = strtolower(trim((string)($_POST['cancel_state'] ?? '1')));
             $cancelState = in_array($cancelRaw, ['1', 'true', 'yes', 'on'], true);
             if ($segId === '') {
-                $error = 'Segment ID is required to cancel.';
+                $error = t('schedule_error_segment_id_required_cancel');
             } else {
                 $cancelQuery = [
                     'broadcaster_id' => $broadcasterId,
@@ -399,16 +399,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                 $errCancel = curl_error($chCancel);
                 curl_close($chCancel);
                 if ($codeCancel === 200) {
-                    $success = $cancelState ? 'Segment canceled.' : 'Segment uncanceled.';
+                    $success = $cancelState ? t('schedule_msg_segment_canceled') : t('schedule_msg_segment_uncanceled');
                 } else {
-                    $error = 'Twitch API returned HTTP ' . $codeCancel . '. ' . htmlspecialchars($respCancel ?: $errCancel);
+                    $error = t('schedule_error_twitch_http', [$codeCancel]) . ' ' . htmlspecialchars($respCancel ?: $errCancel);
                 }
             }
         }
         if (empty($error) && $op === 'delete_segment') {
             $segId = trim($_POST['segment_id'] ?? '');
             if ($segId === '') {
-                $error = 'Segment ID is required to delete.';
+                $error = t('schedule_error_segment_id_required_delete');
             } else {
                 $urlDel = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
                 $chDel = curl_init($urlDel);
@@ -426,9 +426,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                 $errDel = curl_error($chDel);
                 curl_close($chDel);
                 if ($codeDel === 204) {
-                    $success = 'Schedule segment deleted.';
+                    $success = t('schedule_msg_segment_deleted');
                 } else {
-                    $error = 'Twitch API returned HTTP ' . $codeDel . '. ' . htmlspecialchars($respDel ?: $errDel);
+                    $error = t('schedule_error_twitch_http', [$codeDel]) . ' ' . htmlspecialchars($respDel ?: $errDel);
                 }
             }
         }
@@ -450,10 +450,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
             $curlErr = curl_error($ch);
             curl_close($ch);
             if ($httpCode === 204) {
-                $success = 'Schedule settings updated successfully.';
+                $success = t('schedule_msg_settings_updated');
             } else {
                 $body = $resp ?: '';
-                $error = 'Twitch API returned HTTP ' . $httpCode . '. ' . htmlspecialchars($body ?: $curlErr);
+                $error = t('schedule_error_twitch_http', [$httpCode]) . ' ' . htmlspecialchars($body ?: $curlErr);
             }
         }
     }
@@ -492,21 +492,21 @@ function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first =
         curl_close($ch);
 
         if ($resp === false) {
-            return [null, 'Twitch API request failed: ' . htmlspecialchars($curlErr)];
+            return [null, t('schedule_error_request_failed') . ' ' . htmlspecialchars($curlErr)];
         }
         if ($httpCode !== 200) {
             if ($httpCode === 401) {
-                return [null, 'Unauthorized. Your Twitch session may need re-linking.'];
+                return [null, t('schedule_error_unauthorized')];
             }
             if ($httpCode === 404) {
-                return [null, 'No schedule found for this broadcaster.'];
+                return [null, t('schedule_error_no_schedule_found')];
             }
-            return [null, 'Twitch API returned HTTP ' . $httpCode . '.'];
+            return [null, t('schedule_error_twitch_http', [$httpCode])];
         }
 
         $data = json_decode($resp, true);
         if (json_last_error() !== JSON_ERROR_NONE || !isset($data['data'])) {
-            return [null, 'Unable to parse Twitch response.'];
+            return [null, t('schedule_error_parse_response')];
         }
 
         $pageData = $data['data'];
@@ -537,7 +537,7 @@ function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first =
 }
 $broadcasterId = $_SESSION['twitchUserId'] ?? null;
 if (empty($broadcasterId)) {
-    $error = 'Broadcaster ID not available. Please re-login.';
+    $error = t('schedule_error_no_broadcaster_relogin');
 } else {
     list($schedule, $fetchError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 5);
     if (!empty($fetchError)) {
@@ -567,7 +567,7 @@ if (empty($broadcasterId)) {
                 $autoErr = curl_error($chAuto);
                 curl_close($chAuto);
                 if ($autoCode === 204) {
-                    $successMsg = 'Vacation auto-ended because the configured end date/time has passed.';
+                    $successMsg = t('schedule_msg_vacation_auto_ended');
                     if (empty($success)) $success = $successMsg;
                     else $success .= ' ' . $successMsg;
                     // Refresh schedule data after auto-cancel so UI reflects current state.
@@ -576,7 +576,7 @@ if (empty($broadcasterId)) {
                         $schedule = $refreshSchedule;
                     }
                 } elseif (empty($error)) {
-                    $error = 'Auto-cancel of expired vacation failed (HTTP ' . $autoCode . '). ' . htmlspecialchars($autoResp ?: $autoErr);
+                    $error = t('schedule_error_auto_cancel_failed', [$autoCode]) . ' ' . htmlspecialchars($autoResp ?: $autoErr);
                 }
             }
         } catch (Exception $e) {
@@ -922,7 +922,7 @@ ob_start();
             </div>
         <?php if ($hasMoreDays): ?>
             <div style="text-align:center; margin-top:1rem;">
-                <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? 'Load 1 More' : ('Load ' . (int)$initialLoadMoreEvents . ' More'); ?>
+                <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? t('schedule_load_more_one') : t('schedule_load_more_count', [(int)$initialLoadMoreEvents]); ?>
                 <button type="button" class="sp-btn sp-btn-primary" id="loadMoreDaysBtn" data-day-batch-size="<?php echo (int)$loadMoreDayBatchSize; ?>"><?php echo htmlspecialchars($initialLoadMoreLabel); ?></button>
             </div>
         <?php endif; ?>
@@ -938,6 +938,37 @@ ob_start();
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
+// Localized strings injected from PHP for use in client-side messages.
+const SCHEDULE_I18N = {
+    durationHelpDefault: <?php echo json_encode(t('schedule_segment_duration_help')); ?>,
+    durationHelpTooShort: <?php echo json_encode(t('schedule_js_duration_too_short')); ?>,
+    durationHelpTooLong: <?php echo json_encode(t('schedule_js_duration_too_long')); ?>,
+    durationEmpty: <?php echo json_encode(t('schedule_duration_empty')); ?>,
+    durationPrefix: <?php echo json_encode(t('schedule_duration_prefix')); ?>,
+    categorySet: <?php echo json_encode(t('schedule_js_category_set')); ?>,
+    categoryResolved: <?php echo json_encode(t('schedule_js_category_resolved')); ?>,
+    categoryCleared: <?php echo json_encode(t('schedule_js_category_cleared')); ?>,
+    selectValidCategoryCreate: <?php echo json_encode(t('schedule_js_select_valid_category_create')); ?>,
+    selectValidCategoryUpdate: <?php echo json_encode(t('schedule_js_select_valid_category_update')); ?>,
+    setValidDuration: <?php echo json_encode(t('schedule_js_set_valid_duration')); ?>,
+    recurringNote: <?php echo json_encode(t('schedule_js_recurring_far_future')); ?>,
+    recurringTitle: <?php echo json_encode(t('schedule_js_recurring_far_future_title')); ?>,
+    okBtn: <?php echo json_encode(t('schedule_js_ok')); ?>,
+    cancelUpdateFailed: <?php echo json_encode(t('schedule_js_cancel_update_failed')); ?>,
+    uncancelLabel: <?php echo json_encode(t('schedule_uncancel_btn')); ?>,
+    cancelStreamLabel: <?php echo json_encode(t('schedule_cancel_stream_btn')); ?>,
+    canceledTag: <?php echo json_encode(t('schedule_canceled_badge')); ?>,
+    segmentCanceled: <?php echo json_encode(t('schedule_msg_segment_canceled')); ?>,
+    segmentUncanceled: <?php echo json_encode(t('schedule_msg_segment_uncanceled')); ?>,
+    deleteTitleRecurring: <?php echo json_encode(t('schedule_js_delete_recurring_title')); ?>,
+    deleteTitleSingle: <?php echo json_encode(t('schedule_js_delete_single_title')); ?>,
+    deleteTextRecurring: <?php echo json_encode(t('schedule_js_delete_recurring_text')); ?>,
+    deleteTextSingle: <?php echo json_encode(t('schedule_js_delete_single_text')); ?>,
+    deleteConfirmBtn: <?php echo json_encode(t('schedule_js_delete_confirm')); ?>,
+    cancelBtn: <?php echo json_encode(t('schedule_js_cancel')); ?>,
+    loadMoreOne: <?php echo json_encode(t('schedule_load_more_one')); ?>,
+    loadMoreTemplate: <?php echo json_encode(t('schedule_js_load_more_template')); ?>
+};
 // Schedule page: category search + lookup (debounced to avoid Twitch rate limits)
 (function(){
     // default debounce set to 1s for Twitch lookups
@@ -965,20 +996,20 @@ ob_start();
     function applyDurationState(startInput, endInput, hiddenInput, previewEl, helpEl, actionButton) {
         const mins = minutesBetween(startInput ? startInput.value : '', endInput ? endInput.value : '');
         let valid = false;
-        let helpText = 'Duration must be between 30 minutes and 23 hours (1380 minutes).';
+        let helpText = SCHEDULE_I18N.durationHelpDefault;
         if (mins === null) {
             if (hiddenInput) hiddenInput.value = '';
-            if (previewEl) previewEl.textContent = 'Duration: -';
+            if (previewEl) previewEl.textContent = SCHEDULE_I18N.durationEmpty;
             if (actionButton) actionButton.disabled = true;
             if (endInput) endInput.classList.remove('sp-input-error');
             if (helpEl) helpEl.textContent = helpText;
             return false;
         }
-        if (previewEl) previewEl.textContent = 'Duration: ' + formatDurationHuman(mins);
+        if (previewEl) previewEl.textContent = SCHEDULE_I18N.durationPrefix + ' ' + formatDurationHuman(mins);
         if (mins < MIN_DURATION) {
-            helpText = 'Duration is too short. Minimum is 30 minutes.';
+            helpText = SCHEDULE_I18N.durationHelpTooShort;
         } else if (mins > MAX_DURATION) {
-            helpText = 'Duration is too long. Maximum is 23 hours (1380 minutes).';
+            helpText = SCHEDULE_I18N.durationHelpTooLong;
         } else {
             valid = true;
         }
@@ -1011,7 +1042,7 @@ ob_start();
                 if (hidden) hidden.value = it.id || '';
                 if (visible) visible.value = it.name || '';
                 // visual confirmation
-                Toastify({ text: 'Category set: ' + (it.name || '') + ' (id:' + (it.id||'') + ')', duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
+                Toastify({ text: SCHEDULE_I18N.categorySet + ' ' + (it.name || '') + ' (id:' + (it.id||'') + ')', duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
                 // mark resolved for client-side validation
                 if (visible) visible.dataset.categoryResolved = '1';
             });
@@ -1085,7 +1116,7 @@ ob_start();
                 if (g) {
                     createHidden.value = g.id || '';
                     ev.target.dataset.categoryResolved = '1';
-                    Toastify({ text: 'Category resolved: ' + (g.name||''), duration: 1800, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
+                    Toastify({ text: SCHEDULE_I18N.categoryResolved + ' ' + (g.name||''), duration: 1800, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
                     return renderSuggestions(createSug, [g]);
                 }
             }
@@ -1097,7 +1128,7 @@ ob_start();
             if (createHidden && createHidden.value && createSearch.value.trim() === '') {
                 createHidden.value = '';
                 createSearch.dataset.categoryResolved = '';
-                Toastify({ text: 'Category cleared', duration: 1400, gravity: 'bottom', position: 'right', style: { background: '#3b82f6', color: '#fff' } }).showToast();
+                Toastify({ text: SCHEDULE_I18N.categoryCleared, duration: 1400, gravity: 'bottom', position: 'right', style: { background: '#3b82f6', color: '#fff' } }).showToast();
             }
         });
         document.addEventListener('click', (ev) => { if (!createSearch.contains(ev.target) && !createSug.contains(ev.target)) createSug.style.display = 'none'; });
@@ -1110,14 +1141,14 @@ ob_start();
             const hidden = createHidden;
             if (visible && visible.value.trim() !== '' && (!hidden || hidden.value.trim() === '')) {
                 ev.preventDefault();
-                showToastError('Please select a valid category from the suggestions or clear the category field.');
+                showToastError(SCHEDULE_I18N.selectValidCategoryCreate);
                 visible.focus();
                 return false;
             }
             const isDurationValid = applyDurationState(createStart, createEnd, createDuration, createDurationPreview, createDurationHelp, createButton);
             if (!isDurationValid) {
                 ev.preventDefault();
-                showToastError('Please set an end time that gives a duration between 30 minutes and 23 hours.');
+                showToastError(SCHEDULE_I18N.setValidDuration);
                 if (createEnd) createEnd.focus();
                 return false;
             }
@@ -1139,7 +1170,7 @@ ob_start();
             ev.target.dataset.categoryResolved = '';
             if (/^\d+$/.test(q)) {
                 const g = await getGameName(q);
-                if (g) { if (hidden) hidden.value = g.id || ''; ev.target.dataset.categoryResolved = '1'; Toastify({ text: 'Category resolved: ' + (g.name||''), duration: 1600, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast(); return renderSuggestions(sug, [g]); }
+                if (g) { if (hidden) hidden.value = g.id || ''; ev.target.dataset.categoryResolved = '1'; Toastify({ text: SCHEDULE_I18N.categoryResolved + ' ' + (g.name||''), duration: 1600, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast(); return renderSuggestions(sug, [g]); }
             }
             const items = await searchCategories(q);
             renderSuggestions(sug, items);
@@ -1149,7 +1180,7 @@ ob_start();
             if (hidden && hidden.value && input.value.trim() === '') {
                 hidden.value = '';
                 input.dataset.categoryResolved = '';
-                Toastify({ text: 'Category cleared', duration: 1400, gravity: 'bottom', position: 'right', style: { background: '#3b82f6', color: '#fff' } }).showToast();
+                Toastify({ text: SCHEDULE_I18N.categoryCleared, duration: 1400, gravity: 'bottom', position: 'right', style: { background: '#3b82f6', color: '#fff' } }).showToast();
             }
         });
         document.addEventListener('click', (ev) => { if (!root.contains(ev.target)) sug.style.display = 'none'; });
@@ -1189,13 +1220,13 @@ ob_start();
                     const daysAfterToday = targetDayStart ? Math.floor((targetDayStart.getTime() - todayStart.getTime()) / msInDay) : -1;
                     const isWayFuture = daysAfterToday >= 7;
                     if (isWayFuture) {
-                        const recurringNote = "Sorry, you can't cancel a recurring stream this far in the future. Twitch only allows recurring stream canceling within a 7-day window including today.";
+                        const recurringNote = SCHEDULE_I18N.recurringNote;
                         if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
                             await Swal.fire({
-                                title: 'Cannot cancel this recurring stream yet',
+                                title: SCHEDULE_I18N.recurringTitle,
                                 text: recurringNote,
                                 icon: 'warning',
-                                confirmButtonText: 'OK'
+                                confirmButtonText: SCHEDULE_I18N.okBtn
                             });
                         } else {
                             window.alert(recurringNote);
@@ -1228,7 +1259,7 @@ ob_start();
                         if (payload && payload.debug) {
                             console.error('[Schedule PATCH failed]', payload.debug);
                         }
-                        const msg = (payload && payload.error) ? payload.error : 'Unable to update stream cancel state right now.';
+                        const msg = (payload && payload.error) ? payload.error : SCHEDULE_I18N.cancelUpdateFailed;
                         throw new Error(msg);
                     }
                     const isCanceled = !!payload.is_canceled;
@@ -1240,7 +1271,7 @@ ob_start();
                         segmentColumn.setAttribute('data-segment-canceled', isCanceled ? '1' : '0');
                     }
                     if (cancelStateInput) cancelStateInput.value = isCanceled ? '0' : '1';
-                    submitBtn.textContent = isCanceled ? 'Uncancel' : 'Cancel Stream';
+                    submitBtn.textContent = isCanceled ? SCHEDULE_I18N.uncancelLabel : SCHEDULE_I18N.cancelStreamLabel;
                     submitBtn.classList.toggle('sp-btn-warning', isCanceled);
                     submitBtn.classList.toggle('sp-btn-danger', !isCanceled);
                     if (tagContainer) {
@@ -1249,16 +1280,16 @@ ob_start();
                             canceledTag = document.createElement('span');
                             canceledTag.className = 'sp-badge sp-badge-red';
                             canceledTag.setAttribute('data-role', 'canceled-tag');
-                            canceledTag.textContent = 'Canceled';
+                            canceledTag.textContent = SCHEDULE_I18N.canceledTag;
                             tagContainer.appendChild(canceledTag);
                         } else if (!isCanceled && canceledTag) {
                             canceledTag.remove();
                         }
                     }
                     refreshSummaryCounts();
-                    Toastify({ text: payload.message || (isCanceled ? 'Segment canceled.' : 'Segment uncanceled.'), duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
+                    Toastify({ text: payload.message || (isCanceled ? SCHEDULE_I18N.segmentCanceled : SCHEDULE_I18N.segmentUncanceled), duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
                 } catch (err) {
-                    showToastError(err && err.message ? err.message : 'Unable to update stream cancel state right now.');
+                    showToastError(err && err.message ? err.message : SCHEDULE_I18N.cancelUpdateFailed);
                 } finally {
                     submitBtn.disabled = false;
                 }
@@ -1272,18 +1303,18 @@ ob_start();
                 ev.preventDefault();
                 let confirmed = false;
                 const isRecurringDelete = !!(ev.submitter && ev.submitter.dataset && ev.submitter.dataset.isRecurring === '1');
-                const deleteTitle = isRecurringDelete ? 'Delete recurring stream?' : 'Delete this stream?';
+                const deleteTitle = isRecurringDelete ? SCHEDULE_I18N.deleteTitleRecurring : SCHEDULE_I18N.deleteTitleSingle;
                 const deleteText = isRecurringDelete
-                    ? 'Deleting a recurring stream will remove all future events as well. If you only need to remove this single one, please consider marking it as canceled instead.'
-                    : 'This cannot be undone.';
+                    ? SCHEDULE_I18N.deleteTextRecurring
+                    : SCHEDULE_I18N.deleteTextSingle;
                 if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
                     const result = await Swal.fire({
                         title: deleteTitle,
                         text: deleteText,
                         icon: 'warning',
                         showCancelButton: true,
-                        confirmButtonText: 'Yes, delete it',
-                        cancelButtonText: 'Cancel',
+                        confirmButtonText: SCHEDULE_I18N.deleteConfirmBtn,
+                        cancelButtonText: SCHEDULE_I18N.cancelBtn,
                         reverseButtons: true
                     });
                     confirmed = !!(result && result.isConfirmed);
@@ -1305,14 +1336,14 @@ ob_start();
             const hidden = f.querySelector('.segment-category-id');
             if (visible && visible.value.trim() !== '' && (!hidden || hidden.value.trim() === '')) {
                 ev.preventDefault();
-                showToastError('Please select a valid category from suggestions or clear the category field.');
+                showToastError(SCHEDULE_I18N.selectValidCategoryUpdate);
                 visible.focus();
                 return false;
             }
             const isDurationValid = applyDurationState(startInput, endInput, durationHidden, durationPreview, durationHelp, updateBtn);
             if (!isDurationValid) {
                 ev.preventDefault();
-                showToastError('Please set an end time that gives a duration between 30 minutes and 23 hours.');
+                showToastError(SCHEDULE_I18N.setValidDuration);
                 if (endInput) endInput.focus();
                 return false;
             }
@@ -1347,7 +1378,7 @@ ob_start();
             }
             const nextEventCount = getNextLoadEventCount();
             const labelCount = nextEventCount > 0 ? nextEventCount : hiddenColumns.length;
-            loadMoreDaysBtn.textContent = labelCount === 1 ? 'Load 1 More' : ('Load ' + labelCount + ' More');
+            loadMoreDaysBtn.textContent = labelCount === 1 ? SCHEDULE_I18N.loadMoreOne : SCHEDULE_I18N.loadMoreTemplate.replace('%s', labelCount);
         };
         loadMoreDaysBtn.addEventListener('click', () => {
             const nextOrders = getHiddenDayOrders().slice(0, dayBatchSize);

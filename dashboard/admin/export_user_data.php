@@ -4,6 +4,21 @@ session_write_close();
 header('Content-Type: application/json');
 require_once "/var/www/config/db_connect.php";
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 function export_admin_audit_ensure_table($dbConn) {
     static $checked = false;
     if ($checked) {
@@ -101,7 +116,7 @@ function export_admin_audit_log($dbConn, $action, $status = 'info', $details = [
 if (!isset($_SESSION['access_token'])) {
     http_response_code(403);
     export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'Not authenticated'], 'username', isset($_POST['username']) ? trim((string) $_POST['username']) : '');
-    echo json_encode(['success' => false, 'msg' => 'Not authenticated']);
+    echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_not_authenticated')]);
     exit();
 }
 
@@ -120,7 +135,7 @@ if (!empty($requestUsername) && isset($_SESSION['username']) && strcasecmp($_SES
 if (!$isAllowed) {
     http_response_code(403);
     export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'Forbidden', 'requested_username' => $requestUsername], 'username', $requestUsername);
-    echo json_encode(['success' => false, 'msg' => 'Forbidden']);
+    echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_forbidden')]);
     exit();
 }
 
@@ -136,7 +151,7 @@ if (!empty($requestUsername)) {
 
 if (empty($finalUsername)) {
     export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'Username missing'], 'username', '');
-    echo json_encode(['success' => false, 'msg' => 'Username missing; cannot start export']);
+    echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_username_missing')]);
     exit();
 }
 
@@ -157,12 +172,12 @@ if (!isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
             $hours = floor(($remain % 86400) / 3600);
             $minutes = floor(($remain % 3600) / 60);
             $parts = [];
-            if ($days) $parts[] = "{$days}d";
-            if ($hours) $parts[] = "{$hours}h";
-            if ($minutes) $parts[] = "{$minutes}m";
-            $when = $parts ? implode(' ', $parts) : 'a short while';
+            if ($days) $parts[] = t('admin_export_user_data_unit_days', [$days]);
+            if ($hours) $parts[] = t('admin_export_user_data_unit_hours', [$hours]);
+            if ($minutes) $parts[] = t('admin_export_user_data_unit_minutes', [$minutes]);
+            $when = $parts ? implode(' ', $parts) : t('admin_export_user_data_short_while');
             export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'Cooldown active', 'remaining_seconds' => $remain, 'username' => $finalUsername], 'username', $finalUsername);
-            echo json_encode(['success' => false, 'msg' => "Please wait {$when} before requesting another export."]);
+            echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_cooldown_active', [$when])]);
             exit();
         }
     }
@@ -174,7 +189,7 @@ if (isset($bots_ssh_host) && !empty($bots_ssh_host) && class_exists('SSHConnecti
         $sshConn = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         if (!$sshConn) {
             export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'Could not establish SSH connection', 'username' => $finalUsername], 'username', $finalUsername);
-            echo json_encode(['success' => false, 'msg' => 'Could not establish SSH connection to bot server']);
+            echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_ssh_connect_failed')]);
             exit();
         }
         // Enqueue job on the bot server for sequential processing
@@ -192,7 +207,7 @@ if (isset($bots_ssh_host) && !empty($bots_ssh_host) && class_exists('SSHConnecti
             $res = SSHConnectionManager::executeCommand($sshConn, $remoteCmd, true);
             if ($res === false) {
                 export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'Failed to enqueue remote export job', 'username' => $finalUsername], 'username', $finalUsername);
-                echo json_encode(['success' => false, 'msg' => 'Failed to enqueue remote export job via SSH. Check SSH credentials and permissions.']);
+                echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_enqueue_failed')]);
                 exit();
             }
             // Record the request timestamp so users cannot re-request within the cooldown window.
@@ -202,29 +217,29 @@ if (isset($bots_ssh_host) && !empty($bots_ssh_host) && class_exists('SSHConnecti
             @file_put_contents($cooldownFile, json_encode(['last_requested_at' => time()]));
         } catch (Exception $e) {
             export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'SSH error creating job', 'exception' => $e->getMessage(), 'username' => $finalUsername], 'username', $finalUsername);
-            echo json_encode(['success' => false, 'msg' => 'SSH error creating job: ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_ssh_job_error', [$e->getMessage()])]);
             exit();
         }
     } catch (Exception $e) {
         export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => 'SSH connection error', 'exception' => $e->getMessage(), 'username' => $finalUsername], 'username', $finalUsername);
-        echo json_encode(['success' => false, 'msg' => 'SSH connection error: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'msg' => t('admin_export_user_data_ssh_connection_error', [$e->getMessage()])]);
         exit();
     }
 } else {
     // SSH not configured - provide diagnostic info
     $diagnostic = [];
     if (!isset($bots_ssh_host) || empty($bots_ssh_host)) {
-        $diagnostic[] = 'SSH host not configured';
+        $diagnostic[] = t('admin_export_user_data_diag_no_host');
     }
     if (!class_exists('SSHConnectionManager')) {
-        $diagnostic[] = 'SSHConnectionManager class not found';
+        $diagnostic[] = t('admin_export_user_data_diag_no_class');
     }
-    $msg = 'SSH configuration missing: ' . implode(', ', $diagnostic);
+    $msg = t('admin_export_user_data_ssh_config_missing', [implode(', ', $diagnostic)]);
     export_admin_audit_log($conn, 'export_user_data', 'failed', ['error' => $msg, 'username' => $finalUsername], 'username', $finalUsername);
     echo json_encode(['success' => false, 'msg' => $msg]);
     exit();
 }
 
 export_admin_audit_log($conn, 'export_user_data', 'success', ['username' => $finalUsername, 'message' => 'Export started'], 'username', $finalUsername);
-echo json_encode(['success' => true, 'msg' => 'Export started']);
+echo json_encode(['success' => true, 'msg' => t('admin_export_user_data_export_started')]);
 exit();

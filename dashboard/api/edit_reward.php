@@ -5,6 +5,21 @@ header('Content-Type: application/json');
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'userdata.php';
@@ -12,7 +27,7 @@ session_write_close();
 
 $rewardId = $_POST['reward_id'] ?? '';
 if (empty($rewardId)) {
-    echo json_encode(['success' => false, 'error' => 'Missing reward_id.']);
+    echo json_encode(['success' => false, 'error' => t('edit_reward_error_missing_id')]);
     exit();
 }
 
@@ -20,7 +35,7 @@ require_once '/var/www/config/database.php';
 $dbname = $_SESSION['username'];
 $userDb = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($userDb->connect_error) {
-    echo json_encode(['success' => false, 'error' => 'DB connection failed.']);
+    echo json_encode(['success' => false, 'error' => t('edit_reward_error_db_connection')]);
     exit();
 }
 
@@ -34,7 +49,7 @@ $check->close();
 
 if (!$row || $row['managed_by'] !== 'specter') {
     $userDb->close();
-    echo json_encode(['success' => false, 'error' => 'Reward is not managed by Specter.']);
+    echo json_encode(['success' => false, 'error' => t('edit_reward_error_not_managed')]);
     exit();
 }
 
@@ -81,7 +96,7 @@ if (isset($_POST['is_global_cooldown_enabled'])) {
 
 if (empty($body)) {
     $userDb->close();
-    echo json_encode(['success' => false, 'error' => 'No fields to update.']);
+    echo json_encode(['success' => false, 'error' => t('edit_reward_error_no_fields')]);
     exit();
 }
 

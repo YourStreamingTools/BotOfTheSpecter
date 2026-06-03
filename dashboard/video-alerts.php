@@ -411,8 +411,8 @@ $(document).ready(function() {
         if (files.length === 0) {
             Swal.fire({
                 icon: 'warning',
-                title: 'No Files Selected',
-                text: 'Please select at least one file to upload.',
+                title: <?php echo json_encode(t('video_alerts_no_files_selected_title')); ?>,
+                text: <?php echo json_encode(t('video_alerts_select_at_least_one')); ?>,
                 confirmButtonColor: '#3273dc'
             });
             return;
@@ -420,12 +420,12 @@ $(document).ready(function() {
         var formData = new FormData(this);
         // Show upload status and update UI
         $('#uploadStatusContainer').show();
-        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading ' + files.length + ' file(s)...');
+        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('video_alerts_uploading_files')); ?>.replace(':count', files.length));
         $('#uploadProgressPercent').text('0%');
         $('#uploadProgress').val(0);
         // Update button state
         $('#uploadBtn').prop('disabled', true).addClass('sp-btn-loading');
-        $('#uploadBtnText').text('Uploading...');
+        $('#uploadBtnText').text(<?php echo json_encode(t('video_alerts_uploading_short')); ?>);
         $.ajax({
             url: '',
             type: 'POST',
@@ -440,16 +440,16 @@ $(document).ready(function() {
                         $('#uploadProgress').val(percentComplete);
                         $('#uploadProgressPercent').text(percentComplete + '%');
                         if (percentComplete < 100) {
-                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + percentComplete + '%)');
+                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('video_alerts_uploading_progress')); ?>.replace(':percent', percentComplete));
                         } else {
-                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Processing files on server...');
+                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + <?php echo json_encode(t('video_alerts_processing_files')); ?>);
                         }
                     }
                 }, false);
                 return xhr;
             },
             success: function(response) {
-                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
+                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + <?php echo json_encode(t('video_alerts_upload_completed')); ?>);
                 $('#uploadProgressPercent').text('100%');
                 setTimeout(function() {
                     location.reload();
@@ -458,11 +458,11 @@ $(document).ready(function() {
             error: function() {
                 $('#uploadStatusContainer').hide();
                 $('#uploadBtn').prop('disabled', false).removeClass('sp-btn-loading');
-                $('#uploadBtnText').text('<?php echo t("video_alerts_upload_btn"); ?>');
+                $('#uploadBtnText').text(<?php echo json_encode(t('video_alerts_upload_btn')); ?>);
                 Swal.fire({
                     icon: 'error',
-                    title: 'Upload Failed',
-                    text: '<?php echo t("video_alerts_upload_error"); ?>',
+                    title: <?php echo json_encode(t('video_alerts_upload_failed_title')); ?>,
+                    text: <?php echo json_encode(t('video_alerts_upload_failed_text')); ?>,
                     confirmButtonColor: '#3273dc'
                 });
             }
@@ -474,7 +474,7 @@ $(document).ready(function() {
         if (checkedBoxes.length > 0) {
             Swal.fire({
                 title: '<?php echo t('video_alerts_delete_file_title'); ?>',
-                text: 'Are you sure you want to delete the selected ' + checkedBoxes.length + ' file(s)?',
+                text: <?php echo json_encode(t('video_alerts_delete_selected_confirm')); ?>.replace(':count', checkedBoxes.length),
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',

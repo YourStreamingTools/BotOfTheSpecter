@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         if ($isActingAs && !$isActingAsAdmin && in_array($action, ['add', 'remove'], true)) {
-            echo json_encode(['status' => 'error', 'message' => 'Managing dashboard access is disabled while acting as another channel.']);
+            echo json_encode(['status' => 'error', 'message' => t('mods_acting_as_disabled_message')]);
             exit();
         }
         if ($action === 'add') {
@@ -419,6 +419,10 @@ ob_start();
 document.addEventListener('DOMContentLoaded', function() {
     var addText = <?php echo json_encode(t('mods_add_access')); ?>;
     var removeText = <?php echo json_encode(t('mods_remove_access')); ?>;
+    var actingAsDisabledMessage = <?php echo json_encode(t('mods_acting_as_disabled_message')); ?>;
+    var actingAsDisabledTitle = <?php echo json_encode(t('mods_acting_as_disabled')); ?>;
+    var accessUpdatedSuccess = <?php echo json_encode(t('mods_access_updated_success')); ?>;
+    var accessUpdateFailed = <?php echo json_encode(t('mods_access_update_generic_failed')); ?>;
     var disableModActions = <?php echo json_encode($disableModActions); ?>;
     function loadToastify() {
         return new Promise(function(resolve) {
@@ -453,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var twitchUserId = btn.getAttribute('data-user-id');
         var action = btn.getAttribute('data-action');
         if (disableModActions && (action === 'add' || action === 'remove')) {
-            loadToastify().then(function() { showToast('Managing dashboard access is disabled while acting as another channel.', false); });
+            loadToastify().then(function() { showToast(actingAsDisabledMessage, false); });
             return;
         }
         console.debug('mods: sending', { moderator_id: twitchUserId, action: action });
@@ -484,18 +488,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (disableModActions) {
                     btn.disabled = true;
-                    btn.setAttribute('title', 'Disabled while acting as another channel');
+                    btn.setAttribute('title', actingAsDisabledTitle);
                 } else {
                     btn.removeAttribute('title');
                 }
-                loadToastify().then(function() { showToast('Access updated successfully', true); });
+                loadToastify().then(function() { showToast(accessUpdatedSuccess, true); });
             } else {
                 console.error('Server error:', json.message || json);
-                loadToastify().then(function() { showToast(json.message || 'Failed to update access', false); });
+                loadToastify().then(function() { showToast(json.message || accessUpdateFailed, false); });
             }
         }).catch(function(err) {
             console.error('Error updating mod access:', err);
-            loadToastify().then(function() { showToast('Failed to update access', false); });
+            loadToastify().then(function() { showToast(accessUpdateFailed, false); });
         }).finally(function() {
             if (!disableModActions) {
                 btn.disabled = false;

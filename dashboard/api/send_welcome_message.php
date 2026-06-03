@@ -40,10 +40,25 @@ function get_twitch_app_credentials_for_welcome_test($conn) {
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+    echo json_encode(['success' => false, 'message' => t('send_welcome_message_error_invalid_method')]);
     exit();
 }
 
@@ -53,7 +68,7 @@ $welcome_message = trim($_POST['message'] ?? '');
 
 if (empty($target_username) || empty($welcome_message)) {
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Username and message are required']);
+    echo json_encode(['success' => false, 'message' => t('send_welcome_message_error_missing_fields')]);
     exit();
 }
 
@@ -70,7 +85,7 @@ $message_to_send = trim($message_to_send);
 // If the message is empty after removing (shoutout), don't send anything
 if (empty($message_to_send) && !$has_shoutout) {
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Welcome message is empty']);
+    echo json_encode(['success' => false, 'message' => t('send_welcome_message_error_empty_message')]);
     exit();
 }
 
@@ -81,7 +96,7 @@ $chatClientId = $twitchAppCreds['client_id'] ?? '';
 $chatOAuth = $twitchAppCreds['oauth'] ?? '';
 if (empty($chatClientId) || empty($chatOAuth)) {
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Twitch app credentials are missing. Check bot_chat_token table token/client ID settings.']);
+    echo json_encode(['success' => false, 'message' => t('send_welcome_message_error_missing_credentials')]);
     exit();
 }
 
@@ -117,7 +132,7 @@ if (!empty($message_to_send)) {
     $curl_error = curl_error($ch);
     curl_close($ch);
     if ($curl_error) {
-        $errors[] = "Welcome message failed: " . $curl_error;
+        $errors[] = t('send_welcome_message_error_welcome_failed', [$curl_error]);
     } elseif ($http_code === 200) {
         $response_data = json_decode($response, true);
         if ($response_data && isset($response_data['data']) && is_array($response_data['data']) && count($response_data['data']) > 0) {
@@ -132,19 +147,19 @@ if (!empty($message_to_send)) {
                 $drop_reason ?? 'none'
             ), FILE_APPEND);
             if ($is_sent) {
-                $messages_sent[] = "Welcome message";
+                $messages_sent[] = t('send_welcome_message_label_welcome');
             } else {
-                $error_msg = "Welcome message not sent";
+                $error_msg = t('send_welcome_message_error_welcome_not_sent');
                 if ($drop_reason) {
-                    $error_msg .= " (Drop reason: " . $drop_reason . ")";
+                    $error_msg .= t('send_welcome_message_error_drop_reason', [$drop_reason]);
                 }
                 $errors[] = $error_msg;
             }
         } else {
-            $errors[] = "Invalid response from Twitch API for welcome message";
+            $errors[] = t('send_welcome_message_error_welcome_invalid_response');
         }
     } else {
-        $error_msg = "Failed to send welcome message. HTTP $http_code";
+        $error_msg = t('send_welcome_message_error_welcome_http', [$http_code]);
         if ($response) {
             $response_data = json_decode($response, true);
             if ($response_data && isset($response_data['message'])) {
@@ -238,7 +253,7 @@ if ($has_shoutout) {
             $curl_error = curl_error($ch);
             curl_close($ch);
             if ($curl_error) {
-                $errors[] = "Shoutout message failed: " . $curl_error;
+                $errors[] = t('send_welcome_message_error_shoutout_failed', [$curl_error]);
             } elseif ($http_code === 200) {
                 $response_data = json_decode($response, true);
                 if ($response_data && isset($response_data['data']) && is_array($response_data['data']) && count($response_data['data']) > 0) {
@@ -253,19 +268,21 @@ if ($has_shoutout) {
                         $drop_reason ?? 'none'
                     ), FILE_APPEND);
                     if ($is_sent) {
-                        $messages_sent[] = "Shoutout message" . ($last_game ? " (with last game: {$last_game})" : "");
+                        $messages_sent[] = $last_game
+                            ? t('send_welcome_message_label_shoutout_with_game', [$last_game])
+                            : t('send_welcome_message_label_shoutout');
                     } else {
-                        $error_msg = "Shoutout message not sent";
+                        $error_msg = t('send_welcome_message_error_shoutout_not_sent');
                         if ($drop_reason) {
-                            $error_msg .= " (Drop reason: " . $drop_reason . ")";
+                            $error_msg .= t('send_welcome_message_error_drop_reason', [$drop_reason]);
                         }
                         $errors[] = $error_msg;
                     }
                 } else {
-                    $errors[] = "Invalid response from Twitch API for shoutout";
+                    $errors[] = t('send_welcome_message_error_shoutout_invalid_response');
                 }
             } else {
-                $error_msg = "Failed to send shoutout. HTTP $http_code";
+                $error_msg = t('send_welcome_message_error_shoutout_http', [$http_code]);
                 if ($response) {
                     $response_data = json_decode($response, true);
                     if ($response_data && isset($response_data['message'])) {
@@ -275,10 +292,10 @@ if ($has_shoutout) {
                 $errors[] = $error_msg;
             }
         } else {
-            $errors[] = "Could not find user: {$target_username}";
+            $errors[] = t('send_welcome_message_error_user_not_found', [$target_username]);
         }
     } else {
-        $errors[] = "Failed to get user info for shoutout. HTTP {$user_http_code}";
+        $errors[] = t('send_welcome_message_error_user_info_http', [$user_http_code]);
     }
 }
 
@@ -287,17 +304,17 @@ header('Content-Type: application/json');
 if (count($messages_sent) > 0 && count($errors) === 0) {
     echo json_encode([
         'success' => true,
-        'message' => 'Successfully sent: ' . implode(', ', $messages_sent)
+        'message' => t('send_welcome_message_result_success', [implode(', ', $messages_sent)])
     ]);
 } elseif (count($messages_sent) > 0 && count($errors) > 0) {
     echo json_encode([
         'success' => true,
-        'message' => 'Partially sent: ' . implode(', ', $messages_sent) . '. Errors: ' . implode(', ', $errors)
+        'message' => t('send_welcome_message_result_partial', [implode(', ', $messages_sent), implode(', ', $errors)])
     ]);
 } else {
     echo json_encode([
         'success' => false,
-        'message' => 'Failed to send messages. Errors: ' . implode(', ', $errors)
+        'message' => t('send_welcome_message_result_failed', [implode(', ', $errors)])
     ]);
 }
 exit();

@@ -5,6 +5,21 @@ require_once __DIR__ . '/admin_access.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 
+// Load translations so user-facing JSON messages are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Function to check if user is admin
 function isAdmin() {
     global $conn;
@@ -24,13 +39,13 @@ function isAdmin() {
 // Check if user is authenticated and is admin
 if (!isset($_SESSION['access_token'])) {
     http_response_code(401);
-    echo json_encode(['error' => 'Authentication required']);
+    echo json_encode(['error' => t('admin_service_status_error_auth_required')]);
     exit();
 }
 
 if (!isAdmin()) {
     http_response_code(403);
-    echo json_encode(['error' => 'Admin access required']);
+    echo json_encode(['error' => t('admin_service_status_error_admin_required')]);
     exit();
 }
 
@@ -109,7 +124,7 @@ $serviceMap = [
 
 if (!isset($serviceMap[$service])) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid service']);
+    echo json_encode(['error' => t('admin_service_status_error_invalid_service')]);
     exit();
 }
 

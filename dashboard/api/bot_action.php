@@ -16,7 +16,7 @@ require_once '/var/www/lib/require_auth_ajax.php';
 if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true) {
   ob_clean();
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Bot start/stop is disabled while acting as another channel.']);
+  echo json_encode(['success' => false, 'message' => t('bot_acting_as_disabled')]);
   exit();
 }
 
@@ -24,7 +24,7 @@ if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] 
 if (!isset($_POST['action']) || !isset($_POST['bot'])) {
   ob_clean();
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_missing_parameters')]);
   exit();
 }
 
@@ -35,14 +35,14 @@ $bot = $_POST['bot'];
 if (!in_array($action, ['run', 'stop', 'status'])) {
   ob_clean();
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Invalid action']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_invalid_action')]);
   exit();
 }
 
 if (!in_array($bot, ['stable', 'beta', 'v6'])) {
   ob_clean();
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Invalid bot type']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_invalid_bot_type')]);
   exit();
 }
 
@@ -68,7 +68,7 @@ $apiKey = $_SESSION['api_key'] ?? '';
 if (empty($username)) {
   ob_clean();
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Username not found in session']);
+  echo json_encode(['success' => false, 'message' => t('bot_action_username_not_found')]);
   exit();
 }
 // If attempting to start a bot, check if bot is banned
@@ -111,17 +111,17 @@ if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
     if ($banResponse !== false && $banHttpCode === 200) {
       $banData = json_decode($banResponse, true);
       if (isset($banData['data']) && !empty($banData['data'])) {
-        $banReason = $banData['data'][0]['reason'] ?? 'No reason provided';
+        $banReason = $banData['data'][0]['reason'] ?? t('bot_action_ban_no_reason');
         ob_clean();
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Bot is BANNED from your channel. Reason: ' . $banReason . '. Please unban the bot and make it a moderator before starting.']);
+        echo json_encode(['success' => false, 'message' => t('bot_action_bot_banned', ['reason' => $banReason])]);
         exit();
       }
     }
     // Bot is not mod and not banned - still can't start without mod
     ob_clean();
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Bot is not a moderator on your channel. Please make the bot a moderator before starting.']);
+    echo json_encode(['success' => false, 'message' => t('bot_action_not_moderator')]);
     exit();
   }
 }
@@ -143,14 +143,14 @@ if ($action === 'run' && isset($_POST['use_custom_bot']) && ($_POST['use_custom_
         // Custom bot exists but not verified
         ob_clean();
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Custom bot is not verified. Please verify your custom bot in Profile settings.']);
+        echo json_encode(['success' => false, 'message' => t('bot_action_custom_bot_unverified')]);
         exit();
       }
     } else {
       // No custom bot configured
       ob_clean();
       header('Content-Type: application/json');
-      echo json_encode(['success' => false, 'message' => 'No custom bot configured. Please configure a custom bot in Profile settings.']);
+      echo json_encode(['success' => false, 'message' => t('bot_action_no_custom_bot')]);
       exit();
     }
     $stmt->close();
@@ -178,7 +178,7 @@ try {
   if ((time() - $startTime) >= $maxExecutionTime) {
     $result = [
       'success' => false, 
-      'message' => 'Operation timed out. Bot may still be processing in background.',
+      'message' => t('bot_action_timed_out'),
       'timeout' => true
     ];
   }

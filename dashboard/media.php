@@ -39,7 +39,7 @@ if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
     header('Content-Type: application/json');
     $login = strtolower(preg_replace('/[^a-z0-9_]/i', '', trim($_GET['login'])));
     if ($login === '') {
-        echo json_encode(['success' => false, 'error' => 'Invalid login']);
+        echo json_encode(['success' => false, 'error' => t('media_err_invalid_login')]);
         exit;
     }
     $botClientId = '';
@@ -58,7 +58,7 @@ if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
         $bconn->close();
     }
     if ($botClientId === '' || $botOauth === '') {
-        echo json_encode(['success' => false, 'error' => 'Bot credentials unavailable']);
+        echo json_encode(['success' => false, 'error' => t('media_err_bot_credentials')]);
         exit;
     }
     $ctx = stream_context_create(['http' => [
@@ -69,12 +69,12 @@ if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
     ]]);
     $raw = @file_get_contents('https://api.twitch.tv/helix/users?login=' . urlencode($login), false, $ctx);
     if (!$raw) {
-        echo json_encode(['success' => false, 'error' => 'Helix request failed']);
+        echo json_encode(['success' => false, 'error' => t('media_err_helix_failed')]);
         exit;
     }
     $data = json_decode($raw, true);
     if (empty($data['data'][0]['id'])) {
-        echo json_encode(['success' => false, 'error' => 'User not found']);
+        echo json_encode(['success' => false, 'error' => t('media_err_user_not_found')]);
         exit;
     }
     echo json_encode([
@@ -218,13 +218,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   ON DUPLICATE KEY UPDATE sound_mapping = VALUES(sound_mapping)");
             $stmt->bind_param('ss', $rewardId, $file);
             $stmt->execute(); $stmt->close();
-            $status .= "Sound alert mapping added.<br>";
+            $status .= t('media_status_sound_added') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         } elseif ($action === 'remove' && $rewardId !== '') {
             $stmt = $db->prepare("DELETE FROM sound_alerts WHERE reward_id = ?");
             $stmt->bind_param('s', $rewardId);
             $stmt->execute(); $stmt->close();
-            $status .= "Sound alert mapping removed.<br>";
+            $status .= t('media_status_sound_removed') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
@@ -237,13 +237,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   ON DUPLICATE KEY UPDATE video_mapping = VALUES(video_mapping)");
             $stmt->bind_param('ss', $rewardId, $file);
             $stmt->execute(); $stmt->close();
-            $status .= "Video alert mapping added.<br>";
+            $status .= t('media_status_video_added') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         } elseif ($action === 'remove' && $rewardId !== '') {
             $stmt = $db->prepare("DELETE FROM video_alerts WHERE reward_id = ?");
             $stmt->bind_param('s', $rewardId);
             $stmt->execute(); $stmt->close();
-            $status .= "Video alert mapping removed.<br>";
+            $status .= t('media_status_video_removed') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
@@ -256,13 +256,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   ON DUPLICATE KEY UPDATE sound_mapping = VALUES(sound_mapping)");
             $stmt->bind_param('ss', $eventId, $file);
             $stmt->execute(); $stmt->close();
-            $status .= "Twitch event mapping added.<br>";
+            $status .= t('media_status_event_added') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         } elseif ($action === 'remove' && $eventId !== '') {
             $stmt = $db->prepare("DELETE FROM twitch_sound_alerts WHERE twitch_alert_id = ?");
             $stmt->bind_param('s', $eventId);
             $stmt->execute(); $stmt->close();
-            $status .= "Twitch event mapping removed.<br>";
+            $status .= t('media_status_event_removed') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
@@ -277,22 +277,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   ON DUPLICATE KEY UPDATE media_file = VALUES(media_file), twitch_user_name = VALUES(twitch_user_name), mode = VALUES(mode)");
             $stmt->bind_param('ssss', $userId, $userName, $file, $walkonMode);
             $stmt->execute(); $stmt->close();
-            $status .= "Walkon added.<br>";
+            $status .= t('media_status_walkon_added') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         } elseif ($action === 'remove' && $userId !== '') {
             $stmt = $db->prepare("DELETE FROM walkons WHERE twitch_user_id = ?");
             $stmt->bind_param('s', $userId);
             $stmt->execute(); $stmt->close();
-            $status .= "Walkon removed.<br>";
+            $status .= t('media_status_walkon_removed') . "<br>";
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
     if (isset($_FILES["filesToUpload"])) {
         $remaining_storage = $max_storage_size - $current_storage_used;
         $uploadStatus = "";
+        $uploadHadError = false;
         $targetDir = $media_path;
         $allowedExts = ['mp3', 'mp4', 'png', 'jpg', 'jpeg', 'gif', 'webm'];
-        $extLabel = 'audio (MP3), video (MP4/WEBM), or image (PNG/JPG/GIF)';
+        $extLabel = t('media_upload_ext_label');
         if ($targetDir) {
             foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
                 if (empty($tmp_name)) continue;
@@ -300,25 +301,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fileSize = $_FILES["filesToUpload"]["size"][$key];
                 $fileError = $_FILES["filesToUpload"]["error"][$key] ?? 0;
                 $displayName = htmlspecialchars(basename($fileName));
-                if ($fileError !== UPLOAD_ERR_OK) { $uploadStatus .= "Error uploading " . $displayName . ".<br>"; continue; }
-                if (!is_uploaded_file($tmp_name)) { $uploadStatus .= "Failed to upload " . $displayName . ". Invalid upload.<br>"; continue; }
+                if ($fileError !== UPLOAD_ERR_OK) { $uploadStatus .= t('media_upload_error', [$displayName]) . "<br>"; $uploadHadError = true; continue; }
+                if (!is_uploaded_file($tmp_name)) { $uploadStatus .= t('media_upload_failed_invalid', [$displayName]) . "<br>"; $uploadHadError = true; continue; }
                 if ($current_storage_used + $fileSize > $max_storage_size) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". Storage limit exceeded.<br>"; continue;
+                    $uploadStatus .= t('media_upload_failed_storage', [$displayName]) . "<br>"; $uploadHadError = true; continue;
                 }
                 $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
                 if (!in_array($fileType, $allowedExts, true)) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". Only " . $extLabel . " files are allowed.<br>"; continue;
+                    $uploadStatus .= t('media_upload_failed_type', ['name' => $displayName, 'types' => $extLabel]) . "<br>"; $uploadHadError = true; continue;
                 }
                 if (!upload_validate_extension_and_mime($tmp_name, $fileType, $allowedExts)) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". File contents do not match the declared file type.<br>"; continue;
+                    $uploadStatus .= t('media_upload_failed_mime', [$displayName]) . "<br>"; $uploadHadError = true; continue;
                 }
                 $safeName = upload_sanitize_filename($fileName, $fileType);
                 $target = upload_unique_target($targetDir, $safeName);
                 if (move_uploaded_file($tmp_name, $target['path'])) {
                     $current_storage_used += $fileSize;
-                    $uploadStatus .= "The file " . htmlspecialchars($target['name']) . " has been uploaded.<br>";
+                    $uploadStatus .= t('media_upload_success', [htmlspecialchars($target['name'])]) . "<br>";
                 } else {
-                    $uploadStatus .= "Sorry, there was an error uploading " . $displayName . ".<br>";
+                    $uploadStatus .= t('media_upload_failed_generic', [$displayName]) . "<br>";
+                    $uploadHadError = true;
                 }
             }
             $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
@@ -328,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json');
             echo json_encode([
                 'status' => $status,
-                'success' => strpos($status, 'Failed') === false && strpos($status, 'Error') === false,
+                'success' => !$uploadHadError,
                 'storage_used' => $current_storage_used,
                 'max_storage' => $max_storage_size,
                 'storage_percentage' => $storage_percentage,
@@ -346,16 +348,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $filename = basename($file_to_delete);
             $full_path = $media_path . '/' . $filename;
             if (!is_file($full_path)) {
-                $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
+                $deleteStatus .= t('media_delete_failed', [htmlspecialchars($filename)]) . "<br>";
                 continue;
             }
             // Count every place this file is still referenced
             $refParts = [];
             $checks = [
-                ['sound_alerts',        'sound_mapping',  'channel point reward'],
-                ['video_alerts',        'video_mapping',  'video reward'],
-                ['twitch_sound_alerts', 'sound_mapping',  'Twitch event'],
-                ['walkons',             'media_file',     'walkon'],
+                ['sound_alerts',        'sound_mapping',  'media_ref_reward',  'media_ref_reward_plural'],
+                ['video_alerts',        'video_mapping',  'media_ref_video',   'media_ref_video_plural'],
+                ['twitch_sound_alerts', 'sound_mapping',  'media_ref_event',   'media_ref_event_plural'],
+                ['walkons',             'media_file',     'media_ref_walkon',  'media_ref_walkon_plural'],
             ];
             foreach ($checks as $c) {
                 $cstmt = $db->prepare("SELECT COUNT(*) AS n FROM {$c[0]} WHERE {$c[1]} = ?");
@@ -364,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cstmt->execute();
                 $n = (int)$cstmt->get_result()->fetch_assoc()['n'];
                 $cstmt->close();
-                if ($n > 0) $refParts[] = $n . ' ' . $c[2] . ($n === 1 ? '' : 's');
+                if ($n > 0) $refParts[] = t($n === 1 ? $c[2] : $c[3], [$n]);
             }
             // Alert builder uses two columns on twitch_alerts; sum them
             $abstmt = $db->prepare("SELECT (SELECT COUNT(*) FROM twitch_alerts WHERE alert_image = ?) + (SELECT COUNT(*) FROM twitch_alerts WHERE alert_sound = ?) AS n");
@@ -373,16 +375,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $abstmt->execute();
                 $abn = (int)$abstmt->get_result()->fetch_assoc()['n'];
                 $abstmt->close();
-                if ($abn > 0) $refParts[] = $abn . ' alert variant' . ($abn === 1 ? '' : 's');
+                if ($abn > 0) $refParts[] = t($abn === 1 ? 'media_ref_alert' : 'media_ref_alert_plural', [$abn]);
             }
             if (!empty($refParts)) {
-                $deleteStatus .= "<strong>" . htmlspecialchars($filename) . "</strong> is still linked to " . implode(', ', $refParts) . ". Remove the link(s) first, then try again.<br>";
+                $deleteStatus .= t('media_delete_linked', ['name' => htmlspecialchars($filename), 'refs' => implode(', ', $refParts)]) . "<br>";
                 continue;
             }
             if (unlink($full_path)) {
-                $deleteStatus .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
+                $deleteStatus .= t('media_delete_success', [htmlspecialchars($filename)]) . "<br>";
             } else {
-                $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
+                $deleteStatus .= t('media_delete_failed', [htmlspecialchars($filename)]) . "<br>";
             }
         }
         $db->commit();
@@ -532,11 +534,11 @@ ob_start();
                     $alertCount  = count($alertMediaFiles[$file] ?? []);
                     $totalCount  = $rewardCount + $eventCount + $walkonCount + $alertCount;
                     $summaryParts = [];
-                    if ($rewardCount > 0) $summaryParts[] = $rewardCount . ' reward' . ($rewardCount === 1 ? '' : 's');
-                    if ($eventCount  > 0) $summaryParts[] = $eventCount . ' event' . ($eventCount === 1 ? '' : 's');
-                    if ($walkonCount > 0) $summaryParts[] = $walkonCount . ' walkon' . ($walkonCount === 1 ? '' : 's');
-                    if ($alertCount  > 0) $summaryParts[] = $alertCount . ' alert' . ($alertCount === 1 ? '' : 's');
-                    $summary = empty($summaryParts) ? 'Unused' : implode(' · ', $summaryParts);
+                    if ($rewardCount > 0) $summaryParts[] = t($rewardCount === 1 ? 'media_summary_reward' : 'media_summary_reward_plural', [$rewardCount]);
+                    if ($eventCount  > 0) $summaryParts[] = t($eventCount === 1 ? 'media_summary_event' : 'media_summary_event_plural', [$eventCount]);
+                    if ($walkonCount > 0) $summaryParts[] = t($walkonCount === 1 ? 'media_summary_walkon' : 'media_summary_walkon_plural', [$walkonCount]);
+                    if ($alertCount  > 0) $summaryParts[] = t($alertCount === 1 ? 'media_summary_alert' : 'media_summary_alert_plural', [$alertCount]);
+                    $summary = empty($summaryParts) ? t('media_summary_unused') : implode(' · ', $summaryParts);
                 ?>
                 <li class="media-file-row"
                     data-file="<?php echo htmlspecialchars($file); ?>"
@@ -620,9 +622,80 @@ window.__MEDIA_CTX  = {
     apiKey:   <?php echo json_encode($api_key); ?>,
     channel:  <?php echo json_encode($username); ?>
 };
+window.__MEDIA_I18N = {
+    unknown_reward:        <?php echo json_encode(t('media_js_unknown_reward')); ?>,
+    no_mappings:           <?php echo json_encode(t('media_js_no_mappings')); ?>,
+    used_by_alert_builder: <?php echo json_encode(t('media_js_used_by_alert_builder')); ?>,
+    alert_not_attached:    <?php echo json_encode(t('media_js_alert_not_attached')); ?>,
+    header_video:          <?php echo json_encode(t('media_js_header_video')); ?>,
+    header_audio:          <?php echo json_encode(t('media_js_header_audio')); ?>,
+    header_image:          <?php echo json_encode(t('media_js_header_image')); ?>,
+    header_file:           <?php echo json_encode(t('media_js_header_file')); ?>,
+    section_rewards:       <?php echo json_encode(t('media_js_section_rewards')); ?>,
+    section_rewards_video: <?php echo json_encode(t('media_js_section_rewards_video')); ?>,
+    section_events:        <?php echo json_encode(t('media_js_section_events')); ?>,
+    section_walkons:       <?php echo json_encode(t('media_js_section_walkons')); ?>,
+    add_reward:            <?php echo json_encode(t('media_js_add_reward')); ?>,
+    add_event:             <?php echo json_encode(t('media_js_add_event')); ?>,
+    walkon_sound_only:     <?php echo json_encode(t('media_js_walkon_sound_only')); ?>,
+    walkon_sound_overlay:  <?php echo json_encode(t('media_js_walkon_sound_overlay')); ?>,
+    walkon_username_ph:    <?php echo json_encode(t('media_js_walkon_username_ph')); ?>,
+    walkon_add_user:       <?php echo json_encode(t('media_js_walkon_add_user')); ?>,
+    walkon_tag_picname:    <?php echo json_encode(t('media_js_walkon_tag_picname')); ?>,
+    walkon_tag_video:      <?php echo json_encode(t('media_js_walkon_tag_video')); ?>,
+    looking_up:            <?php echo json_encode(t('media_js_looking_up')); ?>,
+    lookup_failed:         <?php echo json_encode(t('media_js_lookup_failed')); ?>,
+    summary_unused:        <?php echo json_encode(t('media_summary_unused')); ?>,
+    summary_reward:        <?php echo json_encode(t('media_summary_reward')); ?>,
+    summary_reward_plural: <?php echo json_encode(t('media_summary_reward_plural')); ?>,
+    summary_event:         <?php echo json_encode(t('media_summary_event')); ?>,
+    summary_event_plural:  <?php echo json_encode(t('media_summary_event_plural')); ?>,
+    summary_walkon:        <?php echo json_encode(t('media_summary_walkon')); ?>,
+    summary_walkon_plural: <?php echo json_encode(t('media_summary_walkon_plural')); ?>,
+    summary_alert:         <?php echo json_encode(t('media_summary_alert')); ?>,
+    summary_alert_plural:  <?php echo json_encode(t('media_summary_alert_plural')); ?>,
+    no_files_selected:     <?php echo json_encode(t('media_no_files_selected')); ?>,
+    upload_no_files_title: <?php echo json_encode(t('media_js_upload_no_files_title')); ?>,
+    upload_no_files_text:  <?php echo json_encode(t('media_js_upload_no_files_text')); ?>,
+    uploading_files:       <?php echo json_encode(t('media_js_uploading_files')); ?>,
+    uploading_pct:         <?php echo json_encode(t('media_js_uploading_pct')); ?>,
+    processing_files:      <?php echo json_encode(t('media_js_processing_files')); ?>,
+    upload_complete:       <?php echo json_encode(t('media_js_upload_complete')); ?>,
+    uploading_btn:         <?php echo json_encode(t('media_js_uploading_btn')); ?>,
+    upload_failed_title:   <?php echo json_encode(t('media_js_upload_failed_title')); ?>,
+    upload_failed_generic: <?php echo json_encode(t('media_js_upload_failed_generic')); ?>,
+    upload_failed_retry:   <?php echo json_encode(t('media_js_upload_failed_retry')); ?>,
+    upload_btn_label:      <?php echo json_encode(t('media_upload_media')); ?>,
+    upload_btn_short:      <?php echo json_encode(t('media_js_upload_btn_short')); ?>,
+    bulk_in_use_title:     <?php echo json_encode(t('media_js_bulk_in_use_title')); ?>,
+    bulk_in_use_intro:     <?php echo json_encode(t('media_js_bulk_in_use_intro')); ?>,
+    bulk_in_use_outro:     <?php echo json_encode(t('media_js_bulk_in_use_outro')); ?>,
+    delete_files_title:    <?php echo json_encode(t('media_js_delete_files_title')); ?>,
+    delete_files_text:     <?php echo json_encode(t('media_js_delete_files_text')); ?>,
+    delete_file_title:     <?php echo json_encode(t('media_js_delete_file_title')); ?>,
+    delete_file_text:      <?php echo json_encode(t('media_js_delete_file_text')); ?>,
+    confirm_delete:        <?php echo json_encode(t('media_js_confirm_delete')); ?>,
+    cancel:                <?php echo json_encode(t('media_js_cancel')); ?>,
+    locked_title:          <?php echo json_encode(t('media_js_locked_title')); ?>,
+    locked_body:           <?php echo json_encode(t('media_js_locked_body')); ?>,
+    migrate_title:         <?php echo json_encode(t('media_js_migrate_title')); ?>,
+    migrate_body:          <?php echo json_encode(t('media_js_migrate_body')); ?>,
+    migrate_confirm:       <?php echo json_encode(t('media_js_migrate_confirm')); ?>,
+    migrating:             <?php echo json_encode(t('media_js_migrating')); ?>,
+    migrate_done_title:    <?php echo json_encode(t('media_js_migrate_done_title')); ?>,
+    migrate_failed_title:  <?php echo json_encode(t('media_js_migrate_failed_title')); ?>,
+    migrate_failed_unknown:<?php echo json_encode(t('media_js_migrate_failed_unknown')); ?>,
+    migrate_failed_server: <?php echo json_encode(t('media_js_migrate_failed_server')); ?>,
+    migrate_btn_label:     <?php echo json_encode(t('media_migrate_btn')); ?>
+};
 
 $(document).ready(function () {
     var data = window.__MEDIA_DATA;
+    var I18N = window.__MEDIA_I18N;
+    function fmtCount(n, singularKey, pluralKey) {
+        var tpl = (n === 1 ? I18N[singularKey] : I18N[pluralKey]) || '%s';
+        return tpl.replace('%s', n);
+    }
     // ------------------------------------------------------------------
     // Modal rendering
     // ------------------------------------------------------------------
@@ -643,7 +716,7 @@ $(document).ready(function () {
         return 'other';
     }
     function rewardTitle(id) {
-        return data.reward_titles[id] || '(unknown reward)';
+        return data.reward_titles[id] || I18N.unknown_reward;
     }
     // Available rewards: not currently mapped to ANY file via sound OR video.
     // (A reward triggers one sound — if it's already used elsewhere, hide it.)
@@ -666,7 +739,7 @@ $(document).ready(function () {
         html += '<div class="media-modal-section-title">' + escapeHtml(title) + '</div>';
         html += '<div class="mapping-chips">';
         if (chips.length === 0) {
-            html += '<em class="mapping-empty">No mappings yet.</em>';
+            html += '<em class="mapping-empty">' + escapeHtml(I18N.no_mappings) + '</em>';
         } else {
             chips.forEach(function (c) {
                 html += '<span class="mapping-chip">' + escapeHtml(c.label);
@@ -693,24 +766,24 @@ $(document).ready(function () {
         var alertBuilder = data.alert_builder[file] || [];
         var html = '';
         // Header
-        var headerLabel = type === 'video' ? 'MP4 video'
-                        : type === 'audio' ? 'MP3 audio'
-                        : type === 'image' ? (ext.toUpperCase() + ' image')
-                        : 'File';
+        var headerLabel = type === 'video' ? I18N.header_video
+                        : type === 'audio' ? I18N.header_audio
+                        : type === 'image' ? I18N.header_image.replace('%s', ext.toUpperCase())
+                        : I18N.header_file;
         html += '<div class="media-modal-fileinfo">' + escapeHtml(headerLabel) + '</div>';
         // Image files are alert-builder territory only — no channel-points,
         // events or walkons. Render just the read-only usage chips.
         if (type === 'image') {
             if (alertBuilder.length === 0) {
                 html += '<div class="media-modal-section media-modal-section-readonly">'
-                     +    '<div class="media-modal-section-title">Used by Alert Builder</div>'
-                     +    '<div class="mapping-chips"><em class="mapping-empty">Not attached to any alert variant yet. Open <a href="alerts.php">Specter Alerts</a> and use Browse library to assign it.</em></div>'
+                     +    '<div class="media-modal-section-title">' + escapeHtml(I18N.used_by_alert_builder) + '</div>'
+                     +    '<div class="mapping-chips"><em class="mapping-empty">' + I18N.alert_not_attached + '</em></div>'
                      +  '</div>';
             } else {
                 var abChips = alertBuilder.map(function (a) {
                     return { label: a.category + ' · ' + a.variant + ' (' + a.type + ')' };
                 });
-                html += renderSection('Used by Alert Builder', abChips, '', true);
+                html += renderSection(I18N.used_by_alert_builder, abChips, '', true);
             }
             modalBody.innerHTML = html;
             return;
@@ -732,13 +805,13 @@ $(document).ready(function () {
         var addReward = '';
         if (availRewards.length > 0) {
             addReward = '<select class="sp-select mapping-add-select" data-add-kind="' + (type === 'video' ? 'video_reward' : 'sound_reward') + '">';
-            addReward += '<option value="">+ Add channel point reward…</option>';
+            addReward += '<option value="">' + escapeHtml(I18N.add_reward) + '</option>';
             availRewards.forEach(function (r) {
                 addReward += '<option value="' + escapeHtml(r.reward_id) + '">' + escapeHtml(r.reward_title) + '</option>';
             });
             addReward += '</select>';
         }
-        html += renderSection(type === 'video' ? 'Channel Point Rewards (Video)' : 'Channel Point Rewards', rewardChips, addReward, false);
+        html += renderSection(type === 'video' ? I18N.section_rewards_video : I18N.section_rewards, rewardChips, addReward, false);
         // Twitch events (audio only — no MP4 events today)
         if (type !== 'video') {
             var availEvents = availableEvents(events);
@@ -748,43 +821,43 @@ $(document).ready(function () {
             var addEvent = '';
             if (availEvents.length > 0) {
                 addEvent = '<select class="sp-select mapping-add-select" data-add-kind="event">';
-                addEvent += '<option value="">+ Add Twitch event…</option>';
+                addEvent += '<option value="">' + escapeHtml(I18N.add_event) + '</option>';
                 availEvents.forEach(function (e) {
                     addEvent += '<option value="' + escapeHtml(e) + '">' + escapeHtml(e) + '</option>';
                 });
                 addEvent += '</select>';
             }
-            html += renderSection('Twitch Events', eventChips, addEvent, false);
+            html += renderSection(I18N.section_events, eventChips, addEvent, false);
         }
         // Walkons — audio: sound only or sound + picture & name; video: video alert
         if (type === 'audio' || type === 'video') {
             var walkonChips = walkons.map(function (w) {
                 var m = w.mode || 'sound';
-                var tag = m === 'sound_overlay' ? ' · pic+name' : (m === 'video' ? ' · video' : '');
+                var tag = m === 'sound_overlay' ? (' · ' + I18N.walkon_tag_picname) : (m === 'video' ? (' · ' + I18N.walkon_tag_video) : '');
                 return { label: '@' + w.user_name + tag, removeData: { kind: 'walkon', 'user-id': w.user_id } };
             });
             var modeSelect = '';
             if (type === 'audio') {
                 modeSelect = '<select class="sp-select walkon-mode-select">'
-                    + '<option value="sound">Sound only</option>'
-                    + '<option value="sound_overlay">Sound + picture &amp; name</option>'
+                    + '<option value="sound">' + escapeHtml(I18N.walkon_sound_only) + '</option>'
+                    + '<option value="sound_overlay">' + escapeHtml(I18N.walkon_sound_overlay) + '</option>'
                     + '</select>';
             }
             var addWalkon = ''
                 + '<div class="walkon-add-wrap">'
-                + '  <input type="text" class="sp-input walkon-add-input" placeholder="Twitch username…" autocomplete="off" list="walkon-seen-users">'
+                + '  <input type="text" class="sp-input walkon-add-input" placeholder="' + escapeHtml(I18N.walkon_username_ph) + '" autocomplete="off" list="walkon-seen-users">'
                 +    modeSelect
-                + '  <button type="button" class="sp-btn sp-btn-primary sp-btn-sm walkon-add-confirm">+ Add user</button>'
+                + '  <button type="button" class="sp-btn sp-btn-primary sp-btn-sm walkon-add-confirm">' + escapeHtml(I18N.walkon_add_user) + '</button>'
                 + '  <span class="walkon-add-status"></span>'
                 + '</div>';
-            html += renderSection('Walkons', walkonChips, addWalkon, false);
+            html += renderSection(I18N.section_walkons, walkonChips, addWalkon, false);
         }
         // Alert builder (read-only)
         if (alertBuilder.length > 0) {
             var abChips = alertBuilder.map(function (a) {
                 return { label: a.category + ' · ' + a.variant + ' (' + a.type + ')' };
             });
-            html += renderSection('Used by Alert Builder', abChips, '', true);
+            html += renderSection(I18N.used_by_alert_builder, abChips, '', true);
         }
         modalBody.innerHTML = html;
     }
@@ -848,12 +921,12 @@ $(document).ready(function () {
         var a = parseInt(row.dataset.alertCount || '0', 10);
         var total = r + e + w + a;
         var parts = [];
-        if (r > 0) parts.push(r + ' reward' + (r === 1 ? '' : 's'));
-        if (e > 0) parts.push(e + ' event' + (e === 1 ? '' : 's'));
-        if (w > 0) parts.push(w + ' walkon' + (w === 1 ? '' : 's'));
-        if (a > 0) parts.push(a + ' alert' + (a === 1 ? '' : 's'));
+        if (r > 0) parts.push(fmtCount(r, 'summary_reward', 'summary_reward_plural'));
+        if (e > 0) parts.push(fmtCount(e, 'summary_event', 'summary_event_plural'));
+        if (w > 0) parts.push(fmtCount(w, 'summary_walkon', 'summary_walkon_plural'));
+        if (a > 0) parts.push(fmtCount(a, 'summary_alert', 'summary_alert_plural'));
         var summaryEl = row.querySelector('.media-file-summary');
-        summaryEl.textContent = total === 0 ? 'Unused' : parts.join(' · ');
+        summaryEl.textContent = total === 0 ? I18N.summary_unused : parts.join(' · ');
         summaryEl.classList.toggle('is-unused', total === 0);
         row.dataset.hasRewards = r > 0 ? '1' : '0';
         row.dataset.hasEvents  = e > 0 ? '1' : '0';
@@ -916,12 +989,12 @@ $(document).ready(function () {
         var mode    = modeSel.length ? modeSel.val() : (fileType(activeFile) === 'video' ? 'video' : 'sound');
         var raw     = (input.val() || '').trim().replace(/^@/, '').toLowerCase();
         if (!raw) return;
-        status.text('Looking up @' + raw + '…');
+        status.text(I18N.looking_up.replace('%s', raw));
         // Helix resolves both seen_users and unknown logins to a Twitch user_id.
         // Going through Helix unconditionally keeps the path uniform.
         $.get('', { action: 'helix_lookup_user', login: raw }, function (resp) {
             if (!resp || !resp.success) {
-                status.text(resp && resp.error ? resp.error : 'Lookup failed');
+                status.text(resp && resp.error ? resp.error : I18N.lookup_failed);
                 return;
             }
             postMapping({
@@ -932,7 +1005,7 @@ $(document).ready(function () {
                 twitch_user_name: resp.user_name,
                 mode: mode
             }, function () { input.val(''); status.text(''); });
-        }, 'json').fail(function () { status.text('Lookup failed'); });
+        }, 'json').fail(function () { status.text(I18N.lookup_failed); });
     });
     // Populate the seen_users datalist for typeahead
     (function () {
@@ -988,7 +1061,7 @@ $(document).ready(function () {
         var label = $(this).closest('.media-drop-zone').find('.file-list-label');
         var names = [];
         for (var i = 0; i < files.length; i++) names.push(files[i].name);
-        label.text(names.length ? names.join(', ') : 'No files selected');
+        label.text(names.length ? names.join(', ') : I18N.no_files_selected);
     });
     // AJAX upload
     $(document).on('submit', '.media-upload-form', function (e) {
@@ -996,7 +1069,7 @@ $(document).ready(function () {
         var form = $(this);
         var fileInput = form.find('input[type="file"]')[0];
         if (fileInput.files.length === 0) {
-            Swal.fire({ icon: 'warning', title: 'No Files Selected', text: 'Please select at least one file to upload.', confirmButtonColor: '#3273dc' });
+            Swal.fire({ icon: 'warning', title: I18N.upload_no_files_title, text: I18N.upload_no_files_text, confirmButtonColor: '#3273dc' });
             return;
         }
         var formData = new FormData(this);
@@ -1007,11 +1080,11 @@ $(document).ready(function () {
         var uploadBtn = form.find('.upload-btn');
         var uploadBtnText = form.find('.upload-btn-text');
         statusContainer.show();
-        statusText.html('<i class="fas fa-spinner fa-pulse"></i> Uploading ' + fileInput.files.length + ' file(s)...');
+        statusText.html('<i class="fas fa-spinner fa-pulse"></i> ' + I18N.uploading_files.replace('%s', fileInput.files.length));
         progressPercent.text('0%');
         progressBar.val(0);
         uploadBtn.prop('disabled', true).addClass('sp-btn-loading');
-        uploadBtnText.text('Uploading...');
+        uploadBtnText.text(I18N.uploading_btn);
         $.ajax({
             url: '', type: 'POST', data: formData, contentType: false, processData: false,
             xhr: function () {
@@ -1022,8 +1095,8 @@ $(document).ready(function () {
                         progressBar.val(pct);
                         progressPercent.text(pct + '%');
                         statusText.html(pct < 100
-                            ? '<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + pct + '%)'
-                            : '<i class="fas fa-check-circle"></i> Processing files on server...');
+                            ? '<i class="fas fa-spinner fa-pulse"></i> ' + I18N.uploading_pct.replace('%s', pct)
+                            : '<i class="fas fa-check-circle"></i> ' + I18N.processing_files);
                     }
                 }, false);
                 return xhr;
@@ -1033,19 +1106,19 @@ $(document).ready(function () {
                 if (d && !d.success) {
                     statusContainer.hide();
                     uploadBtn.prop('disabled', false).removeClass('sp-btn-loading');
-                    uploadBtnText.text('Upload Media');
-                    Swal.fire({ icon: 'error', title: 'Upload Failed', html: d.status || 'An error occurred during upload.', confirmButtonColor: '#3273dc' });
+                    uploadBtnText.text(I18N.upload_btn_label);
+                    Swal.fire({ icon: 'error', title: I18N.upload_failed_title, html: d.status || I18N.upload_failed_generic, confirmButtonColor: '#3273dc' });
                     return;
                 }
-                statusText.html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
+                statusText.html('<i class="fas fa-check-circle"></i> ' + I18N.upload_complete);
                 progressPercent.text('100%');
                 setTimeout(function () { location.reload(); }, 1500);
             },
             error: function () {
                 statusContainer.hide();
                 uploadBtn.prop('disabled', false).removeClass('sp-btn-loading');
-                uploadBtnText.text('Upload');
-                Swal.fire({ icon: 'error', title: 'Upload Failed', text: 'An error occurred during upload. Please try again.', confirmButtonColor: '#3273dc' });
+                uploadBtnText.text(I18N.upload_btn_short);
+                Swal.fire({ icon: 'error', title: I18N.upload_failed_title, text: I18N.upload_failed_retry, confirmButtonColor: '#3273dc' });
             }
         });
     });
@@ -1072,27 +1145,27 @@ $(document).ready(function () {
             var list = locked.map(function (l) { return '<li><strong>' + l.file + '</strong> — ' + l.summary + '</li>'; }).join('');
             Swal.fire({
                 icon: 'warning',
-                title: 'Some files are still in use',
-                html: 'Remove the links on these files before deleting:<ul style="text-align:left;margin-top:8px;">' + list + '</ul>'
-                    + 'Open each file to unlink its rewards/events/walkons, or visit <a href="alerts.php">Specter Alerts</a> for alert builder usage.',
+                title: I18N.bulk_in_use_title,
+                html: I18N.bulk_in_use_intro + '<ul style="text-align:left;margin-top:8px;">' + list + '</ul>'
+                    + I18N.bulk_in_use_outro,
             });
             return;
         }
         Swal.fire({
-            title: 'Delete Files?',
-            text: 'Are you sure you want to delete the selected ' + checked.length + ' file(s)?',
+            title: I18N.delete_files_title,
+            text: I18N.delete_files_text.replace('%s', checked.length),
             icon: 'warning', showCancelButton: true,
-            confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
+            confirmButtonColor: '#d33', confirmButtonText: I18N.confirm_delete, cancelButtonText: I18N.cancel
         }).then(function (result) { if (result.isConfirmed) form.submit(); });
     });
     // Delete single
     $(document).on('click', '.media-delete-single', function () {
         var fileName = $(this).data('file');
         Swal.fire({
-            title: 'Delete File?',
-            text: 'Are you sure you want to delete "' + fileName + '"?',
+            title: I18N.delete_file_title,
+            text: I18N.delete_file_text.replace('%s', fileName),
             icon: 'warning', showCancelButton: true,
-            confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
+            confirmButtonColor: '#d33', confirmButtonText: I18N.confirm_delete, cancelButtonText: I18N.cancel
         }).then(function (result) {
             if (result.isConfirmed) {
                 $('<input>').attr({ type: 'hidden', name: 'delete_files[]', value: fileName }).appendTo('#mediaDeleteForm');
@@ -1106,11 +1179,8 @@ $(document).ready(function () {
         var summary = $(this).data('summary');
         Swal.fire({
             icon: 'info',
-            title: 'File is in use',
-            html: '<strong>' + fileName + '</strong> is still attached to ' + summary + '.<br><br>'
-                + 'Open the file to remove its channel-point reward, Twitch event or walkon links. '
-                + 'For alert builder usage, open <a href="alerts.php">Specter Alerts</a> and clear the file from the affected variants. '
-                + 'Then come back and try the delete again.',
+            title: I18N.locked_title,
+            html: I18N.locked_body.replace(':name', '<strong>' + fileName + '</strong>').replace(':summary', summary),
         });
     });
     // Test playback (existing notify_event flow)
@@ -1125,28 +1195,23 @@ $(document).ready(function () {
     $('#media-migrate-btn').on('click', function () {
         var btn = $(this);
         Swal.fire({
-            title: 'Migrate to Unified Library?',
-            html: '<div style="text-align:left;">'
-                + '<p><strong>Beta Bot required.</strong> The Stable Bot (5.7.x) cannot fire alerts from the unified library. If you migrate while still on the Stable Bot, your sound, video, and walkon alerts will stop working until you switch your channel to the Beta Bot.</p>'
-                + '<p>Version 5.8 will roll out to the Stable Bot soon and your channel will migrate automatically at that point — there is no rush.</p>'
-                + '<hr>'
-                + '<p>If you understand and want to migrate now, click <strong>Yes, migrate</strong>. Existing files are copied (not deleted), and walkons are auto-tagged to their Twitch user.</p>'
-                + '</div>',
+            title: I18N.migrate_title,
+            html: I18N.migrate_body,
             icon: 'warning', showCancelButton: true,
-            confirmButtonText: 'Yes, migrate', cancelButtonText: 'Cancel'
+            confirmButtonText: I18N.migrate_confirm, cancelButtonText: I18N.cancel
         }).then(function (result) {
             if (!result.isConfirmed) return;
-            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Migrating…');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> ' + I18N.migrating);
             $.post('/api/migrate_media.php', {}, function (resp) {
                 if (resp && resp.success) {
-                    Swal.fire({ icon: 'success', title: 'Migration Complete', text: resp.message }).then(function () { location.reload(); });
+                    Swal.fire({ icon: 'success', title: I18N.migrate_done_title, text: resp.message }).then(function () { location.reload(); });
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Migration Failed', text: (resp && resp.message) ? resp.message : 'Unknown error' });
-                    btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> Migrate to Unified Media Library');
+                    Swal.fire({ icon: 'error', title: I18N.migrate_failed_title, text: (resp && resp.message) ? resp.message : I18N.migrate_failed_unknown });
+                    btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> ' + I18N.migrate_btn_label);
                 }
             }, 'json').fail(function () {
-                Swal.fire({ icon: 'error', title: 'Migration Failed', text: 'Server error during migration.' });
-                btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> Migrate to Unified Media Library');
+                Swal.fire({ icon: 'error', title: I18N.migrate_failed_title, text: I18N.migrate_failed_server });
+                btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> ' + I18N.migrate_btn_label);
             });
         });
     });

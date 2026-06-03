@@ -85,7 +85,7 @@ if ($wsHttpCode === 200) {
     $totalCost = ($data['total_cost'] ?? 0) + array_sum(array_column($_webhookSubs, 'cost'));
     $maxCost = $data['max_total_cost'] ?? 0;
 } else {
-    $error = "Failed to fetch subscriptions. HTTP Code: $wsHttpCode";
+    $error = t('notifications_error_fetch_failed', [$wsHttpCode]);
 }
 
 // Group subscriptions by transport type, session, and status
@@ -179,6 +179,69 @@ ob_start();
     </div>
 </div>
 <script>
+const NOTIF_I18N = {
+    success: <?php echo json_encode(t('notifications_js_success')); ?>,
+    error: <?php echo json_encode(t('notifications_js_error')); ?>,
+    refreshing: <?php echo json_encode(t('notifications_js_refreshing')); ?>,
+    lastUpdated: <?php echo json_encode(t('notifications_js_last_updated')); ?>,
+    failedRefresh: <?php echo json_encode(t('notifications_js_failed_refresh')); ?>,
+    failedFetchSubscriptions: <?php echo json_encode(t('notifications_js_failed_fetch_subscriptions')); ?>,
+    unknownError: <?php echo json_encode(t('notifications_js_unknown_error')); ?>,
+    emptyNoSubscriptions: <?php echo json_encode(t('notifications_content_empty_no_subscriptions')); ?>,
+    connectionLine: <?php echo json_encode(t('notifications_js_connection_line')); ?>,
+    disabledStaleLine: <?php echo json_encode(t('notifications_js_disabled_stale_line')); ?>,
+    statTotalSubscriptions: <?php echo json_encode(t('notifications_content_stat_total_subscriptions')); ?>,
+    statAcrossAllTransports: <?php echo json_encode(t('notifications_content_stat_across_all_transports')); ?>,
+    statActiveWebsocketSubs: <?php echo json_encode(t('notifications_content_stat_active_websocket_subs')); ?>,
+    statLimit300: <?php echo json_encode(t('notifications_content_stat_limit_300_per_connection')); ?>,
+    statActiveConnections: <?php echo json_encode(t('notifications_content_stat_active_connections')); ?>,
+    statLimit3: <?php echo json_encode(t('notifications_content_stat_limit_3_connections')); ?>,
+    statWebhookSubscriptions: <?php echo json_encode(t('notifications_content_stat_webhook_subscriptions')); ?>,
+    statCallbackBased: <?php echo json_encode(t('notifications_content_stat_callback_based')); ?>,
+    statCostUsage: <?php echo json_encode(t('notifications_content_stat_cost_usage')); ?>,
+    statOfMax: <?php echo json_encode(t('notifications_js_stat_of_max')); ?>,
+    headingActiveSessions: <?php echo json_encode(t('notifications_content_heading_active_sessions')); ?>,
+    infoboxActiveSessions: <?php echo json_encode(t('notifications_content_infobox_active_sessions')); ?>,
+    headingDisabledSessions: <?php echo json_encode(t('notifications_content_heading_disabled_sessions')); ?>,
+    infoboxDisabledSessions: <?php echo json_encode(t('notifications_content_infobox_disabled_sessions')); ?>,
+    websocketSessionLabel: <?php echo json_encode(t('notifications_js_websocket_session_label')); ?>,
+    btnDeleteAllInSession: <?php echo json_encode(t('notifications_content_btn_delete_all_in_session')); ?>,
+    labelSessionName: <?php echo json_encode(t('notifications_content_label_session_name')); ?>,
+    labelSessionId: <?php echo json_encode(t('notifications_content_label_session_id')); ?>,
+    subscriptionsCount: <?php echo json_encode(t('notifications_js_subscriptions_count')); ?>,
+    thType: <?php echo json_encode(t('notifications_content_th_type')); ?>,
+    thVersion: <?php echo json_encode(t('notifications_content_th_version')); ?>,
+    thCondition: <?php echo json_encode(t('notifications_content_th_condition')); ?>,
+    thStatus: <?php echo json_encode(t('notifications_content_th_status')); ?>,
+    thCreated: <?php echo json_encode(t('notifications_content_th_created')); ?>,
+    thAction: <?php echo json_encode(t('notifications_content_th_action')); ?>,
+    thCallbackUrl: <?php echo json_encode(t('notifications_content_th_callback_url')); ?>,
+    conditionYou: <?php echo json_encode(t('notifications_content_condition_you')); ?>,
+    btnDelete: <?php echo json_encode(t('notifications_content_btn_delete')); ?>,
+    headingWebhookSubscriptions: <?php echo json_encode(t('notifications_content_heading_webhook_subscriptions')); ?>,
+    notAvailable: <?php echo json_encode(t('notifications_js_not_available')); ?>,
+    confirmDeleteSingle: <?php echo json_encode(t('notifications_js_confirm_delete_single')); ?>,
+    deleting: <?php echo json_encode(t('notifications_js_deleting')); ?>,
+    deletedSingle: <?php echo json_encode(t('notifications_js_deleted_single')); ?>,
+    failedDeleteSingle: <?php echo json_encode(t('notifications_js_failed_delete_single')); ?>,
+    confirmDeleteAll: <?php echo json_encode(t('notifications_js_confirm_delete_all')); ?>,
+    noSubscriptionsToDelete: <?php echo json_encode(t('notifications_js_no_subscriptions_to_delete')); ?>,
+    deletedMultiple: <?php echo json_encode(t('notifications_js_deleted_multiple')); ?>,
+    failedDeleteMultiple: <?php echo json_encode(t('notifications_js_failed_delete_multiple')); ?>,
+    staleSessionsRemoved: <?php echo json_encode(t('notifications_js_stale_sessions_removed')); ?>,
+    internalWsSummary: <?php echo json_encode(t('notifications_js_internal_ws_summary')); ?>,
+    noActiveClients: <?php echo json_encode(t('notifications_js_no_active_clients')); ?>,
+    unknownClient: <?php echo json_encode(t('notifications_js_unknown_client')); ?>,
+    badgeAdmin: <?php echo json_encode(t('notifications_js_badge_admin')); ?>,
+    badgeUser: <?php echo json_encode(t('notifications_js_badge_user')); ?>,
+    btnDisconnect: <?php echo json_encode(t('notifications_js_btn_disconnect')); ?>,
+    failedLoadInternalWs: <?php echo json_encode(t('notifications_js_failed_load_internal_ws')); ?>,
+    unableToLoadData: <?php echo json_encode(t('notifications_js_unable_to_load_data')); ?>,
+    confirmDisconnect: <?php echo json_encode(t('notifications_js_confirm_disconnect')); ?>,
+    disconnecting: <?php echo json_encode(t('notifications_js_disconnecting')); ?>,
+    failedDisconnect: <?php echo json_encode(t('notifications_js_failed_disconnect')); ?>
+};
+
 console.log('Initial PHP session names:', <?php echo json_encode($sessionNames); ?>);
 console.log('Initial PHP session groups:', <?php echo json_encode(array_keys($sessionGroups)); ?>);
 
@@ -191,7 +254,7 @@ function showNotification(message, type = 'success') {
     const container = document.getElementById('notification-messages');
     const div = document.createElement('div');
     div.className = type === 'success' ? 'info-box' : 'error-box';
-    div.innerHTML = `<strong>${type === 'success' ? 'Success' : 'Error'}:</strong> ${message}`;
+    div.innerHTML = `<strong>${type === 'success' ? NOTIF_I18N.success : NOTIF_I18N.error}:</strong> ${message}`;
     container.appendChild(div);
     // Auto-remove after 5 seconds
     setTimeout(() => {
@@ -215,17 +278,17 @@ async function refreshSubscriptions() {
         if (button && button.classList.contains('refresh-btn')) {
             originalHTML = button.innerHTML;
             button.disabled = true;
-            button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+            button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> ' + NOTIF_I18N.refreshing;
         }
     }
     try {
         const response = await fetch('/api/notifications_api.php?action=fetch_subscriptions');
         if (!response.ok) {
-            throw new Error('Failed to fetch subscriptions');
+            throw new Error(NOTIF_I18N.failedFetchSubscriptions);
         }
         const result = await response.json();
         if (!result.success) {
-            throw new Error(result.error || 'Unknown error');
+            throw new Error(result.error || NOTIF_I18N.unknownError);
         }
         // Render the content using the API data
         renderSubscriptions(result.data);
@@ -233,11 +296,11 @@ async function refreshSubscriptions() {
         // Update indicator
         const indicator = document.getElementById('auto-refresh-indicator');
         if (indicator) {
-            indicator.textContent = `(Last updated: ${new Date().toLocaleTimeString()})`;
+            indicator.textContent = NOTIF_I18N.lastUpdated.replace(':time', new Date().toLocaleTimeString());
         }
     } catch (error) {
         console.error('Refresh error:', error);
-        showNotification('Failed to refresh subscriptions: ' + error.message, 'error');
+        showNotification(NOTIF_I18N.failedRefresh + error.message, 'error');
     } finally {
         // Restore button state if it was manually triggered
         if (button && originalHTML) {
@@ -276,7 +339,7 @@ function renderSubscriptions(data) {
             <div class="sp-card" style="text-align:center; padding:2rem;">
                 <p style="color:var(--text-secondary); font-size:1rem;">
                     <i class="fas fa-inbox"></i><br>
-                    No EventSub subscriptions found.
+                    ${NOTIF_I18N.emptyNoSubscriptions}
                 </p>
             </div>
         `;
@@ -302,38 +365,38 @@ function buildStatsGrid(data) {
         let textColor = '#e6e6e6';
         if (count >= 250) textColor = '#e74c3c';
         else if (count >= 150) textColor = '#f39c12';
-        connectionDetails += `<div class="stat-secondary" style="color: ${textColor}; margin-top: 4px;">Connection ${connectionNumber}: ${count} subscriptions</div>`;
+        connectionDetails += `<div class="stat-secondary" style="color: ${textColor}; margin-top: 4px;">${NOTIF_I18N.connectionLine.replace(':number', connectionNumber).replace(':count', count)}</div>`;
     }
     if (data.websocketSubsDisabled.length > 0) {
-        connectionDetails += `<div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">${data.websocketSubsDisabled.length} disabled/stale</div>`;
+        connectionDetails += `<div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">${NOTIF_I18N.disabledStaleLine.replace(':count', data.websocketSubsDisabled.length)}</div>`;
     }
     return `
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-label">Total Subscriptions</div>
+                <div class="stat-label">${NOTIF_I18N.statTotalSubscriptions}</div>
                 <div class="stat-value">${data.totalCount}</div>
-                <div class="stat-secondary">across all transports</div>
+                <div class="stat-secondary">${NOTIF_I18N.statAcrossAllTransports}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Active WebSocket Subscriptions</div>
+                <div class="stat-label">${NOTIF_I18N.statActiveWebsocketSubs}</div>
                 <div class="stat-value">${subCount}</div>
-                <div class="stat-secondary">limit: 300 per connection</div>
+                <div class="stat-secondary">${NOTIF_I18N.statLimit300}</div>
                 ${connectionDetails}
             </div>
             <div class="stat-card ${sessionColorClass}">
-                <div class="stat-label">Active Connections</div>
+                <div class="stat-label">${NOTIF_I18N.statActiveConnections}</div>
                 <div class="stat-value">${sessionCount}</div>
-                <div class="stat-secondary">limit: 3 connections</div>
+                <div class="stat-secondary">${NOTIF_I18N.statLimit3}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Webhook Subscriptions</div>
+                <div class="stat-label">${NOTIF_I18N.statWebhookSubscriptions}</div>
                 <div class="stat-value">${data.webhookSubs.length}</div>
-                <div class="stat-secondary">callback-based</div>
+                <div class="stat-secondary">${NOTIF_I18N.statCallbackBased}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Cost Usage</div>
+                <div class="stat-label">${NOTIF_I18N.statCostUsage}</div>
                 <div class="stat-value">${data.totalCost}</div>
-                <div class="stat-secondary">of ${data.maxCost} max</div>
+                <div class="stat-secondary">${NOTIF_I18N.statOfMax.replace(':max', data.maxCost)}</div>
             </div>
         </div>
     `;
@@ -344,18 +407,16 @@ function buildActiveSessionsSection(data) {
     let html = `
         <div class="sp-card"><div class="sp-card-body">
             <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
-                <i class="fas fa-network-wired"></i> Active WebSocket Sessions
+                <i class="fas fa-network-wired"></i> ${NOTIF_I18N.headingActiveSessions}
             </h2>
             <div class="info-box">
-                <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
-                Each session below counts toward that limit. Your bot and YourChat each need their own session. 
-                If you hit the limit, delete old/unused sessions.
+                ${NOTIF_I18N.infoboxActiveSessions}
             </div>
     `;
     let sessionNumber = 0;
     for (const [sessionId, subs] of Object.entries(data.sessionGroups)) {
         sessionNumber++;
-        const sessionName = data.sessionNames[sessionId] || `WebSocket Session ${sessionNumber}`;
+        const sessionName = data.sessionNames[sessionId] || NOTIF_I18N.websocketSessionLabel.replace(':number', sessionNumber);
         html += buildSessionGroup(sessionId, subs, sessionName, data.userId, false);
     }
     html += '</div></div>';
@@ -367,17 +428,16 @@ function buildDisabledSessionsSection(data) {
     let html = `
         <div class="sp-card" style="border-left:3px solid var(--red);"><div class="sp-card-body">
             <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
-                <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
+                <i class="fas fa-exclamation-triangle"></i> ${NOTIF_I18N.headingDisabledSessions}
             </h2>
             <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
-                <strong><i class="fas fa-info-circle"></i> Note:</strong> These subscriptions are no longer active and can be safely deleted. 
-                They do not count toward your connection or subscription limits.
+                ${NOTIF_I18N.infoboxDisabledSessions}
             </div>
     `;
     let sessionNumber = 0;
     for (const [sessionId, subs] of Object.entries(data.sessionGroupsDisabled)) {
         sessionNumber++;
-        const sessionName = data.sessionNames[sessionId] || `WebSocket Session ${sessionNumber}`;
+        const sessionName = data.sessionNames[sessionId] || NOTIF_I18N.websocketSessionLabel.replace(':number', sessionNumber);
         html += buildSessionGroup(sessionId, subs, sessionName, data.userId, true);
     }
     html += '</div></div>';
@@ -388,30 +448,30 @@ function buildDisabledSessionsSection(data) {
 function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
     const deleteAllButton = isDisabled ? 
         `<button class="custom-btn" onclick="deleteAllInSession('${escapeHtml(sessionId)}', ${subs.length}, '${escapeHtml(sessionName)}')" style="margin-left: 10px;">
-            <i class="fas fa-trash-alt"></i> Delete All in Session
+            <i class="fas fa-trash-alt"></i> ${NOTIF_I18N.btnDeleteAllInSession}
         </button>` : '';
     let html = `
         <div class="session-group">
             <div class="session-header">
                 <div>
-                    <strong>Session Name:</strong> <span class="session-name">${escapeHtml(sessionName)}</span>
+                    <strong>${NOTIF_I18N.labelSessionName}</strong> <span class="session-name">${escapeHtml(sessionName)}</span>
                     <br>
-                    <strong>Session ID:</strong> <span class="session-id">${escapeHtml(sessionId)}</span>
+                    <strong>${NOTIF_I18N.labelSessionId}</strong> <span class="session-id">${escapeHtml(sessionId)}</span>
                 </div>
                 <div class="sub-count">
-                    ${subs.length} subscriptions
+                    ${NOTIF_I18N.subscriptionsCount.replace(':count', subs.length)}
                     ${deleteAllButton}
                 </div>
             </div>
             <table class="data-table sp-table">
                 <thead>
                     <tr>
-                        <th>Type</th>
-                        <th>Version</th>
-                        <th>Condition</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Action</th>
+                        <th>${NOTIF_I18N.thType}</th>
+                        <th>${NOTIF_I18N.thVersion}</th>
+                        <th>${NOTIF_I18N.thCondition}</th>
+                        <th>${NOTIF_I18N.thStatus}</th>
+                        <th>${NOTIF_I18N.thCreated}</th>
+                        <th>${NOTIF_I18N.thAction}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -420,7 +480,7 @@ function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
         const conditions = [];
         for (const [key, value] of Object.entries(sub.condition)) {
             if (value === userId) {
-                conditions.push(`${key}: <strong style='color: #00ff00;'>YOU</strong>`);
+                conditions.push(`${key}: <strong style='color: #00ff00;'>${NOTIF_I18N.conditionYou}</strong>`);
             } else {
                 conditions.push(`${key}: ${escapeHtml(value.substring(0, 12))}`);
             }
@@ -439,7 +499,7 @@ function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
                 <td style="font-size: 12px; color: #aaa;">${createdStr}</td>
                 <td>
                     <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}')" class="delete-btn">
-                        <i class="fas fa-trash"></i> Delete
+                        <i class="fas fa-trash"></i> ${NOTIF_I18N.btnDelete}
                     </button>
                 </td>
             </tr>
@@ -458,23 +518,23 @@ function buildWebhookSection(data) {
     let html = `
         <div class="sp-card"><div class="sp-card-body">
             <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
-                <i class="fas fa-link"></i> Webhook Subscriptions
+                <i class="fas fa-link"></i> ${NOTIF_I18N.headingWebhookSubscriptions}
             </h2>
             <table class="data-table sp-table">
                 <thead>
                     <tr>
-                        <th>Type</th>
-                        <th>Version</th>
-                        <th>Callback URL</th>
-                        <th>Status</th>
-                        <th>Action</th>
+                        <th>${NOTIF_I18N.thType}</th>
+                        <th>${NOTIF_I18N.thVersion}</th>
+                        <th>${NOTIF_I18N.thCallbackUrl}</th>
+                        <th>${NOTIF_I18N.thStatus}</th>
+                        <th>${NOTIF_I18N.thAction}</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
     for (const sub of data.webhookSubs) {
         const statusClass = 'status-' + sub.status.toLowerCase();
-        const callback = sub.transport.callback || 'N/A';
+        const callback = sub.transport.callback || NOTIF_I18N.notAvailable;
         html += `
             <tr>
                 <td><span class="sub-type">${escapeHtml(sub.type)}</span></td>
@@ -483,7 +543,7 @@ function buildWebhookSection(data) {
                 <td><span class="status-badge ${statusClass}">${escapeHtml(sub.status)}</span></td>
                 <td>
                     <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}', 'webhook')" class="delete-btn">
-                        <i class="fas fa-trash"></i> Delete
+                        <i class="fas fa-trash"></i> ${NOTIF_I18N.btnDelete}
                     </button>
                 </td>
             </tr>
@@ -499,7 +559,7 @@ function buildWebhookSection(data) {
 
 // Delete single subscription
 async function deleteSingleSubscription(subscriptionId, transport = 'websocket') {
-    if (!confirm('Are you sure you want to delete this subscription?')) {
+    if (!confirm(NOTIF_I18N.confirmDeleteSingle)) {
         return;
     }
     isDeleting = true;
@@ -507,7 +567,7 @@ async function deleteSingleSubscription(subscriptionId, transport = 'websocket')
     const button = event.target.closest('button');
     const originalText = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + NOTIF_I18N.deleting;
     try {
         const formData = new FormData();
         formData.append('action', 'delete_subscription');
@@ -519,14 +579,14 @@ async function deleteSingleSubscription(subscriptionId, transport = 'websocket')
         });
         const result = await response.json();
         if (result.success) {
-            showNotification(result.message || 'Successfully deleted subscription', 'success');
+            showNotification(result.message || NOTIF_I18N.deletedSingle, 'success');
             await refreshSubscriptions();
         } else {
-            throw new Error(result.error || 'Failed to delete subscription');
+            throw new Error(result.error || NOTIF_I18N.failedDeleteSingle);
         }
     } catch (error) {
         console.error('Delete error:', error);
-        showNotification('Error: ' + error.message, 'error');
+        showNotification(NOTIF_I18N.error + ': ' + error.message, 'error');
         button.disabled = false;
         button.innerHTML = originalText;
     } finally {
@@ -536,7 +596,7 @@ async function deleteSingleSubscription(subscriptionId, transport = 'websocket')
 
 // Delete all subscriptions in a session
 async function deleteAllInSession(sessionId, count, sessionName) {
-    if (!confirm(`Are you sure you want to delete all ${count} subscriptions from "${sessionName}"?\n\nThis action cannot be undone.`)) {
+    if (!confirm(NOTIF_I18N.confirmDeleteAll.replace(':count', count).replace(':name', sessionName))) {
         return;
     }
     isDeleting = true;
@@ -544,7 +604,7 @@ async function deleteAllInSession(sessionId, count, sessionName) {
     const button = event.target.closest('button');
     const originalText = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + NOTIF_I18N.deleting;
     // Collect all subscription IDs from this session
     const subscriptionIds = [];
     const tables = document.querySelectorAll('.session-group');
@@ -561,7 +621,7 @@ async function deleteAllInSession(sessionId, count, sessionName) {
         }
     });
     if (subscriptionIds.length === 0) {
-        showNotification('No subscriptions found to delete', 'error');
+        showNotification(NOTIF_I18N.noSubscriptionsToDelete, 'error');
         button.disabled = false;
         button.innerHTML = originalText;
         isDeleting = false;
@@ -577,14 +637,14 @@ async function deleteAllInSession(sessionId, count, sessionName) {
         });
         const result = await response.json();
         if (result.success) {
-            showNotification(result.message || 'Successfully deleted subscriptions', 'success');
+            showNotification(result.message || NOTIF_I18N.deletedMultiple, 'success');
             await refreshSubscriptions();
         } else {
-            throw new Error(result.error || 'Failed to delete subscriptions');
+            throw new Error(result.error || NOTIF_I18N.failedDeleteMultiple);
         }
     } catch (error) {
         console.error('Delete session error:', error);
-        showNotification('Error: ' + error.message, 'error');
+        showNotification(NOTIF_I18N.error + ': ' + error.message, 'error');
         button.disabled = false;
         button.innerHTML = originalText;
     } finally {
@@ -608,7 +668,7 @@ async function autoCleanupSessions() {
         if (result.success) {
             if (result.deleted && result.deleted > 0) {
                 console.log('Auto-cleanup removed', result.deleted, 'stale sessions');
-                showNotification((result.deleted || 0) + ' stale session(s) removed', 'success');
+                showNotification(NOTIF_I18N.staleSessionsRemoved.replace(':count', (result.deleted || 0)), 'success');
                 await refreshSubscriptions();
             } else {
                 console.log('Auto-cleanup: no stale sessions to remove');
@@ -639,7 +699,7 @@ async function refreshInternalWebsocket(button = null) {
     if (button) {
         originalButtonHtml = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+        button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> ' + NOTIF_I18N.refreshing;
     }
 
     try {
@@ -651,30 +711,30 @@ async function refreshInternalWebsocket(button = null) {
         const clients = Array.isArray(clientsRaw) ? clientsRaw : Object.values(clientsRaw);
         const clientCount = (data.data && typeof data.data.clientCount === 'number') ? data.data.clientCount : clients.length;
 
-        summary.innerHTML = `<strong>${clientCount}</strong> active internal websocket client(s) for your API key.`;
+        summary.innerHTML = NOTIF_I18N.internalWsSummary.replace(':count', `<strong>${clientCount}</strong>`);
 
         if (clients.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No active websocket clients for your API key.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(NOTIF_I18N.noActiveClients) + '</td></tr>';
             return;
         }
 
         let html = '';
         clients.forEach(c => {
             const sidRaw = c.sid || c.id || c.connectionId || '';
-            const name = escapeHtml(c.name || c.client_name || c.clientName || 'Unknown Client');
-            const sid = escapeHtml(sidRaw || 'N/A');
+            const name = escapeHtml(c.name || c.client_name || c.clientName || NOTIF_I18N.unknownClient);
+            const sid = escapeHtml(sidRaw || NOTIF_I18N.notAvailable);
             const isAdmin = !!(c.is_admin || c.isAdmin || c.admin);
             const adminBadge = isAdmin
-                ? '<span class="sp-badge sp-badge-red">Admin</span>'
-                : '<span class="sp-badge sp-badge-blue">User</span>';
+                ? `<span class="sp-badge sp-badge-red">${escapeHtml(NOTIF_I18N.badgeAdmin)}</span>`
+                : `<span class="sp-badge sp-badge-blue">${escapeHtml(NOTIF_I18N.badgeUser)}</span>`;
 
-            html += `<tr><td>${name}</td><td><code>${sid}</code></td><td>${adminBadge}</td><td><button class="sp-btn sp-btn-danger sp-btn-sm" onclick='disconnectWs(${JSON.stringify(sidRaw)}, this)'><i class="fas fa-times"></i> Disconnect</button></td></tr>`;
+            html += `<tr><td>${name}</td><td><code>${sid}</code></td><td>${adminBadge}</td><td><button class="sp-btn sp-btn-danger sp-btn-sm" onclick='disconnectWs(${JSON.stringify(sidRaw)}, this)'><i class="fas fa-times"></i> ${escapeHtml(NOTIF_I18N.btnDisconnect)}</button></td></tr>`;
         });
         tbody.innerHTML = html;
     } catch (err) {
         console.error('refreshInternalWebsocket error', err);
-        summary.innerHTML = `<span style="color:#e74c3c;">Failed to load internal websocket data: ${escapeHtml(err.message || String(err))}</span>`;
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Unable to load data.</td></tr>';
+        summary.innerHTML = `<span style="color:#e74c3c;">${escapeHtml(NOTIF_I18N.failedLoadInternalWs)} ${escapeHtml(err.message || String(err))}</span>`;
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(NOTIF_I18N.unableToLoadData) + '</td></tr>';
     } finally {
         if (button) {
             button.disabled = false;
@@ -684,8 +744,8 @@ async function refreshInternalWebsocket(button = null) {
 }
 
 async function disconnectWs(sid, btn) {
-    if (!confirm('Disconnect this websocket client?')) return;
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disconnecting...'; }
+    if (!confirm(NOTIF_I18N.confirmDisconnect)) return;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + NOTIF_I18N.disconnecting; }
     try {
         const form = new FormData();
         form.append('disconnect_client', '1');
@@ -698,9 +758,9 @@ async function disconnectWs(sid, btn) {
         await refreshInternalWebsocket();
     } catch (err) {
         console.error('disconnectWs error', err);
-        alert('Failed to disconnect client: ' + (err.message || err));
+        alert(NOTIF_I18N.failedDisconnect + (err.message || err));
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times"></i> Disconnect'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times"></i> ' + NOTIF_I18N.btnDisconnect; }
     }
 }
 

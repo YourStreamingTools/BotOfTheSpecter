@@ -12,7 +12,7 @@ if (!isset($_SESSION['access_token'])) {
         http_response_code(401);
         echo json_encode([
             'error' => 'Session expired',
-            'remoteFileError' => 'Your session has expired. Please refresh the page to log in again.',
+            'remoteFileError' => t('recording_error_session_expired'),
             'remoteFileSections' => []
         ]);
         exit();
@@ -23,7 +23,7 @@ if (!isset($_SESSION['access_token'])) {
 }
 
 // Page Title and Initial Variables
-$pageTitle = 'Recording';
+$pageTitle = t('recording_card_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -249,7 +249,7 @@ if ($RECORDING_DISABLED) {
     $remoteFileError = t('recording_error_disabled');
     if (isset($_GET['download']) && $_GET['download'] === '1') {
         http_response_code(503);
-        echo 'Channel recording is currently disabled.';
+        echo t('recording_http_disabled');
         exit;
     }
 } elseif (!function_exists('ssh2_connect')) {
@@ -280,34 +280,34 @@ if ($RECORDING_DISABLED) {
                 $requestedFileName = isset($_GET['file']) ? (string)$_GET['file'] : '';
                 if (!isSafeRecorderFileName($requestedFileName)) {
                     http_response_code(400);
-                    echo 'Invalid file name.';
+                    echo t('recording_http_invalid_file_name');
                     exit;
                 }
                 $isMp4 = strtolower((string)pathinfo($requestedFileName, PATHINFO_EXTENSION)) === 'mp4';
                 if (!$isMp4) {
                     http_response_code(400);
-                    echo 'Only MP4 files can be downloaded.';
+                    echo t('recording_http_only_mp4');
                     exit;
                 }
                 $fullRemotePath = rtrim($userStorageDir, '/') . '/' . $requestedFileName;
                 $stat = @ssh2_sftp_stat($sftp, $fullRemotePath);
                 if (!$stat) {
                     http_response_code(404);
-                    echo 'File not found.';
+                    echo t('recording_http_file_not_found');
                     exit;
                 }
                 $isDirectory = isset($stat['mode']) && (($stat['mode'] & 0x4000) === 0x4000);
                 $isPartial = substr($requestedFileName, -5) === '.part';
                 if ($isDirectory || $isPartial) {
                     http_response_code(400);
-                    echo 'This file is not available for download.';
+                    echo t('recording_http_not_available');
                     exit;
                 }
                 $streamPath = 'ssh2.sftp://' . intval($sftp) . $fullRemotePath;
                 $streamHandle = @fopen($streamPath, 'rb');
                 if (!$streamHandle) {
                     http_response_code(500);
-                    echo 'Unable to open file for download.';
+                    echo t('recording_http_open_failed');
                     exit;
                 }
                 while (ob_get_level() > 0) {
@@ -352,7 +352,7 @@ if ($RECORDING_DISABLED) {
 } catch (Exception $e) {
     // Catch any errors during SSH connection for AJAX requests
     if (isset($_GET['ajax'])) {
-        $remoteFileError = 'An error occurred while connecting to the recorder server. Please try again later.';
+        $remoteFileError = t('recording_error_ajax_generic');
         error_log('Recording.php AJAX error: ' . $e->getMessage());
     } else {
         // Re-throw for non-AJAX requests to show proper error page
@@ -569,6 +569,20 @@ ob_start();
     </div>
 </div>
 <script>
+const RECORDING_I18N = {
+    thFile: <?php echo json_encode(t('recording_th_file')); ?>,
+    thType: <?php echo json_encode(t('recording_th_type')); ?>,
+    thSize: <?php echo json_encode(t('recording_th_size')); ?>,
+    thModified: <?php echo json_encode(t('recording_th_modified')); ?>,
+    thAction: <?php echo json_encode(t('recording_th_action')); ?>,
+    typeDirectory: <?php echo json_encode(t('recording_type_directory')); ?>,
+    typeInProgress: <?php echo json_encode(t('recording_type_in_progress')); ?>,
+    typeFile: <?php echo json_encode(t('recording_type_file')); ?>,
+    btnDownload: <?php echo json_encode(t('recording_btn_download')); ?>,
+    noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
+    sessionExpiredHtml: <?php echo json_encode(t('recording_js_session_expired_html')); ?>,
+    preparing: <?php echo json_encode(t('recording_js_preparing')); ?>
+};
 document.addEventListener('DOMContentLoaded', function () {
     var container = document.getElementById('remote-files-container');
     if (!container) {
@@ -609,7 +623,7 @@ document.addEventListener('DOMContentLoaded', function () {
         table.className = 'sp-table';
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
-        ['File', 'Type', 'Size', 'Modified', 'Action'].forEach(function (heading) {
+        [RECORDING_I18N.thFile, RECORDING_I18N.thType, RECORDING_I18N.thSize, RECORDING_I18N.thModified, RECORDING_I18N.thAction].forEach(function (heading) {
             var th = document.createElement('th');
             th.textContent = heading;
             headRow.appendChild(th);
@@ -625,11 +639,11 @@ document.addEventListener('DOMContentLoaded', function () {
             row.appendChild(fileCell);
             var typeCell = document.createElement('td');
             if (file.is_directory) {
-                typeCell.textContent = 'Directory';
+                typeCell.textContent = RECORDING_I18N.typeDirectory;
             } else if (file.is_partial) {
-                typeCell.textContent = 'Recording (In Progress)';
+                typeCell.textContent = RECORDING_I18N.typeInProgress;
             } else {
-                typeCell.textContent = 'File';
+                typeCell.textContent = RECORDING_I18N.typeFile;
             }
             row.appendChild(typeCell);
             var sizeCell = document.createElement('td');
@@ -654,7 +668,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 icon.appendChild(iconElement);
                 var label = document.createElement('span');
                 label.className = 'download-label';
-                label.textContent = 'Download';
+                label.textContent = RECORDING_I18N.btnDownload;
                 link.appendChild(icon);
                 link.appendChild(label);
                 actionCell.appendChild(link);
@@ -682,7 +696,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!sections.length) {
             var empty = document.createElement('div');
             empty.className = 'sp-alert sp-alert-warning';
-            empty.textContent = 'No files found in recorder directories for this user yet.';
+            empty.textContent = RECORDING_I18N.noFiles;
             container.appendChild(empty);
             return;
         }
@@ -744,7 +758,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (error && error.message === 'SESSION_EXPIRED') {
                 var notice = document.createElement('div');
                 notice.className = 'sp-alert sp-alert-warning';
-                notice.innerHTML = 'Your session has expired. <a href="' + window.location.pathname + '" style="text-decoration:underline;">Click here to reload the page</a> and log in again.';
+                notice.innerHTML = RECORDING_I18N.sessionExpiredHtml.replace('%s', window.location.pathname);
                 container.innerHTML = '';
                 container.appendChild(notice);
             }
@@ -778,13 +792,13 @@ document.addEventListener('DOMContentLoaded', function () {
         link.setAttribute('aria-busy', 'true');
         var label = link.querySelector('.download-label');
         if (label) {
-            label.textContent = 'Preparing...';
+            label.textContent = RECORDING_I18N.preparing;
         }
         window.setTimeout(function () {
             link.classList.remove('sp-btn-loading');
             link.removeAttribute('aria-busy');
             if (label) {
-                label.textContent = 'Download';
+                label.textContent = RECORDING_I18N.btnDownload;
             }
         }, 12000);
     });

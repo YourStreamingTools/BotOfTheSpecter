@@ -122,21 +122,36 @@ ob_start();
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="../js/search.js?v=<?php echo filemtime(__DIR__ . '/../js/search.js'); ?>"></script>
 <script>
+  const RELATIVE_TIME_STRINGS = {
+    second: <?php echo json_encode(t('todo_index_time_second')); ?>,
+    seconds: <?php echo json_encode(t('todo_index_time_seconds')); ?>,
+    minute: <?php echo json_encode(t('todo_index_time_minute')); ?>,
+    minutes: <?php echo json_encode(t('todo_index_time_minutes')); ?>,
+    hour: <?php echo json_encode(t('todo_index_time_hour')); ?>,
+    hours: <?php echo json_encode(t('todo_index_time_hours')); ?>,
+    day: <?php echo json_encode(t('todo_index_time_day')); ?>,
+    days: <?php echo json_encode(t('todo_index_time_days')); ?>,
+    month: <?php echo json_encode(t('todo_index_time_month')); ?>,
+    months: <?php echo json_encode(t('todo_index_time_months')); ?>,
+    year: <?php echo json_encode(t('todo_index_time_year')); ?>,
+    years: <?php echo json_encode(t('todo_index_time_years')); ?>,
+    ago: <?php echo json_encode(t('todo_index_time_ago')); ?>
+  };
   function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now - date) / 1000);
-    if (diff < 60) return diff + ' second' + (diff !== 1 ? 's' : '') + ' ago';
+    if (diff < 60) return diff + ' ' + (diff !== 1 ? RELATIVE_TIME_STRINGS.seconds : RELATIVE_TIME_STRINGS.second) + ' ' + RELATIVE_TIME_STRINGS.ago;
     const minutes = Math.floor(diff / 60);
-    if (minutes < 60) return minutes + ' minute' + (minutes !== 1 ? 's' : '') + ' ago';
+    if (minutes < 60) return minutes + ' ' + (minutes !== 1 ? RELATIVE_TIME_STRINGS.minutes : RELATIVE_TIME_STRINGS.minute) + ' ' + RELATIVE_TIME_STRINGS.ago;
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return hours + ' hour' + (hours !== 1 ? 's' : '') + ' ago';
+    if (hours < 24) return hours + ' ' + (hours !== 1 ? RELATIVE_TIME_STRINGS.hours : RELATIVE_TIME_STRINGS.hour) + ' ' + RELATIVE_TIME_STRINGS.ago;
     const days = Math.floor(hours / 24);
-    if (days < 30) return days + ' day' + (days !== 1 ? 's' : '') + ' ago';
+    if (days < 30) return days + ' ' + (days !== 1 ? RELATIVE_TIME_STRINGS.days : RELATIVE_TIME_STRINGS.day) + ' ' + RELATIVE_TIME_STRINGS.ago;
     const months = Math.floor(days / 30);
-    if (months < 12) return months + ' month' + (months !== 1 ? 's' : '') + ' ago';
+    if (months < 12) return months + ' ' + (months !== 1 ? RELATIVE_TIME_STRINGS.months : RELATIVE_TIME_STRINGS.month) + ' ' + RELATIVE_TIME_STRINGS.ago;
     const years = Math.floor(days / 365);
-    return years + ' year' + (years !== 1 ? 's' : '') + ' ago';
+    return years + ' ' + (years !== 1 ? RELATIVE_TIME_STRINGS.years : RELATIVE_TIME_STRINGS.year) + ' ' + RELATIVE_TIME_STRINGS.ago;
   }
   function updateTimestamps() {
     const elements = document.querySelectorAll('.timestamp');

@@ -1,33 +1,49 @@
 <?php
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
+
+// Load translations so user-facing error responses are localized.
+if (!function_exists('t')) {
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    $i18nPath = __DIR__ . '/../lang/i18n.php';
+    if (file_exists($i18nPath)) {
+        include_once $i18nPath;
+    }
+    if (!function_exists('t')) {
+        function t($key, $replacements = [])
+        {
+            return $key;
+        }
+    }
+}
+
 // Serve user-uploaded music files to the owner only
 if (!isset($_SESSION['access_token']) || empty($_SESSION['username'])) {
     http_response_code(403);
-    exit('Forbidden');
+    exit(t('serve_user_music_error_forbidden'));
 }
 $username = $_SESSION['username'];
 if (empty($_GET['file'])) {
     http_response_code(400);
-    exit('Missing file');
+    exit(t('serve_user_music_error_missing_file'));
 }
 $filename = basename($_GET['file']);
 // basic validation
 if (!preg_match('/^[A-Za-z0-9_\-\. ]+\.mp3$/i', $filename)) {
     http_response_code(400);
-    exit('Invalid file');
+    exit(t('serve_user_music_error_invalid_file'));
 }
 $userMusicPath = "/var/www/private/music_user/" . $username;
 $fullPath = $userMusicPath . '/' . $filename;
 if (!is_file($fullPath) || !is_readable($fullPath)) {
     http_response_code(404);
-    exit('Not found');
+    exit(t('serve_user_music_error_not_found'));
 }
 $size   = filesize($fullPath);
 $fm     = @fopen($fullPath, 'rb');
 if (!$fm) {
     http_response_code(500);
-    exit('Could not open file');
+    exit(t('serve_user_music_error_open_failed'));
 }
 $begin  = 0;
 $end    = $size - 1;

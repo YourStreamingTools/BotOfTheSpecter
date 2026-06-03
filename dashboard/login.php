@@ -2,11 +2,16 @@
 // Set your Twitch application credentials
 require_once "/var/www/config/twitch.php";
 $IDScope = 'openid channel:bot moderator:manage:chat_messages user:read:moderated_channels moderator:read:blocked_terms moderator:read:chat_settings moderator:read:vips moderator:read:moderators moderator:read:unban_requests moderator:read:banned_users moderator:read:chat_messages moderator:read:warnings user:bot channel:read:goals channel:moderate channel:manage:moderators user:edit:broadcast channel:manage:redemptions channel:manage:polls moderator:manage:automod moderator:read:suspicious_users channel:read:hype_train channel:manage:broadcast channel:manage:raids channel:read:charity user:read:email user:read:chat user:write:chat user:read:follows chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips user:read:subscriptions channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule channel:manage:clips editor:manage:clips clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users';
-$info = "Please wait while we redirect you to Twitch for authorization.";
-
 // Cookie + session config is owned by the shared bootstrap (cookie scoped
 // to .botofthespecter.com, sessions stored in website.web_sessions).
 require_once '/var/www/lib/session_bootstrap.php';
+
+// Load translations so the user-facing status/error messages below are
+// localized. Language preference (if any) lives on the session; default to EN.
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+include_once __DIR__ . '/lang/i18n.php';
+
+$info = t('login_redirecting_to_twitch');
 
 // If the caller passed ?return_to=/some/path, stash it as the post-login
 // redirect target. This is the AJAX-401 path: dashboard.js patched window.fetch
@@ -91,7 +96,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         $decoded = json_decode(base64_decode($_GET['auth_data']), true);
     }
     if (!is_array($decoded) || empty($decoded['success'])) {
-        $info = "Authentication failed or was cancelled.";
+        $info = t('login_auth_failed_or_cancelled');
     } elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
         $accessToken = $decoded['access_token'] ?? null;
         $refreshToken = $decoded['refresh_token'] ?? null;
@@ -129,7 +134,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                 session_destroy();
                 // User is in the restricted list
                 $accessMode = 'restricted';
-                $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at support@botofthespecter.com.";
+                $info = t('login_account_banned');
                 include 'restricted.php';
                 exit;
             }
@@ -148,7 +153,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                     $_SESSION = array();
                     session_destroy();
                     $accessMode = 'memorial';
-                    $info = "This account has been preserved in memory of the account holder who has passed away. The account and all associated data have been retained as a permanent memorial.";
+                    $info = t('login_account_memorial');
                     include 'restricted.php';
                     exit;
                 }
@@ -251,10 +256,10 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                 }
             }
         } else {
-            $info = "Failed to parse authentication data from StreamersConnect.";
+            $info = t('login_parse_auth_data_failed');
         }
     } else {
-        $info = "Unexpected response service from StreamersConnect.";
+        $info = t('login_unexpected_service');
     }
 }
 
@@ -355,7 +360,7 @@ if (isset($_GET['code'])) {
             session_destroy();
             // User is in the restricted list
             $accessMode = 'restricted';
-            $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at support@botofthespecter.com.";
+            $info = t('login_account_banned');
             // Render the page with the message
             include 'restricted.php';
             exit;
@@ -471,7 +476,7 @@ if (isset($_GET['code'])) {
         }
     } else {
         // Failed to fetch user information from Twitch
-        $info = "Failed to fetch user information from Twitch.";
+        $info = t('login_fetch_user_failed');
         exit;
     }
 }
@@ -494,7 +499,7 @@ if (isset($_GET['code'])) {
             } catch (e) {}
         })();
     </script>
-    <title>BotOfTheSpecter - Twitch Login</title>
+    <title><?php echo t('login_page_title'); ?></title>
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
@@ -542,7 +547,7 @@ if (isset($_GET['code'])) {
 <body>
     <div class="login-container">
         <div class="login-logo has-text-centered">
-            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" width="100">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="<?php echo t('login_logo_alt'); ?>" width="100">
             <h1 class="title has-text-white mt-3">BotOfTheSpecter</h1>
         </div>
         <div class="login-message has-text-centered">
