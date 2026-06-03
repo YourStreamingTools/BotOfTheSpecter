@@ -159,11 +159,11 @@ function read_log_over_ssh($remote_path, $lines = 200, $startLine = null) {
 }
 // Helper function to highlight log dates in a string and add <br> at end of each line
 function highlight_log_dates($text) {
-    $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
-    $infoStyle = 'style="color: #3498db; font-weight: bold;"';
-    $errorStyle = 'style="color: #e74c3c; font-weight: bold;"';
-    $warningStyle = 'style="color: #f39c12; font-weight: bold;"';
-    $debugStyle = 'style="color: #95a5a6; font-weight: bold;"';
+    $dateStyle = 'style="color: var(--amber); font-weight: bold;"';
+    $infoStyle = 'style="color: var(--blue); font-weight: bold;"';
+    $errorStyle = 'style="color: var(--red); font-weight: bold;"';
+    $warningStyle = 'style="color: var(--amber); font-weight: bold;"';
+    $debugStyle = 'style="color: var(--grey); font-weight: bold;"';
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
     foreach ($lines as &$line) {
@@ -203,11 +203,11 @@ function highlight_mysql_logs($text) {
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
     // Define styles
-    $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
-    $warningStyle = 'style="color: #f39c12; font-weight: bold;"';
-    $systemStyle = 'style="color: #3498db; font-weight: bold;"';
-    $errorStyle = 'style="color: #e74c3c; font-weight: bold;"';
-    $noteStyle = 'style="color: #27ae60; font-weight: bold;"';
+    $dateStyle = 'style="color: var(--amber); font-weight: bold;"';
+    $warningStyle = 'style="color: var(--amber); font-weight: bold;"';
+    $systemStyle = 'style="color: var(--blue); font-weight: bold;"';
+    $errorStyle = 'style="color: var(--red); font-weight: bold;"';
+    $noteStyle = 'style="color: var(--green); font-weight: bold;"';
     foreach ($lines as &$line) {
         // Highlight MySQL timestamps (2025-09-24T08:44:00.275216Z) and convert to readable format
         $line = preg_replace_callback(
@@ -261,10 +261,10 @@ function highlight_apache2_logs($text, $logType) {
     $escaped = htmlspecialchars($text);
     $lines = explode("\n", $escaped);
     // Define styles
-    $dateStyle = 'style="color: #e67e22; font-weight: bold;"';
-    $ipStyle = 'style="color: #3498db; font-weight: bold;"';
-    $localhostStyle = 'style="color: #9b59b6; font-weight: bold;"';
-    $errorStyle = 'style="color: #e74c3c; font-weight: bold;"';
+    $dateStyle = 'style="color: var(--amber); font-weight: bold;"';
+    $ipStyle = 'style="color: var(--blue); font-weight: bold;"';
+    $localhostStyle = 'style="color: var(--accent); font-weight: bold;"';
+    $errorStyle = 'style="color: var(--red); font-weight: bold;"';
     foreach ($lines as &$line) {
         if (strpos($logType, 'access') !== false) {
             // Apache2 Access Log Format: IP - - [date] ...
@@ -351,15 +351,15 @@ function highlight_admin_audit_logs($rows) {
             $detailsSummary = substr($detailsSummary, 0, 500) . '...';
         }
         $line = '[' . $createdAt . '] '
-            . '<span style="color:#9cdcfe;">actor=' . $actor . '</span> '
-            . '<span style="color:#ce9178;">action=' . $action . '</span> '
-            . '<span style="color:#b5cea8;">status=' . $status . '</span> '
-            . '<span style="color:#dcdcaa;">request=' . $requestMethod . ' ' . $requestPath . '</span>';
+            . '<span style="color:var(--blue);">actor=' . $actor . '</span> '
+            . '<span style="color:var(--amber);">action=' . $action . '</span> '
+            . '<span style="color:var(--green);">status=' . $status . '</span> '
+            . '<span style="color:var(--amber);">request=' . $requestMethod . ' ' . $requestPath . '</span>';
         if ($targetType !== '' || $targetValue !== '') {
-            $line .= ' <span style="color:#c586c0;">target=' . $targetType . ':' . $targetValue . '</span>';
+            $line .= ' <span style="color:var(--accent);">target=' . $targetType . ':' . $targetValue . '</span>';
         }
         if ($detailsSummary !== '') {
-            $line .= '<br>&nbsp;&nbsp;<span style="color:#d4d4d4;">details=' . htmlspecialchars($detailsSummary) . '</span>';
+            $line .= '<br>&nbsp;&nbsp;<span style="color:var(--text-secondary);">details=' . htmlspecialchars($detailsSummary) . '</span>';
         }
         $html[] = $line;
     }
@@ -899,7 +899,7 @@ ob_start();
             <span><?php echo t('admin_logs_btn_auto_refresh'); ?></span>
         </button>
     </div><!-- /filter-row -->
-    <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"></div>
+    <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"></div>
     </div><!-- /sp-card-body -->
 </div><!-- /sp-card -->
 <?php

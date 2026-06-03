@@ -1946,8 +1946,8 @@ ob_start();
                 </div>
               <?php endif; ?>
               <!-- Guild ID Configuration - Independent Form -->
-              <div class="sp-card" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem;">
-                <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <div class="sp-card" style="border-radius: 12px; border: 1px solid var(--border); margin-top: 1rem;">
+                <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
                   <p class="sp-card-title" style="font-weight: 600;">
                     <span class="icon"><i class="fas fa-server"></i></span>
                     <?= t('discordbot_server_config_title') ?>
@@ -2094,8 +2094,8 @@ ob_start();
       <?php endif; ?>
     </div>
     <!-- Discord Server Management Card -->
-    <div class="sp-card" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-      <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+    <div class="sp-card" style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+      <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
         <p class="sp-card-title" style="font-weight: 600;">
           <span class="icon"><i class="fab fa-discord"></i></span>
           <?= t('discordbot_management_title') ?>
@@ -2262,8 +2262,8 @@ ob_start();
       <div style="flex:1;min-width:min(100%,400px);">
         <!-- Twitch Online Alert Card -->
         <div class="sp-card"
-          style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+          style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+          <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
             <p class="sp-card-title" style="font-weight: 600;">
               <span class="icon"><i class="fab fa-discord"></i></span>
               <?= t('discordbot_card_online_alert_title') ?>
@@ -2409,8 +2409,8 @@ ob_start();
       <!-- Right Column -->
       <div style="flex:1;min-width:min(100%,400px);">
         <!-- Twitch Stream Monitoring Card -->
-        <div class="sp-card" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+        <div class="sp-card" style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+          <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
             <p class="sp-card-title" style="font-weight: 600;">
               <span class="icon"><i class="fa-brands fa-twitch"></i></span>
               <?= t('discordbot_card_monitoring_title') ?>
@@ -2479,8 +2479,8 @@ ob_start();
         </div>
         <!-- Twitch Event/Action Audit Log Card (separate box below) -->
         <div class="sp-card"
-          style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
-          <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+          style="border-radius: 12px; border: 1px solid var(--border); margin-top: 1rem; width: 100%;">
+          <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
             <p class="sp-card-title" style="font-weight: 600;">
               <span class="icon"><i class="fas fa-clipboard-list"></i></span>
               <?= t('discordbot_card_audit_title') ?>
@@ -2538,8 +2538,8 @@ ob_start();
         <div id="feature-box-welcomeMessage" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-door-open"></i></span>
                 <?= t('discordbot_card_welcome_title') ?>
@@ -2625,8 +2625,8 @@ ob_start();
         <div id="feature-box-autoRole" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['autoRole'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-user-plus"></i></span>
                 <?= t('discordbot_card_autorole_title') ?>
@@ -2679,8 +2679,8 @@ ob_start();
         <div id="feature-box-roleHistory" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-history"></i></span>
                 <?= t('discordbot_card_rolehistory_title') ?>
@@ -2737,8 +2737,8 @@ ob_start();
         <div id="feature-box-messageTracking" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-eye"></i></span>
                 <?= t('discordbot_card_msgtracking_title') ?>
@@ -2795,8 +2795,8 @@ ob_start();
         <div id="feature-box-roleTracking" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-users-cog"></i></span>
                 <?= t('discordbot_card_roletracking_title') ?>
@@ -2853,8 +2853,8 @@ ob_start();
         <div id="feature-box-serverRoleManagement" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon" style="color:var(--info);"><i class="fas fa-cogs"></i></span>
                 <?= t('discordbot_card_srm_title') ?>
@@ -2915,8 +2915,8 @@ ob_start();
         <div id="feature-box-userTracking" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['userTracking'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-user-edit"></i></span>
                 <?= t('discordbot_card_usertracking_title') ?>
@@ -2989,8 +2989,8 @@ ob_start();
         <div id="feature-box-reactionRoles" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon" style="color:#9b59b6;"><i class="fas fa-hand-paper"></i></span>
                 <?= t('discordbot_card_reactionroles_title') ?>
@@ -3073,8 +3073,8 @@ ob_start();
         <div id="feature-box-rulesConfiguration" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-gavel"></i></span>
                 <?= t('discordbot_card_rules_title') ?>
@@ -3175,8 +3175,8 @@ ob_start();
         <div id="feature-box-streamSchedule" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'flex' : 'none'; ?>;">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-calendar-alt"></i></span>
                 <?= t('discordbot_card_schedule_title') ?>
@@ -3273,8 +3273,8 @@ ob_start();
         <div id="feature-box-freeGames" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="<?php echo $serverManagementSettings['freeGames'] ? 'display: flex;' : 'display: none !important;'; ?>">
           <div class="sp-card"
-            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            style="border-radius: 12px; border: 1px solid var(--border); width: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header" style="border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-gift"></i></span>
                 <?= t('discordbot_card_freegames_title') ?>

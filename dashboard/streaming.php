@@ -76,14 +76,14 @@ ob_start();
                 </p>
             </header>
             <div class="card-content has-text-centered" style="padding:3rem 2rem;">
-                <span class="icon is-large mb-5" style="font-size:4rem;color:#7c3aed;">
+                <span class="icon is-large mb-5" style="font-size:4rem;color:var(--accent);">
                     <i class="fas fa-satellite-dish"></i>
                 </span>
                 <h2 class="title is-4 mt-2"><?= t('streaming_coming_soon_title') ?></h2>
                 <p class="subtitle is-6 mt-3" style="max-width:560px;margin:0 auto;">
                     <?= t('streaming_coming_soon_description') ?>
                 </p>
-                <p class="mt-4" style="color:#6b7280;font-size:0.9rem;">
+                <p class="mt-4" style="color:var(--text-muted);font-size:0.9rem;">
                     <?= t('streaming_coming_soon_thanks') ?>
                 </p>
             </div>
@@ -105,7 +105,7 @@ ob_start();
                             </div>
                             <div class="media-content">
                                 <p class="has-text-weight-semibold"><?= t('streaming_feature_stream_key_title') ?></p>
-                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_stream_key_desc') ?></p>
+                                <p class="is-size-7" style="color:var(--text-muted);"><?= t('streaming_feature_stream_key_desc') ?></p>
                             </div>
                         </div>
                     </div>
@@ -116,7 +116,7 @@ ob_start();
                             </div>
                             <div class="media-content">
                                 <p class="has-text-weight-semibold"><?= t('streaming_feature_auto_record_title') ?></p>
-                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_auto_record_desc') ?></p>
+                                <p class="is-size-7" style="color:var(--text-muted);"><?= t('streaming_feature_auto_record_desc') ?></p>
                             </div>
                         </div>
                     </div>
@@ -127,7 +127,7 @@ ob_start();
                             </div>
                             <div class="media-content">
                                 <p class="has-text-weight-semibold"><?= t('streaming_feature_multi_region_title') ?></p>
-                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_multi_region_desc') ?></p>
+                                <p class="is-size-7" style="color:var(--text-muted);"><?= t('streaming_feature_multi_region_desc') ?></p>
                             </div>
                         </div>
                     </div>
@@ -138,7 +138,7 @@ ob_start();
                             </div>
                             <div class="media-content">
                                 <p class="has-text-weight-semibold"><?= t('streaming_feature_recording_library_title') ?></p>
-                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_recording_library_desc') ?></p>
+                                <p class="is-size-7" style="color:var(--text-muted);"><?= t('streaming_feature_recording_library_desc') ?></p>
                             </div>
                         </div>
                     </div>

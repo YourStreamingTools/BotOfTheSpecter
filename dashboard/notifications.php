@@ -362,7 +362,7 @@ function buildStatsGrid(data) {
     let connectionNumber = 0;
     for (const [sessionId, count] of Object.entries(connectionCounts)) {
         connectionNumber++;
-        let textColor = '#e6e6e6';
+        let textColor = 'var(--text-primary)';
         if (count >= 250) textColor = '#e74c3c';
         else if (count >= 150) textColor = '#f39c12';
         connectionDetails += `<div class="stat-secondary" style="color: ${textColor}; margin-top: 4px;">${NOTIF_I18N.connectionLine.replace(':number', connectionNumber).replace(':count', count)}</div>`;
@@ -494,9 +494,9 @@ function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
             <tr style="${rowStyle}">
                 <td><span class="sub-type">${escapeHtml(sub.type)}</span></td>
                 <td><span class="sub-version">v${escapeHtml(sub.version)}</span></td>
-                <td style="font-size: 12px; color: #aaa;">${conditions.join('<br>')}</td>
+                <td style="font-size: 12px; color: var(--text-muted);">${conditions.join('<br>')}</td>
                 <td><span class="status-badge ${statusClass}">${escapeHtml(sub.status)}</span></td>
-                <td style="font-size: 12px; color: #aaa;">${createdStr}</td>
+                <td style="font-size: 12px; color: var(--text-muted);">${createdStr}</td>
                 <td>
                     <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}')" class="delete-btn">
                         <i class="fas fa-trash"></i> ${NOTIF_I18N.btnDelete}
@@ -539,7 +539,7 @@ function buildWebhookSection(data) {
             <tr>
                 <td><span class="sub-type">${escapeHtml(sub.type)}</span></td>
                 <td><span class="sub-version">v${escapeHtml(sub.version)}</span></td>
-                <td style="font-size: 11px; color: #aaa; word-break: break-all;">${escapeHtml(callback)}</td>
+                <td style="font-size: 11px; color: var(--text-muted); word-break: break-all;">${escapeHtml(callback)}</td>
                 <td><span class="status-badge ${statusClass}">${escapeHtml(sub.status)}</span></td>
                 <td>
                     <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}', 'webhook')" class="delete-btn">

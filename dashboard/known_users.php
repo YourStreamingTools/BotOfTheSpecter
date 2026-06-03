@@ -173,12 +173,12 @@ if (isMobileDevice()) {
                 <?= t('known_users_how_to_use_include_text') ?>
               </p>
               <ul style="margin-top:0.5rem;">
-                <li><strong style="color: #0a6e0a;">✓ <?= t('known_users_will_send_label') ?></strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
-                <li><strong style="color: #0a6e0a;">✓ <?= t('known_users_will_send_label') ?></strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
-                <li><strong style="color: #c70000;">✗ <?= t('known_users_no_send_label') ?></strong> <code>(shoutout)</code> <em><?= t('known_users_only_variable_note') ?></em></li>
+                <li><strong style="color: var(--green);">✓ <?= t('known_users_will_send_label') ?></strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: var(--green);">✓ <?= t('known_users_will_send_label') ?></strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: var(--red);">✗ <?= t('known_users_no_send_label') ?></strong> <code>(shoutout)</code> <em><?= t('known_users_only_variable_note') ?></em></li>
               </ul>
               <p style="margin-top:0.75rem;">
-                <strong style="color: #d83838;">⚠️ <?= t('known_users_note_label') ?></strong> <?= t('known_users_override_note') ?>
+                <strong style="color: var(--red);">⚠️ <?= t('known_users_note_label') ?></strong> <?= t('known_users_override_note') ?>
               </p>
             </div>
             <div class="sp-alert sp-alert-danger" style="font-weight:700; margin-bottom:1.25rem;"><?php echo t('known_users_edit_notice'); ?></div>
@@ -232,7 +232,7 @@ if (isMobileDevice()) {
                         </div>
                         <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
                           <textarea class="sp-input welcome-message" data-user-id="<?php echo $userData['id']; ?>" maxlength="255" style="height:auto; min-height:4rem;"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
-                          <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: #ccc;">
+                          <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: var(--text-muted);">
                             <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 <?php echo t('known_users_characters_label'); ?>
                           </div>
                         </div>
