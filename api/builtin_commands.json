@@ -124,6 +124,54 @@
 			"description": "Posts the top 5 public to-do list tasks directly in chat.",
 			"syntax": "!todolist"
 		},
+		"task": {
+			"description": "Sets your current task on the Working & Study overlay. One active task per viewer; if you already have one, the new task is queued to the end of your backlog.",
+			"syntax": "!task Finish the chapter notes"
+		},
+		"done": {
+			"description": "Marks a task complete. !done finishes your active task, !done <n> finishes backlog item #n, and !done next finishes the active task then promotes backlog #1. If the streamer has rewards enabled, you earn points (held for approval first when approval is required).",
+			"syntax": ["!done", "!done 2", "!done next"]
+		},
+		"rename": {
+			"description": "Renames your current active task on the Working & Study overlay.",
+			"syntax": "!rename Finish chapter 2 instead"
+		},
+		"remove": {
+			"description": "Removes your current active task from the Working & Study overlay.",
+			"syntax": "!remove"
+		},
+		"mytasks": {
+			"description": "Shows your current active task and how many items are in your backlog.",
+			"syntax": "!mytasks"
+		},
+		"now": {
+			"description": "Sets your active task right now. !now <title> creates it (pushing any current active task to the front of your backlog), !now <n> promotes backlog item #n, and !now skip completes the active task and promotes backlog #1. Use ; to add several at once.",
+			"syntax": ["!now Write the intro", "!now 3", "!now skip", "!now Outline; Draft; Edit"]
+		},
+		"later": {
+			"description": "Queues one or more tasks at the end of your Working & Study backlog. Separate multiple tasks with a semicolon.",
+			"syntax": ["!later Read chapter 4", "!later Emails; Laundry; Groceries"]
+		},
+		"soon": {
+			"description": "Queues one or more tasks at the front of your Working & Study backlog (next up). Separate multiple tasks with a semicolon.",
+			"syntax": ["!soon Reply to the email", "!soon Stretch; Water"]
+		},
+		"backlog": {
+			"description": "Shows your queued Working & Study backlog as a numbered list.",
+			"syntax": "!backlog"
+		},
+		"project": {
+			"description": "Switches your active Working & Study project so your tasks scope to it. !project shows your current project, !project <name> switches (created on first use), and !project clear returns to the default. Names allow letters, numbers, spaces and dashes, up to 24 characters.",
+			"syntax": ["!project", "!project Studying", "!project clear"]
+		},
+		"projects": {
+			"description": "Lists your distinct Working & Study projects.",
+			"syntax": "!projects"
+		},
+		"pomo": {
+			"description": "Starts a personal focus (pomodoro) timer shown next to your task on the Working & Study overlay. !pomo <minutes> <label> runs a single work session, !pomo <work>/<break>/<cycles> <label> runs a multi-cycle session, !pomo shows your remaining time, and !pomo cancel stops it. Starting a new pomo replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
+			"syntax": ["!pomo 30 Study", "!pomo 30/10/3 Study session", "!pomo", "!pomo cancel"]
+		},
 		"kill": {
 			"description": "Simulates a fun in-chat kill action targeting a mentioned user.",
 			"syntax": "!kill @botofthespecter"

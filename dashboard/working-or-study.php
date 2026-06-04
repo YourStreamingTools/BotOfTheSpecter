@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     };
     if ($action === 'get_settings') {
         // Load timer settings from database
-        $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task FROM working_study_overlay_settings LIMIT 1");
+        $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, cycle_count, show_cycle_badge, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
@@ -154,7 +154,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'micro_break_minutes' => 5,
                 'recharge_break_minutes' => 30,
                 'reward_enabled' => 0,
-                'reward_points_per_task' => 10
+                'reward_points_per_task' => 10,
+                'cycle_count' => 4,
+                'show_cycle_badge' => 0,
+                'theme' => 'dark',
+                'list_view_mode' => 'split'
             ];
         }
         echo json_encode(['success' => true, 'data' => $settings]);
@@ -168,12 +172,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $recharge = intval($_POST['recharge_break_minutes'] ?? 30);
         $rewardEnabled = !empty($_POST['reward_enabled']) ? 1 : 0;
         $rewardPoints = max(0, intval($_POST['reward_points_per_task'] ?? 10));
-        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ?, reward_enabled = ?, reward_points_per_task = ? WHERE id = 1");
+        $cycleCount = max(1, intval($_POST['cycle_count'] ?? 4));
+        $showCycleBadge = !empty($_POST['show_cycle_badge']) ? 1 : 0;
+        // Overlay theme (Phase 5) — whitelist guard, falls back to dark.
+        $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+        $theme = $_POST['theme'] ?? 'dark';
+        if (!in_array($theme, $allowedThemes, true)) {
+            $theme = 'dark';
+        }
+        // Task list view mode (Phase 7) — whitelist guard, falls back to split.
+        $allowedListViewModes = ['split', 'unified'];
+        $listViewMode = $_POST['list_view_mode'] ?? 'split';
+        if (!in_array($listViewMode, $allowedListViewModes, true)) {
+            $listViewMode = 'split';
+        }
+        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ?, reward_enabled = ?, reward_points_per_task = ?, cycle_count = ?, show_cycle_badge = ?, theme = ?, list_view_mode = ? WHERE id = 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
-        $stmt->bind_param("iiiii", $focus, $micro, $recharge, $rewardEnabled, $rewardPoints);
+        $stmt->bind_param("iiiiiiiss", $focus, $micro, $recharge, $rewardEnabled, $rewardPoints, $cycleCount, $showCycleBadge, $theme, $listViewMode);
         $success = $stmt->execute();
         $stmt->close();
         echo json_encode(['success' => $success]);
@@ -342,15 +360,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo json_encode(['success' => $ok]);
         exit;
     }
-
+    $taskCommands = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'pomo'];
+    if ($action === 'wcmd_get_command_status') {
+        $statuses = [];
+        foreach ($taskCommands as $cmd) { $statuses[$cmd] = 'Enabled'; }
+        $placeholders = implode(',', array_fill(0, count($taskCommands), '?'));
+        $stmt = $db->prepare("SELECT command, status FROM builtin_commands WHERE command IN ($placeholders)");
+        if ($stmt) {
+            $stmt->bind_param(str_repeat('s', count($taskCommands)), ...$taskCommands);
+            if ($stmt->execute()) {
+                $res = $stmt->get_result();
+                while ($row = $res->fetch_assoc()) {
+                    $statuses[$row['command']] = ($row['status'] === 'Disabled') ? 'Disabled' : 'Enabled';
+                }
+            }
+            $stmt->close();
+        }
+        echo json_encode(['success' => true, 'data' => $statuses]);
+        exit;
+    }
+    if ($action === 'wcmd_save_command_status') {
+        $command = trim($_POST['command'] ?? '');
+        if (!in_array($command, $taskCommands, true)) {
+            echo json_encode(['success' => false, 'error' => 'Unknown command']);
+            exit;
+        }
+        $status = (!empty($_POST['enabled']) && $_POST['enabled'] !== '0') ? 'Enabled' : 'Disabled';
+        $stmt = $db->prepare("UPDATE builtin_commands SET status = ? WHERE command = ?");
+        if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
+        $stmt->bind_param("ss", $status, $command);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => $ok, 'command' => $command, 'status' => $status]);
+        exit;
+    }
     echo json_encode(['success' => false, 'error' => 'Unknown action']);
     exit;
 }
 
 // Load initial settings for page initialization
-$initialSettings = ['focus_minutes' => 60, 'micro_break_minutes' => 5, 'recharge_break_minutes' => 30, 'reward_enabled' => 0, 'reward_points_per_task' => 10];
+$initialSettings = ['focus_minutes' => 60, 'micro_break_minutes' => 5, 'recharge_break_minutes' => 30, 'reward_enabled' => 0, 'reward_points_per_task' => 10, 'cycle_count' => 4, 'show_cycle_badge' => 0, 'theme' => 'dark', 'list_view_mode' => 'split'];
 if ($db) {
-    $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task FROM working_study_overlay_settings LIMIT 1");
+    $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, cycle_count, show_cycle_badge, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
     if ($stmt) {
         $stmt->execute();
         $result = $stmt->get_result();
@@ -369,6 +420,23 @@ if ($db) {
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         if ($row) { $chInitialSettings = $row; }
+        $stmt->close();
+    }
+}
+
+$taskCommandList = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'pomo'];
+$taskCommandStatuses = array_fill_keys($taskCommandList, 'Enabled');
+if ($db) {
+    $placeholders = implode(',', array_fill(0, count($taskCommandList), '?'));
+    $stmt = $db->prepare("SELECT command, status FROM builtin_commands WHERE command IN ($placeholders)");
+    if ($stmt) {
+        $stmt->bind_param(str_repeat('s', count($taskCommandList)), ...$taskCommandList);
+        if ($stmt->execute()) {
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $taskCommandStatuses[$row['command']] = ($row['status'] === 'Disabled') ? 'Disabled' : 'Enabled';
+            }
+        }
         $stmt->close();
     }
 }
@@ -471,6 +539,97 @@ ob_start();
                             </div>
                         </div>
                         <p class="help"><?= t('working_or_study_recharge_break_help') ?></p>
+                    </div>
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-repeat" aria-hidden="true"></i>
+                                </span>
+                                <span><?= t('working_or_study_cycle_count_label') ?></span>
+                            </span>
+                        </label>
+                        <div class="control">
+                            <input id="cycleCountInput" class="input" type="number" min="1" step="1"
+                                value="<?php echo (int)($initialSettings['cycle_count'] ?? 4); ?>"
+                                placeholder="<?= htmlspecialchars(t('working_or_study_cycle_count_placeholder')) ?>">
+                        </div>
+                        <p class="help"><?= t('working_or_study_cycle_count_help') ?></p>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <label class="checkbox">
+                                <input type="checkbox" id="showCycleBadgeInput"
+                                    <?php echo !empty($initialSettings['show_cycle_badge']) ? 'checked' : ''; ?>>
+                                <?= t('working_or_study_show_cycle_badge_label') ?>
+                            </label>
+                        </div>
+                        <p class="help"><?= t('working_or_study_show_cycle_badge_help') ?></p>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <button type="button" class="button is-small is-dark" id="resetCycleBtn">
+                                <span class="icon"><i class="fas fa-undo-alt" aria-hidden="true"></i></span>
+                                <span><?= t('working_or_study_reset_cycle') ?></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-palette" aria-hidden="true"></i>
+                                </span>
+                                <span><?= t('working_or_study_theme_label') ?></span>
+                            </span>
+                        </label>
+                        <div class="control">
+                            <?php
+                            $currentTheme = $initialSettings['theme'] ?? 'dark';
+                            $themeOptions = [
+                                'dark'     => 'working_or_study_theme_dark',
+                                'peachy'   => 'working_or_study_theme_peachy',
+                                'ocean'    => 'working_or_study_theme_ocean',
+                                'forest'   => 'working_or_study_theme_forest',
+                                'midnight' => 'working_or_study_theme_midnight',
+                            ];
+                            ?>
+                            <select id="overlayThemeSelect" class="sp-select w-100">
+                                <?php foreach ($themeOptions as $themeValue => $themeKey): ?>
+                                <option value="<?= htmlspecialchars($themeValue) ?>"<?php echo $currentTheme === $themeValue ? ' selected' : ''; ?>>
+                                    <?= t($themeKey) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <p class="help"><?= t('working_or_study_theme_help') ?></p>
+                    </div>
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-table-columns" aria-hidden="true"></i>
+                                </span>
+                                <span><?= t('working_or_study_list_view_label') ?></span>
+                            </span>
+                        </label>
+                        <div class="control">
+                            <?php
+                            $currentListViewMode = $initialSettings['list_view_mode'] ?? 'split';
+                            $listViewOptions = [
+                                'split'   => 'working_or_study_list_view_split',
+                                'unified' => 'working_or_study_list_view_unified',
+                            ];
+                            ?>
+                            <select id="overlayListViewSelect" class="sp-select w-100">
+                                <?php foreach ($listViewOptions as $listViewValue => $listViewKey): ?>
+                                <option value="<?= htmlspecialchars($listViewValue) ?>"<?php echo $currentListViewMode === $listViewValue ? ' selected' : ''; ?>>
+                                    <?= t($listViewKey) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <p class="help"><?= t('working_or_study_list_view_help') ?></p>
                     </div>
                     <div class="field mt-2">
                         <p class="help"><?= t('working_or_study_adjust_durations_help') ?></p>
@@ -723,6 +882,38 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div class="column is-full">
+                    <label class="label"><?= t('working_or_study_chat_commands_label') ?></label>
+                    <p class="help mb-3"><?= t('working_or_study_chat_commands_help') ?></p>
+                    <div class="columns is-multiline">
+                        <?php
+                        $wcmdMeta = [
+                            'task'    => 'working_or_study_cmd_task',
+                            'done'    => 'working_or_study_cmd_done',
+                            'rename'  => 'working_or_study_cmd_rename',
+                            'remove'  => 'working_or_study_cmd_remove',
+                            'mytasks' => 'working_or_study_cmd_mytasks',
+                            'now'     => 'working_or_study_cmd_now',
+                            'later'   => 'working_or_study_cmd_later',
+                            'soon'    => 'working_or_study_cmd_soon',
+                            'backlog' => 'working_or_study_cmd_backlog',
+                            'project' => 'working_or_study_cmd_project',
+                            'projects' => 'working_or_study_cmd_projects',
+                            'pomo'    => 'working_or_study_cmd_pomo',
+                        ];
+                        foreach ($wcmdMeta as $wcmd => $wcmdKey):
+                            $wcmdEnabled = ($taskCommandStatuses[$wcmd] ?? 'Enabled') === 'Enabled';
+                        ?>
+                        <div class="column is-half">
+                            <label class="checkbox">
+                                <input type="checkbox" class="wcmd-toggle" data-command="<?= htmlspecialchars($wcmd) ?>"
+                                    <?php echo $wcmdEnabled ? 'checked' : ''; ?>>
+                                <code>!<?= htmlspecialchars($wcmd) ?></code> — <?= t($wcmdKey) ?>
+                            </label>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
             <div class="field">
                 <div class="control">
@@ -848,6 +1039,11 @@ ob_start();
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const microBreakInput = document.getElementById('microBreakMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
+        const cycleCountInput = document.getElementById('cycleCountInput');
+        const showCycleBadgeInput = document.getElementById('showCycleBadgeInput');
+        const overlayThemeSelect = document.getElementById('overlayThemeSelect');
+        const overlayListViewSelect = document.getElementById('overlayListViewSelect');
+        const resetCycleBtn = document.getElementById('resetCycleBtn');
         const updateOverlaySettingsBtn = document.getElementById('updateOverlaySettingsBtn');
         const toastArea = document.getElementById('toastArea');
         const startBtn = document.querySelector('[data-specter-control="start"]');
@@ -885,6 +1081,18 @@ ob_start();
                     focusLengthInput.value = initialSettings.focus_minutes || 60;
                     microBreakInput.value = initialSettings.micro_break_minutes || 5;
                     breakLengthInput.value = initialSettings.recharge_break_minutes || 30;
+                    if (cycleCountInput) {
+                        cycleCountInput.value = initialSettings.cycle_count || 4;
+                    }
+                    if (showCycleBadgeInput) {
+                        showCycleBadgeInput.checked = Number(initialSettings.show_cycle_badge) === 1;
+                    }
+                    if (overlayThemeSelect && initialSettings.theme) {
+                        overlayThemeSelect.value = initialSettings.theme;
+                    }
+                    if (overlayListViewSelect && initialSettings.list_view_mode) {
+                        overlayListViewSelect.value = initialSettings.list_view_mode;
+                    }
                     console.log('[Timer] Settings loaded from page initialization:', initialSettings);
                 }
             } catch (error) {
@@ -897,11 +1105,19 @@ ob_start();
                 const focus = safeNumberValue(focusLengthInput, 60);
                 const micro = safeNumberValue(microBreakInput, 5);
                 const recharge = safeNumberValue(breakLengthInput, 30);
+                const cycleCount = cycleCountInput ? safeNumberValue(cycleCountInput, 4) : 4;
+                const showCycleBadge = (showCycleBadgeInput && showCycleBadgeInput.checked) ? 1 : 0;
+                const theme = (overlayThemeSelect && overlayThemeSelect.value) ? overlayThemeSelect.value : 'dark';
+                const listViewMode = (overlayListViewSelect && overlayListViewSelect.value) ? overlayListViewSelect.value : 'split';
                 const formData = new FormData();
                 formData.append('action', 'save_settings');
                 formData.append('focus_minutes', String(focus));
                 formData.append('micro_break_minutes', String(micro));
                 formData.append('recharge_break_minutes', String(recharge));
+                formData.append('cycle_count', String(cycleCount));
+                formData.append('show_cycle_badge', String(showCycleBadge));
+                formData.append('theme', theme);
+                formData.append('list_view_mode', listViewMode);
                 const response = await fetch(window.location.href, {
                     method: 'POST',
                     body: formData
@@ -918,7 +1134,11 @@ ob_start();
                         code: apiKey,
                         focus_minutes: focus,
                         micro_break_minutes: micro,
-                        recharge_break_minutes: recharge
+                        recharge_break_minutes: recharge,
+                        cycle_count: cycleCount,
+                        show_cycle_badge: showCycleBadge,
+                        theme: theme,
+                        list_view_mode: listViewMode
                     });
                     console.log('[Timer] Settings saved to database and sent to overlay');
                 } else {
@@ -1352,13 +1572,39 @@ ob_start();
                 saveSettingsToDatabase();
             }
         });
+        cycleCountInput?.addEventListener('change', () => {
+            const val = Number(cycleCountInput.value);
+            if (!Number.isFinite(val) || val < 1) {
+                cycleCountInput.value = 4;
+                showToast('⚠️ Cycle count must be at least 1', 'danger');
+            } else {
+                saveSettingsToDatabase();
+            }
+        });
+        showCycleBadgeInput?.addEventListener('change', () => {
+            saveSettingsToDatabase();
+        });
+        overlayThemeSelect?.addEventListener('change', () => {
+            // Persist + live-sync to the overlay (SPECTER_SETTINGS_UPDATE hot-swap).
+            saveSettingsToDatabase();
+        });
+        overlayListViewSelect?.addEventListener('change', () => {
+            // Persist + live-sync to the overlay (SPECTER_SETTINGS_UPDATE hot-swap).
+            saveSettingsToDatabase();
+        });
+        resetCycleBtn?.addEventListener('click', () => {
+            if (socket && socket.connected) {
+                socket.emit('SPECTER_SETTINGS_UPDATE', { code: apiKey, reset_cycle: 1 });
+                showToast('✓ <?= htmlspecialchars(addslashes(t('working_or_study_cycle_reset_toast'))) ?>', 'success');
+            } else {
+                showToast('⚠️ Not connected to timer server', 'danger');
+            }
+        });
     })();
 </script>
 <script>
-/* ═══ Channel Task Manager ════════════════════════════════════════════════ */
 (function () {
     'use strict';
-
     const chApiKey = <?php echo json_encode($api_key); ?>;
     const chRequireApprovalInit = <?php echo (int)$chInitialSettings['require_approval']; ?>;
     // ── WebSocket (shares the page-level socket if available, else own) ──────
@@ -1388,7 +1634,6 @@ ob_start();
     chSocket.on('TASK_REWARD_CONFIRM',  (d) => {
         chShowToast(`✔ ${d.user_name} earned ${d.points_awarded} pts for a task! (total: ${d.new_total})`);
     });
-    // ── Data ─────────────────────────────────────────────────────────────────
     function chLoadTasks() {
         chPost({ action: 'ch_get_tasks' }, (res) => {
             if (res.success) {
@@ -1397,7 +1642,6 @@ ob_start();
             }
         });
     }
-    // ── Render ────────────────────────────────────────────────────────────────
     function chRenderStreamer(tasks) {
         const tbody = document.getElementById('chStreamerTaskBody');
         if (!tbody) return;
@@ -1486,7 +1730,6 @@ ob_start();
     function chRemoveRow(id, owner) {
         document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`)?.remove();
     }
-    // ── Actions ───────────────────────────────────────────────────────────────
     window.chOpenEditTask = function (id) {
         const row = document.getElementById('ch-st-' + id);
         if (!row) return;
@@ -1578,7 +1821,6 @@ ob_start();
             }
         });
     };
-    // ── Settings ──────────────────────────────────────────────────────────────
     document.getElementById('chSaveSettingsBtn')?.addEventListener('click', () => {
         const payload = {
             action:               'ch_save_settings',
@@ -1603,7 +1845,21 @@ ob_start();
         panel.style.display = hidden ? '' : 'none';
         chevron.className = hidden ? 'fas fa-angle-down' : 'fas fa-angle-up';
     });
-    // ── Add / Edit modal ──────────────────────────────────────────────────────
+    // Persist immediately to builtin_commands.status (the store the bot reads).
+    document.querySelectorAll('.wcmd-toggle').forEach((toggle) => {
+        toggle.addEventListener('change', () => {
+            const command = toggle.getAttribute('data-command');
+            const enabled = toggle.checked ? 1 : 0;
+            chPost({ action: 'wcmd_save_command_status', command, enabled }, (res) => {
+                if (res.success) {
+                    chShowToast(`!${command} ${enabled ? 'enabled' : 'disabled'}.`);
+                } else {
+                    toggle.checked = !toggle.checked; // revert on failure
+                    chShowToast(res.error || `Failed to update !${command}.`, 'is-danger');
+                }
+            });
+        });
+    });
     document.getElementById('chAddStreamerTaskBtn')?.addEventListener('click', () => {
         document.getElementById('chEditStreamerTaskId').value = '';
         document.getElementById('chStreamerTaskTitle').value  = '';
@@ -1641,7 +1897,6 @@ ob_start();
             }
         });
     });
-    // ── Utilities ─────────────────────────────────────────────────────────────
     function chPost(data, callback) {
         const fd = new FormData();
         Object.entries(data).forEach(([k, v]) => fd.append(k, v));

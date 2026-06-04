@@ -395,10 +395,6 @@ html, body {
     line-height: 1.4;
 }
 
-.twitch-alert-accent {
-    /* Color set dynamically via JS */
-}
-
 /* ===== Alert Animation Keyframes ===== */
 
 @keyframes slideInLeft {
@@ -860,8 +856,18 @@ html, body {
     --recharge-color: #b483ff;
     --panel-bg: rgba(7, 7, 13, 0.9);
     --panel-border: rgba(255, 255, 255, 0.12);
+    --text-color: #f8fbff;
     --text-muted: rgba(255, 255, 255, 0.6);
+    --ring-track: rgba(255, 255, 255, 0.08);
     --shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+    /* Task-system panel tokens (the ?tasklist surface). */
+    --task-panel-bg: rgba(20, 20, 30, 0.85);
+    --task-panel-border: rgba(255, 255, 255, 0.13);
+    --task-panel-header-bg: rgba(255, 255, 255, 0.07);
+    --task-row-border: rgba(255, 255, 255, 0.05);
+    --task-row-hover: rgba(255, 255, 255, 0.05);
+    --task-text: #ffffff;
+    --task-text-muted: rgba(255, 255, 255, 0.45);
     width: min(1080px, 95vw);
     padding: 24px;
     display: grid;
@@ -967,7 +973,7 @@ html, body {
 
 .study-overlay-page-ring-bg {
     fill: none;
-    stroke: rgba(255, 255, 255, 0.08);
+    stroke: var(--ring-track);
     stroke-width: 12;
 }
 
@@ -993,6 +999,35 @@ html, body {
     letter-spacing: 0.4em;
     text-transform: uppercase;
     color: var(--text-muted);
+}
+
+/* Phase row groups the phase label and the optional cycle badge (Phase 6). */
+.study-overlay-page-phase-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+
+.study-overlay-page-cycle-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    line-height: 1;
+    padding: 0.25em 0.6em;
+    border-radius: 999px;
+    color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--panel-border);
+    white-space: nowrap;
+}
+
+.study-overlay-page-cycle-badge[data-visible="true"] {
+    display: inline-flex;
 }
 
 .study-overlay-page-timer-display {
@@ -1169,8 +1204,8 @@ html, body {
 /* Study overlay: new task system panels */
 
 .study-overlay-page-task-sys-card {
-    background: rgba(20, 20, 30, 0.85);
-    border: 1px solid rgba(255,255,255,.13);
+    background: var(--task-panel-bg);
+    border: 1px solid var(--task-panel-border);
     border-radius: 10px;
     min-width: 200px;
     max-width: 340px;
@@ -1181,12 +1216,12 @@ html, body {
 
 .study-overlay-page-task-sys-card-header {
     padding: 8px 12px;
-    background: rgba(255,255,255,.07);
+    background: var(--task-panel-header-bg);
     font-weight: 700;
     font-size: .78rem;
     letter-spacing: .06em;
     text-transform: uppercase;
-    color: #fff;
+    color: var(--task-text);
     display: flex;
     align-items: center;
     gap: 7px;
@@ -1213,7 +1248,7 @@ html, body {
     display: block;
     text-align: center;
     padding: 14px;
-    color: rgba(255,255,255,.38);
+    color: var(--task-text-muted);
     font-style: italic;
     font-size: .75rem;
 }
@@ -1223,8 +1258,12 @@ html, body {
     display: flex;
     align-items: flex-start;
     gap: 9px;
-    border-bottom: 1px solid rgba(255,255,255,.05);
+    border-bottom: 1px solid var(--task-row-border);
     animation: study-overlay-page-task-slide-in .3s ease;
+}
+
+.study-overlay-page-task-sys-item:hover {
+    background: var(--task-row-hover);
 }
 
 .study-overlay-page-task-sys-item:last-child {
@@ -1266,7 +1305,7 @@ html, body {
 .study-overlay-page-task-sys-item-title {
     font-size: .78rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--task-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1278,7 +1317,7 @@ html, body {
 
 .study-overlay-page-task-sys-item-meta {
     font-size: .65rem;
-    color: rgba(255,255,255,.45);
+    color: var(--task-text-muted);
     margin-top: 1px;
 }
 
@@ -1288,6 +1327,97 @@ html, body {
     font-weight: 700;
     flex-shrink: 0;
     margin-top: 2px;
+}
+
+.study-overlay-page-task-sys-card[data-visible="false"] {
+    display: none;
+}
+
+/* The merged panel can show a wider mix of owners, so let it grow a little
+   wider than a single split panel while staying capped for OBS sources. */
+.study-overlay-page-task-sys-card--unified {
+    max-width: 420px;
+}
+
+/* Muted backlog rows (only rendered when UNIFIED_OMIT_BACKLOG is flipped off).
+   Theme-aware via the shared task vars so it dims consistently per palette. */
+.study-overlay-page-task-sys-item.is-backlog {
+    opacity: .55;
+}
+
+.study-overlay-page-task-sys-item.is-backlog .study-overlay-page-task-sys-item-title {
+    color: var(--task-text-muted);
+    font-style: italic;
+}
+
+.study-overlay-page-task-sys-item.is-backlog .study-overlay-page-task-sys-item-check {
+    border-color: var(--task-text-muted);
+}
+
+.study-overlay-page-pomo-badge {
+    --pomo-ring-color: var(--focus-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    margin-top: 0.2rem;
+    padding: 0.12em 0.5em 0.12em 0.32em;
+    border-radius: 999px;
+    background: var(--task-panel-header-bg);
+    border: 1px solid var(--task-row-border);
+    font-size: .62rem;
+    line-height: 1.2;
+    color: var(--task-text);
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: study-overlay-page-task-pop-in .35s ease;
+}
+
+.study-overlay-page-pomo-badge-ring {
+    width: 0.7em;
+    height: 0.7em;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 0.16em solid var(--pomo-ring-color);
+    background: var(--pomo-ring-color);
+    box-shadow: 0 0 0.35em var(--pomo-ring-color);
+}
+
+.study-overlay-page-pomo-badge[data-phase="break"] .study-overlay-page-pomo-badge-ring {
+    background: transparent;
+}
+
+.study-overlay-page-pomo-badge[data-phase="completed"] {
+    opacity: .85;
+}
+
+.study-overlay-page-pomo-badge-text {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--pomo-ring-color);
+    flex-shrink: 0;
+}
+
+.study-overlay-page-pomo-badge-phase {
+    font-size: .85em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--task-text-muted);
+    flex-shrink: 0;
+}
+
+.study-overlay-page-pomo-badge-label {
+    color: var(--task-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.study-overlay-page-pomo-badge-cycle {
+    color: var(--task-text-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
 }
 
 #taskRewardPopups {
@@ -1336,6 +1466,92 @@ html, body {
     .study-overlay-page-root {
         grid-template-columns: 1fr;
     }
+}
+
+/* dark — current look: no overrides; data-theme="dark" intentionally falls through to the root defaults. */
+
+/* peachy — warm coral / peach. */
+.study-overlay-page-root[data-theme="peachy"] {
+    --accent-color: #ff8a5c;
+    --focus-color: #ff7a59;
+    --micro-color: #ffb37a;
+    --recharge-color: #ff9ec7;
+    --panel-bg: rgba(46, 22, 24, 0.9);
+    --panel-border: rgba(255, 196, 161, 0.28);
+    --text-color: #fff3ec;
+    --text-muted: rgba(255, 224, 205, 0.7);
+    --ring-track: rgba(255, 196, 161, 0.16);
+    --shadow: 0 15px 40px rgba(60, 20, 14, 0.55);
+    --task-panel-bg: rgba(54, 27, 28, 0.88);
+    --task-panel-border: rgba(255, 196, 161, 0.26);
+    --task-panel-header-bg: rgba(255, 150, 110, 0.16);
+    --task-row-border: rgba(255, 196, 161, 0.12);
+    --task-row-hover: rgba(255, 150, 110, 0.12);
+    --task-text: #fff3ec;
+    --task-text-muted: rgba(255, 224, 205, 0.55);
+}
+
+/* ocean — cool blue. */
+.study-overlay-page-root[data-theme="ocean"] {
+    --accent-color: #4fc3ff;
+    --focus-color: #4fc3ff;
+    --micro-color: #6ee7d8;
+    --recharge-color: #7aa7ff;
+    --panel-bg: rgba(9, 24, 40, 0.9);
+    --panel-border: rgba(120, 190, 255, 0.26);
+    --text-color: #ecf6ff;
+    --text-muted: rgba(200, 226, 255, 0.7);
+    --ring-track: rgba(120, 190, 255, 0.14);
+    --shadow: 0 15px 40px rgba(4, 16, 32, 0.6);
+    --task-panel-bg: rgba(12, 30, 48, 0.88);
+    --task-panel-border: rgba(120, 190, 255, 0.24);
+    --task-panel-header-bg: rgba(79, 195, 255, 0.16);
+    --task-row-border: rgba(120, 190, 255, 0.12);
+    --task-row-hover: rgba(79, 195, 255, 0.12);
+    --task-text: #ecf6ff;
+    --task-text-muted: rgba(200, 226, 255, 0.55);
+}
+
+/* forest — green / earth tones. */
+.study-overlay-page-root[data-theme="forest"] {
+    --accent-color: #6fcf7a;
+    --focus-color: #6fcf7a;
+    --micro-color: #b6d76b;
+    --recharge-color: #d7b16b;
+    --panel-bg: rgba(15, 30, 18, 0.9);
+    --panel-border: rgba(150, 200, 150, 0.26);
+    --text-color: #eef7ec;
+    --text-muted: rgba(210, 228, 200, 0.7);
+    --ring-track: rgba(150, 200, 150, 0.14);
+    --shadow: 0 15px 40px rgba(8, 20, 10, 0.6);
+    --task-panel-bg: rgba(20, 38, 24, 0.88);
+    --task-panel-border: rgba(150, 200, 150, 0.24);
+    --task-panel-header-bg: rgba(111, 207, 122, 0.16);
+    --task-row-border: rgba(150, 200, 150, 0.12);
+    --task-row-hover: rgba(111, 207, 122, 0.12);
+    --task-text: #eef7ec;
+    --task-text-muted: rgba(210, 228, 200, 0.55);
+}
+
+/* midnight — deep purple, high contrast. */
+.study-overlay-page-root[data-theme="midnight"] {
+    --accent-color: #b388ff;
+    --focus-color: #b388ff;
+    --micro-color: #8ad2ff;
+    --recharge-color: #e07aff;
+    --panel-bg: rgba(14, 10, 30, 0.94);
+    --panel-border: rgba(179, 136, 255, 0.34);
+    --text-color: #f4efff;
+    --text-muted: rgba(214, 200, 255, 0.78);
+    --ring-track: rgba(179, 136, 255, 0.16);
+    --shadow: 0 15px 40px rgba(6, 3, 20, 0.7);
+    --task-panel-bg: rgba(20, 14, 40, 0.92);
+    --task-panel-border: rgba(179, 136, 255, 0.32);
+    --task-panel-header-bg: rgba(179, 136, 255, 0.2);
+    --task-row-border: rgba(179, 136, 255, 0.16);
+    --task-row-hover: rgba(179, 136, 255, 0.16);
+    --task-text: #f4efff;
+    --task-text-muted: rgba(214, 200, 255, 0.6);
 }
 
 /* ===== Credits Overlay ===== */
