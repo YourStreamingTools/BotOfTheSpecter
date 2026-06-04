@@ -770,6 +770,10 @@ try {
                 recharge_break_minutes INT DEFAULT 30,
                 reward_enabled TINYINT(1) DEFAULT 0,
                 reward_points_per_task INT DEFAULT 10,
+                cycle_count INT DEFAULT 4,
+                show_cycle_badge TINYINT(1) DEFAULT 0,
+                theme VARCHAR(50) DEFAULT 'dark',
+                list_view_mode ENUM('split','unified') DEFAULT 'split',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'automated_shoutout_settings' => "
@@ -821,12 +825,16 @@ try {
                 status ENUM('pending','active','completed','rejected') DEFAULT 'active',
                 approval_status ENUM('auto','pending_approval','approved','rejected') DEFAULT 'auto',
                 reward_points INT DEFAULT 0,
+                backlog_position INT DEFAULT NULL,
+                project VARCHAR(100) DEFAULT NULL,
                 completed_at TIMESTAMP NULL DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_user_id (user_id),
                 INDEX idx_status (status),
-                INDEX idx_approval (approval_status)
+                INDEX idx_approval (approval_status),
+                INDEX idx_backlog (user_id, backlog_position),
+                INDEX idx_user_project (user_id, project)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'task_reward_log' => "
             CREATE TABLE IF NOT EXISTS task_reward_log (
@@ -847,6 +855,31 @@ try {
                 allow_user_tasks TINYINT(1) DEFAULT 1,
                 task_visible_overlay TINYINT(1) DEFAULT 1,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'user_active_project' => "
+            CREATE TABLE IF NOT EXISTS user_active_project (
+                user_id VARCHAR(50) PRIMARY KEY,
+                user_name VARCHAR(100) NOT NULL,
+                project VARCHAR(100) DEFAULT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'user_pomos' => "
+            CREATE TABLE IF NOT EXISTS user_pomos (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(50) NOT NULL,
+                user_name VARCHAR(100) NOT NULL,
+                label VARCHAR(255) DEFAULT NULL,
+                work_minutes INT NOT NULL,
+                break_minutes INT DEFAULT 0,
+                total_cycles INT DEFAULT 1,
+                current_cycle INT DEFAULT 1,
+                current_phase ENUM('work','break','completed','cancelled') DEFAULT 'work',
+                phase_started_at DATETIME NOT NULL,
+                phase_ends_at DATETIME NOT NULL,
+                status ENUM('active','completed','cancelled') DEFAULT 'active',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_user_id (user_id),
+                INDEX idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'credits_overlay_settings' => "
             CREATE TABLE IF NOT EXISTS credits_overlay_settings (
@@ -1171,6 +1204,27 @@ try {
     // Ensure default options for task_settings exist
     if ($usrDBconn->query("INSERT INTO task_settings (require_approval, default_reward_points, allow_user_tasks, task_visible_overlay) SELECT 0, 50, 1, 1 WHERE NOT EXISTS (SELECT 1 FROM task_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default task_settings options ensured.');
+    }
+    // Migration: user_tasks - add idx_backlog index for the Phase 2 backlog model (columns auto-migrate, indexes do not)
+    $user_tasks_exists = $usrDBconn->query("SHOW TABLES LIKE 'user_tasks'")->num_rows > 0;
+    if ($user_tasks_exists) {
+        $check_backlog_idx = $usrDBconn->query("SHOW INDEX FROM user_tasks WHERE Key_name = 'idx_backlog'");
+        if ($check_backlog_idx !== false && $check_backlog_idx->num_rows == 0) {
+            if ($usrDBconn->query("ALTER TABLE user_tasks ADD INDEX idx_backlog (user_id, backlog_position)") === TRUE) {
+                async_log('user_tasks: added idx_backlog index for backlog model.');
+            } else {
+                async_log('Error adding idx_backlog index to user_tasks: ' . $usrDBconn->error);
+            }
+        }
+        // Migration: user_tasks - add idx_user_project index for the Phase 4 project scoping (columns auto-migrate, indexes do not)
+        $check_project_idx = $usrDBconn->query("SHOW INDEX FROM user_tasks WHERE Key_name = 'idx_user_project'");
+        if ($check_project_idx !== false && $check_project_idx->num_rows == 0) {
+            if ($usrDBconn->query("ALTER TABLE user_tasks ADD INDEX idx_user_project (user_id, project)") === TRUE) {
+                async_log('user_tasks: added idx_user_project index for project scoping.');
+            } else {
+                async_log('Error adding idx_user_project index to user_tasks: ' . $usrDBconn->error);
+            }
+        }
     }
     // Ensure default options for credits_overlay_settings exist
     if ($usrDBconn->query("INSERT INTO credits_overlay_settings (scroll_speed, text_color, font_family, looping) SELECT 50, '#FFFFFF', 'Arial', 1 WHERE NOT EXISTS (SELECT 1 FROM credits_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {

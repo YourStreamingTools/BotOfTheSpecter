@@ -149,7 +149,18 @@ builtin_commands = {
     "checktimer", "version", "convert", "subathon", "todo", "todolist", "kill", "points", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
-    "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles"
+    "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
+    "task", "done", "rename", "remove", "mytasks",
+    "now", "later", "soon", "backlog",
+    "project", "projects", "pomo"
+}
+# Working & Study commands act on each chatter's OWN task/pomo, so they seed with a
+# per-user cooldown bucket (not the global 'default') — a global cooldown would let one
+# viewer's !done lock the command for every other viewer for the whole cooldown window.
+per_user_cooldown_commands = {
+    "task", "done", "rename", "remove", "mytasks",
+    "now", "later", "soon", "backlog",
+    "project", "projects", "pomo"
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -7664,12 +7675,10 @@ class TwitchBot(commands.Bot):
                     return
                 # Make sure the singleton settings row exists.
                 await cursor.execute("INSERT INTO maker_overlay_settings (id) VALUES (1) ON DUPLICATE KEY UPDATE id = id")
-
                 async def featured_id():
                     await cursor.execute("SELECT current_project_id FROM maker_overlay_settings WHERE id = 1")
                     row = await cursor.fetchone()
                     return row.get('current_project_id') if row else None
-
                 if subcommand in ('new', 'wip'):
                     if not argument:
                         await send_chat_message("Usage: !craft new <project title>")
@@ -7797,6 +7806,977 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"[CRAFT] Error in craft_command: {e}")
             await send_chat_message(f"An error occurred while updating the makers overlay. {e}")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='task')
+    async def task_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("task",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('task', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    title = parts[1].strip() if len(parts) > 1 else ''
+                    if not title:
+                        await send_chat_message("Usage: !task <title> — sets your current task.")
+                        return
+                    title = title[:255]
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    queued_position = None
+                    project = await resolve_active_project(cursor, user_id)
+                    await cursor.execute(
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        (user_id, project)
+                    )
+                    existing = await cursor.fetchone()
+                    # Pull the streamer's default reward so the dashboard award path stays consistent.
+                    await cursor.execute("SELECT default_reward_points FROM task_settings LIMIT 1")
+                    settings_row = await cursor.fetchone()
+                    reward_points = int(settings_row.get('default_reward_points') or 0) if settings_row else 0
+                    if existing:
+                        # Append to the end of the backlog.
+                        await cursor.execute(
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            (user_id, project)
+                        )
+                        max_row = await cursor.fetchone()
+                        queued_position = int(max_row.get('max_pos') or 0) + 1
+                        await cursor.execute(
+                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, %s, %s)",
+                            (user_id, user_name, title, reward_points, queued_position, project)
+                        )
+                        new_id = cursor.lastrowid
+                        new_status = 'pending'
+                    else:
+                        await cursor.execute(
+                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                            "VALUES (%s, %s, %s, 'active', 'auto', %s, NULL, %s)",
+                            (user_id, user_name, title, reward_points, project)
+                        )
+                        new_id = cursor.lastrowid
+                        new_status = 'active'
+                    if queued_position is not None:
+                        await send_chat_message(f"@{user_name} you have an active task, so \"{title}\" was queued at #{queued_position}.")
+                    else:
+                        await send_chat_message(f"@{user_name} task set: \"{title}\". Use !done when finished.")
+                    add_usage('task', bucket_key, cooldown_bucket)
+                    safe_create_task(websocket_notice(event="TASK_CREATE", additional_data={
+                        "channel_code": API_TOKEN,
+                        "owner": "user",
+                        "task": {
+                            "id": new_id, "user_id": user_id, "user_name": user_name,
+                            "title": title, "status": new_status, "approval_status": "auto",
+                            "reward_points": reward_points, "backlog_position": queued_position,
+                            "project": project, "owner": "user"
+                        }
+                    }))
+        except Exception as e:
+            chat_logger.error(f"[TASK] Error in task_command: {e}")
+            await send_chat_message("An error occurred while setting your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='done')
+    async def done_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("done",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('done', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    arg = parts[1].strip() if len(parts) > 1 else ''
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    # !done <n> — complete a specific backlog item (does not touch the active task).
+                    if arg and arg.isdigit():
+                        n = int(arg)
+                        project = await resolve_active_project(cursor, user_id)
+                        await cursor.execute(
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+                            (user_id, n, project)
+                        )
+                        target = await cursor.fetchone()
+                        if not target:
+                            await send_chat_message(f"@{user_name} no backlog item #{n}. Use !backlog to see your list.")
+                            return
+                        target_id = target.get('id')
+                        target_title = target.get('title')
+                        award_points, new_total, pending = await complete_task_with_reward(cursor, target, user_id, user_name)
+                        # Renumber the remaining backlog contiguously (within this project).
+                        await cursor.execute(
+                            "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
+                            (user_id, project)
+                        )
+                        rows = await cursor.fetchall()
+                        for new_pos, row in enumerate(rows, start=1):
+                            await cursor.execute(
+                                "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
+                                (new_pos, row.get('id'))
+                            )
+                        msg = emit_completion_messages_and_events(user_id, user_name, target_id, target_title, award_points, new_total, pending, project)
+                        await send_chat_message(f"@{user_name} {msg}")
+                        add_usage('done', bucket_key, cooldown_bucket)
+                        return
+                    # !done next — complete active, then promote backlog #1.
+                    if arg.lower() == 'next':
+                        project = await resolve_active_project(cursor, user_id)
+                        await cursor.execute(
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                            (user_id, project)
+                        )
+                        active = await cursor.fetchone()
+                        if not active:
+                            await send_chat_message(f"@{user_name} you have no active task. Use !task <title> to set one.")
+                            return
+                        active_id = active.get('id')
+                        active_title = active.get('title')
+                        award_points, new_total, pending = await complete_task_with_reward(cursor, active, user_id, user_name)
+                        promoted = await promote_backlog_head(cursor, user_id, project)
+                        msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project)
+                        if promoted:
+                            emit_task_update({
+                                "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                                "title": promoted.get('title'), "status": "active", "backlog_position": None,
+                                "project": project, "owner": "user"
+                            })
+                            await send_chat_message(f"@{user_name} {msg} Now active: \"{promoted.get('title')}\".")
+                        else:
+                            await send_chat_message(f"@{user_name} {msg} Backlog is now empty.")
+                        add_usage('done', bucket_key, cooldown_bucket)
+                        return
+                    # !done — complete the current active task.
+                    project = await resolve_active_project(cursor, user_id)
+                    await cursor.execute(
+                        "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        (user_id, project)
+                    )
+                    task = await cursor.fetchone()
+                    if not task:
+                        await send_chat_message(f"@{user_name} you have no active task. Use !task <title> to set one.")
+                        return
+                    task_id = task.get('id')
+                    task_title = task.get('title')
+                    award_points, new_total, pending = await complete_task_with_reward(cursor, task, user_id, user_name)
+                    msg = emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project)
+                    await send_chat_message(f"@{user_name} {msg}")
+                    add_usage('done', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[DONE] Error in done_command: {e}")
+            await send_chat_message("An error occurred while completing your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='rename')
+    async def rename_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("rename",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('rename', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    new_title = parts[1].strip() if len(parts) > 1 else ''
+                    if not new_title:
+                        await send_chat_message("Usage: !rename <title> — renames your current task.")
+                        return
+                    new_title = new_title[:255]
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    project = await resolve_active_project(cursor, user_id)
+                    await cursor.execute(
+                        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        (user_id, project)
+                    )
+                    task = await cursor.fetchone()
+                    if not task:
+                        await send_chat_message(f"@{user_name} you have no active task to rename. Use !task <title> first.")
+                        return
+                    task_id = task.get('id')
+                    await cursor.execute("UPDATE user_tasks SET title = %s WHERE id = %s", (new_title, task_id))
+                    await send_chat_message(f"@{user_name} task renamed to \"{new_title}\".")
+                    add_usage('rename', bucket_key, cooldown_bucket)
+                    safe_create_task(websocket_notice(event="TASK_UPDATE", additional_data={
+                        "channel_code": API_TOKEN,
+                        "owner": "user",
+                        "task": {
+                            "id": task_id, "user_id": user_id, "user_name": user_name,
+                            "title": new_title, "status": "active", "project": project, "owner": "user"
+                        }
+                    }))
+        except Exception as e:
+            chat_logger.error(f"[RENAME] Error in rename_command: {e}")
+            await send_chat_message("An error occurred while renaming your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='remove')
+    async def remove_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("remove",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('remove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    project = await resolve_active_project(cursor, user_id)
+                    await cursor.execute(
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        (user_id, project)
+                    )
+                    task = await cursor.fetchone()
+                    if not task:
+                        await send_chat_message(f"@{user_name} you have no active task to remove.")
+                        return
+                    task_id = task.get('id')
+                    task_title = task.get('title')
+                    # Soft-delete: status='rejected' preserves the audit trail (no hard DELETE).
+                    await cursor.execute(
+                        "UPDATE user_tasks SET status = 'rejected', approval_status = 'rejected' WHERE id = %s",
+                        (task_id,)
+                    )
+                    await send_chat_message(f"@{user_name} removed your task \"{task_title}\".")
+                    add_usage('remove', bucket_key, cooldown_bucket)
+                    safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
+                        "channel_code": API_TOKEN,
+                        "owner": "user",
+                        "task_id": task_id,
+                        "user_id": user_id,
+                        "user_name": user_name,
+                        "project": project,
+                    }))
+        except Exception as e:
+            chat_logger.error(f"[REMOVE] Error in remove_command: {e}")
+            await send_chat_message("An error occurred while removing your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='mytasks')
+    async def mytasks_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("mytasks",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('mytasks', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    project = await resolve_active_project(cursor, user_id)
+                    await cursor.execute(
+                        "SELECT title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        (user_id, project)
+                    )
+                    task = await cursor.fetchone()
+                    # Real backlog count (Phase 2 backlog model): queued pending rows, scoped to this project.
+                    await cursor.execute(
+                        "SELECT COUNT(*) AS cnt FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                        (user_id, project)
+                    )
+                    count_row = await cursor.fetchone()
+                    backlog_count = int(count_row.get('cnt') or 0) if count_row else 0
+                    scope = f" in {project}" if project else ""
+                    if task:
+                        await send_chat_message(f"@{user_name} active task{scope}: \"{task.get('title')}\" (backlog: {backlog_count}).")
+                    else:
+                        await send_chat_message(f"@{user_name} you have no active task{scope}. Use !task <title> to set one.")
+                    add_usage('mytasks', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[MYTASKS] Error in mytasks_command: {e}")
+            await send_chat_message("An error occurred while fetching your tasks.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='now')
+    async def now_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("now",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('now', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    arg = parts[1].strip() if len(parts) > 1 else ''
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    if not arg:
+                        await send_chat_message("Usage: !now <title> | !now <n> | !now skip")
+                        return
+                    # !now skip — complete current active, promote backlog #1.
+                    if arg.lower() == 'skip':
+                        project = await resolve_active_project(cursor, user_id)
+                        await cursor.execute(
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                            (user_id, project)
+                        )
+                        active = await cursor.fetchone()
+                        if not active:
+                            await send_chat_message(f"@{user_name} you have no active task to skip.")
+                            return
+                        active_id = active.get('id')
+                        active_title = active.get('title')
+                        award_points, new_total, pending = await complete_task_with_reward(cursor, active, user_id, user_name)
+                        promoted = await promote_backlog_head(cursor, user_id, project)
+                        done_msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project)
+                        if promoted:
+                            emit_task_update({
+                                "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                                "title": promoted.get('title'), "status": "active", "backlog_position": None,
+                                "project": project, "owner": "user"
+                            })
+                            await send_chat_message(f"@{user_name} {done_msg} Now active: \"{promoted.get('title')}\".")
+                        else:
+                            await send_chat_message(f"@{user_name} {done_msg} Backlog is now empty.")
+                        add_usage('now', bucket_key, cooldown_bucket)
+                        return
+                    # !now <n> — promote backlog item #n to active, demote current active to backlog.
+                    if arg.isdigit():
+                        n = int(arg)
+                        project = await resolve_active_project(cursor, user_id)
+                        await cursor.execute(
+                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+                            (user_id, n, project)
+                        )
+                        target = await cursor.fetchone()
+                        if not target:
+                            await send_chat_message(f"@{user_name} no backlog item #{n}. Use !backlog to see your list.")
+                            return
+                        target_id = target.get('id')
+                        target_title = target.get('title')
+                        # Demote current active (if any) to backlog position 1, bump existing positions +1.
+                        await cursor.execute(
+                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                            (user_id, project)
+                        )
+                        active = await cursor.fetchone()
+                        if active:
+                            await cursor.execute(
+                                "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                                (user_id, project)
+                            )
+                            await cursor.execute(
+                                "UPDATE user_tasks SET status = 'pending', backlog_position = 1 WHERE id = %s",
+                                (active.get('id'),)
+                            )
+                        # Promote the target to active.
+                        await cursor.execute(
+                            "UPDATE user_tasks SET status = 'active', backlog_position = NULL WHERE id = %s",
+                            (target_id,)
+                        )
+                        # Renumber backlog contiguously (within this project).
+                        await cursor.execute(
+                            "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
+                            (user_id, project)
+                        )
+                        rows = await cursor.fetchall()
+                        for new_pos, row in enumerate(rows, start=1):
+                            await cursor.execute(
+                                "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
+                                (new_pos, row.get('id'))
+                            )
+                        emit_task_update({
+                            "id": target_id, "user_id": user_id, "user_name": user_name,
+                            "title": target_title, "status": "active", "backlog_position": None,
+                            "project": project, "owner": "user"
+                        })
+                        if active:
+                            emit_task_update({
+                                "id": active.get('id'), "user_id": user_id, "user_name": user_name,
+                                "title": active.get('title'), "status": "pending", "project": project, "owner": "user"
+                            })
+                        await send_chat_message(f"@{user_name} now active: \"{target_title}\".")
+                        add_usage('now', bucket_key, cooldown_bucket)
+                        return
+                    # !now <title> [; <title> ...] — create + set active; demote existing active to backlog #1.
+                    titles = split_task_titles(arg)
+                    if not titles:
+                        await send_chat_message("Usage: !now <title> | !now <n> | !now skip")
+                        return
+                    created = []
+                    project = await resolve_active_project(cursor, user_id)
+                    reward_points = await task_default_reward(cursor)
+                    # Demote current active (if any) to backlog position 1, bumping the rest +1.
+                    await cursor.execute(
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        (user_id, project)
+                    )
+                    active = await cursor.fetchone()
+                    demoted = None
+                    if active:
+                        await cursor.execute(
+                            "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            (user_id, project)
+                        )
+                        await cursor.execute(
+                            "UPDATE user_tasks SET status = 'pending', backlog_position = 1 WHERE id = %s",
+                            (active.get('id'),)
+                        )
+                        demoted = active
+                    # The first title becomes active; any extra titles append to the end of the backlog.
+                    first_title = titles[0]
+                    await cursor.execute(
+                        "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                        "VALUES (%s, %s, %s, 'active', 'auto', %s, NULL, %s)",
+                        (user_id, user_name, first_title, reward_points, project)
+                    )
+                    active_id = cursor.lastrowid
+                    created.append((active_id, first_title, 'active', None))
+                    for extra in titles[1:]:
+                        await cursor.execute(
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            (user_id, project)
+                        )
+                        max_row = await cursor.fetchone()
+                        pos = int(max_row.get('max_pos') or 0) + 1
+                        await cursor.execute(
+                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, %s, %s)",
+                            (user_id, user_name, extra, reward_points, pos, project)
+                        )
+                        created.append((cursor.lastrowid, extra, 'pending', pos))
+                    if demoted:
+                        emit_task_update({
+                            "id": demoted.get('id'), "user_id": user_id, "user_name": user_name,
+                            "title": demoted.get('title'), "status": "pending", "project": project, "owner": "user"
+                        })
+                    for cid, ctitle, cstatus, cpos in created:
+                        emit_task_create({
+                            "id": cid, "user_id": user_id, "user_name": user_name,
+                            "title": ctitle, "status": cstatus, "approval_status": "auto",
+                            "reward_points": reward_points, "backlog_position": cpos,
+                            "project": project, "owner": "user"
+                        })
+                    if len(created) > 1:
+                        await send_chat_message(f"@{user_name} now active: \"{first_title}\" (+{len(created) - 1} queued).")
+                    else:
+                        await send_chat_message(f"@{user_name} now active: \"{first_title}\".")
+                    add_usage('now', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[NOW] Error in now_command: {e}")
+            await send_chat_message("An error occurred while setting your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='later')
+    async def later_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("later",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('later', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    arg = parts[1].strip() if len(parts) > 1 else ''
+                    titles = split_task_titles(arg)
+                    if not titles:
+                        await send_chat_message("Usage: !later <title>  (use ; to add several: !later a; b; c)")
+                        return
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    created = []
+                    project = await resolve_active_project(cursor, user_id)
+                    reward_points = await task_default_reward(cursor)
+                    # Append each to the END of the backlog.
+                    for title in titles:
+                        await cursor.execute(
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            (user_id, project)
+                        )
+                        max_row = await cursor.fetchone()
+                        pos = int(max_row.get('max_pos') or 0) + 1
+                        await cursor.execute(
+                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, %s, %s)",
+                            (user_id, user_name, title, reward_points, pos, project)
+                        )
+                        created.append((cursor.lastrowid, title, pos))
+                    for cid, ctitle, cpos in created:
+                        emit_task_create({
+                            "id": cid, "user_id": user_id, "user_name": user_name,
+                            "title": ctitle, "status": "pending", "approval_status": "auto",
+                            "reward_points": reward_points, "backlog_position": cpos,
+                            "project": project, "owner": "user"
+                        })
+                    if len(created) == 1:
+                        await send_chat_message(f"@{user_name} queued \"{created[0][1]}\" at #{created[0][2]}.")
+                    else:
+                        last_pos = created[-1][2]
+                        await send_chat_message(f"@{user_name} queued {len(created)} tasks (now up to #{last_pos}).")
+                    add_usage('later', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[LATER] Error in later_command: {e}")
+            await send_chat_message("An error occurred while queueing your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='soon')
+    async def soon_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("soon",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('soon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    arg = parts[1].strip() if len(parts) > 1 else ''
+                    titles = split_task_titles(arg)
+                    if not titles:
+                        await send_chat_message("Usage: !soon <title>  (use ; to add several: !soon a; b; c)")
+                        return
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    created = []
+                    project = await resolve_active_project(cursor, user_id)
+                    reward_points = await task_default_reward(cursor)
+                    # Prepend each at backlog position 1 (bump the rest +1). Applied in order,
+                    # so for a multi-add the items keep their listed order at the front.
+                    for title in reversed(titles):
+                        await cursor.execute(
+                            "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            (user_id, project)
+                        )
+                        await cursor.execute(
+                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, 1, %s)",
+                            (user_id, user_name, title, reward_points, project)
+                        )
+                        created.append((cursor.lastrowid, title))
+                    # created is in reverse insert order; first listed title ends at position 1.
+                    for cid, ctitle in created:
+                        emit_task_create({
+                            "id": cid, "user_id": user_id, "user_name": user_name,
+                            "title": ctitle, "status": "pending", "approval_status": "auto",
+                            "reward_points": reward_points, "project": project, "owner": "user"
+                        })
+                    if len(titles) == 1:
+                        await send_chat_message(f"@{user_name} queued \"{titles[0]}\" next at #1.")
+                    else:
+                        await send_chat_message(f"@{user_name} queued {len(titles)} tasks at the front of your backlog.")
+                    add_usage('soon', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[SOON] Error in soon_command: {e}")
+            await send_chat_message("An error occurred while queueing your task.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='backlog')
+    async def backlog_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("backlog",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('backlog', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    project = await resolve_active_project(cursor, user_id)
+                    await cursor.execute(
+                        "SELECT backlog_position, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
+                        (user_id, project)
+                    )
+                    rows = await cursor.fetchall()
+                    scope = f" in {project}" if project else ""
+                    if not rows:
+                        await send_chat_message(f"@{user_name} your backlog{scope} is empty. Use !later <title> to queue one.")
+                    else:
+                        items = ", ".join(f"#{int(r.get('backlog_position') or i + 1)} {r.get('title')}" for i, r in enumerate(rows))
+                        message = f"@{user_name} backlog{scope}: {items}"
+                        await send_chat_message(message[:MAX_CHAT_MESSAGE_LENGTH])
+                    add_usage('backlog', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[BACKLOG] Error in backlog_command: {e}")
+            await send_chat_message("An error occurred while fetching your backlog.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='project')
+    async def project_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("project",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('project', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    arg = parts[1].strip() if len(parts) > 1 else ''
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    # !project (no arg) — report the current project.
+                    if not arg:
+                        project = await resolve_active_project(cursor, user_id)
+                        if project:
+                            await send_chat_message(f"@{user_name} your current project is \"{project}\". Use !project clear to go back to the default.")
+                        else:
+                            await send_chat_message(f"@{user_name} you are in the default project (no project). Use !project <name> to switch.")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
+                    # !project clear — reset to the default (NULL) context. 'clear' is reserved.
+                    if arg.lower() == 'clear':
+                        await cursor.execute(
+                            "INSERT INTO user_active_project (user_id, user_name, project) VALUES (%s, %s, NULL) "
+                            "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), project = NULL",
+                            (user_id, user_name)
+                        )
+                        await send_chat_message(f"@{user_name} project cleared — you are back in the default project.")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
+                    # !project <name> — validate (§8.5) and switch / create on first use.
+                    name = validate_project_name(arg)
+                    if not name:
+                        await send_chat_message(f"@{user_name} invalid project name. Use letters, numbers, spaces and dashes, max 24 characters.")
+                        return
+                    await cursor.execute(
+                        "INSERT INTO user_active_project (user_id, user_name, project) VALUES (%s, %s, %s) "
+                        "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), project = VALUES(project)",
+                        (user_id, user_name, name)
+                    )
+                    await send_chat_message(f"@{user_name} switched to project \"{name}\". Your tasks now scope to this project.")
+                    add_usage('project', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PROJECT] Error in project_command: {e}")
+            await send_chat_message("An error occurred while switching your project.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='projects')
+    async def projects_command(self, ctx):
+        # !projects — list the chatter's DISTINCT non-null projects from user_tasks.
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("projects",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('projects', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    await cursor.execute(
+                        "SELECT DISTINCT project FROM user_tasks WHERE user_id = %s AND project IS NOT NULL ORDER BY project ASC",
+                        (user_id,)
+                    )
+                    rows = await cursor.fetchall()
+                    projects = [r.get('project') for r in rows if r.get('project')]
+                    if not projects:
+                        await send_chat_message(f"@{user_name} you have no projects yet. Use !project <name> to start one.")
+                    else:
+                        message = f"@{user_name} your projects: {', '.join(projects)}"
+                        await send_chat_message(message[:MAX_CHAT_MESSAGE_LENGTH])
+                    add_usage('projects', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PROJECTS] Error in projects_command: {e}")
+            await send_chat_message("An error occurred while fetching your projects.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='pomo')
+    async def pomo_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("pomo",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    # Check cooldown
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('pomo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    arg = parts[1].strip() if len(parts) > 1 else ''
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    # !pomo (no args) — read-only: report remaining time on the chatter's active pomo.
+                    if not arg:
+                        await cursor.execute(
+                            "SELECT label, current_phase, current_cycle, total_cycles, "
+                            "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds "
+                            "FROM user_pomos WHERE user_id = %s AND status = 'active' "
+                            "ORDER BY id DESC LIMIT 1",
+                            (user_id,)
+                        )
+                        row = await cursor.fetchone()
+                        if not row:
+                            await send_chat_message(f"@{user_name} you have no active pomo. Start one with !pomo <minutes> <label>.")
+                            add_usage('pomo', bucket_key, cooldown_bucket)
+                            return
+                        remaining = int(row.get('remaining_seconds') or 0)
+                        if remaining < 0:
+                            remaining = 0
+                        mins, secs = divmod(remaining, 60)
+                        phase = row.get('current_phase') or 'work'
+                        phase_label = 'break' if phase == 'break' else 'work'
+                        label = row.get('label')
+                        cur_cycle = int(row.get('current_cycle') or 1)
+                        total_cycles = int(row.get('total_cycles') or 1)
+                        cycle_part = f" cycle {cur_cycle}/{total_cycles}" if total_cycles > 1 else ""
+                        label_part = f" [{label}]" if label else ""
+                        await send_chat_message(
+                            f"@{user_name} pomo{label_part}: {phase_label}{cycle_part}, {mins}m {secs}s remaining."
+                        )
+                        add_usage('pomo', bucket_key, cooldown_bucket)
+                        return
+                    # !pomo cancel — ask the server to cancel the chatter's active pomo.
+                    if arg.lower() == 'cancel':
+                        safe_create_task(websocket_notice(event="USER_POMO_CANCEL", additional_data={
+                            "channel_code": API_TOKEN,
+                            "user_id": user_id,
+                            "user_name": user_name,
+                        }))
+                        await send_chat_message(f"@{user_name} cancelling your pomo.")
+                        add_usage('pomo', bucket_key, cooldown_bucket)
+                        return
+                    # !pomo <spec> <label> — start (or replace) a pomo.
+                    spec_parts = arg.split(' ', 1)
+                    spec_token = spec_parts[0].strip()
+                    label = spec_parts[1].strip() if len(spec_parts) > 1 else ''
+                    label = label[:255]
+                    parsed = parse_pomo_spec(spec_token)
+                    if not parsed:
+                        await send_chat_message(
+                            "Usage: !pomo <minutes> <label> | !pomo <work>/<break>/<cycles> <label> | !pomo | !pomo cancel"
+                        )
+                        return
+                    work_minutes, break_minutes, total_cycles = parsed
+                    # Sane guardrails to prevent abuse (locked decision §8.4 keeps one pomo per viewer).
+                    if not (1 <= work_minutes <= 600):
+                        await send_chat_message(f"@{user_name} work minutes must be 1-600.")
+                        return
+                    if not (0 <= break_minutes <= 120):
+                        await send_chat_message(f"@{user_name} break minutes must be 0-120.")
+                        return
+                    if not (1 <= total_cycles <= 24):
+                        await send_chat_message(f"@{user_name} cycles must be 1-24.")
+                        return
+                    safe_create_task(websocket_notice(event="USER_POMO_START", additional_data={
+                        "channel_code": API_TOKEN,
+                        "user_id": user_id,
+                        "user_name": user_name,
+                        "label": label,
+                        "work_minutes": work_minutes,
+                        "break_minutes": break_minutes,
+                        "total_cycles": total_cycles,
+                    }))
+                    label_part = f" [{label}]" if label else ""
+                    if total_cycles > 1:
+                        await send_chat_message(
+                            f"@{user_name} pomo started{label_part}: {total_cycles} cycles of {work_minutes}m work / {break_minutes}m break."
+                        )
+                    else:
+                        await send_chat_message(f"@{user_name} pomo started{label_part}: {work_minutes}m focus.")
+                    add_usage('pomo', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[POMO] Error in pomo_command: {e}")
+            await send_chat_message("An error occurred while handling your pomo.")
         finally:
             if connection:
                 await connection.close()
@@ -10036,6 +11016,174 @@ class TwitchBot(commands.Bot):
 ##
 # Functions for all the commands
 ##
+# Working & Study task & pomo command helpers
+# Function to resolve the chatter's current project string (None for the default context)
+async def resolve_active_project(cursor, user_id):
+    # Returns the chatter's current project string, or None for the default context.
+    await cursor.execute("SELECT project FROM user_active_project WHERE user_id = %s LIMIT 1", (user_id,))
+    row = await cursor.fetchone()
+    if not row:
+        return None
+    project = row.get('project')
+    return project if project else None
+
+# Function to validate a project name (returns cleaned name or None when invalid)
+def validate_project_name(raw):
+    # §8.5: trim, then require letters/numbers/space/dash, 1-24 chars after trim.
+    # 'clear' is a reserved keyword handled by the caller, not a project name.
+    # Returns the cleaned name on success, or None when invalid.
+    name = (raw or '').strip()
+    if not name:
+        return None
+    if not re.fullmatch(r'[A-Za-z0-9 -]{1,24}', name):
+        return None
+    return name
+
+# Function to split a semicolon multi-add task string into trimmed, capped titles
+def split_task_titles(raw):
+    # Semicolon multi-add: split on ';', trim, drop empties, cap each at 255 chars.
+    titles = []
+    for chunk in (raw or '').split(';'):
+        t = chunk.strip()
+        if t:
+            titles.append(t[:255])
+    return titles
+
+# Function to pull the streamer's default reward points
+async def task_default_reward(cursor):
+    # Pull the streamer's default reward so the dashboard award path stays consistent.
+    await cursor.execute("SELECT default_reward_points FROM task_settings LIMIT 1")
+    settings_row = await cursor.fetchone()
+    return int(settings_row.get('default_reward_points') or 0) if settings_row else 0
+
+# Function to emit the TASK_CREATE websocket event
+def emit_task_create(task):
+    safe_create_task(websocket_notice(event="TASK_CREATE", additional_data={
+        "channel_code": API_TOKEN, "owner": "user", "task": task
+    }))
+
+# Function to emit the TASK_UPDATE websocket event
+def emit_task_update(task):
+    safe_create_task(websocket_notice(event="TASK_UPDATE", additional_data={
+        "channel_code": API_TOKEN, "owner": "user", "task": task
+    }))
+
+# Function to emit the TASK_COMPLETE websocket event
+def emit_task_complete(task_id, user_id, user_name, title, project=None):
+    safe_create_task(websocket_notice(event="TASK_COMPLETE", additional_data={
+        "channel_code": API_TOKEN, "owner": "user",
+        "task_id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
+        "project": project,
+    }))
+
+# Function to promote the lowest-positioned pending backlog row to active and renumber the rest
+async def promote_backlog_head(cursor, user_id, project=None):
+    await cursor.execute(
+        "SELECT id, user_name, title, reward_points FROM user_tasks "
+        "WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC LIMIT 1",
+        (user_id, project)
+    )
+    head = await cursor.fetchone()
+    if not head:
+        return None
+    promoted_id = head.get('id')
+    await cursor.execute(
+        "UPDATE user_tasks SET status = 'active', backlog_position = NULL WHERE id = %s",
+        (promoted_id,)
+    )
+    # Renumber remaining backlog contiguously (1..n) by current order, within this project.
+    await cursor.execute(
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
+        (user_id, project)
+    )
+    rows = await cursor.fetchall()
+    for new_pos, row in enumerate(rows, start=1):
+        await cursor.execute(
+            "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
+            (new_pos, row.get('id'))
+        )
+    return head
+
+# Function shared completion + reward path; returns (award_points, new_total, pending)
+async def complete_task_with_reward(cursor, task, user_id, user_name):
+    task_id = task.get('id')
+    task_reward = int(task.get('reward_points') or 0)
+    await cursor.execute("SELECT reward_enabled, reward_points_per_task FROM working_study_overlay_settings LIMIT 1")
+    ws_row = await cursor.fetchone()
+    reward_enabled = bool(ws_row.get('reward_enabled')) if ws_row else False
+    points_per_task = int(ws_row.get('reward_points_per_task') or 0) if ws_row else 0
+    await cursor.execute("SELECT require_approval FROM task_settings LIMIT 1")
+    ts_row = await cursor.fetchone()
+    require_approval = bool(ts_row.get('require_approval')) if ts_row else False
+    award_amount = task_reward if task_reward > 0 else points_per_task
+    award_points = 0
+    new_total = None
+    pending = False
+    if reward_enabled and require_approval:
+        await cursor.execute(
+            "UPDATE user_tasks SET status = 'completed', approval_status = 'pending_approval', backlog_position = NULL, completed_at = NOW() WHERE id = %s",
+            (task_id,)
+        )
+        pending = True
+    else:
+        await cursor.execute(
+            "UPDATE user_tasks SET status = 'completed', backlog_position = NULL, completed_at = NOW() WHERE id = %s",
+            (task_id,)
+        )
+        if reward_enabled and award_amount > 0:
+            await cursor.execute("SELECT 1 FROM task_reward_log WHERE user_task_id = %s LIMIT 1", (task_id,))
+            already = await cursor.fetchone()
+            if not already:
+                credit = await manage_user_points(user_id, user_name, "credit", award_amount)
+                if credit.get("success"):
+                    award_points = award_amount
+                    new_total = credit.get("points")
+                    await cursor.execute(
+                        "INSERT INTO task_reward_log (user_task_id, user_id, user_name, points_awarded) VALUES (%s, %s, %s, %s)",
+                        (task_id, user_id, user_name, award_amount)
+                    )
+    return (award_points, new_total, pending)
+
+# Function to build the completion chat reply and fire the matching websocket events
+def emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project=None):
+    # Build the chat reply for a completion and fire the matching websocket events.
+    emit_task_complete(task_id, user_id, user_name, task_title, project)
+    if award_points > 0:
+        safe_create_task(websocket_notice(event="TASK_REWARD_CONFIRM", additional_data={
+            "channel_code": API_TOKEN, "task_id": task_id, "user_id": user_id,
+            "user_name": user_name, "points_awarded": award_points, "new_total": new_total,
+        }))
+    if pending:
+        return f"task \"{task_title}\" completed — awaiting streamer approval for points."
+    elif award_points > 0:
+        return f"task \"{task_title}\" done! +{award_points} points (total: {new_total})."
+    else:
+        return f"task \"{task_title}\" done! Nice work."
+
+# Function to parse the timing token of a !pomo command
+def parse_pomo_spec(spec):
+    spec = (spec or '').strip()
+    if not spec:
+        return None
+    if '/' in spec:
+        chunks = spec.split('/')
+        if len(chunks) != 3:
+            return None
+        try:
+            work = int(chunks[0].strip())
+            brk = int(chunks[1].strip())
+            cycles = int(chunks[2].strip())
+        except ValueError:
+            return None
+        return (work, brk, cycles)
+    if not spec.isdigit():
+        return None
+    try:
+        work = int(spec)
+    except ValueError:
+        return None
+    return (work, 0, 1)
+
 # Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
     total_seconds = int(elapsed_time.total_seconds())
@@ -13332,6 +14480,21 @@ async def websocket_notice(
                 elif event == "MAKER_UPDATE":
                     if additional_data:
                         params.update(additional_data)
+                elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM"]:
+                    # Working & Study task events. The task payload is JSON-encoded so the
+                    # nested dict survives URL-encoding; the overlay/dashboard decode it.
+                    if additional_data:
+                        for _task_key, _task_val in additional_data.items():
+                            params[_task_key] = json.dumps(_task_val) if isinstance(_task_val, (dict, list)) else _task_val
+                elif event in ["USER_POMO_START", "USER_POMO_CANCEL"]:
+                    # Phase 3 personal pomo events. The bot does NOT write user_pomos — the
+                    # websocket server is the single writer. These flat params (user_id,
+                    # user_name, label, work_minutes, break_minutes, total_cycles) are read
+                    # by the server's /notify handler, which creates/cancels the row and
+                    # then broadcasts to task-aware overlays.
+                    if additional_data:
+                        for _pomo_key, _pomo_val in additional_data.items():
+                            params[_pomo_key] = json.dumps(_pomo_val) if isinstance(_pomo_val, (dict, list)) else _pomo_val
                 else:
                     websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters or is not recognized")
                     return
@@ -13423,9 +14586,12 @@ async def builtin_commands_creation():
                 for command in new_commands:
                     # Determine permission type
                     permission = 'mod' if command in mod_commands else 'everyone'
-                    values.append((command, 'Enabled', permission))
+                    # Per-viewer commands (Working & Study task/pomo) get a per-user cooldown
+                    # bucket; everything else keeps the global 'default' bucket.
+                    cooldown_bucket = 'user' if command in per_user_cooldown_commands else 'default'
+                    values.append((command, 'Enabled', permission, cooldown_bucket))
                 # Insert query with placeholders for each command
-                insert_query = "INSERT INTO builtin_commands (command, status, permission) VALUES (%s, %s, %s)"
+                insert_query = "INSERT INTO builtin_commands (command, status, permission, cooldown_bucket) VALUES (%s, %s, %s, %s)"
                 await cursor.executemany(insert_query, values)  # Use executemany here
                 await connection.commit()
                 for command in new_commands:

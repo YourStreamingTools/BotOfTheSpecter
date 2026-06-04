@@ -11,6 +11,10 @@ $has_timer_query = array_key_exists('timer', $_GET);
 $has_tasklist_query = array_key_exists('tasklist', $_GET);
 $show_timer_panel = true;
 $overlay_mode_class = '';
+$allowed_overlay_themes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+$overlay_theme = 'dark';
+$allowed_list_view_modes = ['split', 'unified'];
+$list_view_mode = 'split';
 if ($has_timer_query && !$has_tasklist_query) {
     $overlay_mode_class = 'study-overlay-page--timer-only';
 } elseif ($has_tasklist_query && !$has_timer_query) {
@@ -83,6 +87,20 @@ if (!$error_html) {
                 }
             }
         }
+        $themeStmt = @$user_db->query("SELECT theme FROM working_study_overlay_settings LIMIT 1");
+        if ($themeStmt && ($themeRow = $themeStmt->fetch_assoc())) {
+            $candidate = $themeRow['theme'] ?? 'dark';
+            if (in_array($candidate, $allowed_overlay_themes, true)) {
+                $overlay_theme = $candidate;
+            }
+        }
+        $listViewStmt = @$user_db->query("SELECT list_view_mode FROM working_study_overlay_settings LIMIT 1");
+        if ($listViewStmt && ($listViewRow = $listViewStmt->fetch_assoc())) {
+            $listCandidate = $listViewRow['list_view_mode'] ?? 'split';
+            if (in_array($listCandidate, $allowed_list_view_modes, true)) {
+                $list_view_mode = $listCandidate;
+            }
+        }
     }
 }
 
@@ -96,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         exit;
     }
     if ($action === 'get_settings') {
-        $stmt = $user_db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes FROM working_study_overlay_settings LIMIT 1");
+        $stmt = $user_db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, cycle_count, show_cycle_badge, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $user_db->error]);
             exit;
@@ -108,13 +126,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $result = $stmt->get_result();
         $settings = $result->fetch_assoc();
         $stmt->close();
+        // Whitelist of supported overlay themes; anything else falls back to dark.
+        $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+        // Whitelist of supported list view modes; anything else falls back to split.
+        $allowedListViewModes = ['split', 'unified'];
         if ($settings) {
+            $theme = in_array($settings['theme'] ?? 'dark', $allowedThemes, true) ? $settings['theme'] : 'dark';
+            $listViewMode = in_array($settings['list_view_mode'] ?? 'split', $allowedListViewModes, true) ? $settings['list_view_mode'] : 'split';
             echo json_encode([
                 'success' => true,
                 'data' => [
                     'focus_minutes' => (int) $settings['focus_minutes'],
                     'micro_break_minutes' => (int) $settings['micro_break_minutes'],
-                    'recharge_break_minutes' => (int) $settings['recharge_break_minutes']
+                    'recharge_break_minutes' => (int) $settings['recharge_break_minutes'],
+                    'cycle_count' => (int) $settings['cycle_count'],
+                    'show_cycle_badge' => (int) $settings['show_cycle_badge'],
+                    'theme' => $theme,
+                    'list_view_mode' => $listViewMode
                 ]
             ]);
         } else {
@@ -123,7 +151,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
                 'data' => [
                     'focus_minutes' => 60,
                     'micro_break_minutes' => 5,
-                    'recharge_break_minutes' => 30
+                    'recharge_break_minutes' => 30,
+                    'cycle_count' => 4,
+                    'show_cycle_badge' => 0,
+                    'theme' => 'dark',
+                    'list_view_mode' => 'split'
                 ]
             ]);
         }
@@ -144,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             }
         }
         if ($ut_exists) {
-            $u = $user_db->prepare("SELECT id, user_name, title, description, status, reward_points, completed_at FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
             if ($u && $u->execute()) {
                 $user_tasks_arr = $u->get_result()->fetch_all(MYSQLI_ASSOC);
                 $u->close();
@@ -173,8 +205,15 @@ ob_end_clean();
             <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
         </div>
     <?php else: ?>
+        <?php
+            $is_unified = ($list_view_mode === 'unified');
+            $show_unified_panel = $has_tasklist_query && $is_unified;
+            $render_streamer_split = $show_new_streamer_panel && !$is_unified;
+            $render_viewer_split   = $show_new_viewer_panel && !$is_unified;
+        ?>
         <div class="study-overlay-page-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>"
-            id="overlayRoot">
+            id="overlayRoot" data-theme="<?php echo htmlspecialchars($overlay_theme); ?>"
+            data-list-view="<?php echo htmlspecialchars($list_view_mode); ?>">
             <div id="connectionStatus" class="study-overlay-page-connection-status" data-state="connecting">Connecting…</div>
             <section class="study-overlay-page-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
                 <div class="study-overlay-page-timer-ring">
@@ -184,7 +223,10 @@ ob_end_clean();
                         </circle>
                     </svg>
                     <div class="study-overlay-page-timer-inner">
-                        <div id="phaseLabel" class="study-overlay-page-phase-label">Focus Sprint</div>
+                        <div class="study-overlay-page-phase-row">
+                            <div id="phaseLabel" class="study-overlay-page-phase-label">Focus Sprint</div>
+                            <div id="cycleBadge" class="study-overlay-page-cycle-badge" data-visible="false"></div>
+                        </div>
                         <div id="timerDisplay" class="study-overlay-page-timer-display">00:00</div>
                         <div id="statusText" class="study-overlay-page-timer-status">Waiting</div>
                     </div>
@@ -215,8 +257,8 @@ ob_end_clean();
             <!-- New task system: Streamer Tasks panel -->
             <!-- Shown when ?tasklist is present (filtered by ?tasklist&streamer=true to show only this panel) -->
             <section class="study-overlay-page-task-sys-card study-overlay-page-task-sys-card--streamer"
-                     data-visible="<?php echo $show_new_streamer_panel ? 'true' : 'false'; ?>"
-                     <?php if (!$show_new_streamer_panel) echo 'style="display:none"'; ?>>
+                     data-visible="<?php echo $render_streamer_split ? 'true' : 'false'; ?>"
+                     <?php if (!$render_streamer_split) echo 'style="display:none"'; ?>>
                 <div class="study-overlay-page-task-sys-card-header">
                     <span class="study-overlay-page-task-sys-card-dot" style="background:#48c78e"></span>
                     Streamer Tasks
@@ -226,13 +268,22 @@ ob_end_clean();
             <!-- New task system: Viewer Tasks panel -->
             <!-- Shown when ?tasklist is present (hidden when ?tasklist&streamer=true) -->
             <section class="study-overlay-page-task-sys-card study-overlay-page-task-sys-card--viewer"
-                     data-visible="<?php echo $show_new_viewer_panel ? 'true' : 'false'; ?>"
-                     <?php if (!$show_new_viewer_panel) echo 'style="display:none"'; ?>>
+                     data-visible="<?php echo $render_viewer_split ? 'true' : 'false'; ?>"
+                     <?php if (!$render_viewer_split) echo 'style="display:none"'; ?>>
                 <div class="study-overlay-page-task-sys-card-header">
                     <span class="study-overlay-page-task-sys-card-dot" style="background:#3e8ed0"></span>
                     Viewer Tasks
                 </div>
                 <ul class="study-overlay-page-task-sys-card-list" id="newViewerTaskList"></ul>
+            </section>
+            <section class="study-overlay-page-task-sys-card study-overlay-page-task-sys-card--unified"
+                     data-visible="<?php echo $show_unified_panel ? 'true' : 'false'; ?>"
+                     <?php if (!$show_unified_panel) echo 'style="display:none"'; ?>>
+                <div class="study-overlay-page-task-sys-card-header">
+                    <span class="study-overlay-page-task-sys-card-dot" style="background:#9b8cff"></span>
+                    Tasks
+                </div>
+                <ul class="study-overlay-page-task-sys-card-list" id="newUnifiedTaskList"></ul>
             </section>
             <div id="taskRewardPopups"></div>
         </div>
@@ -262,6 +313,7 @@ ob_end_clean();
             }
             const connectionStatus = document.getElementById('connectionStatus');
             const phaseLabel = document.getElementById('phaseLabel');
+            const cycleBadge = document.getElementById('cycleBadge');
             const timerDisplay = document.getElementById('timerDisplay');
             const statusText = document.getElementById('statusText');
             const focusSessionsCompletedEl = document.getElementById('focusSessionsCompleted');
@@ -280,9 +332,57 @@ ob_end_clean();
                 recharge: 30 * 60
             };
             const phases = {
-                focus: { label: 'Focus Sprint', status: 'Flow mode on', accent: '#ff9161' },
-                micro: { label: 'Micro Break', status: 'Reignite energy', accent: '#48c78e' },
-                recharge: { label: 'Recharge Stretch', status: 'Stretch & hydrate', accent: '#7c5cff' }
+                focus: { label: 'Focus Sprint', status: 'Flow mode on', accent: '#ff9161', cssVar: '--focus-color' },
+                micro: { label: 'Micro Break', status: 'Reignite energy', accent: '#48c78e', cssVar: '--micro-color' },
+                recharge: { label: 'Recharge Stretch', status: 'Stretch & hydrate', accent: '#7c5cff', cssVar: '--recharge-color' }
+            };
+            const allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+            const applyOverlayTheme = theme => {
+                if (theme === undefined || theme === null) {
+                    return;
+                }
+                const next = allowedThemes.includes(String(theme)) ? String(theme) : 'dark';
+                if (overlayRoot.dataset.theme !== next) {
+                    overlayRoot.dataset.theme = next;
+                    // Re-render so the timer ring/accent picks up the new theme's
+                    // per-phase colour immediately.
+                    updateDisplay();
+                }
+            };
+            const allowedViewModes = ['split', 'unified'];
+            const getListViewMode = () => {
+                const current = String(overlayRoot.dataset.listView || 'split');
+                return allowedViewModes.includes(current) ? current : 'split';
+            };
+            const applyListViewMode = mode => {
+                if (mode === undefined || mode === null) {
+                    return;
+                }
+                const next = allowedViewModes.includes(String(mode)) ? String(mode) : 'split';
+                if (overlayRoot.dataset.listView !== next) {
+                    overlayRoot.dataset.listView = next;
+                }
+                if (typeof syncTaskPanelVisibility === 'function') {
+                    syncTaskPanelVisibility();
+                }
+                if (typeof renderTaskLists === 'function') {
+                    renderTaskLists();
+                }
+            };
+            const getPhaseAccent = phaseKey => {
+                const phase = phases[phaseKey];
+                if (!phase) {
+                    return '#ff9161';
+                }
+                try {
+                    const value = getComputedStyle(overlayRoot).getPropertyValue(phase.cssVar).trim();
+                    if (value) {
+                        return value;
+                    }
+                } catch (error) {
+                    /* getComputedStyle unavailable — fall through to the static accent */
+                }
+                return phase.accent;
             };
             const timerState = {
                 currentPhase: 'focus',
@@ -296,7 +396,57 @@ ob_end_clean();
                 totalTimeLogged: 0,
                 phaseCounts: { focus: 0, micro: 0, recharge: 0 },
                 legacySessionOffset: 0,
+                currentCycle: 1,
                 durations: { ...defaultDurations }
+            };
+            const cycleConfig = {
+                count: 4,
+                showBadge: false
+            };
+            const clampCurrentCycle = () => {
+                const max = Math.max(1, Math.round(Number(cycleConfig.count) || 1));
+                if (!Number.isFinite(timerState.currentCycle) || timerState.currentCycle < 1) {
+                    timerState.currentCycle = 1;
+                } else if (timerState.currentCycle > max) {
+                    timerState.currentCycle = max;
+                } else {
+                    timerState.currentCycle = Math.round(timerState.currentCycle);
+                }
+            };
+            const updateCycleBadge = () => {
+                if (!cycleBadge) {
+                    return;
+                }
+                if (!cycleConfig.showBadge) {
+                    cycleBadge.dataset.visible = 'false';
+                    cycleBadge.textContent = '';
+                    return;
+                }
+                clampCurrentCycle();
+                const max = Math.max(1, Math.round(Number(cycleConfig.count) || 1));
+                cycleBadge.textContent = `${timerState.currentCycle} / ${max}`;
+                cycleBadge.dataset.visible = 'true';
+            };
+            const applyCycleConfigFromPayload = payload => {
+                if (!payload) {
+                    return;
+                }
+                if (payload.cycle_count !== undefined && payload.cycle_count !== null) {
+                    const count = Number(payload.cycle_count);
+                    if (Number.isFinite(count) && count >= 1) {
+                        cycleConfig.count = Math.round(count);
+                    }
+                }
+                if (payload.show_cycle_badge !== undefined && payload.show_cycle_badge !== null) {
+                    cycleConfig.showBadge = Number(payload.show_cycle_badge) === 1 || payload.show_cycle_badge === true;
+                }
+                if (payload.reset_cycle !== undefined && payload.reset_cycle !== null
+                    && (Number(payload.reset_cycle) === 1 || payload.reset_cycle === true)) {
+                    timerState.currentCycle = 1;
+                    saveTimerState();
+                }
+                clampCurrentCycle();
+                updateCycleBadge();
             };
             const timerStateStorageKey = `specter:working-study:timer:${overlayApiKey}`;
             const timerStatsStorageKey = `specter:working-study:stats:${overlayApiKey}`;
@@ -404,7 +554,7 @@ ob_end_clean();
                 phaseLabel.textContent = phases[phase].label;
                 timerDisplay.textContent = formatDuration(timerState.remainingSeconds);
                 statusText.textContent = getStatusLabel();
-                overlayRoot.style.setProperty('--accent-color', phases[phase].accent);
+                overlayRoot.style.setProperty('--accent-color', getPhaseAccent(phase));
                 const progress = timerState.totalDuration > 0 ? timerState.remainingSeconds / timerState.totalDuration : 0;
                 const offset = circumference * (1 - progress);
                 ringElement.style.strokeDashoffset = isNaN(offset) ? circumference : offset;
@@ -490,6 +640,7 @@ ob_end_clean();
                         totalTimeLogged: timerState.totalTimeLogged,
                         phaseCounts: timerState.phaseCounts,
                         legacySessionOffset: timerState.legacySessionOffset,
+                        currentCycle: timerState.currentCycle,
                         durations: timerState.durations,
                         lastUpdatedAt: Date.now()
                     }));
@@ -524,7 +675,7 @@ ob_end_clean();
                         timerPaused: timerState.timerPaused,
                         phaseLabel: phases[timerState.currentPhase].label,
                         phaseStatus: phases[timerState.currentPhase].status,
-                        phaseColor: phases[timerState.currentPhase].accent
+                        phaseColor: getPhaseAccent(timerState.currentPhase)
                     });
                 }
             };
@@ -542,6 +693,13 @@ ob_end_clean();
             const recordCompletedPhase = (phaseKey, durationSeconds = 0) => {
                 if (phaseKey && Object.prototype.hasOwnProperty.call(timerState.phaseCounts, phaseKey)) {
                     timerState.phaseCounts[phaseKey] += 1;
+                }
+                if (phaseKey === 'focus') {
+                    const max = Math.max(1, Math.round(Number(cycleConfig.count) || 1));
+                    if (timerState.currentCycle < max) {
+                        timerState.currentCycle += 1;
+                    }
+                    updateCycleBadge();
                 }
                 timerState.sessionsCompleted = getTotalSessions();
                 timerState.totalTimeLogged += Math.max(0, Math.round(Number(durationSeconds) || 0));
@@ -670,9 +828,11 @@ ob_end_clean();
                 timerState.legacySessionOffset = 0;
                 timerState.sessionsCompleted = 0;
                 timerState.totalTimeLogged = 0;
+                timerState.currentCycle = 1;
                 saveSessionStats();
                 saveTimerState();
                 updateStatsDisplay();
+                updateCycleBadge();
                 emitSessionStats();
                 emitTimerState('stopped');
                 updateDisplay();
@@ -749,6 +909,11 @@ ob_end_clean();
                         ? Math.round(saved.totalTimeLogged)
                         : 0;
                     timerState.phaseCounts = normalizePhaseCounts(saved.phaseCounts);
+                    if (Number.isFinite(saved.currentCycle) && saved.currentCycle >= 1) {
+                        timerState.currentCycle = Math.round(saved.currentCycle);
+                    } else {
+                        timerState.currentCycle = 1;
+                    }
                     if (Number.isFinite(saved.legacySessionOffset) && saved.legacySessionOffset >= 0) {
                         timerState.legacySessionOffset = Math.round(saved.legacySessionOffset);
                     } else if (getPhaseSessionTotal() === 0 && timerState.sessionsCompleted > 0) {
@@ -813,6 +978,9 @@ ob_end_clean();
                     const data = await response.json();
                     if (data.success && data.data) {
                         updateDurationsFromPayload(data.data);
+                        applyCycleConfigFromPayload(data.data);
+                        applyOverlayTheme(data.data.theme);
+                        applyListViewMode(data.data.list_view_mode);
                         timerState.durations.focus = timerState.durations.focus || defaultDurations.focus;
                         timerState.durations.micro = timerState.durations.micro || defaultDurations.micro;
                         timerState.durations.recharge = timerState.durations.recharge || defaultDurations.recharge;
@@ -874,17 +1042,91 @@ ob_end_clean();
             };
             // ─── New channel task system helpers ───────────────────────────
             const channelTasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_channel_tasks`;
+            let latestStreamerTasks = [];
+            let latestViewerTasks = [];
+            const syncTaskPanelVisibility = () => {
+                const unified = getListViewMode() === 'unified';
+                const streamerPanel = document.querySelector('.study-overlay-page-task-sys-card--streamer');
+                const viewerPanel = document.querySelector('.study-overlay-page-task-sys-card--viewer');
+                const unifiedPanel = document.querySelector('.study-overlay-page-task-sys-card--unified');
+                const setVisible = (panel, visible) => {
+                    if (!panel) return;
+                    panel.dataset.visible = visible ? 'true' : 'false';
+                    panel.style.removeProperty('display');
+                };
+                setVisible(streamerPanel, !unified && hasTasklistQuery && streamerFilterParam !== 'false');
+                setVisible(viewerPanel, !unified && hasTasklistQuery && streamerFilterParam !== 'true');
+                setVisible(unifiedPanel, unified && hasTasklistQuery);
+            };
+            const UNIFIED_OMIT_BACKLOG = true;
+            const isBacklogTask = (task) => {
+                const status = String(task?.status || '').toLowerCase();
+                return status === 'pending';
+            };
+            const isActiveTask = (task) => String(task?.status || '').toLowerCase() === 'active';
+            const isCompletedTask = (task) => String(task?.status || '').toLowerCase() === 'completed';
+            const renderUnifiedList = () => {
+                const list = document.getElementById('newUnifiedTaskList');
+                if (!list) return;
+                const streamerName = String(overlayUserName || 'Streamer').trim() || 'Streamer';
+                const rows = [];
+                (latestStreamerTasks || []).forEach(t => {
+                    rows.push({ owner: 'streamer', userName: streamerName, task: t, userId: '' });
+                });
+                (latestViewerTasks || []).forEach(t => {
+                    const taskUserId = (t?.user_id !== undefined && t?.user_id !== null) ? String(t.user_id) : '';
+                    rows.push({ owner: 'viewer', userName: String(t?.user_name || '').trim() || 'Unknown', task: t, userId: taskUserId });
+                });
+                const visibleRows = UNIFIED_OMIT_BACKLOG ? rows.filter(r => !isBacklogTask(r.task)) : rows;
+                const rank = r => (isActiveTask(r.task) ? 0 : 1);
+                visibleRows.sort((a, b) => rank(a) - rank(b));
+                list.innerHTML = '';
+                visibleRows.forEach(r => {
+                    const t = r.task;
+                    const li = document.createElement('li');
+                    const done = isCompletedTask(t);
+                    const backlog = isBacklogTask(t);
+                    li.className = 'study-overlay-page-task-sys-item'
+                        + (done ? ' is-done' : '')
+                        + (backlog ? ' is-backlog' : '');
+                    li.id = 'unified-task-' + r.owner + '-' + t.id;
+                    if (r.userId) {
+                        li.dataset.userId = r.userId;
+                    }
+                    const taskDescription = getTaskDescription(t) || 'Untitled task';
+                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(r.userName)}: ${escapeHtml(taskDescription)}</div></div>`;
+                    list.appendChild(li);
+                });
+                // Re-attach any live pomo badges to their viewer rows (rows rebuilt).
+                if (typeof attachPomoBadgeToRow === 'function') {
+                    (latestViewerTasks || []).forEach(t => {
+                        const taskUserId = (t?.user_id !== undefined && t?.user_id !== null) ? String(t.user_id) : '';
+                        if (taskUserId) attachPomoBadgeToRow(taskUserId);
+                    });
+                }
+                refreshTaskListAutoScroll();
+            };
+            const renderTaskLists = () => {
+                if (getListViewMode() === 'unified') {
+                    renderUnifiedList();
+                } else {
+                    renderNewStreamerList(latestStreamerTasks || []);
+                    renderNewViewerList(latestViewerTasks || []);
+                }
+            };
             const loadChannelTasks = async () => {
-                // Only fetch if at least one task panel is visible
+                // Only fetch if at least one task panel exists in the DOM
                 const sPanel = document.getElementById('newStreamerTaskList');
                 const vPanel = document.getElementById('newViewerTaskList');
-                if (!sPanel && !vPanel) return;
+                const uPanel = document.getElementById('newUnifiedTaskList');
+                if (!sPanel && !vPanel && !uPanel) return;
                 try {
                     const r = await fetch(channelTasksEndpoint);
                     const j = await r.json();
                     if (j.success) {
-                        renderNewStreamerList(j.streamer_tasks || []);
-                        renderNewViewerList(j.user_tasks || []);
+                        latestStreamerTasks = j.streamer_tasks || [];
+                        latestViewerTasks = j.user_tasks || [];
+                        renderTaskLists();
                     }
                 } catch (e) { console.warn('[Overlay] loadChannelTasks error', e); }
             };
@@ -961,6 +1203,7 @@ ob_end_clean();
                 window.requestAnimationFrame(() => {
                     ensureTaskListAutoScroll('newStreamerTaskList');
                     ensureTaskListAutoScroll('newViewerTaskList');
+                    ensureTaskListAutoScroll('newUnifiedTaskList');
                 });
             };
             const renderNewStreamerList = (tasks) => {
@@ -1002,7 +1245,18 @@ ob_end_clean();
                 li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
                 const userName = String(task?.user_name || '').trim() || 'Unknown';
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
+                const taskUserId = task?.user_id !== undefined && task?.user_id !== null
+                    ? String(task.user_id)
+                    : '';
+                if (taskUserId) {
+                    li.dataset.userId = taskUserId;
+                } else {
+                    delete li.dataset.userId;
+                }
                 li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div></div>`;
+                if (typeof attachPomoBadgeToRow === 'function') {
+                    attachPomoBadgeToRow(taskUserId);
+                }
                 refreshTaskListAutoScroll();
             };
             const newSetDone = (taskId, owner) => {
@@ -1036,7 +1290,192 @@ ob_end_clean();
                     setTimeout(() => el.remove(), 400);
                 }, 4600);
             };
-            // ────────────────────────────────────────────────────────────────
+            const pomoState = new Map(); // user_id -> { remainingSeconds, phase, label, currentCycle, totalCycles, userName, status, completedTimeoutId }
+            let pomoTickerId = null;
+            const getPomoPhaseColor = phase => {
+                const varName = phase === 'break' ? '--micro-color' : '--focus-color';
+                const fallback = phase === 'break' ? '#6be9ff' : '#ff9161';
+                try {
+                    const value = getComputedStyle(overlayRoot).getPropertyValue(varName).trim();
+                    if (value) {
+                        return value;
+                    }
+                } catch (error) {
+                    /* getComputedStyle unavailable — fall through to the static colour */
+                }
+                return fallback;
+            };
+            const formatPomoRemaining = seconds => {
+                const safe = Math.max(0, Math.floor(Number(seconds) || 0));
+                if (safe < 60) {
+                    // Sub-minute: show seconds so the badge doesn't sit on "0m".
+                    return `${safe}s`;
+                }
+                return `${Math.floor(safe / 60)}m`;
+            };
+            const findPomoRow = userId => {
+                const key = String(userId || '');
+                if (!key) {
+                    return null;
+                }
+                const listIds = ['newViewerTaskList', 'newUnifiedTaskList'];
+                for (const listId of listIds) {
+                    const list = document.getElementById(listId);
+                    if (!list) {
+                        continue;
+                    }
+                    const rows = list.querySelectorAll('.study-overlay-page-task-sys-item[data-user-id]');
+                    for (const row of rows) {
+                        if (row.dataset.userId === key) {
+                            return row;
+                        }
+                    }
+                }
+                return null;
+            };
+            const renderPomoBadge = userId => {
+                const key = String(userId || '');
+                const state = pomoState.get(key);
+                if (!state) {
+                    const orphan = document.getElementById('pomo-badge-' + key);
+                    if (orphan) orphan.remove();
+                    return;
+                }
+                const row = findPomoRow(key);
+                if (!row) {
+                    // No visible row yet — keep the state, drop any stale badge node.
+                    const orphan = document.getElementById('pomo-badge-' + key);
+                    if (orphan) orphan.remove();
+                    return;
+                }
+                const body = row.querySelector('.study-overlay-page-task-sys-item-body') || row;
+                let badge = document.getElementById('pomo-badge-' + key);
+                if (!badge || badge.parentElement !== body) {
+                    if (badge) badge.remove();
+                    badge = document.createElement('div');
+                    badge.id = 'pomo-badge-' + key;
+                    badge.className = 'study-overlay-page-pomo-badge';
+                    body.appendChild(badge);
+                }
+                const phase = state.phase === 'break' ? 'break' : 'work';
+                const isCompleted = state.status === 'completed' || state.phase === 'completed';
+                badge.dataset.phase = isCompleted ? 'completed' : phase;
+                const ringColor = isCompleted ? getPomoPhaseColor('work') : getPomoPhaseColor(phase);
+                badge.style.setProperty('--pomo-ring-color', ringColor);
+                let cycleSuffix = '';
+                if (Number.isFinite(state.totalCycles) && state.totalCycles > 1) {
+                    cycleSuffix = ` <span class="study-overlay-page-pomo-badge-cycle">${state.currentCycle}/${state.totalCycles}</span>`;
+                }
+                if (isCompleted) {
+                    badge.innerHTML = `<span class="study-overlay-page-pomo-badge-ring"></span><span class="study-overlay-page-pomo-badge-text">✓ done</span>`;
+                    return;
+                }
+                const phaseTag = phase === 'break' ? 'break' : '';
+                const labelHtml = state.label
+                    ? ` <span class="study-overlay-page-pomo-badge-label">${escapeHtml(state.label)}</span>`
+                    : '';
+                badge.innerHTML = `<span class="study-overlay-page-pomo-badge-ring"></span>`
+                    + `<span class="study-overlay-page-pomo-badge-text">${escapeHtml(formatPomoRemaining(state.remainingSeconds))}</span>`
+                    + (phaseTag ? ` <span class="study-overlay-page-pomo-badge-phase">${phaseTag}</span>` : '')
+                    + labelHtml + cycleSuffix;
+            };
+            const attachPomoBadgeToRow = userId => {
+                const key = String(userId || '');
+                if (!key || !pomoState.has(key)) {
+                    return;
+                }
+                renderPomoBadge(key);
+            };
+            const ensurePomoTicker = () => {
+                if (pomoTickerId !== null) {
+                    return;
+                }
+                pomoTickerId = setInterval(() => {
+                    let anyActive = false;
+                    pomoState.forEach((state, key) => {
+                        if (state.status !== 'active') {
+                            return;
+                        }
+                        anyActive = true;
+                        const next = Math.max(0, (Number(state.remainingSeconds) || 0) - 1);
+                        if (next !== state.remainingSeconds) {
+                            state.remainingSeconds = next;
+                            renderPomoBadge(key);
+                        }
+                    });
+                    if (!anyActive) {
+                        stopPomoTicker();
+                    }
+                }, 1000);
+            };
+            const stopPomoTicker = () => {
+                if (pomoTickerId !== null) {
+                    clearInterval(pomoTickerId);
+                    pomoTickerId = null;
+                }
+            };
+            const clearPomoBadge = userId => {
+                const key = String(userId || '');
+                if (!key) {
+                    return;
+                }
+                const existing = pomoState.get(key);
+                if (existing && existing.completedTimeoutId) {
+                    clearTimeout(existing.completedTimeoutId);
+                }
+                pomoState.delete(key);
+                const node = document.getElementById('pomo-badge-' + key);
+                if (node) node.remove();
+                // Idle the shared ticker if nothing is left running.
+                let anyActive = false;
+                pomoState.forEach(state => { if (state.status === 'active') anyActive = true; });
+                if (!anyActive) stopPomoTicker();
+            };
+            const applyPomoPayload = (payload, { replace = false } = {}) => {
+                if (!payload || payload.user_id === undefined || payload.user_id === null) {
+                    return;
+                }
+                const key = String(payload.user_id);
+                const phase = payload.current_phase === 'break' ? 'break' : 'work';
+                const remaining = Math.max(0, Math.floor(Number(payload.remaining_seconds) || 0));
+                const status = payload.status === 'completed' || payload.status === 'cancelled'
+                    ? payload.status
+                    : 'active';
+                let state = pomoState.get(key);
+                if (!state || replace) {
+                    if (state && state.completedTimeoutId) {
+                        clearTimeout(state.completedTimeoutId);
+                    }
+                    state = {
+                        remainingSeconds: remaining,
+                        phase,
+                        label: null,
+                        currentCycle: 1,
+                        totalCycles: 1,
+                        userName: '',
+                        status: 'active',
+                        completedTimeoutId: null
+                    };
+                    pomoState.set(key, state);
+                }
+                state.remainingSeconds = remaining;
+                state.phase = phase;
+                state.status = status;
+                state.label = (payload.label !== undefined && payload.label !== null && String(payload.label).trim())
+                    ? String(payload.label).trim()
+                    : null;
+                if (payload.user_name) {
+                    state.userName = String(payload.user_name);
+                }
+                const currentCycle = Number(payload.current_cycle);
+                state.currentCycle = Number.isFinite(currentCycle) && currentCycle >= 1 ? Math.round(currentCycle) : 1;
+                const totalCycles = Number(payload.total_cycles);
+                state.totalCycles = Number.isFinite(totalCycles) && totalCycles >= 1 ? Math.round(totalCycles) : 1;
+                renderPomoBadge(key);
+                if (state.status === 'active') {
+                    ensurePomoTicker();
+                }
+            };
             const connect = () => {
                 setConnectionStatus('Connecting…', 'connecting');
                 console.log('[Overlay] Creating socket connection...');
@@ -1054,6 +1493,7 @@ ob_end_clean();
                     });
                     console.log('[Overlay] Sent REGISTER event for code/name:', overlayApiKey, overlayConnectionName);
                     emitSessionStats();
+                    syncTaskPanelVisibility();
                     loadSettingsFromAPI();
                     loadChannelTasks();
                     startStatsTicker();
@@ -1094,6 +1534,13 @@ ob_end_clean();
                         return;
                     }
                     updateDurationsFromPayload(payload);
+                    applyCycleConfigFromPayload(payload);
+                    if (payload.theme !== undefined) {
+                        applyOverlayTheme(payload.theme);
+                    }
+                    if (payload.list_view_mode !== undefined) {
+                        applyListViewMode(payload.list_view_mode);
+                    }
                     if (!timerState.timerRunning && !timerState.timerPaused) {
                         timerState.totalDuration = timerState.durations[timerState.currentPhase];
                         timerState.remainingSeconds = timerState.totalDuration;
@@ -1146,33 +1593,38 @@ ob_end_clean();
                     }
                     emitTimerUpdate();
                 });
-                // ── New channel task system events ──────────────────────────
                 socket.on('TASK_LIST_SYNC', (d) => {
-                    renderNewStreamerList(d.streamer_tasks || []);
-                    renderNewViewerList(d.user_tasks || []);
+                    latestStreamerTasks = d.streamer_tasks || [];
+                    latestViewerTasks = d.user_tasks || [];
+                    renderTaskLists();
                 });
                 socket.on('TASK_CREATE', (d) => {
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
                     const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
                     if (owner === 'streamer' || (!owner && !d?.task?.user_name)) newStreamerUpsert(d.task);
                     else newViewerUpsert(d.task);
                 });
                 socket.on('TASK_UPDATE', (d) => {
                     if (!d.task) return;
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
                     const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
                     if (owner === 'streamer' || (!owner && !d?.task?.user_name)) newStreamerUpsert(d.task);
                     else newViewerUpsert(d.task);
                 });
                 socket.on('TASK_COMPLETE', (d) => {
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
                     newSetDone(d.task_id, d.owner);
                 });
                 socket.on('TASK_APPROVE', (d) => {
                     // Approval means the task is accepted; no visual change here beyond completion
                 });
                 socket.on('TASK_REJECT', (d) => {
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
                     const el = document.getElementById('new-viewer-task-' + d.task_id);
                     if (el) el.style.opacity = '0.2';
                 });
                 socket.on('TASK_DELETE', (d) => {
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
                     const owner = String(d?.owner || '').toLowerCase();
                     if (owner === 'streamer') {
                         document.getElementById('new-streamer-task-' + d.task_id)?.remove();
@@ -1186,6 +1638,46 @@ ob_end_clean();
                 });
                 socket.on('TASK_REWARD_CONFIRM', (d) => {
                     showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');
+                });
+                socket.on('USER_POMO_START', (d) => {
+                    applyPomoPayload(d, { replace: true });
+                });
+                socket.on('USER_POMO_UPDATE', (d) => {
+                    applyPomoPayload(d);
+                });
+                socket.on('USER_POMO_PHASE', (d) => {
+                    applyPomoPayload(d);
+                });
+                socket.on('USER_POMO_COMPLETE', (d) => {
+                    if (!d || d.user_id === undefined || d.user_id === null) {
+                        return;
+                    }
+                    const key = String(d.user_id);
+                    // Resync first so the badge reflects the final state, then
+                    // flip it to a completed badge and clear after a brief beat.
+                    applyPomoPayload(d);
+                    const state = pomoState.get(key);
+                    if (!state) {
+                        return;
+                    }
+                    state.status = 'completed';
+                    state.phase = 'completed';
+                    state.remainingSeconds = 0;
+                    renderPomoBadge(key);
+                    // Idle the ticker if nothing else is active.
+                    let anyActive = false;
+                    pomoState.forEach(s => { if (s.status === 'active') anyActive = true; });
+                    if (!anyActive) stopPomoTicker();
+                    if (state.completedTimeoutId) {
+                        clearTimeout(state.completedTimeoutId);
+                    }
+                    state.completedTimeoutId = setTimeout(() => clearPomoBadge(key), 6000);
+                });
+                socket.on('USER_POMO_CANCEL', (d) => {
+                    if (!d || d.user_id === undefined || d.user_id === null) {
+                        return;
+                    }
+                    clearPomoBadge(d.user_id);
                 });
                 socket.on('SPECTER_SESSION_STATS', payload => {
                     if (!payload) return;

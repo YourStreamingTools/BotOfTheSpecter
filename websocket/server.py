@@ -102,6 +102,8 @@ class BotOfTheSpecter_WebsocketServer:
         self.global_listeners = []
         # Track explicitly registered event names so wildcard handling doesn't duplicate
         self.explicit_event_handlers = set()
+        self._pomo_active_dbs = {}
+        self.pomo_ticker_task = None
         # Load admin code from environment variable
         self.admin_code = os.getenv("ADMIN_KEY")
         if not self.admin_code:
@@ -217,6 +219,11 @@ class BotOfTheSpecter_WebsocketServer:
             ("TASK_DELETE",          self.handle_task_delete),
             ("TASK_REWARD_CONFIRM",  self.handle_task_reward_confirm),
             ("TASK_SETTINGS_UPDATE", self.handle_task_settings_update),
+            ("USER_POMO_START",    self.handle_user_pomo_start),
+            ("USER_POMO_CANCEL",   self.handle_user_pomo_cancel),
+            ("USER_POMO_UPDATE",   self.handle_user_pomo_outbound),
+            ("USER_POMO_PHASE",    self.handle_user_pomo_outbound),
+            ("USER_POMO_COMPLETE", self.handle_user_pomo_outbound),
             # OBS events: FROM OBS TO Specter (incoming notifications from OBS)
             ("OBS_EVENT", self.obs_handler.handle_obs_event),
             ("OBS_EVENT_RECEIVED", self.obs_handler.handle_obs_event_received),
@@ -402,6 +409,323 @@ class BotOfTheSpecter_WebsocketServer:
                 count += 1
         self.logger.info(f"broadcast_to_task_clients_only: Broadcasted {event_name} to {count} clients (code: {effective_code})")
         return count
+
+    POMO_UPDATE_INTERVAL = 10  # seconds between USER_POMO_UPDATE countdown broadcasts
+
+    def _coerce_pomo_int(self, value, default, lo, hi):
+        try:
+            n = int(value)
+        except (TypeError, ValueError):
+            return default
+        if n < lo:
+            return lo
+        if n > hi:
+            return hi
+        return n
+
+    async def handle_user_pomo_start(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid) or payload.get('code') or payload.get('channel_code')
+        self.logger.info(f"USER_POMO_START from [{sid}] (code: {code}): {payload}")
+        await self.handle_user_pomo_start_http(code, payload, source_sid=sid)
+
+    async def handle_user_pomo_cancel(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid) or payload.get('code') or payload.get('channel_code')
+        self.logger.info(f"USER_POMO_CANCEL from [{sid}] (code: {code}): {payload}")
+        await self.handle_user_pomo_cancel_http(code, payload, source_sid=sid)
+
+    async def handle_user_pomo_outbound(self, sid, data):
+        self.logger.debug(f"Ignoring inbound outbound-only pomo event from [{sid}]")
+
+    async def _resolve_pomo_db(self, code):
+        # Map a channel API key (code) to its per-user database name (username).
+        if not code:
+            return None
+        try:
+            info = await self.get_user_api_key_info(code)
+            if info and info.get('username'):
+                return info['username']
+        except Exception as e:
+            self.logger.error(f"_resolve_pomo_db: failed to resolve code: {e}")
+        return None
+
+    async def handle_user_pomo_start_http(self, code, data, source_sid=None):
+        # Create (or replace) the chatter's active pomo. Server is the single writer.
+        try:
+            payload = data if isinstance(data, dict) else {}
+            user_id = payload.get('user_id')
+            user_name = payload.get('user_name') or 'unknown'
+            label = payload.get('label') or None
+            if isinstance(label, str):
+                label = label.strip()[:255] or None
+            if not user_id:
+                self.logger.warning("USER_POMO_START: missing user_id, ignoring")
+                return 0
+            # Validate/clamp timings server-side too (defence in depth — never trust input).
+            work_minutes = self._coerce_pomo_int(payload.get('work_minutes'), None, 1, 600)
+            break_minutes = self._coerce_pomo_int(payload.get('break_minutes'), 0, 0, 120)
+            total_cycles = self._coerce_pomo_int(payload.get('total_cycles'), 1, 1, 24)
+            if work_minutes is None:
+                self.logger.warning("USER_POMO_START: invalid work_minutes, ignoring")
+                return 0
+            db_name = await self._resolve_pomo_db(code)
+            if not db_name:
+                self.logger.warning(f"USER_POMO_START: could not resolve DB for code, ignoring")
+                return 0
+            # Single-active / replace-on-new (locked decision §8.4): cancel any existing
+            # active pomo for this user_id, then insert the new one.
+            replaced = await self.execute_query(
+                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "WHERE user_id = %s AND status = 'active'",
+                (str(user_id),), database_name=db_name
+            )
+            # Only when we actually cancelled a prior pomo, tell overlays the old badge is
+            # gone (reason='replaced') before the new USER_POMO_START arrives.
+            if replaced:
+                await self.broadcast_to_task_clients_only("USER_POMO_CANCEL", {
+                    "channel_code": code, "user_id": str(user_id), "user_name": user_name,
+                    "reason": "replaced",
+                }, source_sid=source_sid)
+            # Insert the new pomo: phase_started_at = NOW(), phase_ends_at = NOW() + work.
+            await self.execute_query(
+                "INSERT INTO user_pomos "
+                "(user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                " current_cycle, current_phase, phase_started_at, phase_ends_at, status) "
+                "VALUES (%s, %s, %s, %s, %s, %s, 1, 'work', NOW(), "
+                " DATE_ADD(NOW(), INTERVAL %s MINUTE), 'active')",
+                (str(user_id), user_name, label, work_minutes, break_minutes, total_cycles, work_minutes),
+                database_name=db_name
+            )
+            # Read back the freshly-created row so the broadcast carries real ids/timestamps.
+            rows = await self.execute_query(
+                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                "current_cycle, current_phase, "
+                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                "FROM user_pomos WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
+                (str(user_id),), database_name=db_name
+            )
+            row = rows[0] if rows else None
+            if not row:
+                self.logger.error("USER_POMO_START: row not found after insert")
+                return 0
+            # Make sure the ticker watches this DB immediately (don't wait for the 60s refresh).
+            self._pomo_active_dbs[db_name] = code
+            event_payload = self._pomo_row_to_payload(row, code)
+            count = await self.broadcast_to_task_clients_only("USER_POMO_START", event_payload, source_sid=source_sid)
+            self.logger.info(f"USER_POMO_START: created pomo {row.get('id')} for user {user_name} in DB {db_name}")
+            return count
+        except Exception as e:
+            self.logger.error(f"handle_user_pomo_start_http error: {e}")
+            return 0
+
+    async def handle_user_pomo_cancel_http(self, code, data, source_sid=None):
+        try:
+            payload = data if isinstance(data, dict) else {}
+            user_id = payload.get('user_id')
+            user_name = payload.get('user_name') or 'unknown'
+            if not user_id:
+                self.logger.warning("USER_POMO_CANCEL: missing user_id, ignoring")
+                return 0
+            db_name = await self._resolve_pomo_db(code)
+            if not db_name:
+                self.logger.warning("USER_POMO_CANCEL: could not resolve DB for code, ignoring")
+                return 0
+            await self.execute_query(
+                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "WHERE user_id = %s AND status = 'active'",
+                (str(user_id),), database_name=db_name
+            )
+            count = await self.broadcast_to_task_clients_only("USER_POMO_CANCEL", {
+                "channel_code": code, "user_id": str(user_id), "user_name": user_name,
+                "reason": "cancelled",
+            }, source_sid=source_sid)
+            self.logger.info(f"USER_POMO_CANCEL: cancelled pomo(s) for user {user_name} in DB {db_name}")
+            return count
+        except Exception as e:
+            self.logger.error(f"handle_user_pomo_cancel_http error: {e}")
+            return 0
+
+    def _pomo_row_to_payload(self, row, code):
+        # Normalise a user_pomos row dict into the wire payload consumed by the overlay.
+        remaining = row.get('remaining_seconds')
+        try:
+            remaining = max(0, int(remaining)) if remaining is not None else 0
+        except (TypeError, ValueError):
+            remaining = 0
+        return {
+            "channel_code": code,
+            "id": row.get('id'),
+            "user_id": str(row.get('user_id')) if row.get('user_id') is not None else None,
+            "user_name": row.get('user_name'),
+            "label": row.get('label'),
+            "work_minutes": int(row.get('work_minutes') or 0),
+            "break_minutes": int(row.get('break_minutes') or 0),
+            "total_cycles": int(row.get('total_cycles') or 1),
+            "current_cycle": int(row.get('current_cycle') or 1),
+            "current_phase": row.get('current_phase') or 'work',
+            "phase_started_at": row.get('phase_started_at'),
+            "phase_ends_at": row.get('phase_ends_at'),
+            "remaining_seconds": remaining,
+            "status": row.get('status') or 'active',
+        }
+
+    async def refresh_pomo_active_dbs(self):
+        try:
+            rows = await self.execute_query(
+                "SELECT username, api_key FROM users WHERE username IS NOT NULL AND api_key IS NOT NULL",
+                database_name='website'
+            )
+            if rows is None:
+                self.logger.warning("refresh_pomo_active_dbs: users query returned None, keeping existing cache")
+                return
+            new_map = {}
+            for r in rows:
+                username = r.get('username')
+                api_key = r.get('api_key')
+                if username and api_key:
+                    new_map[username] = api_key
+            # Preserve any just-started DBs that may not yet be in the users snapshot.
+            for db_name, code in list(self._pomo_active_dbs.items()):
+                new_map.setdefault(db_name, code)
+            self._pomo_active_dbs = new_map
+            self.logger.info(f"refresh_pomo_active_dbs: tracking {len(self._pomo_active_dbs)} candidate pomo DBs")
+        except Exception as e:
+            self.logger.error(f"refresh_pomo_active_dbs error: {e}")
+
+    async def _advance_pomo_row(self, db_name, code, row):
+        pomo_id = row.get('id')
+        work_minutes = int(row.get('work_minutes') or 0)
+        break_minutes = int(row.get('break_minutes') or 0)
+        total_cycles = int(row.get('total_cycles') or 1)
+        current_cycle = int(row.get('current_cycle') or 1)
+        current_phase = row.get('current_phase') or 'work'
+        guard = 0  # safety bound against any pathological 0-length loop
+        while guard < 10000:
+            guard += 1
+            if current_phase == 'work':
+                if current_cycle >= total_cycles:
+                    await self.execute_query(
+                        "UPDATE user_pomos SET status = 'completed', current_phase = 'completed' "
+                        "WHERE id = %s",
+                        (pomo_id,), database_name=db_name
+                    )
+                    await self._emit_pomo_event("USER_POMO_COMPLETE", db_name, code, pomo_id)
+                    return
+                elif break_minutes > 0:
+                    current_phase = 'break'
+                    await self.execute_query(
+                        "UPDATE user_pomos SET current_phase = 'break', phase_started_at = phase_ends_at, "
+                        "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
+                        (break_minutes, pomo_id), database_name=db_name
+                    )
+                else:
+                    current_cycle += 1
+                    current_phase = 'work'
+                    await self.execute_query(
+                        "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                        "phase_started_at = phase_ends_at, "
+                        "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
+                        (work_minutes, pomo_id), database_name=db_name
+                    )
+                await self._emit_pomo_event("USER_POMO_PHASE", db_name, code, pomo_id)
+            else:  # current_phase == 'break' ending -> next work cycle
+                current_cycle += 1
+                current_phase = 'work'
+                await self.execute_query(
+                    "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                    "phase_started_at = phase_ends_at, "
+                    "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
+                    (work_minutes, pomo_id), database_name=db_name
+                )
+                await self._emit_pomo_event("USER_POMO_PHASE", db_name, code, pomo_id)
+            # Re-check: is the (now advanced) phase still expired? If so, loop (catch-up).
+            check = await self.execute_query(
+                "SELECT (phase_ends_at <= NOW()) AS expired FROM user_pomos WHERE id = %s",
+                (pomo_id,), database_name=db_name
+            )
+            if not check or not check[0].get('expired'):
+                return
+
+    async def _emit_pomo_event(self, event_name, db_name, code, pomo_id):
+        try:
+            rows = await self.execute_query(
+                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                "current_cycle, current_phase, "
+                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                "FROM user_pomos WHERE id = %s LIMIT 1",
+                (pomo_id,), database_name=db_name
+            )
+            if not rows:
+                return
+            payload = self._pomo_row_to_payload(rows[0], code)
+            await self.broadcast_to_task_clients_only(event_name, payload)
+        except Exception as e:
+            self.logger.error(f"_emit_pomo_event({event_name}) error for pomo {pomo_id} in {db_name}: {e}")
+
+    async def _process_pomo_db(self, db_name, code, do_update):
+        expired = await self.execute_query(
+            "SELECT id, work_minutes, break_minutes, total_cycles, current_cycle, current_phase "
+            "FROM user_pomos WHERE status = 'active' AND phase_ends_at <= NOW()",
+            database_name=db_name
+        )
+        if expired:
+            for row in expired:
+                await self._advance_pomo_row(db_name, code, row)
+        if do_update:
+            actives = await self.execute_query(
+                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                "current_cycle, current_phase, "
+                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                "FROM user_pomos WHERE status = 'active'",
+                (), database_name=db_name
+            )
+            if actives:
+                for row in actives:
+                    payload = self._pomo_row_to_payload(row, code)
+                    await self.broadcast_to_task_clients_only("USER_POMO_UPDATE", payload)
+
+    async def start_pomo_ticker_task(self):
+        # Launch the once-per-second pomo ticker. Initialises caches, does a first DB-list
+        # refresh, then loops. Stored as self.pomo_ticker_task so on_shutdown can cancel it.
+        if not hasattr(self, '_pomo_active_dbs'):
+            self._pomo_active_dbs = {}
+        await self.refresh_pomo_active_dbs()
+
+        async def pomo_ticker():
+            last_db_refresh = time.time()
+            last_global_update = time.time()
+            while True:
+                try:
+                    await asyncio.sleep(1)
+                    now = time.time()
+                    # Refresh the candidate-DB list every 60s.
+                    if now - last_db_refresh >= 60:
+                        await self.refresh_pomo_active_dbs()
+                        last_db_refresh = now
+                    # Decide whether this tick should also emit periodic UPDATE broadcasts.
+                    do_update = (now - last_global_update) >= self.POMO_UPDATE_INTERVAL
+                    if do_update:
+                        last_global_update = now
+                    # Iterate a snapshot so a concurrent refresh/inject can't mutate mid-loop.
+                    for db_name, code in list(self._pomo_active_dbs.items()):
+                        try:
+                            await self._process_pomo_db(db_name, code, do_update)
+                        except Exception as e:
+                            # Multi-tenant isolation: log and continue past a bad tenant.
+                            self.logger.error(f"pomo_ticker: error processing DB {db_name}: {e}")
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error in pomo ticker: {e}")
+        self.pomo_ticker_task = asyncio.create_task(pomo_ticker())
+        self.logger.info("Pomo ticker task started")
 
     async def event(self, sid, event, data):
         # Handle generic events for SocketIO.
@@ -818,6 +1142,10 @@ class BotOfTheSpecter_WebsocketServer:
             # Handle Tanngle puzzle and Stream Bingo events
             count = await self.broadcast_event_with_globals(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
+        elif event == "USER_POMO_START":
+            count = await self.handle_user_pomo_start_http(code, data)
+        elif event == "USER_POMO_CANCEL":
+            count = await self.handle_user_pomo_cancel_http(code, data)
         else:
             # Broadcast other events to connected clients
             if code in self.registered_clients:
@@ -1089,6 +1417,9 @@ class BotOfTheSpecter_WebsocketServer:
         # Cancel SSH cleanup task if running
         if hasattr(self, 'ssh_cleanup_task') and self.ssh_cleanup_task:
             self.ssh_cleanup_task.cancel()
+        # Cancel the pomo ticker if running
+        if hasattr(self, 'pomo_ticker_task') and self.pomo_ticker_task:
+            self.pomo_ticker_task.cancel()
         # Stop TTS processing
         await self.tts_handler.stop_processing()
         # Clean up all SSH connections
@@ -1108,6 +1439,8 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info("Starting application startup tasks...")
         # Start the SSH cleanup task
         await self.start_ssh_cleanup_task()
+        # Start the personal-pomo ticker (Phase 3 — drives all USER_POMO_* transitions)
+        await self.start_pomo_ticker_task()
         # Start the TTS processing task
         await self.tts_handler.start_processing()
         # Write (or touch) an uptime marker file so external services can read websocket start time via SSH
