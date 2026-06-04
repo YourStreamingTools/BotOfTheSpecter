@@ -1006,7 +1006,7 @@ ob_end_clean();
                     if (streamerFilterParam === 'false') {
                         return 'Working Study - Task List - Users';
                     }
-                    return 'Working Study - Task List - Users';
+                    return 'Working Study - Task List - Combined';
                 }
                 if (hasTimerQuery || !hasTasklistQuery) {
                     return 'Working Study - Timer';
