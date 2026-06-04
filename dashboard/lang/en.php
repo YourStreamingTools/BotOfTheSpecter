@@ -2216,7 +2216,6 @@ return [
     'raffles_cancel_edit' => 'Cancel Edit',
     'raffles_confirm_delete' => 'Delete this raffle? This also removes its entries and winners. This cannot be undone.',
     // music.php
-    'music_repeat_one' => 'Repeat 1',
     'music_music_source' => 'Music source',
     'music_source_builtin' => 'Built-in (DMCA-free)',
     'music_source_uploads' => 'Use my uploads',
