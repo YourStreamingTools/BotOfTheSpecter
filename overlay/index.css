@@ -2187,3 +2187,152 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     0%, 100% { transform: scaleY(0.35); }
     50%      { transform: scaleY(1); }
 }
+
+/* ===== Closed Captions Overlay ===== */
+.closed-captions-overlay-page {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+.closed-captions-overlay-page-root {
+    position: fixed;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    padding: 0 4vw;
+    box-sizing: border-box;
+    pointer-events: none;
+    /* Defaults; overridden inline from settings via CSS custom properties. */
+    --cc-font-size: 2.96vh; /* ≈ 32px at 1080p */
+    --cc-text-color: #ffffff;
+}
+
+/* On-screen position */
+.closed-captions-overlay-page-root[data-position="bottom"] {
+    bottom: 6vh;
+    align-items: flex-end;
+}
+.closed-captions-overlay-page-root[data-position="top"] {
+    top: 6vh;
+    align-items: flex-start;
+}
+.closed-captions-overlay-page-root[data-position="center"] {
+    top: 50%;
+    transform: translateY(-50%);
+    align-items: center;
+}
+
+/* Hide the band entirely when captions are disabled. */
+.closed-captions-overlay-page-root[data-enabled="false"] {
+    display: none;
+}
+
+.closed-captions-overlay-page-band {
+    max-width: 92%;
+    text-align: center;
+    border-radius: 0.6vh;
+    padding: 1vh 2vh;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 600;
+    line-height: 1.3;
+    font-size: var(--cc-font-size);
+    color: var(--cc-text-color);
+    transition: opacity 600ms ease;
+    opacity: 1;
+}
+
+/* Background styles */
+.closed-captions-overlay-page-root[data-background="box"] .closed-captions-overlay-page-band {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.closed-captions-overlay-page-root[data-background="outline"] .closed-captions-overlay-page-band {
+    background: transparent;
+    border: none;
+    text-shadow:
+        -0.12vh -0.12vh 0 #000, 0.12vh -0.12vh 0 #000,
+        -0.12vh 0.12vh 0 #000, 0.12vh 0.12vh 0 #000,
+        0 0 0.6vh rgba(0, 0, 0, 0.9);
+}
+.closed-captions-overlay-page-root[data-background="none"] .closed-captions-overlay-page-band {
+    background: transparent;
+    border: none;
+}
+
+/* Fade-out after a period with no new text. */
+.closed-captions-overlay-page-band.is-faded {
+    opacity: 0;
+}
+
+.closed-captions-overlay-page-line {
+    margin: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+.closed-captions-overlay-page-line + .closed-captions-overlay-page-line {
+    margin-top: 0.2vh;
+}
+
+/* Interim (not-yet-final) text renders dimmer to signal it is uncommitted. */
+.closed-captions-overlay-page-interim {
+    margin: 0;
+    opacity: 0;
+    color: var(--cc-text-color);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    transition: opacity 150ms ease;
+}
+.closed-captions-overlay-page-interim.is-active {
+    opacity: 0.65;
+    margin-top: 0.2vh;
+}
+
+.closed-captions-overlay-page-status {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 100;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.6);
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #fff;
+    transition: opacity 350ms ease;
+}
+/* Hidden once connected so it isn't burned into the stream output. */
+.closed-captions-overlay-page-status[data-state="connected"] {
+    border-color: #32d486;
+    color: #32d486;
+    opacity: 0;
+    pointer-events: none;
+}
+.closed-captions-overlay-page-status[data-state="connecting"] {
+    color: #f6c451;
+}
+.closed-captions-overlay-page-status[data-state="error"] {
+    color: #ff6555;
+}
+
+.closed-captions-overlay-page-error-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4vw;
+    text-align: center;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.85);
+}
+.closed-captions-overlay-page-error-screen a {
+    color: #5cb8ff;
+}

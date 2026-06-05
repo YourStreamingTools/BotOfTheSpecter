@@ -236,6 +236,8 @@ class BotOfTheSpecter_WebsocketServer:
             # Chat moderation events (from bot, relayed to overlay)
             ("CHAT_CLEAR", self.handle_chat_clear),
             ("CHAT_MESSAGE_DELETE", self.handle_chat_message_delete),
+            ("CLOSED_CAPTION",       self.handle_closed_caption),
+            ("CLOSED_CAPTION_CLEAR", self.handle_closed_caption_clear),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -319,6 +321,21 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.warning(f"CHAT_MESSAGE_DELETE from [{sid}]: could not resolve code, event dropped")
             return
         await self.broadcast_event_with_globals("CHAT_MESSAGE_DELETE", payload, code=code, source_sid=sid)
+
+    async def handle_closed_caption(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code:
+            self.logger.warning(f"CLOSED_CAPTION from [{sid}]: could not resolve code, dropped")
+            return
+        await self.broadcast_event_with_globals("CLOSED_CAPTION", payload, code=code, source_sid=sid)
+
+    async def handle_closed_caption_clear(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code:
+            return
+        await self.broadcast_event_with_globals("CLOSED_CAPTION_CLEAR", payload, code=code, source_sid=sid)
 
     async def handle_task_create(self, sid, data):
         payload = data if isinstance(data, dict) else {}

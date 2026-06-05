@@ -3750,3 +3750,138 @@ label.checkbox input[type="checkbox"] {
 @media (hover: none) {
     .todo-cat-remove-form { opacity: 1; }
 }
+
+/* ----- Closed Captions page ----- */
+.cc-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+.cc-url-card {
+    margin-bottom: 1.5rem;
+}
+.cc-url-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.cc-url-row .cc-url-box {
+    flex: 1 1 280px;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    margin-bottom: 0;
+}
+.cc-browser-note {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+.cc-browser-note-icon {
+    font-size: 1.5rem;
+    color: var(--blue);
+    flex-shrink: 0;
+}
+.cc-browser-note-title {
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+.cc-browser-note-body {
+    margin-bottom: 0;
+}
+.cc-help-text {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+.cc-hidden {
+    display: none;
+}
+.cc-control-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+.cc-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.25rem;
+    margin: 1rem 0;
+}
+.cc-color-input {
+    width: 60px;
+    height: 38px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    cursor: pointer;
+}
+.cc-save-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+.cc-save-status {
+    font-size: 0.85rem;
+}
+.cc-save-status.is-success {
+    color: var(--green);
+}
+.cc-save-status.is-error {
+    color: var(--red);
+}
+.cc-preview-wrap {
+    margin-top: 0.5rem;
+}
+.cc-preview-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+.cc-preview {
+    min-height: 4rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+.cc-preview-placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+}
+.cc-preview-final {
+    color: var(--text-primary);
+}
+.cc-preview-interim {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+.cc-url-box {
+    font-family: monospace;
+    margin-bottom: 0;
+    word-break: break-all;
+}
+@media (max-width: 1023px) {
+    .cc-layout {
+        grid-template-columns: 1fr;
+    }
+    .cc-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+@media (max-width: 640px) {
+    .cc-control-row {
+        flex-direction: column;
+    }
+}
