@@ -1040,7 +1040,7 @@ ob_end_clean();
                 }
                 setTimeout(connect, delay);
             };
-            // ─── New channel task system helpers ───────────────────────────
+            // New channel task system helpers
             const channelTasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_channel_tasks`;
             let latestStreamerTasks = [];
             let latestViewerTasks = [];
