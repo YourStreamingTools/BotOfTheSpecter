@@ -202,8 +202,13 @@ ob_end_clean();
 
             // Caption rendering
             const committedLines = [];
+            const committedActions = []; // parallel to committedLines: true => bracketed action tag
             let interimText = '';
             let fadeTimer = null;
+            // A caption is an action tag when the emitter flags it, or (fallback) the
+            // text is a single bracketed token like [LAUGHING].
+            const isActionCaption = (payload, text) =>
+                (payload && payload.action === true) || /^\[.+\]$/.test(String(text || '').trim());
             const escapeHtml = text => {
                 const div = document.createElement('div');
                 div.textContent = text == null ? '' : String(text);
@@ -232,10 +237,15 @@ ob_end_clean();
                 const max = Math.max(1, settings.maxLines);
                 const hasInterim = interimText.length > 0;
                 const committedSlots = hasInterim ? max - 1 : max;
-                const visible = committedSlots > 0 ? committedLines.slice(-committedSlots) : [];
-                ccLines.innerHTML = visible.map(line =>
-                    `<div class="closed-captions-overlay-page-line">${escapeHtml(line)}</div>`
-                ).join('');
+                const startIdx = committedSlots > 0 ? Math.max(0, committedLines.length - committedSlots) : committedLines.length;
+                const visible = committedLines.slice(startIdx);
+                ccLines.innerHTML = visible.map((line, i) => {
+                    const isAction = committedActions[startIdx + i] === true;
+                    const cls = isAction
+                        ? 'closed-captions-overlay-page-line closed-captions-overlay-page-line--action'
+                        : 'closed-captions-overlay-page-line';
+                    return `<div class="${cls}">${escapeHtml(line)}</div>`;
+                }).join('');
                 if (hasInterim) {
                     ccInterim.textContent = interimText;
                     ccInterim.classList.add('is-active');
@@ -246,6 +256,7 @@ ob_end_clean();
             };
             const blankBand = () => {
                 committedLines.length = 0;
+                committedActions.length = 0;
                 interimText = '';
                 renderBand();
                 if (fadeTimer) {
@@ -254,14 +265,16 @@ ob_end_clean();
                 }
                 ccBand.classList.add('is-faded');
             };
-            const commitText = text => {
+            const commitText = (text, isAction) => {
                 const clean = String(text || '').trim();
                 if (!clean) {
                     return;
                 }
                 committedLines.push(clean);
+                committedActions.push(isAction === true);
                 while (committedLines.length > Math.max(1, settings.maxLines)) {
                     committedLines.shift();
+                    committedActions.shift();
                 }
                 interimText = '';
                 renderBand();
@@ -280,14 +293,18 @@ ob_end_clean();
                 }
                 const text = payload.text != null ? String(payload.text) : '';
                 const isFinal = payload.isFinal === true || payload.isFinal === 1 || payload.is_final === true;
+                const isAction = isActionCaption(payload, text);
                 // If the band has faded out (a pause since the last caption), drop the previous
                 // sentence first so it doesn't flash back when the user resumes speaking.
                 if (ccBand.classList.contains('is-faded')) {
                     committedLines.length = 0;
+                    committedActions.length = 0;
                     interimText = '';
                 }
-                if (isFinal) {
-                    commitText(text);
+                // Action tags are always committed as their own caption line (they never
+                // arrive as interim text), flagged so renderBand styles them distinctly.
+                if (isFinal || isAction) {
+                    commitText(text, isAction);
                 } else {
                     showInterim(text);
                 }
