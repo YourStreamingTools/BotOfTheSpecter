@@ -2274,6 +2274,12 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .closed-captions-overlay-page-line + .closed-captions-overlay-page-line {
     margin-top: 0.2vh;
 }
+/* Bracketed sound-action tags (e.g. [LAUGHING]) render dimmed + italic so they
+   read as a distinct, non-spoken caption line. */
+.closed-captions-overlay-page-line--action {
+    font-style: italic;
+    opacity: 0.75;
+}
 
 /* Interim (not-yet-final) text renders dimmer to signal it is uncommitted. */
 .closed-captions-overlay-page-interim {

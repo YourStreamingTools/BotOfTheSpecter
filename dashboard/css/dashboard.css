@@ -3835,6 +3835,11 @@ label.checkbox input[type="checkbox"] {
 .cc-save-status.is-error {
     color: var(--red);
 }
+.cc-sound-status {
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
 .cc-preview-wrap {
     margin-top: 0.5rem;
 }

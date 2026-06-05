@@ -38,8 +38,9 @@ $cc = [
     'max_lines' => 2,
     'fade_seconds' => 5,
     'profanity_filter' => 0,
+    'action_tags_enabled' => 0,
 ];
-$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter FROM closed_captions_settings WHERE id = 1");
+$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled FROM closed_captions_settings WHERE id = 1");
 if ($ccStmt) {
     $ccStmt->execute();
     $ccResult = $ccStmt->get_result();
@@ -62,12 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cc_save'])) {
     $maxLines = max(1, min(5, intval($_POST['max_lines'] ?? 2)));
     $fadeSeconds = max(0, min(60, intval($_POST['fade_seconds'] ?? 5)));
     $profanity = !empty($_POST['profanity_filter']) ? 1 : 0;
-    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter)");
+    $actionTags = !empty($_POST['action_tags_enabled']) ? 1 : 0;
+    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled)");
     if (!$saveStmt) {
         echo json_encode(['success' => false, 'error' => $db->error]);
         exit;
     }
-    $saveStmt->bind_param("isisssiii", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity);
+    $saveStmt->bind_param("isisssiiii", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags);
     if ($saveStmt->execute()) {
         echo json_encode(['success' => true]);
     } else {
@@ -144,6 +146,7 @@ ob_start();
                     <i class="fas fa-stop"></i> <?= t('closed_captions_stop') ?>
                 </button>
             </div>
+            <div class="cc-sound-status cc-hidden" id="ccSoundStatus"></div>
             <div class="cc-preview-wrap">
                 <div class="cc-preview-label"><?= t('closed_captions_live_preview') ?></div>
                 <div class="cc-preview" id="ccPreview">
@@ -221,6 +224,13 @@ ob_start();
                     </label>
                     <span class="sp-help"><?= t('closed_captions_profanity_help') ?></span>
                 </div>
+                <div class="sp-form-group">
+                    <label class="switch">
+                        <input type="checkbox" id="ccActionTags" name="action_tags_enabled" value="1" <?= $cc['action_tags_enabled'] ? 'checked' : '' ?>>
+                        <span><?= t('closed_captions_action_tags_label') ?></span>
+                    </label>
+                    <span class="sp-help"><?= t('closed_captions_action_tags_help') ?></span>
+                </div>
                 <div class="cc-save-row">
                     <span id="ccSaveStatus" class="cc-save-status"></span>
                     <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-save"></i> <?= t('closed_captions_save') ?></button>
@@ -239,6 +249,7 @@ ob_start();
 <script>
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
+    const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
     const ccLang = {
         listening: <?php echo json_encode(t('closed_captions_status_listening')); ?>,
         idle: <?php echo json_encode(t('closed_captions_status_idle')); ?>,
@@ -252,7 +263,10 @@ ob_start();
         previewPlaceholder: <?php echo json_encode(t('closed_captions_preview_placeholder')); ?>,
         urlShow: <?php echo json_encode(t('closed_captions_overlay_url_show')); ?>,
         urlHide: <?php echo json_encode(t('closed_captions_overlay_url_hide')); ?>,
-        urlCopied: <?php echo json_encode(t('closed_captions_overlay_url_copied')); ?>
+        urlCopied: <?php echo json_encode(t('closed_captions_overlay_url_copied')); ?>,
+        soundLoading: <?php echo json_encode(t('closed_captions_sound_loading')); ?>,
+        soundOn: <?php echo json_encode(t('closed_captions_sound_on')); ?>,
+        soundOff: <?php echo json_encode(t('closed_captions_sound_off')); ?>
     };
 
     // WebSocket (emit captions to the overlay)
@@ -288,6 +302,202 @@ ob_start();
             socket.emit('CLOSED_CAPTION_CLEAR', { code: apiKey });
         }
     };
+    const emitActionTag = (tag) => {
+        if (socket && socketReady && socket.connected) {
+            socket.emit('CLOSED_CAPTION', { code: apiKey, text: tag, isFinal: true, action: true });
+        }
+    };
+
+    // ---- Sound action-tag detection (YAMNet via TensorFlow.js) --------------
+    // Entirely opt-in: when ccActionTagsEnabled is false, NONE of the TF.js / model
+    // download / AudioWorklet code below ever runs (zero cost). The detector reuses
+    // the proven POC recipe but upgrades capture from ScriptProcessorNode to an
+    // AudioWorklet (processor defined via a Blob URL so this page stays self-contained).
+    const soundDetector = (function () {
+        const MODEL_URL = 'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1';
+        const TARGET_SR = 16000;          // YAMNet requires 16 kHz mono
+        const FRAME_SAMPLES = 15360;      // 0.96 s at 16 kHz (one YAMNet frame)
+        const INFER_EVERY_MS = 500;       // run inference on the most recent ~0.96s every ~0.5s
+        const TARGET_THRESHOLD = 0.4;     // fire threshold for target events
+        const DEBOUNCE_MS = 1200;         // at most one tag per event per ~1.2s
+        // YAMNet AudioSet class indices -> bracketed caption tag.
+        const TARGETS = [
+            { idx: 13, tag: '[LAUGHING]' },
+            { idx: 42, tag: '[COUGH]' },
+            { idx: 44, tag: '[SNEEZE]' },
+            { idx: 62, tag: '[APPLAUSE]' }
+        ];
+        // AudioWorklet processor source: forwards mono Float32 frames to the main thread.
+        const WORKLET_SRC = `
+            class CCCaptureProcessor extends AudioWorkletProcessor {
+                process(inputs) {
+                    const input = inputs[0];
+                    if (input && input[0] && input[0].length) {
+                        this.port.postMessage(input[0].slice(0));
+                    }
+                    return true;
+                }
+            }
+            registerProcessor('cc-capture-processor', CCCaptureProcessor);
+        `;
+
+        let tfLoading = null;             // promise for the one-time tf.min.js script load
+        let model = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let sourceNode = null;
+        let workletNode = null;
+        let muteNode = null;
+        let workletUrl = null;
+        let ringBuffer = new Float32Array(FRAME_SAMPLES);
+        let ringFilled = 0;
+        let inferTimer = null;
+        let inferBusy = false;
+        let running = false;
+        const lastFired = {};
+
+        const statusEl = document.getElementById('ccSoundStatus');
+        const setSoundStatus = (text, show) => {
+            if (!statusEl) return;
+            statusEl.textContent = text;
+            statusEl.classList.toggle('cc-hidden', !show);
+        };
+
+        // Lazy-load TensorFlow.js (only ever called when action tags are enabled).
+        const loadTf = () => {
+            if (window.tf) return Promise.resolve();
+            if (tfLoading) return tfLoading;
+            tfLoading = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4/dist/tf.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('tfjs load failed'));
+                document.head.appendChild(s);
+            });
+            return tfLoading;
+        };
+
+        const ensureModel = async () => {
+            if (model) return model;
+            await loadTf();
+            try { await tf.ready(); } catch (e) { /* backend will still init */ }
+            model = await tf.loadGraphModel(MODEL_URL, { fromTFHub: true });
+            // Warmup: first predict() compiles WebGL shaders. Dispose everything.
+            try {
+                const warm = tf.zeros([FRAME_SAMPLES], 'float32');
+                const out = model.predict(warm);
+                if (Array.isArray(out)) out.forEach(t => t.dispose()); else out.dispose();
+                warm.dispose();
+            } catch (e) { /* non-fatal */ }
+            return model;
+        };
+
+        // Slide new samples into the ring buffer (keep the most recent FRAME_SAMPLES).
+        const pushSamples = (input) => {
+            const n = input.length;
+            if (n >= FRAME_SAMPLES) {
+                ringBuffer.set(input.subarray(n - FRAME_SAMPLES));
+                ringFilled = FRAME_SAMPLES;
+                return;
+            }
+            ringBuffer.copyWithin(0, n);
+            ringBuffer.set(input, FRAME_SAMPLES - n);
+            ringFilled = Math.min(FRAME_SAMPLES, ringFilled + n);
+        };
+
+        const runInference = async () => {
+            if (!running || !model || inferBusy) return;
+            if (ringFilled < FRAME_SAMPLES) return;
+            inferBusy = true;
+            const frame = ringBuffer.slice(0, FRAME_SAMPLES);
+            let waveform = null, scores = null, embeddings = null, spectrogram = null, classScores = null;
+            try {
+                waveform = tf.tensor1d(frame, 'float32');
+                const out = model.predict(waveform); // [scores, embeddings, log_mel_spectrogram]
+                scores = out[0]; embeddings = out[1]; spectrogram = out[2];
+                classScores = scores.mean(0);          // [521]
+                const data = await classScores.data(); // Float32Array(521)
+                const now = Date.now();
+                for (const t of TARGETS) {
+                    const score = data[t.idx] || 0;
+                    if (score >= TARGET_THRESHOLD) {
+                        if (!lastFired[t.tag] || now - lastFired[t.tag] > DEBOUNCE_MS) {
+                            lastFired[t.tag] = now;
+                            emitActionTag(t.tag);
+                        }
+                    }
+                }
+            } catch (e) {
+                /* inference error: skip this frame */
+            } finally {
+                if (waveform) waveform.dispose();
+                if (scores) scores.dispose();
+                if (embeddings) embeddings.dispose();
+                if (spectrogram) spectrogram.dispose();
+                if (classScores) classScores.dispose();
+                inferBusy = false;
+            }
+        };
+
+        const start = async () => {
+            if (!ccActionTagsEnabled || running) return;
+            running = true;
+            ringFilled = 0;
+            setSoundStatus(ccLang.soundLoading, true);
+            try {
+                await ensureModel();
+            } catch (e) {
+                running = false;
+                setSoundStatus(ccLang.soundOff, true);
+                return;
+            }
+            if (!running) return; // stopped while the model was loading
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SR });
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: false, autoGainControl: false }
+                });
+                if (!running) { teardown(); return; }
+                if (audioContext.state === 'suspended') { try { await audioContext.resume(); } catch (e) {} }
+                workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+                await audioContext.audioWorklet.addModule(workletUrl);
+                sourceNode = audioContext.createMediaStreamSource(mediaStream);
+                workletNode = new AudioWorkletNode(audioContext, 'cc-capture-processor');
+                workletNode.port.onmessage = (e) => { if (running) pushSamples(e.data); };
+                muteNode = audioContext.createGain();
+                muteNode.gain.value = 0;
+                sourceNode.connect(workletNode);
+                workletNode.connect(muteNode);
+                muteNode.connect(audioContext.destination);
+                inferTimer = setInterval(runInference, INFER_EVERY_MS);
+                setSoundStatus(ccLang.soundOn, true);
+            } catch (e) {
+                teardown();
+                setSoundStatus(ccLang.soundOff, true);
+            }
+        };
+
+        const teardown = () => {
+            if (inferTimer) { clearInterval(inferTimer); inferTimer = null; }
+            if (workletNode) { try { workletNode.port.onmessage = null; workletNode.disconnect(); } catch (e) {} workletNode = null; }
+            if (sourceNode) { try { sourceNode.disconnect(); } catch (e) {} sourceNode = null; }
+            if (muteNode) { try { muteNode.disconnect(); } catch (e) {} muteNode = null; }
+            if (mediaStream) { mediaStream.getTracks().forEach(tr => tr.stop()); mediaStream = null; }
+            if (audioContext) { try { audioContext.close(); } catch (e) {} audioContext = null; }
+            if (workletUrl) { try { URL.revokeObjectURL(workletUrl); } catch (e) {} workletUrl = null; }
+            ringFilled = 0;
+            inferBusy = false;
+        };
+
+        const stop = () => {
+            if (!running) { setSoundStatus('', false); return; }
+            running = false;
+            teardown();
+            setSoundStatus(ccLang.soundOff, true);
+        };
+
+        return { start, stop };
+    })();
 
     // DOM
     const startBtn = document.getElementById('ccStartBtn');
@@ -432,6 +642,8 @@ ob_start();
         setStatus(ccLang.listening, 'online');
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
+        // Opt-in sound action-tag detection: only loads YAMNet/TF.js when enabled.
+        if (ccActionTagsEnabled) { soundDetector.start(); }
     };
 
     const stop = () => {
@@ -439,6 +651,7 @@ ob_start();
         if (recognition) {
             try { recognition.stop(); } catch (e) { /* noop */ }
         }
+        soundDetector.stop();
         emitClear();
         committedText = '';
         setPreview('', '');
@@ -470,6 +683,7 @@ ob_start();
             // Unchecked checkboxes are absent from FormData; normalise.
             fd.set('enabled', document.getElementById('ccEnabled').checked ? '1' : '0');
             fd.set('profanity_filter', document.getElementById('ccProfanity').checked ? '1' : '0');
+            fd.set('action_tags_enabled', document.getElementById('ccActionTags').checked ? '1' : '0');
             if (saveStatus) { saveStatus.textContent = ''; saveStatus.className = 'cc-save-status'; }
             fetch(window.location.pathname, { method: 'POST', body: fd })
                 .then(r => r.json())
