@@ -45,6 +45,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('menu_streaming'), 'icon' => 'fas fa-tower-broadcast', 'href' => 'streaming.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_overlays'), 'icon' => 'fas fa-layer-group', 'href' => 'overlays.php' ],
+            [ 'label' => t('navbar_closed_captions'), 'icon' => 'fas fa-closed-captioning', 'href' => 'closed-captions.php' ],
             [ 'label' => t('navbar_makers_crafting'), 'icon' => 'fas fa-palette', 'href' => 'makers.php' ],
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
             [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
