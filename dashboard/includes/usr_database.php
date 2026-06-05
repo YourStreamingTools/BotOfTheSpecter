@@ -889,6 +889,20 @@ try {
                 font_family VARCHAR(100) NOT NULL DEFAULT 'Arial',
                 looping TINYINT(1) NOT NULL DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'closed_captions_settings' => "
+            CREATE TABLE IF NOT EXISTS closed_captions_settings (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                language VARCHAR(10) NOT NULL DEFAULT 'en-US',
+                font_size INT NOT NULL DEFAULT 32,
+                text_color VARCHAR(20) NOT NULL DEFAULT '#FFFFFF',
+                background_style VARCHAR(20) NOT NULL DEFAULT 'box',
+                position VARCHAR(20) NOT NULL DEFAULT 'bottom',
+                max_lines INT NOT NULL DEFAULT 2,
+                fade_seconds INT NOT NULL DEFAULT 5,
+                profanity_filter TINYINT(1) NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'song_request_analytics' => "
             CREATE TABLE IF NOT EXISTS song_request_analytics (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -1229,6 +1243,10 @@ try {
     // Ensure default options for credits_overlay_settings exist
     if ($usrDBconn->query("INSERT INTO credits_overlay_settings (scroll_speed, text_color, font_family, looping) SELECT 50, '#FFFFFF', 'Arial', 1 WHERE NOT EXISTS (SELECT 1 FROM credits_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default credits_overlay_settings options ensured.');
+    }
+    // Ensure default row for closed_captions_settings exists
+    if ($usrDBconn->query("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter) SELECT 1, 1, 'en-US', 32, '#FFFFFF', 'box', 'bottom', 2, 5, 0 WHERE NOT EXISTS (SELECT 1 FROM closed_captions_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default closed_captions_settings row ensured.');
     }
     // Ensure default options for streamer_preferences exist
     if (
