@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo json_encode(['success' => $success]);
         exit;
     }
-    // ── Channel Task System API (prefixed ch_) ────────────────────────────────
+    // Channel Task System API (prefixed ch_)
     if ($action === 'ch_get_settings') {
         $stmt = $db->prepare("SELECT require_approval, default_reward_points, allow_user_tasks, task_visible_overlay FROM task_settings LIMIT 1");
         if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
@@ -1031,6 +1031,41 @@ ob_start();
 <script>
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
+        // i18n strings injected from PHP lang files (de/fr aware). :token placeholders interpolated in JS.
+        const wsLang = {
+            copied: <?php echo json_encode(t('working_or_study_js_copied')); ?>,
+            settingsSaved: <?php echo json_encode(t('working_or_study_js_settings_saved')); ?>,
+            settingsSaveError: <?php echo json_encode(t('working_or_study_js_settings_save_error')); ?>,
+            overlayLinkCopied: <?php echo json_encode(t('working_or_study_js_overlay_link_copied')); ?>,
+            copyLinkFailed: <?php echo json_encode(t('working_or_study_js_copy_link_failed')); ?>,
+            streamerLinkCopied: <?php echo json_encode(t('working_or_study_js_streamer_link_copied')); ?>,
+            usersLinkCopied: <?php echo json_encode(t('working_or_study_js_users_link_copied')); ?>,
+            combinedLinkCopied: <?php echo json_encode(t('working_or_study_js_combined_link_copied')); ?>,
+            copyFailed: <?php echo json_encode(t('working_or_study_js_copy_failed')); ?>,
+            notConnected: <?php echo json_encode(t('working_or_study_js_not_connected')); ?>,
+            commError: <?php echo json_encode(t('working_or_study_js_comm_error')); ?>,
+            phaseUnknown: <?php echo json_encode(t('working_or_study_js_phase_unknown')); ?>,
+            phaseWaiting: <?php echo json_encode(t('working_or_study_js_phase_waiting')); ?>,
+            stateRunning: <?php echo json_encode(t('working_or_study_js_state_running')); ?>,
+            statePaused: <?php echo json_encode(t('working_or_study_js_state_paused')); ?>,
+            stateNotRunning: <?php echo json_encode(t('working_or_study_js_state_not_running')); ?>,
+            phaseNameFocus: <?php echo json_encode(t('working_or_study_phase_name_focus')); ?>,
+            phaseNameMicro: <?php echo json_encode(t('working_or_study_js_phase_name_micro')); ?>,
+            phaseNameRecharge: <?php echo json_encode(t('working_or_study_js_phase_name_recharge')); ?>,
+            msgTimerStarted: <?php echo json_encode(t('working_or_study_js_msg_timer_started')); ?>,
+            msgTimerPaused: <?php echo json_encode(t('working_or_study_js_msg_timer_paused')); ?>,
+            msgTimerResumed: <?php echo json_encode(t('working_or_study_js_msg_timer_resumed')); ?>,
+            msgTimerReset: <?php echo json_encode(t('working_or_study_js_msg_timer_reset')); ?>,
+            msgTimerStopped: <?php echo json_encode(t('working_or_study_js_msg_timer_stopped')); ?>,
+            msgOverlayReset: <?php echo json_encode(t('working_or_study_js_msg_overlay_reset')); ?>,
+            startedPhase: <?php echo json_encode(t('working_or_study_js_started_phase')); ?>,
+            timerAction: <?php echo json_encode(t('working_or_study_js_timer_action')); ?>,
+            focusMinError: <?php echo json_encode(t('working_or_study_js_focus_min_error')); ?>,
+            microMinError: <?php echo json_encode(t('working_or_study_js_micro_min_error')); ?>,
+            breakMinError: <?php echo json_encode(t('working_or_study_js_break_min_error')); ?>,
+            cycleMinError: <?php echo json_encode(t('working_or_study_js_cycle_min_error')); ?>,
+            cycleReset: <?php echo json_encode(t('working_or_study_cycle_reset_toast')); ?>
+        };
         const dashboardDebug = false;
         const overlayLink = <?php echo json_encode($overlayLinkWithCode); ?>;
         const copyOverlayLinkBtn = document.getElementById('copyOverlayLinkBtn');
@@ -1144,10 +1179,10 @@ ob_start();
                 } else {
                     console.warn('[Timer] Settings saved to database, but WebSocket not connected for live sync');
                 }
-                showToast('✓ Timer settings saved', 'success');
+                showToast('✓ ' + wsLang.settingsSaved, 'success');
             } catch (error) {
                 console.error('[Timer] Error saving settings:', error);
-                showToast('⚠️ Error saving settings', 'danger');
+                showToast('⚠️ ' + wsLang.settingsSaveError, 'danger');
             }
         };
         const escapeHtml = (text) => {
@@ -1220,21 +1255,21 @@ ob_start();
         const updateLiveTimer = (timerData) => {
             if (!timerData) return;
             liveTimerDisplay.textContent = formatTime(timerData.remainingSeconds || 0);
-            livePhaseLabel.textContent = timerData.phaseLabel || 'Unknown';
-            livePhaseStatus.textContent = timerData.phaseStatus || 'Waiting';
+            livePhaseLabel.textContent = timerData.phaseLabel || wsLang.phaseUnknown;
+            livePhaseStatus.textContent = timerData.phaseStatus || wsLang.phaseWaiting;
             // Update timer color based on phase
             if (timerData.phaseColor) {
                 liveTimerDisplay.style.color = timerData.phaseColor;
             }
             // Update timer state display
             if (timerData.timerRunning) {
-                liveTimerState.textContent = 'Running';
+                liveTimerState.textContent = wsLang.stateRunning;
                 liveTimerState.style.color = '#6be9ff';
             } else if (timerData.timerPaused) {
-                liveTimerState.textContent = 'Paused';
+                liveTimerState.textContent = wsLang.statePaused;
                 liveTimerState.style.color = '#ff9161';
             } else {
-                liveTimerState.textContent = 'Not Running';
+                liveTimerState.textContent = wsLang.stateNotRunning;
                 liveTimerState.style.color = 'rgba(255, 255, 255, 0.7)';
             }
         };
@@ -1286,17 +1321,17 @@ ob_start();
             }
         };
         const phaseNames = {
-            focus: 'Focus Sprint',
-            micro: 'Micro Break',
-            recharge: 'Recharge Stretch'
+            focus: wsLang.phaseNameFocus,
+            micro: wsLang.phaseNameMicro,
+            recharge: wsLang.phaseNameRecharge
         };
         const controlMessages = {
-            start: 'Timer started',
-            pause: 'Timer paused',
-            resume: 'Timer resumed',
-            reset: 'Timer reset',
-            stop: 'Timer stopped',
-            reset_all: 'Overlay reset to defaults'
+            start: wsLang.msgTimerStarted,
+            pause: wsLang.msgTimerPaused,
+            resume: wsLang.msgTimerResumed,
+            reset: wsLang.msgTimerReset,
+            stop: wsLang.msgTimerStopped,
+            reset_all: wsLang.msgOverlayReset
         };
         const setButtonsLoading = (loading) => {
             isRequesting = loading;
@@ -1312,7 +1347,7 @@ ob_start();
                         connected: socket?.connected,
                         ready: socketReady
                     });
-                    showToast('⚠️ Not connected to timer server', 'danger');
+                    showToast('⚠️ ' + wsLang.notConnected, 'danger');
                     setButtonsLoading(false);
                     return;
                 }
@@ -1332,7 +1367,7 @@ ob_start();
                 }
             } catch (error) {
                 console.warn('Dashboard notify error', error);
-                showToast('⚠️ Error communicating with timer', 'danger');
+                showToast('⚠️ ' + wsLang.commError, 'danger');
             } finally {
                 setButtonsLoading(false);
             }
@@ -1447,60 +1482,60 @@ ob_start();
         copyOverlayLinkBtn.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(overlayLink);
-                showToast('✓ Timer overlay link copied to clipboard!', 'success');
+                showToast('✓ ' + wsLang.overlayLinkCopied, 'success');
                 // Change button appearance temporarily
                 const originalHTML = copyOverlayLinkBtn.innerHTML;
-                copyOverlayLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                copyOverlayLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>' + escapeHtml(wsLang.copied) + '</span>';
                 setTimeout(() => {
                     copyOverlayLinkBtn.innerHTML = originalHTML;
                 }, 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
-                showToast('⚠️ Failed to copy link to clipboard', 'danger');
+                showToast('⚠️ ' + wsLang.copyLinkFailed, 'danger');
             }
         });
         // Task list copy buttons
         copyTasklistLinkBtn?.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(tasklistLinkStreamer);
-                showToast('✓ Streamer task list link copied!', 'success');
+                showToast('✓ ' + wsLang.streamerLinkCopied, 'success');
                 const originalHTML = copyTasklistLinkBtn.innerHTML;
-                copyTasklistLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                copyTasklistLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>' + escapeHtml(wsLang.copied) + '</span>';
                 setTimeout(() => {
                     copyTasklistLinkBtn.innerHTML = originalHTML;
                 }, 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
-                showToast('⚠️ Failed to copy link', 'danger');
+                showToast('⚠️ ' + wsLang.copyFailed, 'danger');
             }
         });
         copyTasklistUserLinkBtn?.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(tasklistLinkUsers);
-                showToast('✓ Users task list link copied!', 'success');
+                showToast('✓ ' + wsLang.usersLinkCopied, 'success');
                 const originalHTML = copyTasklistUserLinkBtn.innerHTML;
-                copyTasklistUserLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                copyTasklistUserLinkBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>' + escapeHtml(wsLang.copied) + '</span>';
                 setTimeout(() => {
                     copyTasklistUserLinkBtn.innerHTML = originalHTML;
                 }, 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
-                showToast('⚠️ Failed to copy link', 'danger');
+                showToast('⚠️ ' + wsLang.copyFailed, 'danger');
             }
         });
         // Combined task list link (works for both streamer and users)
         copyTasklistCombinedBtn?.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(tasklistLinkCombined);
-                showToast('✓ Combined task list link copied!', 'success');
+                showToast('✓ ' + wsLang.combinedLinkCopied, 'success');
                 const originalHTML = copyTasklistCombinedBtn.innerHTML;
-                copyTasklistCombinedBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>Copied!</span>';
+                copyTasklistCombinedBtn.innerHTML = '<span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span><span>' + escapeHtml(wsLang.copied) + '</span>';
                 setTimeout(() => {
                     copyTasklistCombinedBtn.innerHTML = originalHTML;
                 }, 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
-                showToast('⚠️ Failed to copy link', 'danger');
+                showToast('⚠️ ' + wsLang.copyFailed, 'danger');
             }
         });
         // Initialize by loading from database
@@ -1522,7 +1557,7 @@ ob_start();
                 const phaseName = phaseNames[phase] || phase;
                 await notifyServer(
                     { specter_event: 'SPECTER_PHASE', ...gatherDurations(), ...payload },
-                    `Started ${phaseName}`,
+                    wsLang.startedPhase.replace(':phase', phaseName),
                     'success'
                 );
             });
@@ -1537,7 +1572,7 @@ ob_start();
                     breakLengthInput.value = 30;
                     await saveSettingsToDatabase();
                 }
-                const toastMessage = controlMessages[action] || `Timer ${action}`;
+                const toastMessage = controlMessages[action] || wsLang.timerAction.replace(':action', action);
                 await notifyServer(
                     { specter_event: 'SPECTER_TIMER_COMMAND', action, ...gatherDurations() },
                     toastMessage
@@ -1549,7 +1584,7 @@ ob_start();
             const val = Number(focusLengthInput.value);
             if (!Number.isFinite(val) || val < 1) {
                 focusLengthInput.value = 60;
-                showToast('⚠️ Focus duration must be at least 1 minute', 'danger');
+                showToast('⚠️ ' + wsLang.focusMinError, 'danger');
             } else {
                 saveSettingsToDatabase();
             }
@@ -1558,7 +1593,7 @@ ob_start();
             const val = Number(microBreakInput.value);
             if (!Number.isFinite(val) || val < 1) {
                 microBreakInput.value = 5;
-                showToast('⚠️ Micro break duration must be at least 1 minute', 'danger');
+                showToast('⚠️ ' + wsLang.microMinError, 'danger');
             } else {
                 saveSettingsToDatabase();
             }
@@ -1567,7 +1602,7 @@ ob_start();
             const val = Number(breakLengthInput.value);
             if (!Number.isFinite(val) || val < 1) {
                 breakLengthInput.value = 30;
-                showToast('⚠️ Break duration must be at least 1 minute', 'danger');
+                showToast('⚠️ ' + wsLang.breakMinError, 'danger');
             } else {
                 saveSettingsToDatabase();
             }
@@ -1576,7 +1611,7 @@ ob_start();
             const val = Number(cycleCountInput.value);
             if (!Number.isFinite(val) || val < 1) {
                 cycleCountInput.value = 4;
-                showToast('⚠️ Cycle count must be at least 1', 'danger');
+                showToast('⚠️ ' + wsLang.cycleMinError, 'danger');
             } else {
                 saveSettingsToDatabase();
             }
@@ -1595,9 +1630,9 @@ ob_start();
         resetCycleBtn?.addEventListener('click', () => {
             if (socket && socket.connected) {
                 socket.emit('SPECTER_SETTINGS_UPDATE', { code: apiKey, reset_cycle: 1 });
-                showToast('✓ <?= htmlspecialchars(addslashes(t('working_or_study_cycle_reset_toast'))) ?>', 'success');
+                showToast('✓ ' + wsLang.cycleReset, 'success');
             } else {
-                showToast('⚠️ Not connected to timer server', 'danger');
+                showToast('⚠️ ' + wsLang.notConnected, 'danger');
             }
         });
     })();
@@ -1607,14 +1642,45 @@ ob_start();
     'use strict';
     const chApiKey = <?php echo json_encode($api_key); ?>;
     const chRequireApprovalInit = <?php echo (int)$chInitialSettings['require_approval']; ?>;
-    // ── WebSocket (shares the page-level socket if available, else own) ──────
+    // i18n strings injected from PHP lang files (de/fr aware). :token placeholders interpolated in JS.
+    const wsLang = {
+        noTasksYet: <?php echo json_encode(t('working_or_study_no_tasks_yet')); ?>,
+        noViewerTasksYet: <?php echo json_encode(t('working_or_study_no_viewer_tasks_yet')); ?>,
+        btnEdit: <?php echo json_encode(t('working_or_study_js_btn_edit')); ?>,
+        btnDone: <?php echo json_encode(t('working_or_study_js_btn_done')); ?>,
+        btnDelete: <?php echo json_encode(t('working_or_study_js_btn_delete')); ?>,
+        btnAward: <?php echo json_encode(t('working_or_study_js_btn_award')); ?>,
+        btnReject: <?php echo json_encode(t('working_or_study_js_btn_reject')); ?>,
+        modalTitleEditTask: <?php echo json_encode(t('working_or_study_js_modal_title_edit_task')); ?>,
+        modalTitleAddTask: <?php echo json_encode(t('working_or_study_add_streamer_task_title')); ?>,
+        confirmDeleteTask: <?php echo json_encode(t('working_or_study_js_confirm_delete_task')); ?>,
+        taskCreated: <?php echo json_encode(t('working_or_study_js_task_created')); ?>,
+        taskDeleted: <?php echo json_encode(t('working_or_study_js_task_deleted')); ?>,
+        taskCompleted: <?php echo json_encode(t('working_or_study_js_task_completed')); ?>,
+        taskMarkedComplete: <?php echo json_encode(t('working_or_study_js_task_marked_complete')); ?>,
+        taskAwarded: <?php echo json_encode(t('working_or_study_js_task_awarded')); ?>,
+        taskRejected: <?php echo json_encode(t('working_or_study_js_task_rejected')); ?>,
+        rewardEarned: <?php echo json_encode(t('working_or_study_js_reward_earned')); ?>,
+        rewardEarnedShort: <?php echo json_encode(t('working_or_study_js_reward_earned_short')); ?>,
+        settingsSaved: <?php echo json_encode(t('working_or_study_js_settings_saved_short')); ?>,
+        settingsSaveFailed: <?php echo json_encode(t('working_or_study_js_settings_save_failed')); ?>,
+        cmdEnabled: <?php echo json_encode(t('working_or_study_js_cmd_enabled')); ?>,
+        cmdDisabled: <?php echo json_encode(t('working_or_study_js_cmd_disabled')); ?>,
+        cmdUpdateFailed: <?php echo json_encode(t('working_or_study_js_cmd_update_failed')); ?>,
+        titleRequired: <?php echo json_encode(t('working_or_study_js_title_required')); ?>,
+        taskUpdated: <?php echo json_encode(t('working_or_study_js_task_updated')); ?>,
+        taskCreatedShort: <?php echo json_encode(t('working_or_study_js_task_created_short')); ?>,
+        taskSaveFailed: <?php echo json_encode(t('working_or_study_js_task_save_failed')); ?>,
+        networkError: <?php echo json_encode(t('working_or_study_js_network_error')); ?>
+    };
+    // WebSocket (shares the page-level socket if available, else own)
     // Use a separate named socket for the task channel so REGISTER is distinct
     const chSocket = io('https://websocket.botofthespecter.com', { transports: ['websocket'] });
     chSocket.on('connect', () => {
         chSocket.emit('REGISTER', { code: chApiKey, channel: 'dashboard', name: 'Tasks' });
         chLoadTasks();
     });
-    chSocket.on('TASK_CREATE',          (d) => { chAppendStreamerRow(d.task); chShowToast('Task created: ' + (d.task?.title || '')); });
+    chSocket.on('TASK_CREATE',          (d) => { chAppendStreamerRow(d.task); chShowToast(wsLang.taskCreated.replace(':title', d.task?.title || '')); });
     chSocket.on('TASK_UPDATE',          (d) => {
         const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
         if (owner === 'streamer' || (!owner && !d?.task?.user_name)) {
@@ -1632,7 +1698,7 @@ ob_start();
         chRenderUser(d.user_tasks || []);
     });
     chSocket.on('TASK_REWARD_CONFIRM',  (d) => {
-        chShowToast(`✔ ${d.user_name} earned ${d.points_awarded} pts for a task! (total: ${d.new_total})`);
+        chShowToast('✔ ' + wsLang.rewardEarned.replace(':user', d.user_name).replace(':points', d.points_awarded).replace(':total', d.new_total));
     });
     function chLoadTasks() {
         chPost({ action: 'ch_get_tasks' }, (res) => {
@@ -1647,7 +1713,7 @@ ob_start();
         if (!tbody) return;
         tbody.innerHTML = '';
         if (!tasks.length) {
-            tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="4" class="has-text-centered has-text-grey py-4">No tasks yet.</td></tr>';
+            tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="4" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noTasksYet) + '</td></tr>';
             return;
         }
         tasks.forEach(t => chAppendStreamerRow(t, false));
@@ -1657,7 +1723,7 @@ ob_start();
         if (!tbody) return;
         tbody.innerHTML = '';
         if (!tasks.length) {
-            tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="6" class="has-text-centered has-text-grey py-4">No viewer tasks yet.</td></tr>';
+            tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="6" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noViewerTasksYet) + '</td></tr>';
             return;
         }
         tasks.forEach(t => chAppendUserRow(t, false));
@@ -1675,9 +1741,9 @@ ob_start();
             <td>${task.reward_points ?? 0}</td>
             <td>
                 <div class="buttons are-small">
-                    <button class="button is-info is-light" onclick="chOpenEditTask(${task.id})">Edit</button>
-                    ${task.status !== 'completed' ? `<button class="button is-success is-light" onclick="chCompleteStreamer(${task.id})">Done</button>` : ''}
-                    <button class="button is-danger is-light" onclick="chDeleteStreamer(${task.id})">Delete</button>
+                    <button class="button is-info is-light" onclick="chOpenEditTask(${task.id})">${chEsc(wsLang.btnEdit)}</button>
+                    ${task.status !== 'completed' ? `<button class="button is-success is-light" onclick="chCompleteStreamer(${task.id})">${chEsc(wsLang.btnDone)}</button>` : ''}
+                    <button class="button is-danger is-light" onclick="chDeleteStreamer(${task.id})">${chEsc(wsLang.btnDelete)}</button>
                 </div>
             </td>`;
         if (!document.getElementById('ch-st-' + task.id)) tbody.appendChild(row);
@@ -1699,9 +1765,9 @@ ob_start();
             <td>${task.reward_points ?? 0}</td>
             <td>
                 <div class="buttons are-small">
-                    ${task.status === 'active' ? `<button class="button is-success is-light" onclick="chCompleteUser(${task.id})">Done</button>` : ''}
-                    ${canApprove ? `<button class="button is-link is-light" onclick="chAwardUser(${task.id})">Award</button>` : ''}
-                    ${canApprove ? `<button class="button is-warning is-light" onclick="chRejectUser(${task.id})">Reject</button>` : ''}
+                    ${task.status === 'active' ? `<button class="button is-success is-light" onclick="chCompleteUser(${task.id})">${chEsc(wsLang.btnDone)}</button>` : ''}
+                    ${canApprove ? `<button class="button is-link is-light" onclick="chAwardUser(${task.id})">${chEsc(wsLang.btnAward)}</button>` : ''}
+                    ${canApprove ? `<button class="button is-warning is-light" onclick="chRejectUser(${task.id})">${chEsc(wsLang.btnReject)}</button>` : ''}
                 </div>
             </td>`;
         if (!document.getElementById('ch-ut-' + task.id)) tbody.appendChild(row);
@@ -1739,16 +1805,16 @@ ob_start();
         document.getElementById('chStreamerTaskDesc').value     = '';
         document.getElementById('chStreamerTaskCategory').value = cells[0].querySelector('small')?.textContent || 'General';
         document.getElementById('chStreamerTaskPoints').value   = cells[2].textContent.trim();
-        document.getElementById('chStreamerTaskModalTitle').textContent = 'Edit Task';
+        document.getElementById('chStreamerTaskModalTitle').textContent = wsLang.modalTitleEditTask;
         document.getElementById('chStreamerTaskModal').classList.add('is-active');
     };
     window.chDeleteStreamer = function (id) {
-        if (!confirm('Delete this task?')) return;
+        if (!confirm(wsLang.confirmDeleteTask)) return;
         chPost({ action: 'ch_delete_streamer_task', id }, (res) => {
             if (res.success) {
                 document.getElementById('ch-st-' + id)?.remove();
                 chSocket.emit('TASK_DELETE', { channel_code: chApiKey, task_id: id, owner: 'streamer' });
-                chShowToast('Task deleted.');
+                chShowToast(wsLang.taskDeleted);
             }
         });
     };
@@ -1757,7 +1823,7 @@ ob_start();
             if (res.success) {
                 chMarkStatus(id, 'streamer', 'completed');
                 chSocket.emit('TASK_COMPLETE', { channel_code: chApiKey, task_id: id, owner: 'streamer' });
-                chShowToast('Task completed.');
+                chShowToast(wsLang.taskCompleted);
             }
         });
     };
@@ -1772,7 +1838,7 @@ ob_start();
                     user_name: t.user_name, title: t.title, reward_points: t.reward_points,
                     require_approval: requireApproval ? 1 : 0, owner: 'user',
                 });
-                chShowToast(`Task for ${t.user_name} marked complete.`);
+                chShowToast(wsLang.taskMarkedComplete.replace(':user', t.user_name));
                 if (res.reward?.awarded) {
                     chSocket.emit('TASK_REWARD_CONFIRM', {
                         channel_code: chApiKey,
@@ -1782,7 +1848,7 @@ ob_start();
                         points_awarded: res.reward.points_awarded,
                         new_total: res.reward.new_total,
                     });
-                    chShowToast(`✔ ${t.user_name} earned ${res.reward.points_awarded} pts (total: ${res.reward.new_total})`);
+                    chShowToast('✔ ' + wsLang.rewardEarnedShort.replace(':user', t.user_name).replace(':points', res.reward.points_awarded).replace(':total', res.reward.new_total));
                 }
             }
         });
@@ -1796,7 +1862,7 @@ ob_start();
                     channel_code: chApiKey, task_id: t.id, user_id: t.user_id,
                     user_name: t.user_name, title: t.title, reward_points: t.reward_points,
                 });
-                chShowToast(`Awarded task for ${t.user_name}.`);
+                chShowToast(wsLang.taskAwarded.replace(':user', t.user_name));
                 if (res.reward?.awarded) {
                     chSocket.emit('TASK_REWARD_CONFIRM', {
                         channel_code: chApiKey,
@@ -1806,7 +1872,7 @@ ob_start();
                         points_awarded: res.reward.points_awarded,
                         new_total: res.reward.new_total,
                     });
-                    chShowToast(`✔ ${t.user_name} earned ${res.reward.points_awarded} pts (total: ${res.reward.new_total})`);
+                    chShowToast('✔ ' + wsLang.rewardEarnedShort.replace(':user', t.user_name).replace(':points', res.reward.points_awarded).replace(':total', res.reward.new_total));
                 }
             }
         });
@@ -1817,7 +1883,7 @@ ob_start();
             if (res.success) {
                 chUpdateApproval(id, 'rejected');
                 chSocket.emit('TASK_REJECT', { channel_code: chApiKey, task_id: id });
-                chShowToast('Task rejected.');
+                chShowToast(wsLang.taskRejected);
             }
         });
     };
@@ -1832,9 +1898,9 @@ ob_start();
         chPost(payload, (res) => {
             if (res.success) {
                 chSocket.emit('TASK_SETTINGS_UPDATE', { channel_code: chApiKey, settings: payload });
-                chShowToast('Settings saved.');
+                chShowToast(wsLang.settingsSaved);
             } else {
-                chShowToast('Failed to save settings.', 'is-danger');
+                chShowToast(wsLang.settingsSaveFailed, 'is-danger');
             }
         });
     });
@@ -1852,10 +1918,10 @@ ob_start();
             const enabled = toggle.checked ? 1 : 0;
             chPost({ action: 'wcmd_save_command_status', command, enabled }, (res) => {
                 if (res.success) {
-                    chShowToast(`!${command} ${enabled ? 'enabled' : 'disabled'}.`);
+                    chShowToast((enabled ? wsLang.cmdEnabled : wsLang.cmdDisabled).replace(':command', command));
                 } else {
                     toggle.checked = !toggle.checked; // revert on failure
-                    chShowToast(res.error || `Failed to update !${command}.`, 'is-danger');
+                    chShowToast(res.error || wsLang.cmdUpdateFailed.replace(':command', command), 'is-danger');
                 }
             });
         });
@@ -1866,7 +1932,7 @@ ob_start();
         document.getElementById('chStreamerTaskDesc').value   = '';
         document.getElementById('chStreamerTaskCategory').value = 'General';
         document.getElementById('chStreamerTaskPoints').value = document.getElementById('chDefaultRewardPoints')?.value || 50;
-        document.getElementById('chStreamerTaskModalTitle').textContent = 'Add Streamer Task';
+        document.getElementById('chStreamerTaskModalTitle').textContent = wsLang.modalTitleAddTask;
         document.getElementById('chStreamerTaskModal').classList.add('is-active');
     });
     ['chCloseStreamerTaskModal', 'chCancelStreamerTaskBtn'].forEach(id => {
@@ -1880,7 +1946,7 @@ ob_start();
         const desc     = document.getElementById('chStreamerTaskDesc').value.trim();
         const category = document.getElementById('chStreamerTaskCategory').value.trim() || 'General';
         const points   = parseInt(document.getElementById('chStreamerTaskPoints').value) || 0;
-        if (!title) { chShowToast('Title is required.', 'is-warning'); return; }
+        if (!title) { chShowToast(wsLang.titleRequired, 'is-warning'); return; }
         const isEdit = !!id;
         const payload = isEdit
             ? { action: 'ch_update_streamer_task', id, title, description: desc, category, reward_points: points, status: 'active' }
@@ -1891,9 +1957,9 @@ ob_start();
                 chAppendStreamerRow(taskObj);
                 chSocket.emit(isEdit ? 'TASK_UPDATE' : 'TASK_CREATE', { channel_code: chApiKey, owner: 'streamer', task: taskObj });
                 document.getElementById('chStreamerTaskModal').classList.remove('is-active');
-                chShowToast(isEdit ? 'Task updated.' : 'Task created.');
+                chShowToast(isEdit ? wsLang.taskUpdated : wsLang.taskCreatedShort);
             } else {
-                chShowToast(res.error || 'Failed to save task.', 'is-danger');
+                chShowToast(res.error || wsLang.taskSaveFailed, 'is-danger');
             }
         });
     });
@@ -1903,7 +1969,7 @@ ob_start();
         fetch('working-or-study.php', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(callback)
-            .catch(e => chShowToast('Network error: ' + e.message, 'is-danger'));
+            .catch(e => chShowToast(wsLang.networkError.replace(':error', e.message), 'is-danger'));
     }
     function chEsc(str) {
         if (!str) return '';
