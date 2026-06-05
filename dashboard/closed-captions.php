@@ -327,14 +327,36 @@ ob_start();
             { idx: 44, tag: '[SNEEZE]' },
             { idx: 62, tag: '[APPLAUSE]' }
         ];
-        // AudioWorklet processor source: forwards mono Float32 frames to the main thread.
+        // AudioWorklet processor source: resamples the device-native rate (e.g. 48 kHz) down
+        // to TARGET_SR (16 kHz) by continuous linear interpolation, then posts mono Float32
+        // frames to the main thread. Resampling here (instead of forcing the AudioContext to
+        // 16 kHz) keeps the shared mic at its native rate so the speech recognizer's capture
+        // is never disturbed. `sampleRate` is the worklet global = the context's real rate.
         const WORKLET_SRC = `
             class CCCaptureProcessor extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    this._ratio = sampleRate / ${TARGET_SR}; // input samples per output sample
+                    this._pos = 0;   // fractional read cursor (virtual index 0 => previous block's last sample)
+                    this._prev = 0;  // last input sample of the previous block, for boundary interpolation
+                }
                 process(inputs) {
                     const input = inputs[0];
-                    if (input && input[0] && input[0].length) {
-                        this.port.postMessage(input[0].slice(0));
+                    if (!input || !input[0] || !input[0].length) return true;
+                    const ch = input[0];
+                    const n = ch.length;
+                    const out = [];
+                    while (this._pos < n) {
+                        const i = Math.floor(this._pos);
+                        const frac = this._pos - i;
+                        const a = i === 0 ? this._prev : ch[i - 1];
+                        const b = ch[i];
+                        out.push(a + (b - a) * frac);
+                        this._pos += this._ratio;
                     }
+                    this._pos -= n;
+                    this._prev = ch[n - 1];
+                    if (out.length) this.port.postMessage(Float32Array.from(out));
                     return true;
                 }
             }
@@ -439,7 +461,7 @@ ob_start();
             }
         };
 
-        const start = async () => {
+        const start = async (deviceId) => {
             if (!ccActionTagsEnabled || running) return;
             running = true;
             ringFilled = 0;
@@ -453,10 +475,13 @@ ob_start();
             }
             if (!running) return; // stopped while the model was loading
             try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SR });
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: false, autoGainControl: false }
-                });
+                // Native-rate context (NOT forced to 16 kHz) + a fully RAW tap (no AEC/NS/AGC),
+                // pinned to the recognizer's mic. Both prevent a device-level reconfigure that
+                // would make the speech recognizer drop words. Downsampling happens in the worklet.
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const detAudio = { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+                if (deviceId) detAudio.deviceId = { exact: deviceId };
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: detAudio });
                 if (!running) { teardown(); return; }
                 if (audioContext.state === 'suspended') { try { await audioContext.resume(); } catch (e) {} }
                 workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
@@ -539,6 +564,7 @@ ob_start();
     let recognition = null;
     let runState = 'stopped'; // 'stopped' | 'started'
     let committedText = '';
+    let detectorDeviceId = null; // mic the recognizer locked onto; the detector pins the same one
 
     // Heuristic punctuation for finalized phrases (browser Web Speech adds none for free):
     // capitalize the first letter, and end with ? when the phrase opens with a question
@@ -625,6 +651,8 @@ ob_start();
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const at = stream.getAudioTracks()[0];
+                detectorDeviceId = (at && at.getSettings) ? (at.getSettings().deviceId || null) : null;
                 stream.getTracks().forEach(track => track.stop());
             } catch (e) {
                 setStatus(ccLang.micDenied, 'offline');
@@ -643,7 +671,7 @@ ob_start();
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
         // Opt-in sound action-tag detection: only loads YAMNet/TF.js when enabled.
-        if (ccActionTagsEnabled) { soundDetector.start(); }
+        if (ccActionTagsEnabled) { soundDetector.start(detectorDeviceId); }
     };
 
     const stop = () => {
