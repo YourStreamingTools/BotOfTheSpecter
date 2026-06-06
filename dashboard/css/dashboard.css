@@ -3890,3 +3890,93 @@ label.checkbox input[type="checkbox"] {
         flex-direction: column;
     }
 }
+/* Caption corrections (per-user glossary / fix-up dictionary) */
+.cc-corrections-card {
+    margin-top: 1.5rem;
+}
+.cc-corrections-table-wrap {
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+.cc-corrections-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 640px;
+}
+.cc-corrections-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.cc-corrections-table td {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+.cc-corrections-table .cc-corr-col-toggle,
+.cc-corrections-table .cc-corr-col-actions {
+    text-align: center;
+    width: 1%;
+    white-space: nowrap;
+}
+.cc-corrections-table .sp-input,
+.cc-corrections-table .sp-select {
+    width: 100%;
+    min-width: 9rem;
+}
+.cc-corr-arrow {
+    color: var(--text-muted);
+    text-align: center;
+    width: 1%;
+    padding: 0 0.4rem;
+}
+.cc-corr-delete {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--red);
+    cursor: pointer;
+    padding: 0.35rem 0.55rem;
+    line-height: 1;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.cc-corr-delete:hover {
+    background: var(--bg-input);
+    border-color: var(--red);
+}
+.cc-corrections-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 0.75rem 0.6rem;
+    text-align: center;
+}
+.cc-corrections-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+.cc-corrections-actions .cc-corr-save-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+@media (max-width: 640px) {
+    .cc-corrections-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .cc-corrections-actions .cc-corr-save-group {
+        margin-left: 0;
+        justify-content: space-between;
+    }
+}

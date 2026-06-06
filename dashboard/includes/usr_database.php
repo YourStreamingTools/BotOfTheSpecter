@@ -902,7 +902,20 @@ try {
                 fade_seconds INT NOT NULL DEFAULT 5,
                 profanity_filter TINYINT(1) NOT NULL DEFAULT 0,
                 action_tags_enabled TINYINT(1) DEFAULT 0,
+                target_language VARCHAR(10) NOT NULL DEFAULT '',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'closed_captions_corrections' => "
+            CREATE TABLE IF NOT EXISTS closed_captions_corrections (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                match_text VARCHAR(255) NOT NULL,
+                replace_text VARCHAR(255) NOT NULL,
+                match_mode ENUM('word','substring') NOT NULL DEFAULT 'word',
+                case_sensitive TINYINT(1) NOT NULL DEFAULT 0,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                sort_order INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_enabled (enabled)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'song_request_analytics' => "
             CREATE TABLE IF NOT EXISTS song_request_analytics (
@@ -1246,7 +1259,7 @@ try {
         async_log('Default credits_overlay_settings options ensured.');
     }
     // Ensure default row for closed_captions_settings exists
-    if ($usrDBconn->query("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled) SELECT 1, 1, 'en-US', 32, '#FFFFFF', 'box', 'bottom', 2, 5, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM closed_captions_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language) SELECT 1, 1, 'en-US', 32, '#FFFFFF', 'box', 'bottom', 2, 5, 0, 0, '' WHERE NOT EXISTS (SELECT 1 FROM closed_captions_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default closed_captions_settings row ensured.');
     }
     // Ensure default options for streamer_preferences exist
