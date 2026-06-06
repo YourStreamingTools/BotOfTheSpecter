@@ -26,6 +26,9 @@ $overlayLinkMasked = $overlayLink . '?code=' . str_repeat('•', 24);
 $allowedPositions = ['top', 'center', 'bottom'];
 $allowedBackgrounds = ['box', 'outline', 'none'];
 $allowedLanguages = ['en-US', 'en-GB', 'en-AU', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'pt-BR', 'nl-NL', 'ja-JP'];
+// Caption (translation) target languages — Chrome on-device Translator SHORT (BCP47) codes.
+// '' means "no translation / same as spoken".
+$allowedTargetLanguages = ['', 'en', 'de', 'es', 'fr', 'it', 'pt', 'nl', 'ja', 'ko', 'zh', 'ru', 'pl', 'tr', 'uk', 'ar', 'hi', 'sv', 'da', 'fi', 'nb', 'cs', 'el', 'hu', 'ro', 'id', 'vi', 'th', 'bg', 'hr', 'sk', 'sl'];
 
 // Settings load + save
 $cc = [
@@ -39,8 +42,9 @@ $cc = [
     'fade_seconds' => 5,
     'profanity_filter' => 0,
     'action_tags_enabled' => 0,
+    'target_language' => '',
 ];
-$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled FROM closed_captions_settings WHERE id = 1");
+$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language FROM closed_captions_settings WHERE id = 1");
 if ($ccStmt) {
     $ccStmt->execute();
     $ccResult = $ccStmt->get_result();
@@ -48,6 +52,86 @@ if ($ccStmt) {
         $cc = array_merge($cc, $ccResult->fetch_assoc());
     }
     $ccStmt->close();
+}
+
+// Caption corrections (per-user glossary / fix-up dictionary) load
+$ccCorrections = [];
+$ccCorrStmt = $db->prepare("SELECT match_text, replace_text, match_mode, case_sensitive, enabled FROM closed_captions_corrections ORDER BY sort_order, id");
+if ($ccCorrStmt) {
+    $ccCorrStmt->execute();
+    $ccCorrResult = $ccCorrStmt->get_result();
+    while ($ccCorrRow = $ccCorrResult->fetch_assoc()) {
+        $ccCorrections[] = [
+            'match_text' => $ccCorrRow['match_text'],
+            'replace_text' => $ccCorrRow['replace_text'],
+            'match_mode' => ($ccCorrRow['match_mode'] === 'substring') ? 'substring' : 'word',
+            'case_sensitive' => (int)$ccCorrRow['case_sensitive'] ? 1 : 0,
+            'enabled' => (int)$ccCorrRow['enabled'] ? 1 : 0,
+        ];
+    }
+    $ccCorrStmt->close();
+}
+
+// Handle caption corrections save (AJAX POST) — full-list replace-all
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cc_corrections_save'])) {
+    while (ob_get_level()) { ob_end_clean(); }
+    header('Content-Type: application/json');
+    $rowsJson = $_POST['rows'] ?? '[]';
+    $decoded = json_decode($rowsJson, true);
+    if (!is_array($decoded)) {
+        echo json_encode(['success' => false, 'error' => 'invalid_payload']);
+        exit;
+    }
+    // Validate + normalise each row, capping the total processed to 300.
+    $clean = [];
+    foreach ($decoded as $row) {
+        if (count($clean) >= 300) break;
+        if (!is_array($row)) continue;
+        $matchText = trim((string)($row['match_text'] ?? ''));
+        $replaceText = trim((string)($row['replace_text'] ?? ''));
+        if ($matchText === '' || $replaceText === '') continue;
+        if (mb_strlen($matchText) > 255 || mb_strlen($replaceText) > 255) continue;
+        $mode = (isset($row['match_mode']) && $row['match_mode'] === 'substring') ? 'substring' : 'word';
+        $caseSensitive = !empty($row['case_sensitive']) ? 1 : 0;
+        $enabled = (isset($row['enabled']) && !$row['enabled']) ? 0 : 1;
+        $clean[] = [
+            'match_text' => $matchText,
+            'replace_text' => $replaceText,
+            'match_mode' => $mode,
+            'case_sensitive' => $caseSensitive,
+            'enabled' => $enabled,
+        ];
+    }
+    // Replace-all: clear existing rows, then insert the surviving set.
+    if (!$db->query("DELETE FROM closed_captions_corrections")) {
+        echo json_encode(['success' => false, 'error' => $db->error]);
+        exit;
+    }
+    $insertStmt = $db->prepare("INSERT INTO closed_captions_corrections (match_text, replace_text, match_mode, case_sensitive, enabled, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
+    if (!$insertStmt) {
+        echo json_encode(['success' => false, 'error' => $db->error]);
+        exit;
+    }
+    $count = 0;
+    foreach ($clean as $index => $entry) {
+        $sortOrder = $index;
+        // 6 placeholders / 6 vars / type string "sssiii": s,s,s,i,i,i
+        $insertStmt->bind_param(
+            "sssiii",
+            $entry['match_text'],
+            $entry['replace_text'],
+            $entry['match_mode'],
+            $entry['case_sensitive'],
+            $entry['enabled'],
+            $sortOrder
+        );
+        if ($insertStmt->execute()) {
+            $count++;
+        }
+    }
+    $insertStmt->close();
+    echo json_encode(['success' => true, 'count' => $count]);
+    exit;
 }
 
 // Handle settings save (AJAX POST)
@@ -64,12 +148,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cc_save'])) {
     $fadeSeconds = max(0, min(60, intval($_POST['fade_seconds'] ?? 5)));
     $profanity = !empty($_POST['profanity_filter']) ? 1 : 0;
     $actionTags = !empty($_POST['action_tags_enabled']) ? 1 : 0;
-    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled)");
+    // Caption (translation) target language: a Chrome Translator SHORT code or '' (off).
+    $targetLang = in_array($_POST['target_language'] ?? '', $allowedTargetLanguages, true) ? ($_POST['target_language'] ?? '') : '';
+    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled), target_language = VALUES(target_language)");
     if (!$saveStmt) {
         echo json_encode(['success' => false, 'error' => $db->error]);
         exit;
     }
-    $saveStmt->bind_param("isisssiiii", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags);
+    // 11 placeholders / 11 vars / type string "isisssiiiis" (11 chars):
+    // i,s,i,s,s,s,i,i,i,i,s = enabled,language,font_size,text_color,background_style,position,max_lines,fade_seconds,profanity_filter,action_tags_enabled,target_language
+    $saveStmt->bind_param("isisssiiiis", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags, $targetLang);
     if ($saveStmt->execute()) {
         echo json_encode(['success' => true]);
     } else {
@@ -93,6 +181,42 @@ $languageLabels = [
     'pt-BR' => 'Português (Brasil)',
     'nl-NL' => 'Nederlands',
     'ja-JP' => '日本語',
+];
+
+// Display labels for the caption (translation) target SHORT codes. '' is handled by the
+// "Same as spoken" option in the markup, so it isn't listed here.
+$targetLanguageLabels = [
+    'en' => 'English',
+    'de' => 'Deutsch',
+    'es' => 'Español',
+    'fr' => 'Français',
+    'it' => 'Italiano',
+    'pt' => 'Português',
+    'nl' => 'Nederlands',
+    'ja' => '日本語',
+    'ko' => '한국어',
+    'zh' => '中文',
+    'ru' => 'Русский',
+    'pl' => 'Polski',
+    'tr' => 'Türkçe',
+    'uk' => 'Українська',
+    'ar' => 'العربية',
+    'hi' => 'हिन्दी',
+    'sv' => 'Svenska',
+    'da' => 'Dansk',
+    'fi' => 'Suomi',
+    'nb' => 'Norsk (Bokmål)',
+    'cs' => 'Čeština',
+    'el' => 'Ελληνικά',
+    'hu' => 'Magyar',
+    'ro' => 'Română',
+    'id' => 'Bahasa Indonesia',
+    'vi' => 'Tiếng Việt',
+    'th' => 'ไทย',
+    'bg' => 'Български',
+    'hr' => 'Hrvatski',
+    'sk' => 'Slovenčina',
+    'sl' => 'Slovenščina',
 ];
 
 ob_start();
@@ -173,13 +297,24 @@ ob_start();
                 </div>
                 <div class="cc-form-grid">
                     <div class="sp-form-group">
-                        <label class="sp-label" for="ccLanguage"><?= t('closed_captions_language_label') ?></label>
+                        <label class="sp-label" for="ccLanguage"><?= t('closed_captions_spoken_language_label') ?></label>
                         <select id="ccLanguage" name="language" class="sp-select">
                             <?php foreach ($allowedLanguages as $langCode): ?>
                                 <option value="<?= htmlspecialchars($langCode) ?>" <?= ($cc['language'] === $langCode) ? 'selected' : '' ?>><?= htmlspecialchars($languageLabels[$langCode] ?? $langCode) ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <span class="sp-help"><?= t('closed_captions_language_help') ?></span>
+                        <span class="sp-help"><?= t('closed_captions_spoken_language_help') ?></span>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="ccTargetLanguage"><?= t('closed_captions_caption_language_label') ?></label>
+                        <select id="ccTargetLanguage" name="target_language" class="sp-select">
+                            <option value="" <?= ($cc['target_language'] === '') ? 'selected' : '' ?>><?= t('closed_captions_translate_off') ?></option>
+                            <?php foreach ($allowedTargetLanguages as $tgtCode): ?>
+                                <?php if ($tgtCode === '') continue; ?>
+                                <option value="<?= htmlspecialchars($tgtCode) ?>" <?= ($cc['target_language'] === $tgtCode) ? 'selected' : '' ?>><?= htmlspecialchars($targetLanguageLabels[$tgtCode] ?? $tgtCode) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="sp-help"><?= t('closed_captions_caption_language_help') ?></span>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label" for="ccFontSize"><?= t('closed_captions_font_size_label') ?></label>
@@ -240,6 +375,44 @@ ob_start();
     </div>
 
 </div>
+
+<!-- Caption corrections (per-user glossary / fix-up dictionary) -->
+<div class="sp-card cc-corrections-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-spell-check"></i> <?= t('closed_captions_corrections_title') ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="cc-help-text"><?= t('closed_captions_corrections_help') ?></p>
+        <div class="cc-corrections-table-wrap">
+            <table class="cc-corrections-table">
+                <thead>
+                    <tr>
+                        <th class="cc-corr-col-heard"><?= t('closed_captions_corrections_col_heard') ?></th>
+                        <th class="cc-corr-arrow"></th>
+                        <th class="cc-corr-col-correct"><?= t('closed_captions_corrections_col_correct') ?></th>
+                        <th class="cc-corr-col-mode"><?= t('closed_captions_corrections_col_mode') ?></th>
+                        <th class="cc-corr-col-toggle"><?= t('closed_captions_corrections_col_case') ?></th>
+                        <th class="cc-corr-col-toggle"><?= t('closed_captions_corrections_col_on') ?></th>
+                        <th class="cc-corr-col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody id="ccCorrBody"></tbody>
+            </table>
+            <div id="ccCorrEmpty" class="cc-corrections-empty cc-hidden"><?= t('closed_captions_corrections_empty') ?></div>
+        </div>
+        <div class="cc-corrections-actions">
+            <button type="button" id="ccCorrAddBtn" class="sp-btn sp-btn-sm sp-btn-secondary">
+                <i class="fas fa-plus"></i> <?= t('closed_captions_corrections_add_row') ?>
+            </button>
+            <div class="cc-corr-save-group">
+                <span id="ccCorrSaveStatus" class="cc-save-status"></span>
+                <button type="button" id="ccCorrSaveBtn" class="sp-btn sp-btn-primary">
+                    <i class="fas fa-save"></i> <?= t('closed_captions_corrections_save') ?>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
@@ -250,6 +423,12 @@ ob_start();
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
+    // Caption (translation) target SHORT code; '' = no translation (same as spoken).
+    // The spoken/source language is read live from the #ccLanguage select.
+    const ccTargetLanguage = <?php echo json_encode($cc['target_language']); ?>;
+    // Full corrections list (for the editor) and enabled-only subset (for the apply layer).
+    const ccCorrections = <?php echo json_encode($ccCorrections); ?>;
+    const ccCorrectionsEnabled = <?php echo json_encode(array_values(array_filter($ccCorrections, function ($c) { return !empty($c['enabled']); }))); ?>;
     const ccLang = {
         listening: <?php echo json_encode(t('closed_captions_status_listening')); ?>,
         idle: <?php echo json_encode(t('closed_captions_status_idle')); ?>,
@@ -266,7 +445,16 @@ ob_start();
         urlCopied: <?php echo json_encode(t('closed_captions_overlay_url_copied')); ?>,
         soundLoading: <?php echo json_encode(t('closed_captions_sound_loading')); ?>,
         soundOn: <?php echo json_encode(t('closed_captions_sound_on')); ?>,
-        soundOff: <?php echo json_encode(t('closed_captions_sound_off')); ?>
+        soundOff: <?php echo json_encode(t('closed_captions_sound_off')); ?>,
+        corrModeWord: <?php echo json_encode(t('closed_captions_corrections_mode_word')); ?>,
+        corrModeSubstring: <?php echo json_encode(t('closed_captions_corrections_mode_substring')); ?>,
+        corrHeardPlaceholder: <?php echo json_encode(t('closed_captions_corrections_heard_placeholder')); ?>,
+        corrCorrectPlaceholder: <?php echo json_encode(t('closed_captions_corrections_correct_placeholder')); ?>,
+        corrDeleteRow: <?php echo json_encode(t('closed_captions_corrections_delete_row')); ?>,
+        corrSaved: <?php echo json_encode(t('closed_captions_corrections_saved')); ?>,
+        corrSaveError: <?php echo json_encode(t('closed_captions_corrections_save_error')); ?>,
+        translateDownloading: <?php echo json_encode(t('closed_captions_translate_downloading')); ?>,
+        translateUnavailable: <?php echo json_encode(t('closed_captions_translate_unavailable')); ?>
     };
 
     // WebSocket (emit captions to the overlay)
@@ -307,6 +495,213 @@ ob_start();
             socket.emit('CLOSED_CAPTION', { code: apiKey, text: tag, isFinal: true, action: true });
         }
     };
+
+    // Serialized final-caption emit. Each final is queued onto a single promise chain so a
+    // slow translate (or an in-flight model download) can never reorder captions: finals
+    // emit to the overlay in the exact order they were committed. When translation is off
+    // or unavailable, the corrected text passes straight through. Action tags do NOT use
+    // this path and are never translated.
+    let translateChain = Promise.resolve();
+    function emitFinalCaption(text) {
+        translateChain = translateChain.then(async () => {
+            let out = text;
+            if (liveTranslator.isActive()) {
+                out = await liveTranslator.translate(text);
+            }
+            emitCaption(out, true);
+        });
+    }
+
+    // ---- Caption corrections (deterministic glossary / fix-up dictionary) ----
+    // Builds at most two combined alternation regexes — one case-insensitive ('gi'),
+    // one case-sensitive ('g') — from the enabled corrections, then rewrites finalised
+    // captions verbatim to the stored replacement (canonical casing). Exact + whole-word
+    // (or substring) matching only; no fuzzy/phonetic, no user regex. Cached; rebuilt only
+    // when the source list changes.
+    const correctionMatcher = (function () {
+        const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let cachedSig = null;
+        let ciRegex = null, ciMap = null;   // case-insensitive group
+        let csRegex = null, csMap = null;   // case-sensitive group
+
+        const build = (list) => {
+            const sig = JSON.stringify(list);
+            if (sig === cachedSig) return; // unchanged: keep the cached matchers
+            cachedSig = sig;
+            ciRegex = csRegex = null;
+            ciMap = new Map();
+            csMap = new Map();
+            const ciTerms = []; // { term, escaped }
+            const csTerms = [];
+            (list || []).forEach((c) => {
+                if (!c) return;
+                const matchText = String(c.match_text != null ? c.match_text : '');
+                if (!matchText) return;
+                const replaceText = String(c.replace_text != null ? c.replace_text : '');
+                const mode = (c.match_mode === 'substring') ? 'substring' : 'word';
+                const caseSensitive = !!(c.case_sensitive === 1 || c.case_sensitive === true || c.case_sensitive === '1');
+                let escaped = escapeRegex(matchText);
+                if (mode === 'word') escaped = '\\b' + escaped + '\\b';
+                if (caseSensitive) {
+                    const key = 'cs:' + matchText;
+                    if (!csMap.has(key)) { csMap.set(key, replaceText); csTerms.push({ term: matchText, escaped: escaped }); }
+                } else {
+                    const key = 'ci:' + matchText.toLowerCase();
+                    if (!ciMap.has(key)) { ciMap.set(key, replaceText); ciTerms.push({ term: matchText, escaped: escaped }); }
+                }
+            });
+            // Longest match first so overlapping terms resolve to the most specific.
+            const byLenDesc = (a, b) => b.term.length - a.term.length;
+            csTerms.sort(byLenDesc);
+            ciTerms.sort(byLenDesc);
+            if (csTerms.length) {
+                try { csRegex = new RegExp(csTerms.map(t => t.escaped).join('|'), 'g'); } catch (e) { csRegex = null; }
+            }
+            if (ciTerms.length) {
+                try { ciRegex = new RegExp(ciTerms.map(t => t.escaped).join('|'), 'gi'); } catch (e) { ciRegex = null; }
+            }
+        };
+
+        const apply = (text, list) => {
+            build(list);
+            if (!text) return text;
+            let out = text;
+            if (csRegex) {
+                out = out.replace(csRegex, (m) => {
+                    const v = csMap.get('cs:' + m);
+                    return v != null ? v : m;
+                });
+            }
+            if (ciRegex) {
+                out = out.replace(ciRegex, (m) => {
+                    const v = ciMap.get('ci:' + m.toLowerCase());
+                    return v != null ? v : m;
+                });
+            }
+            return out;
+        };
+
+        return { apply };
+    })();
+
+    // Active enabled corrections used by the apply layer. The editor swaps this in on save
+    // so freshly-saved corrections take effect without a page reload.
+    let ccActiveCorrections = ccCorrectionsEnabled.slice();
+    const applyCorrections = (text) => {
+        if (!ccActiveCorrections || !ccActiveCorrections.length) return text;
+        return correctionMatcher.apply(text, ccActiveCorrections);
+    };
+
+    // ---- Live translation (Chrome/Edge on-device Translator API) ----------------
+    // Translates the CORRECTED FINAL caption from the spoken language to the chosen
+    // caption language, on-device, free, no API key (window.Translator, Chrome 138+/
+    // Edge 148+). Gated: only active when ccTargetLanguage is set AND its SHORT code
+    // differs from the spoken source's SHORT code. The overlay renders whatever text
+    // arrives, so it is unchanged. If the API/model is missing, we emit the corrected
+    // (untranslated) text so captions never stop, and surface a one-time notice.
+    const shortCode = (lang) => String(lang || '').split('-')[0].toLowerCase();
+
+    // Live target code: seeded from the saved setting, but updated in place when the user
+    // saves a new caption language so translation can switch without a page reload (mirrors
+    // how ccActiveCorrections is refreshed on save).
+    let ccActiveTargetLanguage = ccTargetLanguage;
+
+    // Reuse the sound-status area as the (non-blocking) translation notice surface.
+    const ccTranslateStatusEl = document.getElementById('ccSoundStatus');
+    const setTranslateNotice = (text, show) => {
+        if (!ccTranslateStatusEl) return;
+        if (show) {
+            ccTranslateStatusEl.textContent = text;
+            ccTranslateStatusEl.classList.remove('cc-hidden');
+        } else {
+            ccTranslateStatusEl.classList.add('cc-hidden');
+        }
+    };
+
+    const liveTranslator = (function () {
+        let translator = null;       // active Translator session
+        let ready = false;           // true only when a session is live and usable
+        let curSrc = null;           // SHORT source code the current session was built for
+        let curTgt = null;           // SHORT target code the current session was built for
+        let building = null;         // in-flight create() promise (prevents duplicate builds)
+        let unavailableNoticeShown = false;
+
+        const destroy = () => {
+            if (translator) {
+                try { if (typeof translator.destroy === 'function') translator.destroy(); } catch (e) { /* noop */ }
+            }
+            translator = null;
+            ready = false;
+            curSrc = null;
+            curTgt = null;
+        };
+
+        // (Re)build a session for the given spoken-language region code (e.g. 'de-DE').
+        // Returns a promise; on any failure leaves ready=false and falls back to passthrough.
+        const ensure = async (sourceLang) => {
+            const tgt = ccActiveTargetLanguage || '';
+            const src = shortCode(sourceLang);
+            // Gate: off when no target, or target equals source short code.
+            if (!tgt || src === tgt) { destroy(); setTranslateNotice('', false); return; }
+            // Already have a live session for this exact src/tgt pair.
+            if (ready && translator && curSrc === src && curTgt === tgt) return;
+            // Source or target changed: tear down the stale session before rebuilding.
+            destroy();
+            if (!('Translator' in self)) {
+                ready = false;
+                if (!unavailableNoticeShown) { unavailableNoticeShown = true; setTranslateNotice(ccLang.translateUnavailable, true); }
+                return;
+            }
+            const params = { sourceLanguage: src, targetLanguage: tgt };
+            building = (async () => {
+                try {
+                    const avail = await Translator.availability(params);
+                    if (avail === 'unavailable') {
+                        ready = false;
+                        if (!unavailableNoticeShown) { unavailableNoticeShown = true; setTranslateNotice(ccLang.translateUnavailable, true); }
+                        return;
+                    }
+                    // 'available' | 'downloadable' | 'downloading' -> create (downloads model if needed).
+                    const session = await Translator.create({
+                        sourceLanguage: src,
+                        targetLanguage: tgt,
+                        monitor(m) {
+                            m.addEventListener('downloadprogress', (e) => {
+                                const pct = Math.round((e.loaded || 0) * 100);
+                                setTranslateNotice(ccLang.translateDownloading + pct + '%', true);
+                            });
+                        }
+                    });
+                    translator = session;
+                    curSrc = src;
+                    curTgt = tgt;
+                    ready = true;
+                    setTranslateNotice('', false); // model ready: clear the downloading notice
+                } catch (e) {
+                    destroy();
+                    if (!unavailableNoticeShown) { unavailableNoticeShown = true; setTranslateNotice(ccLang.translateUnavailable, true); }
+                }
+            })();
+            try { await building; } finally { building = null; }
+        };
+
+        // Translate one corrected final. Falls back to the input text on any error so
+        // captions never stall; returns the (possibly translated) string.
+        const translate = async (text) => {
+            if (!ready || !translator) return text;
+            try {
+                const out = await translator.translate(text);
+                return (out != null && out !== '') ? out : text;
+            } catch (e) {
+                return text;
+            }
+        };
+
+        const isActive = () => ready && !!translator;
+        const stop = () => { destroy(); };
+
+        return { ensure, translate, isActive, stop };
+    })();
 
     // ---- Sound action-tag detection (YAMNet via TensorFlow.js) --------------
     // Entirely opt-in: when ccActionTagsEnabled is false, NONE of the TF.js / model
@@ -612,7 +1007,13 @@ ob_start();
             }
             if (finalChunk.trim()) {
                 committedText = punctuateFinal(finalChunk.trim());
-                emitCaption(committedText, true);
+                // Apply the correction/glossary dictionary to FINAL captions only (interim
+                // results get overwritten, so correcting them would only cause flicker).
+                committedText = applyCorrections(committedText);
+                // Emit through the serialized translate helper: the overlay receives the
+                // translated text (when live translation is active) in committed order, while
+                // the local preview shows the CORRECTED SOURCE text immediately.
+                emitFinalCaption(committedText);
                 setPreview(committedText, '');
             }
             if (interim.trim()) {
@@ -670,6 +1071,11 @@ ob_start();
         setStatus(ccLang.listening, 'online');
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
+        // Build the on-device translation session for the current spoken language (the Start
+        // click is the user gesture the Translator API needs). No-ops / falls back gracefully
+        // when translation is off, target == source, or the API/model is unavailable.
+        const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
+        liveTranslator.ensure(srcLang);
         // Opt-in sound action-tag detection: only loads YAMNet/TF.js when enabled.
         if (ccActionTagsEnabled) { soundDetector.start(detectorDeviceId); }
     };
@@ -680,6 +1086,8 @@ ob_start();
             try { recognition.stop(); } catch (e) { /* noop */ }
         }
         soundDetector.stop();
+        liveTranslator.stop();
+        setTranslateNotice('', false);
         emitClear();
         committedText = '';
         setPreview('', '');
@@ -696,6 +1104,9 @@ ob_start();
             // SpeechRecognition only reads .lang at start(), so restart to apply the new
             // language (and its spelling, e.g. en-AU "colour") immediately. onend restarts it.
             try { recognition.stop(); } catch (e) { /* onend will restart with the new lang */ }
+            // Rebuild the translation session for the new spoken source (or tear it down if
+            // the new source short code now matches the target).
+            liveTranslator.ensure(langSelect.value);
         }
     });
     window.addEventListener('beforeunload', () => { if (runState === 'started') stop(); });
@@ -712,12 +1123,22 @@ ob_start();
             fd.set('enabled', document.getElementById('ccEnabled').checked ? '1' : '0');
             fd.set('profanity_filter', document.getElementById('ccProfanity').checked ? '1' : '0');
             fd.set('action_tags_enabled', document.getElementById('ccActionTags').checked ? '1' : '0');
+            fd.set('target_language', document.getElementById('ccTargetLanguage').value);
             if (saveStatus) { saveStatus.textContent = ''; saveStatus.className = 'cc-save-status'; }
             fetch(window.location.pathname, { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(data => {
+                    if (data && data.success) {
+                        // Apply the saved caption language to the live translator without a
+                        // reload: update the active target and rebuild the session if running.
+                        ccActiveTargetLanguage = document.getElementById('ccTargetLanguage').value || '';
+                        if (runState === 'started') {
+                            const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
+                            liveTranslator.ensure(srcLang);
+                        }
+                    }
                     if (!saveStatus) return;
-                    if (data.success) {
+                    if (data && data.success) {
                         saveStatus.textContent = ccLang.saved;
                         saveStatus.classList.add('is-success');
                     } else {
@@ -732,6 +1153,166 @@ ob_start();
                 });
         });
     }
+
+    // Caption corrections editor (render / add / delete / save)
+    (function () {
+        const body = document.getElementById('ccCorrBody');
+        const emptyEl = document.getElementById('ccCorrEmpty');
+        const addBtn = document.getElementById('ccCorrAddBtn');
+        const saveBtn = document.getElementById('ccCorrSaveBtn');
+        const saveStatusEl = document.getElementById('ccCorrSaveStatus');
+        if (!body) return;
+
+        const buildRow = (row) => {
+            row = row || {};
+            const tr = document.createElement('tr');
+            tr.className = 'cc-corr-row';
+
+            const heardTd = document.createElement('td');
+            const heardInput = document.createElement('input');
+            heardInput.type = 'text';
+            heardInput.className = 'sp-input cc-corr-heard';
+            heardInput.maxLength = 255;
+            heardInput.placeholder = ccLang.corrHeardPlaceholder;
+            heardInput.value = row.match_text != null ? row.match_text : '';
+            heardTd.appendChild(heardInput);
+
+            const arrowTd = document.createElement('td');
+            arrowTd.className = 'cc-corr-arrow';
+            const arrowIcon = document.createElement('i');
+            arrowIcon.className = 'fas fa-arrow-right';
+            arrowTd.appendChild(arrowIcon);
+
+            const correctTd = document.createElement('td');
+            const correctInput = document.createElement('input');
+            correctInput.type = 'text';
+            correctInput.className = 'sp-input cc-corr-correct';
+            correctInput.maxLength = 255;
+            correctInput.placeholder = ccLang.corrCorrectPlaceholder;
+            correctInput.value = row.replace_text != null ? row.replace_text : '';
+            correctTd.appendChild(correctInput);
+
+            const modeTd = document.createElement('td');
+            const modeSelect = document.createElement('select');
+            modeSelect.className = 'sp-select cc-corr-mode';
+            const optWord = document.createElement('option');
+            optWord.value = 'word';
+            optWord.textContent = ccLang.corrModeWord;
+            const optSub = document.createElement('option');
+            optSub.value = 'substring';
+            optSub.textContent = ccLang.corrModeSubstring;
+            modeSelect.appendChild(optWord);
+            modeSelect.appendChild(optSub);
+            modeSelect.value = (row.match_mode === 'substring') ? 'substring' : 'word';
+            modeTd.appendChild(modeSelect);
+
+            const caseTd = document.createElement('td');
+            caseTd.className = 'cc-corr-col-toggle';
+            const caseInput = document.createElement('input');
+            caseInput.type = 'checkbox';
+            caseInput.className = 'cc-corr-case';
+            caseInput.checked = !!(row.case_sensitive === 1 || row.case_sensitive === true || row.case_sensitive === '1');
+            caseTd.appendChild(caseInput);
+
+            const enabledTd = document.createElement('td');
+            enabledTd.className = 'cc-corr-col-toggle';
+            const enabledInput = document.createElement('input');
+            enabledInput.type = 'checkbox';
+            enabledInput.className = 'cc-corr-enabled';
+            // Default new/undefined rows to enabled.
+            enabledInput.checked = (row.enabled === undefined) ? true : !!(row.enabled === 1 || row.enabled === true || row.enabled === '1');
+            enabledTd.appendChild(enabledInput);
+
+            const actionsTd = document.createElement('td');
+            actionsTd.className = 'cc-corr-col-actions';
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'cc-corr-delete';
+            delBtn.title = ccLang.corrDeleteRow;
+            delBtn.setAttribute('aria-label', ccLang.corrDeleteRow);
+            const delIcon = document.createElement('i');
+            delIcon.className = 'fas fa-trash';
+            delBtn.appendChild(delIcon);
+            delBtn.addEventListener('click', () => { tr.remove(); updateEmpty(); });
+            actionsTd.appendChild(delBtn);
+
+            tr.appendChild(heardTd);
+            tr.appendChild(arrowTd);
+            tr.appendChild(correctTd);
+            tr.appendChild(modeTd);
+            tr.appendChild(caseTd);
+            tr.appendChild(enabledTd);
+            tr.appendChild(actionsTd);
+            return tr;
+        };
+
+        const updateEmpty = () => {
+            if (!emptyEl) return;
+            emptyEl.classList.toggle('cc-hidden', body.children.length > 0);
+        };
+
+        const addRow = (row) => {
+            body.appendChild(buildRow(row));
+            updateEmpty();
+        };
+
+        const collectRows = () => {
+            const rows = [];
+            body.querySelectorAll('.cc-corr-row').forEach((tr) => {
+                const matchText = (tr.querySelector('.cc-corr-heard').value || '').trim();
+                const replaceText = (tr.querySelector('.cc-corr-correct').value || '').trim();
+                if (!matchText || !replaceText) return; // skip incomplete rows
+                rows.push({
+                    match_text: matchText,
+                    replace_text: replaceText,
+                    match_mode: (tr.querySelector('.cc-corr-mode').value === 'substring') ? 'substring' : 'word',
+                    case_sensitive: tr.querySelector('.cc-corr-case').checked ? 1 : 0,
+                    enabled: tr.querySelector('.cc-corr-enabled').checked ? 1 : 0
+                });
+            });
+            return rows;
+        };
+
+        // Initial render from the server-provided list.
+        (ccCorrections || []).forEach(addRow);
+        updateEmpty();
+
+        if (addBtn) addBtn.addEventListener('click', () => addRow({}));
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const rows = collectRows();
+                const fd = new FormData();
+                fd.append('cc_corrections_save', '1');
+                fd.append('rows', JSON.stringify(rows));
+                if (saveStatusEl) { saveStatusEl.textContent = ''; saveStatusEl.className = 'cc-save-status'; }
+                saveBtn.disabled = true;
+                fetch(window.location.pathname, { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        saveBtn.disabled = false;
+                        if (data && data.success) {
+                            // Refresh the live apply layer with the enabled subset.
+                            ccActiveCorrections = rows.filter(r => r.enabled === 1);
+                            if (saveStatusEl) {
+                                saveStatusEl.textContent = ccLang.corrSaved;
+                                saveStatusEl.classList.add('is-success');
+                            }
+                        } else if (saveStatusEl) {
+                            saveStatusEl.textContent = ccLang.corrSaveError;
+                            saveStatusEl.classList.add('is-error');
+                        }
+                    })
+                    .catch(() => {
+                        saveBtn.disabled = false;
+                        if (saveStatusEl) {
+                            saveStatusEl.textContent = ccLang.corrSaveError;
+                            saveStatusEl.classList.add('is-error');
+                        }
+                    });
+            });
+        }
+    })();
 
     // Overlay URL: masked by default, reveal toggle, copy the real URL
     const ccUrlReal = <?php echo json_encode($overlayLinkWithCode); ?>;
