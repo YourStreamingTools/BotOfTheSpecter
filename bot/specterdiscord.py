@@ -629,7 +629,15 @@ class WebsocketListener:
         self.specterSocket = None
 
     async def start(self):
-        self.specterSocket = socketio.AsyncClient(logger=False, engineio_logger=False)
+        # This listener has NO manual reconnect loop — it relies entirely on
+        # python-socketio's built-in reconnection (single authority). Do NOT set
+        # reconnection=False here or the Discord bot would never reconnect.
+        # Keep infinite attempts but bound the delay for the ~2 min internal-server reboot.
+        self.specterSocket = socketio.AsyncClient(
+            logger=False, engineio_logger=False,
+            reconnection=True, reconnection_attempts=0,
+            reconnection_delay=5, reconnection_delay_max=60,
+        )
         admin_key = config.admin_key
         websocket_url = config.websocket_url
         # Register event handlers for the websocket client

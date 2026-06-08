@@ -261,7 +261,7 @@ _current_bingo_game_id = None                                                   
 _streak_schema_ready = False                                                            # Tracks whether highest_streak/total_streams_watched columns have been verified
 
 # Initialize global variables
-specterSocket = AsyncClient()                                                           # Specter Socket Client instance
+specterSocket = AsyncClient(reconnection=False)                                         # Specter Socket Client instance
 streamelements_socket = AsyncClient()                                                   # StreamElements Socket Client instance
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)                                     # OpenAI client for AI responses
 _shared_http_session = None                                                             # Shared aiohttp session (lazy-created)
