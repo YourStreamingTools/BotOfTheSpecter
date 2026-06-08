@@ -340,15 +340,15 @@ No post-processing filter on the AI response. A previous version substituted "Ch
 
 | File | Constant | Value |
 | ---- | -------- | ----- |
+| `./bot/bot.py:192` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
 | `./bot/beta.py:115` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
+| `./bot/beta-v6.py:250` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
 | `./bot/specterdiscord.py:163` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
-| `./bot/bot.py` | (inline) | `'gpt-5.4-mini'` (lines 2585, 2598) |
-| `./bot/beta-v6.py` | (inline) | `'gpt-5.4-mini'` (lines 4080, 4093, 13961, 13973) |
-| `./bot/custom_channel_modules/botofthespecter.py` | (inline) | `'gpt-5.4-mini'` (lines 115, 127) |
-| `./bot/kick.py` | (inline) | `'gpt-5.4-mini'` (line 1538) |
+| `./bot/kick.py:154` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
+| `./bot/custom_channel_modules/botofthespecter.py:10` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
 | `./websocket/tts_handler.py:11` | `MODEL_NAME` | `'gpt-4o-mini-tts'` (TTS — separate family, unchanged) |
 
-`gpt-5.4-mini` is the **unified chat model across all five bots** (set 2026-06-08). It replaced the previous mix of `gpt-5.4-nano` (beta/Discord), `gpt-5-nano` (stable/v6/home channel), and `gpt-4o-mini` (Kick). It is still hardcoded at each callsite (an `OPENAI_MODEL` constant in `beta.py`/`specterdiscord.py`, inline literals elsewhere) — if you want a single source of truth to stop the strings drifting apart again, lift it to `OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini')` and point every callsite at it.
+`gpt-5.4-mini` is the **unified chat model across all five bots** (set 2026-06-08). It replaced the previous mix of `gpt-5.4-nano` (beta/Discord), `gpt-5-nano` (stable/v6/home channel), and `gpt-4o-mini` (Kick). As of 2026-06-08 **every** bot file (and the home-channel module) defines its own module-level `OPENAI_MODEL` constant and every `model=` callsite references it — so changing the model is a **one-line edit per process**, mirroring the pattern that already existed in `beta.py`/`specterdiscord.py`. The six constants are independent literals (the bots run as separate processes, so there is no shared global); if you want them env-overridable from one place, change each to `OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini')`.
 
 ### 5.2 Pricing reference
 
@@ -376,11 +376,10 @@ o4-mini           input $1.10 / output $4.40
 
 To change the model fleet-wide:
 
-1. Update each callsite listed in §5.1.
-2. Update `./bot/specterdiscord.py:163` and `./bot/beta.py:114` constants.
-3. If the new model has a different price, add it to `./config/openai.php` `pricing_per_million`.
-4. Verify TTS model (`gpt-4o-mini-tts`) — TTS is a separate model family.
-5. GPT-5 / `o1` / `o3` reasoning models require **`max_completion_tokens` instead of `max_tokens`** on Chat Completions. `./bot/kick.py` already uses `max_completion_tokens=200` (the only callsite that caps tokens) since the fleet moved to `gpt-5.4-mini`; if you add a token cap elsewhere on a GPT-5-family model, use `max_completion_tokens`, not the deprecated `max_tokens`.
+1. Update the `OPENAI_MODEL` constant in each of the six files in §5.1 — every `model=` callsite already references it, so that constant is the only line to touch per process.
+2. If the new model has a different price, add it to `./config/openai.php` `pricing_per_million` (and the duplicate map in `./dashboard/admin/index.php`).
+3. Verify the TTS model (`gpt-4o-mini-tts`) separately — TTS is a different model family and is **not** governed by `OPENAI_MODEL`.
+4. GPT-5 / `o1` / `o3` reasoning models require **`max_completion_tokens` instead of `max_tokens`** on Chat Completions. `./bot/kick.py` already uses `max_completion_tokens=200` (the only callsite that caps tokens) since the fleet moved to `gpt-5.4-mini`; if you add a token cap elsewhere on a GPT-5-family model, use `max_completion_tokens`, not the deprecated `max_tokens`.
 
 ---
 
@@ -630,7 +629,7 @@ If the user asks for any of the above, treat it as new work and confirm scope be
 | Goal | Edit |
 | ---- | ---- |
 | Change the system prompt | Edit `/home/botofthespecter/ai.json` (or `ai.discord.json` etc.) on the server. **Do not** hardcode in bot files. |
-| Change the model | Update `OPENAI_MODEL` in `./bot/beta.py:115` and `./bot/specterdiscord.py:163`, plus inline `model=` in `./bot/bot.py`, `./bot/beta-v6.py`, `./bot/kick.py`, `./bot/custom_channel_modules/botofthespecter.py`. Add pricing row to `./config/openai.php` and `./dashboard/admin/index.php`. |
+| Change the model | Update the `OPENAI_MODEL` constant in each of the six files (§5.1): `bot.py`, `beta.py`, `beta-v6.py`, `specterdiscord.py`, `kick.py`, `custom_channel_modules/botofthespecter.py`. Every `model=` callsite references it. Add a pricing row to `./config/openai.php` and `./dashboard/admin/index.php`. |
 | Adjust history length | `recent = history[-8:]` in each `get_ai_response`. |
 | Adjust history file cap | `if len(history) > 200:` in each `get_ai_response`. |
 | Change instructions cache TTL | `INSTRUCTIONS_CACHE_TTL = int('300')` in each bot file. |
