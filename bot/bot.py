@@ -186,7 +186,7 @@ active_timed_messages = {}                              # Dictionary to track ac
 message_tasks = {}                                      # Dictionary to track individual message tasks by ID
 
 # Initialize global variables
-specterSocket = AsyncClient()                           # Specter Socket Client instance
+specterSocket = AsyncClient(reconnection=False)         # Specter Socket Client instance
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
 OPENAI_MODEL = "gpt-5.4-mini"                           # OpenAI chat model for all AI responses
@@ -1178,13 +1178,12 @@ async def specter_websocket():
         try:
             # Ensure clean state before connection attempt
             websocket_connected = False
-            # Disconnect existing connection if any
-            if specterSocket and specterSocket.connected:
-                try:
-                    await specterSocket.disconnect()
-                    websocket_logger.info("Disconnected existing WebSocket connection before reconnection attempt")
-                except Exception as disconnect_error:
-                    websocket_logger.warning(f"Error disconnecting existing connection: {disconnect_error}")
+            # Always force a clean disconnect first so we recover from any
+            # indeterminate socket state (do not gate on .connected).
+            try:
+                await specterSocket.disconnect()
+            except Exception:
+                pass
             # Wait 60 seconds before each reconnection attempt (server takes min 2 mins to reboot)
             if consecutive_failures > 0:
                 # Add small jitter to prevent multiple instances from reconnecting simultaneously
@@ -1192,9 +1191,14 @@ async def specter_websocket():
                 total_delay = reconnect_delay + jitter
                 websocket_logger.info(f"Reconnection attempt {consecutive_failures}, waiting {total_delay:.1f} seconds (server reboot consideration)")
                 await sleep(total_delay)
-            # Attempt to connect to the WebSocket server using websocket transport directly
+            # Attempt to connect to the WebSocket server using websocket transport directly.
+            # Hard timeout on connect() itself — prevents hanging forever when the server is
+            # mid-reboot and accepts TCP but never completes the socket.io handshake.
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
-            await specterSocket.connect(specter_websocket_uri, transports=['websocket'])
+            await asyncio_wait_for(
+                specterSocket.connect(specter_websocket_uri, transports=['websocket']),
+                timeout=30
+            )
             # Wait for connection to be established and registered
             connection_timeout = 30  # 30 second timeout for connection + registration
             start_time = time_right_now()

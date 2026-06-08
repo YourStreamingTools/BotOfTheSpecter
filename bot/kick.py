@@ -2,6 +2,7 @@
 import os, re, sys, signal, argparse, traceback, math, time, random, json
 from asyncio import Queue, CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
+from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode, quote
@@ -412,7 +413,7 @@ async def unban_user(user_id: int) -> bool:
     })
     return status in (200, 204)
 
-specterSocket    = AsyncClient()
+specterSocket    = AsyncClient(reconnection=False)
 websocket_connected = False
 
 async def specter_websocket():
@@ -423,11 +424,11 @@ async def specter_websocket():
     while True:
         try:
             websocket_connected = False
-            if specterSocket.connected:
-                try:
-                    await specterSocket.disconnect()
-                except Exception:
-                    pass
+            # Force a clean disconnect first to recover from any indeterminate socket state.
+            try:
+                await specterSocket.disconnect()
+            except Exception:
+                pass
             if consecutive_failures > 0:
                 jitter = random.uniform(0, 5)
                 websocket_logger.info(
@@ -436,7 +437,12 @@ async def specter_websocket():
                 )
                 await sleep(reconnect_delay + jitter)
             bot_logger.info(f"[WS] Connecting to {specter_uri} (attempt {consecutive_failures + 1})")
-            await specterSocket.connect(specter_uri, transports=['websocket'])
+            # Hard timeout on connect() — prevents hanging when the server is mid-reboot
+            # and accepts TCP but never completes the socket.io handshake.
+            await asyncio_wait_for(
+                specterSocket.connect(specter_uri, transports=['websocket']),
+                timeout=30
+            )
             # Wait up to 30 s for registration to complete
             start = time_right_now()
             while not websocket_connected:
