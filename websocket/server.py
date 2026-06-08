@@ -238,6 +238,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("CHAT_MESSAGE_DELETE", self.handle_chat_message_delete),
             ("CLOSED_CAPTION",       self.handle_closed_caption),
             ("CLOSED_CAPTION_CLEAR", self.handle_closed_caption_clear),
+            ("CLOSED_CAPTION_SETTINGS", self.handle_closed_caption_settings),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -336,6 +337,14 @@ class BotOfTheSpecter_WebsocketServer:
         if not code:
             return
         await self.broadcast_event_with_globals("CLOSED_CAPTION_CLEAR", payload, code=code, source_sid=sid)
+
+    async def handle_closed_caption_settings(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code:
+            self.logger.warning(f"CLOSED_CAPTION_SETTINGS from [{sid}]: could not resolve code, dropped")
+            return
+        await self.broadcast_event_with_globals("CLOSED_CAPTION_SETTINGS", payload, code=code, source_sid=sid)
 
     async def handle_task_create(self, sid, data):
         payload = data if isinstance(data, dict) else {}
