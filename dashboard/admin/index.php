@@ -2114,6 +2114,7 @@ $botIconMap = [
 </div>
 <?php
 $content = ob_get_clean();
+ob_start();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -3528,6 +3529,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php
+$content .= ob_get_clean();
 // layout mode inferred by dashboard/layout.php
 include_once __DIR__ . '/../layout.php';
 ?>

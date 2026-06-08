@@ -63,6 +63,7 @@ botofthespecter.com, www.botofthespecter.com {
 
 dashboard.botofthespecter.com {
     root * /var/www/dashboard
+    redir /favicon.ico https://cdn.botofthespecter.com/favicon.ico permanent
     import php_app
     log {
         output file /var/log/caddy/dashboard.log
