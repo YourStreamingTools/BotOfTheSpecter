@@ -90,13 +90,13 @@ The project only ever uses the **Chat Completions** API (`POST /v1/chat/completi
 **Parameters NOT set anywhere in this project (left at SDK defaults):**
 
 - `temperature`, `top_p`, `n`, `stop`, `presence_penalty`, `frequency_penalty`, `response_format`, `tools`, `tool_choice`, `seed`, `user`.
-- `max_tokens` is set in **only one place**: `./bot/kick.py:1540` (`max_tokens=200` for `!story`). Every other call relies on the model's default cap — which is why each flow injects a `system` message instructing the model to stay under `MAX_CHAT_MESSAGE_LENGTH` (500 chars).
+- `max_completion_tokens` is set in **only one place**: `./bot/kick.py:1540` (`max_completion_tokens=200` for `!story`). Every other call relies on the model's default cap — which is why each flow injects a `system` message instructing the model to stay under `MAX_CHAT_MESSAGE_LENGTH` (500 chars). Kick uses `max_completion_tokens` (not `max_tokens`) because `gpt-5.4-mini` is a GPT-5-family reasoning model — see §5.3.
 
 **Sample request (mirrors `Bot.get_ai_response`):**
 
 ```python
 resp = await openai_client.chat.completions.create(
-    model=OPENAI_MODEL,                              # e.g. 'gpt-5.4-nano'
+    model=OPENAI_MODEL,                              # e.g. 'gpt-5.4-mini'
     messages=[
         {"role": "system",    "content": "<remote instructions from /chat-instructions>"},
         {"role": "system",    "content": "You are speaking to Twitch user 'Foo' (id: 12345)..."},
@@ -340,15 +340,15 @@ No post-processing filter on the AI response. A previous version substituted "Ch
 
 | File | Constant | Value |
 | ---- | -------- | ----- |
-| `./bot/beta.py:114` | `OPENAI_MODEL` | `'gpt-5.4-nano'` |
-| `./bot/specterdiscord.py:163` | `OPENAI_MODEL` | `'gpt-5.4-nano'` |
-| `./bot/bot.py` | (inline) | `'gpt-5-nano'` (line 2585) |
-| `./bot/beta-v6.py` | (inline) | `'gpt-5-nano'` (line 3529 etc.) |
-| `./bot/custom_channel_modules/botofthespecter.py` | (inline) | `'gpt-5-nano'` (line 115) |
-| `./bot/kick.py` | (inline) | `'gpt-4o-mini'` (line 1538) |
-| `./websocket/tts_handler.py:11` | `MODEL_NAME` | `'gpt-4o-mini-tts'` |
+| `./bot/beta.py:115` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
+| `./bot/specterdiscord.py:163` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
+| `./bot/bot.py` | (inline) | `'gpt-5.4-mini'` (lines 2585, 2598) |
+| `./bot/beta-v6.py` | (inline) | `'gpt-5.4-mini'` (lines 4080, 4093, 13961, 13973) |
+| `./bot/custom_channel_modules/botofthespecter.py` | (inline) | `'gpt-5.4-mini'` (lines 115, 127) |
+| `./bot/kick.py` | (inline) | `'gpt-5.4-mini'` (line 1538) |
+| `./websocket/tts_handler.py:11` | `MODEL_NAME` | `'gpt-4o-mini-tts'` (TTS — separate family, unchanged) |
 
-`gpt-5.4-nano` is the **configured model name** in beta/Discord. Treat it as authoritative — don't "fix" it to `gpt-5-nano` without checking whether the user's OpenAI org actually exposes that model alias. If you need a single source of truth, lift it to `OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-nano')` and update all callsites.
+`gpt-5.4-mini` is the **unified chat model across all five bots** (set 2026-06-08). It replaced the previous mix of `gpt-5.4-nano` (beta/Discord), `gpt-5-nano` (stable/v6/home channel), and `gpt-4o-mini` (Kick). It is still hardcoded at each callsite (an `OPENAI_MODEL` constant in `beta.py`/`specterdiscord.py`, inline literals elsewhere) — if you want a single source of truth to stop the strings drifting apart again, lift it to `OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini')` and point every callsite at it.
 
 ### 5.2 Pricing reference
 
@@ -370,7 +370,7 @@ o3                input $2.00 / output $8.00
 o4-mini           input $1.10 / output $4.40
 ```
 
-`gpt-5.4-nano` is **not** in this table — pricing falls back to the `default` row (`$2.50 / $10.00`). If `gpt-5.4-nano` is a real model and you want accurate dashboard cost, add a row to `./config/openai.php`.
+`gpt-5.4-mini` is **not** in this table — pricing falls back to the `default` row (`$2.50 / $10.00`). The dashboard cost estimate for the bots' AI usage will therefore be inaccurate until a `gpt-5.4-mini` row (real input/output per-million pricing) is added to `./config/openai.php` **and** the duplicate pricing map in `./dashboard/admin/index.php`.
 
 ### 5.3 Swapping models
 
@@ -380,7 +380,7 @@ To change the model fleet-wide:
 2. Update `./bot/specterdiscord.py:163` and `./bot/beta.py:114` constants.
 3. If the new model has a different price, add it to `./config/openai.php` `pricing_per_million`.
 4. Verify TTS model (`gpt-4o-mini-tts`) — TTS is a separate model family.
-5. If you switch to a `o1`/`o3`/`gpt-5` reasoning model, **pass `max_completion_tokens` instead of `max_tokens`** in `./bot/kick.py` — older `max_tokens` is deprecated for the reasoning families.
+5. GPT-5 / `o1` / `o3` reasoning models require **`max_completion_tokens` instead of `max_tokens`** on Chat Completions. `./bot/kick.py` already uses `max_completion_tokens=200` (the only callsite that caps tokens) since the fleet moved to `gpt-5.4-mini`; if you add a token cap elsewhere on a GPT-5-family model, use `max_completion_tokens`, not the deprecated `max_tokens`.
 
 ---
 
@@ -399,7 +399,7 @@ If 429s start to appear:
 
 - Check the dashboard admin page (`./dashboard/admin/index.php`) AI Stats card for daily token volume.
 - Check `Retry-After` header in the SDK error (auto-retried by SDK, see §8).
-- Consider switching model tier (`gpt-5-nano` vs `gpt-5-mini`) if hitting per-model TPM limits.
+- Consider switching model tier (e.g. `gpt-5.4-mini` down to a smaller `gpt-5-nano`) if hitting per-model TPM limits.
 
 OpenAI publishes current limits at `https://platform.openai.com/account/limits` (org-specific, login required).
 
@@ -521,7 +521,7 @@ openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, max_retries=1, timeout=20.0)
 | Log line | Likely cause | Fix |
 | -------- | ------------ | --- |
 | `[AI] Error calling chat completion API: AuthenticationError` | Missing or rotated `OPENAI_KEY` | Update `/home/botofthespecter/.env` and restart bot |
-| `[AI] Error calling chat completion API: BadRequestError ... model ... does not exist` | `OPENAI_MODEL='gpt-5.4-nano'` is wrong for this org | Change to a model your org has access to (e.g. `gpt-5-nano`) |
+| `[AI] Error calling chat completion API: BadRequestError ... model ... does not exist` | `gpt-5.4-mini` is not exposed to this org | Confirm the `gpt-5.4-mini` alias is enabled on the org, or change to a model your org has access to |
 | `[AI] Error calling chat completion API: RateLimitError` | TPM/RPM exceeded | Wait; SDK retries. If persistent, request limit increase or downgrade model |
 | `[AI] Chat completion returned no usable text: <resp>` | Response shape unexpected; choices[] empty | Check `finish_reason` — content_filter blocked? |
 | `[AI] No compatible chat completions method found on openai_client` | SDK version mismatch — neither `chat.completions` nor `chat_completions` exists | `pip install -U openai` |
@@ -586,7 +586,7 @@ Bot env var ........... OPENAI_KEY                (NOT OPENAI_API_KEY)
 SDK class ............. openai.AsyncOpenAI
 Chat method ........... await openai_client.chat.completions.create(model=..., messages=...)
 TTS method ............ async with openai_client.audio.speech.with_streaming_response.create(...)
-Default chat model .... gpt-5.4-nano (beta/Discord) | gpt-5-nano (stable/v6/home) | gpt-4o-mini (Kick)
+Default chat model .... gpt-5.4-mini (all bots: stable/beta/v6/Discord/Kick/home)
 Default TTS model ..... gpt-4o-mini-tts
 TTS voices ............ alloy ash ballad coral echo fable nova onyx sage shimmer
 TTS max input ......... 4096 chars
@@ -630,7 +630,7 @@ If the user asks for any of the above, treat it as new work and confirm scope be
 | Goal | Edit |
 | ---- | ---- |
 | Change the system prompt | Edit `/home/botofthespecter/ai.json` (or `ai.discord.json` etc.) on the server. **Do not** hardcode in bot files. |
-| Change the model | Update `OPENAI_MODEL` in `./bot/beta.py:114` and `./bot/specterdiscord.py:163`, plus inline `model=` in `./bot/bot.py`, `./bot/beta-v6.py`, `./bot/kick.py`, `./bot/custom_channel_modules/botofthespecter.py`. Add pricing row to `./config/openai.php`. |
+| Change the model | Update `OPENAI_MODEL` in `./bot/beta.py:115` and `./bot/specterdiscord.py:163`, plus inline `model=` in `./bot/bot.py`, `./bot/beta-v6.py`, `./bot/kick.py`, `./bot/custom_channel_modules/botofthespecter.py`. Add pricing row to `./config/openai.php` and `./dashboard/admin/index.php`. |
 | Adjust history length | `recent = history[-8:]` in each `get_ai_response`. |
 | Adjust history file cap | `if len(history) > 200:` in each `get_ai_response`. |
 | Change instructions cache TTL | `INSTRUCTIONS_CACHE_TTL = int('300')` in each bot file. |
@@ -642,4 +642,4 @@ If the user asks for any of the above, treat it as new work and confirm scope be
 
 ---
 
-**Last checked against repo:** 2026-05-10. Bot file line numbers are accurate as of this date but will drift — re-grep with `OPENAI_MODEL`, `chat.completions`, or `get_ai_response` to find current locations.
+**Last checked against repo:** 2026-06-08. Bot file line numbers are accurate as of this date but will drift — re-grep with `OPENAI_MODEL`, `chat.completions`, or `get_ai_response` to find current locations.
