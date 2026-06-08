@@ -247,6 +247,7 @@ GIFT_SUB_TRACKING_DURATION = 30                         # Seconds to track gift 
 specterSocket = AsyncClient()                           # Specter Socket Client instance
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
+OPENAI_MODEL = "gpt-5.4-mini"                           # OpenAI chat model for all AI responses
 _shared_http_session = None                             # Shared aiohttp session (lazy-created)
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
@@ -4077,7 +4078,7 @@ class TwitchBot(commands.AutoBot):
                 chat_client = getattr(openai_client, 'chat', None)
                 ai_text = None
                 if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
                     if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                         choice = resp['choices'][0]
                         if 'message' in choice and 'content' in choice['message']:
@@ -4090,7 +4091,7 @@ class TwitchBot(commands.AutoBot):
                         if choices and len(choices) > 0:
                             ai_text = getattr(choices[0].message, 'content', None)
                 elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
                     if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                         ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
                     else:
@@ -13958,7 +13959,7 @@ async def handle_ad_break_start(duration_seconds):
                 chat_client = getattr(openai_client, 'chat', None)
                 ai_text = None
                 if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
                     if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                         choice = resp['choices'][0]
                         if 'message' in choice and 'content' in choice['message']:
@@ -13970,7 +13971,7 @@ async def handle_ad_break_start(duration_seconds):
                         if choices and len(choices) > 0:
                             ai_text = getattr(choices[0].message, 'content', None)
                 elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
                     if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                         ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
                     else:

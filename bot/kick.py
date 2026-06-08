@@ -151,6 +151,7 @@ _shared_http_session    = None
 HEARTRATE               = None
 MYSQL_QUERY_TIMEOUT     = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))
 openai_client           = AsyncOpenAI(api_key=OPENAI_API_KEY)
+OPENAI_MODEL            = "gpt-5.4-mini"                  # OpenAI chat model for AI responses
 
 def signal_handler(*_):
     bot_logger.info("[SHUTDOWN] Termination signal received.")
@@ -1535,9 +1536,9 @@ async def cmd_story(ctx: _Ctx):
     prompt = ctx.args_str or "Tell me a short funny story."
     try:
         response = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_completion_tokens=200,
         )
         text = response.choices[0].message.content.strip()
         await send_chat_message(text[:MAX_CHAT_MESSAGE_LENGTH])
