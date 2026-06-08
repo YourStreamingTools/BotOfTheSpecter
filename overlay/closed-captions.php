@@ -357,11 +357,10 @@ ob_end_clean();
                 socket.on('CLOSED_CAPTION_CLEAR', () => {
                     blankBand();
                 });
-                socket.on('SPECTER_SETTINGS_UPDATE', payload => {
-                    // Allow the dashboard to push appearance changes live.
-                    if (payload && payload.closed_captions) {
-                        loadSettings();
-                    }
+                socket.on('CLOSED_CAPTION_SETTINGS', () => {
+                    // Dashboard saved new appearance settings — reload them live (font size,
+                    // colour, position, background) without an OBS browser-source refresh.
+                    loadSettings();
                 });
             }
 

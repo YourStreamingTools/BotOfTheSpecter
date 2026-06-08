@@ -1129,6 +1129,11 @@ ob_start();
                 .then(r => r.json())
                 .then(data => {
                     if (data && data.success) {
+                        // Push the new appearance settings to the overlay so it updates live
+                        // (font size, colour, position, background) without an OBS source refresh.
+                        if (socket && socketReady && socket.connected) {
+                            socket.emit('CLOSED_CAPTION_SETTINGS', { code: apiKey });
+                        }
                         // Apply the saved caption language to the live translator without a
                         // reload: update the active target and rebuild the session if running.
                         ccActiveTargetLanguage = document.getElementById('ccTargetLanguage').value || '';
