@@ -112,7 +112,7 @@ _website_twitch_creds_cache = {
     "access_token": TWITCH_OAUTH_API_TOKEN,
     "client_id": TWITCH_OAUTH_API_CLIENT_ID,
 }
-OPENAI_MODEL = 'gpt-5.4-nano'
+OPENAI_MODEL = 'gpt-5.4-mini'
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 _cached_instructions = None
 _cached_instructions_time = 0

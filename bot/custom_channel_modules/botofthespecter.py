@@ -6,6 +6,9 @@ import re
 import json
 from pathlib import Path
 
+# OpenAI chat model used for this channel's AI responses
+OPENAI_MODEL = "gpt-5.4-mini"
+
 def is_bot_home_channel(channel_name: str, bot_home_channel_name: str) -> bool:
     return str(channel_name).lower() == str(bot_home_channel_name).lower()
 
@@ -112,7 +115,7 @@ async def _get_ai_response(
         ai_text = None
         resp = None
         if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-            resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+            resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
             if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                 choice = resp['choices'][0]
                 if 'message' in choice and 'content' in choice['message']:
@@ -124,7 +127,7 @@ async def _get_ai_response(
                 if choices and len(choices) > 0:
                     ai_text = getattr(choices[0].message, 'content', None)
         elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-            resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+            resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
             if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                 ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
             else:
