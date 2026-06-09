@@ -2336,7 +2336,7 @@ return [
     'navbar_vod_music' => 'VOD Music',
     'navbar_media_player' => 'Media Player',
     'media_player_title' => 'Media Player Song Requests',
-    'media_player_intro' => 'Let viewers request songs that play through a YouTube browser source — no Spotify needed. Add the overlay URL below to OBS.',
+    'media_player_intro' => 'Play viewer song requests through a YouTube browser source in OBS. Viewers request tracks with the !songrequest command and they play in the queue below. Add the overlay URL to OBS to get started.',
     'media_player_overlay_url' => 'Overlay URL (add as an OBS browser source)',
     'media_player_overlay_url_show' => 'Show',
     'media_player_overlay_url_hide' => 'Hide',
