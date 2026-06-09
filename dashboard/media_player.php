@@ -95,6 +95,45 @@ ob_start();
     </div>
 </div>
 
+<div class="sp-card mb-4">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-list-ol"></i> <?php echo t('media_player_queue'); ?></span>
+        <div style="display:flex;gap:0.5rem;">
+            <button id="btn-skip" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_skip'); ?></button>
+            <button id="btn-clear" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_clear'); ?></button>
+        </div>
+    </header>
+    <div class="sp-card-body">
+        <div id="now-playing" style="margin-bottom:0.75rem;font-weight:600;"></div>
+        <ol id="queue-list" style="margin:0;padding-left:1.25rem;"></ol>
+    </div>
+</div>
+
+<div class="sp-card mb-4">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-ban"></i> <?php echo t('media_player_banlist'); ?></span>
+    </header>
+    <div class="sp-card-body">
+        <form method="post" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
+            <select class="sp-select" name="ban_type">
+                <option value="keyword"><?php echo t('media_player_ban_keyword'); ?></option>
+                <option value="video_id"><?php echo t('media_player_ban_video'); ?></option>
+            </select>
+            <input class="sp-input" name="ban_value" placeholder="<?php echo t('media_player_ban_value'); ?>" style="flex:1;min-width:160px;">
+            <button class="sp-btn sp-btn-primary" type="submit" name="add_ban" value="1"><?php echo t('media_player_add'); ?></button>
+        </form>
+        <ul style="margin:0;padding-left:1.25rem;">
+            <?php foreach ($banlist as $b): ?>
+                <li style="margin-bottom:0.35rem;">
+                    <?php echo htmlspecialchars($b['type'] . ': ' . $b['value']); ?>
+                    <form method="post" style="display:inline;">
+                        <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit" name="del_ban" value="<?php echo (int)$b['id']; ?>">✕</button>
+                    </form>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</div>
 <?php
 // Spotify player control card — only when Spotify is linked & authorized.
 $spotifyConnected = false;
@@ -143,46 +182,6 @@ $spotifyActAs = !empty($_SESSION['admin_act_as_active']);
     </div>
 </div>
 <?php endif; ?>
-
-<div class="sp-card mb-4">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-list-ol"></i> <?php echo t('media_player_queue'); ?></span>
-        <div style="display:flex;gap:0.5rem;">
-            <button id="btn-skip" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_skip'); ?></button>
-            <button id="btn-clear" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_clear'); ?></button>
-        </div>
-    </header>
-    <div class="sp-card-body">
-        <div id="now-playing" style="margin-bottom:0.75rem;font-weight:600;"></div>
-        <ol id="queue-list" style="margin:0;padding-left:1.25rem;"></ol>
-    </div>
-</div>
-
-<div class="sp-card mb-4">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-ban"></i> <?php echo t('media_player_banlist'); ?></span>
-    </header>
-    <div class="sp-card-body">
-        <form method="post" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
-            <select class="sp-select" name="ban_type">
-                <option value="keyword"><?php echo t('media_player_ban_keyword'); ?></option>
-                <option value="video_id"><?php echo t('media_player_ban_video'); ?></option>
-            </select>
-            <input class="sp-input" name="ban_value" placeholder="<?php echo t('media_player_ban_value'); ?>" style="flex:1;min-width:160px;">
-            <button class="sp-btn sp-btn-primary" type="submit" name="add_ban" value="1"><?php echo t('media_player_add'); ?></button>
-        </form>
-        <ul style="margin:0;padding-left:1.25rem;">
-            <?php foreach ($banlist as $b): ?>
-                <li style="margin-bottom:0.35rem;">
-                    <?php echo htmlspecialchars($b['type'] . ': ' . $b['value']); ?>
-                    <form method="post" style="display:inline;">
-                        <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit" name="del_ban" value="<?php echo (int)$b['id']; ?>">✕</button>
-                    </form>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-</div>
 <?php
 // Song Request Analytics (Spotify) — moved here from spotifylink.php.
 // Table is created by usr_database.php; the bot logs each !songrequest into song_request_analytics.
