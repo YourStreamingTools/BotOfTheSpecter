@@ -61,7 +61,10 @@ try {
     // Fall back to defaults if anything goes wrong (e.g. table just created)
 }
 
-$overlayUrl = "https://overlay.botofthespecter.com/mediaplayer.php?code=" . urlencode($api_key);
+$overlayBase = "https://overlay.botofthespecter.com/mediaplayer.php";
+$overlayUrl = $overlayBase . "?code=" . rawurlencode($api_key);
+// Masked form shown by default so the key isn't exposed on screen-share; reveal/copy in JS.
+$overlayUrlMasked = $overlayBase . "?code=" . str_repeat('•', 24);
 
 ob_start();
 ?>
@@ -72,7 +75,11 @@ ob_start();
     <div class="sp-card-body">
         <p style="margin-bottom:1rem;"><?php echo t('media_player_intro'); ?></p>
         <label class="sp-label"><?php echo t('media_player_overlay_url'); ?></label>
-        <input class="sp-input" readonly value="<?php echo htmlspecialchars($overlayUrl); ?>" onclick="this.select();">
+        <div class="cc-url-row">
+            <code class="info-box cc-url-box" id="mp-overlay-url"><?php echo htmlspecialchars($overlayUrlMasked); ?></code>
+            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" id="mp-url-reveal" aria-pressed="false"><i class="fas fa-eye"></i> <span class="mp-url-reveal-label"><?php echo t('media_player_overlay_url_show'); ?></span></button>
+            <button type="button" class="sp-btn sp-btn-sm sp-btn-primary" id="mp-url-copy"><i class="fas fa-copy"></i> <span class="mp-url-copy-label"><?php echo t('media_player_overlay_url_copy'); ?></span></button>
+        </div>
         <form method="post" style="margin-top:1.25rem;display:flex;flex-direction:column;gap:0.75rem;max-width:440px;">
             <label class="sp-label"><input type="checkbox" name="enabled" <?php echo $mediaSettings['enabled'] ? 'checked' : ''; ?>>&nbsp;<?php echo t('media_player_enabled'); ?></label>
             <label class="sp-label"><?php echo t('media_player_max_len'); ?>
@@ -418,6 +425,42 @@ ob_start();
     document.getElementById('btn-clear').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'clear', code: code });
     const volRange = document.getElementById('vol-range');
     if (volRange) volRange.addEventListener('change', (e) => socket.emit('MEDIA_COMMAND', { command: 'volume', code: code, value: Number(e.target.value) }));
+
+    // Overlay URL: masked by default, reveal toggle, copy the real URL. The real key only
+    // enters the DOM on an explicit user action, so it's safe to show on screen during setup.
+    const mpUrlReal = <?php echo json_encode($overlayUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const mpUrlMasked = <?php echo json_encode($overlayUrlMasked, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const mpLang = {
+        show: <?php echo json_encode(t('media_player_overlay_url_show')); ?>,
+        hide: <?php echo json_encode(t('media_player_overlay_url_hide')); ?>,
+        copied: <?php echo json_encode(t('media_player_overlay_url_copied')); ?>,
+    };
+    const mpUrlEl = document.getElementById('mp-overlay-url');
+    const mpUrlReveal = document.getElementById('mp-url-reveal');
+    const mpUrlCopy = document.getElementById('mp-url-copy');
+    let mpUrlShown = false;
+    if (mpUrlReveal && mpUrlEl) {
+        mpUrlReveal.addEventListener('click', () => {
+            mpUrlShown = !mpUrlShown;
+            mpUrlEl.textContent = mpUrlShown ? mpUrlReal : mpUrlMasked;
+            mpUrlReveal.setAttribute('aria-pressed', mpUrlShown ? 'true' : 'false');
+            const lbl = mpUrlReveal.querySelector('.mp-url-reveal-label');
+            if (lbl) lbl.textContent = mpUrlShown ? mpLang.hide : mpLang.show;
+            const ico = mpUrlReveal.querySelector('i');
+            if (ico) ico.className = mpUrlShown ? 'fas fa-eye-slash' : 'fas fa-eye';
+        });
+    }
+    if (mpUrlCopy) {
+        mpUrlCopy.addEventListener('click', () => {
+            navigator.clipboard.writeText(mpUrlReal).then(() => {
+                const lbl = mpUrlCopy.querySelector('.mp-url-copy-label');
+                if (!lbl) return;
+                const orig = lbl.textContent;
+                lbl.textContent = mpLang.copied;
+                setTimeout(() => { lbl.textContent = orig; }, 1500);
+            }).catch(() => {});
+        });
+    }
 </script>
 <script>
 (function () {
