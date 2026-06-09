@@ -2273,7 +2273,7 @@ return [
     'navbar_vod_music' => 'VOD-Musik',
     'navbar_media_player' => 'Media-Player',
     'media_player_title' => 'Media-Player-Songwünsche',
-    'media_player_intro' => 'Lass Zuschauer Songs wünschen, die über eine YouTube-Browserquelle abgespielt werden — ganz ohne Spotify. Füge die Overlay-URL unten in OBS ein.',
+    'media_player_intro' => 'Spiele Song-Wünsche deiner Zuschauer über eine YouTube-Browserquelle in OBS ab. Zuschauer wünschen sich Titel mit dem Befehl !songrequest, und sie werden in der Warteschlange unten abgespielt. Füge die Overlay-URL in OBS ein, um loszulegen.',
     'media_player_overlay_url' => 'Overlay-URL (als OBS-Browserquelle hinzufügen)',
     'media_player_overlay_url_show' => 'Anzeigen',
     'media_player_overlay_url_hide' => 'Verbergen',

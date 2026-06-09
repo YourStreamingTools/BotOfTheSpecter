@@ -2273,7 +2273,7 @@ return [
     'navbar_vod_music' => 'Musique VOD',
     'navbar_media_player' => 'Lecteur multimédia',
     'media_player_title' => 'Demandes de chansons — Lecteur multimédia',
-    'media_player_intro' => 'Laissez les spectateurs demander des chansons jouées via une source navigateur YouTube — sans Spotify. Ajoutez l’URL de l’overlay ci-dessous dans OBS.',
+    'media_player_intro' => 'Diffusez les demandes de chansons de vos spectateurs via une source navigateur YouTube dans OBS. Les spectateurs demandent des titres avec la commande !songrequest, et elles sont jouées dans la file d’attente ci-dessous. Ajoutez l’URL de l’overlay dans OBS pour commencer.',
     'media_player_overlay_url' => 'URL de l’overlay (à ajouter comme source navigateur OBS)',
     'media_player_overlay_url_show' => 'Afficher',
     'media_player_overlay_url_hide' => 'Masquer',
