@@ -165,7 +165,8 @@ per_user_cooldown_commands = {
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong"
+    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
+    "puzzledone"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -8598,19 +8599,43 @@ class TwitchBot(commands.Bot):
                             "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), project = NULL",
                             (user_id, user_name)
                         )
+                        emit_project_update(user_id, user_name, 'clear')
                         await send_chat_message(f"@{user_name} project cleared — you are back in the default project.")
                         add_usage('project', bucket_key, cooldown_bucket)
                         return
-                    # !project <name> — validate (§8.5) and switch / create on first use.
+                    # Subcommands (reserved first words): move / rename / delete.
+                    first_word = arg.split(' ', 1)[0].lower()
+                    rest = arg.split(' ', 1)[1].strip() if ' ' in arg else ''
+                    if first_word == 'move':
+                        msg = await project_move_subcommand(cursor, user_id, user_name, rest)
+                        await send_chat_message(f"@{user_name} {msg}")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
+                    if first_word == 'rename':
+                        msg = await project_rename_subcommand(cursor, user_id, user_name, rest)
+                        await send_chat_message(f"@{user_name} {msg}")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
+                    if first_word == 'delete':
+                        msg = await project_delete_subcommand(cursor, user_id, user_name, rest)
+                        await send_chat_message(f"@{user_name} {msg}")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
+                    # !project <name> — validate (§8.5), register, and switch.
                     name = validate_project_name(arg)
                     if not name:
                         await send_chat_message(f"@{user_name} invalid project name. Use letters, numbers, spaces and dashes, max 24 characters.")
                         return
+                    await register_user_project(cursor, user_id, user_name, name)
+                    # Use the registry's stored casing so the active pointer, tasks and
+                    # the chat reply never fork a case-variant of an existing project.
+                    name = await canonical_project_name(cursor, user_id, name)
                     await cursor.execute(
                         "INSERT INTO user_active_project (user_id, user_name, project) VALUES (%s, %s, %s) "
                         "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), project = VALUES(project)",
                         (user_id, user_name, name)
                     )
+                    emit_project_update(user_id, user_name, 'switch', name=name)
                     await send_chat_message(f"@{user_name} switched to project \"{name}\". Your tasks now scope to this project.")
                     add_usage('project', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -8647,16 +8672,32 @@ class TwitchBot(commands.Bot):
                         return
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
+                    # Self-heal: fold any pre-registry task projects into user_projects.
                     await cursor.execute(
-                        "SELECT DISTINCT project FROM user_tasks WHERE user_id = %s AND project IS NOT NULL ORDER BY project ASC",
+                        "INSERT IGNORE INTO user_projects (user_id, user_name, name) "
+                        "SELECT DISTINCT user_id, %s, project FROM user_tasks "
+                        "WHERE user_id = %s AND project IS NOT NULL",
+                        (user_name, user_id)
+                    )
+                    await cursor.execute(
+                        "SELECT p.name, COALESCE(SUM(CASE WHEN t.status IN ('active','pending') THEN 1 ELSE 0 END), 0) AS open_count "
+                        "FROM user_projects p "
+                        "LEFT JOIN user_tasks t ON t.user_id = p.user_id AND t.project = p.name "
+                        "WHERE p.user_id = %s GROUP BY p.name ORDER BY p.name ASC",
                         (user_id,)
                     )
                     rows = await cursor.fetchall()
-                    projects = [r.get('project') for r in rows if r.get('project')]
-                    if not projects:
+                    if not rows:
                         await send_chat_message(f"@{user_name} you have no projects yet. Use !project <name> to start one.")
                     else:
-                        message = f"@{user_name} your projects: {', '.join(projects)}"
+                        active = await resolve_active_project(cursor, user_id)
+                        listing = []
+                        for r in rows:
+                            pname = r.get('name')
+                            open_count = int(r.get('open_count') or 0)
+                            marker = ", active" if active is not None and pname.lower() == active.lower() else ""
+                            listing.append(f"{pname} ({open_count} open{marker})")
+                        message = f"@{user_name} your projects: {', '.join(listing)}"
                         await send_chat_message(message[:MAX_CHAT_MESSAGE_LENGTH])
                     add_usage('projects', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -10480,6 +10521,63 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='puzzledone')
+    async def puzzledone_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("puzzledone",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('puzzledone', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    # Manual fallback for when the Tanggle websocket misses a room.complete
+                    # event. No room data is available here, so only the stats counter moves —
+                    # tanggle_room_completions is left untouched.
+                    await cursor.execute(
+                        """
+                        INSERT INTO tanggle_puzzle_stats (id, completed_count)
+                        VALUES (1, 1)
+                        ON DUPLICATE KEY UPDATE
+                            completed_count = completed_count + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        """
+                    )
+                    await connection.commit()
+                    await cursor.execute("SELECT completed_count FROM tanggle_puzzle_stats WHERE id = 1")
+                    stats_row = await cursor.fetchone()
+                    completed_count = int((stats_row or {}).get('completed_count', 0) or 0)
+                    chat_logger.info(f"[PUZZLE DONE] {ctx.author.name} manually marked a puzzle complete. Total completed puzzles: {completed_count}")
+                    suffix = "puzzle" if completed_count == 1 else "puzzles"
+                    await send_chat_message(f"We've completed another puzzle! That's {completed_count} {suffix} completed.")
+                    safe_create_task(websocket_notice(
+                        event="TANNGLE_COMPLETE",
+                        additional_data={
+                            "completed_count": completed_count,
+                            "manual": "true",
+                        }
+                    ))
+                    add_usage('puzzledone', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PUZZLE DONE] An error occurred in the puzzledone command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='watchtime')
     async def watchtime_command(self, ctx):
         global bot_owner
@@ -11028,14 +11126,21 @@ async def resolve_active_project(cursor, user_id):
     return project if project else None
 
 # Function to validate a project name (returns cleaned name or None when invalid)
-def validate_project_name(raw):
+def validate_project_name(raw, allow_reserved=False):
     # §8.5: trim, then require letters/numbers/space/dash, 1-24 chars after trim.
     # 'clear' is a reserved keyword handled by the caller, not a project name.
+    # Subcommand words (move/rename/delete) are reserved as a FIRST word so the
+    # !project parser can never confuse a name with a subcommand — but callers
+    # that IDENTIFY an existing project (rename's old name, delete's target) pass
+    # allow_reserved=True so legacy names created before the reservation can
+    # still be renamed away or deleted.
     # Returns the cleaned name on success, or None when invalid.
     name = (raw or '').strip()
     if not name:
         return None
     if not re.fullmatch(r'[A-Za-z0-9 -]{1,24}', name):
+        return None
+    if not allow_reserved and name.split()[0].lower() in ('clear', 'move', 'rename', 'delete'):
         return None
     return name
 
@@ -11075,6 +11180,246 @@ def emit_task_complete(task_id, user_id, user_name, title, project=None):
         "task_id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
         "project": project,
     }))
+
+# Function to register a project name in the user_projects registry (idempotent)
+async def register_user_project(cursor, user_id, user_name, name):
+    await cursor.execute(
+        "INSERT IGNORE INTO user_projects (user_id, user_name, name) VALUES (%s, %s, %s)",
+        (user_id, user_name, name)
+    )
+
+# Function returning the registry's stored casing for a project name
+async def canonical_project_name(cursor, user_id, name):
+    # utf8mb4_unicode_ci: 'study' and 'Study' are the same project — return the
+    # registry row's stored casing so writes never fork a case-variant duplicate.
+    await cursor.execute(
+        "SELECT name FROM user_projects WHERE user_id = %s AND name = %s LIMIT 1",
+        (user_id, name)
+    )
+    row = await cursor.fetchone()
+    return row.get('name') if row and row.get('name') else name
+
+# Function to check whether a project exists for a chatter (registry or task rows)
+async def user_project_exists(cursor, user_id, name):
+    await cursor.execute(
+        "SELECT 1 FROM user_projects WHERE user_id = %s AND name = %s LIMIT 1",
+        (user_id, name)
+    )
+    if await cursor.fetchone():
+        return True
+    await cursor.execute(
+        "SELECT 1 FROM user_tasks WHERE user_id = %s AND project = %s LIMIT 1",
+        (user_id, name)
+    )
+    return bool(await cursor.fetchone())
+
+# Function to file a task into a target project: active slot if free, else backlog end
+async def file_task_into_project(cursor, user_id, task_id, target_project):
+    await cursor.execute(
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+        (user_id, target_project)
+    )
+    target_active = await cursor.fetchone()
+    if target_active:
+        await cursor.execute(
+            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+            (user_id, target_project)
+        )
+        row = await cursor.fetchone()
+        pos = int((row.get('max_pos') if row else 0) or 0) + 1
+        await cursor.execute(
+            "UPDATE user_tasks SET project = %s, status = 'pending', backlog_position = %s WHERE id = %s",
+            (target_project, pos, task_id)
+        )
+        return ('pending', pos)
+    await cursor.execute(
+        "UPDATE user_tasks SET project = %s, status = 'active', backlog_position = NULL WHERE id = %s",
+        (target_project, task_id)
+    )
+    return ('active', None)
+
+# Function to renumber a project's pending backlog contiguously (1..n)
+async def renumber_project_backlog(cursor, user_id, project):
+    await cursor.execute(
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
+        (user_id, project)
+    )
+    rows = await cursor.fetchall()
+    for new_pos, row in enumerate(rows, start=1):
+        await cursor.execute(
+            "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
+            (new_pos, row.get('id'))
+        )
+
+# Function to emit the PROJECT_UPDATE websocket event
+def emit_project_update(user_id, user_name, change, name=None, old_name=None, task_id=None):
+    payload = {
+        "channel_code": API_TOKEN, "user_id": user_id, "user_name": user_name,
+        "change": change,
+    }
+    if name is not None:
+        payload["name"] = name
+    if old_name is not None:
+        payload["old_name"] = old_name
+    if task_id is not None:
+        payload["task_id"] = task_id
+    safe_create_task(websocket_notice(event="PROJECT_UPDATE", additional_data=payload))
+
+# Function handling !project move <n|now> <name>; returns the chat reply (no @user prefix)
+async def project_move_subcommand(cursor, user_id, user_name, rest):
+    parts = rest.split(' ', 1)
+    if len(parts) < 2 or not parts[0]:
+        return "usage: !project move <n|now> <project name>"
+    selector = parts[0].lower()
+    target = validate_project_name(parts[1])
+    if not target:
+        return "invalid project name. Use letters, numbers, spaces and dashes, max 24 characters."
+    # The DB collation is case-insensitive, so the guard and the stored casing
+    # must be too — otherwise a case-variant self-move shuffles the active slot.
+    target = await canonical_project_name(cursor, user_id, target)
+    source_project = await resolve_active_project(cursor, user_id)
+    if source_project is not None and target.lower() == source_project.lower():
+        return f"that task is already in \"{target}\"."
+    if selector == 'now':
+        await cursor.execute(
+            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+            (user_id, source_project)
+        )
+        task = await cursor.fetchone()
+        if not task:
+            return "you have no active task to move. Use !project move <n> <name> for backlog items."
+        task_id, title = task.get('id'), task.get('title')
+        await register_user_project(cursor, user_id, user_name, target)
+        new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
+        promoted = await promote_backlog_head(cursor, user_id, source_project)
+        emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
+        emit_task_update({
+            "id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
+            "status": new_status, "backlog_position": new_pos, "project": target, "owner": "user",
+        })
+        if promoted:
+            emit_task_update({
+                "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
+                "title": promoted.get('title'), "status": "active", "project": source_project, "owner": "user",
+            })
+        placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
+        follow_up = f" Now working on \"{promoted.get('title')}\"." if promoted else ""
+        return f"moved \"{title}\" — it {placed}.{follow_up}"
+    if selector.isdigit():
+        n = int(selector)
+        await cursor.execute(
+            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+            (user_id, n, source_project)
+        )
+        task = await cursor.fetchone()
+        if not task:
+            return f"no backlog item #{n} in your current project."
+        task_id, title = task.get('id'), task.get('title')
+        await register_user_project(cursor, user_id, user_name, target)
+        new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
+        await renumber_project_backlog(cursor, user_id, source_project)
+        emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
+        emit_task_update({
+            "id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
+            "status": new_status, "backlog_position": new_pos, "project": target, "owner": "user",
+        })
+        placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
+        return f"moved \"{title}\" — it {placed}."
+    return "usage: !project move <n|now> <project name>"
+
+# Function handling !project rename <old> | <new>; returns the chat reply (no @user prefix)
+async def project_rename_subcommand(cursor, user_id, user_name, rest):
+    if '|' not in rest:
+        return "usage: !project rename <old name> | <new name>"
+    old_raw, new_raw = rest.split('|', 1)
+    old_name = validate_project_name(old_raw, allow_reserved=True)
+    new_name = validate_project_name(new_raw)
+    if not old_name or not new_name:
+        return "invalid project name. Use letters, numbers, spaces and dashes, max 24 characters."
+    if old_name == new_name:
+        return "those are the same name."
+    if not await user_project_exists(cursor, user_id, old_name):
+        return f"you have no project named \"{old_name}\"."
+    # utf8mb4_unicode_ci: a case-only rename matches the same row, so skip the
+    # collision check that would otherwise see the project as already taken.
+    same_ci = old_name.lower() == new_name.lower()
+    if not same_ci and await user_project_exists(cursor, user_id, new_name):
+        return f"you already have a project named \"{new_name}\" — use !project move to combine tasks instead."
+    await register_user_project(cursor, user_id, user_name, old_name)
+    await cursor.execute(
+        "UPDATE user_projects SET name = %s WHERE user_id = %s AND name = %s",
+        (new_name, user_id, old_name)
+    )
+    await cursor.execute(
+        "UPDATE user_tasks SET project = %s WHERE user_id = %s AND project <=> %s",
+        (new_name, user_id, old_name)
+    )
+    await cursor.execute(
+        "UPDATE user_active_project SET project = %s WHERE user_id = %s AND project <=> %s",
+        (new_name, user_id, old_name)
+    )
+    emit_project_update(user_id, user_name, 'rename', name=new_name, old_name=old_name)
+    return f"project \"{old_name}\" renamed to \"{new_name}\"."
+
+# Function handling !project delete <name>; returns the chat reply (no @user prefix)
+async def project_delete_subcommand(cursor, user_id, user_name, rest):
+    name = validate_project_name(rest, allow_reserved=True)
+    if not name:
+        return "usage: !project delete <project name>"
+    if not await user_project_exists(cursor, user_id, name):
+        return f"you have no project named \"{name}\"."
+    # Open tasks are NEVER deleted — they fall back to the default project. The
+    # default's active slot wins: the deleted project's active task only becomes
+    # the default active task when that slot is free, otherwise it queues.
+    await cursor.execute(
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project IS NULL LIMIT 1",
+        (user_id,)
+    )
+    default_has_active = bool(await cursor.fetchone())
+    await cursor.execute(
+        "SELECT id, status FROM user_tasks WHERE user_id = %s AND project = %s AND status IN ('active','pending') "
+        "ORDER BY (status = 'active') DESC, backlog_position ASC, id ASC",
+        (user_id, name)
+    )
+    open_tasks = await cursor.fetchall()
+    await cursor.execute(
+        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project IS NULL",
+        (user_id,)
+    )
+    row = await cursor.fetchone()
+    next_pos = int((row.get('max_pos') if row else 0) or 0) + 1
+    moved = 0
+    for task in open_tasks:
+        if task.get('status') == 'active' and not default_has_active:
+            await cursor.execute(
+                "UPDATE user_tasks SET project = NULL, backlog_position = NULL WHERE id = %s",
+                (task.get('id'),)
+            )
+            default_has_active = True
+        else:
+            await cursor.execute(
+                "UPDATE user_tasks SET project = NULL, status = 'pending', backlog_position = %s WHERE id = %s",
+                (next_pos, task.get('id'))
+            )
+            next_pos += 1
+        moved += 1
+    # Completed/rejected history just merges into the default scope.
+    await cursor.execute(
+        "UPDATE user_tasks SET project = NULL WHERE user_id = %s AND project = %s",
+        (user_id, name)
+    )
+    await cursor.execute(
+        "UPDATE user_active_project SET project = NULL WHERE user_id = %s AND project <=> %s",
+        (user_id, name)
+    )
+    await cursor.execute(
+        "DELETE FROM user_projects WHERE user_id = %s AND name = %s",
+        (user_id, name)
+    )
+    emit_project_update(user_id, user_name, 'delete', name=name)
+    if moved:
+        return f"project \"{name}\" deleted — {moved} open task(s) moved to your default project."
+    return f"project \"{name}\" deleted."
 
 # Function to promote the lowest-positioned pending backlog row to active and renumber the rest
 async def promote_backlog_head(cursor, user_id, project=None):
@@ -14480,11 +14825,15 @@ async def websocket_notice(
                 elif event == "MAKER_UPDATE":
                     if additional_data:
                         params.update(additional_data)
-                elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM"]:
+                elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM", "PROJECT_UPDATE"]:
                     # Working & Study task events. The task payload is JSON-encoded so the
                     # nested dict survives URL-encoding; the overlay/dashboard decode it.
+                    # Top-level None values are dropped — urlencode would stringify them
+                    # to the literal string 'None'.
                     if additional_data:
                         for _task_key, _task_val in additional_data.items():
+                            if _task_val is None:
+                                continue
                             params[_task_key] = json.dumps(_task_val) if isinstance(_task_val, (dict, list)) else _task_val
                 elif event in ["USER_POMO_START", "USER_POMO_CANCEL"]:
                     # Phase 3 personal pomo events. The bot does NOT write user_pomos — the
