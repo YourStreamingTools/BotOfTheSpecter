@@ -158,7 +158,8 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "removesong"
+    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "removesong",
+    "puzzledone"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -8717,6 +8718,56 @@ class TwitchBot(commands.AutoBot):
                     add_usage('puzzles', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred in the puzzles command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='puzzledone')
+    async def puzzledone_command(ctx: commands.Context):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("puzzledone",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('puzzledone', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    # Manual fallback for when the Tanggle websocket misses a room.complete
+                    # event. No room data is available here, so only the stats counter moves —
+                    # tanggle_room_completions is left untouched.
+                    await cursor.execute(
+                        """
+                        INSERT INTO tanggle_puzzle_stats (id, completed_count)
+                        VALUES (1, 1)
+                        ON DUPLICATE KEY UPDATE
+                            completed_count = completed_count + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        """
+                    )
+                    await connection.commit()
+                    await cursor.execute("SELECT completed_count FROM tanggle_puzzle_stats WHERE id = 1")
+                    stats_row = await cursor.fetchone()
+                    completed_count = int((stats_row or {}).get('completed_count', 0) or 0)
+                    chat_logger.info(f"{ctx.author.name} manually marked a puzzle complete. Total completed puzzles: {completed_count}")
+                    suffix = "puzzle" if completed_count == 1 else "puzzles"
+                    await send_chat_message(f"We've completed another puzzle! That's {completed_count} {suffix} completed.")
+                    add_usage('puzzledone', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"An error occurred in the puzzledone command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             if connection:
