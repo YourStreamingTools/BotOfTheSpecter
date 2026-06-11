@@ -170,8 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $focus = intval($_POST['focus_minutes'] ?? 60);
         $micro = intval($_POST['micro_break_minutes'] ?? 5);
         $recharge = intval($_POST['recharge_break_minutes'] ?? 30);
-        $rewardEnabled = !empty($_POST['reward_enabled']) ? 1 : 0;
-        $rewardPoints = max(0, intval($_POST['reward_points_per_task'] ?? 10));
         $cycleCount = max(1, intval($_POST['cycle_count'] ?? 4));
         $showCycleBadge = !empty($_POST['show_cycle_badge']) ? 1 : 0;
         // Overlay theme (Phase 5) — whitelist guard, falls back to dark.
@@ -186,12 +184,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (!in_array($listViewMode, $allowedListViewModes, true)) {
             $listViewMode = 'split';
         }
-        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ?, reward_enabled = ?, reward_points_per_task = ?, cycle_count = ?, show_cycle_badge = ?, theme = ?, list_view_mode = ? WHERE id = 1");
+        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ?, cycle_count = ?, show_cycle_badge = ?, theme = ?, list_view_mode = ? WHERE id = 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
-        $stmt->bind_param("iiiiiiiss", $focus, $micro, $recharge, $rewardEnabled, $rewardPoints, $cycleCount, $showCycleBadge, $theme, $listViewMode);
+        $stmt->bind_param("iiiiiss", $focus, $micro, $recharge, $cycleCount, $showCycleBadge, $theme, $listViewMode);
         $success = $stmt->execute();
         $stmt->close();
         echo json_encode(['success' => $success]);
@@ -239,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
             if ($ut_exists_res && $ut_exists_res->num_rows > 0) {
-                $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
+                $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, backlog_position, project, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
                 if ($ut && $ut->execute()) {
                     $res = $ut->get_result();
                     if ($res) { $user_tasks = $res->fetch_all(MYSQLI_ASSOC); }
@@ -860,26 +858,27 @@ ob_start();
                     <div class="field">
                         <label class="label"><?= t('working_or_study_toggles_label') ?></label>
                         <div class="control">
-                            <label class="checkbox mr-4">
+                            <label class="switch">
                                 <input type="checkbox" id="chRequireApproval"
                                     <?php echo $chInitialSettings['require_approval'] ? 'checked' : ''; ?>>
-                                <?= t('working_or_study_toggle_require_approval') ?>
+                                <span><?= t('working_or_study_toggle_require_approval') ?></span>
                             </label>
                         </div>
                         <div class="control mt-2">
-                            <label class="checkbox mr-4">
+                            <label class="switch">
                                 <input type="checkbox" id="chAllowUserTasks"
                                     <?php echo $chInitialSettings['allow_user_tasks'] ? 'checked' : ''; ?>>
-                                <?= t('working_or_study_toggle_allow_user_tasks') ?>
+                                <span><?= t('working_or_study_toggle_allow_user_tasks') ?></span>
                             </label>
                         </div>
                         <div class="control mt-2">
-                            <label class="checkbox">
+                            <label class="switch">
                                 <input type="checkbox" id="chTaskVisibleOverlay"
                                     <?php echo $chInitialSettings['task_visible_overlay'] ? 'checked' : ''; ?>>
-                                <?= t('working_or_study_toggle_show_tasks_overlay') ?>
+                                <span><?= t('working_or_study_toggle_show_tasks_overlay') ?></span>
                             </label>
                         </div>
+                        <p class="help mt-2"><?= t('working_or_study_toggles_autosave_help') ?></p>
                     </div>
                 </div>
                 <div class="column is-full">
@@ -905,10 +904,10 @@ ob_start();
                             $wcmdEnabled = ($taskCommandStatuses[$wcmd] ?? 'Enabled') === 'Enabled';
                         ?>
                         <div class="column is-half">
-                            <label class="checkbox">
+                            <label class="switch">
                                 <input type="checkbox" class="wcmd-toggle" data-command="<?= htmlspecialchars($wcmd) ?>"
                                     <?php echo $wcmdEnabled ? 'checked' : ''; ?>>
-                                <code>!<?= htmlspecialchars($wcmd) ?></code> — <?= t($wcmdKey) ?>
+                                <span><code>!<?= htmlspecialchars($wcmd) ?></code> — <?= t($wcmdKey) ?></span>
                             </label>
                         </div>
                         <?php endforeach; ?>
@@ -957,14 +956,23 @@ ob_start();
                         <span class="icon mr-1"><i class="fas fa-users"></i></span>
                         <?= t('working_or_study_viewer_tasks_title') ?>
                     </h3>
+                    <div class="field mb-2">
+                        <div class="control">
+                            <div class="select is-small">
+                                <select id="chProjectFilter">
+                                    <option value="__all"><?= t('working_or_study_filter_all_projects') ?></option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                     <div class="table-container">
                         <table class="table is-fullwidth is-striped is-hoverable is-narrow">
                             <thead>
-                                <tr><th><?= t('working_or_study_th_user') ?></th><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_approval') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
+                                <tr><th><?= t('working_or_study_th_user') ?></th><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_project') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_approval') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
                             </thead>
                             <tbody id="chUserTaskBody">
                                 <tr id="chUserEmpty">
-                                    <td colspan="6" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_viewer_tasks_yet') ?></td>
+                                    <td colspan="7" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_viewer_tasks_yet') ?></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1671,7 +1679,9 @@ ob_start();
         taskUpdated: <?php echo json_encode(t('working_or_study_js_task_updated')); ?>,
         taskCreatedShort: <?php echo json_encode(t('working_or_study_js_task_created_short')); ?>,
         taskSaveFailed: <?php echo json_encode(t('working_or_study_js_task_save_failed')); ?>,
-        networkError: <?php echo json_encode(t('working_or_study_js_network_error')); ?>
+        networkError: <?php echo json_encode(t('working_or_study_js_network_error')); ?>,
+        filterAllProjects: <?php echo json_encode(t('working_or_study_filter_all_projects')); ?>,
+        filterDefaultProject: <?php echo json_encode(t('working_or_study_filter_default_project')); ?>
     };
     // WebSocket (shares the page-level socket if available, else own)
     // Use a separate named socket for the task channel so REGISTER is distinct
@@ -1680,23 +1690,47 @@ ob_start();
         chSocket.emit('REGISTER', { code: chApiKey, channel: 'dashboard', name: 'Tasks' });
         chLoadTasks();
     });
-    chSocket.on('TASK_CREATE',          (d) => { chAppendStreamerRow(d.task); chShowToast(wsLang.taskCreated.replace(':title', d.task?.title || '')); });
+    // /notify transport JSON-encodes the nested task dict — decode if needed.
+    function chParseTask(raw) {
+        if (typeof raw === 'string') {
+            try { return JSON.parse(raw); } catch (e) { return null; }
+        }
+        return raw || null;
+    }
+    // Received events render with emit=false — re-emitting an inbound event would
+    // ping-pong it between connected dashboards forever.
+    chSocket.on('TASK_CREATE',          (d) => {
+        const task = chParseTask(d?.task);
+        if (!task) return;
+        const owner = String(d?.owner || task.owner || '').toLowerCase();
+        if (owner === 'streamer' || (!owner && !task.user_name)) {
+            chAppendStreamerRow(task, false);
+        } else {
+            chAppendUserRow(task, false);
+        }
+        chShowToast(wsLang.taskCreated.replace(':title', task.title || ''));
+    });
     chSocket.on('TASK_UPDATE',          (d) => {
-        const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
-        if (owner === 'streamer' || (!owner && !d?.task?.user_name)) {
-            chAppendStreamerRow(d.task);
+        const task = chParseTask(d?.task);
+        if (!task) return;
+        const owner = String(d?.owner || task.owner || '').toLowerCase();
+        if (owner === 'streamer' || (!owner && !task.user_name)) {
+            chAppendStreamerRow(task, false);
             return;
         }
-        chAppendUserRow(d.task);
+        chAppendUserRow(task, false);
     });
     chSocket.on('TASK_COMPLETE',        (d) => { chMarkStatus(d.task_id, d.owner || 'user', 'completed'); });
     chSocket.on('TASK_APPROVE',         (d) => { chUpdateApproval(d.task_id, 'approved'); });
     chSocket.on('TASK_REJECT',          (d) => { chUpdateApproval(d.task_id, 'rejected'); });
     chSocket.on('TASK_DELETE',          (d) => { chRemoveRow(d.task_id, d.owner || 'streamer'); });
     chSocket.on('TASK_LIST_SYNC',       (d) => {
+        const hasContent = ((d?.streamer_tasks || []).length + (d?.user_tasks || []).length) > 0;
+        if (!hasContent) return; // an empty sync would wipe the lists chLoadTasks() just rendered
         chRenderStreamer(d.streamer_tasks || []);
         chRenderUser(d.user_tasks || []);
     });
+    chSocket.on('PROJECT_UPDATE',       () => { chLoadTasks(); });
     chSocket.on('TASK_REWARD_CONFIRM',  (d) => {
         chShowToast('✔ ' + wsLang.rewardEarned.replace(':user', d.user_name).replace(':points', d.points_awarded).replace(':total', d.new_total));
     });
@@ -1723,10 +1757,12 @@ ob_start();
         if (!tbody) return;
         tbody.innerHTML = '';
         if (!tasks.length) {
-            tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="6" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noViewerTasksYet) + '</td></tr>';
+            tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="7" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noViewerTasksYet) + '</td></tr>';
+            chRefreshProjectFilter();
             return;
         }
         tasks.forEach(t => chAppendUserRow(t, false));
+        chRefreshProjectFilter();
     }
     function chAppendStreamerRow(task, emit = true) {
         if (!task) return;
@@ -1757,9 +1793,15 @@ ob_start();
         let row = document.getElementById('ch-ut-' + task.id) || document.createElement('tr');
         row.id = 'ch-ut-' + task.id;
         const canApprove = task.approval_status === 'pending_approval';
+        const projectKey = (task.project === null || task.project === undefined || task.project === '') ? '__default' : String(task.project);
+        row.setAttribute('data-project-key', projectKey);
+        const projectCell = projectKey === '__default'
+            ? '<span class="has-text-grey">&mdash;</span>'
+            : `<span class="tag is-light">${chEsc(task.project)}</span>`;
         row.innerHTML = `
             <td>${chEsc(task.user_name)}</td>
             <td><strong>${chEsc(task.title)}</strong></td>
+            <td>${projectCell}</td>
             <td>${chStatusTag(task.status)}</td>
             <td>${chApprovalTag(task.approval_status)}</td>
             <td>${task.reward_points ?? 0}</td>
@@ -1771,7 +1813,34 @@ ob_start();
                 </div>
             </td>`;
         if (!document.getElementById('ch-ut-' + task.id)) tbody.appendChild(row);
+        chRefreshProjectFilter();
     }
+    function chRefreshProjectFilter() {
+        const sel = document.getElementById('chProjectFilter');
+        if (!sel) return;
+        const current = sel.value || '__all';
+        const counts = new Map();
+        document.querySelectorAll('#chUserTaskBody tr[data-project-key]').forEach((row) => {
+            const key = row.getAttribute('data-project-key');
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        const total = [...counts.values()].reduce((a, b) => a + b, 0);
+        let html = `<option value="__all">${chEsc(wsLang.filterAllProjects)} (${total})</option>`;
+        html += `<option value="__default">${chEsc(wsLang.filterDefaultProject)} (${counts.get('__default') || 0})</option>`;
+        [...counts.keys()].filter(k => k !== '__default').sort((a, b) => a.localeCompare(b)).forEach((k) => {
+            html += `<option value="${chEsc(k)}">${chEsc(k)} (${counts.get(k)})</option>`;
+        });
+        sel.innerHTML = html;
+        sel.value = [...sel.options].some(o => o.value === current) ? current : '__all';
+        chApplyProjectFilter();
+    }
+    function chApplyProjectFilter() {
+        const filter = document.getElementById('chProjectFilter')?.value || '__all';
+        document.querySelectorAll('#chUserTaskBody tr[data-project-key]').forEach((row) => {
+            row.style.display = (filter === '__all' || row.getAttribute('data-project-key') === filter) ? '' : 'none';
+        });
+    }
+    document.getElementById('chProjectFilter')?.addEventListener('change', chApplyProjectFilter);
     function chStatusTag(s) {
         const m = { active:'is-success', completed:'is-info', hidden:'is-dark', pending:'is-warning', rejected:'is-danger' };
         return `<span class="tag ${m[s]||'is-light'}">${s||'unknown'}</span>`;
@@ -1783,18 +1852,20 @@ ob_start();
     function chMarkStatus(id, owner, status) {
         const row = document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`);
         if (!row) return;
-        const statusCellIndex = owner === 'streamer' ? 2 : 3;
+        // User rows: User, Task, Project, Status — the Project column shifts Status to td 4.
+        const statusCellIndex = owner === 'streamer' ? 2 : 4;
         const cell = row.querySelector(`td:nth-child(${statusCellIndex})`);
         if (cell) cell.innerHTML = chStatusTag(status);
     }
     function chUpdateApproval(id, status) {
         const row = document.getElementById('ch-ut-' + id);
         if (!row) return;
-        const cell = row.querySelector('td:nth-child(4)');
+        const cell = row.querySelector('td:nth-child(5)');
         if (cell) cell.innerHTML = chApprovalTag(status);
     }
     function chRemoveRow(id, owner) {
         document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`)?.remove();
+        if (owner !== 'streamer') chRefreshProjectFilter();
     }
     window.chOpenEditTask = function (id) {
         const row = document.getElementById('ch-st-' + id);
@@ -1887,7 +1958,9 @@ ob_start();
             }
         });
     };
-    document.getElementById('chSaveSettingsBtn')?.addEventListener('click', () => {
+    // Always sends the FULL settings payload — ch_save_settings writes all four
+    // columns, so a partial payload would silently reset the omitted ones.
+    function chSaveTaskSettings(sourceToggle) {
         const payload = {
             action:               'ch_save_settings',
             require_approval:     document.getElementById('chRequireApproval')?.checked     ? 1 : 0,
@@ -1900,9 +1973,15 @@ ob_start();
                 chSocket.emit('TASK_SETTINGS_UPDATE', { channel_code: chApiKey, settings: payload });
                 chShowToast(wsLang.settingsSaved);
             } else {
+                if (sourceToggle) { sourceToggle.checked = !sourceToggle.checked; }
                 chShowToast(wsLang.settingsSaveFailed, 'is-danger');
             }
         });
+    }
+    document.getElementById('chSaveSettingsBtn')?.addEventListener('click', () => chSaveTaskSettings());
+    // Settings toggles persist immediately on change (revert on failure).
+    ['chRequireApproval', 'chAllowUserTasks', 'chTaskVisibleOverlay'].forEach((toggleId) => {
+        document.getElementById(toggleId)?.addEventListener('change', (e) => chSaveTaskSettings(e.target));
     });
     document.getElementById('chToggleSettingsBtn')?.addEventListener('click', () => {
         const panel = document.getElementById('chSettingsPanel');
@@ -1954,7 +2033,8 @@ ob_start();
         chPost(payload, (res) => {
             if (res.success) {
                 const taskObj = { id: res.id || parseInt(id), title, description: desc, category, reward_points: points, status: 'active', owner: 'streamer' };
-                chAppendStreamerRow(taskObj);
+                // emit=false: the explicit emit below is the single wire event for this save.
+                chAppendStreamerRow(taskObj, false);
                 chSocket.emit(isEdit ? 'TASK_UPDATE' : 'TASK_CREATE', { channel_code: chApiKey, owner: 'streamer', task: taskObj });
                 document.getElementById('chStreamerTaskModal').classList.remove('is-active');
                 chShowToast(isEdit ? wsLang.taskUpdated : wsLang.taskCreatedShort);
@@ -1969,7 +2049,12 @@ ob_start();
         fetch('working-or-study.php', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(callback)
-            .catch(e => chShowToast(wsLang.networkError.replace(':error', e.message), 'is-danger'));
+            .catch(e => {
+                chShowToast(wsLang.networkError.replace(':error', e.message), 'is-danger');
+                // Callers rely on their failure branch (e.g. toggle revert) running
+                // on network errors too, not just on success:false responses.
+                if (typeof callback === 'function') callback({ success: false, error: e.message });
+            });
     }
     function chEsc(str) {
         if (!str) return '';

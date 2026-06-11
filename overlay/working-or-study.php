@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             }
         }
         if ($ut_exists) {
-            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
             if ($u && $u->execute()) {
                 $user_tasks_arr = $u->get_result()->fetch_all(MYSQLI_ASSOC);
                 $u->close();
@@ -1094,7 +1094,7 @@ ob_end_clean();
                         li.dataset.userId = r.userId;
                     }
                     const taskDescription = getTaskDescription(t) || 'Untitled task';
-                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(r.userName)}: ${escapeHtml(taskDescription)}</div></div>`;
+                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(r.userName)}: ${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
                     list.appendChild(li);
                 });
                 // Re-attach any live pomo badges to their viewer rows (rows rebuilt).
@@ -1225,6 +1225,18 @@ ob_end_clean();
                 if (description) return description;
                 return String(task?.title || '').trim();
             };
+            // /notify transport JSON-encodes the nested task dict — decode if needed.
+            const parseTaskPayload = (raw) => {
+                if (typeof raw === 'string') {
+                    try { return JSON.parse(raw); } catch (e) { return null; }
+                }
+                return raw || null;
+            };
+            const projectChipHtml = (task) => {
+                const project = String(task?.project || '').trim();
+                if (!project) return '';
+                return `<span class="study-overlay-page-task-sys-item-project">${escapeHtml(project)}</span>`;
+            };
             const newStreamerUpsert = (task) => {
                 const list = document.getElementById('newStreamerTaskList');
                 if (!list) return;
@@ -1253,7 +1265,7 @@ ob_end_clean();
                 } else {
                     delete li.dataset.userId;
                 }
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div></div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
                 if (typeof attachPomoBadgeToRow === 'function') {
                     attachPomoBadgeToRow(taskUserId);
                 }
@@ -1594,22 +1606,30 @@ ob_end_clean();
                     emitTimerUpdate();
                 });
                 socket.on('TASK_LIST_SYNC', (d) => {
+                    const hasContent = ((d?.streamer_tasks || []).length + (d?.user_tasks || []).length) > 0;
+                    if (!hasContent) return; // an empty sync would wipe lists loadChannelTasks() just rendered
                     latestStreamerTasks = d.streamer_tasks || [];
                     latestViewerTasks = d.user_tasks || [];
                     renderTaskLists();
                 });
+                socket.on('PROJECT_UPDATE', () => {
+                    loadChannelTasks();
+                });
                 socket.on('TASK_CREATE', (d) => {
+                    const task = parseTaskPayload(d?.task);
+                    if (!task) return;
                     if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
-                    const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
-                    if (owner === 'streamer' || (!owner && !d?.task?.user_name)) newStreamerUpsert(d.task);
-                    else newViewerUpsert(d.task);
+                    const owner = String(d?.owner || task?.owner || '').toLowerCase();
+                    if (owner === 'streamer' || (!owner && !task?.user_name)) newStreamerUpsert(task);
+                    else newViewerUpsert(task);
                 });
                 socket.on('TASK_UPDATE', (d) => {
-                    if (!d.task) return;
+                    const task = parseTaskPayload(d?.task);
+                    if (!task) return;
                     if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
-                    const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
-                    if (owner === 'streamer' || (!owner && !d?.task?.user_name)) newStreamerUpsert(d.task);
-                    else newViewerUpsert(d.task);
+                    const owner = String(d?.owner || task?.owner || '').toLowerCase();
+                    if (owner === 'streamer' || (!owner && !task?.user_name)) newStreamerUpsert(task);
+                    else newViewerUpsert(task);
                 });
                 socket.on('TASK_COMPLETE', (d) => {
                     if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
