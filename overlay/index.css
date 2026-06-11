@@ -1354,6 +1354,25 @@ html, body {
     border-color: var(--task-text-muted);
 }
 
+/* Project chip under a viewer task row — shows which !project the task lives in.
+   Theme-aware via the shared task vars; truncates instead of wrapping so the
+   row height stays stable at any browser-source resolution. */
+.study-overlay-page-task-sys-item-project {
+    display: inline-block;
+    font-size: .6rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--task-text-muted);
+    border: 1px solid var(--task-text-muted);
+    border-radius: 999px;
+    padding: 0 6px;
+    margin-top: 2px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .study-overlay-page-pomo-badge {
     --pomo-ring-color: var(--focus-color);
     display: inline-flex;
