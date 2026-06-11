@@ -123,6 +123,7 @@ return [
     'navbar_video_alerts' => 'Alertes vidéo',
     'navbar_walkon_alerts' => 'Alertes Walk-On',
     'navbar_makers_crafting' => 'Créations & Bricolage',
+    'navbar_working_study' => 'Travail & Étude',
     // Makers & Crafting overlay page
     'makers_page_title' => 'Overlay Créations & Bricolage',
     'makers_intro' => 'Montrez à vos spectateurs ce que vous créez. Ajoutez cette source navigateur dans OBS, puis gérez vos projets ici ou en direct depuis le chat avec <code>!craft</code>.',
@@ -1410,6 +1411,10 @@ return [
     'working_or_study_toggle_require_approval' => 'Exiger l\'approbation du streamer avant d\'attribuer des points',
     'working_or_study_toggle_allow_user_tasks' => 'Autoriser les spectateurs à soumettre des tâches',
     'working_or_study_toggle_show_tasks_overlay' => 'Afficher les tâches sur l\'overlay',
+    'working_or_study_toggles_autosave_help' => 'Les interrupteurs sont enregistrés automatiquement.',
+    'working_or_study_th_project' => 'Projet',
+    'working_or_study_filter_all_projects' => 'Tous les projets',
+    'working_or_study_filter_default_project' => 'Projet par défaut',
     'working_or_study_save_settings' => 'Enregistrer les paramètres',
     'working_or_study_streamer_tasks_title' => 'Tâches du streamer',
     'working_or_study_add_task' => 'Ajouter une tâche',

@@ -123,6 +123,7 @@ return [
     'navbar_video_alerts' => 'Video-Alerts',
     'navbar_walkon_alerts' => 'Walk-On-Alerts',
     'navbar_makers_crafting' => 'Basteln & Handwerk',
+    'navbar_working_study' => 'Arbeiten & Lernen',
     // Makers & Crafting overlay page
     'makers_page_title' => 'Basteln & Handwerk Overlay',
     'makers_intro' => 'Zeige deinen Zuschauern, woran du arbeitest. Füge diese Browserquelle in OBS hinzu und verwalte Projekte hier oder live im Chat mit <code>!craft</code>.',
@@ -1410,6 +1411,10 @@ return [
     'working_or_study_toggle_require_approval' => 'Genehmigung des Streamers erforderlich, bevor Punkte vergeben werden',
     'working_or_study_toggle_allow_user_tasks' => 'Zuschauern erlauben, Aufgaben einzureichen',
     'working_or_study_toggle_show_tasks_overlay' => 'Aufgaben im Overlay anzeigen',
+    'working_or_study_toggles_autosave_help' => 'Schalter werden automatisch gespeichert.',
+    'working_or_study_th_project' => 'Projekt',
+    'working_or_study_filter_all_projects' => 'Alle Projekte',
+    'working_or_study_filter_default_project' => 'Standardprojekt',
     'working_or_study_save_settings' => 'Einstellungen speichern',
     'working_or_study_streamer_tasks_title' => 'Streamer-Aufgaben',
     'working_or_study_add_task' => 'Aufgabe hinzufügen',
