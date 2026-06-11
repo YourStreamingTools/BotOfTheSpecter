@@ -219,6 +219,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("TASK_DELETE",          self.handle_task_delete),
             ("TASK_REWARD_CONFIRM",  self.handle_task_reward_confirm),
             ("TASK_SETTINGS_UPDATE", self.handle_task_settings_update),
+            ("PROJECT_UPDATE",       self.handle_project_update),
             ("USER_POMO_START",    self.handle_user_pomo_start),
             ("USER_POMO_CANCEL",   self.handle_user_pomo_cancel),
             ("USER_POMO_UPDATE",   self.handle_user_pomo_outbound),
@@ -414,6 +415,11 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"TASK_REWARD_CONFIRM from [{sid}]: {payload}")
         await self.broadcast_to_task_clients_only("TASK_REWARD_CONFIRM", payload, source_sid=sid)
 
+    async def handle_project_update(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"PROJECT_UPDATE from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("PROJECT_UPDATE", payload, source_sid=sid)
+
     async def broadcast_to_task_clients_only(self, event_name, data, source_sid=None):
         count = 0
         effective_code = None
@@ -523,6 +529,10 @@ class BotOfTheSpecter_WebsocketServer:
                 (str(user_id), user_name, label, work_minutes, break_minutes, total_cycles, work_minutes),
                 database_name=db_name
             )
+            # Event-driven tracking: track BEFORE the read-back so a failed read can't
+            # orphan the freshly-inserted pomo (a wrongly-added DB is harmlessly
+            # untracked on the next tick).
+            self._pomo_active_dbs[db_name] = code
             # Read back the freshly-created row so the broadcast carries real ids/timestamps.
             rows = await self.execute_query(
                 "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
@@ -537,8 +547,6 @@ class BotOfTheSpecter_WebsocketServer:
             if not row:
                 self.logger.error("USER_POMO_START: row not found after insert")
                 return 0
-            # Make sure the ticker watches this DB immediately (don't wait for the 60s refresh).
-            self._pomo_active_dbs[db_name] = code
             event_payload = self._pomo_row_to_payload(row, code)
             count = await self.broadcast_to_task_clients_only("USER_POMO_START", event_payload, source_sid=source_sid)
             self.logger.info(f"USER_POMO_START: created pomo {row.get('id')} for user {user_name} in DB {db_name}")
@@ -598,28 +606,35 @@ class BotOfTheSpecter_WebsocketServer:
             "status": row.get('status') or 'active',
         }
 
-    async def refresh_pomo_active_dbs(self):
+    async def scan_active_pomo_dbs(self):
+        # One-time startup recovery: find tenants with a running pomo so the ticker
+        # can resume them after a restart. Steady-state tracking is event-driven —
+        # USER_POMO_START adds a DB, a tick that finds no active pomos removes it —
+        # so the ticker never polls every user database.
         try:
             rows = await self.execute_query(
                 "SELECT username, api_key FROM users WHERE username IS NOT NULL AND api_key IS NOT NULL",
                 database_name='website'
             )
-            if rows is None:
-                self.logger.warning("refresh_pomo_active_dbs: users query returned None, keeping existing cache")
+            if not rows:
+                self.logger.warning("scan_active_pomo_dbs: users query returned no rows")
                 return
-            new_map = {}
+            found = 0
             for r in rows:
                 username = r.get('username')
                 api_key = r.get('api_key')
-                if username and api_key:
-                    new_map[username] = api_key
-            # Preserve any just-started DBs that may not yet be in the users snapshot.
-            for db_name, code in list(self._pomo_active_dbs.items()):
-                new_map.setdefault(db_name, code)
-            self._pomo_active_dbs = new_map
-            self.logger.info(f"refresh_pomo_active_dbs: tracking {len(self._pomo_active_dbs)} candidate pomo DBs")
+                if not username or not api_key:
+                    continue
+                active = await self.execute_query(
+                    "SELECT COUNT(*) AS cnt FROM user_pomos WHERE status = 'active'",
+                    database_name=username
+                )
+                if active and int(active[0].get('cnt') or 0) > 0:
+                    self._pomo_active_dbs[username] = api_key
+                    found += 1
+            self.logger.info(f"scan_active_pomo_dbs: resuming pomo ticking for {found} database(s)")
         except Exception as e:
-            self.logger.error(f"refresh_pomo_active_dbs error: {e}")
+            self.logger.error(f"scan_active_pomo_dbs error: {e}")
 
     async def _advance_pomo_row(self, db_name, code, row):
         pomo_id = row.get('id')
@@ -694,55 +709,74 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.error(f"_emit_pomo_event({event_name}) error for pomo {pomo_id} in {db_name}: {e}")
 
     async def _process_pomo_db(self, db_name, code, do_update):
-        expired = await self.execute_query(
-            "SELECT id, work_minutes, break_minutes, total_cycles, current_cycle, current_phase "
-            "FROM user_pomos WHERE status = 'active' AND phase_ends_at <= NOW()",
-            database_name=db_name
+        # Returns True while this DB still has an active pomo; False tells the ticker
+        # to stop tracking it (the next USER_POMO_START re-adds it).
+        actives = await self.execute_query(
+            "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+            "current_cycle, current_phase, "
+            "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+            "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+            "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, "
+            "(phase_ends_at <= NOW()) AS expired, status "
+            "FROM user_pomos WHERE status = 'active'",
+            (), database_name=db_name
         )
-        if expired:
-            for row in expired:
-                await self._advance_pomo_row(db_name, code, row)
+        if actives is None:
+            # Query FAILED (transient MySQL outage, DB restart) — keep the DB tracked
+            # and just skip this tick, otherwise a one-second blip would freeze every
+            # running pomo until its owner manually restarts it. A DB with a missing
+            # user_pomos table can never enter the set (USER_POMO_START and the
+            # startup scan both require the table), so this can't reintroduce the
+            # per-second error spam.
+            return True
+        if not actives:
+            return False
+        expired_rows = [r for r in actives if r.get('expired')]
+        for row in expired_rows:
+            await self._advance_pomo_row(db_name, code, row)
         if do_update:
-            actives = await self.execute_query(
-                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
-                "current_cycle, current_phase, "
-                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
-                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
-                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                "FROM user_pomos WHERE status = 'active'",
-                (), database_name=db_name
-            )
-            if actives:
-                for row in actives:
-                    payload = self._pomo_row_to_payload(row, code)
-                    await self.broadcast_to_task_clients_only("USER_POMO_UPDATE", payload)
+            fresh = actives
+            if expired_rows:
+                # Phases just advanced — re-read so UPDATE broadcasts carry new state.
+                fresh = await self.execute_query(
+                    "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                    "current_cycle, current_phase, "
+                    "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                    "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                    "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                    "FROM user_pomos WHERE status = 'active'",
+                    (), database_name=db_name
+                )
+            for row in (fresh or []):
+                payload = self._pomo_row_to_payload(row, code)
+                await self.broadcast_to_task_clients_only("USER_POMO_UPDATE", payload)
+        return True
 
     async def start_pomo_ticker_task(self):
-        # Launch the once-per-second pomo ticker. Initialises caches, does a first DB-list
-        # refresh, then loops. Stored as self.pomo_ticker_task so on_shutdown can cancel it.
+        # Launch the once-per-second pomo ticker. Initialises the active-DB set with a
+        # one-time recovery scan, then loops. The set only ever contains tenants with
+        # a running pomo. Stored as self.pomo_ticker_task so on_shutdown can cancel it.
         if not hasattr(self, '_pomo_active_dbs'):
             self._pomo_active_dbs = {}
-        await self.refresh_pomo_active_dbs()
+        await self.scan_active_pomo_dbs()
 
         async def pomo_ticker():
-            last_db_refresh = time.time()
             last_global_update = time.time()
             while True:
                 try:
                     await asyncio.sleep(1)
                     now = time.time()
-                    # Refresh the candidate-DB list every 60s.
-                    if now - last_db_refresh >= 60:
-                        await self.refresh_pomo_active_dbs()
-                        last_db_refresh = now
                     # Decide whether this tick should also emit periodic UPDATE broadcasts.
                     do_update = (now - last_global_update) >= self.POMO_UPDATE_INTERVAL
                     if do_update:
                         last_global_update = now
-                    # Iterate a snapshot so a concurrent refresh/inject can't mutate mid-loop.
+                    # Iterate a snapshot so a concurrent USER_POMO_START can't mutate mid-loop.
                     for db_name, code in list(self._pomo_active_dbs.items()):
                         try:
-                            await self._process_pomo_db(db_name, code, do_update)
+                            still_active = await self._process_pomo_db(db_name, code, do_update)
+                            if not still_active:
+                                self._pomo_active_dbs.pop(db_name, None)
+                                self.logger.info(f"pomo_ticker: no active pomos in {db_name}, untracking")
                         except Exception as e:
                             # Multi-tenant isolation: log and continue past a bad tenant.
                             self.logger.error(f"pomo_ticker: error processing DB {db_name}: {e}")
@@ -911,10 +945,6 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
                 await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
-            # Push TASK_LIST_SYNC to task-aware clients on connect so they can hydrate state
-            if channel.lower() in ['dashboard', 'overlay'] and 'task' in sid_name.lower():
-                await self.sio.emit("TASK_LIST_SYNC", {"channel_code": code, "streamer_tasks": [], "user_tasks": []}, to=sid)
-                self.logger.info(f"Sent TASK_LIST_SYNC to newly registered task client [{sid}]")
         else:
             self.logger.warning("Code not provided and not a global listener during registration")
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)
@@ -1168,6 +1198,14 @@ class BotOfTheSpecter_WebsocketServer:
             # Handle Tanngle puzzle and Stream Bingo events
             count = await self.broadcast_event_with_globals(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
+        elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM", "PROJECT_UPDATE"]:
+            raw_task = data.get("task")
+            if isinstance(raw_task, str):
+                try:
+                    data["task"] = json.loads(raw_task)
+                except (ValueError, TypeError):
+                    pass
+            count = await self.broadcast_to_task_clients_only(event, data)
         elif event == "USER_POMO_START":
             count = await self.handle_user_pomo_start_http(code, data)
         elif event == "USER_POMO_CANCEL":
