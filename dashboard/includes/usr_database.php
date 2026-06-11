@@ -863,6 +863,16 @@ try {
                 project VARCHAR(100) DEFAULT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'user_projects' => "
+            CREATE TABLE IF NOT EXISTS user_projects (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(50) NOT NULL,
+                user_name VARCHAR(100) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_user_project (user_id, name),
+                INDEX idx_user_id (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'user_pomos' => "
             CREATE TABLE IF NOT EXISTS user_pomos (
                 id INT PRIMARY KEY AUTO_INCREMENT,

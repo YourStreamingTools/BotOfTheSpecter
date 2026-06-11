@@ -146,6 +146,7 @@ return [
     'navbar_overlays' => 'Overlays',
     'navbar_closed_captions' => 'Closed Captions',
     'navbar_makers_crafting' => 'Makers & Crafting',
+    'navbar_working_study' => 'Working & Study',
     // Makers & Crafting overlay page
     'makers_page_title' => 'Makers & Crafting Overlay',
     'makers_intro' => 'Show your viewers what you\'re making. Add this browser source to OBS, then manage projects here or live from chat with <code>!craft</code>.',
@@ -1463,6 +1464,10 @@ return [
     'working_or_study_toggle_require_approval' => 'Require streamer approval before awarding points',
     'working_or_study_toggle_allow_user_tasks' => 'Allow viewers to submit tasks',
     'working_or_study_toggle_show_tasks_overlay' => 'Show tasks on overlay',
+    'working_or_study_toggles_autosave_help' => 'Toggles save automatically.',
+    'working_or_study_th_project' => 'Project',
+    'working_or_study_filter_all_projects' => 'All projects',
+    'working_or_study_filter_default_project' => 'Default project',
     'working_or_study_save_settings' => 'Save Settings',
     'working_or_study_streamer_tasks_title' => 'Streamer Tasks',
     'working_or_study_add_task' => 'Add Task',
