@@ -847,9 +847,14 @@ ob_start();
                 <div class="column is-half">
                     <div class="field">
                         <label class="label"><?= t('working_or_study_default_reward_points_label') ?></label>
-                        <div class="control">
-                            <input class="input" type="number" id="chDefaultRewardPoints" min="0"
-                                value="<?php echo (int)$chInitialSettings['default_reward_points']; ?>">
+                        <div class="field has-addons">
+                            <div class="control is-expanded">
+                                <input class="input" type="number" id="chDefaultRewardPoints" min="0"
+                                    value="<?php echo (int)$chInitialSettings['default_reward_points']; ?>">
+                            </div>
+                            <div class="control">
+                                <button class="button is-link" id="chSaveSettingsBtn"><?= t('working_or_study_save_settings') ?></button>
+                            </div>
                         </div>
                         <p class="help"><?= t('working_or_study_default_reward_points_help') ?></p>
                     </div>
@@ -912,11 +917,6 @@ ob_start();
                         </div>
                         <?php endforeach; ?>
                     </div>
-                </div>
-            </div>
-            <div class="field">
-                <div class="control">
-                    <button class="button is-link" id="chSaveSettingsBtn"><?= t('working_or_study_save_settings') ?></button>
                 </div>
             </div>
         </div>
