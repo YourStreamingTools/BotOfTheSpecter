@@ -1,14 +1,16 @@
 <?php
-$heartbeatStatus = '';
-
-include '/var/www/config/db_connect.php';
 
 function fetchData($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
     $response = curl_exec($ch);
     curl_close($ch);
+    if ($response === false) {
+        return null;
+    }
     return json_decode($response, true);
 }
 
@@ -27,124 +29,96 @@ function pingServer($host, $port) {
     return $status;
 }
 
-function format_speed($mb_per_sec) {
-    $bytes_per_sec = $mb_per_sec * 1000000; // Convert MB/s to bytes/s
-    if ($bytes_per_sec >= 1000000) {
-        return number_format($mb_per_sec, 2) . ' MB/s';
-    } elseif ($bytes_per_sec >= 1000) {
-        return number_format($bytes_per_sec / 1000, 2) . ' KB/s';
-    } else {
-        return number_format($bytes_per_sec, 2) . ' B/s';
-    }
-}
-
-// Format integers for display with thousands separators. Returns 'N/A' for null.
-function format_number($n) {
-    if ($n === null) return 'N/A';
-    if (!is_numeric($n)) return htmlspecialchars($n);
-    return number_format((int)$n);
-}
-
-// Fetch version data
-$versionData = fetchData('https://api.botofthespecter.com/versions');
-if ($versionData) {
-    $betaVersion = $versionData['beta_version'];
-    $stableVersion = $versionData['stable_version'];
-    $discordVersion = $versionData['discord_bot'] ?? null;
-} else {
-    $betaVersion = $stableVersion = $discordVersion = null;
-}
-
-// Directly ping the servers
-$apiPingStatus = pingServer('api.botofthespecter.com', 443);
-$apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $apiPingStatus];
-
-$websocketetPingStatus = pingServer('websocket.botofthespecter.com', 443);
-$notificationServiceStatus = ['status' => $websocketetPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $websocketetPingStatus];
-
-$databasePingStatus = pingServer('sql.botofthespecter.com', 3306);
-$databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $databasePingStatus];
-
-// Additional server monitoring
-$botServerPingStatus = pingServer('bots.botofthespecter.com', 22);
-$botServerStatus = ['status' => $botServerPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $botServerPingStatus];
-
-
-
-$web1PingStatus = pingServer('web1.botofthespecter.com', 443);
-$web1Status = ['status' => $web1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $web1PingStatus];
-
-// Fetch song request data
-$songData = fetchData('https://api.botofthespecter.com/api/song');
-if ($songData) {
-    $songRequestsRemaining = $songData['requests_remaining'];
-} else {
-    $songRequestsRemaining = null;
-}
-
-// Fetch exchange rate request data
-$exchangeRateData = fetchData('https://api.botofthespecter.com/api/exchangerate');
-if ($exchangeRateData) {
-    $exchangeRateRequestsRemaining = $exchangeRateData['requests_remaining'];
-} else {
-    $exchangeRateRequestsRemaining = null;
-}
-
-// Fetch weather request data
-$weatherData = fetchData('https://api.botofthespecter.com/api/weather');
-if ($weatherData) {
-    $weatherRequestsRemaining = $weatherData['requests_remaining'];
-} else {
-    $weatherRequestsRemaining = null;
-}
-
-// Fetch system metrics if requested
-$metrics = [];
-$serverDisplayNames = [
-    'web1' => 'Web Server 1',
-    'sql' => 'Database Service',
-    'api' => 'API Service',
-    'websocket' => 'WebSocket Service',
-    'bots' => 'Bot Server'
-];
-$result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
-while ($row = $result->fetch_assoc()) {
-    $metrics[] = $row;
-}
-
-// Do not preload beta users on the initial render so the client-side
-// polling (AJAX) always fetches the latest data. The AJAX endpoint below
-// still queries the database for fresh beta users on each request.
-$betaUsers = [];
-
-// Fetch total users
-$totalUsers = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
-
-// Fetch users by signup year (last 4 years)
-$usersByYear = [];
-$result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
-while ($row = $result->fetch_assoc()) {
-    $usersByYear[] = $row;
-}
-
-// Fetch chat message counts by bot system
-$botMessageCounts = [];
-$messageSystemNames = [
-    'discordbot' => 'Discord Bot',
-    'twitch_stable' => 'Chat Bot Stable',
-    'twitch_beta' => 'Chat Bot Beta',
-    'twitch_custom' => 'Chat Bot Custom'
-];
-$result = $conn->query("SELECT bot_system, messages_sent FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $botMessageCounts[$row['bot_system']] = $row['messages_sent'];
-    }
-}
-
-// AJAX endpoint for JS polling
+// JSON endpoint for the JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
+    // Serve the shared cached payload while it's fresh so concurrent pollers
+    // share one ping/API/DB fan-out per window instead of each redoing it.
+    $cacheFile = sys_get_temp_dir() . '/specter_status.json';
+    if (is_file($cacheFile) && (time() - filemtime($cacheFile)) < 45) {
+        readfile($cacheFile);
+        exit;
+    }
+    // Failed queries must return false (not throw) so the guards below can
+    // degrade to defaults and the endpoint still emits valid JSON.
+    mysqli_report(MYSQLI_REPORT_OFF);
+    include '/var/www/config/db_connect.php';
+
+    // Directly ping the servers
+    $apiPingStatus = pingServer('api.botofthespecter.com', 443);
+    $apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $apiPingStatus];
+
+    $websocketPingStatus = pingServer('websocket.botofthespecter.com', 443);
+    $notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $websocketPingStatus];
+
+    $databasePingStatus = pingServer('sql.botofthespecter.com', 3306);
+    $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $databasePingStatus];
+
+    $botServerPingStatus = pingServer('bots.botofthespecter.com', 22);
+    $botServerStatus = ['status' => $botServerPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $botServerPingStatus];
+
+    $web1PingStatus = pingServer('web1.botofthespecter.com', 443);
+    $web1Status = ['status' => $web1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $web1PingStatus];
+
+    // Fetch version data
+    $versionData = fetchData('https://api.botofthespecter.com/versions');
+    $betaVersion = $versionData['beta_version'] ?? null;
+    $stableVersion = $versionData['stable_version'] ?? null;
+    $discordVersion = $versionData['discord_bot'] ?? null;
+
+    // Fetch public API request limits
+    $songData = fetchData('https://api.botofthespecter.com/api/song');
+    $songRequestsRemaining = $songData['requests_remaining'] ?? null;
+
+    $exchangeRateData = fetchData('https://api.botofthespecter.com/api/exchangerate');
+    $exchangeRateRequestsRemaining = $exchangeRateData['requests_remaining'] ?? null;
+
+    $weatherData = fetchData('https://api.botofthespecter.com/api/weather');
+    $weatherRequestsRemaining = $weatherData['requests_remaining'] ?? null;
+
+    // Fetch system metrics (explicit columns — only what the page displays)
+    $metrics = [];
+    $result = $conn->query("SELECT server_name, cpu_percent, ram_percent, ram_used, ram_total, disk_percent, disk_used, disk_total, net_sent, net_recv FROM system_metrics ORDER BY server_name");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $metrics[] = $row;
+        }
+    }
+
+    // Fetch chat message counts by bot system
+    $botMessageCounts = [];
+    $result = $conn->query("SELECT bot_system, messages_sent FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $botMessageCounts[$row['bot_system']] = $row['messages_sent'];
+        }
+    }
+
+    // Fetch total users
+    $totalUsers = null;
+    $result = $conn->query("SELECT COUNT(*) as count FROM users");
+    if ($result) {
+        $totalUsers = $result->fetch_assoc()['count'] ?? null;
+    }
+
+    // Fetch users by signup year (last 4 years)
+    $usersByYear = [];
+    $result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $usersByYear[] = $row;
+        }
+    }
+
+    // Fetch beta users
+    $betaUsers = [];
+    $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $betaUsers[] = $row['twitch_display_name'];
+        }
+    }
+
     $data = [
         'apiServiceStatus' => $apiServiceStatus,
         'databaseServiceStatus' => $databaseServiceStatus,
@@ -156,51 +130,23 @@ if (isset($_GET['ajax'])) {
         'discordVersion' => $discordVersion,
         'songRequestsRemaining' => $songRequestsRemaining,
         'exchangeRateRequestsRemaining' => $exchangeRateRequestsRemaining,
-        'weatherRequestsRemaining' => $weatherRequestsRemaining
+        'weatherRequestsRemaining' => $weatherRequestsRemaining,
+        'metrics' => $metrics,
+        'botMessageCounts' => $botMessageCounts,
+        'totalUsers' => $totalUsers,
+        'usersByYear' => $usersByYear,
+        'betaUsers' => $betaUsers
     ];
-    $metricsAjax = [];
-    $result = $conn->query("SELECT * FROM system_metrics ORDER BY server_name");
-    while ($row = $result->fetch_assoc()) {
-        $metricsAjax[] = $row;
-    }
-    $data['metrics'] = $metricsAjax;
-    // Fetch bot message counts for AJAX
-    $botMessageCountsAjax = [];
-    $result = $conn->query("SELECT bot_system, messages_sent FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
-    if ($result) {
-        while ($row = $result->fetch_assoc()) {
-            $botMessageCountsAjax[$row['bot_system']] = $row['messages_sent'];
+    $json = json_encode($data);
+    // Atomic cache write so a concurrent poller never reads a partial file
+    $tmp = tempnam(sys_get_temp_dir(), 'specterstatus');
+    if ($tmp !== false && file_put_contents($tmp, $json) !== false) {
+        if (!@rename($tmp, $cacheFile)) {
+            @unlink($tmp);
         }
     }
-    $data['botMessageCounts'] = $botMessageCountsAjax;
-    // Fetch signup data for AJAX
-    $totalUsersAjax = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
-    $usersByYearAjax = [];
-    $result = $conn->query("SELECT YEAR(signup_date) as year, COUNT(*) as count FROM users GROUP BY YEAR(signup_date) ORDER BY year DESC LIMIT 4");
-    while ($row = $result->fetch_assoc()) {
-        $usersByYearAjax[] = $row;
-    }
-    $data['totalUsers'] = $totalUsersAjax;
-    $data['usersByYear'] = $usersByYearAjax;
-    $betaUsersAjax = [];
-    $result = $conn->query("SELECT twitch_display_name FROM users WHERE beta_access = '1' AND twitch_display_name NOT IN ('BotOfTheSpecter', 'GamingForAustralia') ORDER BY id");
-    while ($row = $result->fetch_assoc()) {
-        $betaUsersAjax[] = $row['twitch_display_name'];
-    }
-    $data['betaUsers'] = $betaUsersAjax;
-    echo json_encode($data);
+    echo $json;
     exit;
-}
-
-function checkServiceStatus($serviceName, $serviceData) {
-    if ($serviceData && $serviceData['status'] === 'OK') {
-        $ping = $serviceData['ping'] . 'ms';
-        return "<div class='status-item'><span class=\"has-text-weight-bold\">$serviceName:</span> $ping <span class='heartbeat beating'>❤️</span></div>";
-    } elseif ($serviceData && $serviceData['status'] === 'DISABLED') {
-        return "<div class='status-item'><span class=\"has-text-weight-bold\">$serviceName:</span> Disabled <span>⏸️</span></div>";
-    } else {
-        return "<div class='status-item'><span class=\"has-text-weight-bold\">$serviceName:</span> Down <span>💀</span></div>";
-    }
 }
 ?>
 <!DOCTYPE html>
@@ -230,7 +176,6 @@ function checkServiceStatus($serviceName, $serviceData) {
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .info-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #292929; }
         .info-item:last-child { border-bottom: none; }
-        .error { color: #ff4d4d; }
         .last-updated { text-align: center; font-size: 0.92em; opacity: 0.8; white-space: nowrap; }
         #system-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
         #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; padding: 4px 6px; gap: 2px; font-size: 0.95em; }
@@ -257,6 +202,7 @@ function checkServiceStatus($serviceName, $serviceData) {
             page-break-inside: avoid;
         }
         #signups-section h2 { margin-bottom: 2px; font-size: 1em; }
+        #signups-section h3 { margin: 4px 0 2px; font-size: 0.95em; }
         #signups-section .info-item { padding: 2px 0; }
         #signups-section .columns { margin-bottom: 0; }
         .bottom-row .section { padding-top: 8px; }
@@ -269,6 +215,11 @@ function checkServiceStatus($serviceName, $serviceData) {
             #system-metrics { grid-template-columns: 1fr; }
             h1 { text-align: center; }
             .title-row { flex-direction: column; gap: 4px; }
+            .last-updated { white-space: normal; }
+            /* style.css only resets is-two-thirds/is-one-third at this width;
+               the child combinator keeps the is-mobile year pairs side by side */
+            .columns:not(.is-mobile) > .column.is-one-quarter,
+            .columns:not(.is-mobile) > .column.is-half { flex: 1 1 100%; max-width: 100%; }
         }
     </style>
 </head>
@@ -276,23 +227,16 @@ function checkServiceStatus($serviceName, $serviceData) {
 <div class="container">
     <div class="title-row">
         <h1>BotOfTheSpecter System Status</h1>
-        <div class="last-updated" id="last-updated">Last updated: <span id="update-time">Just now</span></div>
+        <div class="last-updated" id="last-updated">Time right now: <span id="current-time">--:--:--</span> &nbsp;|&nbsp; Last updated: <span id="update-time">Loading...</span></div>
     </div>
     <!-- Service Statuses -->
     <div class="section">
             <div class="status-grid" id="service-status">
-                <?php
-                $serviceOrder = [
-                    ['name' => 'Web Server 1', 'status' => $web1Status],
-                    ['name' => 'Database Service', 'status' => $databaseServiceStatus],
-                    ['name' => 'API Service', 'status' => $apiServiceStatus],
-                    ['name' => 'WebSocket Service', 'status' => $notificationServiceStatus],
-                    ['name' => 'Bot Server', 'status' => $botServerStatus]
-                ];
-                foreach ($serviceOrder as $s) {
-                    echo checkServiceStatus($s['name'], $s['status']);
-                }
-                ?>
+                <div class='status-item'><span class="has-text-weight-bold">Web Server 1:</span> Checking... <span aria-hidden="true">⏳</span></div>
+                <div class='status-item'><span class="has-text-weight-bold">Database Service:</span> Checking... <span aria-hidden="true">⏳</span></div>
+                <div class='status-item'><span class="has-text-weight-bold">API Service:</span> Checking... <span aria-hidden="true">⏳</span></div>
+                <div class='status-item'><span class="has-text-weight-bold">WebSocket Service:</span> Checking... <span aria-hidden="true">⏳</span></div>
+                <div class='status-item'><span class="has-text-weight-bold">Bot Server:</span> Checking... <span aria-hidden="true">⏳</span></div>
             </div>
     </div>
     <div class="columns">
@@ -301,9 +245,9 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section">
                 <h2>System Versions</h2>
                 <div id="version-info">
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-version"><?= isset($stableVersion) ? $stableVersion : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-version"><?= isset($betaVersion) ? $betaVersion : 'N/A'; ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-version"><?= isset($discordVersion) ? $discordVersion : 'N/A'; ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-version">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-version">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-version">Loading...</span></div>
                 </div>
             </div>
         </div>
@@ -312,41 +256,33 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section">
                 <h2>Public API Requests</h2>
                 <div id="api-limits">
-                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaing:</span> <span id="song-requests"><?= format_number($songRequestsRemaining); ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaing:</span> <span id="exchange-requests"><?= format_number($exchangeRateRequestsRemaining); ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaing:</span> <span id="weather-requests"><?= format_number($weatherRequestsRemaining); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaining:</span> <span id="song-requests">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaining:</span> <span id="exchange-requests">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaining:</span> <span id="weather-requests">Loading...</span></div>
                 </div>
             </div>
         </div>
         <div class="column is-one-quarter" id="signups-column">
             <!-- Extra Column 1 -->
             <div class="section" id="signups-section">
-                <h2>Number of Signups:</h2>
+                <h2>Number of Signups</h2>
                 <div>
-                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span id="total-users"><?php echo $totalUsers; ?></span></div>
-                    <h2>Signups by Year:</h2>
+                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span id="total-users">Loading...</span></div>
+                    <h3>Signups by Year</h3>
                     <div class="columns is-mobile">
                         <div class="column is-half">
-                            <?php if (isset($usersByYear[0])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-0"><?php echo $usersByYear[0]['year']; ?></span>:</span> <span id="count-0"><?php echo $usersByYear[0]['count']; ?></span></div>
-                            <?php endif; ?>
+                            <div class="info-item" id="year-item-0" hidden><span class="has-text-weight-bold"><span id="year-0"></span>:</span> <span id="count-0"></span></div>
                         </div>
                         <div class="column is-half">
-                            <?php if (isset($usersByYear[1])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-1"><?php echo $usersByYear[1]['year']; ?></span>:</span> <span id="count-1"><?php echo $usersByYear[1]['count']; ?></span></div>
-                            <?php endif; ?>
+                            <div class="info-item" id="year-item-1" hidden><span class="has-text-weight-bold"><span id="year-1"></span>:</span> <span id="count-1"></span></div>
                         </div>
                     </div>
                     <div class="columns is-mobile">
                         <div class="column is-half">
-                            <?php if (isset($usersByYear[2])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-2"><?php echo $usersByYear[2]['year']; ?></span>:</span> <span id="count-2"><?php echo $usersByYear[2]['count']; ?></span></div>
-                            <?php endif; ?>
+                            <div class="info-item" id="year-item-2" hidden><span class="has-text-weight-bold"><span id="year-2"></span>:</span> <span id="count-2"></span></div>
                         </div>
                         <div class="column is-half">
-                            <?php if (isset($usersByYear[3])): ?>
-                            <div class="info-item"><span class="has-text-weight-bold"><span id="year-3"><?php echo $usersByYear[3]['year']; ?></span>:</span> <span id="count-3"><?php echo $usersByYear[3]['count']; ?></span></div>
-                            <?php endif; ?>
+                            <div class="info-item" id="year-item-3" hidden><span class="has-text-weight-bold"><span id="year-3"></span>:</span> <span id="count-3"></span></div>
                         </div>
                     </div>
                 </div>
@@ -357,10 +293,10 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section">
                 <h2>Messages Sent</h2>
                 <div id="message-counts">
-                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages"><?= ($botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['discordbot']); ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages"><?= ($botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['twitch_stable']); ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages"><?= ($botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['twitch_beta']); ?></span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages"><?= ($botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : format_number($botMessageCounts['twitch_custom']); ?></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages">Loading...</span></div>
                 </div>
             </div>
         </div>
@@ -371,20 +307,7 @@ function checkServiceStatus($serviceName, $serviceData) {
             <div class="section">
                 <h2>System Metrics</h2>
                 <div id="system-metrics">
-                    <?php foreach ($metrics as $metric): ?>
-                    <div class="status-item">
-                        <div class="metric-header">
-                            <span class="has-text-weight-bold">Server: <?= htmlspecialchars($serverDisplayNames[$metric['server_name']] ?? $metric['server_name']); ?></span>
-                        </div>
-                        <div>
-                            CPU: <?= number_format($metric['cpu_percent'], 1); ?>% |
-                            RAM: <?= number_format($metric['ram_percent'], 1); ?>% (<?= number_format($metric['ram_used'], 1); ?>GB / <?= number_format($metric['ram_total'], 1); ?>GB)
-                            <br>
-                            Disk: <?= number_format($metric['disk_percent'], 1); ?>% (<?= number_format($metric['disk_used'], 1); ?>GB / <?= number_format($metric['disk_total'], 1); ?>GB) |
-                            Net: ↑ <?= format_speed($metric['net_sent']); ?> ↓ <?= format_speed($metric['net_recv']); ?>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
+                    <div class="status-item">Loading...</div>
                 </div>
             </div>
         </div>
@@ -392,11 +315,7 @@ function checkServiceStatus($serviceName, $serviceData) {
             <!-- Beta Users -->
             <div class="section">
                 <h2>Friends that use BotOfTheSpecter</h2>
-                <div class="beta-users user-list">
-                    <?php foreach ($betaUsers as $user): ?>
-                    <div class="info-item"><span><?= htmlspecialchars($user); ?></span></div>
-                    <?php endforeach; ?>
-                </div>
+                <div class="beta-users user-list"></div>
             </div>
         </div>
     </div>
@@ -422,6 +341,11 @@ function formatNumber(n) {
     return String(n);
 }
 
+// Escape strings before injecting them into innerHTML templates
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+
 // Helper to update service status HTML
 const serverDisplayNames = {
     'web1': 'Web Server 1',
@@ -433,20 +357,24 @@ const serverDisplayNames = {
 function renderServiceStatus(name, statusData) {
     if (statusData.status === 'OK') {
         const ping = statusData.ping + 'ms';
-        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> ${ping} <span class='heartbeat beating'>❤️</span></div>`;
+        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> ${ping} <span class='heartbeat beating' role='img' aria-label='Online'>❤️</span></div>`;
     } else if (statusData.status === 'DISABLED') {
-        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Disabled <span>⏸️</span></div>`;
+        // Reserved for a future maintenance state; the endpoint only emits OK/OFF today
+        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Disabled <span aria-hidden='true'>⏸️</span></div>`;
     } else {
-        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Down <span>💀</span></div>`;
+        return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Down <span aria-hidden='true'>💀</span></div>`;
     }
 }
 
 // Fetch and update data every 60 seconds
 function fetchAndUpdateStatus() {
     // Add a cache-busting timestamp so each fetch returns fresh data
-    let url = window.location.pathname + '?ajax=1&metrics=1&_=' + Date.now();
+    let url = window.location.pathname + '?ajax=1&_=' + Date.now();
     fetch(url)
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
         .then(data => {
             // Update service statuses
             // Use an explicit array to control the order of displayed services
@@ -491,9 +419,11 @@ function fetchAndUpdateStatus() {
                 data.usersByYear.forEach((yearData, index) => {
                     const yearElement = document.getElementById('year-' + index);
                     const countElement = document.getElementById('count-' + index);
+                    const itemElement = document.getElementById('year-item-' + index);
                     if (yearElement && countElement) {
                         yearElement.textContent = yearData.year;
                         countElement.textContent = formatNumber(yearData.count);
+                        if (itemElement) itemElement.hidden = false;
                     }
                 });
             }
@@ -503,7 +433,7 @@ function fetchAndUpdateStatus() {
                 data.metrics.forEach(metric => {
                     metricsHtml += `<div class="status-item">
                         <div class="metric-header">
-                            <span class="has-text-weight-bold">Server: ${serverDisplayNames[metric.server_name] || metric.server_name}</span>
+                            <span class="has-text-weight-bold">Server: ${escapeHtml(serverDisplayNames[metric.server_name] || metric.server_name)}</span>
                         </div>
                         <div>
                             CPU: ${parseFloat(metric.cpu_percent).toFixed(1)}% |
@@ -521,14 +451,25 @@ function fetchAndUpdateStatus() {
             if (data.betaUsers !== undefined) {
                 let usersHtml = '';
                 data.betaUsers.forEach(user => {
-                    usersHtml += `<div class="info-item"><span>${user}</span></div>`;
+                    usersHtml += `<div class="info-item"><span>${escapeHtml(user)}</span></div>`;
                 });
                 document.querySelector('.beta-users').innerHTML = usersHtml;
             }
             // Update last updated time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
+        })
+        .catch(err => {
+            console.error('Status update failed:', err);
+            document.getElementById('update-time').textContent = 'update failed - retrying';
         });
 }
+
+// Live local-time clock so visitors can compare "now" against "Last updated"
+function updateClock() {
+    document.getElementById('current-time').textContent = new Date().toLocaleTimeString();
+}
+setInterval(updateClock, 1000);
+updateClock();
 
 // Poll every 60 seconds
 setInterval(fetchAndUpdateStatus, 60000);
