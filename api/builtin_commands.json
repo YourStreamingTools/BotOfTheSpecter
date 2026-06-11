@@ -161,11 +161,11 @@
 			"syntax": "!backlog"
 		},
 		"project": {
-			"description": "Switches your active Working & Study project so your tasks scope to it. !project shows your current project, !project <name> switches (created on first use), and !project clear returns to the default. Names allow letters, numbers, spaces and dashes, up to 24 characters.",
-			"syntax": ["!project", "!project Studying", "!project clear"]
+			"description": "Manages your Working & Study projects. !project shows your current project, !project <name> switches to it (created on first use), and !project clear returns to the default. !project move <n|now> <name> attaches backlog item #n (or your active task) to another project, !project rename <old> | <new> renames one, and !project delete <name> removes one — its tasks return to your default project. Names allow letters, numbers, spaces and dashes, up to 24 characters; they can't start with clear, move, rename or delete.",
+			"syntax": ["!project", "!project Studying", "!project clear", "!project move 2 Studying", "!project move now Studying", "!project rename Studying | Uni Work", "!project delete Uni Work"]
 		},
 		"projects": {
-			"description": "Lists your distinct Working & Study projects.",
+			"description": "Lists your Working & Study projects with how many open tasks each one has, marking the project you're currently in.",
 			"syntax": "!projects"
 		},
 		"pomo": {
@@ -313,6 +313,10 @@
 		"puzzles": {
 			"description": "Shows the current puzzle completion stats for the stream session.",
 			"syntax": "!puzzles"
+		},
+		"puzzledone": {
+			"description": "Manually adds one to the completed Tanggle puzzle count, for when the automatic puzzle completion notice doesn't come through. Mod-only by default.",
+			"syntax": "!puzzledone"
 		},
 		"addcommand": {
 			"description": "Creates a new custom command with the given name and response text.",
