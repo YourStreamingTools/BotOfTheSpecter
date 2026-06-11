@@ -207,7 +207,11 @@ The bot receives room completion events but does **not** create rooms. Documente
 
 ---
 
-## 4. Bot command
+## 4. Bot commands
+
+### `!puzzledone` (mod by default)
+
+Manual fallback for missed `room.complete` events (anything fired while the bot's Tanggle WebSocket is disconnected is lost — there is no replay or REST backfill). Adds one to `tanggle_puzzle_stats.completed_count` and announces the new total in chat. No `tanggle_room_completions` row is written (no room data is available), so `last_completed_room_uuid` / `last_completed_at` keep reflecting the last real room. In `./bot/beta.py` it also fires the `TANNGLE_COMPLETE` websocket event with `manual: "true"`; the `./bot/beta-v6.py` port does not (v6's automatic path sends no websocket notice either). Seeded `permission='mod'` via the `mod_commands` set; the streamer can change it on the dashboard.
 
 ### `!puzzles`
 
