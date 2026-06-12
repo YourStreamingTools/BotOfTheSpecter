@@ -29,6 +29,8 @@ $allowedLanguages = ['en-US', 'en-GB', 'en-AU', 'de-DE', 'fr-FR', 'es-ES', 'it-I
 // Caption (translation) target languages — Chrome on-device Translator SHORT (BCP47) codes.
 // '' means "no translation / same as spoken".
 $allowedTargetLanguages = ['', 'en', 'de', 'es', 'fr', 'it', 'pt', 'nl', 'ja', 'ko', 'zh', 'ru', 'pl', 'tr', 'uk', 'ar', 'hi', 'sv', 'da', 'fi', 'nb', 'cs', 'el', 'hu', 'ro', 'id', 'vi', 'th', 'bg', 'hr', 'sk', 'sl'];
+// Caption typeface — curated Google Fonts (MUST match the overlay's allowed list). 'Inter' is the default.
+$allowedFonts = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
 
 // Settings load + save
 $cc = [
@@ -43,8 +45,15 @@ $cc = [
     'profanity_filter' => 0,
     'action_tags_enabled' => 0,
     'target_language' => '',
+    'font_family' => 'Inter',
 ];
-$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language FROM closed_captions_settings WHERE id = 1");
+$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family FROM closed_captions_settings WHERE id = 1");
+if (!$ccStmt) {
+    // font_family is added by the schema migration in layout.php, which is included at the END
+    // of this page — so on the very first load after deploy the column may not exist yet. Fall
+    // back to reading without it so real saved settings still populate the form (never defaults).
+    $ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language FROM closed_captions_settings WHERE id = 1");
+}
 if ($ccStmt) {
     $ccStmt->execute();
     $ccResult = $ccStmt->get_result();
@@ -150,14 +159,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cc_save'])) {
     $actionTags = !empty($_POST['action_tags_enabled']) ? 1 : 0;
     // Caption (translation) target language: a Chrome Translator SHORT code or '' (off).
     $targetLang = in_array($_POST['target_language'] ?? '', $allowedTargetLanguages, true) ? ($_POST['target_language'] ?? '') : '';
-    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled), target_language = VALUES(target_language)");
+    $fontFamily = in_array($_POST['font_family'] ?? 'Inter', $allowedFonts, true) ? $_POST['font_family'] : 'Inter';
+    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled), target_language = VALUES(target_language), font_family = VALUES(font_family)");
     if (!$saveStmt) {
         echo json_encode(['success' => false, 'error' => $db->error]);
         exit;
     }
-    // 11 placeholders / 11 vars / type string "isisssiiiis" (11 chars):
-    // i,s,i,s,s,s,i,i,i,i,s = enabled,language,font_size,text_color,background_style,position,max_lines,fade_seconds,profanity_filter,action_tags_enabled,target_language
-    $saveStmt->bind_param("isisssiiiis", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags, $targetLang);
+    // 12 placeholders / 12 vars / type string "isisssiiiiss" (12 chars):
+    // i,s,i,s,s,s,i,i,i,i,s,s = enabled,language,font_size,text_color,background_style,position,max_lines,fade_seconds,profanity_filter,action_tags_enabled,target_language,font_family
+    $saveStmt->bind_param("isisssiiiiss", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags, $targetLang, $fontFamily);
     if ($saveStmt->execute()) {
         echo json_encode(['success' => true]);
     } else {
@@ -315,6 +325,15 @@ ob_start();
                             <?php endforeach; ?>
                         </select>
                         <span class="sp-help"><?= t('closed_captions_caption_language_help') ?></span>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="ccFontFamily"><?= t('closed_captions_font_family_label') ?></label>
+                        <select id="ccFontFamily" name="font_family" class="sp-select">
+                            <?php foreach ($allowedFonts as $fontName): ?>
+                                <option value="<?= htmlspecialchars($fontName) ?>" <?= ($cc['font_family'] === $fontName) ? 'selected' : '' ?>><?= htmlspecialchars($fontName) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="sp-help"><?= t('closed_captions_font_family_help') ?></span>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label" for="ccFontSize"><?= t('closed_captions_font_size_label') ?></label>
