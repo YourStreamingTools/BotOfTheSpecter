@@ -913,6 +913,7 @@ try {
                 profanity_filter TINYINT(1) NOT NULL DEFAULT 0,
                 action_tags_enabled TINYINT(1) DEFAULT 0,
                 target_language VARCHAR(10) NOT NULL DEFAULT '',
+                font_family VARCHAR(50) NOT NULL DEFAULT 'Inter',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'closed_captions_corrections' => "

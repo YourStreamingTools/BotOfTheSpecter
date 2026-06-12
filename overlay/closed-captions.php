@@ -19,7 +19,10 @@ $cc_settings = [
     'max_lines' => 2,
     'fade_seconds' => 5,
     'profanity_filter' => 0,
+    'font_family' => 'Inter',
 ];
+// Caption typeface — curated Google Fonts (MUST match the dashboard's allowed list). 'Inter' is the default.
+$allowedFonts = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
 
 include '/var/www/config/database.php';
 
@@ -60,7 +63,12 @@ if (!$error_html) {
     } else {
         $table_exists = $user_db->query("SHOW TABLES LIKE 'closed_captions_settings'")->num_rows > 0;
         if ($table_exists) {
-            $settingsStmt = $user_db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter FROM closed_captions_settings WHERE id = 1");
+            $settingsStmt = $user_db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, font_family FROM closed_captions_settings WHERE id = 1");
+            if (!$settingsStmt) {
+                // font_family column may not exist yet (the dashboard adds it via the schema
+                // migration). Fall back to the other settings so the overlay never blanks them.
+                $settingsStmt = $user_db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter FROM closed_captions_settings WHERE id = 1");
+            }
             if ($settingsStmt && $settingsStmt->execute()) {
                 $row = $settingsStmt->get_result()->fetch_assoc();
                 if ($row) {
@@ -86,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $position = in_array($cc_settings['position'], $allowedPositions, true) ? $cc_settings['position'] : 'bottom';
         $background = in_array($cc_settings['background_style'], $allowedBackgrounds, true) ? $cc_settings['background_style'] : 'box';
         $textColor = preg_match('/^#[0-9A-Fa-f]{6}$/', (string) $cc_settings['text_color']) ? $cc_settings['text_color'] : '#FFFFFF';
+        $fontFamily = in_array($cc_settings['font_family'], $allowedFonts, true) ? $cc_settings['font_family'] : 'Inter';
         echo json_encode([
             'success' => true,
             'data' => [
@@ -98,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
                 'max_lines' => max(1, (int) $cc_settings['max_lines']),
                 'fade_seconds' => max(0, (int) $cc_settings['fade_seconds']),
                 'profanity_filter' => (int) $cc_settings['profanity_filter'],
+                'font_family' => $fontFamily,
             ]
         ]);
         exit;
@@ -115,6 +125,10 @@ ob_end_clean();
     <title>Specter Closed Captions</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <?php $headFont = in_array($cc_settings['font_family'], $allowedFonts, true) ? $cc_settings['font_family'] : 'Inter'; ?>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?php echo urlencode($headFont); ?>:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="closed-captions-overlay-page">
@@ -135,6 +149,7 @@ ob_end_clean();
     <script>
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
         const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
+        const overlayInitialFont = <?php echo json_encode(in_array($cc_settings['font_family'], $allowedFonts, true) ? $cc_settings['font_family'] : 'Inter'); ?>;
         (function () {
             if (overlayErrorMessage) {
                 const errorNode = document.getElementById('overlayErrorMessage');
@@ -159,6 +174,21 @@ ob_end_clean();
             // Settings
             const allowedPositions = ['top', 'center', 'bottom'];
             const allowedBackgrounds = ['box', 'outline', 'none'];
+            // Curated caption fonts — MUST match the dashboard + overlay PHP allowed list.
+            const allowedFonts = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
+            // The initial font is already loaded by the server-rendered <head> link; track it so
+            // we don't inject a duplicate, and lazily load any other font picked at runtime.
+            const loadedFonts = new Set([overlayInitialFont]);
+            const ensureFontLoaded = (fontName) => {
+                if (!allowedFonts.includes(fontName) || loadedFonts.has(fontName)) {
+                    return;
+                }
+                loadedFonts.add(fontName);
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://fonts.googleapis.com/css2?family=' + fontName.replace(/ /g, '+') + ':wght@400;500;600;700&display=swap';
+                document.head.appendChild(link);
+            };
             const settings = {
                 enabled: true,
                 fontSize: 32,
@@ -166,7 +196,8 @@ ob_end_clean();
                 background: 'box',
                 position: 'bottom',
                 maxLines: 2,
-                fadeSeconds: 5
+                fadeSeconds: 5,
+                fontFamily: overlayInitialFont
             };
             const applySettings = () => {
                 // Font size expressed relative to the viewport height so the band
@@ -175,6 +206,10 @@ ob_end_clean();
                 const sizeVh = (Number(settings.fontSize) || 32) / 1080 * 100;
                 ccRoot.style.setProperty('--cc-font-size', sizeVh.toFixed(3) + 'vh');
                 ccRoot.style.setProperty('--cc-text-color', settings.textColor || '#FFFFFF');
+                // Caption typeface: load the chosen Google Font on demand, then set the band var.
+                const fontName = allowedFonts.includes(settings.fontFamily) ? settings.fontFamily : 'Inter';
+                ensureFontLoaded(fontName);
+                ccRoot.style.setProperty('--cc-font-family', '"' + fontName + '"');
                 ccRoot.dataset.position = allowedPositions.includes(settings.position) ? settings.position : 'bottom';
                 ccRoot.dataset.background = allowedBackgrounds.includes(settings.background) ? settings.background : 'box';
                 ccRoot.dataset.enabled = settings.enabled ? 'true' : 'false';
@@ -193,6 +228,7 @@ ob_end_clean();
                         settings.position = allowedPositions.includes(d.position) ? d.position : 'bottom';
                         settings.maxLines = Number(d.max_lines) >= 1 ? Math.round(Number(d.max_lines)) : 2;
                         settings.fadeSeconds = Number(d.fade_seconds) >= 0 ? Math.round(Number(d.fade_seconds)) : 5;
+                        settings.fontFamily = allowedFonts.includes(d.font_family) ? d.font_family : 'Inter';
                         applySettings();
                     }
                 } catch (error) {
