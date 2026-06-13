@@ -2834,7 +2834,7 @@ return [
     'counters_watch_time_not_recorded' => 'Non enregistré',
     // Known Users Page
     'known_users_title' => 'Utilisateurs connus & Messages de bienvenue',
-    'known_users_loading' => 'Veuillez patienter pendant le chargement des utilisateurs et de leur statut... (0/{total})',
+    'known_users_loading' => 'Veuillez patienter pendant le chargement des utilisateurs et de leur statut... (0/:total)',
     'known_users_loading_js' => 'Veuillez patienter pendant le chargement des utilisateurs et de leur statut... ({loaded}/{total})',
     'known_users_loading_done' => 'Chargement terminé, vous pouvez commencer à éditer',
     'known_users_no_users' => "Il n'y a aucun utilisateur à afficher.",
