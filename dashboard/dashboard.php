@@ -18,13 +18,13 @@ if ($isLoggedIn) {
     require_once "/var/www/config/db_connect.php";
     include '/var/www/config/twitch.php';
     include '/var/www/config/ssh.php';
-    include 'userdata.php';
+    include 'includes/userdata.php';
     $pageTitle = t('dashboard_page_title_management');
-    include 'bot_control.php';
-    include "mod_access.php";
-    include_once 'usr_database.php';
-    include 'user_db.php';
-    include 'storage_used.php';
+    include 'includes/bot_control.php';
+    include "includes/mod_access.php";
+    include_once 'includes/usr_database.php';
+    include 'includes/user_db.php';
+    include 'includes/storage_used.php';
 session_write_close();
 
     // Channel info metrics (followers, subscribers, raids)
