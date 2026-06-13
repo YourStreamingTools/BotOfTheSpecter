@@ -312,6 +312,11 @@ ob_start();
                 <div class="cc-preview" id="ccPreview">
                     <span class="cc-preview-placeholder"><?= t('closed_captions_preview_placeholder') ?></span>
                 </div>
+                <div id="ccConfidenceLegend" style="display:flex;gap:14px;margin-top:6px;font-size:0.72em;color:rgba(255,255,255,0.5);">
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#32d486;flex-shrink:0;"></span> ≥80% — high</span>
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f6c451;flex-shrink:0;"></span> 60–79% — check</span>
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff6555;flex-shrink:0;"></span> &lt;60% — mis-hear</span>
+                </div>
             </div>
         </div>
     </div>
@@ -1006,7 +1011,13 @@ ob_start();
     const langSelect = document.getElementById('ccLanguage');
     const fontSelect = document.getElementById('ccFontFamily');
     const showConfidenceEl = document.getElementById('ccShowConfidence');
+    const ccConfidenceLegend = document.getElementById('ccConfidenceLegend');
     const showConfidence = () => !showConfidenceEl || showConfidenceEl.checked;
+    const updateLegendVisibility = () => {
+        if (ccConfidenceLegend) ccConfidenceLegend.style.display = showConfidence() ? 'flex' : 'none';
+    };
+    if (showConfidenceEl) showConfidenceEl.addEventListener('change', updateLegendVisibility);
+    updateLegendVisibility();
     const setStatus = (text, state) => {
         if (!micStatus) return;
         micStatus.textContent = text;
