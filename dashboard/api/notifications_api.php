@@ -7,6 +7,10 @@ require_once '/var/www/lib/session_bootstrap.php';
 
 // Set up error handler to catch errors and return as JSON
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    // Don't report errors suppressed with @
+    if (!(error_reporting() & $errno)) {
+        return true;
+    }
     ob_clean();
     http_response_code(500);
     echo json_encode([
