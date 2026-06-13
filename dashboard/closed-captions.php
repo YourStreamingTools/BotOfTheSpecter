@@ -249,14 +249,35 @@ ob_start();
         </div>
     </div>
 </div>
-<div class="sp-alert sp-alert-info cc-browser-note">
+<div class="sp-alert sp-alert-info cc-browser-note" id="ccBrowserNote">
     <span class="cc-browser-note-icon"><i class="fas fa-circle-info"></i></span>
     <div>
         <p class="cc-browser-note-title"><?= t('closed_captions_browser_note_title') ?></p>
         <p class="cc-browser-note-body"><?= t('closed_captions_browser_note_body') ?></p>
     </div>
 </div>
+<script>
+(function () {
+    var isChromium = !!(window.chrome && (navigator.userAgentData
+        ? navigator.userAgentData.brands.some(function (b) {
+            return b.brand === 'Chromium' || b.brand === 'Google Chrome' ||
+                   b.brand === 'Microsoft Edge' || b.brand === 'Opera';
+          })
+        : /Chrome|Edg|OPR/.test(navigator.userAgent)));
+    var el = document.getElementById('ccBrowserNote');
+    if (!el) return;
+    if (isChromium) {
+        el.style.display = 'none';
+    } else {
+        el.classList.remove('sp-alert-info');
+        el.classList.add('sp-alert-warning');
+        var icon = el.querySelector('.cc-browser-note-icon i');
+        if (icon) icon.className = 'fas fa-triangle-exclamation';
+    }
+})();
+</script>
 <div class="cc-layout">
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
     <!-- Captioner control -->
     <div class="sp-card">
         <div class="sp-card-header">
@@ -285,6 +306,44 @@ ob_start();
                 </div>
             </div>
         </div>
+    </div>
+    <!-- Caption corrections (per-user glossary / fix-up dictionary) -->
+    <div class="sp-card cc-corrections-card">
+        <div class="sp-card-header">
+            <div class="sp-card-title"><i class="fas fa-spell-check"></i> <?= t('closed_captions_corrections_title') ?></div>
+        </div>
+        <div class="sp-card-body">
+            <p class="cc-help-text"><?= t('closed_captions_corrections_help') ?></p>
+            <div class="cc-corrections-table-wrap">
+                <table class="cc-corrections-table">
+                    <thead>
+                        <tr>
+                            <th class="cc-corr-col-heard"><?= t('closed_captions_corrections_col_heard') ?></th>
+                            <th class="cc-corr-arrow"></th>
+                            <th class="cc-corr-col-correct"><?= t('closed_captions_corrections_col_correct') ?></th>
+                            <th class="cc-corr-col-mode"><?= t('closed_captions_corrections_col_mode') ?></th>
+                            <th class="cc-corr-col-toggle"><?= t('closed_captions_corrections_col_case') ?></th>
+                            <th class="cc-corr-col-toggle"><?= t('closed_captions_corrections_col_on') ?></th>
+                            <th class="cc-corr-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ccCorrBody"></tbody>
+                </table>
+                <div id="ccCorrEmpty" class="cc-corrections-empty cc-hidden"><?= t('closed_captions_corrections_empty') ?></div>
+            </div>
+            <div class="cc-corrections-actions">
+                <button type="button" id="ccCorrAddBtn" class="sp-btn sp-btn-sm sp-btn-secondary">
+                    <i class="fas fa-plus"></i> <?= t('closed_captions_corrections_add_row') ?>
+                </button>
+                <div class="cc-corr-save-group">
+                    <span id="ccCorrSaveStatus" class="cc-save-status"></span>
+                    <button type="button" id="ccCorrSaveBtn" class="sp-btn sp-btn-primary">
+                        <i class="fas fa-save"></i> <?= t('closed_captions_corrections_save') ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     </div>
     <!-- Appearance & behaviour -->
     <div class="sp-card">
@@ -386,44 +445,6 @@ ob_start();
                     <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-save"></i> <?= t('closed_captions_save') ?></button>
                 </div>
             </form>
-        </div>
-    </div>
-</div>
-
-<!-- Caption corrections (per-user glossary / fix-up dictionary) -->
-<div class="sp-card cc-corrections-card">
-    <div class="sp-card-header">
-        <div class="sp-card-title"><i class="fas fa-spell-check"></i> <?= t('closed_captions_corrections_title') ?></div>
-    </div>
-    <div class="sp-card-body">
-        <p class="cc-help-text"><?= t('closed_captions_corrections_help') ?></p>
-        <div class="cc-corrections-table-wrap">
-            <table class="cc-corrections-table">
-                <thead>
-                    <tr>
-                        <th class="cc-corr-col-heard"><?= t('closed_captions_corrections_col_heard') ?></th>
-                        <th class="cc-corr-arrow"></th>
-                        <th class="cc-corr-col-correct"><?= t('closed_captions_corrections_col_correct') ?></th>
-                        <th class="cc-corr-col-mode"><?= t('closed_captions_corrections_col_mode') ?></th>
-                        <th class="cc-corr-col-toggle"><?= t('closed_captions_corrections_col_case') ?></th>
-                        <th class="cc-corr-col-toggle"><?= t('closed_captions_corrections_col_on') ?></th>
-                        <th class="cc-corr-col-actions"></th>
-                    </tr>
-                </thead>
-                <tbody id="ccCorrBody"></tbody>
-            </table>
-            <div id="ccCorrEmpty" class="cc-corrections-empty cc-hidden"><?= t('closed_captions_corrections_empty') ?></div>
-        </div>
-        <div class="cc-corrections-actions">
-            <button type="button" id="ccCorrAddBtn" class="sp-btn sp-btn-sm sp-btn-secondary">
-                <i class="fas fa-plus"></i> <?= t('closed_captions_corrections_add_row') ?>
-            </button>
-            <div class="cc-corr-save-group">
-                <span id="ccCorrSaveStatus" class="cc-save-status"></span>
-                <button type="button" id="ccCorrSaveBtn" class="sp-btn sp-btn-primary">
-                    <i class="fas fa-save"></i> <?= t('closed_captions_corrections_save') ?>
-                </button>
-            </div>
         </div>
     </div>
 </div>
