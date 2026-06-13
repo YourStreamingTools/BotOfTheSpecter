@@ -300,7 +300,13 @@ ob_start();
             </div>
             <div class="cc-sound-status cc-hidden" id="ccSoundStatus"></div>
             <div class="cc-preview-wrap">
-                <div class="cc-preview-label"><?= t('closed_captions_live_preview') ?></div>
+                <div class="cc-preview-label" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span><?= t('closed_captions_live_preview') ?></span>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;cursor:pointer;" title="Toggle per-word and phrase confidence indicators in the preview">
+                        <input type="checkbox" id="ccShowConfidence" checked style="cursor:pointer;">
+                        <span><?= t('closed_captions_show_confidence') ?></span>
+                    </label>
+                </div>
                 <div class="cc-preview" id="ccPreview">
                     <span class="cc-preview-placeholder"><?= t('closed_captions_preview_placeholder') ?></span>
                 </div>
@@ -997,12 +1003,14 @@ ob_start();
     const unsupported = document.getElementById('ccUnsupported');
     const langSelect = document.getElementById('ccLanguage');
     const fontSelect = document.getElementById('ccFontFamily');
+    const showConfidenceEl = document.getElementById('ccShowConfidence');
+    const showConfidence = () => !showConfidenceEl || showConfidenceEl.checked;
     const setStatus = (text, state) => {
         if (!micStatus) return;
         micStatus.textContent = text;
         micStatus.className = 'status-indicator ' + state;
     };
-    const setPreview = (committed, interim, confidence) => {
+    const setPreview = (committed, interim, confidence, wordConfidences) => {
         if (!preview) return;
         const clean = (committed + ' ' + interim).trim();
         if (!clean) {
@@ -1011,14 +1019,32 @@ ob_start();
         }
         preview.textContent = '';
         if (committed) {
-            const c = document.createElement('span');
-            c.className = 'cc-preview-final';
-            c.textContent = committed;
-            preview.appendChild(c);
-            if (confidence != null && confidence >= 0) {
+            const tokens = committed.split(/( +)/);
+            const confColor = (pct) => pct >= 80 ? '#32d486' : pct >= 60 ? '#f6c451' : '#ff6555';
+            let wordIdx = 0;
+            tokens.forEach(token => {
+                if (!token) return;
+                if (/^ +$/.test(token)) {
+                    preview.appendChild(document.createTextNode(token));
+                    return;
+                }
+                const wordSpan = document.createElement('span');
+                wordSpan.className = 'cc-preview-final';
+                wordSpan.textContent = token;
+                const wConf = (showConfidence() && wordConfidences && wordConfidences[wordIdx] != null) ? wordConfidences[wordIdx] : null;
+                if (wConf != null) {
+                    const pct = Math.round(wConf * 100);
+                    wordSpan.style.color = confColor(pct);
+                    wordSpan.title = pct + '% confidence';
+                }
+                preview.appendChild(wordSpan);
+                wordIdx++;
+            });
+            // Overall sentence confidence badge
+            if (showConfidence() && confidence != null && confidence >= 0) {
                 const pct = Math.round(confidence * 100);
                 const badge = document.createElement('span');
-                badge.title = 'Detection confidence for this phrase';
+                badge.title = 'Overall phrase confidence';
                 badge.textContent = pct + '%';
                 badge.style.cssText = 'display:inline-block;margin-left:8px;padding:1px 7px;' +
                     'border-radius:999px;font-size:0.72em;font-weight:700;vertical-align:middle;' +
@@ -1061,6 +1087,7 @@ ob_start();
     let runState = 'stopped'; // 'stopped' | 'started'
     let committedText = '';
     let committedConfidence = null; // 0–1 from Web Speech API, null when unavailable
+    let committedWordConfidences = null; // per-word confidence array, null when unavailable
     let detectorDeviceId = null; // mic the recognizer locked onto; the detector pins the same one
     const QUESTION_STARTERS = new Set([
         'what','whats','who','whos','whom','whose','where','wheres','when','whens',
@@ -1088,17 +1115,20 @@ ob_start();
         const r = new SR();
         r.continuous = true;
         r.interimResults = true;
+        r.maxAlternatives = 5; // used for per-word confidence comparison
         r.lang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
         r.onstart = () => { setStatus(ccLang.listening, 'online'); };
         r.onresult = (event) => {
             let interim = '';
             let finalChunk = '';
             let finalConfidence = null;
+            let finalResultObj = null;
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
                     finalChunk += transcript;
                     finalConfidence = event.results[i][0].confidence;
+                    finalResultObj = event.results[i];
                 } else {
                     interim += transcript;
                 }
@@ -1110,17 +1140,28 @@ ob_start();
                 committedText = applyCorrections(committedText);
                 committedText = applyProfanityFilter(committedText);
                 committedConfidence = finalConfidence;
-                // Emit through the serialized translate helper: the overlay receives the
-                // translated text (when live translation is active) in committed order, while
-                // the local preview shows the CORRECTED SOURCE text immediately.
+                const rawWords = finalChunk.trim().split(/\s+/);
+                if (finalResultObj && finalResultObj.length > 1) {
+                    const alts = [];
+                    for (let j = 0; j < finalResultObj.length; j++) {
+                        alts.push(finalResultObj[j].transcript.trim().split(/\s+/));
+                    }
+                    committedWordConfidences = rawWords.map((w, idx) => {
+                        const lw = w.toLowerCase().replace(/[^a-z0-9'\u2019]/g, '');
+                        const matches = alts.filter(aw => (aw[idx] || '').toLowerCase().replace(/[^a-z0-9'\u2019]/g, '') === lw).length;
+                        return matches / alts.length;
+                    });
+                } else {
+                    committedWordConfidences = rawWords.map(() => finalConfidence != null ? finalConfidence : null);
+                }
                 emitFinalCaption(committedText);
-                setPreview(committedText, '', committedConfidence);
+                setPreview(committedText, '', committedConfidence, committedWordConfidences);
             }
             if (interim.trim()) {
                 let filteredInterim = applyLocaleSpelling(interim.trim());
                 filteredInterim = applyProfanityFilter(filteredInterim);
                 emitCaption(filteredInterim, false);
-                setPreview(committedText, filteredInterim, committedConfidence);
+                setPreview(committedText, filteredInterim, committedConfidence, committedWordConfidences);
             }
         };
         r.onerror = (event) => {
@@ -1191,7 +1232,8 @@ ob_start();
         emitClear();
         committedText = '';
         committedConfidence = null;
-        setPreview('', '', null);
+        committedWordConfidences = null;
+        setPreview('', '', null, null);
         setStatus(ccLang.idle, 'offline');
         if (startBtn) startBtn.disabled = false;
         if (stopBtn) stopBtn.disabled = true;
@@ -1201,11 +1243,7 @@ ob_start();
     if (langSelect) langSelect.addEventListener('change', () => {
         if (runState === 'started' && recognition) {
             recognition.lang = langSelect.value;
-            // SpeechRecognition only reads .lang at start(), so restart to apply the new
-            // language (and its spelling, e.g. en-AU "colour") immediately. onend restarts it.
             try { recognition.stop(); } catch (e) { /* onend will restart with the new lang */ }
-            // Rebuild the translation session for the new spoken source (or tear it down if
-            // the new source short code now matches the target).
             liveTranslator.ensure(langSelect.value);
         }
     });
