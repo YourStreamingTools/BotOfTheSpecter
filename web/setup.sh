@@ -3,8 +3,9 @@
 # One-shot bootstrap for the BotOfTheSpecter web server.
 #
 # Target: fresh Ubuntu 26.04 LTS install. Installs Caddy + PHP-FPM 8.5,
-# lays out /var/www/ docroots for all 13 surfaces, drops the Caddyfile,
-# enables services. Caddy handles SSL automatically — no certbot, no vhosts.
+# lays out /var/www/ docroots for all PHP frontends and media directories,
+# drops the Caddyfile, enables services. Caddy handles SSL automatically —
+# no certbot, no vhosts.
 #
 # Run as root:
 #   curl -sSL https://raw.githubusercontent.com/GFAUnDead/BotOfTheSpecter/main/web/setup.sh | bash
@@ -53,7 +54,7 @@ caddy add-package github.com/caddy-dns/cloudflare || {
 }
 
 echo "==> Creating /var/www directory tree..."
-mkdir -p /var/www/{config,botofthespecter,dashboard,members,support,roadmap,specterbotapp,specterbotsystems,yourchat,cdn,walkons,yourlinks,usermusic}
+mkdir -p /var/www/{config,home,html,dashboard,members,overlay,support,roadmap,specterbotapp,specterbotsystems,yourchat,cdn,walkons,media,soundalerts,tts,usermusic,videoalerts,yourlinks.click}
 mkdir -p /var/log/caddy
 chown -R www-data:www-data /var/www
 find /var/www -type d -exec chmod 2755 {} \;
