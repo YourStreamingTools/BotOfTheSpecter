@@ -170,7 +170,6 @@ ob_end_clean();
             if (!ccRoot || !ccBand || !ccLines || !ccInterim) {
                 return;
             }
-
             // Settings
             const allowedPositions = ['top', 'center', 'bottom'];
             const allowedBackgrounds = ['box', 'outline', 'none'];
@@ -200,11 +199,7 @@ ob_end_clean();
                 fontFamily: overlayInitialFont
             };
             const applySettings = () => {
-                // Font size expressed relative to the viewport height so the band
-                // scales with the browser source (resolution-independent). The
-                // stored value is treated as px-at-1080p and converted to a vh unit.
-                const sizeVh = (Number(settings.fontSize) || 32) / 1080 * 100;
-                ccRoot.style.setProperty('--cc-font-size', sizeVh.toFixed(3) + 'vh');
+                ccRoot.style.setProperty('--cc-font-size', (Number(settings.fontSize) || 32) + 'px');
                 ccRoot.style.setProperty('--cc-text-color', settings.textColor || '#FFFFFF');
                 // Caption typeface: load the chosen Google Font on demand, then apply it.
                 const fontName = allowedFonts.includes(settings.fontFamily) ? settings.fontFamily : 'Inter';
@@ -237,7 +232,6 @@ ob_end_clean();
                     console.error('[CC Overlay] Unable to load settings:', error);
                 }
             };
-
             // Caption rendering
             const committedLines = [];
             const committedActions = []; // parallel to committedLines: true => bracketed action tag
@@ -347,7 +341,6 @@ ob_end_clean();
                     showInterim(text);
                 }
             };
-
             // WebSocket
             let socket = null;
             let reconnectAttempts = 0;
@@ -401,7 +394,6 @@ ob_end_clean();
                     loadSettings();
                 });
             }
-
             applySettings();
             blankBand();
             loadSettings();
