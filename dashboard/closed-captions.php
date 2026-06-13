@@ -1002,7 +1002,7 @@ ob_start();
         micStatus.textContent = text;
         micStatus.className = 'status-indicator ' + state;
     };
-    const setPreview = (committed, interim) => {
+    const setPreview = (committed, interim, confidence) => {
         if (!preview) return;
         const clean = (committed + ' ' + interim).trim();
         if (!clean) {
@@ -1013,13 +1013,28 @@ ob_start();
         if (committed) {
             const c = document.createElement('span');
             c.className = 'cc-preview-final';
-            c.textContent = committed + ' ';
+            c.textContent = committed;
             preview.appendChild(c);
+            if (confidence != null && confidence >= 0) {
+                const pct = Math.round(confidence * 100);
+                const badge = document.createElement('span');
+                badge.title = 'Detection confidence for this phrase';
+                badge.textContent = pct + '%';
+                badge.style.cssText = 'display:inline-block;margin-left:8px;padding:1px 7px;' +
+                    'border-radius:999px;font-size:0.72em;font-weight:700;vertical-align:middle;' +
+                    'letter-spacing:0.03em;' +
+                    (pct >= 80
+                        ? 'background:rgba(50,212,134,0.15);color:#32d486;border:1px solid rgba(50,212,134,0.3);'
+                        : pct >= 60
+                            ? 'background:rgba(246,196,81,0.15);color:#f6c451;border:1px solid rgba(246,196,81,0.3);'
+                            : 'background:rgba(255,101,85,0.15);color:#ff6555;border:1px solid rgba(255,101,85,0.3);');
+                preview.appendChild(badge);
+            }
         }
         if (interim) {
             const i = document.createElement('span');
             i.className = 'cc-preview-interim';
-            i.textContent = interim;
+            i.textContent = (committed ? ' ' : '') + interim;
             preview.appendChild(i);
         }
     };
@@ -1045,6 +1060,7 @@ ob_start();
     let recognition = null;
     let runState = 'stopped'; // 'stopped' | 'started'
     let committedText = '';
+    let committedConfidence = null; // 0–1 from Web Speech API, null when unavailable
     let detectorDeviceId = null; // mic the recognizer locked onto; the detector pins the same one
     const QUESTION_STARTERS = new Set([
         'what','whats','who','whos','whom','whose','where','wheres','when','whens',
@@ -1077,10 +1093,12 @@ ob_start();
         r.onresult = (event) => {
             let interim = '';
             let finalChunk = '';
+            let finalConfidence = null;
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
                     finalChunk += transcript;
+                    finalConfidence = event.results[i][0].confidence;
                 } else {
                     interim += transcript;
                 }
@@ -1091,17 +1109,18 @@ ob_start();
                 committedText = applyLocaleSpelling(committedText);
                 committedText = applyCorrections(committedText);
                 committedText = applyProfanityFilter(committedText);
+                committedConfidence = finalConfidence;
                 // Emit through the serialized translate helper: the overlay receives the
                 // translated text (when live translation is active) in committed order, while
                 // the local preview shows the CORRECTED SOURCE text immediately.
                 emitFinalCaption(committedText);
-                setPreview(committedText, '');
+                setPreview(committedText, '', committedConfidence);
             }
             if (interim.trim()) {
                 let filteredInterim = applyLocaleSpelling(interim.trim());
                 filteredInterim = applyProfanityFilter(filteredInterim);
                 emitCaption(filteredInterim, false);
-                setPreview(committedText, filteredInterim);
+                setPreview(committedText, filteredInterim, committedConfidence);
             }
         };
         r.onerror = (event) => {
@@ -1171,7 +1190,8 @@ ob_start();
         setTranslateNotice('', false);
         emitClear();
         committedText = '';
-        setPreview('', '');
+        committedConfidence = null;
+        setPreview('', '', null);
         setStatus(ccLang.idle, 'offline');
         if (startBtn) startBtn.disabled = false;
         if (stopBtn) stopBtn.disabled = true;
