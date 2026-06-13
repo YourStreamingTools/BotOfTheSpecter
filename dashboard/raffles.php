@@ -2,11 +2,11 @@
 require_once '/var/www/lib/session_bootstrap.php';
 include_once __DIR__ . '/lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
-include 'userdata.php';
+include 'includes/userdata.php';
 session_write_close();
 include 'mod_access.php';
 include_once 'usr_database.php';
-include 'user_db.php';
+include 'includes/user_db.php';
 
 $pageTitle = t('raffles_page_title');
 

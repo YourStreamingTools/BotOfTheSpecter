@@ -12,11 +12,11 @@ $pageTitle = t('media_page_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
+include 'includes/userdata.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
-include 'user_db.php';
-include 'storage_used.php';
+include 'includes/user_db.php';
+include 'includes/storage_used.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
 session_write_close();
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");

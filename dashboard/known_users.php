@@ -11,11 +11,11 @@ $pageTitle = t('known_users_title');
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
-include 'bot_control.php';
+include 'includes/userdata.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
-include 'user_db.php';
-include 'storage_used.php';
+include 'includes/user_db.php';
+include 'includes/storage_used.php';
 session_write_close();
 require_once '/var/www/config/database.php';
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);

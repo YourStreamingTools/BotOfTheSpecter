@@ -50,12 +50,12 @@ if (!in_array($selectedBot, ['stable', 'beta', 'v6'])) { $selectedBot = 'stable'
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include '/var/www/config/ssh.php';
-include 'userdata.php';
-include 'bot_control.php';
+include 'includes/userdata.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
 include_once 'usr_database.php';
-include 'user_db.php';
-include 'storage_used.php';
+include 'includes/user_db.php';
+include 'includes/storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();

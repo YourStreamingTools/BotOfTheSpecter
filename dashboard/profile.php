@@ -8,10 +8,10 @@ require_once '/var/www/lib/require_auth.php';
 // Include necessary files
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
-include 'userdata.php';
-include 'bot_control.php';
+include 'includes/userdata.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
-include 'user_db.php';
+include 'includes/user_db.php';
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
     $weather = $profile['weather_location'];
@@ -566,7 +566,7 @@ if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
 }
 
 ob_start();
-include 'storage_used.php';
+include 'includes/storage_used.php';
 session_write_close();
 ob_end_clean();
 

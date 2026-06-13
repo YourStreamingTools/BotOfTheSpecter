@@ -8,7 +8,7 @@ include_once __DIR__ . '/../lang/i18n.php';
 require_once '/var/www/lib/require_auth.php';
 require_once "/var/www/config/db_connect.php";
 include "/var/www/config/ssh.php";
-include 'userdata.php';
+include 'includes/userdata.php';
 session_write_close();
 
 // Validate and get parameters

@@ -7,7 +7,7 @@ require_once '/var/www/lib/require_auth_ajax.php';
 
 // Include database connection
 require_once "/var/www/config/db_connect.php";
-include 'user_db.php';
+include 'includes/user_db.php';
 
 // Get timezone
 $stmt = $db->prepare("SELECT timezone FROM profile");

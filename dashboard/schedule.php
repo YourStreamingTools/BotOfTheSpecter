@@ -11,11 +11,11 @@ $pageTitle = 'Twitch Schedule';
 // Includes used across dashboard pages
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
-include 'userdata.php';
+include 'includes/userdata.php';
 session_write_close();
-include 'bot_control.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
-include 'user_db.php';
+include 'includes/user_db.php';
 
 // Get user's timezone from profile (fallback to UTC)
 $stmt = $db->prepare("SELECT timezone FROM profile");

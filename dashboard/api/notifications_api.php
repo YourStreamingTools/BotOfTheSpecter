@@ -24,11 +24,11 @@ require_once '/var/www/lib/require_auth_ajax.php';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 @include '/var/www/config/admin_actions.php';
-include 'userdata.php';
-include 'bot_control.php';
+include 'includes/userdata.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
-include 'user_db.php';
-include 'storage_used.php';
+include 'includes/user_db.php';
+include 'includes/storage_used.php';
 session_write_close();
 
 // Discard any BOM/whitespace output from included files

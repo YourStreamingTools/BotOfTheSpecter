@@ -50,7 +50,7 @@ if (!in_array($bot, ['stable', 'beta', 'v6'])) {
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 require_once 'bot_control_functions.php';
-include 'userdata.php';
+include 'includes/userdata.php';
 session_write_close();
 include '/var/www/config/twitch.php';
 
