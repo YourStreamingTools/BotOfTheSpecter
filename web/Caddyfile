@@ -177,6 +177,14 @@ yourlinks.click, *.yourlinks.click {
     }
 }
 
+streamersconnect.com, www.streamersconnect.com {
+    root * /var/www/StreamersConnect
+    import php_app
+    log {
+        output file /var/log/caddy/streamersconnect.log
+    }
+}
+
 # ===== Static asset hosts =====
 
 cdn.botofthespecter.com {
