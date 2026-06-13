@@ -235,7 +235,6 @@ ob_start();
     <h1><i class="fas fa-closed-captioning"></i> <?= t('closed_captions_page_title') ?></h1>
     <p><?= t('closed_captions_intro_description') ?></p>
 </div>
-
 <!-- Overlay URL (top of page; API key masked by default) -->
 <div class="sp-card cc-url-card">
     <div class="sp-card-header">
@@ -250,7 +249,6 @@ ob_start();
         </div>
     </div>
 </div>
-
 <div class="sp-alert sp-alert-info cc-browser-note">
     <span class="cc-browser-note-icon"><i class="fas fa-circle-info"></i></span>
     <div>
@@ -258,7 +256,6 @@ ob_start();
         <p class="cc-browser-note-body"><?= t('closed_captions_browser_note_body') ?></p>
     </div>
 </div>
-
 <div class="cc-layout">
     <!-- Captioner control -->
     <div class="sp-card">
@@ -289,7 +286,6 @@ ob_start();
             </div>
         </div>
     </div>
-
     <!-- Appearance & behaviour -->
     <div class="sp-card">
         <div class="sp-card-header">
@@ -392,7 +388,6 @@ ob_start();
             </form>
         </div>
     </div>
-
 </div>
 
 <!-- Caption corrections (per-user glossary / fix-up dictionary) -->
@@ -527,7 +522,6 @@ ob_start();
             emitCaption(out, true);
         });
     }
-
     const correctionMatcher = (function () {
         const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         let cachedSig = null;
@@ -657,9 +651,6 @@ ob_start();
             curSrc = null;
             curTgt = null;
         };
-
-        // (Re)build a session for the given spoken-language region code (e.g. 'de-DE').
-        // Returns a promise; on any failure leaves ready=false and falls back to passthrough.
         const ensure = async (sourceLang) => {
             const tgt = ccActiveTargetLanguage || '';
             const src = shortCode(sourceLang);
@@ -706,9 +697,6 @@ ob_start();
             })();
             try { await building; } finally { building = null; }
         };
-
-        // Translate one corrected final. Falls back to the input text on any error so
-        // captions never stall; returns the (possibly translated) string.
         const translate = async (text) => {
             if (!ready || !translator) return text;
             try {
@@ -718,18 +706,10 @@ ob_start();
                 return text;
             }
         };
-
         const isActive = () => ready && !!translator;
         const stop = () => { destroy(); };
-
         return { ensure, translate, isActive, stop };
     })();
-
-    // ---- Sound action-tag detection (YAMNet via TensorFlow.js) --------------
-    // Entirely opt-in: when ccActionTagsEnabled is false, NONE of the TF.js / model
-    // download / AudioWorklet code below ever runs (zero cost). The detector reuses
-    // the proven POC recipe but upgrades capture from ScriptProcessorNode to an
-    // AudioWorklet (processor defined via a Blob URL so this page stays self-contained).
     const soundDetector = (function () {
         const MODEL_URL = 'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1';
         const TARGET_SR = 16000;          // YAMNet requires 16 kHz mono
@@ -744,11 +724,6 @@ ob_start();
             { idx: 44, tag: '[SNEEZE]' },
             { idx: 62, tag: '[APPLAUSE]' }
         ];
-        // AudioWorklet processor source: resamples the device-native rate (e.g. 48 kHz) down
-        // to TARGET_SR (16 kHz) by continuous linear interpolation, then posts mono Float32
-        // frames to the main thread. Resampling here (instead of forcing the AudioContext to
-        // 16 kHz) keeps the shared mic at its native rate so the speech recognizer's capture
-        // is never disturbed. `sampleRate` is the worklet global = the context's real rate.
         const WORKLET_SRC = `
             class CCCaptureProcessor extends AudioWorkletProcessor {
                 constructor() {
@@ -779,7 +754,6 @@ ob_start();
             }
             registerProcessor('cc-capture-processor', CCCaptureProcessor);
         `;
-
         let tfLoading = null;             // promise for the one-time tf.min.js script load
         let model = null;
         let audioContext = null;
@@ -794,14 +768,12 @@ ob_start();
         let inferBusy = false;
         let running = false;
         const lastFired = {};
-
         const statusEl = document.getElementById('ccSoundStatus');
         const setSoundStatus = (text, show) => {
             if (!statusEl) return;
             statusEl.textContent = text;
             statusEl.classList.toggle('cc-hidden', !show);
         };
-
         // Lazy-load TensorFlow.js (only ever called when action tags are enabled).
         const loadTf = () => {
             if (window.tf) return Promise.resolve();
@@ -815,7 +787,6 @@ ob_start();
             });
             return tfLoading;
         };
-
         const ensureModel = async () => {
             if (model) return model;
             await loadTf();
@@ -830,7 +801,6 @@ ob_start();
             } catch (e) { /* non-fatal */ }
             return model;
         };
-
         // Slide new samples into the ring buffer (keep the most recent FRAME_SAMPLES).
         const pushSamples = (input) => {
             const n = input.length;
@@ -843,7 +813,6 @@ ob_start();
             ringBuffer.set(input, FRAME_SAMPLES - n);
             ringFilled = Math.min(FRAME_SAMPLES, ringFilled + n);
         };
-
         const runInference = async () => {
             if (!running || !model || inferBusy) return;
             if (ringFilled < FRAME_SAMPLES) return;
@@ -877,7 +846,6 @@ ob_start();
                 inferBusy = false;
             }
         };
-
         const start = async (deviceId) => {
             if (!ccActionTagsEnabled || running) return;
             running = true;
@@ -918,7 +886,6 @@ ob_start();
                 setSoundStatus(ccLang.soundOff, true);
             }
         };
-
         const teardown = () => {
             if (inferTimer) { clearInterval(inferTimer); inferTimer = null; }
             if (workletNode) { try { workletNode.port.onmessage = null; workletNode.disconnect(); } catch (e) {} workletNode = null; }
@@ -930,17 +897,14 @@ ob_start();
             ringFilled = 0;
             inferBusy = false;
         };
-
         const stop = () => {
             if (!running) { setSoundStatus('', false); return; }
             running = false;
             teardown();
             setSoundStatus(ccLang.soundOff, true);
         };
-
         return { start, stop };
     })();
-
     // DOM
     const startBtn = document.getElementById('ccStartBtn');
     const stopBtn = document.getElementById('ccStopBtn');
@@ -949,7 +913,6 @@ ob_start();
     const unsupported = document.getElementById('ccUnsupported');
     const langSelect = document.getElementById('ccLanguage');
     const fontSelect = document.getElementById('ccFontFamily');
-
     const setStatus = (text, state) => {
         if (!micStatus) return;
         micStatus.textContent = text;
@@ -976,7 +939,6 @@ ob_start();
             preview.appendChild(i);
         }
     };
-
     const ccLoadedPreviewFonts = new Set();
     const ensurePreviewFontLoaded = (fontName) => {
         if (!ccAllowedFonts.includes(fontName) || ccLoadedPreviewFonts.has(fontName)) return;
@@ -994,17 +956,12 @@ ob_start();
     };
     if (fontSelect) fontSelect.addEventListener('change', applyPreviewFont);
     applyPreviewFont();
-
     // Web Speech API
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition = null;
     let runState = 'stopped'; // 'stopped' | 'started'
     let committedText = '';
     let detectorDeviceId = null; // mic the recognizer locked onto; the detector pins the same one
-
-    // Heuristic punctuation for finalized phrases (browser Web Speech adds none for free):
-    // capitalize the first letter, and end with ? when the phrase opens with a question
-    // word, otherwise a full stop. Applied to finals only, not the live interim text.
     const QUESTION_STARTERS = new Set([
         'what','whats','who','whos','whom','whose','where','wheres','when','whens',
         'why','whys','how','hows','which','is','are','am','was','were','do','does',
@@ -1022,13 +979,11 @@ ob_start();
         t += QUESTION_STARTERS.has(w) ? '?' : '.';
         return t;
     };
-
     if (!SR) {
         if (unsupported) unsupported.classList.remove('cc-hidden');
         if (startBtn) startBtn.disabled = true;
         return;
     }
-
     const buildRecognition = () => {
         const r = new SR();
         r.continuous = true;
@@ -1048,8 +1003,8 @@ ob_start();
             }
             if (finalChunk.trim()) {
                 committedText = punctuateFinal(finalChunk.trim());
-                // Apply the correction/glossary dictionary to FINAL captions only (interim
-                // results get overwritten, so correcting them would only cause flicker).
+                // Apply locale spelling first (US→AU/UK), then user corrections, then profanity.
+                committedText = applyLocaleSpelling(committedText);
                 committedText = applyCorrections(committedText);
                 committedText = applyProfanityFilter(committedText);
                 // Emit through the serialized translate helper: the overlay receives the
@@ -1059,7 +1014,8 @@ ob_start();
                 setPreview(committedText, '');
             }
             if (interim.trim()) {
-                const filteredInterim = applyProfanityFilter(interim.trim());
+                let filteredInterim = applyLocaleSpelling(interim.trim());
+                filteredInterim = applyProfanityFilter(filteredInterim);
                 emitCaption(filteredInterim, false);
                 setPreview(committedText, filteredInterim);
             }
@@ -1088,7 +1044,6 @@ ob_start();
         };
         return r;
     };
-
     const start = async () => {
         setStatus(ccLang.starting, 'warn');
         // Prompt for mic permission explicitly so denial surfaces clearly.
@@ -1122,7 +1077,6 @@ ob_start();
         // Opt-in sound action-tag detection: only loads YAMNet/TF.js when enabled.
         if (ccActionTagsEnabled) { soundDetector.start(detectorDeviceId); }
     };
-
     const stop = () => {
         runState = 'stopped';
         if (recognition) {
@@ -1138,7 +1092,6 @@ ob_start();
         if (startBtn) startBtn.disabled = false;
         if (stopBtn) stopBtn.disabled = true;
     };
-
     if (startBtn) startBtn.addEventListener('click', start);
     if (stopBtn) stopBtn.addEventListener('click', stop);
     if (langSelect) langSelect.addEventListener('change', () => {
@@ -1153,7 +1106,6 @@ ob_start();
         }
     });
     window.addEventListener('beforeunload', () => { if (runState === 'started') stop(); });
-
     // Settings save
     const form = document.getElementById('ccSettingsForm');
     const saveStatus = document.getElementById('ccSaveStatus');
@@ -1204,7 +1156,6 @@ ob_start();
                 });
         });
     }
-
     // Caption corrections editor (render / add / delete / save)
     (function () {
         const body = document.getElementById('ccCorrBody');
@@ -1213,12 +1164,10 @@ ob_start();
         const saveBtn = document.getElementById('ccCorrSaveBtn');
         const saveStatusEl = document.getElementById('ccCorrSaveStatus');
         if (!body) return;
-
         const buildRow = (row) => {
             row = row || {};
             const tr = document.createElement('tr');
             tr.className = 'cc-corr-row';
-
             const heardTd = document.createElement('td');
             const heardInput = document.createElement('input');
             heardInput.type = 'text';
@@ -1227,13 +1176,11 @@ ob_start();
             heardInput.placeholder = ccLang.corrHeardPlaceholder;
             heardInput.value = row.match_text != null ? row.match_text : '';
             heardTd.appendChild(heardInput);
-
             const arrowTd = document.createElement('td');
             arrowTd.className = 'cc-corr-arrow';
             const arrowIcon = document.createElement('i');
             arrowIcon.className = 'fas fa-arrow-right';
             arrowTd.appendChild(arrowIcon);
-
             const correctTd = document.createElement('td');
             const correctInput = document.createElement('input');
             correctInput.type = 'text';
@@ -1242,7 +1189,6 @@ ob_start();
             correctInput.placeholder = ccLang.corrCorrectPlaceholder;
             correctInput.value = row.replace_text != null ? row.replace_text : '';
             correctTd.appendChild(correctInput);
-
             const modeTd = document.createElement('td');
             const modeSelect = document.createElement('select');
             modeSelect.className = 'sp-select cc-corr-mode';
@@ -1256,7 +1202,6 @@ ob_start();
             modeSelect.appendChild(optSub);
             modeSelect.value = (row.match_mode === 'substring') ? 'substring' : 'word';
             modeTd.appendChild(modeSelect);
-
             const caseTd = document.createElement('td');
             caseTd.className = 'cc-corr-col-toggle';
             const caseInput = document.createElement('input');
@@ -1264,7 +1209,6 @@ ob_start();
             caseInput.className = 'cc-corr-case';
             caseInput.checked = !!(row.case_sensitive === 1 || row.case_sensitive === true || row.case_sensitive === '1');
             caseTd.appendChild(caseInput);
-
             const enabledTd = document.createElement('td');
             enabledTd.className = 'cc-corr-col-toggle';
             const enabledInput = document.createElement('input');
@@ -1273,7 +1217,6 @@ ob_start();
             // Default new/undefined rows to enabled.
             enabledInput.checked = (row.enabled === undefined) ? true : !!(row.enabled === 1 || row.enabled === true || row.enabled === '1');
             enabledTd.appendChild(enabledInput);
-
             const actionsTd = document.createElement('td');
             actionsTd.className = 'cc-corr-col-actions';
             const delBtn = document.createElement('button');
@@ -1286,7 +1229,6 @@ ob_start();
             delBtn.appendChild(delIcon);
             delBtn.addEventListener('click', () => { tr.remove(); updateEmpty(); });
             actionsTd.appendChild(delBtn);
-
             tr.appendChild(heardTd);
             tr.appendChild(arrowTd);
             tr.appendChild(correctTd);
@@ -1296,17 +1238,14 @@ ob_start();
             tr.appendChild(actionsTd);
             return tr;
         };
-
         const updateEmpty = () => {
             if (!emptyEl) return;
             emptyEl.classList.toggle('cc-hidden', body.children.length > 0);
         };
-
         const addRow = (row) => {
             body.appendChild(buildRow(row));
             updateEmpty();
         };
-
         const collectRows = () => {
             const rows = [];
             body.querySelectorAll('.cc-corr-row').forEach((tr) => {
@@ -1323,13 +1262,10 @@ ob_start();
             });
             return rows;
         };
-
         // Initial render from the server-provided list.
         (ccCorrections || []).forEach(addRow);
         updateEmpty();
-
         if (addBtn) addBtn.addEventListener('click', () => addRow({}));
-
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
                 const rows = collectRows();
@@ -1364,7 +1300,6 @@ ob_start();
             });
         }
     })();
-
     // Overlay URL: masked by default, reveal toggle, copy the real URL
     const ccUrlReal = <?php echo json_encode($overlayLinkWithCode); ?>;
     const ccUrlMasked = <?php echo json_encode($overlayLinkMasked); ?>;
