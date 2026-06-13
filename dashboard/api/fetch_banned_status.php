@@ -44,8 +44,7 @@ function getTwitchUserIds($usernames, $accessToken, $clientID) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
-    curl_close($ch);
-    $data = json_decode($response, true);
+$data = json_decode($response, true);
     $userMap = [];
     if (isset($data['data'])) { foreach ($data['data'] as $user) { $userMap[$user['login']] = $user['id']; } }
     return $userMap;
@@ -60,8 +59,7 @@ function getBannedUsers($userIds, $accessToken, $broadcasterID, $clientID) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
-    curl_close($ch);
-    $data = json_decode($response, true);
+$data = json_decode($response, true);
     $bannedUserIds = [];
     if (isset($data['data'])) { foreach ($data['data'] as $bannedUser) { $bannedUserIds[] = $bannedUser['user_id']; } }
     return $bannedUserIds;
@@ -84,3 +82,4 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernames'])) {
     fbs_json_response(400, ['error' => t('fetch_banned_status_error_bad_request')]);
 }
 ?>
+

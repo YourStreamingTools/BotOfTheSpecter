@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -46,8 +46,7 @@ if (isset($_GET['ajax'])) {
         $resp = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err = curl_error($ch);
-        curl_close($ch);
-        if ($resp === false) {
+if ($resp === false) {
             http_response_code(502);
             echo json_encode(['error' => t('schedule_error_request_failed') . ' ' . $err]);
             exit();
@@ -77,8 +76,7 @@ if (isset($_GET['ajax'])) {
         $resp = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err = curl_error($ch);
-        curl_close($ch);
-        if ($resp === false) {
+if ($resp === false) {
             http_response_code(502);
             echo json_encode(['error' => t('schedule_error_request_failed') . ' ' . $err]);
             exit();
@@ -136,8 +134,7 @@ if (isset($_GET['ajax'])) {
         $respCancel = curl_exec($chCancel);
         $codeCancel = curl_getinfo($chCancel, CURLINFO_HTTP_CODE);
         $errCancel = curl_error($chCancel);
-        curl_close($chCancel);
-        $responseCanceledState = $cancelState;
+$responseCanceledState = $cancelState;
         if (is_string($respCancel) && $respCancel !== '') {
             $respJson = json_decode($respCancel, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($respJson)) {
@@ -294,8 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                         $respSeg = curl_exec($chSeg);
                         $codeSeg = curl_getinfo($chSeg, CURLINFO_HTTP_CODE);
                         $errSeg = curl_error($chSeg);
-                        curl_close($chSeg);
-                        if ($codeSeg === 200) {
+if ($codeSeg === 200) {
                             $success = t('schedule_msg_segment_created');
                         } else {
                             $error = t('schedule_error_twitch_http', [$codeSeg]) . ' ' . htmlspecialchars($respSeg ?: $errSeg);
@@ -359,8 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                     $respUpd = curl_exec($chUpd);
                     $codeUpd = curl_getinfo($chUpd, CURLINFO_HTTP_CODE);
                     $errUpd = curl_error($chUpd);
-                    curl_close($chUpd);
-                    if ($codeUpd === 200) {
+if ($codeUpd === 200) {
                         $success = t('schedule_msg_segment_updated');
                     } else {
                         $error = t('schedule_error_twitch_http', [$codeUpd]) . ' ' . htmlspecialchars($respUpd ?: $errUpd);
@@ -397,8 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                 $respCancel = curl_exec($chCancel);
                 $codeCancel = curl_getinfo($chCancel, CURLINFO_HTTP_CODE);
                 $errCancel = curl_error($chCancel);
-                curl_close($chCancel);
-                if ($codeCancel === 200) {
+if ($codeCancel === 200) {
                     $success = $cancelState ? t('schedule_msg_segment_canceled') : t('schedule_msg_segment_uncanceled');
                 } else {
                     $error = t('schedule_error_twitch_http', [$codeCancel]) . ' ' . htmlspecialchars($respCancel ?: $errCancel);
@@ -424,8 +418,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                 $respDel = curl_exec($chDel);
                 $codeDel = curl_getinfo($chDel, CURLINFO_HTTP_CODE);
                 $errDel = curl_error($chDel);
-                curl_close($chDel);
-                if ($codeDel === 204) {
+if ($codeDel === 204) {
                     $success = t('schedule_msg_segment_deleted');
                 } else {
                     $error = t('schedule_error_twitch_http', [$codeDel]) . ' ' . htmlspecialchars($respDel ?: $errDel);
@@ -448,8 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
             $resp = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlErr = curl_error($ch);
-            curl_close($ch);
-            if ($httpCode === 204) {
+if ($httpCode === 204) {
                 $success = t('schedule_msg_settings_updated');
             } else {
                 $body = $resp ?: '';
@@ -489,9 +481,7 @@ function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first =
         $resp = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
-        curl_close($ch);
-
-        if ($resp === false) {
+if ($resp === false) {
             return [null, t('schedule_error_request_failed') . ' ' . htmlspecialchars($curlErr)];
         }
         if ($httpCode !== 200) {
@@ -565,8 +555,7 @@ if (empty($broadcasterId)) {
                 $autoResp = curl_exec($chAuto);
                 $autoCode = curl_getinfo($chAuto, CURLINFO_HTTP_CODE);
                 $autoErr = curl_error($chAuto);
-                curl_close($chAuto);
-                if ($autoCode === 204) {
+if ($autoCode === 204) {
                     $successMsg = t('schedule_msg_vacation_auto_ended');
                     if (empty($success)) $success = $successMsg;
                     else $success .= ' ' . $successMsg;

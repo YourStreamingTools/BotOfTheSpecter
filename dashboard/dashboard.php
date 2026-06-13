@@ -67,9 +67,7 @@ session_write_close();
         curl_setopt($usersCurl, CURLOPT_TIMEOUT, 8);
         $usersResponse = curl_exec($usersCurl);
         $usersHttpCode = curl_getinfo($usersCurl, CURLINFO_HTTP_CODE);
-        curl_close($usersCurl);
-
-        $isEligibleForSubs = false;
+$isEligibleForSubs = false;
         if ($usersResponse !== false && $usersHttpCode === 200) {
             $usersData = json_decode($usersResponse, true);
             $broadcasterType = (string)($usersData['data'][0]['broadcaster_type'] ?? '');
@@ -87,9 +85,7 @@ session_write_close();
             curl_setopt($subsCurl, CURLOPT_TIMEOUT, 8);
             $subsResponse = curl_exec($subsCurl);
             $subsHttpCode = curl_getinfo($subsCurl, CURLINFO_HTTP_CODE);
-            curl_close($subsCurl);
-
-            if ($subsResponse !== false && $subsHttpCode === 200) {
+if ($subsResponse !== false && $subsHttpCode === 200) {
                 $subsData = json_decode($subsResponse, true);
                 if (isset($subsData['total'])) {
                     $subscriberCount = (int)$subsData['total'];

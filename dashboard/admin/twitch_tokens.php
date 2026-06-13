@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 ob_start();
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
@@ -95,8 +95,7 @@ function requestTwitchAppAccessToken($clientID, $clientSecret) {
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlError = curl_error($ch);
-    curl_close($ch);
-    if ($curlError) {
+if ($curlError) {
         return ['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])];
     }
     if ($httpCode !== 200) {
@@ -234,8 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-        curl_close($ch);
-        if ($curlError) {
+if ($curlError) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
@@ -398,8 +396,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-        curl_close($ch);
-        if ($curlError) {
+if ($curlError) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
@@ -732,8 +729,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-        curl_close($ch);
-        if ($curlError) {
+if ($curlError) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
@@ -1696,7 +1692,7 @@ function renewChatToken(clientId, clientSecret) {
                 // Show masked input with eye toggle and copy
                 resultContent.innerHTML = `
                     <div class="sp-alert sp-alert-success">
-                        <p><strong>✓ ${TT_I18N.chatGeneratedTitle}</strong></p>
+                        <p><strong>? ${TT_I18N.chatGeneratedTitle}</strong></p>
                         <p style="margin-top:0.75rem;"><strong>${TT_I18N.chatTokenLabel}</strong></p>
                         <div style="display:flex;gap:0.5rem;align-items:center;">
                             <input class="sp-input" type="password" id="chat-token-input" value="${newToken}" readonly style="flex:1;">

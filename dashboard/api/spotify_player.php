@@ -66,8 +66,6 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 curl_setopt($ch, CURLOPT_TIMEOUT, 8);
 $resp = curl_exec($ch);
 $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
 if ($action === 'state') {
     if ($httpCode === 204 || $resp === '' || $resp === false) {
         // 204 = no active device / nothing playing.
@@ -119,3 +117,4 @@ echo json_encode([
     'error'   => $codeMap[$httpCode] ?? 'generic',
     'http'    => $httpCode,
 ]);
+

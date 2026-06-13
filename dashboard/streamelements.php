@@ -43,8 +43,7 @@ if ($twitchUserId) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: oAuth {$access_token}"]);
         $validate_response = curl_exec($ch);
         $validate_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        $validate_data = json_decode($validate_response, true);
+$validate_data = json_decode($validate_response, true);
         if ($validate_code === 200 && isset($validate_data['channel_id'])) {
             $isLinked = true;
             // Calculate time until token expires (can be days/weeks)
@@ -69,8 +68,7 @@ if ($twitchUserId) {
                 "Authorization: oAuth {$access_token}"
             ]);
             $profile_response = curl_exec($ch);
-            curl_close($ch);
-            $profile_data = json_decode($profile_response, true);
+$profile_data = json_decode($profile_response, true);
             $apiToken = $profile_data['apiToken'] ?? null;
             // Fetch StreamElements current user to get JWT token and channel ID
             // Use JWT token if available, otherwise skip this call
@@ -85,8 +83,7 @@ if ($twitchUserId) {
             }
             $current_user_response = curl_exec($ch);
             $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            $jwtToken = null;
+$jwtToken = null;
             $channelId = null;
             if ($current_user_code === 200) {
                 $current_user_data = json_decode($current_user_response, true);
@@ -172,8 +169,7 @@ if (isset($_GET['code']) && !$isActAsUser) {
         ]);
         $response = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        $token_data = json_decode($response, true);
+$token_data = json_decode($response, true);
         if ($httpcode === 200 && isset($token_data['access_token'])) {
             $access_token = $token_data['access_token'];
             $refresh_token = $token_data['refresh_token'];
@@ -187,8 +183,7 @@ if (isset($_GET['code']) && !$isActAsUser) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: oAuth {$access_token}"]);
             $validate_response = curl_exec($ch);
             $validate_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            $validate_data = json_decode($validate_response, true);
+$validate_data = json_decode($validate_response, true);
             if ($validate_code === 200 && isset($validate_data['channel_id'])) {
                 $_SESSION['streamelements_token'] = $access_token;
                 // Fetch StreamElements current user to get JWT token
@@ -201,8 +196,7 @@ if (isset($_GET['code']) && !$isActAsUser) {
                 ]);
                 $current_user_response = curl_exec($ch);
                 $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                $jwtToken = null;
+$jwtToken = null;
                 $channelId = null;
                 if ($current_user_code === 200) {
                     $current_user_data = json_decode($current_user_response, true);
@@ -312,8 +306,7 @@ if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
         ]);
         $current_user_response = curl_exec($ch);
         $current_user_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($current_user_code === 200) {
+if ($current_user_code === 200) {
             $current_user_data = json_decode($current_user_response, true);
             if (isset($current_user_data['channels']) && is_array($current_user_data['channels'])) {
                 foreach ($current_user_data['channels'] as $channel) {
@@ -337,8 +330,7 @@ if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
         ]);
         $tips_response = curl_exec($ch);
         $tips_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($tips_code === 200) {
+if ($tips_code === 200) {
             $tips_data = json_decode($tips_response, true);
             if (isset($tips_data['docs']) && is_array($tips_data['docs'])) {
                 $recentTips = $tips_data['docs']; // Get all tips from API response

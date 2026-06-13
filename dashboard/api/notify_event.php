@@ -214,8 +214,7 @@ try {
             $response['output'] = $output;
         }
         // Close the curl session
-        curl_close($ch);
-    } else {
+} else {
         $response['message'] = 'No event or api_key specified.';
     }
 } catch (Exception $e) {
@@ -226,3 +225,4 @@ try {
 header('Content-Type: application/json');
 echo json_encode($response);
 ?>
+

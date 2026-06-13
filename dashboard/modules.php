@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -53,8 +53,7 @@ function resolveModuleBotTwitchUserId($username) {
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
-    curl_close($ch);
-    if ($resp === false || $code !== 200) {
+if ($resp === false || $code !== 200) {
         return [false, t('modules_err_twitch_api', [$err ?: "HTTP {$code}"])];
     }
     $data = json_decode($resp, true);

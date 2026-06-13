@@ -82,8 +82,7 @@ if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
   curl_setopt($modCh, CURLOPT_TIMEOUT, 5);
   $modResponse = curl_exec($modCh);
   $modHttpCode = curl_getinfo($modCh, CURLINFO_HTTP_CODE);
-  curl_close($modCh);
-  $isMod = false;
+$isMod = false;
   if ($modResponse !== false && $modHttpCode === 200) {
     $modData = json_decode($modResponse, true);
     if (isset($modData['data'])) {
@@ -107,8 +106,7 @@ if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
     curl_setopt($banCh, CURLOPT_TIMEOUT, 5);
     $banResponse = curl_exec($banCh);
     $banHttpCode = curl_getinfo($banCh, CURLINFO_HTTP_CODE);
-    curl_close($banCh);
-    if ($banResponse !== false && $banHttpCode === 200) {
+if ($banResponse !== false && $banHttpCode === 200) {
       $banData = json_decode($banResponse, true);
       if (isset($banData['data']) && !empty($banData['data'])) {
         $banReason = $banData['data'][0]['reason'] ?? t('bot_action_ban_no_reason');
@@ -199,3 +197,4 @@ header('Content-Type: application/json');
 echo json_encode($result);
 exit();
 ?>
+

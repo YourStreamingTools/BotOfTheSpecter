@@ -42,7 +42,6 @@ if (!empty($clientID) && !empty($clientSecret)) {
         $_td = json_decode($_tr, true);
         $_appToken = $_td['access_token'] ?? null;
     }
-    curl_close($ch);
 }
 
 // Fetch WebSocket subscriptions with user access token
@@ -51,8 +50,6 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken, 'Client-Id: ' . $clientID]);
 $wsResponse = curl_exec($ch);
 $wsHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
 // Fetch webhook subscriptions with app access token
 $_webhookSubs = [];
 if ($_appToken) {
@@ -66,7 +63,6 @@ if ($_appToken) {
             if (($_s['transport']['method'] ?? '') === 'webhook') $_webhookSubs[] = $_s;
         }
     }
-    curl_close($ch);
 }
 
 $subscriptions = [];

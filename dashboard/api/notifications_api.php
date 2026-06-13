@@ -103,8 +103,7 @@ function getAppAccessToken($clientID, $clientSecret) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($code === 200) {
+if ($code === 200) {
         $data = json_decode($resp, true);
         return $data['access_token'] ?? null;
     }
@@ -120,8 +119,7 @@ function twitchGetSubs($token, $clientID) {
     ]);
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return ($code === 200) ? json_decode($resp, true) : null;
+return ($code === 200) ? json_decode($resp, true) : null;
 }
 
 function fetchSubscriptions($userToken, $clientID, $clientSecret, $userId, $db) {
@@ -207,8 +205,7 @@ function deleteSubscription($subId, $userToken, $clientID, $clientSecret, $trans
     ]);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpCode === 204) {
+if ($httpCode === 204) {
         echo json_encode(['success' => true, 'message' => 'Successfully deleted subscription']);
     } else {
         http_response_code($httpCode);
@@ -235,8 +232,7 @@ function deleteSession($subscriptionIdsJson, $accessToken, $clientID) {
         ]);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($httpCode === 204) {
+if ($httpCode === 204) {
             $deletedCount++;
         } else {
             $failedCount++;
@@ -418,3 +414,4 @@ function disconnectInternalWebsocketClient($sid, $userApiKey, $adminKey) {
     }
     echo json_encode(['success' => true, 'message' => 'Client disconnected successfully']);
 }
+

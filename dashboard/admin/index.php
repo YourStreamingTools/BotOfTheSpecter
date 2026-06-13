@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 ob_start();
 require_once '/var/www/lib/session_bootstrap.php';
 require_once __DIR__ . '/admin_access.php';
@@ -728,8 +728,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curl_error = curl_error($ch);
-            curl_close($ch);
-            if ($curl_errno) {
+if ($curl_errno) {
                 $error_message = t('admin_index_msg_send_failed') . ' ' . $curl_error;
             } elseif ($http_code === 200) {
                 $response_data = json_decode($response, true);
@@ -822,8 +821,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
         $lookup_http_code = curl_getinfo($lookup_ch, CURLINFO_HTTP_CODE);
         $lookup_curl_errno = curl_errno($lookup_ch);
         $lookup_curl_error = curl_error($lookup_ch);
-        curl_close($lookup_ch);
-        if ($lookup_curl_errno) {
+if ($lookup_curl_errno) {
             $response_message = t('admin_index_validate_user_failed') . ' ' . $lookup_curl_error;
         } elseif ($lookup_http_code !== 200) {
             $response_message = t('admin_index_validate_user_failed_http', [$lookup_http_code]);
@@ -858,8 +856,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
                     $shoutout_http_code = curl_getinfo($shoutout_ch, CURLINFO_HTTP_CODE);
                     $shoutout_curl_errno = curl_errno($shoutout_ch);
                     $shoutout_curl_error = curl_error($shoutout_ch);
-                    curl_close($shoutout_ch);
-                    if ($shoutout_curl_errno) {
+if ($shoutout_curl_errno) {
                         $response_message = t('admin_index_shoutout_send_failed') . ' ' . $shoutout_curl_error;
                     } elseif ($shoutout_http_code === 204) {
                         $success = true;
@@ -913,8 +910,7 @@ function isOnline($user_id, $client_id, $bearer) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
-    curl_close($ch);
-    $data = json_decode($response, true);
+$data = json_decode($response, true);
     return isset($data['data']) && !empty($data['data']);
 }
 
@@ -936,8 +932,7 @@ function getOnlineUserIds($user_ids, $client_id, $bearer) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
-    curl_close($ch);
-    $data = json_decode($response, true);
+$data = json_decode($response, true);
     $online_ids = [];
     if (isset($data['data'])) {
         foreach ($data['data'] as $stream) {
@@ -1088,9 +1083,7 @@ if (isset($_GET['ajax'])) {
         $lookup_http_code = curl_getinfo($lookup_ch, CURLINFO_HTTP_CODE);
         $lookup_curl_errno = curl_errno($lookup_ch);
         $lookup_curl_error = curl_error($lookup_ch);
-        curl_close($lookup_ch);
-
-        if ($lookup_curl_errno) {
+if ($lookup_curl_errno) {
             echo json_encode(['valid' => false, 'message' => t('admin_index_validation_request_failed') . ' ' . $lookup_curl_error]);
             exit;
         }
@@ -1198,12 +1191,10 @@ function getTwitchSubTier($twitch_user_id) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($ch);
     if ($response === false) {
-        curl_close($ch);
-        return null;
+return null;
     }
     $data = json_decode($response, true);
-    curl_close($ch);
-    // Check if we have subscription data in the response
+// Check if we have subscription data in the response
     if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) {
         return $data['data'][0]['tier'];
     }
@@ -1649,8 +1640,7 @@ function openai_multi_curl(array $requests, $openai_config = null, $openai_key =
             'curl_error' => $error
         ];
         curl_multi_remove_handle($multiHandle, $ch);
-        curl_close($ch);
-    }
+}
     curl_multi_close($multiHandle);
     return $results;
 }
@@ -2007,7 +1997,7 @@ $botIconMap = [
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header" style="cursor:pointer;" onclick="toggleCollapsible('bot-overview', event)">
         <h2 class="sp-card-title"><span class="icon"><i class="fas fa-robot"></i></span> <?php echo t('admin_index_bot_overview'); ?></h2>
-        <span class="collapse-icon" data-section="bot-overview">▼</span>
+        <span class="collapse-icon" data-section="bot-overview">?</span>
     </div>
     <div class="collapsible-content" id="bot-overview">
         <div class="sp-card-body">

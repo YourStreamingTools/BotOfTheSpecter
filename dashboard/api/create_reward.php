@@ -52,8 +52,7 @@ function twitchApiCall($method, $url, $token, $clientID, $body = null, $isMultip
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return ['code' => $httpCode, 'response' => $response];
+return ['code' => $httpCode, 'response' => $response];
 }
 
 if (!isset($_POST['title']) || !isset($_POST['cost'])) {
@@ -252,3 +251,4 @@ if ($stmt) {
 $db->close();
 
 echo json_encode(['success' => true, 'new_reward_id' => $newRewardId]);
+

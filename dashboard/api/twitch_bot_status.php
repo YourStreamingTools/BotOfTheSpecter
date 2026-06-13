@@ -16,8 +16,7 @@ function checkBotIsMod($broadcasterId, $authToken, $clientID) {
     curl_setopt($ch, CURLOPT_TIMEOUT, 5);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false || $httpCode !== 200) {
+if ($response === false || $httpCode !== 200) {
       error_log("Twitch API mod check failed. HTTP Code: $httpCode");
       return false;
     }
@@ -57,8 +56,7 @@ function checkBotIsBanned($broadcasterId, $authToken, $clientID) {
     curl_setopt($ch, CURLOPT_TIMEOUT, 5);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false || $httpCode !== 200) {
+if ($response === false || $httpCode !== 200) {
       return ['banned' => false, 'reason' => ''];
     }
     $data = json_decode($response, true);
@@ -75,3 +73,4 @@ function checkBotIsBanned($broadcasterId, $authToken, $clientID) {
     return ['banned' => false, 'reason' => ''];
   }
 }
+

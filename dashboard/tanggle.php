@@ -94,8 +94,7 @@ if ($credentials_exist) {
     ]);
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($http_code === 200 && $response) {
+if ($http_code === 200 && $response) {
         $rooms_data = json_decode($response, true);
         if (isset($rooms_data['items']) && count($rooms_data['items']) > 0) {
             $first_room_uuid = $rooms_data['items'][0]['uuid'];
@@ -109,8 +108,7 @@ if ($credentials_exist) {
             ]);
             $room_response = curl_exec($ch);
             $room_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($room_http_code === 200 && $room_response) {
+if ($room_http_code === 200 && $room_response) {
                 $room_data = json_decode($room_response, true);
                 if (isset($room_data['success']) && $room_data['success'] && isset($room_data['room'])) {
                     $active_room = $room_data['room'];
@@ -133,9 +131,7 @@ if ($credentials_exist) {
     ]);
     $queue_response = curl_exec($ch);
     $queue_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($queue_http_code === 200 && $queue_response) {
+if ($queue_http_code === 200 && $queue_response) {
         $queue_data = json_decode($queue_response, true);
         if (is_array($queue_data)) {
             $queue_items = $queue_data;

@@ -211,15 +211,13 @@ case 'send_custom_embed':
         if ($response === false) {
             $curl_error = curl_error($ch);
             debug_log('cURL error: ' . $curl_error);
-            curl_close($ch);
-            http_response_code(500);
+http_response_code(500);
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'message' => t('embed_builder_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
             exit();
         }
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
         if ($http_code !== 200) {
             debug_log("Failed to send websocket notification for custom embed: HTTP $http_code, Response: $response");
             http_response_code(500);
@@ -290,3 +288,4 @@ case 'delete_custom_embed':
     }
 }
 ?>
+
