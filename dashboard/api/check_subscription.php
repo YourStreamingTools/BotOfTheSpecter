@@ -6,7 +6,7 @@ ob_start();
 require_once '/var/www/lib/session_bootstrap.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
-require_once "userdata.php";
+require_once "../includes/userdata.php";
 // Note: session_write_close() deferred - this file writes $_SESSION['tier'] at the end
 
 // Load translations so user-facing JSON messages are localized.

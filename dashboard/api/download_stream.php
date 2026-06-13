@@ -11,7 +11,7 @@ require_once '/var/www/lib/require_auth.php';
 // Include SSH and user data files
 require_once "/var/www/config/db_connect.php";
 include "/var/www/config/ssh.php";
-include 'includes/userdata.php';
+include '../includes/userdata.php';
 session_write_close();
 
 // Validate and get parameters

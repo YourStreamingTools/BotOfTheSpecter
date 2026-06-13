@@ -12,9 +12,9 @@ require_once '/var/www/lib/require_auth_ajax.php';
 require_once "/var/www/config/db_connect.php";
 $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include "/var/www/config/ssh.php";
-include 'includes/userdata.php';
+include '../includes/userdata.php';
 session_write_close();
-include 'includes/user_db.php';
+include '../includes/user_db.php';
 $is_subscribed = false;
 
 // Get user email from the profile data
