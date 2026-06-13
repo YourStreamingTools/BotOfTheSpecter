@@ -46,6 +46,9 @@ if ($twitchUserId) {
 $validate_data = json_decode($validate_response, true);
         if ($validate_code === 200 && isset($validate_data['channel_id'])) {
             $isLinked = true;
+            // Channel ID is available directly from the validate response
+            $channelId = $validate_data['channel_id'];
+            $_SESSION['streamelements_channel_id'] = $channelId;
             // Calculate time until token expires (can be days/weeks)
             $expires_in = isset($validate_data['expires_in']) ? (int)$validate_data['expires_in'] : null;
             $expires_str = '';
@@ -290,11 +293,11 @@ if (!$isLinked && !$isActAsUser) {
         . "&redirect_uri=" . $redirect_uri;
 }
 
-// Fetch recent tips if user is linked and we have JWT token
+// Fetch recent tips if user is linked and we have access token
 $recentTips = [];
 $tips_code = null; // Initialize to track the API response code
-if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
-    $channelId = $_SESSION['streamelements_channel_id'] ?? null;
+if ($isLinked && isset($access_token) && !empty($access_token)) {
+    $channelId = $_SESSION['streamelements_channel_id'] ?? ($validate_data['channel_id'] ?? null);
     // If we don't have channel ID in session, fetch it
     if (!$channelId) {
         $current_user_url = "https://api.streamelements.com/kappa/v2/users/current";
@@ -319,14 +322,14 @@ if ($current_user_code === 200) {
             }
         }
     }
-    // Fetch tips if we have channel ID
+    // Fetch tips if we have channel ID - use access token (oAuth) as it's validated, JWT may be stale
     if ($channelId) {
         $tips_url = "https://api.streamelements.com/kappa/v2/tips/{$channelId}?limit=100";
         $ch = curl_init($tips_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             "Accept: application/json; charset=utf-8",
-            "Authorization: Bearer {$stored_jwt_token}"
+            "Authorization: oAuth {$access_token}"
         ]);
         $tips_response = curl_exec($ch);
         $tips_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
