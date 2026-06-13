@@ -442,7 +442,7 @@ ob_start();
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
-    const ccProfanityFilter = <?php echo json_encode((bool)$cc['profanity_filter']); ?>;
+    let ccProfanityFilter = <?php echo json_encode((bool)$cc['profanity_filter']); ?>;
     // Curated caption fonts — derived from the PHP allow-list so this can't drift from
     // the overlay's copies. Used to load + preview the chosen typeface on the dashboard.
     const ccAllowedFonts = <?php echo json_encode($allowedFonts); ?>;
@@ -1183,6 +1183,16 @@ ob_start();
                         if (runState === 'started') {
                             const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
                             liveTranslator.ensure(srcLang);
+                        }
+                        // Update the profanity filter live. SpeechRecognition reads the flag
+                        // only at start(), so transparently restart recognition to apply it;
+                        // the onend handler auto-restarts when runState === 'started'.
+                        const newProfanity = document.getElementById('ccProfanity').checked;
+                        if (newProfanity !== ccProfanityFilter) {
+                            ccProfanityFilter = newProfanity;
+                            if (runState === 'started' && recognition) {
+                                try { recognition.stop(); } catch (e) { /* onend restarts with the new flag */ }
+                            }
                         }
                     }
                     if (!saveStatus) return;
