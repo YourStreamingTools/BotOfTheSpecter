@@ -1,7 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
-ini_set('log_errors', '1');
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -57,8 +54,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
         echo json_encode($pointsData);
         exit();
     } catch (Exception $e) {
-        http_response_code(200);
-        echo json_encode(['error' => $e->getMessage(), 'debug' => $e->getTraceAsString()]);
+        error_log("bot_points.php AJAX error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to load points data']);
         exit();
     }
 }
