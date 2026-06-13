@@ -99,6 +99,7 @@ bot/custom_channel_modules/.gitignore
 /websocket/tts
 /billing
 /cdn/music
+/media
 /stream/ssl
 /bot/ai/chat-history
 /deploy
