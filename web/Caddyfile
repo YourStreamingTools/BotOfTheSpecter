@@ -203,11 +203,35 @@ media.botofthespecter.com {
     }
 }
 
-music.botspecter.com {
+music.botspecter.com, music.botofthespecter.com {
     root * /var/www/usermusic
     import static_long_cache
     log {
         output file /var/log/caddy/usermusic.log
+    }
+}
+
+soundalerts.botofthespecter.com {
+    root * /var/www/soundalerts
+    import static_long_cache
+    log {
+        output file /var/log/caddy/soundalerts.log
+    }
+}
+
+tts.botofthespecter.com {
+    root * /var/www/tts
+    import static_long_cache
+    log {
+        output file /var/log/caddy/tts.log
+    }
+}
+
+videoalerts.botofthespecter.com {
+    root * /var/www/videoalerts
+    import static_long_cache
+    log {
+        output file /var/log/caddy/videoalerts.log
     }
 }
 
