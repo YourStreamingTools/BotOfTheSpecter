@@ -206,10 +206,12 @@ ob_end_clean();
                 const sizeVh = (Number(settings.fontSize) || 32) / 1080 * 100;
                 ccRoot.style.setProperty('--cc-font-size', sizeVh.toFixed(3) + 'vh');
                 ccRoot.style.setProperty('--cc-text-color', settings.textColor || '#FFFFFF');
-                // Caption typeface: load the chosen Google Font on demand, then set the band var.
+                // Caption typeface: load the chosen Google Font on demand, then apply it.
                 const fontName = allowedFonts.includes(settings.fontFamily) ? settings.fontFamily : 'Inter';
                 ensureFontLoaded(fontName);
+                const fontStack = '"' + fontName + '", "Segoe UI", system-ui, sans-serif';
                 ccRoot.style.setProperty('--cc-font-family', '"' + fontName + '"');
+                ccBand.style.fontFamily = fontStack;
                 ccRoot.dataset.position = allowedPositions.includes(settings.position) ? settings.position : 'bottom';
                 ccRoot.dataset.background = allowedBackgrounds.includes(settings.background) ? settings.background : 'box';
                 ccRoot.dataset.enabled = settings.enabled ? 'true' : 'false';
