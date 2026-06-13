@@ -1426,6 +1426,7 @@ return [
     'working_or_study_theme_ocean' => 'Ocean (cool blue)',
     'working_or_study_theme_forest' => 'Forest (green & earth)',
     'working_or_study_theme_midnight' => 'Midnight (deep purple)',
+    'working_or_study_theme_pride' => 'Pride (rainbow)',
     'working_or_study_list_view_label' => 'Task List View',
     'working_or_study_list_view_help' => 'Choose how task panels display on the overlay. Split shows separate streamer and viewer panels; Unified merges them into one "username: task" list. Changes apply to the overlay live, no reload needed.',
     'working_or_study_list_view_split' => 'Split (separate panels)',

@@ -1373,6 +1373,7 @@ return [
     'working_or_study_theme_ocean' => 'Ozean (kühles Blau)',
     'working_or_study_theme_forest' => 'Wald (Grün & Erdtöne)',
     'working_or_study_theme_midnight' => 'Mitternacht (tiefes Violett)',
+    'working_or_study_theme_pride' => 'Pride (Regenbogen)',
     'working_or_study_list_view_label' => 'Aufgabenlisten-Ansicht',
     'working_or_study_list_view_help' => 'Wähle, wie Aufgaben-Panels im Overlay angezeigt werden. Geteilt zeigt separate Streamer- und Zuschauer-Panels; Vereint führt sie zu einer "Benutzername: Aufgabe"-Liste zusammen. Änderungen werden live im Overlay übernommen, ohne Neuladen.',
     'working_or_study_list_view_split' => 'Geteilt (separate Panels)',

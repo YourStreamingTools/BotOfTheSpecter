@@ -1373,6 +1373,7 @@ return [
     'working_or_study_theme_ocean' => 'Océan (bleu frais)',
     'working_or_study_theme_forest' => 'Forêt (vert & terre)',
     'working_or_study_theme_midnight' => 'Minuit (violet profond)',
+    'working_or_study_theme_pride' => 'Fierté (arc-en-ciel)',
     'working_or_study_list_view_label' => 'Affichage de la liste des tâches',
     'working_or_study_list_view_help' => 'Choisissez comment les panneaux de tâches s\'affichent sur l\'overlay. Séparé affiche des panneaux distincts pour le streamer et les spectateurs ; Unifié les fusionne en une seule liste « nom d\'utilisateur : tâche ». Les changements s\'appliquent en direct sur l\'overlay, sans rechargement.',
     'working_or_study_list_view_split' => 'Séparé (panneaux distincts)',

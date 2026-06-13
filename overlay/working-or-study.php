@@ -11,7 +11,7 @@ $has_timer_query = array_key_exists('timer', $_GET);
 $has_tasklist_query = array_key_exists('tasklist', $_GET);
 $show_timer_panel = true;
 $overlay_mode_class = '';
-$allowed_overlay_themes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+$allowed_overlay_themes = ['dark', 'peachy', 'ocean', 'forest', 'midnight', 'pride'];
 $overlay_theme = 'dark';
 $allowed_list_view_modes = ['split', 'unified'];
 $list_view_mode = 'split';
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $settings = $result->fetch_assoc();
         $stmt->close();
         // Whitelist of supported overlay themes; anything else falls back to dark.
-        $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+        $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight', 'pride'];
         // Whitelist of supported list view modes; anything else falls back to split.
         $allowedListViewModes = ['split', 'unified'];
         if ($settings) {
@@ -336,7 +336,7 @@ ob_end_clean();
                 micro: { label: 'Micro Break', status: 'Reignite energy', accent: '#48c78e', cssVar: '--micro-color' },
                 recharge: { label: 'Recharge Stretch', status: 'Stretch & hydrate', accent: '#7c5cff', cssVar: '--recharge-color' }
             };
-            const allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+            const allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight', 'pride'];
             const applyOverlayTheme = theme => {
                 if (theme === undefined || theme === null) {
                     return;

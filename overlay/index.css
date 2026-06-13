@@ -1573,6 +1573,29 @@ html, body {
     --task-text-muted: rgba(214, 200, 255, 0.6);
 }
 
+/* pride — rainbow / LGBTQ+ pride flag gradient. */
+.study-overlay-page-root[data-theme="pride"] {
+    --accent-color: #ff4d6d;
+    --focus-color: #ff4d6d;
+    --micro-color: #aadd44;
+    --recharge-color: #6b7fff;
+    --panel-bg: linear-gradient(rgba(10, 8, 20, 0.62), rgba(10, 8, 20, 0.62)),
+                linear-gradient(120deg, #e40303 0%, #ff8c00 20%, #ffed00 40%, #008026 60%, #2b6bff 80%, #750787 100%);
+    --panel-border: rgba(255, 255, 255, 0.38);
+    --text-color: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.75);
+    --ring-track: rgba(255, 255, 255, 0.14);
+    --shadow: 0 15px 40px rgba(0, 0, 0, 0.65);
+    --task-panel-bg: linear-gradient(rgba(8, 6, 18, 0.82), rgba(8, 6, 18, 0.82)),
+                     linear-gradient(120deg, #e40303 0%, #ff8c00 20%, #ffed00 40%, #008026 60%, #2b6bff 80%, #750787 100%);
+    --task-panel-border: rgba(255, 255, 255, 0.28);
+    --task-panel-header-bg: rgba(255, 255, 255, 0.12);
+    --task-row-border: rgba(255, 255, 255, 0.08);
+    --task-row-hover: rgba(255, 255, 255, 0.10);
+    --task-text: #ffffff;
+    --task-text-muted: rgba(255, 255, 255, 0.58);
+}
+
 /* ===== Credits Overlay ===== */
 
 /* Scoped base layout (replaces former Bulma dependency for the credits overlay).
