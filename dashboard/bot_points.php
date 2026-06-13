@@ -17,6 +17,22 @@ include "includes/mod_access.php";
 include 'includes/user_db.php';
 include 'includes/storage_used.php';
 session_write_close();
+
+// Early exit for AJAX requests to avoid unnecessary database queries
+if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
+    // Fetch users and their points from bot_points table (MySQLi)
+    $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
+    $pointsStmt->execute();
+    $result = $pointsStmt->get_result();
+    $pointsData = [];
+    while ($row = $result->fetch_assoc()) {
+        $pointsData[] = $row;
+    }
+    $pointsStmt->close();
+    header('Content-Type: application/json');
+    echo json_encode($pointsData);
+    exit();
+}
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -88,7 +104,7 @@ $settingsStmt->close();
 $pointsName = htmlspecialchars($settings['point_name']);
 $excludedUsers = htmlspecialchars($settings['excluded_users']);
 
-// Fetch users and their points from bot_points table (MySQLi)
+// Fetch users and their points for page display
 $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
 $pointsStmt->execute();
 $result = $pointsStmt->get_result();
@@ -97,12 +113,6 @@ while ($row = $result->fetch_assoc()) {
     $pointsData[] = $row;
 }
 $pointsStmt->close();
-
-// If requested via AJAX, return the JSON data
-if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
-    echo json_encode($pointsData);
-    exit();
-}
 
 // Show connected database name (MySQLi)
 $connectedDb = $db->query('select database()')->fetch_row()[0];
