@@ -18,21 +18,7 @@ include 'includes/user_db.php';
 include 'includes/storage_used.php';
 session_write_close();
 
-// Early exit for AJAX requests to avoid unnecessary database queries
-if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
-    // Fetch users and their points from bot_points table (MySQLi)
-    $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
-    $pointsStmt->execute();
-    $result = $pointsStmt->get_result();
-    $pointsData = [];
-    while ($row = $result->fetch_assoc()) {
-        $pointsData[] = $row;
-    }
-    $pointsStmt->close();
-    header('Content-Type: application/json');
-    echo json_encode($pointsData);
-    exit();
-}
+// Get timezone first (needed for both AJAX and page display)
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -40,6 +26,38 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
+
+// Early exit for AJAX requests to avoid unnecessary database queries
+if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
+    try {
+        // Fetch users and their points from bot_points table (MySQLi)
+        $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
+        if (!$pointsStmt) {
+            throw new Exception("Prepare failed: " . $db->error);
+        }
+        if (!$pointsStmt->execute()) {
+            throw new Exception("Execute failed: " . $pointsStmt->error);
+        }
+        $result = $pointsStmt->get_result();
+        if (!$result) {
+            throw new Exception("Get result failed: " . $pointsStmt->error);
+        }
+        $pointsData = [];
+        while ($row = $result->fetch_assoc()) {
+            $pointsData[] = $row;
+        }
+        $pointsStmt->close();
+        header('Content-Type: application/json');
+        echo json_encode($pointsData);
+        exit();
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode(['error' => $e->getMessage()]);
+        exit();
+    }
+}
+
 $status = '';
 
 // Handle POST requests (settings update, etc.)
