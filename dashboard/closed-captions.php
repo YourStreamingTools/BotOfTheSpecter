@@ -46,8 +46,9 @@ $cc = [
     'action_tags_enabled' => 0,
     'target_language' => '',
     'font_family' => 'Inter',
+    'show_confidence' => 1,
 ];
-$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family FROM closed_captions_settings WHERE id = 1");
+$ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family, show_confidence FROM closed_captions_settings WHERE id = 1");
 if (!$ccStmt) {
     // font_family is added by the schema migration in layout.php, which is included at the END
     // of this page — so on the very first load after deploy the column may not exist yet. Fall
@@ -160,14 +161,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cc_save'])) {
     // Caption (translation) target language: a Chrome Translator SHORT code or '' (off).
     $targetLang = in_array($_POST['target_language'] ?? '', $allowedTargetLanguages, true) ? ($_POST['target_language'] ?? '') : '';
     $fontFamily = in_array($_POST['font_family'] ?? 'Inter', $allowedFonts, true) ? $_POST['font_family'] : 'Inter';
-    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled), target_language = VALUES(target_language), font_family = VALUES(font_family)");
+    $showConf = !empty($_POST['show_confidence']) ? 1 : 0;
+    $saveStmt = $db->prepare("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family, show_confidence) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), language = VALUES(language), font_size = VALUES(font_size), text_color = VALUES(text_color), background_style = VALUES(background_style), position = VALUES(position), max_lines = VALUES(max_lines), fade_seconds = VALUES(fade_seconds), profanity_filter = VALUES(profanity_filter), action_tags_enabled = VALUES(action_tags_enabled), target_language = VALUES(target_language), font_family = VALUES(font_family), show_confidence = VALUES(show_confidence)");
     if (!$saveStmt) {
         echo json_encode(['success' => false, 'error' => $db->error]);
         exit;
     }
-    // 12 placeholders / 12 vars / type string "isisssiiiiss" (12 chars):
-    // i,s,i,s,s,s,i,i,i,i,s,s = enabled,language,font_size,text_color,background_style,position,max_lines,fade_seconds,profanity_filter,action_tags_enabled,target_language,font_family
-    $saveStmt->bind_param("isisssiiiiss", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags, $targetLang, $fontFamily);
+    // 13 placeholders / 13 vars / type string "isisssiiiissi" (13 chars):
+    // i,s,i,s,s,s,i,i,i,i,s,s,i = enabled,language,font_size,text_color,background_style,position,max_lines,fade_seconds,profanity_filter,action_tags_enabled,target_language,font_family,show_confidence
+    $saveStmt->bind_param("isisssiiiissi", $enabled, $language, $fontSize, $textColor, $background, $position, $maxLines, $fadeSeconds, $profanity, $actionTags, $targetLang, $fontFamily, $showConf);
     if ($saveStmt->execute()) {
         echo json_encode(['success' => true]);
     } else {
@@ -303,7 +305,7 @@ ob_start();
                 <div class="cc-preview-label" style="display:flex;align-items:center;justify-content:space-between;">
                     <span><?= t('closed_captions_live_preview') ?></span>
                     <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;font-weight:400;cursor:pointer;" title="Toggle per-word and phrase confidence indicators in the preview">
-                        <input type="checkbox" id="ccShowConfidence" checked style="cursor:pointer;">
+                        <input type="checkbox" id="ccShowConfidence" <?= $cc['show_confidence'] ? 'checked' : '' ?> style="cursor:pointer;">
                         <span><?= t('closed_captions_show_confidence') ?></span>
                     </label>
                 </div>
@@ -1261,6 +1263,7 @@ ob_start();
             fd.set('profanity_filter', document.getElementById('ccProfanity').checked ? '1' : '0');
             fd.set('action_tags_enabled', document.getElementById('ccActionTags').checked ? '1' : '0');
             fd.set('target_language', document.getElementById('ccTargetLanguage').value);
+            fd.set('show_confidence', (showConfidenceEl && showConfidenceEl.checked) ? '1' : '0');
             if (saveStatus) { saveStatus.textContent = ''; saveStatus.className = 'cc-save-status'; }
             fetch(window.location.pathname, { method: 'POST', body: fd })
                 .then(r => r.json())
