@@ -1,4 +1,4 @@
-<?php
+ï»¿<?php
 require_once '/var/www/lib/session_bootstrap.php';
 require_once '/var/www/lib/require_auth.php';
 include "/var/www/config/streamlabs.php";
@@ -323,7 +323,7 @@ ob_start();
                             </div>
                         </div>
                         <div class="sp-card-body">
-                            <input type="text" id="accessTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em; color: var(--green);">
+                            <input type="text" id="accessTokenDisplay" class="sp-input" value="<?php echo str_repeat('â€¢', strlen($access_token)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                         </div>
                     </div>
                 <?php endif; ?>
@@ -342,7 +342,7 @@ ob_start();
                             </div>
                         </div>
                         <div class="sp-card-body">
-                            <input type="text" id="socketTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em; color: var(--blue);">
+                            <input type="text" id="socketTokenDisplay" class="sp-input" value="<?php echo str_repeat('â€¢', strlen($socketToken)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                         </div>
                     </div>
                 <?php endif; ?>
@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             } else {
-                accessDisplay.value = '•'.repeat(accessTokenDotCount);
+                accessDisplay.value = 'â€¢'.repeat(accessTokenDotCount);
                 accessEye.classList.remove('fa-eye-slash');
                 accessEye.classList.add('fa-eye');
                 accessBtn.title = <?php echo json_encode(t('streamlabs_show_access_token_title')); ?>;
@@ -590,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             } else {
-                socketDisplay.value = '•'.repeat(socketTokenDotCount);
+                socketDisplay.value = 'â€¢'.repeat(socketTokenDotCount);
                 socketEye.classList.remove('fa-eye-slash');
                 socketEye.classList.add('fa-eye');
                 socketBtn.title = <?php echo json_encode(t('streamlabs_show_socket_token_title')); ?>;
