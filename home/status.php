@@ -7,8 +7,7 @@ function fetchData($url) {
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
     curl_setopt($ch, CURLOPT_TIMEOUT, 5);
     $response = curl_exec($ch);
-    curl_close($ch);
-    if ($response === false) {
+if ($response === false) {
         return null;
     }
     return json_decode($response, true);
@@ -478,3 +477,4 @@ fetchAndUpdateStatus();
 </script>
 </body>
 </html>
+

@@ -35,14 +35,11 @@ $resp = curl_exec($ch);
 if ($resp === false) {
     $err = curl_error($ch);
     error_log("OAuth token request failed: $err");
-    curl_close($ch);
-    echo 'Failed to contact Twitch token endpoint: ' . h($err);
+echo 'Failed to contact Twitch token endpoint: ' . h($err);
     exit;
 }
 
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
 $data = json_decode($resp, true);
 if (empty($data['access_token'])) {
     // include any returned error for debugging
@@ -70,12 +67,10 @@ $u = curl_exec($ch);
 if ($u === false) {
     $err = curl_error($ch);
     error_log("Failed to fetch Twitch user: $err");
-    curl_close($ch);
-    echo 'Failed to fetch Twitch user: ' . h($err);
+echo 'Failed to fetch Twitch user: ' . h($err);
     exit;
 }
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
 $ud = json_decode($u, true);
 if (empty($ud['data'][0]['id'])) {
     error_log("Failed to read Twitch user data. HTTP={$http_code} response=" . substr($u, 0, 1000));
@@ -95,3 +90,4 @@ header('Location: feedback.php');
 exit;
 
 ?>
+

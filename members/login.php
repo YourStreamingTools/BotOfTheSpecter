@@ -130,8 +130,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
         }
@@ -145,8 +144,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
         }
@@ -235,10 +233,7 @@ if (isset($_GET['code'])) {
         }
         exit;
     }
-
-    curl_close($curl);
-
-    // Extract the access token and refresh token from the response
+// Extract the access token and refresh token from the response
     $responseData = json_decode($response, true);
     $accessToken = $responseData['access_token'];
 
@@ -277,8 +272,7 @@ if (isset($_GET['code'])) {
         }
         exit;
     }
-    curl_close($curl);
-    $userInfo = json_decode($userInfoResponse, true);
+$userInfo = json_decode($userInfoResponse, true);
     if (isset($userInfo['data']) && count($userInfo['data']) > 0) {
         $twitchDisplayName = $userInfo['data'][0]['display_name'];
         $userEmail = $userInfo['data'][0]['email'];

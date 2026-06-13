@@ -40,8 +40,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $streamersConnectApiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) {
                 $decoded = $res['payload'];
@@ -57,8 +56,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $streamersConnectApiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) {
                 $decoded = $res['payload'];
@@ -144,8 +142,7 @@ if (!$isLoggedIn && $token === '') {
     $response = curl_exec($ch);
     $curlError = curl_error($ch);
     $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false) {
+if ($response === false) {
         $statusMessage = 'Unable to reach the API right now. Please try again in a moment. ' . htmlspecialchars($curlError, ENT_QUOTES, 'UTF-8');
     } else {
         $json = json_decode($response, true);

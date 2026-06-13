@@ -36,8 +36,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) {
                 $authData = $res['payload'];
@@ -54,8 +53,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) {
                 $authData = $res['payload'];

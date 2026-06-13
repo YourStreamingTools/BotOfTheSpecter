@@ -56,11 +56,9 @@ function getTitchUsernames($userIds)
     if ($response === false) {
         // Handle cURL error
         error_log('cURL Error: ' . curl_error($ch));
-        curl_close($ch);
-        return false;
+return false;
     }
-    curl_close($ch);
-    $decodedResponse = json_decode($response, true);
+$decodedResponse = json_decode($response, true);
     if (isset($decodedResponse['error'])) {
         // Handle API error
         error_log('Twitch API Error: ' . $decodedResponse['message']);
@@ -110,8 +108,7 @@ function resolveTwitchUsernames($userIds, $accessToken, $clientId) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Client-ID: ' . $clientId, 'Authorization: Bearer ' . $accessToken]);
     $res = curl_exec($ch);
-    curl_close($ch);
-    $data = json_decode($res, true);
+$data = json_decode($res, true);
     $map = [];
     if (isset($data['data'])) {
         foreach ($data['data'] as $u) { $map[$u['id']] = $u['display_name']; }
@@ -1162,3 +1159,4 @@ ob_start();
 <?php
 $extraScripts = ob_get_clean();
 include __DIR__ . '/layout.php';
+

@@ -181,7 +181,6 @@ curl_setopt($ch, CURLOPT_URL, 'https://api.botofthespecter.com/v2/account');
 curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: YOUR_API_KEY']);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($ch);
-curl_close($ch);
 echo $response;
 </code></pre>
 					<pre class="code-sample" data-lang="java" style="display:none; background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>// Java 11+ HttpClient

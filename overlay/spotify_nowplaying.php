@@ -53,8 +53,6 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
 curl_setopt($ch, CURLOPT_TIMEOUT, 6);
 $resp = curl_exec($ch);
 $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
 if ($httpCode !== 200 || $resp === '' || $resp === false) {
     echo json_encode(['active' => false]); // 204 / 401 / error
     exit;

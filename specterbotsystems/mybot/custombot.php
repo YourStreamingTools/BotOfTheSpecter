@@ -60,8 +60,7 @@ function verifyBot($conn, $twitchUserId, $twitchLogin, $access_token, $refresh_t
             curl_setopt($rch, CURLOPT_RETURNTRANSFER, true);
             $refreshResp = curl_exec($rch);
             $refreshCode = curl_getinfo($rch, CURLINFO_HTTP_CODE);
-            curl_close($rch);
-            if ($refreshResp !== false && $refreshCode === 200) {
+if ($refreshResp !== false && $refreshCode === 200) {
                 $refreshData = json_decode($refreshResp, true);
                 $newAccess  = $refreshData['access_token'] ?? null;
                 $newRefresh = $refreshData['refresh_token'] ?? $refresh_token;
@@ -114,8 +113,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
         }
@@ -129,8 +127,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
         }
@@ -157,8 +154,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $validateResp = curl_exec($validateCh);
             $validateCode = curl_getinfo($validateCh, CURLINFO_HTTP_CODE);
             $validateErr = curl_error($validateCh);
-            curl_close($validateCh);
-            if ($validateResp === false || $validateCode !== 200) {
+if ($validateResp === false || $validateCode !== 200) {
                 $error = 'Token validation failed: ' . ($validateErr ?: "HTTP {$validateCode}");
             } else {
                 $validateData = json_decode($validateResp, true);
@@ -177,8 +173,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                     $userResp = curl_exec($ch);
                     $userCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                     $userErr = curl_error($ch);
-                    curl_close($ch);
-                    if ($userResp === false || $userCode !== 200) {
+if ($userResp === false || $userCode !== 200) {
                         $error = 'Failed to fetch Twitch user: ' . ($userErr ?: "HTTP {$userCode}");
                     } else {
                         $userData = json_decode($userResp, true);
@@ -230,8 +225,7 @@ if (isset($_GET['code'])) {
     $resp = curl_exec($ch);
     $codeHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
-    curl_close($ch);
-    if ($resp === false || $codeHttp !== 200) {
+if ($resp === false || $codeHttp !== 200) {
         $error = 'Failed to exchange code for token: ' . ($err ?: "HTTP {$codeHttp}");
     } else {
         $tokenData = json_decode($resp, true);
@@ -248,8 +242,7 @@ if (isset($_GET['code'])) {
                 $validateResp = curl_exec($validateCh);
                 $validateCode = curl_getinfo($validateCh, CURLINFO_HTTP_CODE);
                 $validateErr = curl_error($validateCh);
-                curl_close($validateCh);
-                if ($validateResp === false || $validateCode !== 200) {
+if ($validateResp === false || $validateCode !== 200) {
                     $error = 'Token validation failed: ' . ($validateErr ?: "HTTP {$validateCode}");
                 } else {
                     $validateData = json_decode($validateResp, true);
@@ -271,8 +264,7 @@ if (isset($_GET['code'])) {
                         $userResp = curl_exec($ch);
                         $userCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         $userErr = curl_error($ch);
-                        curl_close($ch);
-                        if ($userResp === false || $userCode !== 200) {
+if ($userResp === false || $userCode !== 200) {
                             $error = 'Failed to fetch Twitch user: ' . ($userErr ?: "HTTP {$userCode}");
                         } else {
                             $userData = json_decode($userResp, true);

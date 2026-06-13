@@ -40,7 +40,6 @@ curl_setopt_array($ch, [
     CURLOPT_FAILONERROR    => true,
 ]);
 $commandsJson = curl_exec($ch);
-curl_close($ch);
 $cmdData  = $commandsJson ? (json_decode($commandsJson, true)['commands'] ?? []) : [];
 $commands = [];
 foreach ($cmdData as $k => $v) {
