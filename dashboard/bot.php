@@ -262,7 +262,7 @@ if ($selectedBot === 'stable') {
 }
 
 // Get last modified time of the bot script files using SSH
-require_once 'bot_control_functions.php';
+require_once 'includes/bot_control_functions.php';
 $stableBotScriptPath = "/home/botofthespecter/bot.py";
 $betaBotScriptPath = "/home/botofthespecter/beta.py";
 

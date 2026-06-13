@@ -17,7 +17,7 @@ include 'includes/bot_control.php';
 include "includes/mod_access.php";
 include 'includes/user_db.php';
 include 'includes/storage_used.php';
-require_once 'upload_helpers.php';
+require_once 'includes/upload_helpers.php';
 session_write_close();
 
 // API key for pushing live overlay updates (falls back to the session value).
