@@ -2833,7 +2833,7 @@ return [
     'counters_watch_time_not_recorded' => 'Nicht aufgezeichnet',
     // Known Users Page
     'known_users_title' => 'Bekannte Nutzer & Willkommensnachrichten',
-    'known_users_loading' => 'Bitte warten Sie, während wir die Nutzer und ihren Status laden... (0/{total})',
+    'known_users_loading' => 'Bitte warten Sie, während wir die Nutzer und ihren Status laden... (0/:total)',
     'known_users_loading_js' => 'Bitte warten Sie, während wir die Nutzer und ihren Status laden... ({loaded}/{total})',
     'known_users_loading_done' => 'Laden abgeschlossen, Sie können jetzt bearbeiten',
     'known_users_no_users' => 'Es gibt keine Nutzer anzuzeigen.',

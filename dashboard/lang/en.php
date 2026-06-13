@@ -2926,7 +2926,7 @@ return [
     'counters_streak_column' => 'Streak',
     // Known Users Page
     'known_users_title' => 'Known Users & Welcome Messages',
-    'known_users_loading' => 'Please wait while we load the users and their status... (0/{total})',
+    'known_users_loading' => 'Please wait while we load the users and their status... (0/:total)',
     'known_users_loading_js' => 'Please wait while we load the users and their status... ({loaded}/{total})',
     'known_users_loading_done' => 'Loading completed, you can start editing',
     'known_users_no_users' => 'There are no users to display.',
