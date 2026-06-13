@@ -4,8 +4,8 @@ include_once __DIR__ . '/lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
 include 'includes/userdata.php';
 session_write_close();
-include 'mod_access.php';
-include_once 'usr_database.php';
+include 'includes/mod_access.php';
+include_once 'includes/usr_database.php';
 include 'includes/user_db.php';
 
 $pageTitle = t('raffles_page_title');

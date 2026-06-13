@@ -12,7 +12,7 @@ $pageTitle = t('navbar_raids');
 require_once "/var/www/config/db_connect.php";
 include 'includes/userdata.php';
 session_write_close();
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/user_db.php';
 
 // Set timezone from profile

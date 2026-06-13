@@ -10,7 +10,7 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 include 'includes/userdata.php';
 include 'includes/bot_control.php';
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/user_db.php';
 foreach ($profileData as $profile) {
     $timezone = $profile['timezone'];
