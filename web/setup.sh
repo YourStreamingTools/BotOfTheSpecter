@@ -8,7 +8,7 @@
 # no certbot, no vhosts.
 #
 # Run as root:
-#   curl -sSL https://raw.githubusercontent.com/GFAUnDead/BotOfTheSpecter/main/web/setup.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/YourStreamingTools/BotOfTheSpecter/main/web/setup.sh | bash
 #
 # After this script finishes you still need to:
 #   1. Edit /etc/caddy/caddy.env and fill in CF_API_TOKEN
