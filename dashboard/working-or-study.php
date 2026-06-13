@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $cycleCount = max(1, intval($_POST['cycle_count'] ?? 4));
         $showCycleBadge = !empty($_POST['show_cycle_badge']) ? 1 : 0;
         // Overlay theme (Phase 5) — whitelist guard, falls back to dark.
-        $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight'];
+        $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight', 'pride'];
         $theme = $_POST['theme'] ?? 'dark';
         if (!in_array($theme, $allowedThemes, true)) {
             $theme = 'dark';
@@ -590,6 +590,7 @@ ob_start();
                                 'ocean'    => 'working_or_study_theme_ocean',
                                 'forest'   => 'working_or_study_theme_forest',
                                 'midnight' => 'working_or_study_theme_midnight',
+                                'pride'    => 'working_or_study_theme_pride',
                             ];
                             ?>
                             <select id="overlayThemeSelect" class="sp-select w-100">
