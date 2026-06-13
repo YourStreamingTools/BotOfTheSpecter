@@ -107,11 +107,8 @@ Base install complete.
 
 NEXT STEPS (manual):
 
-1. Drop the Caddyfile into place. If you cloned this repo to the server:
-       cp /path/to/BotOfTheSpecter/web/Caddyfile /etc/caddy/Caddyfile
-   Or fetch it directly:
-       curl -sSL https://raw.githubusercontent.com/GFAUnDead/BotOfTheSpecter/main/web/Caddyfile \
-            -o /etc/caddy/Caddyfile
+1. Drop the Caddyfile into place:
+       cp /var/www/web/Caddyfile /etc/caddy/Caddyfile
 
 2. Edit /etc/caddy/caddy.env and replace REPLACE_ME with a real
    Cloudflare API token (Zone:Read + DNS:Edit on the four zones).
