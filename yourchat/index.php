@@ -34,8 +34,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         ]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) {
                 $authData = $res['payload'];
@@ -55,8 +54,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         ]);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response && $http === 200) {
+if ($response && $http === 200) {
             $res = json_decode($response, true);
             if (!empty($res['success']) && !empty($res['payload'])) {
                 $authData = $res['payload'];
@@ -121,8 +119,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'refresh_token') {
     if ($response === false) {
         $curlErr = curl_error($ch);
     }
-    curl_close($ch);
-    if ($response === false) {
+if ($response === false) {
         echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlErr]);
         exit;
     }
@@ -538,8 +535,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_session_id' && $_SERVER[
     ]);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpCode !== 200 || !$response) {
+if ($httpCode !== 200 || !$response) {
         echo json_encode(['success' => false, 'error' => 'Failed to get user info from Twitch']);
         exit;
     }

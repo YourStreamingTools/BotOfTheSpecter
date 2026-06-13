@@ -198,8 +198,7 @@ function bots_twitch_validate(string $access_token): array
     $resp     = curl_exec($ch);
     $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_err = curl_error($ch);
-    curl_close($ch);
-    if ($http === 200 && is_string($resp) && $resp !== '') {
+if ($http === 200 && is_string($resp) && $resp !== '') {
         $j = json_decode($resp, true);
         if (is_array($j) && !empty($j['user_id'])) {
             return ['ok' => true, 'payload' => $j];
@@ -212,3 +211,4 @@ function bots_twitch_validate(string $access_token): array
     }
     return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => (string)$curl_err];
 }
+

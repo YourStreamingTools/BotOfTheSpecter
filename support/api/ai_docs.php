@@ -193,8 +193,6 @@ curl_setopt_array($ch, [
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curlErr  = curl_error($ch);
-curl_close($ch);
-
 if ($response === false) {
     http_response_code(502);
     echo json_encode(['ok' => false, 'error' => 'Failed to reach Claude API: ' . $curlErr]);
@@ -232,3 +230,4 @@ if ($html === '') {
 }
 
 echo json_encode(['ok' => true, 'html' => $html]);
+

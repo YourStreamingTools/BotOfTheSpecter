@@ -20,8 +20,7 @@ if (!function_exists('validate_twitch_token')) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        return ($response !== false && $http === 200);
+return ($response !== false && $http === 200);
     }
 }
 
@@ -41,8 +40,7 @@ if (!function_exists('refresh_twitch_token')) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 8);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response === false || $http !== 200) return false;
+if ($response === false || $http !== 200) return false;
         $data = json_decode($response, true);
         if (empty($data['access_token'])) return false;
         return [
@@ -129,3 +127,4 @@ if (!function_exists('verify_csrf')) {
             && hash_equals($_SESSION['csrf_token'], $token);
     }
 }
+

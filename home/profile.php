@@ -154,8 +154,7 @@ function bots_fetch_ip_geo(string $ip, string $apiKey): ?array
     $raw      = curl_exec($ch);
     $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_err = curl_error($ch);
-    curl_close($ch);
-    if (!$raw || $curl_err) {
+if (!$raw || $curl_err) {
         error_log('[profile.php] iplocate curl failed ip=' . $ip . ' err=' . $curl_err);
         $cache[$ip] = null;
         return null;

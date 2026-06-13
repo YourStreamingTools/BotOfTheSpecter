@@ -23,11 +23,9 @@ function fetch_freegames() {
     $resp = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     if ($resp === false || $httpCode !== 200) {
-        curl_close($ch);
-        return ['error' => true, 'message' => 'Unable to fetch data from API'];
+return ['error' => true, 'message' => 'Unable to fetch data from API'];
     }
-    curl_close($ch);
-    $data = json_decode($resp, true);
+$data = json_decode($resp, true);
     if (!is_array($data) || !isset($data['games'])) {
         return ['error' => true, 'message' => 'Invalid response from API'];
     }
@@ -118,4 +116,5 @@ ob_start();
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/layout.php';
+
 

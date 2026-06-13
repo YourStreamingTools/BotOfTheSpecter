@@ -93,8 +93,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_TIMEOUT, 8);
         $resp = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($resp && $http === 200) {
+if ($resp && $http === 200) {
             $res = json_decode($resp, true);
             if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
         }
@@ -110,8 +109,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         curl_setopt($ch, CURLOPT_TIMEOUT, 8);
         $resp = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($resp && $http === 200) {
+if ($resp && $http === 200) {
             $res = json_decode($resp, true);
             if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
         }

@@ -33,8 +33,7 @@ if (isset($_GET['code'])) {
     curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($postData));
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($curl);
-    curl_close($curl);
-    $responseData = json_decode($response, true);
+$responseData = json_decode($response, true);
     if (!isset($responseData['access_token'])) {
         $_SESSION['login_error'] = 'Failed to get access token from Twitch: ' . json_encode($responseData);
     } else {
@@ -48,8 +47,7 @@ if (isset($_GET['code'])) {
         ]);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         $userInfoResponse = curl_exec($curl);
-        curl_close($curl);
-        $userInfo = json_decode($userInfoResponse, true);
+$userInfo = json_decode($userInfoResponse, true);
         if (isset($userInfo['data'][0])) {
             $_SESSION['username'] = $userInfo['data'][0]['login'];
             $_SESSION['display_name'] = $userInfo['data'][0]['display_name'];
