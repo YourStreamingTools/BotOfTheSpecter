@@ -86,6 +86,10 @@ overlay.botofthespecter.com {
     }
 }
 
+help.botofthespecter.com {
+    redir https://support.botofthespecter.com{uri} permanent
+}
+
 support.botofthespecter.com {
     root * /var/www/support
     import php_app
