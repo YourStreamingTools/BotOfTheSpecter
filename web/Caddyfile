@@ -181,6 +181,8 @@ yourlinks.click, *.yourlinks.click {
 
 cdn.botofthespecter.com {
     root * /var/www/cdn
+    header /css/fontawesome* Access-Control-Allow-Origin "*"
+    header /css/fontawesome* Access-Control-Allow-Methods "GET, OPTIONS"
     import static_long_cache
     log {
         output file /var/log/caddy/cdn.log
