@@ -7,9 +7,9 @@ if (session_status() === PHP_SESSION_NONE) {
 // Include the database credentials
 require_once "/var/www/config/database.php";
 require_once "/var/www/config/db_connect.php";
-include 'user_db.php';
+include 'includes/user_db.php';
 include 'file_paths.php';
-include 'storage_used.php';
+include 'includes/storage_used.php';
 session_write_close();
 
 $db_name = isset($_SESSION['username']) ? $_SESSION['username'] : null;

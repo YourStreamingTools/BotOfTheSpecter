@@ -10,10 +10,10 @@ $pageTitle = t('stream_streak_page_title');
 
 // Includes
 require_once "/var/www/config/db_connect.php";
-include 'userdata.php';
+include 'includes/userdata.php';
 session_write_close();
 include "mod_access.php";
-include 'user_db.php';
+include 'includes/user_db.php';
 
 // Set timezone from profile
 $stmt = $db->prepare("SELECT timezone FROM profile");

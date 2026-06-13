@@ -9,8 +9,8 @@ require_once '/var/www/lib/require_auth.php';
 $pageTitle = 'Specter Alerts';
 
 require_once "/var/www/config/db_connect.php";
-include 'userdata.php';
-include 'user_db.php';
+include 'includes/userdata.php';
+include 'includes/user_db.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
 require_once __DIR__ . '/includes/file_paths.php';
 session_write_close();
@@ -352,9 +352,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
 }
 
 include '/var/www/config/twitch.php';
-include 'bot_control.php';
+include 'includes/bot_control.php';
 include "mod_access.php";
-include 'storage_used.php';
+include 'includes/storage_used.php';
 
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
