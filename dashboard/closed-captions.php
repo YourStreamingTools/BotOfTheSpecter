@@ -479,7 +479,6 @@ ob_start();
         translateDownloading: <?php echo json_encode(t('closed_captions_translate_downloading')); ?>,
         translateUnavailable: <?php echo json_encode(t('closed_captions_translate_unavailable')); ?>
     };
-
     // WebSocket (emit captions to the overlay)
     const socketUrl = 'wss://websocket.botofthespecter.com';
     let socket = null;
@@ -518,12 +517,6 @@ ob_start();
             socket.emit('CLOSED_CAPTION', { code: apiKey, text: tag, isFinal: true, action: true });
         }
     };
-
-    // Serialized final-caption emit. Each final is queued onto a single promise chain so a
-    // slow translate (or an in-flight model download) can never reorder captions: finals
-    // emit to the overlay in the exact order they were committed. When translation is off
-    // or unavailable, the corrected text passes straight through. Action tags do NOT use
-    // this path and are never translated.
     let translateChain = Promise.resolve();
     function emitFinalCaption(text) {
         translateChain = translateChain.then(async () => {
@@ -535,18 +528,11 @@ ob_start();
         });
     }
 
-    // ---- Caption corrections (deterministic glossary / fix-up dictionary) ----
-    // Builds at most two combined alternation regexes — one case-insensitive ('gi'),
-    // one case-sensitive ('g') — from the enabled corrections, then rewrites finalised
-    // captions verbatim to the stored replacement (canonical casing). Exact + whole-word
-    // (or substring) matching only; no fuzzy/phonetic, no user regex. Cached; rebuilt only
-    // when the source list changes.
     const correctionMatcher = (function () {
         const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         let cachedSig = null;
         let ciRegex = null, ciMap = null;   // case-insensitive group
         let csRegex = null, csMap = null;   // case-sensitive group
-
         const build = (list) => {
             const sig = JSON.stringify(list);
             if (sig === cachedSig) return; // unchanged: keep the cached matchers
@@ -584,7 +570,6 @@ ob_start();
                 try { ciRegex = new RegExp(ciTerms.map(t => t.escaped).join('|'), 'gi'); } catch (e) { ciRegex = null; }
             }
         };
-
         const apply = (text, list) => {
             build(list);
             if (!text) return text;
@@ -603,10 +588,8 @@ ob_start();
             }
             return out;
         };
-
         return { apply };
     })();
-
     // Active enabled corrections used by the apply layer. The editor swaps this in on save
     // so freshly-saved corrections take effect without a page reload.
     let ccActiveCorrections = ccCorrectionsEnabled.slice();
@@ -614,21 +597,39 @@ ob_start();
         if (!ccActiveCorrections || !ccActiveCorrections.length) return text;
         return correctionMatcher.apply(text, ccActiveCorrections);
     };
-
-    // ---- Live translation (Chrome/Edge on-device Translator API) ----------------
-    // Translates the CORRECTED FINAL caption from the spoken language to the chosen
-    // caption language, on-device, free, no API key (window.Translator, Chrome 138+/
-    // Edge 148+). Gated: only active when ccTargetLanguage is set AND its SHORT code
-    // differs from the spoken source's SHORT code. The overlay renders whatever text
-    // arrives, so it is unchanged. If the API/model is missing, we emit the corrected
-    // (untranslated) text so captions never stop, and surface a one-time notice.
+    const applyProfanityFilter = (function () {
+        const WORDS = [
+            'fuck','fucker','fuckers','fucking','fucked','fucks','fuckin','fuckhead','fuckheads','motherfucker','motherfuckers','motherfucking',
+            'shit','shits','shitting','shitty','shithead','shitheads','bullshit','horseshit',
+            'cunt','cunts',
+            'bitch','bitches','bitching','bitchy',
+            'asshole','assholes','ass','asses','jackass',
+            'bastard','bastards',
+            'dick','dicks','dickhead','dickheads',
+            'cock','cocks','cocksucker','cocksuckers',
+            'pussy','pussies',
+            'whore','whores',
+            'slut','sluts',
+            'nigger','niggers','nigga','niggas',
+            'faggot','faggots','fag','fags',
+            'retard','retards','retarded',
+            'piss','pissed','pissing','pissoff',
+            'wank','wanker','wankers','wanking',
+            'twat','twats',
+            'arse','arsehole','arseholes',
+            'prick','pricks',
+            'wanker','wankers',
+        ];
+        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('\\b(' + WORDS.map(esc).join('|') + ')\\b', 'gi');
+        const censor = (w) => w.length <= 2 ? '*'.repeat(w.length) : w[0] + '*'.repeat(w.length - 2) + w[w.length - 1];
+        return (text) => {
+            if (!ccProfanityFilter || !text) return text;
+            return text.replace(re, (m) => censor(m));
+        };
+    })();
     const shortCode = (lang) => String(lang || '').split('-')[0].toLowerCase();
-
-    // Live target code: seeded from the saved setting, but updated in place when the user
-    // saves a new caption language so translation can switch without a page reload (mirrors
-    // how ccActiveCorrections is refreshed on save).
     let ccActiveTargetLanguage = ccTargetLanguage;
-
     // Reuse the sound-status area as the (non-blocking) translation notice surface.
     const ccTranslateStatusEl = document.getElementById('ccSoundStatus');
     const setTranslateNotice = (text, show) => {
@@ -640,7 +641,6 @@ ob_start();
             ccTranslateStatusEl.classList.add('cc-hidden');
         }
     };
-
     const liveTranslator = (function () {
         let translator = null;       // active Translator session
         let ready = false;           // true only when a session is live and usable
@@ -648,7 +648,6 @@ ob_start();
         let curTgt = null;           // SHORT target code the current session was built for
         let building = null;         // in-flight create() promise (prevents duplicate builds)
         let unavailableNoticeShown = false;
-
         const destroy = () => {
             if (translator) {
                 try { if (typeof translator.destroy === 'function') translator.destroy(); } catch (e) { /* noop */ }
@@ -1035,7 +1034,6 @@ ob_start();
         r.continuous = true;
         r.interimResults = true;
         r.lang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
-        r.profanityFilter = ccProfanityFilter;
         r.onstart = () => { setStatus(ccLang.listening, 'online'); };
         r.onresult = (event) => {
             let interim = '';
@@ -1053,6 +1051,7 @@ ob_start();
                 // Apply the correction/glossary dictionary to FINAL captions only (interim
                 // results get overwritten, so correcting them would only cause flicker).
                 committedText = applyCorrections(committedText);
+                committedText = applyProfanityFilter(committedText);
                 // Emit through the serialized translate helper: the overlay receives the
                 // translated text (when live translation is active) in committed order, while
                 // the local preview shows the CORRECTED SOURCE text immediately.
@@ -1060,8 +1059,9 @@ ob_start();
                 setPreview(committedText, '');
             }
             if (interim.trim()) {
-                emitCaption(interim.trim(), false);
-                setPreview(committedText, interim.trim());
+                const filteredInterim = applyProfanityFilter(interim.trim());
+                emitCaption(filteredInterim, false);
+                setPreview(committedText, filteredInterim);
             }
         };
         r.onerror = (event) => {
@@ -1184,16 +1184,9 @@ ob_start();
                             const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
                             liveTranslator.ensure(srcLang);
                         }
-                        // Update the profanity filter live. SpeechRecognition reads the flag
-                        // only at start(), so transparently restart recognition to apply it;
-                        // the onend handler auto-restarts when runState === 'started'.
-                        const newProfanity = document.getElementById('ccProfanity').checked;
-                        if (newProfanity !== ccProfanityFilter) {
-                            ccProfanityFilter = newProfanity;
-                            if (runState === 'started' && recognition) {
-                                try { recognition.stop(); } catch (e) { /* onend restarts with the new flag */ }
-                            }
-                        }
+                        // Update the profanity filter live — the JS-side filter reads
+                        // ccProfanityFilter on every caption, so no restart is needed.
+                        ccProfanityFilter = document.getElementById('ccProfanity').checked;
                     }
                     if (!saveStatus) return;
                     if (data && data.success) {
