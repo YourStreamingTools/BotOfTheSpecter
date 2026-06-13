@@ -54,7 +54,7 @@
 # ===== PHP frontends =====
 
 botofthespecter.com, www.botofthespecter.com {
-    root * /var/www/botofthespecter
+    root * /var/www/home
     import php_app
     log {
         output file /var/log/caddy/botofthespecter.log
@@ -75,6 +75,14 @@ members.botofthespecter.com {
     import php_app
     log {
         output file /var/log/caddy/members.log
+    }
+}
+
+overlay.botofthespecter.com {
+    root * /var/www/overlay
+    import php_app
+    log {
+        output file /var/log/caddy/overlay.log
     }
 }
 
@@ -125,11 +133,27 @@ specterbot.app, www.specterbot.app {
     }
 }
 
-specterbotsystems.botofthespecter.com {
+specterbot.systems, www.specterbot.systems {
     root * /var/www/specterbotsystems
+
+    # Redirect /mybot/* to mybot.specterbot.systems subdomain
+    @mybot path /mybot /mybot/*
+    handle @mybot {
+        uri strip_prefix /mybot
+        redir https://mybot.specterbot.systems{uri} 301
+    }
+
     import php_app
     log {
-        output file /var/log/caddy/specterbotsystems.log
+        output file /var/log/caddy/specterbot-systems.log
+    }
+}
+
+mybot.specterbot.systems {
+    root * /var/www/specterbotsystems/mybot
+    import php_app
+    log {
+        output file /var/log/caddy/mybot-specterbot-systems.log
     }
 }
 
@@ -142,7 +166,7 @@ yourchat.botofthespecter.com {
 }
 
 yourlinks.click, *.yourlinks.click {
-    root * /var/www/yourlinks
+    root * /var/www/yourlinks.click
     import php_app
     log {
         output file /var/log/caddy/yourlinks.log
@@ -184,5 +208,14 @@ music.botspecter.com {
     import static_long_cache
     log {
         output file /var/log/caddy/usermusic.log
+    }
+}
+
+# Fallback for unrouted subdomains and direct IP access
+* {
+    root * /var/www/html
+    import php_app
+    log {
+        output file /var/log/caddy/fallback.log
     }
 }
