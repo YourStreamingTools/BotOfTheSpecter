@@ -84,10 +84,7 @@ function ensureDirectoryWritable($path) {
     }
     // Fix permissions if directory exists but isn't writable
     if (!is_writable($path)) {
-        if (!chmod($path, 0755)) {
-            error_log("Failed to chmod directory: $path");
-            return false;
-        }
+        @chmod($path, 0755);
     }
     return true;
 }
