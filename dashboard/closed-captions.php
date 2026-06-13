@@ -622,6 +622,69 @@ ob_start();
             return text.replace(re, (m) => censor(m));
         };
     })();
+    const applyLocaleSpelling = (function () {
+        const PAIRS = [
+            ['flavor','flavour'],['flavored','flavoured'],['flavoring','flavouring'],['flavorful','flavourful'],
+            ['color','colour'],['colored','coloured'],['coloring','colouring'],['colorful','colourful'],['colorless','colourless'],
+            ['honor','honour'],['honored','honoured'],['honoring','honouring'],['honorable','honourable'],
+            ['humor','humour'],['humored','humoured'],['humoring','humouring'],
+            ['labor','labour'],['labored','laboured'],['laboring','labouring'],
+            ['neighbor','neighbour'],['neighbors','neighbours'],['neighborhood','neighbourhood'],
+            ['behavior','behaviour'],['behaviors','behaviours'],['behavioral','behavioural'],
+            ['harbor','harbour'],['harbored','harboured'],
+            ['favorite','favourite'],['favorites','favourites'],
+            ['savior','saviour'],['saviors','saviours'],
+            ['center','centre'],['centers','centres'],
+            ['theater','theatre'],['theaters','theatres'],
+            ['fiber','fibre'],['fibers','fibres'],
+            ['meter','metre'],['meters','metres'],
+            ['liter','litre'],['liters','litres'],
+            ['kilometer','kilometre'],['kilometers','kilometres'],
+            ['caliber','calibre'],['calibers','calibres'],
+            ['program','programme'],['programs','programmes'],
+            ['catalog','catalogue'],['catalogs','catalogues'],
+            ['dialog','dialogue'],['dialogs','dialogues'],
+            ['analog','analogue'],['analogs','analogues'],
+            ['organize','organise'],['organized','organised'],['organizing','organising'],['organization','organisation'],['organizations','organisations'],
+            ['recognize','recognise'],['recognized','recognised'],['recognizing','recognising'],
+            ['realize','realise'],['realized','realised'],['realizing','realising'],
+            ['specialize','specialise'],['specialized','specialised'],
+            ['finalize','finalise'],['finalized','finalised'],
+            ['apologize','apologise'],['apologized','apologised'],
+            ['emphasize','emphasise'],['emphasized','emphasised'],
+            ['analyze','analyse'],['analyzed','analysed'],['analyzing','analysing'],
+            ['minimize','minimise'],['maximize','maximise'],
+            ['prioritize','prioritise'],['prioritized','prioritised'],
+            ['traveling','travelling'],['traveler','traveller'],['traveled','travelled'],
+            ['canceled','cancelled'],['canceling','cancelling'],
+            ['modeling','modelling'],['modeled','modelled'],
+            ['labeled','labelled'],['labeling','labelling'],
+            ['leveled','levelled'],['leveling','levelling'],
+            ['defense','defence'],['defenses','defences'],
+            ['offense','offence'],['offenses','offences'],
+            ['license','licence'],['licenses','licences'],
+            ['gray','grey'],['grays','greys'],
+            ['tire','tyre'],['tires','tyres'],
+            ['cozy','cosy'],['cozier','cosier'],['coziest','cosiest'],
+        ];
+        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const map = new Map();
+        PAIRS.forEach(([us, au]) => map.set(us.toLowerCase(), au));
+        const re = new RegExp('\\b(' + PAIRS.map(([us]) => esc(us)).join('|') + ')\\b', 'gi');
+        const replace = (m) => {
+            const au = map.get(m.toLowerCase());
+            if (!au) return m;
+            if (m === m.toUpperCase()) return au.toUpperCase();
+            if (m[0] === m[0].toUpperCase()) return au[0].toUpperCase() + au.slice(1);
+            return au;
+        };
+        return (text) => {
+            if (!text) return text;
+            const lang = langSelect ? langSelect.value : 'en-US';
+            if (lang !== 'en-AU' && lang !== 'en-GB') return text;
+            return text.replace(re, replace);
+        };
+    })();
     const shortCode = (lang) => String(lang || '').split('-')[0].toLowerCase();
     let ccActiveTargetLanguage = ccTargetLanguage;
     // Reuse the sound-status area as the (non-blocking) translation notice surface.
