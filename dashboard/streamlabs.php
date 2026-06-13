@@ -15,7 +15,7 @@ $linkingMessageType = '';
 // Include files for database and user data
 include 'includes/userdata.php';
 include 'includes/bot_control.php';
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/user_db.php';
 include 'includes/storage_used.php';
 $isActAsUser = isset($isActAs) && $isActAs === true;

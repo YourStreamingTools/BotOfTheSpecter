@@ -14,7 +14,7 @@ require_once "/var/www/config/twitch.php";
 include 'includes/userdata.php';
 session_write_close();
 include 'includes/bot_control.php';
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/user_db.php';
 
 // Get user's timezone from profile (fallback to UTC)

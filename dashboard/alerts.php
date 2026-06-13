@@ -353,7 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
 
 include '/var/www/config/twitch.php';
 include 'includes/bot_control.php';
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/storage_used.php';
 
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);

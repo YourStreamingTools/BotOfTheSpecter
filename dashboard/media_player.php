@@ -10,7 +10,7 @@ $pageTitle = t('media_player_title');
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/user_db.php';
 session_write_close();
 

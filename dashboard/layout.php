@@ -286,7 +286,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <script src="/js/dashboard.js?v=<?php echo filemtime(__DIR__ . '/js/dashboard.js'); ?>"></script>
     <script src="/js/search.js?v=<?php echo filemtime(__DIR__ . '/js/search.js'); ?>"></script>
         <?php echo $scripts; ?>
-        <?php include_once "usr_database.php"; ?>
+        <?php include_once "includes/usr_database.php"; ?>
     <script>
         // Sidebar toggle (mobile)
         (function () {

@@ -26,7 +26,7 @@ require_once '/var/www/config/database.php';
 include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include 'includes/bot_control.php';
-include "mod_access.php";
+include "includes/mod_access.php";
 include 'includes/user_db.php';
 include 'includes/storage_used.php';
 session_write_close();
