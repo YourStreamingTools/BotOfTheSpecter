@@ -442,6 +442,7 @@ ob_start();
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
+    const ccProfanityFilter = <?php echo json_encode((bool)$cc['profanity_filter']); ?>;
     // Curated caption fonts — derived from the PHP allow-list so this can't drift from
     // the overlay's copies. Used to load + preview the chosen typeface on the dashboard.
     const ccAllowedFonts = <?php echo json_encode($allowedFonts); ?>;
@@ -1034,6 +1035,7 @@ ob_start();
         r.continuous = true;
         r.interimResults = true;
         r.lang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
+        r.profanityFilter = ccProfanityFilter;
         r.onstart = () => { setStatus(ccLang.listening, 'online'); };
         r.onresult = (event) => {
             let interim = '';
