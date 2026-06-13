@@ -150,7 +150,7 @@ ob_start();
     <?php endif; ?>
 </div>
 <div id="subscription-content">
-    <?php include 'notifications_content.php'; ?>
+    <?php include 'includes/notifications_content.php'; ?>
 </div>
 <div class="sp-card" id="internal-ws-box" style="margin-top:1rem;">
     <div class="sp-card-body">
