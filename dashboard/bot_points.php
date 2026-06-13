@@ -32,7 +32,11 @@ date_default_timezone_set($timezone);
 
 // Early exit for AJAX requests to avoid unnecessary database queries
 if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
+    header('Content-Type: application/json');
     try {
+        if (!$db) {
+            throw new Exception("Database connection not available");
+        }
         // Fetch users and their points from bot_points table (MySQLi)
         $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
         if (!$pointsStmt) {
@@ -50,13 +54,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
             $pointsData[] = $row;
         }
         $pointsStmt->close();
-        header('Content-Type: application/json');
         echo json_encode($pointsData);
         exit();
     } catch (Exception $e) {
-        header('Content-Type: application/json');
-        http_response_code(500);
-        echo json_encode(['error' => $e->getMessage()]);
+        http_response_code(200);
+        echo json_encode(['error' => $e->getMessage(), 'debug' => $e->getTraceAsString()]);
         exit();
     }
 }
