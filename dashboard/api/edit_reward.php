@@ -113,8 +113,6 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 ]);
 $resp = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
 $data = json_decode($resp, true);
 if ($httpCode === 200 && !empty($data['data'])) {
     $updated = $data['data'][0];
@@ -133,3 +131,4 @@ if ($httpCode === 200 && !empty($data['data'])) {
     $errMsg = $data['message'] ?? ($data['error'] ?? ('HTTP ' . $httpCode));
     echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode, 'twitch_response' => $data]);
 }
+

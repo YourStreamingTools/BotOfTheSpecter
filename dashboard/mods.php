@@ -178,8 +178,7 @@ do {
         }
         exit;
     }
-    curl_close($curl);
-    // Process and append moderator information to the array
+// Process and append moderator information to the array
     $moderatorsData = json_decode($response, true);
     $allModerators = array_merge($allModerators, $moderatorsData['data']);
     // Check if there are more pages of moderators
@@ -313,8 +312,7 @@ if (!empty($modUserIds)) {
                 }
             }
         }
-        curl_close($curl);
-    }
+}
 }
 
 if (!empty($staleProfileImages)) {

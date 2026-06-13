@@ -93,7 +93,6 @@ curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 $subResponse = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curlError = curl_error($ch);
-curl_close($ch);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

@@ -112,8 +112,6 @@ curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
 $response = curl_exec($ch);
 $http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curl_error = curl_error($ch);
-curl_close($ch);
-
 if ($response === false || $curl_error !== '') {
     http_response_code(502);
     error_log('yourlinks_create curl failure: ' . $curl_error);
@@ -131,3 +129,4 @@ if (!is_array($data)) {
 
 http_response_code($http_code >= 200 && $http_code < 600 ? $http_code : 502);
 echo json_encode($data);
+

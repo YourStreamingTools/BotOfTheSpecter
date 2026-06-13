@@ -185,11 +185,9 @@ function fetchFollowers($url, $authToken, $clientID) {
     $errorMessage = 'cURL error: ' . curl_error($curl);
     $errorDetails = 'URL: ' . curl_getinfo($curl, CURLINFO_EFFECTIVE_URL) . ' | HTTP Code: ' . curl_getinfo($curl, CURLINFO_HTTP_CODE);
     error_log($errorMessage . ' | ' . $errorDetails, 3, 'curl_errors.log');
-    curl_close($curl);
-    return false;
+return false;
   }
-  curl_close($curl);
-  return $response;
+return $response;
 }
 
 ob_start();

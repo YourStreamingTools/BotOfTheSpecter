@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
@@ -682,8 +682,6 @@ $ch = curl_init($twitchApiUrl);
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($ch);
-curl_close($ch);
-
 // Decode the JSON response
 $userData = json_decode($response, true);
 
@@ -1636,3 +1634,4 @@ $scripts = ob_get_clean();
 // Use layout.php to render the page
 include 'layout.php';
 ?>
+

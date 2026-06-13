@@ -51,8 +51,7 @@ do {
       $HTTPError = 'HTTP error: ' . $httpCode;
       exit;
   }
-  curl_close($curl);
-  // Process and append VIP information to the array
+// Process and append VIP information to the array
   $vipsData = json_decode($response, true);
   $allVIPs = array_merge($allVIPs, $vipsData['data']);
   // Check if there are more pages of VIPs
@@ -73,8 +72,7 @@ if (!empty($vipUserIds)) {
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     $usersResponse = curl_exec($curl);
-    curl_close($curl);
-    if ($usersResponse !== false) {
+if ($usersResponse !== false) {
       $usersData = json_decode($usersResponse, true);
       if (isset($usersData['data'])) {
         foreach ($usersData['data'] as $user) {
@@ -114,8 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     }
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpcode == 204) {
+if ($httpcode == 204) {
       $ajaxSuccess = true;
       $ajaxStatus = ($action === 'add')
         ? t('vips_status_added', ['name' => $VIPusername])
@@ -138,8 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     ]);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     $freshResponse = curl_exec($curl);
-    curl_close($curl);
-    if ($freshResponse !== false) {
+if ($freshResponse !== false) {
       $freshData = json_decode($freshResponse, true);
       $freshVIPs = array_merge($freshVIPs, $freshData['data'] ?? []);
       $freshCursor = $freshData['pagination']['cursor'] ?? null;
@@ -162,8 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
       ]);
       curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
       $usersResponse = curl_exec($curl);
-      curl_close($curl);
-      if ($usersResponse !== false) {
+if ($usersResponse !== false) {
         $usersData = json_decode($usersResponse, true);
         if (isset($usersData['data'])) {
           foreach ($usersData['data'] as $u) {

@@ -64,8 +64,6 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 $jsonText = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
 if ($httpCode !== 200 || !$jsonText) {
     die(t('builtin_commands_error_api_load', [$httpCode]));
 }

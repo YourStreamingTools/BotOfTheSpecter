@@ -33,9 +33,7 @@ function twitchApiCall($method, $url, $token, $clientID, $body = null)
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    return ['code' => $httpCode, 'response' => $response];
+return ['code' => $httpCode, 'response' => $response];
 }
 
 // ---------------------------------------------------------
@@ -105,8 +103,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'complete_manual') {
 
         $patchResponse = curl_exec($ch);
         $patchCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-    }
+}
 
     // Clear session
     unset($_SESSION['specter_manage_reward_queue']);
@@ -278,7 +275,6 @@ if ($imageBase64 !== null) {
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, ['image' => $imageBase64]);
     curl_exec($ch);
-    curl_close($ch);
 }
 
 // DB Update Logic
@@ -316,3 +312,4 @@ $db->close();
 
 echo json_encode(['success' => true, 'message' => 'Reward managed successfully', 'new_reward_id' => $newRewardId]);
 ?>
+

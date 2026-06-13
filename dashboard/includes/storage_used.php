@@ -45,8 +45,7 @@ if ($betaAccess) {
         curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         $subResponse = curl_exec($ch);
-        curl_close($ch);
-        // Reopen session to persist the tier value
+// Reopen session to persist the tier value
         session_start();
         if ($subResponse !== false) {
             $subData = json_decode($subResponse, true);

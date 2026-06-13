@@ -68,8 +68,6 @@ if ($usersResponse !== false) {
         $showNoChannelPoints = ($broadcasterType === '');
     }
 }
-curl_close($curl);
-
 require_once '/var/www/config/database.php';
 $dbname = $_SESSION['username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
@@ -108,8 +106,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
         curl_setopt($valCh, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$_SESSION['access_token']}"]);
         $valResp = curl_exec($valCh);
         $valCode = curl_getinfo($valCh, CURLINFO_HTTP_CODE);
-        curl_close($valCh);
-        if ($valCode !== 200) {
+if ($valCode !== 200) {
             $errorMsg = 'OAuth token validation failed. HTTP ' . $valCode . ': ' . $valResp;
             if ($isAjax) {
                 header('Content-Type: application/json');
@@ -162,8 +159,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
         ]);
         $tResp = curl_exec($ch);
         $tCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        // Try to parse response body if JSON to give clear errors
+// Try to parse response body if JSON to give clear errors
         $tRespDecoded = null;
         $tmp = json_decode($tResp, true);
         if (is_array($tmp)) {
@@ -295,7 +291,6 @@ if (!$showNoChannelPoints && isset($_SESSION['access_token']) && !empty($clientI
             break;
         }
     } while ($after);
-    curl_close($ch);
 }
 
 // Fetch channel point rewards
@@ -469,8 +464,7 @@ ob_start();
                                     ]);
                                     $resp = curl_exec($ch);
                                     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                    curl_close($ch);
-                                    if ($httpCode == 200) {
+if ($httpCode == 200) {
                                         $json = json_decode($resp, true);
                                         $twitchRewards = $json['data'] ?? [];
                                     } else {

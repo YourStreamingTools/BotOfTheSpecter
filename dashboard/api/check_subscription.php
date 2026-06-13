@@ -67,7 +67,6 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
 if ($response === false || $httpCode !== 200) {
     error_log("Twitch subscription API failed. HTTP Code: $httpCode, Response: $response");
     cs_json_response($httpCode ?: 500, ['error' => t('check_subscription_error_twitch_api'), 'http_code' => $httpCode]);
@@ -93,3 +92,4 @@ if (isset($data['data']) && count($data['data']) > 0) {
     ]);
 }
 ?>
+

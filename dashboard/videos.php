@@ -36,8 +36,7 @@ function twitchApiRequest($method, $url, $accessToken, $clientID) {
 	$response = curl_exec($ch);
 	$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 	$curlError = curl_error($ch);
-	curl_close($ch);
-	return [
+return [
 		'http_code' => $httpCode,
 		'body' => $response,
 		'curl_error' => $curlError,

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // Start output buffering immediately to prevent any accidental output
 ob_start();
 
@@ -414,8 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
-        curl_close($ch);
-        if ($httpCode === 200) {
+if ($httpCode === 200) {
             $data = json_decode($response, true);
             $expires = isset($data['expires_in']) ? (int) $data['expires_in'] : 0;
             // Check mod status using the same token
@@ -431,8 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
             curl_setopt($mod_ch, CURLOPT_HTTPHEADER, $mod_headers);
             $mod_response = curl_exec($mod_ch);
             $mod_httpCode = curl_getinfo($mod_ch, CURLINFO_HTTP_CODE);
-            curl_close($mod_ch);
-            $is_mod = false;
+$is_mod = false;
             $is_banned = false;
             $ban_reason = '';
             if ($mod_httpCode === 200) {
@@ -447,8 +445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                     curl_setopt($ban_ch, CURLOPT_HTTPHEADER, $mod_headers);
                     $ban_response = curl_exec($ban_ch);
                     $ban_httpCode = curl_getinfo($ban_ch, CURLINFO_HTTP_CODE);
-                    curl_close($ban_ch);
-                    if ($ban_httpCode === 200) {
+if ($ban_httpCode === 200) {
                         $ban_data = json_decode($ban_response, true);
                         if (!empty($ban_data['data'])) {
                             $is_banned = true;
@@ -538,8 +535,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
         $response = curl_exec($ch);
         $curlError = curl_error($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($httpCode === 200) {
+if ($httpCode === 200) {
             $data = json_decode($response, true);
             $new_access_token = $data['access_token'];
             $new_refresh_token = $data['refresh_token'];
@@ -623,8 +619,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
-        curl_close($ch);
-        if ($httpCode === 200) {
+if ($httpCode === 200) {
             $data = json_decode($response, true);
             $isMod = !empty($data['data']);
             $isBanned = false;
@@ -642,8 +637,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'
                 $banResponse = curl_exec($banCh);
                 $banHttpCode = curl_getinfo($banCh, CURLINFO_HTTP_CODE);
                 $banCurlErr = curl_error($banCh);
-                curl_close($banCh);
-                if ($banHttpCode === 200 && !$banCurlErr) {
+if ($banHttpCode === 200 && !$banCurlErr) {
                     $banData = json_decode($banResponse, true);
                     if (!empty($banData['data'])) {
                         $isBanned = true;
@@ -716,8 +710,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_bot_mod'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
-        curl_close($ch);
-        if ($httpCode === 204) {
+if ($httpCode === 204) {
             // Update cache to reflect new mod status
             $cacheEntry = getTokenCacheEntry($tokenCacheFile, $twitch_user_id);
             if ($cacheEntry) {
@@ -2433,7 +2426,7 @@ ob_start();
                 title: SB_I18N.allRestartedTitle,
                 html: sbFormat(SB_I18N.allRestartedHtml, successCount) + `<br><br>` +
                     botRestartTracking.map(b =>
-                        `<span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: PID ${b.originalPid} → ${b.newPid || SB_I18N.unknown}`
+                        `<span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: PID ${b.originalPid} ? ${b.newPid || SB_I18N.unknown}`
                     ).join('<br>'),
                 confirmButtonText: SB_I18N.okBtn
             });
@@ -2444,8 +2437,8 @@ ob_start();
                 html: sbFormat(SB_I18N.restartIssuesSuccess, successCount) + `<br>` +
                     sbFormat(SB_I18N.restartIssuesFailed, failCount) + `<br><br>` +
                     botRestartTracking.map(b => {
-                        const status = b.restarted ? '✅' : '❌';
-                        return `${status} <span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: ${b.originalPid} → ${b.newPid || SB_I18N.failed}`;
+                        const status = b.restarted ? '?' : '?';
+                        return `${status} <span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: ${b.originalPid} ? ${b.newPid || SB_I18N.failed}`;
                     }).join('<br>'),
                 confirmButtonText: SB_I18N.okBtn
             });

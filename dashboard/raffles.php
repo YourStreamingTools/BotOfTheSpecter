@@ -187,8 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 curl_setopt($ch, CURLOPT_TIMEOUT, 5);
                                 $resp = curl_exec($ch);
                                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                curl_close($ch);
-                                if ($httpCode !== 200) {
+if ($httpCode !== 200) {
                                     // warn but continue
                                     $message .= ' ' . t('raffles_msg_websocket_warning');
                                     break;

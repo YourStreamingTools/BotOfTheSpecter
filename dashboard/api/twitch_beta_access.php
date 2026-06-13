@@ -19,8 +19,7 @@ function checkBetaAccess($user, $twitchUserId, $authToken, $clientID) {
   curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
   $response = curl_exec($ch);
   $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-  if ($response === false || $httpCode !== 200) {
+if ($response === false || $httpCode !== 200) {
     return ['betaAccess' => false, 'tier' => 'None'];
   }
   $data = json_decode($response, true);
@@ -31,3 +30,4 @@ function checkBetaAccess($user, $twitchUserId, $authToken, $clientID) {
   $betaAccess = in_array($tier, ['1000', '2000', '3000'], true);
   return ['betaAccess' => $betaAccess, 'tier' => $tier];
 }
+

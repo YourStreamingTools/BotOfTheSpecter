@@ -64,8 +64,6 @@ if ($usersResponse === false) {
         $showNoSubscriberAccessMessage = $broadcasterType === '';
     }
 }
-curl_close($curl);
-
 if (!$showNoSubscriberAccessMessage && !$subscribersError) {
     do {
         // Set up cURL request with headers
@@ -79,17 +77,14 @@ if (!$showNoSubscriberAccessMessage && !$subscribersError) {
         $response = curl_exec($curl);
         if ($response === false) {
             $subscribersError = t('subscribers_error_fetch');
-            curl_close($curl);
-            break;
+break;
         }
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         if ($httpCode !== 200) {
             $subscribersError = t('subscribers_error_fetch');
-            curl_close($curl);
-            break;
+break;
         }
-        curl_close($curl);
-        // Process and append subscriber information to the array
+// Process and append subscriber information to the array
         $subscribersData = json_decode($response, true);
         $allSubscribers = array_merge($allSubscribers, $subscribersData['data'] ?? []);
         // Check if there are more pages of subscribers
@@ -137,8 +132,7 @@ if (!$showNoSubscriberAccessMessage && !$subscribersError && !empty($userIds)) {
                 }
             }
         }
-        curl_close($curl);
-    }
+}
 }
 
 ob_start();

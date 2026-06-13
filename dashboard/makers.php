@@ -40,8 +40,7 @@ function maker_notify_overlay($api_key) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
         curl_exec($ch);
-        curl_close($ch);
-    } else {
+} else {
         @file_get_contents($url);
     }
 }
@@ -650,3 +649,4 @@ document.addEventListener('DOMContentLoaded', function () {
 $scripts = ob_get_clean();
 include 'layout.php';
 ?>
+

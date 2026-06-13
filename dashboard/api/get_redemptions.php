@@ -36,9 +36,7 @@ function fetchFromTwitch($url, $token, $clientID)
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    return ['code' => $httpCode, 'response' => $response];
+return ['code' => $httpCode, 'response' => $response];
 }
 
 if (file_exists('/home/botofthespecter/.env')) {
@@ -87,3 +85,4 @@ if ($canceled['code'] == 200) {
 
 echo json_encode(['data' => $result]);
 ?>
+

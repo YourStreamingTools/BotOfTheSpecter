@@ -130,8 +130,7 @@ if (!empty($message_to_send)) {
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_error = curl_error($ch);
-    curl_close($ch);
-    if ($curl_error) {
+if ($curl_error) {
         $errors[] = t('send_welcome_message_error_welcome_failed', [$curl_error]);
     } elseif ($http_code === 200) {
         $response_data = json_decode($response, true);
@@ -184,8 +183,7 @@ if ($has_shoutout) {
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     $user_response = curl_exec($ch);
     $user_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($user_http_code === 200) {
+if ($user_http_code === 200) {
         $user_data = json_decode($user_response, true);
         if ($user_data && isset($user_data['data']) && count($user_data['data']) > 0) {
             $target_user_id = $user_data['data'][0]['id'];
@@ -197,8 +195,7 @@ if ($has_shoutout) {
             curl_setopt($ch, CURLOPT_TIMEOUT, 10);
             $stream_response = curl_exec($ch);
             $stream_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            $last_game = null;
+$last_game = null;
             $is_online = false;
             if ($stream_http_code === 200) {
                 $stream_data = json_decode($stream_response, true);
@@ -217,8 +214,7 @@ if ($has_shoutout) {
                 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 $channel_response = curl_exec($ch);
                 $channel_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                if ($channel_http_code === 200) {
+if ($channel_http_code === 200) {
                     $channel_data = json_decode($channel_response, true);
                     if ($channel_data && isset($channel_data['data']) && count($channel_data['data']) > 0) {
                         $last_game = $channel_data['data'][0]['game_name'] ?? null;
@@ -251,8 +247,7 @@ if ($has_shoutout) {
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curl_error = curl_error($ch);
-            curl_close($ch);
-            if ($curl_error) {
+if ($curl_error) {
                 $errors[] = t('send_welcome_message_error_shoutout_failed', [$curl_error]);
             } elseif ($http_code === 200) {
                 $response_data = json_decode($response, true);
@@ -319,3 +314,4 @@ if (count($messages_sent) > 0 && count($errors) === 0) {
 }
 exit();
 ?>
+

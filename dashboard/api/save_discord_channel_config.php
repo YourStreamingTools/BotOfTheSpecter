@@ -352,8 +352,7 @@ try {
                         curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
                         $response = curl_exec($ch);
                         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        curl_close($ch);
-                        // Log websocket notification result
+// Log websocket notification result
                         if ($http_code !== 200) {
                             debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
                         } else {
@@ -438,15 +437,13 @@ try {
                     if ($response === false) {
                         $curl_error = curl_error($ch);
                         debug_log('cURL error: ' . $curl_error);
-                        curl_close($ch);
-                        http_response_code(500);
+http_response_code(500);
                         header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-                    debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                     // Check if websocket notification was successful
                     if ($http_code !== 200) {
                         debug_log("Failed to send websocket notification for reaction roles: HTTP $http_code, Response: $response");
@@ -663,15 +660,13 @@ try {
                     if ($response === false) {
                         $curl_error = curl_error($ch);
                         debug_log('cURL error: ' . $curl_error);
-                        curl_close($ch);
-                        http_response_code(500);
+http_response_code(500);
                         header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-                    debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                     // Check if websocket notification was successful
                     if ($http_code !== 200) {
                         debug_log("Failed to send websocket notification for rules message: HTTP $http_code, Response: $response");
@@ -884,15 +879,13 @@ try {
                     if ($response === false) {
                         $curl_error = curl_error($ch);
                         debug_log('cURL error: ' . $curl_error);
-                        curl_close($ch);
-                        http_response_code(500);
+http_response_code(500);
                         header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                         exit();
                     }
                     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-                    debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                     // Check if websocket notification was successful
                     if ($http_code !== 200) {
                         debug_log("Failed to send websocket notification for stream schedule message: HTTP $http_code, Response: $response");
@@ -1094,15 +1087,13 @@ try {
                         if ($response === false) {
                             $curl_error = curl_error($ch);
                             debug_log('cURL error: ' . $curl_error);
-                            curl_close($ch);
-                            http_response_code(500);
+http_response_code(500);
                             header('Content-Type: application/json');
                             echo json_encode(['success' => false, 'message' => t('discord_cfg_error_http_request_failed', [$curl_error]), 'debug_logs' => $debug_logs]);
                             exit();
                         }
                         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        curl_close($ch);
-                        debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
+debug_log('Websocket response: HTTP ' . $http_code . ', Body: ' . $response);
                         if ($http_code !== 200) {
                             debug_log("Failed to send websocket notification for custom embed: HTTP $http_code, Response: $response");
                             http_response_code(500);
@@ -1496,3 +1487,4 @@ try {
     }
 }
 ?>
+

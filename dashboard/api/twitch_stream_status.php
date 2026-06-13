@@ -21,8 +21,7 @@ function checkTwitchStreamStatus($twitchUserId, $authToken, $clientID) {
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false || $httpCode !== 200) {
+if ($response === false || $httpCode !== 200) {
       error_log("Twitch API request failed. HTTP Code: $httpCode");
       return null;
     }
@@ -40,3 +39,4 @@ function checkTwitchStreamStatus($twitchUserId, $authToken, $clientID) {
     return null;
   }
 }
+

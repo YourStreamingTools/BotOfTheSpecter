@@ -40,9 +40,7 @@ function twitchApiCall($method, $url, $token, $clientID, $body = null)
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    return ['code' => $httpCode, 'response' => $response];
+return ['code' => $httpCode, 'response' => $response];
 }
 
 if (!isset($_POST['redemption_id']) || !isset($_POST['reward_id']) || !isset($_POST['status'])) {
@@ -80,3 +78,4 @@ if ($result['code'] == 200) {
     ]);
 }
 ?>
+

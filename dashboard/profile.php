@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -59,8 +59,7 @@ function resolveTwitchUserId($username) {
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
-    curl_close($ch);
-    if ($resp === false || $code !== 200) {
+if ($resp === false || $code !== 200) {
         return array(false, t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}"));
     }
     $data = json_decode($resp, true);
@@ -533,8 +532,7 @@ if (isset($_SESSION['twitchUserId'])) {
         curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$accessToken}"]);
         $validate_response = curl_exec($ch);
         $validate_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        $validate_data = json_decode($validate_response, true);
+$validate_data = json_decode($validate_response, true);
         if ($validate_code === 200 && isset($validate_data['channel_id'])) {
             $streamelementsLinked = true;
         }
@@ -562,7 +560,6 @@ if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
     curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
     curl_setopt($ch, CURLOPT_TIMEOUT, 5);
     curl_exec($ch);
-    curl_close($ch);
 }
 
 ob_start();

@@ -65,12 +65,10 @@ function getTwitchSubTier($twitch_user_id) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($ch);
     if ($response === false) {
-        curl_close($ch);
-        return null;
+return null;
     }
     $data = json_decode($response, true);
-    curl_close($ch);
-    // Check if we have subscription data in the response
+// Check if we have subscription data in the response
     if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) {
         return $data['data'][0]['tier'];
     }

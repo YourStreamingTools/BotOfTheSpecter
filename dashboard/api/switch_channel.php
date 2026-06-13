@@ -23,8 +23,7 @@ function userCanModerateChannel($targetBroadcasterId, $userId, $authToken, $clie
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($response === false || $httpCode !== 200) {
+if ($response === false || $httpCode !== 200) {
             error_log("switch_channel.php moderated-channels check failed. HTTP: {$httpCode}, user: {$userId}, target: {$targetBroadcasterId}");
             return false;
         }
@@ -128,3 +127,4 @@ if ($row = $result->fetch_assoc()) {
     exit();
 }
 ?>
+
