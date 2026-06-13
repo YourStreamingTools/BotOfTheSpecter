@@ -442,6 +442,9 @@ ob_start();
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
+    // Curated caption fonts — derived from the PHP allow-list so this can't drift from
+    // the overlay's copies. Used to load + preview the chosen typeface on the dashboard.
+    const ccAllowedFonts = <?php echo json_encode($allowedFonts); ?>;
     // Caption (translation) target SHORT code; '' = no translation (same as spoken).
     // The spoken/source language is read live from the #ccLanguage select.
     const ccTargetLanguage = <?php echo json_encode($cc['target_language']); ?>;
@@ -945,6 +948,7 @@ ob_start();
     const preview = document.getElementById('ccPreview');
     const unsupported = document.getElementById('ccUnsupported');
     const langSelect = document.getElementById('ccLanguage');
+    const fontSelect = document.getElementById('ccFontFamily');
 
     const setStatus = (text, state) => {
         if (!micStatus) return;
@@ -972,6 +976,24 @@ ob_start();
             preview.appendChild(i);
         }
     };
+
+    const ccLoadedPreviewFonts = new Set();
+    const ensurePreviewFontLoaded = (fontName) => {
+        if (!ccAllowedFonts.includes(fontName) || ccLoadedPreviewFonts.has(fontName)) return;
+        ccLoadedPreviewFonts.add(fontName);
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=' + fontName.replace(/ /g, '+') + ':wght@400;500;600;700&display=swap';
+        document.head.appendChild(link);
+    };
+    const applyPreviewFont = () => {
+        if (!preview || !fontSelect) return;
+        const fontName = ccAllowedFonts.includes(fontSelect.value) ? fontSelect.value : 'Inter';
+        ensurePreviewFontLoaded(fontName);
+        preview.style.fontFamily = '"' + fontName + '", "Segoe UI", system-ui, sans-serif';
+    };
+    if (fontSelect) fontSelect.addEventListener('change', applyPreviewFont);
+    applyPreviewFont();
 
     // Web Speech API
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
