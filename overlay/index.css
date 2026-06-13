@@ -2247,7 +2247,7 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     box-sizing: border-box;
     pointer-events: none;
     /* Defaults; overridden inline from settings via CSS custom properties. */
-    --cc-font-size: 2.96vh; /* ≈ 32px at 1080p */
+    --cc-font-size: 32px;
     --cc-text-color: #ffffff;
     --cc-font-family: "Inter";
 }
