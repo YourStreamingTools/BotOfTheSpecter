@@ -9,7 +9,7 @@ include_once __DIR__ . '/../lang/i18n.php';
 require_once '/var/www/lib/require_auth_ajax.php';
 
 // Include necessary files
-include 'includes/userdata.php';
+include '../includes/userdata.php';
 session_write_close();
 include_once "/var/www/config/ssh.php";
 

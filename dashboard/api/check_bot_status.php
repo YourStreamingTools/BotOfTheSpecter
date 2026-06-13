@@ -41,7 +41,7 @@ if (!in_array($bot, ['stable', 'beta', 'v6'])) {
   exit();
 }
 
-require_once 'includes/bot_control_functions.php';
+require_once '../includes/bot_control_functions.php';
 $username = $_SESSION['username'] ?? '';
 
 // Require username for bot status checks
