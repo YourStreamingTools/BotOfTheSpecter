@@ -5,6 +5,7 @@ import json
 import copy
 import secrets
 import hashlib
+import hmac
 import base64
 import time as _time
 import logging
@@ -616,6 +617,8 @@ async def lifespan(app: FastAPI):
     logging.info("API SERVER STARTING UP")
     logging.info("=" * 80)
     midnight_task = asyncio.create_task(midnight())
+    # Ensure the admin-managed custom webhooks table exists
+    await ensure_custom_webhooks_table()
     # Yield control back to FastAPI (letting it continue with startup and handling requests)
     yield
     # After shutdown, cancel the midnight task
@@ -2129,6 +2132,21 @@ async def _get_api_key_for_username(username: str) -> str | None:
     finally:
         conn.close()
 
+async def _get_admin_key_for_service(service: str) -> str | None:
+    # Used by global-scope custom webhooks: the service-scoped admin key (created
+    # on the API Keys admin page) is the code forwarded to the WebSocket server.
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT api_key FROM admin_api_keys WHERE service = %s LIMIT 1",
+                (service,)
+            )
+            row = await cur.fetchone()
+            return row[0] if row else None
+    finally:
+        conn.close()
+
 # Kick event type (from webhook header) → internal WebSocket event name
 _KICK_EVENT_MAP: dict[str, str] = {
     "chat.message.sent":                 "KICK_CHAT",
@@ -2199,6 +2217,176 @@ async def receive_kick_webhook(username: str, request: Request):
             logging.error(f"[KICK] Unexpected error forwarding event: {e}")
             raise HTTPException(status_code=500, detail="Error forwarding to WebSocket server")
     return {"status": "ok", "event": ws_event}
+
+# ---------------------------------------------------------------------------
+# Custom Inbound Webhooks (admin-defined)
+# ---------------------------------------------------------------------------
+# Admins create inbound webhook receivers from the admin panel (rows in
+# website.custom_webhooks). External services POST to /webhook/{slug}; the
+# request is verified per the webhook's configured mode (none/secret/hmac) and
+# the payload is forwarded to the internal WebSocket server as the configured
+# event — routed to a specific channel or to admin global-listeners. This lets a
+# new integration go live WITHOUT editing api.py or restarting the API server.
+# ---------------------------------------------------------------------------
+
+CUSTOM_WEBHOOKS_TABLE_DDL = """
+    CREATE TABLE IF NOT EXISTS custom_webhooks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(64) NOT NULL UNIQUE,
+        name VARCHAR(100) NOT NULL,
+        service VARCHAR(64) NOT NULL,
+        event_name VARCHAR(64) NOT NULL,
+        scope ENUM('channel','global') NOT NULL DEFAULT 'channel',
+        target_username VARCHAR(255) NULL,
+        verify_mode ENUM('none','secret','hmac') NOT NULL DEFAULT 'secret',
+        secret VARCHAR(255) NULL,
+        secret_header VARCHAR(64) NOT NULL DEFAULT 'X-Webhook-Secret',
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_by VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_received_at TIMESTAMP NULL DEFAULT NULL,
+        received_count INT NOT NULL DEFAULT 0,
+        INDEX idx_enabled (enabled)
+    )
+"""
+
+async def ensure_custom_webhooks_table():
+    # Idempotent; api.py owns the schema. The admin PHP page also issues
+    # CREATE TABLE IF NOT EXISTS defensively in case it runs before a deploy.
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(CUSTOM_WEBHOOKS_TABLE_DDL)
+                await conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Failed to ensure custom_webhooks table: {e}")
+
+def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, request: Request, raw_body: bytes) -> bool:
+    # Constant-time verification of an inbound custom webhook request.
+    if verify_mode == "none":
+        return True
+    if not secret:
+        return False
+    header_name = secret_header or ("X-Webhook-Signature" if verify_mode == "hmac" else "X-Webhook-Secret")
+    provided = request.headers.get(header_name, "")
+    if not provided:
+        return False
+    if verify_mode == "secret":
+        return hmac.compare_digest(str(provided), str(secret))
+    if verify_mode == "hmac":
+        sig = provided[len("sha256="):] if provided.startswith("sha256=") else provided
+        computed = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(sig.lower(), computed.lower())
+    return False
+
+@app.post(
+    "/webhook/{slug}",
+    summary="Receive a Custom (admin-defined) Inbound Webhook",
+    description=(
+        "Generic inbound webhook receiver. Admins define each webhook (slug, secret, "
+        "routing) from the admin panel; external services POST here. The request is "
+        "verified per the webhook's configured mode (none/secret/hmac) and the payload "
+        "is forwarded to the internal WebSocket server as the configured event. No api.py "
+        "edit or restart is needed to add a new integration. Auth is the per-webhook "
+        "secret, not an API key."
+    ),
+    tags=["Admin Only"],
+    status_code=status.HTTP_200_OK,
+    operation_id="receive_custom_webhook"
+)
+async def receive_custom_webhook(slug: str, request: Request):
+    raw_body = await request.body()
+    # Look up the webhook config by slug
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT slug, name, service, event_name, scope, target_username, "
+                "verify_mode, secret, secret_header, enabled FROM custom_webhooks "
+                "WHERE slug = %s LIMIT 1",
+                (slug,)
+            )
+            webhook = await cur.fetchone()
+    finally:
+        conn.close()
+    # 404 for missing OR disabled — don't leak which slugs exist
+    if not webhook or not webhook.get("enabled"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    # Verify the request per the configured mode
+    if not _verify_custom_webhook(webhook["verify_mode"], webhook["secret"], webhook["secret_header"], request, raw_body):
+        logging.warning(f"[CUSTOM_WEBHOOK] Verification failed | slug={slug!r} mode={webhook['verify_mode']!r}")
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+    # Parse the JSON payload
+    try:
+        payload = json.loads(raw_body) if raw_body else {}
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    service    = webhook["service"]
+    event_name = webhook["event_name"]
+    scope      = webhook["scope"]
+    # Resolve the routing code. channel -> the streamer's api_key (reaches their
+    # clients). global -> the service-scoped admin key (reaches admin global-
+    # listeners; the WebSocket server identifies the service by this key). We never
+    # forward the super-admin/master key, so it can't end up in WS access logs.
+    if scope == "global":
+        code = await _get_admin_key_for_service(service)
+        if not code:
+            logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} global scope but no admin key exists for service={service!r}")
+            return {"status": "ok", "note": "service admin key not configured"}
+        channel_label = service
+    else:
+        target = webhook.get("target_username")
+        if not target:
+            logging.warning(f"[CUSTOM_WEBHOOK] slug={slug!r} scope=channel but no target_username")
+            return {"status": "ok", "note": "no target channel configured"}
+        code = await _get_api_key_for_username(target)
+        if not code:
+            logging.warning(f"[CUSTOM_WEBHOOK] slug={slug!r} target {target!r} not registered")
+            return {"status": "ok", "note": "channel not registered"}
+        channel_label = target
+    logging.info(f"[CUSTOM_WEBHOOK] received | slug={slug!r} service={service!r} event={event_name!r} scope={scope!r}")
+    # Forward to the internal WebSocket server
+    async with aiohttp.ClientSession() as session:
+        try:
+            params = {
+                "code":    code,
+                "event":   event_name,
+                "service": service,
+                "channel": channel_label,
+                "data":    json.dumps(payload),
+            }
+            url = f"https://websocket.botofthespecter.com/notify?{urlencode(params)}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    logging.error(f"[CUSTOM_WEBHOOK] WS forward failed: HTTP {response.status} slug={slug!r}")
+                    raise HTTPException(status_code=502, detail="Error forwarding to WebSocket server")
+        except asyncio.TimeoutError:
+            logging.error(f"[CUSTOM_WEBHOOK] Timeout forwarding to WebSocket server slug={slug!r}")
+            raise HTTPException(status_code=502, detail="Timeout forwarding to WebSocket server")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"[CUSTOM_WEBHOOK] Unexpected error forwarding slug={slug!r}: {e}")
+            raise HTTPException(status_code=502, detail="Error forwarding to WebSocket server")
+    # Best-effort observability update
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE custom_webhooks SET last_received_at = UTC_TIMESTAMP(), "
+                    "received_count = received_count + 1 WHERE slug = %s",
+                    (slug,)
+                )
+                await conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"[CUSTOM_WEBHOOK] Failed to update stats slug={slug!r}: {e}")
+    return {"status": "success", "event": event_name}
 
 # FreeStuff Games List Endpoint
 @app.get(
