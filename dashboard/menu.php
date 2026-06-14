@@ -95,6 +95,7 @@ function getMenuItems($role = 'default') {
         [ 'label' => t('menu_admin_websocket_clients'), 'icon' => 'fas fa-plug', 'href' => 'websocket_clients.php' ],
         [ 'divider' => true ],
         [ 'label' => t('menu_admin_api_keys'), 'icon' => 'fas fa-key', 'href' => 'api_keys.php' ],
+        [ 'label' => t('menu_admin_webhooks'), 'icon' => 'fas fa-satellite-dish', 'href' => 'webhooks.php' ],
         [ 'label' => t('menu_admin_spam_patterns'), 'icon' => 'fas fa-ban', 'href' => 'spam_patterns.php' ],
         [ 'divider' => true ],
         [ 'label' => t('menu_admin_web_terminal'), 'icon' => 'fas fa-terminal', 'href' => 'terminal.php' ],

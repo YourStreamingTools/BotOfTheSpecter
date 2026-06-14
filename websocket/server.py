@@ -1129,6 +1129,7 @@ class BotOfTheSpecter_WebsocketServer:
         # Verify the key - check admin keys first, then user keys
         is_valid_key = False
         is_admin_key = False
+        is_service_admin = False
         admin_info = None
         if required_service:
             # Events that require admin keys
@@ -1145,6 +1146,14 @@ class BotOfTheSpecter_WebsocketServer:
                 is_valid_key = True
                 is_admin_key = True
                 self.logger.info(f"Super admin key used for {event} event")
+            elif admin_info.get('service'):
+                # Service-scoped admin key (e.g. a global custom webhook): valid for
+                # broadcasting custom events to global listeners only, identified by
+                # its service. The key itself is never echoed back to clients.
+                is_valid_key = True
+                is_admin_key = True
+                is_service_admin = True
+                self.logger.info(f"Service admin key ('{admin_info.get('service')}') used for {event} event")
             else:
                 # Check if it's a valid user key
                 is_valid_key = await self.verify_user_key(code)
@@ -1210,6 +1219,17 @@ class BotOfTheSpecter_WebsocketServer:
             count = await self.handle_user_pomo_start_http(code, data)
         elif event == "USER_POMO_CANCEL":
             count = await self.handle_user_pomo_cancel_http(code, data)
+        elif is_service_admin:
+            # Service-scoped admin key (global custom webhook): deliver the custom
+            # event to global listeners only, tagged with the service name. Strip the
+            # 'code' (the admin key) so it is never echoed to any client.
+            svc = admin_info.get('service') or "unknown"
+            safe_data = {k: v for k, v in data.items() if k != 'code'}
+            for listener in self.global_listeners:
+                await self.sio.emit(event, {**safe_data, "channel_code": svc}, to=listener['sid'])
+                self.logger.info(f"Emitted service event '{event}' to global listener SID [{listener['sid']}] (service: {svc})")
+                count += 1
+            self.logger.info(f"Broadcasted service event '{event}' to {count} global listeners")
         else:
             # Broadcast other events to connected clients
             if code in self.registered_clients:
