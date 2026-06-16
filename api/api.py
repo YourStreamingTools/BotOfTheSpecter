@@ -5480,7 +5480,7 @@ async def get_dashboard_summary(api_key: str = Query(...), channel: str = Query(
                 lifetime["songs"] = int((await cur.fetchone())["c"])
                 await cur.execute("SELECT COUNT(*) AS c FROM seen_users")
                 lifetime["welcomed"] = int((await cur.fetchone())["c"])
-                await cur.execute("SELECT COUNT(*) AS c FROM automated_shoutout_tracking")
+                await cur.execute("SELECT COUNT(*) AS c FROM shoutout_history")
                 lifetime["shoutouts"] = int((await cur.fetchone())["c"])
                 await cur.execute("SELECT COUNT(*) AS c FROM quotes")
                 lifetime["quotes"] = int((await cur.fetchone())["c"])

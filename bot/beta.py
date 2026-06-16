@@ -12760,6 +12760,23 @@ async def record_automated_shoutout(user_id, user_name):
         if connection:
             await connection.close()
 
+# Helper function to log a delivered shoutout to the persistent history table (5.8+ feature)
+async def log_shoutout_history(user_id, user_name, via=None):
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                "INSERT INTO shoutout_history (user_id, user_name, via) VALUES (%s, %s, %s)",
+                (user_id, user_name, via)
+            )
+            await connection.commit()
+    except Exception as e:
+        twitch_logger.error(f"[SHOUTOUT] Error logging shoutout history: {e}")
+    finally:
+        if connection:
+            await connection.close()
+
 # Helper function to load automated shoutout tracking from database
 async def load_automated_shoutout_tracking():
     connection = None
@@ -12874,6 +12891,8 @@ async def shoutout_worker():
             twitch_logger.info(f"[SHOUTOUT] Shoutout processed for {user_to_shoutout}. [source={source}]")
             # Record shoutout for per-user cooldown tracking regardless of source
             await record_automated_shoutout(user_id, user_to_shoutout)
+            # Persist to the shoutout history log for all-time counts (5.8+)
+            await log_shoutout_history(user_id, user_to_shoutout, source)
             # Only bump the global cooldown when we actually called the Twitch API
             if trigger_api:
                 last_shoutout_time = time_right_now()

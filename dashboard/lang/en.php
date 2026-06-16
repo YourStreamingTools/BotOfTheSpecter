@@ -1634,6 +1634,7 @@ return [
     'dashboard_js_songs' => 'Song requests',
     'dashboard_js_welcomed' => 'Viewers welcomed',
     'dashboard_js_shoutouts' => 'Shoutouts given',
+    'dashboard_js_beta_note' => '5.8 beta',
     'dashboard_js_quotes' => 'Quotes saved',
     'dashboard_js_points' => 'Points in circulation',
     'dashboard_js_interactions' => 'Interactions',
