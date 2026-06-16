@@ -5321,6 +5321,350 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
         logging.error(f"Error checking stream online status from database: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
 
+# Rolling window labels -> day count (calendar-free, timezone-safe).
+_DASH_WINDOWS = {"today": 1, "24h": 1, "7d": 7, "30d": 30}
+
+async def _dashboard_period_counts(cur, expr: str, param):
+    # expr is one of two FIXED internal SQL expressions ("NOW() - INTERVAL %s DAY"
+    # or "FROM_UNIXTIME(%s)") -- never user input -- with `param` bound safely.
+    out = {}
+    await cur.execute(f"SELECT COUNT(*) AS c FROM followers_data WHERE followed_at >= {expr}", (param,))
+    out["followers"] = int((await cur.fetchone())["c"])
+    await cur.execute(f"SELECT sub_plan, COUNT(*) AS c FROM subscription_data WHERE timestamp >= {expr} GROUP BY sub_plan", (param,))
+    subs = {"t1": 0, "t2": 0, "t3": 0, "prime": 0, "total": 0}
+    plan_map = {"1000": "t1", "2000": "t2", "3000": "t3", "prime": "prime"}
+    for r in await cur.fetchall():
+        cnt = int(r["c"])
+        subs["total"] += cnt
+        key = plan_map.get(str(r["sub_plan"] or "").strip().lower())
+        if key:
+            subs[key] += cnt
+    out["subs"] = subs
+    await cur.execute(f"SELECT COALESCE(SUM(bits),0) AS s FROM bits_data WHERE timestamp >= {expr}", (param,))
+    out["bits"] = int((await cur.fetchone())["s"])
+    await cur.execute(f"SELECT COUNT(*) AS c, COALESCE(SUM(amount),0) AS s FROM tipping WHERE COALESCE(created_at, timestamp) >= {expr}", (param,))
+    trow = await cur.fetchone()
+    out["tips"] = {"count": int(trow["c"]), "amount": float(trow["s"] or 0)}
+    await cur.execute(f"SELECT COUNT(*) AS c, COALESCE(SUM(viewers),0) AS v FROM raid_data WHERE timestamp >= {expr}", (param,))
+    rrow = await cur.fetchone()
+    out["raids"] = {"count": int(rrow["c"]), "viewers": int(rrow["v"])}
+    await cur.execute(f"SELECT COUNT(*) AS c FROM seen_users WHERE first_seen >= {expr}", (param,))
+    out["new_viewers"] = int((await cur.fetchone())["c"])
+    await cur.execute(f"SELECT COUNT(*) AS c FROM quotes WHERE added >= {expr}", (param,))
+    out["new_quotes"] = int((await cur.fetchone())["c"])
+    await cur.execute(f"SELECT COUNT(*) AS c FROM chat_history WHERE timestamp >= {expr}", (param,))
+    out["chat_messages"] = int((await cur.fetchone())["c"])
+    return out
+
+class DashboardLiveResponse(BaseModel):
+    channel: str
+    online: bool
+    started_at: str | None = None
+    uptime_seconds: int = 0
+    viewer_count: int = 0
+    title: str | None = None
+    game: str | None = None
+
+@app.get(
+    "/dashboard/live",
+    response_model=DashboardLiveResponse,
+    summary="Dashboard: live stream seed",
+    description="Seed the dashboard live ribbon (online, uptime, viewers, title, game). The dashboard keeps it current via WebSocket STREAM_ONLINE/STREAM_OFFLINE events; the socket replays no state, so this seed is required on load.",
+    tags=["Dashboard"],
+    operation_id="get_dashboard_live"
+)
+async def get_dashboard_live(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    db_online = False
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT status FROM stream_status")
+                row = await cur.fetchone()
+                if row and row[0]:
+                    db_online = str(row[0]).lower() == "true"
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Dashboard live: stream_status read failed for '{username}': {e}")
+    online = db_online
+    started_at = None
+    uptime_seconds = 0
+    viewer_count = 0
+    title = None
+    game = None
+    creds = await get_twitch_app_credentials()
+    if creds:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://api.twitch.tv/helix/streams",
+                    headers={"Client-ID": creds["client_id"], "Authorization": f"Bearer {creds['access_token']}"},
+                    params={"user_login": username},
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        items = data.get("data", [])
+                        if items:
+                            s = items[0]
+                            online = True
+                            started_at = s.get("started_at")
+                            viewer_count = int(s.get("viewer_count") or 0)
+                            title = s.get("title")
+                            game = s.get("game_name")
+                            if started_at:
+                                try:
+                                    start_dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                                    uptime_seconds = max(0, int((datetime.now(timezone.utc) - start_dt).total_seconds()))
+                                except Exception:
+                                    uptime_seconds = 0
+                        else:
+                            online = False
+        except Exception as e:
+            logging.warning(f"Dashboard live: Helix lookup failed for '{username}': {e}")
+    return {
+        "channel": username,
+        "online": online,
+        "started_at": started_at,
+        "uptime_seconds": uptime_seconds,
+        "viewer_count": viewer_count,
+        "title": title,
+        "game": game,
+    }
+
+class DashboardSummaryResponse(BaseModel):
+    channel: str
+    window_days: int
+    lifetime: dict
+    window: dict
+    since_visit: dict | None = None
+
+@app.get(
+    "/dashboard/summary",
+    response_model=DashboardSummaryResponse,
+    summary="Dashboard: bot-activity totals + windowed deltas",
+    description="Lifetime totals of what the bot did (all-time), plus rolling-window deltas (today|24h|7d|30d) and optional since-last-visit deltas for the authenticated channel.",
+    tags=["Dashboard"],
+    operation_id="get_dashboard_summary"
+)
+async def get_dashboard_summary(api_key: str = Query(...), channel: str = Query(None), window: str = Query("7d"), since: int = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    days = _DASH_WINDOWS.get(str(window).lower(), 7)
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                lifetime = {}
+                await cur.execute("SELECT COALESCE(SUM(count),0) AS s FROM custom_counts")
+                cc = int((await cur.fetchone())["s"])
+                await cur.execute("SELECT COALESCE(SUM(count),0) AS s FROM user_counts")
+                uc = int((await cur.fetchone())["s"])
+                lifetime["commands"] = cc + uc
+                await cur.execute("SELECT COALESCE(SUM(count),0) AS s FROM reward_counts")
+                lifetime["rewards"] = int((await cur.fetchone())["s"])
+                await cur.execute("SELECT COALESCE(SUM(death_count),0) AS s FROM game_deaths")
+                lifetime["deaths"] = int((await cur.fetchone())["s"])
+                await cur.execute("SELECT COUNT(*) AS c FROM song_request_analytics")
+                lifetime["songs"] = int((await cur.fetchone())["c"])
+                await cur.execute("SELECT COUNT(*) AS c FROM seen_users")
+                lifetime["welcomed"] = int((await cur.fetchone())["c"])
+                await cur.execute("SELECT COUNT(*) AS c FROM automated_shoutout_tracking")
+                lifetime["shoutouts"] = int((await cur.fetchone())["c"])
+                await cur.execute("SELECT COUNT(*) AS c FROM quotes")
+                lifetime["quotes"] = int((await cur.fetchone())["c"])
+                await cur.execute("SELECT COALESCE(SUM(points),0) AS s FROM bot_points")
+                lifetime["points"] = int((await cur.fetchone())["s"])
+                await cur.execute(
+                    "SELECT (COALESCE((SELECT SUM(hug_count) FROM hug_counts),0) + "
+                    "COALESCE((SELECT SUM(kiss_count) FROM kiss_counts),0) + "
+                    "COALESCE((SELECT SUM(highfive_count) FROM highfive_counts),0)) AS s"
+                )
+                lifetime["interactions"] = int((await cur.fetchone())["s"])
+                window_deltas = await _dashboard_period_counts(cur, "NOW() - INTERVAL %s DAY", days)
+                since_deltas = None
+                if since:
+                    since_deltas = await _dashboard_period_counts(cur, "FROM_UNIXTIME(%s)", int(since))
+        finally:
+            conn.close()
+        return {"channel": username, "window_days": days, "lifetime": lifetime, "window": window_deltas, "since_visit": since_deltas}
+    except Exception as e:
+        logging.error(f"Dashboard summary error for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving dashboard summary")
+
+class DashboardTrendsResponse(BaseModel):
+    channel: str
+    days: int
+    series: dict
+
+@app.get(
+    "/dashboard/trends",
+    response_model=DashboardTrendsResponse,
+    summary="Dashboard: daily trend buckets",
+    description="Daily counts for sparklines (followers, subs, bits, chat volume) over the last N days for the authenticated channel.",
+    tags=["Dashboard"],
+    operation_id="get_dashboard_trends"
+)
+async def get_dashboard_trends(api_key: str = Query(...), channel: str = Query(None), days: int = Query(30)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    days = max(1, min(int(days), 365))
+    queries = [
+        ("followers", "SELECT DATE(followed_at) AS d, COUNT(*) AS c FROM followers_data WHERE followed_at >= NOW() - INTERVAL %s DAY GROUP BY DATE(followed_at) ORDER BY d"),
+        ("subs", "SELECT DATE(timestamp) AS d, COUNT(*) AS c FROM subscription_data WHERE timestamp >= NOW() - INTERVAL %s DAY GROUP BY DATE(timestamp) ORDER BY d"),
+        ("bits", "SELECT DATE(timestamp) AS d, COALESCE(SUM(bits),0) AS c FROM bits_data WHERE timestamp >= NOW() - INTERVAL %s DAY GROUP BY DATE(timestamp) ORDER BY d"),
+        ("chat", "SELECT DATE(timestamp) AS d, COUNT(*) AS c FROM chat_history WHERE timestamp >= NOW() - INTERVAL %s DAY GROUP BY DATE(timestamp) ORDER BY d"),
+    ]
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                series = {}
+                for key, sql in queries:
+                    await cur.execute(sql, (days,))
+                    series[key] = [{"date": str(r["d"]), "count": int(r["c"])} for r in await cur.fetchall()]
+        finally:
+            conn.close()
+        return {"channel": username, "days": days, "series": series}
+    except Exception as e:
+        logging.error(f"Dashboard trends error for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving dashboard trends")
+
+class DashboardLeaderboardsResponse(BaseModel):
+    channel: str
+    limit: int
+    top_commands: list
+    top_rewards: list
+    watch_time: list
+    streaks: list
+    deaths_by_game: list
+    chat_leaders: list
+    top_songs: list
+    interactions: dict
+
+@app.get(
+    "/dashboard/leaderboards",
+    response_model=DashboardLeaderboardsResponse,
+    summary="Dashboard: community leaderboards",
+    description="Top commands, rewards, watch-time, loyalty streaks, deaths by game, chat leaders, top songs and interaction leaders for the authenticated channel.",
+    tags=["Dashboard"],
+    operation_id="get_dashboard_leaderboards"
+)
+async def get_dashboard_leaderboards(api_key: str = Query(...), channel: str = Query(None), limit: int = Query(10)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    limit = max(1, min(int(limit), 50))
+    ilim = min(limit, 5)
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT command, count FROM custom_counts ORDER BY count DESC LIMIT %s", (limit,))
+                top_commands = [{"command": r["command"], "count": int(r["count"] or 0)} for r in await cur.fetchall()]
+                await cur.execute(
+                    "SELECT COALESCE(c.reward_title, rc.reward_id) AS title, SUM(rc.count) AS total "
+                    "FROM reward_counts rc LEFT JOIN channel_point_rewards c ON rc.reward_id = c.reward_id "
+                    "GROUP BY rc.reward_id, c.reward_title ORDER BY total DESC LIMIT %s",
+                    (limit,)
+                )
+                top_rewards = [{"reward_title": r["title"], "count": int(r["total"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT username, total_watch_time_live, total_watch_time_offline FROM watch_time ORDER BY total_watch_time_live DESC LIMIT %s", (limit,))
+                watch_time = [{"username": r["username"], "live": int(r["total_watch_time_live"] or 0), "offline": int(r["total_watch_time_offline"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT user_name, streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak ORDER BY highest_streak DESC LIMIT %s", (limit,))
+                streaks = [{"username": r["user_name"], "current": int(r["streak_value"] or 0), "highest": int(r["highest_streak"] or 0), "total": int(r["total_streams_watched"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC LIMIT %s", (limit,))
+                deaths_by_game = [{"game": r["game_name"], "deaths": int(r["death_count"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT username, message_count FROM message_counts ORDER BY message_count DESC LIMIT %s", (limit,))
+                chat_leaders = [{"username": r["username"], "messages": int(r["message_count"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT song_name, artist_name, COUNT(*) AS c FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY c DESC LIMIT %s", (limit,))
+                top_songs = [{"song": r["song_name"], "artist": r["artist_name"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
+                interactions = {}
+                await cur.execute("SELECT username, hug_count AS c FROM hug_counts ORDER BY hug_count DESC LIMIT %s", (ilim,))
+                interactions["hugs"] = [{"username": r["username"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT username, kiss_count AS c FROM kiss_counts ORDER BY kiss_count DESC LIMIT %s", (ilim,))
+                interactions["kisses"] = [{"username": r["username"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
+                await cur.execute("SELECT username, highfive_count AS c FROM highfive_counts ORDER BY highfive_count DESC LIMIT %s", (ilim,))
+                interactions["highfives"] = [{"username": r["username"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
+        finally:
+            conn.close()
+        return {
+            "channel": username, "limit": limit,
+            "top_commands": top_commands, "top_rewards": top_rewards, "watch_time": watch_time,
+            "streaks": streaks, "deaths_by_game": deaths_by_game, "chat_leaders": chat_leaders,
+            "top_songs": top_songs, "interactions": interactions,
+        }
+    except Exception as e:
+        logging.error(f"Dashboard leaderboards error for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving dashboard leaderboards")
+
+class DashboardActivityResponse(BaseModel):
+    channel: str
+    items: list
+
+@app.get(
+    "/dashboard/activity",
+    response_model=DashboardActivityResponse,
+    summary="Dashboard: recent activity feed",
+    description="Most recent events merged across follows, subs, cheers, tips, raids, redemptions and quotes for the authenticated channel, newest first.",
+    tags=["Dashboard"],
+    operation_id="get_dashboard_activity"
+)
+async def get_dashboard_activity(api_key: str = Query(...), channel: str = Query(None), limit: int = Query(25)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    limit = max(1, min(int(limit), 100))
+    sql = (
+        "SELECT * FROM ("
+        " SELECT 'follow' AS type, user_name AS actor, '' AS detail, followed_at AS at FROM followers_data"
+        " UNION ALL"
+        " SELECT 'sub', user_name, CONCAT(COALESCE(sub_plan,''), CASE WHEN months IS NOT NULL THEN CONCAT(' ', months, 'mo') ELSE '' END), timestamp FROM subscription_data"
+        " UNION ALL"
+        " SELECT 'cheer', user_name, CAST(bits AS CHAR), timestamp FROM bits_data"
+        " UNION ALL"
+        " SELECT 'tip', username, CONCAT(COALESCE(CAST(amount AS CHAR),''), ' ', COALESCE(currency,'')), COALESCE(created_at, timestamp) FROM tipping"
+        " UNION ALL"
+        " SELECT 'raid', raider_name, CAST(viewers AS CHAR), timestamp FROM raid_data"
+        " UNION ALL"
+        " SELECT 'redeem', sr.username, COALESCE(cpr.reward_title, sr.reward_id), sr.redeemed_at FROM stored_redeems sr LEFT JOIN channel_point_rewards cpr ON sr.reward_id = cpr.reward_id"
+        " UNION ALL"
+        " SELECT 'quote', '', LEFT(quote, 80), added FROM quotes"
+        ") AS feed WHERE at IS NOT NULL ORDER BY at DESC LIMIT %s"
+    )
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(sql, (limit,))
+                rows = await cur.fetchall()
+        finally:
+            conn.close()
+        items = []
+        for r in rows:
+            at = r["at"]
+            at_str = at.isoformat() if hasattr(at, "isoformat") else (str(at) if at is not None else None)
+            items.append({
+                "type": r["type"],
+                "actor": r["actor"] or "",
+                "detail": (str(r["detail"]).strip() if r["detail"] is not None else ""),
+                "at": at_str,
+            })
+        return {"channel": username, "items": items}
+    except Exception as e:
+        logging.error(f"Dashboard activity error for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving dashboard activity")
+
 # Death Counter Endpoint
 @app.get(
     "/deaths",
