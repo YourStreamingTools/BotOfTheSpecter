@@ -157,7 +157,7 @@ if ($isLoggedIn) {
     (function () {
         "use strict";
         var API = 'https://api.botofthespecter.com';
-        var CODE = <?php echo json_encode($api_key); ?>;
+        var CODE = <?php echo json_encode($_SESSION['api_key'] ?? ''); ?>;
         var I18N = {
             live: <?php echo json_encode(t('dashboard_js_live')); ?>,
             offline: <?php echo json_encode(t('dashboard_js_offline')); ?>,
@@ -232,13 +232,15 @@ if ($isLoggedIn) {
             document.cookie = 'dbLastVisit=' + Math.floor(Date.now() / 1000) + '; expires=' + d.toUTCString() + '; path=/';
         }
         function apiGet(path, params) {
-            var qs = '';
-            if (params) {
-                var parts = [];
-                for (var k in params) { if (params[k] !== null && params[k] !== undefined) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
-                if (parts.length) qs = '?' + parts.join('&');
-            }
-            return fetch(API + '/v2' + path + qs, { headers: { 'X-API-KEY': CODE } }).then(function (r) {
+            // V1 query auth (?api_key=) -- a "simple" cross-origin GET with no custom
+            // header, so the browser sends NO CORS preflight. This matches how bot.php /
+            // raffles.php / layout.php call the API. (The V2 X-API-KEY header form triggers
+            // an OPTIONS preflight that the v2 auth middleware rejects before CORS replies.)
+            var all = { api_key: CODE };
+            if (params) { for (var k in params) { if (params[k] !== null && params[k] !== undefined) all[k] = params[k]; } }
+            var parts = [];
+            for (var pk in all) parts.push(encodeURIComponent(pk) + '=' + encodeURIComponent(all[pk]));
+            return fetch(API + path + '?' + parts.join('&')).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
             });
