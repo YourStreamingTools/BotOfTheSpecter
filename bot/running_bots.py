@@ -3,9 +3,10 @@ import os
 import asyncio
 import aiohttp
 
-# Define the script names for stable and beta
+# Define the script names for stable, beta, and kick
 stable_script = "bot.py"
 beta_script = "beta.py"
+kick_script = "kick.py"
 API_VERSIONS_URL = "https://api.botofthespecter.com/versions"
 
 # Function to get version from version control files
@@ -16,6 +17,8 @@ def get_version(script_type, channel):
         file_path = f"/home/botofthespecter/logs/version/beta/{channel}_beta_version_control.txt"
     elif script_type == 'custom':
         file_path = f"/home/botofthespecter/logs/version/custom/{channel}_custom_version_control.txt"
+    elif script_type == 'kick':
+        file_path = f"/home/botofthespecter/logs/version/kick/{channel}_kick_version_control.txt"
     else:
         return 'Unknown'
     try:
@@ -56,6 +59,8 @@ def is_version_outdated(local_version, api_versions, script_type):
     elif script_type == 'custom':
         # Custom might use stable version
         current_version = api_versions.get('stable_version')
+    elif script_type == 'kick':
+        current_version = api_versions.get('kick_version')
     else:
         return False, None, "Unknown script type"
     if not current_version:
@@ -73,6 +78,7 @@ def is_version_outdated(local_version, api_versions, script_type):
 stable_bots = []
 beta_bots = []
 custom_bots = []
+kick_bots = []
 # Fetch API versions
 api_versions = asyncio.run(get_api_versions())
 
@@ -102,7 +108,27 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
             if base_name == beta_script:
                 script_match_beta = True
                 break
-    
+
+    # Check for kick bot (kick.py)
+    script_match_kick = False
+    for arg in cmdline:
+        if arg.endswith(kick_script):
+            base_name = os.path.basename(arg)
+            if base_name == kick_script:
+                script_match_kick = True
+                break
+
+    # Kick bot uses -twitchusername instead of -channel
+    if script_match_kick:
+        kick_channel_index = -1
+        if "-twitchusername" in cmdline:
+            kick_channel_index = cmdline.index("-twitchusername")
+        if kick_channel_index >= 0 and kick_channel_index + 1 < len(cmdline):
+            channel = cmdline[kick_channel_index + 1]
+            version = get_version('kick', channel)
+            kick_bots.append((channel, process.info['pid'], version))
+        continue
+
     # Find the channel if present
     channel_index = -1
     if "-channel" in cmdline:
@@ -149,5 +175,14 @@ if custom_bots:
         is_outdated, current, status = is_version_outdated(version, api_versions, 'custom')
         print(f"- Channel: {channel}, PID: {pid}, Version: {version} | {status}")
     print(f"Total: {len(custom_bots)}")
+else:
+    print("None")
+
+print("\nKick bots running:")
+if kick_bots:
+    for channel, pid, version in kick_bots:
+        is_outdated, current, status = is_version_outdated(version, api_versions, 'kick')
+        print(f"- Channel: {channel}, PID: {pid}, Version: {version} | {status}")
+    print(f"Total: {len(kick_bots)}")
 else:
     print("None")
