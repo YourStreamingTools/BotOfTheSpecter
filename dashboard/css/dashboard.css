@@ -3426,6 +3426,10 @@ label.label {
     font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--text-muted); background: var(--grey-bg); padding: 0.1rem 0.4rem; border-radius: var(--radius-pill);
 }
+.db-beta-tag {
+    font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--amber); background: var(--amber-bg); padding: 0.1rem 0.4rem; border-radius: var(--radius-pill);
+}
 
 /* --- "What's new" trend tiles --- */
 .db-trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1rem; }

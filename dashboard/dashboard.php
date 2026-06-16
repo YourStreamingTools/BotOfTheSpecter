@@ -176,6 +176,7 @@ if ($isLoggedIn) {
             songs: <?php echo json_encode(t('dashboard_js_songs')); ?>,
             welcomed: <?php echo json_encode(t('dashboard_js_welcomed')); ?>,
             shoutouts: <?php echo json_encode(t('dashboard_js_shoutouts')); ?>,
+            beta_note: <?php echo json_encode(t('dashboard_js_beta_note')); ?>,
             quotes: <?php echo json_encode(t('dashboard_js_quotes')); ?>,
             points: <?php echo json_encode(t('dashboard_js_points')); ?>,
             interactions: <?php echo json_encode(t('dashboard_js_interactions')); ?>,
@@ -317,10 +318,12 @@ if ($isLoggedIn) {
                 renderWhatsNew(s.window, s.since_visit);
             }).catch(function () { $('dbWhatsNew').innerHTML = errRow(); });
         }
-        function statTile(label, value) {
+        function statTile(label, value, beta) {
+            var sub = '<span class="db-alltime-tag">' + esc(I18N.all_time) + '</span>';
+            if (beta) sub += ' <span class="db-beta-tag">' + esc(I18N.beta_note) + '</span>';
             return '<div class="sp-stat"><div class="sp-stat-label">' + esc(label) + '</div>' +
                 '<div class="sp-stat-value">' + fmt(value) + '</div>' +
-                '<div class="sp-stat-sub"><span class="db-alltime-tag">' + esc(I18N.all_time) + '</span></div></div>';
+                '<div class="sp-stat-sub">' + sub + '</div></div>';
         }
         function renderBotDid(l) {
             l = l || {};
@@ -330,7 +333,7 @@ if ($isLoggedIn) {
                 statTile(I18N.deaths, l.deaths),
                 statTile(I18N.songs, l.songs),
                 statTile(I18N.welcomed, l.welcomed),
-                statTile(I18N.shoutouts, l.shoutouts),
+                statTile(I18N.shoutouts, l.shoutouts, true),
                 statTile(I18N.quotes, l.quotes),
                 statTile(I18N.points, l.points),
                 statTile(I18N.interactions, l.interactions)

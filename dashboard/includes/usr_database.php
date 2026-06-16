@@ -790,6 +790,16 @@ try {
                 shoutout_time DATETIME NOT NULL,
                 INDEX idx_shoutout_time (shoutout_time)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'shoutout_history' => "
+            CREATE TABLE IF NOT EXISTS shoutout_history (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(255),
+                user_name VARCHAR(255),
+                via VARCHAR(20) DEFAULT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
+                given_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_given_at (given_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'stream_session_stats' => "
             CREATE TABLE IF NOT EXISTS stream_session_stats (
                 id INT PRIMARY KEY AUTO_INCREMENT,
