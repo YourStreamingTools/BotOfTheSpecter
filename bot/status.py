@@ -8,8 +8,8 @@ parser.add_argument(
     "-system",
     dest="system",
     required=True,
-    choices=["stable", "beta", "custom"],
-    help="System to check (stable, beta, custom)"
+    choices=["stable", "beta", "custom", "kick"],
+    help="System to check (stable, beta, custom, kick)"
 )
 parser.add_argument("-channel", dest="channel_username", required=True, help="Channel username to check")
 args = parser.parse_args()
@@ -17,17 +17,19 @@ args = parser.parse_args()
 channel_username = args.channel_username.lower()
 requested_system = args.system
 
-# Helper to extract channel value from cmdline
+# Helper to extract channel value from cmdline.
+# Supports -channel (stable/beta/custom) and -twitchusername (kick).
 def extract_channel(cmdline, channel_username):
-    # Exact flag format: -channel <username> or -channel=<username>
+    flags = ("-channel", "--channel", "-twitchusername", "--twitchusername")
     for i, arg in enumerate(cmdline):
-        if arg in ("-channel", "--channel"):
+        if arg in flags:
             if i + 1 < len(cmdline) and cmdline[i + 1] == channel_username:
                 return True
-        if arg.startswith("-channel=") or arg.startswith("--channel="):
-            parts = arg.split("=", 1)
-            if len(parts) == 2 and parts[1] == channel_username:
-                return True
+        for prefix in ("-channel=", "--channel=", "-twitchusername=", "--twitchusername="):
+            if arg.startswith(prefix):
+                parts = arg.split("=", 1)
+                if len(parts) == 2 and parts[1] == channel_username:
+                    return True
     return False
 
 # Iterate through processes to find a match
@@ -60,6 +62,9 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
                 match = True
         elif requested_system == 'beta':
             if script_name == 'beta.py':
+                match = True
+        elif requested_system == 'kick':
+            if script_name == 'kick.py':
                 match = True
         if match:
             print(f"Bot is running with process ID: {process.info['pid']}")
