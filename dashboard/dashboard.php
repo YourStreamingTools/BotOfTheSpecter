@@ -222,6 +222,17 @@ if ($isLoggedIn) {
             var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
             return (h > 0 ? h + 'h ' : '') + m + 'm';
         }
+        function fmtWatch(sec) {
+            // watch_time columns are stored in seconds (bot increments by 60 each minute)
+            sec = Number(sec) || 0;
+            var d = Math.floor(sec / 86400);
+            var h = Math.floor((sec % 86400) / 3600);
+            var m = Math.floor((sec % 3600) / 60);
+            if (d > 0) return d + 'd ' + h + 'h';
+            if (h > 0) return h + 'h ' + m + 'm';
+            if (m > 0) return m + 'm';
+            return sec + 's';
+        }
         function getCookie(name) {
             var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
             return m ? decodeURIComponent(m[1]) : null;
@@ -400,7 +411,7 @@ if ($isLoggedIn) {
             $('dbBoards').innerHTML = [
                 board(I18N.top_commands, 'fas fa-terminal', boardRows(d.top_commands, 'command', function (r) { return fmt(r.count); })),
                 board(I18N.top_rewards, 'fas fa-star', boardRows(d.top_rewards, 'reward_title', function (r) { return fmt(r.count); })),
-                board(I18N.watch_time, 'fas fa-clock', boardRows(d.watch_time, 'username', function (r) { return fmt(r.live); })),
+                board(I18N.watch_time, 'fas fa-clock', boardRows(d.watch_time, 'username', function (r) { return fmtWatch(r.live); })),
                 board(I18N.streaks, 'fas fa-fire', boardRows(d.streaks, 'username', function (r) { return fmt(r.highest); })),
                 board(I18N.deaths_by_game, 'fas fa-skull', boardRows(d.deaths_by_game, 'game', function (r) { return fmt(r.deaths); })),
                 board(I18N.chat_leaders, 'fas fa-comments', boardRows(d.chat_leaders, 'username', function (r) { return fmt(r.messages); })),
