@@ -13,249 +13,96 @@ $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 
 if ($isLoggedIn) {
-    // User is logged in - show dashboard interface
-    // Include authentication and user data
+    // User is logged in - show the operational dashboard.
+    //
+    // FAST SHELL: this page renders only the zone skeletons server-side, then
+    // streams the heavy data in from the FastAPI /dashboard/* endpoints (via the
+    // browser, V2 X-API-KEY auth) and live events from the WebSocket. The old
+    // synchronous Twitch subscriber cURL and the ~20-query includes/user_db.php
+    // load were intentionally removed from this path -- they made first paint
+    // wait up to ~16s. usr_database.php (per-user schema bootstrap) still runs
+    // via layout.php, so all tables exist before the client fires its requests.
     require_once "/var/www/config/db_connect.php";
-    include '/var/www/config/twitch.php';
-    include '/var/www/config/ssh.php';
-    include 'includes/userdata.php';
+    include 'includes/userdata.php'; // sets $username, $api_key, $twitchDisplayName, $twitchUserId, $user
+    session_write_close();
+
     $pageTitle = t('dashboard_page_title_management');
-    include 'includes/bot_control.php';
-    include "includes/mod_access.php";
-    include_once 'includes/usr_database.php';
-    include 'includes/user_db.php';
-    include 'includes/storage_used.php';
-session_write_close();
 
-    // Channel info metrics (followers, subscribers, raids)
-    $followerCount = 0;
-    $subscriberCount = null;
-    $subscriberSubtext = t('dashboard_live_twitch_subscriptions');
-    $raidCount = 0;
-    $raidViewersTotal = 0;
-    $raidUniqueRaiders = 0;
-
-    if (isset($db) && $db instanceof mysqli) {
-        $followersResult = $db->query("SELECT COUNT(*) AS total FROM followers_data");
-        if ($followersResult) {
-            $followersRow = $followersResult->fetch_assoc();
-            $followerCount = (int)($followersRow['total'] ?? 0);
-        }
-
-        $raidsResult = $db->query("SELECT
-            COALESCE(SUM(CASE WHEN raid_count IS NULL OR raid_count < 1 THEN 1 ELSE raid_count END), 0) AS total_raids,
-            COALESCE(SUM(viewers), 0) AS total_viewers,
-            COUNT(DISTINCT raider_id) AS unique_raiders
-            FROM raid_data");
-        if ($raidsResult) {
-            $raidsRow = $raidsResult->fetch_assoc();
-            $raidCount = (int)($raidsRow['total_raids'] ?? 0);
-            $raidViewersTotal = (int)($raidsRow['total_viewers'] ?? 0);
-            $raidUniqueRaiders = (int)($raidsRow['unique_raiders'] ?? 0);
-        }
-    }
-
-    // Twitch subscriber count (live from Twitch API)
-    if (!empty($broadcasterID) && !empty($authToken) && !empty($clientID)) {
-        $usersUrl = "https://api.twitch.tv/helix/users?id=" . rawurlencode((string)$broadcasterID);
-        $usersCurl = curl_init($usersUrl);
-        curl_setopt($usersCurl, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $authToken,
-            'Client-ID: ' . $clientID,
-        ]);
-        curl_setopt($usersCurl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($usersCurl, CURLOPT_TIMEOUT, 8);
-        $usersResponse = curl_exec($usersCurl);
-        $usersHttpCode = curl_getinfo($usersCurl, CURLINFO_HTTP_CODE);
-$isEligibleForSubs = false;
-        if ($usersResponse !== false && $usersHttpCode === 200) {
-            $usersData = json_decode($usersResponse, true);
-            $broadcasterType = (string)($usersData['data'][0]['broadcaster_type'] ?? '');
-            $isEligibleForSubs = ($broadcasterType !== '');
-        }
-
-        if ($isEligibleForSubs) {
-            $subsUrl = "https://api.twitch.tv/helix/subscriptions?broadcaster_id=" . rawurlencode((string)$broadcasterID);
-            $subsCurl = curl_init($subsUrl);
-            curl_setopt($subsCurl, CURLOPT_HTTPHEADER, [
-                'Authorization: Bearer ' . $authToken,
-                'Client-ID: ' . $clientID,
-            ]);
-            curl_setopt($subsCurl, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($subsCurl, CURLOPT_TIMEOUT, 8);
-            $subsResponse = curl_exec($subsCurl);
-            $subsHttpCode = curl_getinfo($subsCurl, CURLINFO_HTTP_CODE);
-if ($subsResponse !== false && $subsHttpCode === 200) {
-                $subsData = json_decode($subsResponse, true);
-                if (isset($subsData['total'])) {
-                    $subscriberCount = (int)$subsData['total'];
-                    $subscriberSubtext = t('dashboard_live_twitch_subscriptions');
-                } else {
-                    $subscriberSubtext = t('dashboard_unable_read_subscriber_total');
-                }
-            } else {
-                $subscriberSubtext = t('dashboard_unable_fetch_subscribers');
-            }
-        } else {
-            $subscriberSubtext = t('dashboard_not_affiliate_partner');
-        }
-    } else {
-        $subscriberSubtext = t('dashboard_missing_twitch_auth');
-    }
-
-    // Dashboard metrics (real data only)
-    $stableRunning = !empty($botSystemStatus);
-    $betaRunning = !empty($betaBotSystemStatus);
-    $v6Running = !empty($v6BotSystemStatus);
-    $botsOnlineCount = (int)$stableRunning + (int)$betaRunning + (int)$v6Running;
-    $storagePercent = max(0, min(100, (float)$storage_percentage));
-    $storageUsedMb = round(((float)$current_storage_used / 1024 / 1024), 2);
-    $storageMaxMb = round(((float)$max_storage_size / 1024 / 1024), 2);
-    $customCommandCount = is_array($commands) ? count($commands) : 0;
-    $builtinCommandCount = is_array($builtinCommands) ? count($builtinCommands) : 0;
-    $builtinEnabledCount = 0;
-    if (is_array($builtinCommands)) {
-        foreach ($builtinCommands as $builtinCommand) {
-            if (isset($builtinCommand['status']) && strcasecmp((string)$builtinCommand['status'], 'Enabled') === 0) {
-                $builtinEnabledCount++;
-            }
-        }
-    }
-    $rewardsCount = is_array($channelPointRewards) ? count($channelPointRewards) : 0;
-    $quotesCount = is_array($quotesData) ? count($quotesData) : 0;
-    $knownUsersCount = is_array($seenUsersData) ? count($seenUsersData) : 0;
-    $modChannelCount = is_array($modChannels) ? count($modChannels) : 0;
-    $liveLurkersCount = is_array($lurkers) ? count($lurkers) : 0;
-    $watchUsersCount = is_array($watchTimeData) ? count($watchTimeData) : 0;
-    $todoTotalCount = is_array($todos) ? count($todos) : 0;
-    $todoCompletedCount = 0;
-    if (is_array($todos)) {
-        foreach ($todos as $todoItem) {
-            if (isset($todoItem['completed']) && strcasecmp((string)$todoItem['completed'], 'Yes') === 0) {
-                $todoCompletedCount++;
-            }
-        }
-    }
-    $todoOpenCount = max(0, $todoTotalCount - $todoCompletedCount);
-    $stableRunningVersion = $stableRunning ? ($versionRunning ?? t('dashboard_version_unknown')) : t('dashboard_not_running');
-    $betaRunningVersion = $betaRunning ? ($betaVersionRunning ?? t('dashboard_version_unknown')) : t('dashboard_not_running');
-    $v6RunningVersion = $v6Running ? ($v6VersionRunning ?? t('dashboard_version_unknown')) : t('dashboard_not_running');
-    $stableLatestVersion = $newVersion ?? t('dashboard_version_na');
-    $betaLatestVersion = $betaNewVersion ?? t('dashboard_version_na');
-    $v6LatestVersion = $v6NewVersion ?? t('dashboard_version_na');
-    // Determine single active bot runtime (only one should run at a time)
-    $activeBotSystem = 'none';
-    $activeBotLabel = t('dashboard_not_running');
-    $activeBotRunning = false;
-    $activeBotCurrentVersion = t('dashboard_not_running');
-    $activeBotLatestVersion = t('dashboard_version_na');
-    if ($stableRunning) {
-        $activeBotSystem = 'stable';
-        $activeBotLabel = 'Stable';
-        $activeBotRunning = true;
-        $activeBotCurrentVersion = (string)$stableRunningVersion;
-        $activeBotLatestVersion = (string)$stableLatestVersion;
-    } elseif ($betaRunning) {
-        $activeBotSystem = 'beta';
-        $activeBotLabel = 'Beta';
-        $activeBotRunning = true;
-        $activeBotCurrentVersion = (string)$betaRunningVersion;
-        $activeBotLatestVersion = (string)$betaLatestVersion;
-    } elseif ($v6Running) {
-        $activeBotSystem = 'v6';
-        $activeBotLabel = 'v6';
-        $activeBotRunning = true;
-        $activeBotCurrentVersion = (string)$v6RunningVersion;
-        $activeBotLatestVersion = (string)$v6LatestVersion;
-    }
-    // Start output buffering for layout system
+    // ---- Page body (skeletons; JS fills them in) ----
     ob_start();
     ?>
-    <!-- Welcome -->
     <div class="sp-page-header">
-        <h1><i class="fas fa-robot"></i> <?= t('dashboard_welcome') ?>, <?php echo htmlspecialchars($twitchDisplayName); ?>!</h1>
+        <h1><i class="fas fa-gauge-high"></i> <?= t('dashboard_welcome') ?>, <?php echo htmlspecialchars($twitchDisplayName); ?>!</h1>
         <p><?= t('dashboard_welcome_subtitle') ?></p>
     </div>
-    <!-- Channel Info Stats -->
-    <div class="db-section-label"><?= t('dashboard_channel_info') ?></div>
-    <div class="sp-stat-row" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-bottom: 2rem;">
-        <div class="sp-stat">
-            <div class="sp-stat-label"><?= t('dashboard_followers') ?></div>
-            <div class="sp-stat-value"><?php echo number_format($followerCount); ?></div>
-            <div class="sp-stat-sub"><?= t('dashboard_tracked_follower_records') ?></div>
-        </div>
-        <div class="sp-stat">
-            <div class="sp-stat-label"><?= t('dashboard_subscribers') ?></div>
-            <div class="sp-stat-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : t('dashboard_version_na'); ?></div>
-            <div class="sp-stat-sub"><?php echo htmlspecialchars($subscriberSubtext); ?></div>
-        </div>
-        <div class="sp-stat">
-            <div class="sp-stat-label"><?= t('dashboard_raids') ?></div>
-            <div class="sp-stat-value"><?php echo number_format($raidCount); ?></div>
-            <div class="sp-stat-sub"><?php echo number_format($raidViewersTotal); ?> <?= t('dashboard_total_raider_viewers') ?> &middot; <?php echo number_format($raidUniqueRaiders); ?> <?= t('dashboard_unique_raiders') ?></div>
-        </div>
-    </div>
-    <!-- Main Metrics -->
-    <div class="db-section-label"><?= t('dashboard_dashboard_metrics') ?></div>
-    <div class="sp-stat-row" style="margin-bottom: 2rem;">
-        <div class="sp-stat <?php echo $activeBotRunning ? 'online' : 'offline'; ?>">
-            <div class="sp-stat-label"><?= t('dashboard_active_bot') ?></div>
-            <div class="sp-stat-value"><?php echo htmlspecialchars($activeBotLabel); ?></div>
-            <div class="sp-stat-sub">
-                <?php if ($activeBotRunning): ?>
-                    v<?php echo htmlspecialchars($activeBotCurrentVersion); ?> &bull; <?php echo htmlspecialchars($activeBotLabel); ?>
-                <?php else: ?>
-                    <?= t('dashboard_no_active_bot_runtime') ?>
-                <?php endif; ?>
+
+    <!-- Zone 1: Live ribbon (seeded by /dashboard/live, kept live by WebSocket) -->
+    <div class="db-live-ribbon">
+        <div class="db-live-state">
+            <div class="db-live-status">
+                <span class="db-live-dot is-offline" id="dbLiveDot"></span>
+                <span class="db-live-label is-offline" id="dbLiveLabel"><?= t('dashboard_live_checking') ?></span>
+            </div>
+            <div class="db-live-title" id="dbLiveTitle"></div>
+            <div class="db-live-meta" id="dbLiveMeta"></div>
+            <div class="db-chat-pulse">
+                <div class="db-pulse-metric">
+                    <span class="db-pulse-value" id="dbPulseRate">0</span>
+                    <span class="db-pulse-label"><?= t('dashboard_chat_per_min') ?></span>
+                </div>
+                <div class="db-pulse-metric">
+                    <span class="db-pulse-value" id="dbPulseChatters">0</span>
+                    <span class="db-pulse-label"><?= t('dashboard_active_chatters') ?></span>
+                </div>
             </div>
         </div>
-        <div class="sp-stat<?php echo $storagePercent >= 90 ? ' warn' : ''; ?>">
-            <div class="sp-stat-label"><?= t('dashboard_storage_usage') ?></div>
-            <div class="sp-stat-value"><?php echo number_format($storagePercent, 1); ?>%</div>
-            <div class="sp-stat-sub"><?php echo number_format($storageUsedMb, 2); ?> MB <?= t('dashboard_of') ?> <?php echo number_format($storageMaxMb, 2); ?> MB</div>
-        </div>
-        <div class="sp-stat">
-            <div class="sp-stat-label"><?= t('dashboard_commands') ?></div>
-            <div class="sp-stat-value"><?php echo $customCommandCount + $builtinEnabledCount; ?></div>
-            <div class="sp-stat-sub"><?php echo $customCommandCount; ?> <?= t('dashboard_custom') ?> &middot; <?php echo $builtinEnabledCount; ?>/<?php echo $builtinCommandCount; ?> <?= t('dashboard_builtin') ?></div>
-        </div>
-        <div class="sp-stat">
-            <div class="sp-stat-label"><?= t('dashboard_todo_progress') ?></div>
-            <div class="sp-stat-value"><?php echo $todoCompletedCount; ?>/<?php echo $todoTotalCount; ?></div>
-            <div class="sp-stat-sub"><?php echo $todoOpenCount; ?> <?php echo $todoOpenCount !== 1 ? t('dashboard_tasks_remaining') : t('dashboard_task_remaining'); ?></div>
-        </div>
-    </div>
-    <!-- Runtime + Activity -->
-    <div class="db-two-col">
-        <div class="sp-card">
-            <div class="sp-card-header">
-                <span class="sp-card-title"><i class="fas fa-server"></i> <?= t('dashboard_bot_runtime') ?></span>
-                <span class="sp-badge <?php echo $activeBotRunning ? 'sp-badge-green' : 'sp-badge-red'; ?>"><?php echo $activeBotRunning ? t('dashboard_running') : t('dashboard_stopped'); ?></span>
+        <div class="db-ticker">
+            <div class="db-ticker-head">
+                <span><?= t('dashboard_live_activity') ?></span>
+                <span id="dbTickerConn"><?= t('dashboard_connecting') ?></span>
             </div>
-            <div class="sp-card-body">
-                <p style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;"><?= t('dashboard_system') ?>: <?php echo htmlspecialchars($activeBotLabel); ?></p>
-                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.25rem;"><?= t('dashboard_current') ?>: <?php echo htmlspecialchars($activeBotCurrentVersion); ?></p>
-                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem;"><?= t('dashboard_latest') ?>: <?php echo htmlspecialchars($activeBotLatestVersion); ?></p>
-                <a href="bot.php" class="sp-btn sp-btn-primary">
-                    <i class="fas fa-cogs"></i> <?= t('dashboard_open_bot_control') ?>
-                </a>
-            </div>
-        </div>
-        <div class="sp-card">
-            <div class="sp-card-header">
-                <span class="sp-card-title"><i class="fas fa-chart-line"></i> <?= t('dashboard_activity_snapshot') ?></span>
-            </div>
-            <div class="sp-card-body">
-                <div class="db-snapshot-item"><span><?= t('dashboard_known_users') ?></span><strong><?php echo number_format($knownUsersCount); ?></strong></div>
-                <div class="db-snapshot-item"><span><?= t('dashboard_live_lurkers') ?></span><strong><?php echo number_format($liveLurkersCount); ?></strong></div>
-                <div class="db-snapshot-item"><span><?= t('dashboard_watch_time_profiles') ?></span><strong><?php echo number_format($watchUsersCount); ?></strong></div>
-                <div class="db-snapshot-item"><span><?= t('dashboard_rewards_configured') ?></span><strong><?php echo number_format($rewardsCount); ?></strong></div>
-                <div class="db-snapshot-item"><span><?= t('dashboard_quotes_saved') ?></span><strong><?php echo number_format($quotesCount); ?></strong></div>
-                <div class="db-snapshot-item"><span><?= t('dashboard_moderator_channels') ?></span><strong><?php echo number_format($modChannelCount); ?></strong></div>
+            <div class="db-ticker-feed" id="dbTickerFeed">
+                <div class="db-ticker-empty" id="dbTickerEmpty"><?= t('dashboard_waiting_for_events') ?></div>
             </div>
         </div>
     </div>
-    <!-- Quick Links -->
+
+    <!-- Zone 2: What your bot did for you -->
+    <div class="db-zone">
+        <div class="db-zone-head">
+            <div class="db-section-label"><?= t('dashboard_zone_bot_did') ?> <span class="db-alltime-tag"><?= t('dashboard_all_time') ?></span></div>
+        </div>
+        <div class="sp-stat-row" id="dbBotDid">
+            <div class="db-loading"><i class="fas fa-circle-notch fa-spin"></i> <?= t('dashboard_loading') ?></div>
+        </div>
+    </div>
+
+    <!-- Zone 3: What's new / what changed -->
+    <div class="db-zone">
+        <div class="db-zone-head">
+            <div class="db-section-label"><?= t('dashboard_zone_whats_new') ?></div>
+            <div class="db-window-switch" id="dbWindowSwitch">
+                <button type="button" class="db-window-btn" data-window="today"><?= t('dashboard_window_today') ?></button>
+                <button type="button" class="db-window-btn is-active" data-window="7d"><?= t('dashboard_window_7d') ?></button>
+                <button type="button" class="db-window-btn" data-window="30d"><?= t('dashboard_window_30d') ?></button>
+            </div>
+        </div>
+        <div class="db-trend-grid" id="dbWhatsNew">
+            <div class="db-loading"><i class="fas fa-circle-notch fa-spin"></i> <?= t('dashboard_loading') ?></div>
+        </div>
+    </div>
+
+    <!-- Zone 4: Community & channel health -->
+    <div class="db-zone">
+        <div class="db-zone-head">
+            <div class="db-section-label"><?= t('dashboard_zone_community') ?></div>
+        </div>
+        <div class="db-board-grid" id="dbBoards">
+            <div class="db-loading"><i class="fas fa-circle-notch fa-spin"></i> <?= t('dashboard_loading') ?></div>
+        </div>
+    </div>
+
+    <!-- Quick links (slim) -->
     <div class="db-section-label"><?= t('dashboard_quick_links') ?></div>
     <div class="db-quick-grid">
         <div class="sp-card db-quick-card">
@@ -276,34 +123,10 @@ if ($subsResponse !== false && $subsHttpCode === 200) {
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
-                <div class="db-quick-icon" style="color: var(--accent-hover);"><i class="fab fa-discord fa-2x"></i></div>
-                <h4 class="db-quick-title"><?= t('dashboard_discord_bot') ?></h4>
-                <p class="db-quick-desc"><?= t('dashboard_discord_bot_desc') ?></p>
-                <a href="discordbot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cog"></i> <?= t('dashboard_manage_discord') ?></a>
-            </div>
-        </div>
-        <div class="sp-card db-quick-card">
-            <div class="sp-card-body">
-                <div class="db-quick-icon" style="color: var(--amber);"><i class="fas fa-list-check fa-2x"></i></div>
-                <h4 class="db-quick-title"><?= t('dashboard_todo_list') ?></h4>
-                <p class="db-quick-desc"><?= t('dashboard_todo_list_desc') ?></p>
-                <a href="../todolist" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-list"></i> <?= t('dashboard_open_todo') ?></a>
-            </div>
-        </div>
-        <div class="sp-card db-quick-card">
-            <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--red);"><i class="fas fa-gift fa-2x"></i></div>
                 <h4 class="db-quick-title"><?= t('dashboard_rewards') ?></h4>
                 <p class="db-quick-desc"><?= t('dashboard_rewards_desc') ?></p>
                 <a href="channel_rewards.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-star"></i> <?= t('dashboard_setup_rewards') ?></a>
-            </div>
-        </div>
-        <div class="sp-card db-quick-card">
-            <div class="sp-card-body">
-                <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-plug fa-2x"></i></div>
-                <h4 class="db-quick-title"><?php echo t('obsconnector_title'); ?></h4>
-                <p class="db-quick-desc"><?php echo t('obsconnector_banner_title'); ?></p>
-                <a href="controllerapp.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cogs"></i> <?php echo t('obsconnector_title'); ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
@@ -316,15 +139,400 @@ if ($subsResponse !== false && $subsHttpCode === 200) {
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
-                <div class="db-quick-icon" style="color: var(--text-muted);"><i class="fas fa-book fa-2x"></i></div>
-                <h4 class="db-quick-title"><?= t('dashboard_documentation') ?></h4>
-                <p class="db-quick-desc"><?= t('dashboard_documentation_desc') ?></p>
-                <a href="/api/generate_handoff.php" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_view_docs') ?></a>
+                <div class="db-quick-icon" style="color: var(--accent-hover);"><i class="fab fa-discord fa-2x"></i></div>
+                <h4 class="db-quick-title"><?= t('dashboard_discord_bot') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_discord_bot_desc') ?></p>
+                <a href="discordbot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cog"></i> <?= t('dashboard_manage_discord') ?></a>
             </div>
         </div>
     </div>
     <?php
     $content = ob_get_clean();
+
+    // ---- Page scripts: Socket.io client + dashboard data logic ----
+    ob_start();
+    ?>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script>
+    (function () {
+        "use strict";
+        var API = 'https://api.botofthespecter.com';
+        var CODE = <?php echo json_encode($api_key); ?>;
+        var I18N = {
+            live: <?php echo json_encode(t('dashboard_js_live')); ?>,
+            offline: <?php echo json_encode(t('dashboard_js_offline')); ?>,
+            offline_sub: <?php echo json_encode(t('dashboard_js_offline_sub')); ?>,
+            viewers: <?php echo json_encode(t('dashboard_js_viewers')); ?>,
+            uptime: <?php echo json_encode(t('dashboard_js_uptime')); ?>,
+            connected: <?php echo json_encode(t('dashboard_js_connected')); ?>,
+            reconnecting: <?php echo json_encode(t('dashboard_js_reconnecting')); ?>,
+            all_time: <?php echo json_encode(t('dashboard_js_all_time')); ?>,
+            since_visit: <?php echo json_encode(t('dashboard_js_since_visit')); ?>,
+            no_data: <?php echo json_encode(t('dashboard_js_no_data')); ?>,
+            load_error: <?php echo json_encode(t('dashboard_js_load_error')); ?>,
+            commands: <?php echo json_encode(t('dashboard_js_commands')); ?>,
+            rewards_fulfilled: <?php echo json_encode(t('dashboard_js_rewards_fulfilled')); ?>,
+            deaths: <?php echo json_encode(t('dashboard_js_deaths')); ?>,
+            songs: <?php echo json_encode(t('dashboard_js_songs')); ?>,
+            welcomed: <?php echo json_encode(t('dashboard_js_welcomed')); ?>,
+            shoutouts: <?php echo json_encode(t('dashboard_js_shoutouts')); ?>,
+            quotes: <?php echo json_encode(t('dashboard_js_quotes')); ?>,
+            points: <?php echo json_encode(t('dashboard_js_points')); ?>,
+            interactions: <?php echo json_encode(t('dashboard_js_interactions')); ?>,
+            new_followers: <?php echo json_encode(t('dashboard_js_new_followers')); ?>,
+            new_subs: <?php echo json_encode(t('dashboard_js_new_subs')); ?>,
+            bits: <?php echo json_encode(t('dashboard_js_bits')); ?>,
+            tips: <?php echo json_encode(t('dashboard_js_tips')); ?>,
+            raids: <?php echo json_encode(t('dashboard_js_raids')); ?>,
+            new_viewers: <?php echo json_encode(t('dashboard_js_new_viewers')); ?>,
+            new_quotes: <?php echo json_encode(t('dashboard_js_new_quotes')); ?>,
+            chat_messages: <?php echo json_encode(t('dashboard_js_chat_messages')); ?>,
+            top_commands: <?php echo json_encode(t('dashboard_js_top_commands')); ?>,
+            top_rewards: <?php echo json_encode(t('dashboard_js_top_rewards')); ?>,
+            watch_time: <?php echo json_encode(t('dashboard_js_watch_time')); ?>,
+            streaks: <?php echo json_encode(t('dashboard_js_streaks')); ?>,
+            deaths_by_game: <?php echo json_encode(t('dashboard_js_deaths_by_game')); ?>,
+            chat_leaders: <?php echo json_encode(t('dashboard_js_chat_leaders')); ?>,
+            top_songs: <?php echo json_encode(t('dashboard_js_top_songs')); ?>,
+            interaction_leaders: <?php echo json_encode(t('dashboard_js_interaction_leaders')); ?>,
+            hugs: <?php echo json_encode(t('dashboard_js_hugs')); ?>,
+            kisses: <?php echo json_encode(t('dashboard_js_kisses')); ?>,
+            highfives: <?php echo json_encode(t('dashboard_js_highfives')); ?>,
+            ev_followed: <?php echo json_encode(t('dashboard_js_ev_followed')); ?>,
+            ev_subbed: <?php echo json_encode(t('dashboard_js_ev_subbed')); ?>,
+            ev_gifted: <?php echo json_encode(t('dashboard_js_ev_gifted')); ?>,
+            ev_cheered: <?php echo json_encode(t('dashboard_js_ev_cheered')); ?>,
+            ev_raided: <?php echo json_encode(t('dashboard_js_ev_raided')); ?>,
+            ev_redeemed: <?php echo json_encode(t('dashboard_js_ev_redeemed')); ?>,
+            ev_hype: <?php echo json_encode(t('dashboard_js_ev_hype')); ?>,
+            ev_charity: <?php echo json_encode(t('dashboard_js_ev_charity')); ?>,
+            ev_tip: <?php echo json_encode(t('dashboard_js_ev_tip')); ?>
+        };
+
+        function $(id) { return document.getElementById(id); }
+        function esc(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+        function fmt(n) { return (Number(n) || 0).toLocaleString(); }
+        function fmtDuration(sec) {
+            sec = Number(sec) || 0;
+            var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+            return (h > 0 ? h + 'h ' : '') + m + 'm';
+        }
+        function getCookie(name) {
+            var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        function markVisit() {
+            if (typeof hasCookieConsent === 'function' && !hasCookieConsent()) return;
+            var d = new Date(); d.setTime(d.getTime() + 90 * 86400000);
+            document.cookie = 'dbLastVisit=' + Math.floor(Date.now() / 1000) + '; expires=' + d.toUTCString() + '; path=/';
+        }
+        function apiGet(path, params) {
+            var qs = '';
+            if (params) {
+                var parts = [];
+                for (var k in params) { if (params[k] !== null && params[k] !== undefined) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
+                if (parts.length) qs = '?' + parts.join('&');
+            }
+            return fetch(API + '/v2' + path + qs, { headers: { 'X-API-KEY': CODE } }).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+        }
+        function errRow() { return '<div class="db-loading"><i class="fas fa-triangle-exclamation"></i> ' + esc(I18N.load_error) + '</div>'; }
+
+        var sessionSince = null;       // last-visit epoch captured once per session
+        var currentWindow = '7d';
+        var trendsSeries = {};
+
+        // ---- Zone 1: live state ----
+        function loadLive() {
+            apiGet('/dashboard/live').then(renderLive).catch(function () {});
+        }
+        function renderLive(d) {
+            var dot = $('dbLiveDot'), label = $('dbLiveLabel'), title = $('dbLiveTitle'), meta = $('dbLiveMeta');
+            if (d && d.online) {
+                dot.className = 'db-live-dot is-live';
+                label.className = 'db-live-label is-live';
+                label.textContent = I18N.live;
+                title.textContent = d.title || '';
+                var parts = [];
+                if (d.game) parts.push('<strong>' + esc(d.game) + '</strong>');
+                parts.push(fmt(d.viewer_count) + ' ' + esc(I18N.viewers));
+                if (d.uptime_seconds) parts.push(esc(I18N.uptime) + ' ' + fmtDuration(d.uptime_seconds));
+                meta.innerHTML = parts.join(' &middot; ');
+            } else {
+                dot.className = 'db-live-dot is-offline';
+                label.className = 'db-live-label is-offline';
+                label.textContent = I18N.offline;
+                title.textContent = '';
+                meta.textContent = I18N.offline_sub;
+            }
+        }
+
+        // ---- Zone 2 + 3: summary ----
+        function summaryParams() {
+            var p = { window: currentWindow };
+            if (sessionSince) p.since = sessionSince;
+            return p;
+        }
+        function loadInitial() {
+            Promise.all([
+                apiGet('/dashboard/summary', summaryParams()).catch(function () { return null; }),
+                apiGet('/dashboard/trends', { days: 30 }).catch(function () { return null; })
+            ]).then(function (res) {
+                var summary = res[0], trends = res[1];
+                trendsSeries = (trends && trends.series) ? trends.series : {};
+                if (summary) {
+                    renderBotDid(summary.lifetime);
+                    renderWhatsNew(summary.window, summary.since_visit);
+                    markVisit();
+                } else {
+                    $('dbBotDid').innerHTML = errRow();
+                    $('dbWhatsNew').innerHTML = errRow();
+                }
+            });
+        }
+        function loadSummaryOnly() {
+            apiGet('/dashboard/summary', summaryParams()).then(function (s) {
+                renderBotDid(s.lifetime);
+                renderWhatsNew(s.window, s.since_visit);
+            }).catch(function () { $('dbWhatsNew').innerHTML = errRow(); });
+        }
+        function statTile(label, value) {
+            return '<div class="sp-stat"><div class="sp-stat-label">' + esc(label) + '</div>' +
+                '<div class="sp-stat-value">' + fmt(value) + '</div>' +
+                '<div class="sp-stat-sub"><span class="db-alltime-tag">' + esc(I18N.all_time) + '</span></div></div>';
+        }
+        function renderBotDid(l) {
+            l = l || {};
+            $('dbBotDid').innerHTML = [
+                statTile(I18N.commands, l.commands),
+                statTile(I18N.rewards_fulfilled, l.rewards),
+                statTile(I18N.deaths, l.deaths),
+                statTile(I18N.songs, l.songs),
+                statTile(I18N.welcomed, l.welcomed),
+                statTile(I18N.shoutouts, l.shoutouts),
+                statTile(I18N.quotes, l.quotes),
+                statTile(I18N.points, l.points),
+                statTile(I18N.interactions, l.interactions)
+            ].join('');
+        }
+        function sparkline(data) {
+            if (!data || data.length < 2) return '';
+            var vals = data.map(function (p) { return Number(p.count) || 0; });
+            var max = Math.max.apply(null, vals.concat([1]));
+            var n = vals.length, w = 100, h = 28, pts = [];
+            for (var i = 0; i < n; i++) {
+                var x = (i / (n - 1)) * w;
+                var y = h - (vals[i] / max) * h;
+                pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+            }
+            var poly = pts.join(' ');
+            var area = '0,' + h + ' ' + poly + ' ' + w + ',' + h;
+            return '<svg class="db-sparkline" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+                '<polygon points="' + area + '"></polygon><polyline points="' + poly + '"></polyline></svg>';
+        }
+        function deltaSpan(n) {
+            if (n === null || n === undefined) return '';
+            n = Number(n) || 0;
+            var cls = n > 0 ? 'up' : 'flat';
+            var arrow = n > 0 ? '&#9650;' : '&#8211;';
+            return '<span class="db-trend-delta ' + cls + '">' + arrow + ' ' + fmt(n) + ' ' + esc(I18N.since_visit) + '</span>';
+        }
+        function trendTile(label, value, deltaVal, sub, sparkKey) {
+            return '<div class="db-trend-tile"><div class="db-trend-label">' + esc(label) + '</div>' +
+                '<div class="db-trend-value">' + fmt(value) + '</div>' +
+                deltaSpan(deltaVal) +
+                (sub ? '<div class="db-trend-sub">' + sub + '</div>' : '') +
+                (sparkKey ? sparkline(trendsSeries[sparkKey]) : '') + '</div>';
+        }
+        function renderWhatsNew(w, since) {
+            w = w || {};
+            since = since || null;
+            function sv(getter) { return since ? getter(since) : null; }
+            var subsSub = (w.subs ? ('T1 ' + (w.subs.t1 || 0) + ' &middot; T2 ' + (w.subs.t2 || 0) + ' &middot; T3 ' + (w.subs.t3 || 0)) : '');
+            var tipsSub = (w.tips && w.tips.amount) ? fmt(w.tips.amount) : '';
+            var raidsSub = (w.raids ? (fmt(w.raids.viewers) + ' ' + esc(I18N.viewers)) : '');
+            $('dbWhatsNew').innerHTML = [
+                trendTile(I18N.new_followers, w.followers, sv(function (s) { return s.followers; }), '', 'followers'),
+                trendTile(I18N.new_subs, (w.subs ? w.subs.total : 0), sv(function (s) { return s.subs ? s.subs.total : 0; }), subsSub, 'subs'),
+                trendTile(I18N.bits, w.bits, sv(function (s) { return s.bits; }), '', 'bits'),
+                trendTile(I18N.tips, (w.tips ? w.tips.count : 0), sv(function (s) { return s.tips ? s.tips.count : 0; }), tipsSub, null),
+                trendTile(I18N.raids, (w.raids ? w.raids.count : 0), sv(function (s) { return s.raids ? s.raids.count : 0; }), raidsSub, null),
+                trendTile(I18N.new_viewers, w.new_viewers, sv(function (s) { return s.new_viewers; }), '', null),
+                trendTile(I18N.new_quotes, w.new_quotes, sv(function (s) { return s.new_quotes; }), '', null),
+                trendTile(I18N.chat_messages, w.chat_messages, sv(function (s) { return s.chat_messages; }), '', 'chat')
+            ].join('');
+        }
+
+        // ---- Zone 4: leaderboards ----
+        function loadBoards() {
+            apiGet('/dashboard/leaderboards', { limit: 8 }).then(renderBoards).catch(function () { $('dbBoards').innerHTML = errRow(); });
+        }
+        function boardRows(arr, nameKey, valFn) {
+            if (!arr || !arr.length) return '<div class="db-board-empty">' + esc(I18N.no_data) + '</div>';
+            return arr.map(function (r, i) {
+                return '<div class="db-board-row"><span class="db-board-rank">' + (i + 1) + '</span>' +
+                    '<span class="db-board-name">' + esc(r[nameKey]) + '</span>' +
+                    '<span class="db-board-val">' + valFn(r) + '</span></div>';
+            }).join('');
+        }
+        function board(title, icon, rowsHtml) {
+            return '<div class="db-board"><div class="db-board-head"><i class="' + icon + '"></i> ' + esc(title) + '</div>' +
+                '<div class="db-board-list">' + rowsHtml + '</div></div>';
+        }
+        function renderBoards(d) {
+            d = d || {};
+            function topOf(arr) { return (arr && arr.length) ? esc(arr[0].username) + ' (' + fmt(arr[0].count) + ')' : esc(I18N.no_data); }
+            var it = d.interactions || {};
+            var interRows =
+                '<div class="db-board-row"><span class="db-board-name">' + esc(I18N.hugs) + '</span><span class="db-board-val">' + topOf(it.hugs) + '</span></div>' +
+                '<div class="db-board-row"><span class="db-board-name">' + esc(I18N.kisses) + '</span><span class="db-board-val">' + topOf(it.kisses) + '</span></div>' +
+                '<div class="db-board-row"><span class="db-board-name">' + esc(I18N.highfives) + '</span><span class="db-board-val">' + topOf(it.highfives) + '</span></div>';
+            $('dbBoards').innerHTML = [
+                board(I18N.top_commands, 'fas fa-terminal', boardRows(d.top_commands, 'command', function (r) { return fmt(r.count); })),
+                board(I18N.top_rewards, 'fas fa-star', boardRows(d.top_rewards, 'reward_title', function (r) { return fmt(r.count); })),
+                board(I18N.watch_time, 'fas fa-clock', boardRows(d.watch_time, 'username', function (r) { return fmt(r.live); })),
+                board(I18N.streaks, 'fas fa-fire', boardRows(d.streaks, 'username', function (r) { return fmt(r.highest); })),
+                board(I18N.deaths_by_game, 'fas fa-skull', boardRows(d.deaths_by_game, 'game', function (r) { return fmt(r.deaths); })),
+                board(I18N.chat_leaders, 'fas fa-comments', boardRows(d.chat_leaders, 'username', function (r) { return fmt(r.messages); })),
+                board(I18N.top_songs, 'fas fa-music', boardRows(d.top_songs, 'song', function (r) { return fmt(r.count); })),
+                board(I18N.interaction_leaders, 'fas fa-hands-clapping', interRows)
+            ].join('');
+        }
+
+        // ---- Zone 1: WebSocket live ticker + chat pulse ----
+        var TICKER_MAX = 12;
+        var chatTimes = [];
+        var chatters = {};
+        function pushTicker(type, icon, actor, text) {
+            var feed = $('dbTickerFeed'); if (!feed) return;
+            var empty = $('dbTickerEmpty'); if (empty) empty.remove();
+            var item = document.createElement('div');
+            item.className = 'db-ticker-item is-' + type;
+            item.innerHTML = '<span class="db-ticker-icon"><i class="' + icon + '"></i></span>' +
+                '<span>' + (actor ? '<span class="db-ticker-actor">' + esc(actor) + '</span> ' : '') + text + '</span>';
+            feed.insertBefore(item, feed.firstChild);
+            while (feed.children.length > TICKER_MAX) feed.removeChild(feed.lastChild);
+        }
+        function actorOf(p) { if (!p) return ''; return p['twitch-username'] || p.username || p.user || ''; }
+        var ACT_MAP = {
+            follow: ['follow', 'fas fa-heart', 'ev_followed'],
+            sub: ['sub', 'fas fa-star', 'ev_subbed'],
+            cheer: ['cheer', 'fas fa-gem', 'ev_cheered'],
+            tip: ['tip', 'fas fa-mug-hot', 'ev_tip'],
+            raid: ['raid', 'fas fa-users', 'ev_raided'],
+            redeem: ['points', 'fas fa-circle-dot', 'ev_redeemed'],
+            quote: ['follow', 'fas fa-quote-right', null]
+        };
+        function seedTicker(items) {
+            var feed = $('dbTickerFeed'); if (!feed || !items || !items.length) return;
+            var empty = $('dbTickerEmpty'); if (empty) empty.remove();
+            items.slice(0, TICKER_MAX).forEach(function (it) {
+                var m = ACT_MAP[it.type] || ['follow', 'fas fa-bell', null];
+                var label = (it.type === 'quote') ? esc(it.detail) : esc(I18N[m[2]] || '');
+                var item = document.createElement('div');
+                item.className = 'db-ticker-item is-' + m[0];
+                item.innerHTML = '<span class="db-ticker-icon"><i class="' + m[1] + '"></i></span>' +
+                    '<span>' + (it.actor ? '<span class="db-ticker-actor">' + esc(it.actor) + '</span> ' : '') + label + '</span>';
+                feed.appendChild(item);
+            });
+        }
+        function loadActivity() {
+            apiGet('/dashboard/activity', { limit: 10 }).then(function (d) {
+                if (d && d.items) seedTicker(d.items);
+            }).catch(function () {});
+        }
+        function onChat(p) {
+            var now = Date.now();
+            chatTimes.push(now);
+            var cutoff = now - 60000;
+            while (chatTimes.length && chatTimes[0] < cutoff) chatTimes.shift();
+            if (p && p.username) chatters[String(p.username).toLowerCase()] = now;
+            updatePulse();
+        }
+        function updatePulse() {
+            var now = Date.now(), active = 0, cutoff = now - 300000;
+            for (var k in chatters) { if (chatters[k] < cutoff) delete chatters[k]; else active++; }
+            var cut60 = now - 60000;
+            while (chatTimes.length && chatTimes[0] < cut60) chatTimes.shift();
+            $('dbPulseRate').textContent = chatTimes.length;
+            $('dbPulseChatters').textContent = active;
+        }
+        var socket, reconnectAttempts = 0;
+        function connectWebSocket() {
+            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
+            socket.on('connect', function () {
+                reconnectAttempts = 0;
+                $('dbTickerConn').textContent = I18N.connected;
+                socket.emit('REGISTER', { code: CODE, channel: 'Dashboard', name: 'Dashboard' });
+            });
+            socket.on('disconnect', attemptReconnect);
+            socket.on('connect_error', attemptReconnect);
+            socket.on('STREAM_ONLINE', function () { loadLive(); });
+            socket.on('STREAM_OFFLINE', function () { loadLive(); });
+            socket.on('TWITCH_FOLLOW', function (p) { pushTicker('follow', 'fas fa-heart', actorOf(p), esc(I18N.ev_followed)); });
+            socket.on('TWITCH_SUB', function (p) { pushTicker('sub', 'fas fa-star', actorOf(p), esc(I18N.ev_subbed)); });
+            socket.on('TWITCH_CHEER', function (p) { pushTicker('cheer', 'fas fa-gem', actorOf(p), esc(I18N.ev_cheered)); });
+            socket.on('TWITCH_RAID', function (p) { pushTicker('raid', 'fas fa-users', actorOf(p), esc(I18N.ev_raided)); });
+            socket.on('TWITCH_CHANNELPOINTS', function (p) {
+                var actor = actorOf(p);
+                var title = (p && p.reward_title) || '';
+                if ((!actor || !title) && p && p.rewards) {
+                    try {
+                        var rd = (typeof p.rewards === 'string') ? JSON.parse(p.rewards) : p.rewards;
+                        if (rd) {
+                            if (!actor) actor = rd.user_name || rd.user_login || '';
+                            if (!title) title = (rd.reward && rd.reward.title) || '';
+                        }
+                    } catch (e) {}
+                }
+                pushTicker('points', 'fas fa-circle-dot', actor, esc(title || I18N.ev_redeemed));
+            });
+            socket.on('CHAT_MESSAGE', onChat);
+            socket.onAny(function (event, p) {
+                if (event === 'TWITCH_GIFT_SUB') pushTicker('sub', 'fas fa-gift', actorOf(p), esc(I18N.ev_gifted));
+                else if (event === 'TWITCH_HYPE_TRAIN') pushTicker('hype', 'fas fa-train', '', esc(I18N.ev_hype));
+                else if (event === 'TWITCH_CHARITY') pushTicker('charity', 'fas fa-hand-holding-heart', actorOf(p), esc(I18N.ev_charity));
+                else if (event === 'KOFI' || event === 'PATREON' || event === 'FOURTHWALL') pushTicker('tip', 'fas fa-mug-hot', '', esc(I18N.ev_tip) + ' (' + esc(event.toLowerCase()) + ')');
+            });
+        }
+        function attemptReconnect() {
+            reconnectAttempts++;
+            var conn = $('dbTickerConn'); if (conn) conn.textContent = I18N.reconnecting;
+            var delay = Math.min(5000 * reconnectAttempts, 30000);
+            setTimeout(connectWebSocket, delay);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            sessionSince = getCookie('dbLastVisit');
+            loadLive();
+            loadInitial();
+            loadBoards();
+            loadActivity();
+            connectWebSocket();
+            setInterval(updatePulse, 5000);
+            var sw = $('dbWindowSwitch');
+            if (sw) {
+                sw.addEventListener('click', function (e) {
+                    var btn = e.target.closest('.db-window-btn');
+                    if (!btn) return;
+                    currentWindow = btn.getAttribute('data-window');
+                    var all = sw.querySelectorAll('.db-window-btn');
+                    for (var i = 0; i < all.length; i++) all[i].classList.toggle('is-active', all[i] === btn);
+                    loadSummaryOnly();
+                });
+            }
+        });
+    })();
+    </script>
+    <?php
+    $scripts = ob_get_clean();
     include "layout.php";
 } else {
     // User is not logged in - show landing page
