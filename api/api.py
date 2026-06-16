@@ -745,6 +745,11 @@ _V2_OPENAPI_DESCRIPTION = (
 
 @app.middleware("http")
 async def v2_api_key_header_middleware(request: Request, call_next):
+    # CORS preflight (OPTIONS) carries no custom headers (e.g. X-API-KEY) and must never
+    # require auth -- pass it straight through so CORSMiddleware answers the preflight.
+    # The subsequent real request still requires X-API-KEY below.
+    if request.method == "OPTIONS":
+        return await call_next(request)
     path = request.scope.get("path", "")
     if path in _V2_DOCS_PATHS:
         return await call_next(request)
