@@ -5632,19 +5632,19 @@ async def get_dashboard_activity(api_key: str = Query(...), channel: str = Query
     limit = max(1, min(int(limit), 100))
     sql = (
         "SELECT * FROM ("
-        " SELECT 'follow' AS type, user_name AS actor, '' AS detail, followed_at AS at FROM followers_data"
+        " SELECT 'follow' AS type, CONVERT(user_name USING utf8mb4) AS actor, CONVERT('' USING utf8mb4) AS detail, followed_at AS at FROM followers_data"
         " UNION ALL"
-        " SELECT 'sub', user_name, CONCAT(COALESCE(sub_plan,''), CASE WHEN months IS NOT NULL THEN CONCAT(' ', months, 'mo') ELSE '' END), timestamp FROM subscription_data"
+        " SELECT 'sub', CONVERT(user_name USING utf8mb4), CONVERT(CONCAT(COALESCE(sub_plan,''), CASE WHEN months IS NOT NULL THEN CONCAT(' ', months, 'mo') ELSE '' END) USING utf8mb4), timestamp FROM subscription_data"
         " UNION ALL"
-        " SELECT 'cheer', user_name, CAST(bits AS CHAR), timestamp FROM bits_data"
+        " SELECT 'cheer', CONVERT(user_name USING utf8mb4), CONVERT(CAST(bits AS CHAR) USING utf8mb4), timestamp FROM bits_data"
         " UNION ALL"
-        " SELECT 'tip', username, CONCAT(COALESCE(CAST(amount AS CHAR),''), ' ', COALESCE(currency,'')), COALESCE(created_at, timestamp) FROM tipping"
+        " SELECT 'tip', CONVERT(username USING utf8mb4), CONVERT(CONCAT(COALESCE(CAST(amount AS CHAR),''), ' ', COALESCE(currency,'')) USING utf8mb4), COALESCE(created_at, timestamp) FROM tipping"
         " UNION ALL"
-        " SELECT 'raid', raider_name, CAST(viewers AS CHAR), timestamp FROM raid_data"
+        " SELECT 'raid', CONVERT(raider_name USING utf8mb4), CONVERT(CAST(viewers AS CHAR) USING utf8mb4), timestamp FROM raid_data"
         " UNION ALL"
-        " SELECT 'redeem', sr.username, COALESCE(cpr.reward_title, sr.reward_id), sr.redeemed_at FROM stored_redeems sr LEFT JOIN channel_point_rewards cpr ON sr.reward_id = cpr.reward_id"
+        " SELECT 'redeem', CONVERT(sr.username USING utf8mb4), COALESCE(CONVERT(cpr.reward_title USING utf8mb4), CONVERT(sr.reward_id USING utf8mb4)), sr.redeemed_at FROM stored_redeems sr LEFT JOIN channel_point_rewards cpr ON CONVERT(sr.reward_id USING utf8mb4) = CONVERT(cpr.reward_id USING utf8mb4)"
         " UNION ALL"
-        " SELECT 'quote', '', LEFT(quote, 80), added FROM quotes"
+        " SELECT 'quote', CONVERT('' USING utf8mb4), CONVERT(LEFT(quote, 80) USING utf8mb4), added FROM quotes"
         ") AS feed WHERE at IS NOT NULL ORDER BY at DESC LIMIT %s"
     )
     try:
