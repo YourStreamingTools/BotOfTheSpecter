@@ -3095,7 +3095,6 @@ async def api_steamapplist():
         _steam_app_list_cache_loaded_at = now_utc
         return disk_cache
     primary_url = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
-    legacy_url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"
     request_attempts = [{"format": "json"}]
     if STEAM_API:
         request_attempts.insert(0, {"format": "json", "key": STEAM_API})
@@ -3151,27 +3150,6 @@ async def api_steamapplist():
                     if combined_map:
                         payload = combined_map
                         break
-                    if payload is None:
-                        async with session.get(
-                            legacy_url,
-                            params=query_params,
-                            headers={
-                                "Accept": "application/json",
-                                "User-Agent": "BotOfTheSpecter/1.0",
-                            },
-                        ) as response:
-                            if response.status == 200:
-                                payload = await response.json(content_type=None)
-                                break
-                            upstream_error = await response.text()
-                            last_status = response.status
-                            last_error_snippet = (upstream_error or "")[:400]
-                            logging.error(
-                                "Steam legacy GetAppList failed with status %s (params=%s): %s",
-                                response.status,
-                                "with_key" if query_params.get("key") else "without_key",
-                                last_error_snippet,
-                            )
                 except Exception as request_exc:
                     logging.error(
                         "Steam API request error (params=%s): %s",
