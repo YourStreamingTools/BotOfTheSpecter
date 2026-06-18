@@ -62,16 +62,39 @@ async def refresh_spotify_token(session, pool, user_id, refresh_token, own_clien
             result = await response.json()
             if response.status == 200 and 'access_token' in result:
                 new_access_token = result['access_token']
+                rotated = 'refresh_token' in result
                 new_refresh_token = result.get('refresh_token', refresh_token)
-                async with pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute(
-                            "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s WHERE user_id = %s",
-                            (new_access_token, new_refresh_token, user_id)
-                        )
-                        await conn.commit()
+                try:
+                    async with pool.acquire() as conn:
+                        async with conn.cursor() as cur:
+                            await cur.execute(
+                                "UPDATE spotify_tokens SET access_token = %s, refresh_token = %s WHERE user_id = %s",
+                                (new_access_token, new_refresh_token, user_id)
+                            )
+                            await conn.commit()
+                except Exception as db_err:
+                    logger.error(f"🔥 Spotify token issued but DB persist FAILED for user: {username_display} - {str(db_err)}")
+                    if rotated:
+                        logger.error("   ⚠️  A rotated refresh token was NOT saved; this user may need to re-link Spotify.")
+                    return {"success": False, "username": username_display, "error": f"persist_failed: {db_err}"}
+                if rotated:
+                    logger.info(f"🔁 Rotated refresh token saved for user: {username_display}")
                 # Only return success status, don't log individual users
                 return {"success": True, "username": username_display}
+            elif response.status == 400 and result.get('error') == 'invalid_grant':
+                try:
+                    async with pool.acquire() as conn:
+                        async with conn.cursor() as cur:
+                            await cur.execute(
+                                "UPDATE spotify_tokens SET access_token = '', refresh_token = '', "
+                                "auth = 0, has_access = 0, needs_reauth = 1 WHERE user_id = %s",
+                                (user_id,)
+                            )
+                            await conn.commit()
+                except Exception as db_err:
+                    logger.error(f"🔥 Failed to discard invalid Spotify token for user: {username_display} - {str(db_err)}")
+                logger.warning(f"🚫 Spotify refresh token expired/revoked (invalid_grant) for user: {username_display} — discarded, flagged for re-auth")
+                return {"success": False, "username": username_display, "error": "invalid_grant", "reauth": True}
             else:
                 error_msg = result.get('error', 'Unknown error')
                 error_desc = result.get('error_description', '')
@@ -125,9 +148,12 @@ async def main():
         # Count and report results
         successful = sum(1 for r in results if isinstance(r, dict) and r.get("success"))
         failed = len(results) - successful
+        reauth_needed = sum(1 for r in results if isinstance(r, dict) and r.get("reauth"))
         logger.info(f"\n📈 Spotify token refresh completed:")
         logger.info(f"   ✅ Successful: {successful}")
         logger.info(f"   ❌ Failed: {failed}")
+        if reauth_needed:
+            logger.info(f"   🚫 Expired/revoked (discarded, need re-auth): {reauth_needed}")
         logger.info(f"   📊 Total: {len(results)}")
         # Log failed users if any
         if failed > 0:
