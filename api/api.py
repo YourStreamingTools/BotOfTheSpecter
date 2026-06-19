@@ -2987,7 +2987,7 @@ async def chat_instructions(
         pass
     try:
         if path and os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             messages = []
             seen = set()
@@ -3026,6 +3026,12 @@ async def chat_instructions(
         raise
     except Exception as e:
         logging.error(f"Error loading AI instructions ({filename}): {e}")
+        try:
+            if os.getenv('AI_INSTRUCTIONS_DEBUG', '0') == '1':
+                raise HTTPException(status_code=500, detail=f"Failed to load AI instructions: {e}")
+        except Exception:
+            # Fall-through to the standard error response
+            pass
         raise HTTPException(status_code=500, detail="Failed to load AI instructions")
 
 # Public API Requests Remaining (for song)
