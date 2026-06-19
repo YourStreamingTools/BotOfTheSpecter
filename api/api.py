@@ -2969,20 +2969,8 @@ async def chat_instructions(
             if os.path.exists(candidate):
                 return candidate
         return None
-    if use_ad_messages:
-        filename = "ai.ad_messages.json"
-    elif use_home_ai:
-        filename = "ai.home.json"
-    elif use_discord:
-        filename = "ai.discord.json"
-    else:
-        filename = "ai.json"
+    filename = "ai.json"
     path = _resolve_ai_file(filename)
-    # Preserve the original behaviour: a specialised file that exists nowhere
-    # falls through to the default instruction set.
-    if path is None and filename != "ai.json":
-        filename = "ai.json"
-        path = _resolve_ai_file(filename)
     try:
         server_copy = os.path.join(server_dir, filename)
         repo_copy = os.path.join(repo_dir, filename)
@@ -3000,7 +2988,37 @@ async def chat_instructions(
         if path and os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return JSONResponse(status_code=200, content=data)
+            messages = []
+            seen = set()
+            def add_messages(section_key):
+                section = data.get(section_key, {})
+                if isinstance(section, dict):
+                    for message in section.get("messages", []):
+                        if not isinstance(message, dict):
+                            continue
+                        key = (message.get("role"), message.get("content"))
+                        if key not in seen:
+                            seen.add(key)
+                            messages.append(message)
+            add_messages("global")
+            if use_ad_messages:
+                add_messages("ad_messages")
+            elif use_home_ai:
+                add_messages("home")
+            elif use_discord:
+                add_messages("discord")
+            else:
+                add_messages("default")
+                # Fallback for legacy flat ai.json files that still use root-level messages
+                if not messages and isinstance(data.get("messages"), list):
+                    for message in data.get("messages", []):
+                        if not isinstance(message, dict):
+                            continue
+                        key = (message.get("role"), message.get("content"))
+                        if key not in seen:
+                            seen.add(key)
+                            messages.append(message)
+            return JSONResponse(status_code=200, content={"messages": messages})
         # Not found in either location
         raise HTTPException(status_code=404, detail=f"AI instructions not found for {filename}")
     except HTTPException:
