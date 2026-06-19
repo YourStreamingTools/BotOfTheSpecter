@@ -5577,6 +5577,17 @@ async def get_dashboard_trends(api_key: str = Query(...), channel: str = Query(N
         logging.error(f"Dashboard trends error for '{username}': {e}")
         raise HTTPException(status_code=500, detail="Error retrieving dashboard trends")
 
+KNOWN_BOT_LOGINS = {
+    "botofthespecter", "nightbot", "streamelements", "streamlabs", "moobot",
+    "fossabot", "wizebot", "soundalerts", "pretzelrocks", "streamstickers",
+    "tangiabot", "kofistreambot", "blerp", "own3d", "streamlootsbot",
+    "restreambot", "songlistbot", "deepbot", "vivbot", "phantombot", "coebot",
+    "sery_bot", "lattemotte", "creatisbot", "commanderroot", "anotherttvviewer",
+    "communityshowcase", "lurxx", "0_applejuice_0", "electricallongboard",
+    "feardn", "icewaslit", "p0lizei_", "n3td3v", "8hvdes", "host_giveaway",
+    "twitchprimereminder", "streamfahrer", "logviewer", "v_and_k", "the_marlchurch",
+}
+
 class DashboardLeaderboardsResponse(BaseModel):
     channel: str
     limit: int
@@ -5608,6 +5619,16 @@ async def get_dashboard_leaderboards(api_key: str = Query(...), channel: str = Q
         conn = await get_mysql_connection_user(username)
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
+                excluded_logins = set(KNOWN_BOT_LOGINS)
+                try:
+                    await cur.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
+                    ex_row = await cur.fetchone()
+                    if ex_row and ex_row.get("excluded_users"):
+                        excluded_logins.update(u.strip().lower() for u in ex_row["excluded_users"].split(",") if u.strip())
+                except Exception:
+                    pass  # table may not exist yet for a brand-new channel
+                bot_ph = ",".join(["%s"] * len(excluded_logins))  # placeholders only, no user data
+                excluded_params = tuple(excluded_logins)
                 await cur.execute("SELECT command, count FROM custom_counts ORDER BY count DESC LIMIT %s", (limit,))
                 top_commands = [{"command": r["command"], "count": int(r["count"] or 0)} for r in await cur.fetchall()]
                 await cur.execute(
@@ -5617,13 +5638,21 @@ async def get_dashboard_leaderboards(api_key: str = Query(...), channel: str = Q
                     (limit,)
                 )
                 top_rewards = [{"reward_title": r["title"], "count": int(r["total"] or 0)} for r in await cur.fetchall()]
-                await cur.execute("SELECT username, total_watch_time_live, total_watch_time_offline FROM watch_time ORDER BY total_watch_time_live DESC LIMIT %s", (limit,))
+                await cur.execute(
+                    f"SELECT username, total_watch_time_live, total_watch_time_offline FROM watch_time "
+                    f"WHERE LOWER(username) NOT IN ({bot_ph}) ORDER BY total_watch_time_live DESC LIMIT %s",
+                    excluded_params + (limit,)
+                )
                 watch_time = [{"username": r["username"], "live": int(r["total_watch_time_live"] or 0), "offline": int(r["total_watch_time_offline"] or 0)} for r in await cur.fetchall()]
                 await cur.execute("SELECT user_name, streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak ORDER BY highest_streak DESC LIMIT %s", (limit,))
                 streaks = [{"username": r["user_name"], "current": int(r["streak_value"] or 0), "highest": int(r["highest_streak"] or 0), "total": int(r["total_streams_watched"] or 0)} for r in await cur.fetchall()]
                 await cur.execute("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC LIMIT %s", (limit,))
                 deaths_by_game = [{"game": r["game_name"], "deaths": int(r["death_count"] or 0)} for r in await cur.fetchall()]
-                await cur.execute("SELECT username, message_count FROM message_counts ORDER BY message_count DESC LIMIT %s", (limit,))
+                await cur.execute(
+                    f"SELECT username, message_count FROM message_counts "
+                    f"WHERE LOWER(username) NOT IN ({bot_ph}) ORDER BY message_count DESC LIMIT %s",
+                    excluded_params + (limit,)
+                )
                 chat_leaders = [{"username": r["username"], "messages": int(r["message_count"] or 0)} for r in await cur.fetchall()]
                 await cur.execute("SELECT song_name, artist_name, COUNT(*) AS c FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY c DESC LIMIT %s", (limit,))
                 top_songs = [{"song": r["song_name"], "artist": r["artist_name"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
