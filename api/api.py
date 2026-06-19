@@ -1361,7 +1361,8 @@ class VersionControlResponse(BaseModel):
             "example": {
                 "beta_version": "5.5",
                 "stable_version": "5.4",
-                "discord_bot": "5.3.0"
+                "discord_bot": "5.3.0",
+                "kick_bot": "1.0.0"
             }
         }
 
@@ -1492,6 +1493,12 @@ STEAM_APP_LIST_CACHE_PATHS = [
 ]
 _steam_app_list_cache: Dict[str, int] = {}
 _steam_app_list_cache_loaded_at = datetime.fromtimestamp(0, tz=timezone.utc)
+
+# Versions file paths (with fallback)
+VERSIONS_FILE_PATHS = [
+    "/home/botofthespecter/versions.json",
+    "/home/fastapi/versions.json",
+]
 
 def _normalize_steam_app_list(payload: Any) -> Dict[str, int]:
     if not isinstance(payload, dict):
@@ -2646,11 +2653,13 @@ async def fortune(api_key: str = Query(...), channel: str = Query(None)):
     operation_id="get_bot_versions"
 )
 async def versions():
-    # Check for versions file in preferred location first
-    versions_path = "/home/botofthespecter/versions.json"
-    if not os.path.exists(versions_path):
-        versions_path = "/home/fastapi/versions.json"
-    if not os.path.exists(versions_path):
+    # Find the first available versions file from the paths list
+    versions_path = None
+    for path in VERSIONS_FILE_PATHS:
+        if os.path.exists(path):
+            versions_path = path
+            break
+    if not versions_path:
         raise HTTPException(status_code=404, detail="Version file not found")
     with open(versions_path, "r") as versions_file:
         versions = json.load(versions_file)
@@ -6001,7 +6010,6 @@ async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Qu
                 token_row = await cur.fetchone()
                 if not token_row:
                     raise HTTPException(status_code=400, detail="Invalid or expired token")
-
                 await cur.execute(
                     "SELECT id, username, twitch_user_id, twitch_display_name FROM users WHERE username = %s",
                     (username,)
@@ -6009,14 +6017,11 @@ async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Qu
                 user_row = await cur.fetchone()
                 if not user_row:
                     raise HTTPException(status_code=404, detail="User account not found")
-
                 twitch_user_id = str(user_row.get("twitch_user_id") or "").strip()
                 if not twitch_user_id:
                     raise HTTPException(status_code=400, detail="Twitch account is missing for this user")
-
                 twitch_username = user_row.get("twitch_display_name") or user_row.get("username")
                 discord_user_id = str(token_row["discord_user_id"])
-
                 await cur.execute(
                     """
                     SELECT discord_user_id
@@ -6028,7 +6033,6 @@ async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Qu
                 conflict = await cur.fetchone()
                 if conflict:
                     raise HTTPException(status_code=409, detail="This Twitch account is already linked to another Discord user")
-
                 await cur.execute(
                     """
                     INSERT INTO discord_twitch_links (discord_user_id, twitch_user_id, twitch_username)
@@ -6040,12 +6044,10 @@ async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Qu
                     """,
                     (discord_user_id, twitch_user_id, twitch_username)
                 )
-
                 await cur.execute(
                     "UPDATE discord_twitch_link_tokens SET used_at = UTC_TIMESTAMP() WHERE id = %s",
                     (token_row["id"],)
                 )
-
             await conn.commit()
             return {
                 "success": True,
@@ -6064,15 +6066,18 @@ async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Qu
 # Function to check bot status via SSH
 async def get_bot_status_via_ssh(username: str) -> dict:
     # Load latest versions from versions.json
-    versions_path = "/home/botofthespecter/versions.json"
-    if not os.path.exists(versions_path):
-        versions_path = "/home/fastapi/versions.json"
+    versions_path = None
+    for path in VERSIONS_FILE_PATHS:
+        if os.path.exists(path):
+            versions_path = path
+            break
     latest_versions = {}
-    try:
-        with open(versions_path, "r") as versions_file:
-            latest_versions = json.load(versions_file)
-    except Exception as e:
-        logging.error(f"[bot_status] failed to load versions.json: {e}")
+    if versions_path:
+        try:
+            with open(versions_path, "r") as versions_file:
+                latest_versions = json.load(versions_file)
+        except Exception as e:
+            logging.error(f"[bot_status] failed to load versions.json: {e}")
     if not all([BOTS_SSH_HOST, SSH_USERNAME, SSH_PASSWORD]):
         logging.warning(f"[bot_status] skipped for '{username}': missing SSH credentials (BOT-SRV-HOST={BOTS_SSH_HOST!r}, SSH_USERNAME set={bool(SSH_USERNAME)}, SSH_PASSWORD set={bool(SSH_PASSWORD)})")
         return {
