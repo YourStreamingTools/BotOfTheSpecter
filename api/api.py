@@ -1356,6 +1356,7 @@ class VersionControlResponse(BaseModel):
     beta_version: str
     stable_version: str
     discord_bot: str
+    kick_bot: str
     class Config:
         json_schema_extra = {
             "example": {
