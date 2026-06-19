@@ -2286,6 +2286,14 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     opacity: 1;
 }
 
+.closed-captions-overlay-page-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    max-height: calc(var(--cc-max-lines, 2) * 1.3em);
+    overflow: hidden;
+}
+
 /* Background styles */
 .closed-captions-overlay-page-root[data-background="box"] .closed-captions-overlay-page-band {
     background: rgba(0, 0, 0, 0.8);

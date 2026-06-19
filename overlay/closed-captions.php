@@ -141,8 +141,10 @@ ob_end_clean();
         <div class="closed-captions-overlay-page-status" id="connectionStatus" data-state="connecting">Connecting&hellip;</div>
         <div class="closed-captions-overlay-page-root" id="ccRoot" data-position="bottom" data-background="box">
             <div class="closed-captions-overlay-page-band" id="ccBand">
-                <div class="closed-captions-overlay-page-lines" id="ccLines"></div>
-                <div class="closed-captions-overlay-page-interim" id="ccInterim"></div>
+                <div class="closed-captions-overlay-page-content" id="ccContent">
+                    <div class="closed-captions-overlay-page-lines" id="ccLines"></div>
+                    <div class="closed-captions-overlay-page-interim" id="ccInterim"></div>
+                </div>
             </div>
         </div>
     <?php endif; ?>
@@ -200,6 +202,7 @@ ob_end_clean();
             };
             const applySettings = () => {
                 ccRoot.style.setProperty('--cc-font-size', (Number(settings.fontSize) || 32) + 'px');
+                ccRoot.style.setProperty('--cc-max-lines', String(Math.max(1, Number(settings.maxLines) || 2)));
                 ccRoot.style.setProperty('--cc-text-color', settings.textColor || '#FFFFFF');
                 // Caption typeface: load the chosen Google Font on demand, then apply it.
                 const fontName = allowedFonts.includes(settings.fontFamily) ? settings.fontFamily : 'Inter';
