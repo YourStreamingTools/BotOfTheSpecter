@@ -12,31 +12,6 @@ session_write_close();
 // Public base URL of the API server that receives the inbound webhooks.
 $apiBase = 'https://api.botofthespecter.com';
 
-// Ensure the table exists (idempotent; api.py owns the schema but this page may
-// create the first row before an api.py deploy). DDL mirrors api.py exactly.
-if ($conn) {
-    $conn->query("
-        CREATE TABLE IF NOT EXISTS custom_webhooks (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            slug VARCHAR(64) NOT NULL UNIQUE,
-            name VARCHAR(100) NOT NULL,
-            service VARCHAR(64) NOT NULL,
-            event_name VARCHAR(64) NOT NULL,
-            scope ENUM('channel','global') NOT NULL DEFAULT 'channel',
-            target_username VARCHAR(255) NULL,
-            verify_mode ENUM('none','secret','hmac') NOT NULL DEFAULT 'secret',
-            secret VARCHAR(255) NULL,
-            secret_header VARCHAR(64) NOT NULL DEFAULT 'X-Webhook-Secret',
-            enabled TINYINT(1) NOT NULL DEFAULT 1,
-            created_by VARCHAR(255) NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_received_at TIMESTAMP NULL DEFAULT NULL,
-            received_count INT NOT NULL DEFAULT 0,
-            INDEX idx_enabled (enabled)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ");
-}
-
 // JSON responder for AJAX actions
 function wh_json($payload) {
     ob_end_clean();

@@ -3692,7 +3692,7 @@ class TwitchBot(commands.AutoBot):
             return
         if not stream_online:
             return
-        if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() == CHANNEL_NAME.lower():
+        if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() in await get_known_bots() or messageAuthor.lower() == CHANNEL_NAME.lower():
             return
         send_shoutout = False
         shoutout_message = None
@@ -3783,6 +3783,7 @@ class TwitchBot(commands.AutoBot):
                 return
             chat_points = settings['chat_points']
             excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
+            excluded_users = set(excluded_users) | await get_known_bots()  # Phase 2: + global known bots
             author_lower = messageAuthor.lower()
             if author_lower not in excluded_users:
                 result = await manage_user_points(messageAuthorID, messageAuthor, "credit", chat_points)
@@ -4629,7 +4630,7 @@ class TwitchBot(commands.AutoBot):
                             is_self_lookup = (target_user_id == str(ctx.author.id))
                         settings = await get_point_settings()
                         if settings and 'excluded_users' in settings:
-                            excluded_users = [u.strip().lower() for u in settings['excluded_users'].split(',')]
+                            excluded_users = set(u.strip().lower() for u in settings['excluded_users'].split(',')) | await get_known_bots()
                             if target_user_name.lower() in excluded_users:
                                 if is_self_lookup:
                                     await send_chat_message(f'@{target_user_name}, you have 0 points.')
@@ -9378,6 +9379,31 @@ class TwitchBot(commands.AutoBot):
             if connection:
                 await connection.release()
 
+# Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the
+# per-channel exclusion lists for watch-time, points, and welcome/shoutout.
+KNOWN_BOTS_CACHE_TTL = 300  # seconds
+_known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
+
+async def get_known_bots():
+    # Returns a lowercased set of active global bot logins from website.known_bots.
+    # Lazy TTL cache; on any error returns the last good cache (or empty set) so callers
+    # degrade gracefully to per-channel-only exclusion (i.e. today's behaviour).
+    global _known_bots_cache
+    now = time.time()
+    if _known_bots_cache["loaded_at"] and (now - _known_bots_cache["loaded_at"]) < KNOWN_BOTS_CACHE_TTL:
+        return set(_known_bots_cache["bots"])
+    bots = set(_known_bots_cache["bots"])  # fall back to last good cache on error
+    try:
+        async with await mysql_handler.get_connection(db_name="website") as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT bot_login FROM known_bots WHERE is_active = 1")
+                rows = await cursor.fetchall()
+                bots = {str(r["bot_login"]).strip().lower() for r in rows if r.get("bot_login")}
+        _known_bots_cache = {"loaded_at": now, "bots": frozenset(bots)}
+    except Exception as e:
+        bot_logger.error(f"[KNOWN BOTS] Failed to load known_bots from website DB: {e}")
+    return set(bots)
+
 def format_lurk_time(elapsed_time):
     total_seconds = int(elapsed_time.total_seconds())
     years = total_seconds // (365 * 24 * 3600)
@@ -13553,8 +13579,9 @@ async def track_watch_time(active_users):
             excluded_users_data = await cursor.fetchone()
             excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
             excluded_users_list = excluded_users.split(',') if excluded_users else []
-            # Filter active users to exclude those in the list
-            non_excluded_users = [user for user in active_users if user['user_login'] not in excluded_users_list]
+            # Phase 2: union the per-channel list with the global known-bots registry
+            excluded_logins = {u.strip().lower() for u in excluded_users_list if u.strip()} | await get_known_bots()
+            non_excluded_users = [user for user in active_users if (user.get('user_login') or '').lower() not in excluded_logins]
             if not non_excluded_users:
                 return
             # Get all user_ids for batch query

@@ -4159,3 +4159,32 @@ label.checkbox input[type="checkbox"] {
     font-size: 0.8rem;
     padding: 0.35rem 2rem 0.35rem 0.6rem;
 }
+
+/* Known-bots admin status pill */
+.kb-status {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.kb-status-active {
+    background: var(--green-bg);
+    color: var(--green);
+}
+.kb-status-disabled {
+    background: var(--grey-bg);
+    color: var(--text-muted);
+}
+
+/* DB migrations admin page */
+.mig-dbname { color: var(--text-muted); font-weight: 400; font-size: 0.85em; }
+.mig-counts { color: var(--text-secondary); margin-bottom: 0.75rem; }
+.mig-warn { color: var(--amber); }
+.mig-pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: var(--radius-pill); font-size: 0.75rem; font-weight: 600; }
+.mig-applied { background: var(--green-bg); color: var(--green); }
+.mig-pending { background: var(--grey-bg); color: var(--text-muted); }
+.mig-drift, .mig-destructive { background: var(--amber-bg); color: var(--amber); }
+.mig-procedural { background: var(--grey-bg); color: var(--text-secondary); }
+.mig-review { margin-top: 0.35rem; }
+.mig-sql { background: var(--bg-elev, rgba(0,0,0,.2)); padding: 0.6rem; border-radius: var(--radius); overflow-x: auto; font-size: 0.8rem; white-space: pre; }
