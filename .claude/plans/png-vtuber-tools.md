@@ -1,10 +1,9 @@
 # PNG / VTuber Tools — Feature Specification & Implementation Plan
 
-> Status: **draft**, awaiting review (see §7 risks / §9 open decisions).
-> Owner: TBD. Last revised 2026-06-05.
+> Status: **Draft**. Last revised 2026-06-05.
 > Inspiration: PNGTuber apps (Veadotube mini, PNGTuber Plus, kuroiro) — a lightweight, "no rigging required" alternative to Live2D/3D VTubing: a static PNG that opens its mouth when you talk and blinks/bounces so it feels alive. We bring that into Specter as a browser-source overlay driven by the streamer's own infrastructure.
 
-**Confirmed product decisions** (brainstorming, 2026-06-05 — each is also listed in §9 so you can override):
+**Confirmed product decisions** (each is also listed in §9):
 
 1. **Reactivity = the streamer's own MIC voice-activity.** The avatar reacts to *their voice*: a dashboard captioner-style page runs Web Audio (`getUserMedia` → `AudioContext` → `AnalyserNode`), computes RMS volume vs a tunable threshold with attack/release smoothing, derives a `talking` / `idle` (and optional `loud`) state, and emits it over the WebSocket scoped by `?code`. The OBS overlay is **display-only** and swaps the PNG. This mirrors the just-shipped Closed Captions feature exactly (mic lives in a real browser; OBS can't reach it).
 2. **MVP = a genuinely usable 2-state PNG-tuber.** Mouth-closed/idle + mouth-open/talking PNGs swapped on the voice threshold, **plus** client-side JS blink (opacity swap on a randomized timer) and a gentle idle bounce/sway (CSS `transform`). Position + scale config. That alone is a usable product — "a good start."
@@ -314,7 +313,7 @@ CREATE TABLE IF NOT EXISTS avatar_expressions (
 
 ## 9. Open decisions
 
-(Each baked-in default below is the author's recommendation — listed here so you can override before build.)
+(Each default below is the recommended starting point — listed here so it can be revisited before implementation.)
 
 1. **Reactivity source — confirm mic voice-activity (recommended) vs a PNG "pet."** Recommendation: **mic voice-activity** (a true PNG-tuber), per the Closed Captions precedent. The chat/event-driven "pet" is a *separate* feature already specced in `pet-overlay.md`. If you'd rather the first deliverable be a chat-driven character, that's the Pet plan, not this one.
 2. **MVP state breadth — 2-state + blink + bounce (recommended) vs adding blink-frames/expressions in v1.** Recommendation: ship the **2-state + opacity-blink + bounce** MVP first (genuinely usable, no bot, no server change); dedicated blink-frame PNGs and multiple expressions are Phase 2.

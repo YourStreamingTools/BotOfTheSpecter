@@ -1,7 +1,6 @@
 # Unified Media Library — Finish Build Plan
 
-> Status: **draft**, awaiting decisions (see end of doc).
-> Owner: TBD. Last revised 2026-05-25.
+Status: Draft. Last revised 2026-05-25.
 
 ## 1. Scope
 
@@ -372,7 +371,7 @@ Each stage is independently shippable. Steps 1+2 alone deliver the headline win 
 
 ## 8. Decisions log
 
-Resolved during planning:
+Resolved:
 
 1. ✅ **Auto-create walkon rows during migration** — yes. Migration scans `/var/www/walkons/{user}/{login}.mp3`, looks up `login → user_id` via Helix (or `seen_users` cache), and inserts a `walkons` row per file. Existing walkons keep working without the streamer re-tagging.
 2. ✅ **"+ Add user" picker** — combined typeahead + free-form. Autocomplete against `seen_users` for common case; free-form Twitch username with Helix-lookup-at-save-time fallback so streamers can pre-set walkons for viewers who haven't chatted yet.

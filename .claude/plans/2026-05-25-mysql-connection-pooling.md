@@ -1,7 +1,5 @@
 # MySQL Connection Pooling Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Migrate every dial-and-hang-up `aiomysql.connect(...)` call site across `bot/beta.py`, `websocket/server.py`, and `api/api.py` to a shared pool-per-process pattern, with `bot/beta.py` shipped first as the pilot and the other two systems waiting on beta's monitoring window before they ship.
 
 **Architecture:** One `aiomysql.Pool` per Python process, bound to the `website` database (the hot path used 95%+ of the time). Per-user databases (where the database name is the channel/username) keep the existing one-shot `aiomysql.connect` pattern — low traffic, varied DB names, not worth pool-per-name complexity. The pool is initialised at process startup and closed during shutdown.
