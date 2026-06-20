@@ -80,5 +80,4 @@ New `db-`-namespaced classes: `db-live-ribbon`, `db-live-state`, `db-ticker`, `d
 
 ## Non-goals / deploy notes
 - No bot edit (echo/`BOT_CHAT_MESSAGE` deferred). No DB schema change.
-- Leave everything **uncommitted**; user uploads to the server and tests.
 - Local testing limited to `php -l`; runtime verification is on the server.

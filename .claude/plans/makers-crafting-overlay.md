@@ -1,13 +1,13 @@
 # Makers & Crafting Overlay — Plan
 
-> Status: **draft**, awaiting review (see §12 open decisions).
+> Status: Draft (see §12 open decisions).
 > Owner: TBD. Last revised 2026-05-30.
 
 ## 1. Scope
 
 A new browser-source overlay for makers / crafting content that shows the streamer's **current project and its context**, updatable live from chat without leaving the workflow. It supports three display modes and either an image carousel or text-only context per project.
 
-**Confirmed product decisions** (from brainstorming, 2026-05-30):
+**Confirmed product decisions** (2026-05-30):
 
 1. **Images come from the unified media library.** Streamers upload project photos through the dashboard; files live in the same storage/CDN as alert media (`/var/www/media/{user}/` → `https://media.botofthespecter.com/{user}/{file}`). No raw files or URLs are typed in chat. **Note:** the media library is audio/video-only today — images are a new content type this plan adds to the same storage (see §3.3, §7).
 2. **All three display modes ship in v1**: single current project, cycle finished projects, highlight upcoming ideas.
@@ -18,12 +18,12 @@ A new browser-source overlay for makers / crafting content that shows the stream
 
 - `./bot/beta.py` — **primary implementation target.** New `!craft` chat command family + a `MAKER_UPDATE` websocket signal land here first, per [bot-versions.md](../rules/bot-versions.md).
 - `./bot/beta-v6.py` — port from beta once stable (TwitchIO 3.2.2 API differs — re-verify command registration).
-- `./bot/bot.py` (stable) — **not changed** (no critical fix involved).
-- `./websocket/server.py` — **no change strictly required**; the generic `else` branch in `notify_http` already broadcasts unknown events to the channel's clients + global listeners. Optionally add explicit `MAKER_UPDATE` handling for logging parity (see §9).
-- `./api/api.py` — **no changes.** Overlay self-serves via PHP; bot and dashboard write per-user MySQL directly, per [data-flow.md](../rules/data-flow.md). See §10.
-- `./overlay/maker.php` — **new file.** Always-visible card; PHP renders initial state + exposes a `?type=json` endpoint; JS re-fetches on `MAKER_UPDATE`.
+- `./bot/bot.py` (stable) — no changes (no critical fix involved).
+- `./websocket/server.py` — no change strictly required; the generic `else` branch in `notify_http` already broadcasts unknown events to the channel's clients + global listeners. Optionally add explicit `MAKER_UPDATE` handling for logging parity (see §9).
+- `./api/api.py` — no changes. Overlay self-serves via PHP; bot and dashboard write per-user MySQL directly, per [data-flow.md](../rules/data-flow.md). See §10.
+- `./overlay/maker.php` — new file. Always-visible card; PHP renders initial state + exposes a `?type=json` endpoint; JS re-fetches on `MAKER_UPDATE`.
 - `./overlay/index.css` — new `.maker-overlay-page-*` classes (overlay CSS lives in its own folder — no cross-folder linking, per the ui-theme system).
-- `./dashboard/makers.php` — **new file.** Project CRUD, image upload/attach, styling controls.
+- `./dashboard/makers.php` — new file. Project CRUD, image upload/attach, styling controls.
 - `./dashboard/overlays.php` — add a Makers card (OBS URL + quick settings link).
 - `./dashboard/usr_database.php` — three new per-user tables (auto-deploy via the existing `CREATE TABLE IF NOT EXISTS` loop).
 - Per-user MySQL DB — `maker_projects`, `maker_project_images`, `maker_overlay_settings`.

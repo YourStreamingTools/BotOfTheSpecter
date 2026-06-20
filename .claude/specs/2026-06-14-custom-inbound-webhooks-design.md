@@ -1,8 +1,7 @@
 # Custom Inbound Webhooks — Design
 
 **Date:** 2026-06-14
-**Status:** Approved design (pre-implementation)
-**Author:** Brainstorm with user (GFAUnDead)
+**Status:** Approved
 
 ## 1. Problem & Goal
 

@@ -1,7 +1,7 @@
 # Task Projects — Design Spec (Approach B: Project Registry)
 
 **Date:** 2026-06-11
-**Scope approved by user:** move/attach existing tasks, first-class project management, dashboard project UI, overlay project display — plus 4 high-severity bug fixes from the 2026-06-11 five-surface audit.
+**Scope:** move/attach existing tasks, first-class project management, dashboard project UI, overlay project display — plus 4 high-severity bug fixes from the 2026-06-11 five-surface audit.
 
 ## Background
 
@@ -97,4 +97,4 @@ Changes touch the bot **and** the websocket server — both processes need a res
 
 ## Testing
 
-No automated test suite exists for these surfaces. Verification: `php -l` on every touched PHP file, `python -m py_compile` on touched Python, plus a multi-agent adversarial review of the full diff before handoff. Manual smoke flow for the user: `!project Alpha` → `!task a` → `!later b` → `!project move 1 Beta` → `!projects` → `!project rename Beta | Gamma` → `!project delete Gamma` — watching dashboard + overlay update live.
+No automated test suite exists for these surfaces. Verification: `php -l` on every touched PHP file, `python -m py_compile` on touched Python. Manual smoke flow: `!project Alpha` → `!task a` → `!later b` → `!project move 1 Beta` → `!projects` → `!project rename Beta | Gamma` → `!project delete Gamma` — watching dashboard + overlay update live.

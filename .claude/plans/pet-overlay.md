@@ -1,10 +1,10 @@
 # Pet Overlay — Feature Specification & Implementation Plan
 
-> Status: **draft**, awaiting review (see §7 risks / §6 roadmap decisions).
+> Status: **Draft**. See §7 for risks and §6 for roadmap decisions.
 > Owner: TBD. Last revised 2026-05-30.
 > Inspiration: Triiibe (formerly Kappamon) — a cute interactive pet/avatar browser source that reacts to chat and stream events to drive engagement.
 
-**Confirmed product decisions** (brainstorming, 2026-05-30):
+**Confirmed product decisions**:
 
 1. **Sprite sheets / frame-PNG animation.** Pet states are PNG frame sequences / sprite sheets animated client-side. Lightweight, smooth in OBS, swappable art.
 2. **Custom upload at MVP.** Streamers upload their own pet art from day one (no locked-in character). Operator templates are a later nicety, not a blocker.

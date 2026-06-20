@@ -1,18 +1,14 @@
 # Task Projects (Approach B) + High-Severity Fixes — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Make Working & Study projects first-class (registry table, move/rename/delete, counts) and visible on the dashboard + overlay, while fixing the four high-severity audit bugs in the same files.
 
 **Architecture:** A per-user `user_projects` registry anchors project identity; tasks keep their `project` name string so the existing NULL-safe `project <=> %s` scoping in `bot/beta.py` is untouched. The bot emits a new `PROJECT_UPDATE` event over the existing `/notify` HTTP fan-out; the websocket server relays it (and the existing `TASK_*` events) channel-scoped with JSON fields decoded; dashboard and overlay render the `project` field they already receive.
 
 **Tech Stack:** Python (aiomysql, TwitchIO 2.10 bot; aiohttp + python-socketio server), PHP 8 + mysqli (dashboard/overlay), vanilla JS + Socket.io 4 clients.
 
-**Project-rule overrides of plan-skill defaults:**
-- **NO git steps.** The user handles ALL git — never commit, never branch, never push. Leave every change uncommitted.
-- **No TDD steps.** These surfaces have no test harness. Verification = `php -l`, `python -m py_compile`, and the final adversarial review (Task 15), plus the manual smoke flow in the spec.
+**Verification approach:** These surfaces have no test harness. Verification = `php -l`, `python -m py_compile`, and the final review pass (Task 15), plus the manual smoke flow in the spec.
 
-**Spec:** `docs/superpowers/specs/2026-06-11-task-projects-design.md`
+**Spec:** `.claude/specs/2026-06-11-task-projects-design.md`
 
 ---
 
@@ -978,5 +974,5 @@ In `chRenderUser`, change the empty-row `colspan` to 7 and call `chRefreshProjec
 
 - [ ] **Step 1: Lints** — `php -l` on: `dashboard/includes/usr_database.php`, `dashboard/working-or-study.php`, `dashboard/lang/en.php`, `dashboard/lang/de.php`, `dashboard/lang/fr.php`, `overlay/working-or-study.php`. All "No syntax errors detected".
 - [ ] **Step 2: Compiles** — `python -m py_compile bot/beta.py websocket/server.py` → exit 0.
-- [ ] **Step 3: Adversarial review** — multi-agent workflow over the full uncommitted diff: cross-surface payload contract (event names/fields match across beta.py, server.py, dashboard, overlay), project invariants (≤1 active task per project, contiguous backlog), regression risk on the four bug fixes. Fix confirmed findings, re-lint.
-- [ ] **Step 4: Report** — summarize for the user; remind that deploy restarts BOTH the bot and the websocket server, plus a re-sync of `/home/botofthespecter/builtin_commands.json` (server).
+- [ ] **Step 3: Cross-surface review** — verify payload contract (event names/fields match across beta.py, server.py, dashboard, overlay), project invariants (≤1 active task per project, contiguous backlog), regression risk on the four bug fixes. Fix confirmed findings, re-lint.
+- [ ] **Step 4: Deploy notes** — deploy restarts BOTH the bot and the websocket server, plus a re-sync of `/home/botofthespecter/builtin_commands.json` (server).
