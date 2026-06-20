@@ -3,23 +3,6 @@ $heartbeatStatus = '';
 
 include '/var/www/config/db_connect.php';
 
-// Create system_metrics table if it doesn't exist
-$conn->query("CREATE TABLE IF NOT EXISTS system_metrics (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    server_name VARCHAR(255) NOT NULL,
-    cpu_percent FLOAT,
-    ram_percent FLOAT,
-    ram_used FLOAT,
-    ram_total FLOAT,
-    disk_percent FLOAT,
-    disk_used FLOAT,
-    disk_total FLOAT,
-    net_sent FLOAT,
-    net_recv FLOAT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_server (server_name)
-)");
-
 function fetchData($url) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
