@@ -10,10 +10,6 @@ session_write_close();
 $pageTitle = t('admin_feedback_page_title');
 ob_start();
 
-// Ensure feedback table exists
-$create_sql = "CREATE TABLE IF NOT EXISTS feedback (id INT AUTO_INCREMENT PRIMARY KEY,twitch_user_id VARCHAR(64),display_name VARCHAR(255),message TEXT,is_bug_report TINYINT(1) DEFAULT 0,bug_category VARCHAR(100),severity VARCHAR(50),steps_to_reproduce TEXT,expected_behavior TEXT,actual_behavior TEXT,browser_info VARCHAR(500),error_message TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
-$conn->query($create_sql);
-
 // Fetch feedback from database
 $feedback = [];
 $stmt = $conn->prepare("SELECT id, twitch_user_id, display_name, message, is_bug_report, bug_category, severity, steps_to_reproduce, expected_behavior, actual_behavior, browser_info, error_message, created_at FROM feedback ORDER BY created_at DESC");

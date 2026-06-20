@@ -617,8 +617,6 @@ async def lifespan(app: FastAPI):
     logging.info("API SERVER STARTING UP")
     logging.info("=" * 80)
     midnight_task = asyncio.create_task(midnight())
-    # Ensure the admin-managed custom webhooks table exists
-    await ensure_custom_webhooks_table()
     # Yield control back to FastAPI (letting it continue with startup and handling requests)
     yield
     # After shutdown, cancel the midnight task
@@ -1806,22 +1804,6 @@ async def save_freestuff_game(webhook_data):
         conn = await get_mysql_connection()
         try:
             async with conn.cursor() as cur:
-                # Create table if it doesn't exist
-                await cur.execute("""
-                    CREATE TABLE IF NOT EXISTS freestuff_games (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        game_id VARCHAR(255),
-                        game_title VARCHAR(500),
-                        game_org VARCHAR(255),
-                        game_thumbnail TEXT,
-                        game_url TEXT,
-                        game_description TEXT,
-                        game_price VARCHAR(50),
-                        received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        INDEX idx_received_at (received_at)
-                    )
-                """)
-                await conn.commit()
                 # Normalize products list (supports different webhook shapes)
                 data = webhook_data.get("data", {}) or {}
                 products = []
@@ -2241,41 +2223,6 @@ async def receive_kick_webhook(username: str, request: Request):
 # event — routed to a specific channel or to admin global-listeners. This lets a
 # new integration go live WITHOUT editing api.py or restarting the API server.
 # ---------------------------------------------------------------------------
-
-CUSTOM_WEBHOOKS_TABLE_DDL = """
-    CREATE TABLE IF NOT EXISTS custom_webhooks (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        slug VARCHAR(64) NOT NULL UNIQUE,
-        name VARCHAR(100) NOT NULL,
-        service VARCHAR(64) NOT NULL,
-        event_name VARCHAR(64) NOT NULL,
-        scope ENUM('channel','global') NOT NULL DEFAULT 'channel',
-        target_username VARCHAR(255) NULL,
-        verify_mode ENUM('none','secret','hmac') NOT NULL DEFAULT 'secret',
-        secret VARCHAR(255) NULL,
-        secret_header VARCHAR(64) NOT NULL DEFAULT 'X-Webhook-Secret',
-        enabled TINYINT(1) NOT NULL DEFAULT 1,
-        created_by VARCHAR(255) NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_received_at TIMESTAMP NULL DEFAULT NULL,
-        received_count INT NOT NULL DEFAULT 0,
-        INDEX idx_enabled (enabled)
-    )
-"""
-
-async def ensure_custom_webhooks_table():
-    # Idempotent; api.py owns the schema. The admin PHP page also issues
-    # CREATE TABLE IF NOT EXISTS defensively in case it runs before a deploy.
-    try:
-        conn = await get_mysql_connection()
-        try:
-            async with conn.cursor() as cur:
-                await cur.execute(CUSTOM_WEBHOOKS_TABLE_DDL)
-                await conn.commit()
-        finally:
-            conn.close()
-    except Exception as e:
-        logging.error(f"Failed to ensure custom_webhooks table: {e}")
 
 def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, request: Request, raw_body: bytes) -> bool:
     # Constant-time verification of an inbound custom webhook request.
@@ -5577,7 +5524,10 @@ async def get_dashboard_trends(api_key: str = Query(...), channel: str = Query(N
         logging.error(f"Dashboard trends error for '{username}': {e}")
         raise HTTPException(status_code=500, detail="Error retrieving dashboard trends")
 
-KNOWN_BOT_LOGINS = {
+# Seed for the admin-managed global known-bots registry (website.known_bots).
+# Used to populate an empty table and as the fallback when the table is empty
+# or unreachable. Admins edit the live list from dashboard/admin/known_bots.php.
+DEFAULT_KNOWN_BOTS_SEED = {
     "botofthespecter", "nightbot", "streamelements", "streamlabs", "moobot",
     "fossabot", "wizebot", "soundalerts", "pretzelrocks", "streamstickers",
     "tangiabot", "kofistreambot", "blerp", "own3d", "streamlootsbot",
@@ -5587,6 +5537,36 @@ KNOWN_BOT_LOGINS = {
     "feardn", "icewaslit", "p0lizei_", "n3td3v", "8hvdes", "host_giveaway",
     "twitchprimereminder", "streamfahrer", "logviewer", "v_and_k", "the_marlchurch",
 }
+
+# In-memory cache for the global known-bots list (mirrors the Twitch-creds cache).
+_known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
+_KNOWN_BOTS_TTL = 300  # seconds; admin edits take effect within this window
+
+async def get_known_bots_list() -> set:
+    # Returns a lowercased set of active bot logins from website.known_bots.
+    # Falls back to DEFAULT_KNOWN_BOTS_SEED on empty result or any error so the
+    # leaderboard bot filter always has data.
+    global _known_bots_cache
+    import time as _time
+    now = _time.time()
+    if (now - _known_bots_cache["loaded_at"]) < _KNOWN_BOTS_TTL and _known_bots_cache["bots"]:
+        return set(_known_bots_cache["bots"])
+    bots = set()
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT bot_login FROM known_bots WHERE is_active = 1")
+                rows = await cur.fetchall()
+                bots = {str(r["bot_login"]).strip().lower() for r in rows if r.get("bot_login")}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"Failed to load known_bots list; using seed: {e}")
+    if not bots:
+        bots = set(DEFAULT_KNOWN_BOTS_SEED)
+    _known_bots_cache = {"loaded_at": now, "bots": frozenset(bots)}
+    return set(bots)
 
 class DashboardLeaderboardsResponse(BaseModel):
     channel: str
@@ -5619,7 +5599,7 @@ async def get_dashboard_leaderboards(api_key: str = Query(...), channel: str = Q
         conn = await get_mysql_connection_user(username)
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                excluded_logins = set(KNOWN_BOT_LOGINS)
+                excluded_logins = set(await get_known_bots_list())
                 try:
                     await cur.execute("SELECT excluded_users FROM watch_time_excluded_users LIMIT 1")
                     ex_row = await cur.fetchone()
@@ -5644,7 +5624,11 @@ async def get_dashboard_leaderboards(api_key: str = Query(...), channel: str = Q
                     excluded_params + (limit,)
                 )
                 watch_time = [{"username": r["username"], "live": int(r["total_watch_time_live"] or 0), "offline": int(r["total_watch_time_offline"] or 0)} for r in await cur.fetchall()]
-                await cur.execute("SELECT user_name, streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak ORDER BY highest_streak DESC LIMIT %s", (limit,))
+                await cur.execute(
+                    f"SELECT user_name, streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak "
+                    f"WHERE LOWER(user_name) NOT IN ({bot_ph}) ORDER BY highest_streak DESC LIMIT %s",
+                    excluded_params + (limit,)
+                )
                 streaks = [{"username": r["user_name"], "current": int(r["streak_value"] or 0), "highest": int(r["highest_streak"] or 0), "total": int(r["total_streams_watched"] or 0)} for r in await cur.fetchall()]
                 await cur.execute("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC LIMIT %s", (limit,))
                 deaths_by_game = [{"game": r["game_name"], "deaths": int(r["death_count"] or 0)} for r in await cur.fetchall()]
@@ -5657,11 +5641,23 @@ async def get_dashboard_leaderboards(api_key: str = Query(...), channel: str = Q
                 await cur.execute("SELECT song_name, artist_name, COUNT(*) AS c FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY c DESC LIMIT %s", (limit,))
                 top_songs = [{"song": r["song_name"], "artist": r["artist_name"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
                 interactions = {}
-                await cur.execute("SELECT username, hug_count AS c FROM hug_counts ORDER BY hug_count DESC LIMIT %s", (ilim,))
+                await cur.execute(
+                    f"SELECT username, hug_count AS c FROM hug_counts "
+                    f"WHERE LOWER(username) NOT IN ({bot_ph}) ORDER BY hug_count DESC LIMIT %s",
+                    excluded_params + (ilim,)
+                )
                 interactions["hugs"] = [{"username": r["username"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
-                await cur.execute("SELECT username, kiss_count AS c FROM kiss_counts ORDER BY kiss_count DESC LIMIT %s", (ilim,))
+                await cur.execute(
+                    f"SELECT username, kiss_count AS c FROM kiss_counts "
+                    f"WHERE LOWER(username) NOT IN ({bot_ph}) ORDER BY kiss_count DESC LIMIT %s",
+                    excluded_params + (ilim,)
+                )
                 interactions["kisses"] = [{"username": r["username"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
-                await cur.execute("SELECT username, highfive_count AS c FROM highfive_counts ORDER BY highfive_count DESC LIMIT %s", (ilim,))
+                await cur.execute(
+                    f"SELECT username, highfive_count AS c FROM highfive_counts "
+                    f"WHERE LOWER(username) NOT IN ({bot_ph}) ORDER BY highfive_count DESC LIMIT %s",
+                    excluded_params + (ilim,)
+                )
                 interactions["highfives"] = [{"username": r["username"], "count": int(r["c"] or 0)} for r in await cur.fetchall()]
         finally:
             conn.close()
