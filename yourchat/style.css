@@ -439,6 +439,52 @@ body {
 .ding-volume-test:hover { filter: brightness(1.08); }
 .ding-volume-test:active { transform: translateY(1px); }
 
+/* Narrator (text-to-speech) controls, revealed only while the narrator is enabled */
+.chat-features-panel .narrator-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+.chat-features-panel .narrator-controls.is-collapsed {
+    display: none;
+}
+/* Reset the per-row top margin since the wrapper provides the vertical gap */
+.chat-features-panel .narrator-controls .ding-volume-row {
+    margin-top: 0;
+}
+/* Voice dropdown: explicit light bg + dark text so it stays legible on the panel */
+.narrator-voice-select {
+    flex: 1 1 160px;
+    min-width: 140px;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: #333;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    cursor: pointer;
+}
+.narrator-voice-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+}
+/* Skip-phrase block sits inside the narrator controls; matches the filter list look */
+.chat-features-panel .narrator-skip {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 2px 6px rgba(12, 12, 20, 0.04);
+    color: #333;
+}
+/* Let the longer skip-list caption wrap instead of overflowing on narrow panels */
+.chat-features-panel .narrator-skip .ding-volume-label {
+    white-space: normal;
+}
+
 /* Collapsible filters styles */
 .filters-header {
     display: flex;
