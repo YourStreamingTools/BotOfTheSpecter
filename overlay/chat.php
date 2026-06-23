@@ -65,21 +65,11 @@ if ($twitchUserId !== '') {
     if ($badgeNeedsFetch) {
         $botClientId = '';
         $botOauth    = '';
-        $bconn = @new mysqli($db_servername, $db_username, $db_password, 'website');
-        if (!$bconn->connect_error) {
-            $bres = $bconn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
-            if ($bres) {
-                $brow = $bres->fetch_assoc();
-                if ($brow) {
-                    foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
-                        if (!empty($brow[$k])) { $botClientId = trim($brow[$k]); break; }
-                    }
-                    foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $k) {
-                        if (!empty($brow[$k])) { $botOauth = trim($brow[$k]); break; }
-                    }
-                }
-            }
-            $bconn->close();
+        if (is_readable('/var/www/config/twitch.php')) {
+            unset($conn);
+            include '/var/www/config/twitch.php';
+            $botClientId = isset($clientID) ? trim((string)$clientID) : '';
+            $botOauth    = isset($oauth) ? preg_replace('/^oauth:/i', '', trim((string)$oauth)) : '';
         }
         if ($botClientId !== '' && $botOauth !== '') {
             $ctx = stream_context_create(['http' => [
@@ -315,7 +305,8 @@ $badgeCacheJson = json_encode(
             return parseBadges(badgeStr).map(b => {
                 const url = (OVERLAY_BADGE_CACHE[b.name] || {})[b.version];
                 if (!url) return '';
-                return `<img class="chat-overlay-page-badge-img" src="${url}" alt="${b.name}" title="${b.name}" onerror="this.style.display='none'">`;
+                const name = escapeHtml(b.name);
+                return `<img class="chat-overlay-page-badge-img" src="${escapeHtml(url)}" alt="${name}" title="${name}" onerror="this.style.display='none'">`;
             }).join('');
         }
         // Emote rendering
@@ -367,6 +358,9 @@ $badgeCacheJson = json_encode(
                 data = Object.assign({}, data, {
                     message: data.message.replace(/^\x01ACTION\s?/, '').replace(/\x01$/, '')
                 });
+            }
+            if (data.message_id && container.querySelector(`[data-msg-id="${CSS.escape(data.message_id)}"]`)) {
+                return;
             }
             // Apply username / phrase filters shared with yourchat
             if (isMessageFiltered(data.username, data.display_name, data.message)) return;
@@ -455,6 +449,10 @@ $badgeCacheJson = json_encode(
         function attemptReconnect() {
             reconnectAttempts++;
             const delay = Math.min(5000 * reconnectAttempts, 30000);
+            if (socket) {
+                socket.removeAllListeners();
+                socket = null;
+            }
             setTimeout(connectWebSocket, delay);
         }
         connectWebSocket();
