@@ -757,7 +757,8 @@ document.addEventListener('DOMContentLoaded', function () {
         function applyCanvasSize() {
             var w = canvasWidths[sizeSel ? sizeSel.value : '1920x1080'] || 1920;
             var scale = 1920 / w;
-            var chipW = 18.75 * scale, chipH = 22 * scale;
+            // Chip matches the real box footprint: 360px wide, 320px tall (ref 1920x1080).
+            var chipW = (360 / 1920 * 100) * scale, chipH = (320 / 1080 * 100) * scale;
             chips.forEach(function (chip) {
                 chip.style.width = chipW + '%';
                 chip.style.height = chipH + '%';
