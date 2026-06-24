@@ -29,9 +29,15 @@ $default_settings = [
     'position'               => 'bottom-right',
     'show_title'             => 1,
     'show_description'        => 1,
-    'show_current'           => 1,
+    'show_featured'          => 1,
+    'show_current'           => 0,
     'show_finished'          => 0,
     'show_upcoming'          => 0,
+    'box_layout'             => 'positioned',
+    'position_featured'      => 'bottom-right',
+    'position_current'       => 'bottom-left',
+    'position_finished'      => 'top-left',
+    'position_upcoming'      => 'top-right',
 ];
 
 // Build the snapshot used by both the JSON endpoint and the initial render.
@@ -39,7 +45,8 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $state = [
         'ok'       => true,
         'settings' => $default_settings,
-        'current'  => null,
+        'featured' => null,
+        'current'  => [],
         'finished' => [],
         'upcoming' => [],
     ];
@@ -64,6 +71,7 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $s['visible']                = (int)$s['visible'];
     $s['show_title']             = (int)$s['show_title'];
     $s['show_description']       = (int)$s['show_description'];
+    $s['show_featured']          = (int)$s['show_featured'];
     $s['show_current']           = (int)$s['show_current'];
     $s['show_finished']          = (int)$s['show_finished'];
     $s['show_upcoming']          = (int)$s['show_upcoming'];
@@ -105,13 +113,15 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
         } elseif ($p['status'] === 'upcoming') {
             $state['upcoming'][] = $p;
         } elseif ($p['status'] === 'current') {
-            // Auto-track: the featured "current" card is the current-status project
-            // worked on most recently (newest updated_at; newer id breaks ties).
-            $cur = $state['current'];
-            if ($cur === null
-                || strcmp((string)$p['updated_at'], (string)$cur['updated_at']) > 0
-                || ((string)$p['updated_at'] === (string)$cur['updated_at'] && $p['id'] > $cur['id'])) {
-                $state['current'] = $p;
+            // The Current box rotates through every current-status project.
+            $state['current'][] = $p;
+            // Auto-track: the Featured box highlights the current project worked on most
+            // recently (newest updated_at; newer id breaks ties).
+            $f = $state['featured'];
+            if ($f === null
+                || strcmp((string)$p['updated_at'], (string)$f['updated_at']) > 0
+                || ((string)$p['updated_at'] === (string)$f['updated_at'] && $p['id'] > $f['id'])) {
+                $state['featured'] = $p;
             }
         }
     }
@@ -138,7 +148,7 @@ if ($type === 'json') {
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 </head>
 <body>
-<div id="makerOverlay" class="maker-overlay-page" style="display:none;"></div>
+<div id="makerOverlay" style="display:none;"></div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var urlParams = new URLSearchParams(window.location.search);
@@ -148,10 +158,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var el = document.getElementById('makerOverlay');
     var state = <?php echo json_encode($state, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
-    var carouselTimer = null;
-    var rotateTimer = null;
-    var imgIndex = 0;
-    var projIndex = 0;
+    // Every interval created across the (up to four) boxes, cleared on each re-render.
+    var regionTimers = [];
 
     function escapeHtml(str) {
         return String(str == null ? '' : str)
@@ -160,16 +168,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function clearTimers() {
-        if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; }
-        if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+        regionTimers.forEach(function (t) { clearInterval(t); });
+        regionTimers = [];
     }
 
-    function applyShell(s) {
-        el.className = 'maker-overlay-page pos-' + (s.position || 'bottom-right');
-        el.style.setProperty('--maker-accent', s.accent_color || '#9146FF');
-        el.style.setProperty('--maker-text', s.text_color || '#FFFFFF');
-        el.style.color = s.text_color || '#FFFFFF';
-        el.style.fontFamily = (s.font_family || 'Arial') + ', sans-serif';
+    // Build one positioned box (a fixed card in its own corner). Styling is applied
+    // inline on the card itself so the chosen font/colours win over the base CSS rule.
+    function buildRegion(corner, s) {
+        var region = document.createElement('div');
+        // No corner -> bare card (used inside a stack, positioned by the stack container).
+        region.className = 'maker-overlay-page' + (corner ? ' pos-' + corner : '');
+        region.style.setProperty('--maker-accent', s.accent_color || '#9146FF');
+        region.style.setProperty('--maker-text', s.text_color || '#FFFFFF');
+        region.style.color = s.text_color || '#FFFFFF';
+        region.style.fontFamily = (s.font_family || 'Arial') + ', sans-serif';
+        return region;
     }
 
     function renderProjectCard(p, s, label) {
@@ -200,63 +213,102 @@ document.addEventListener('DOMContentLoaded', function () {
         return html;
     }
 
-    function startCarousel(seconds) {
-        var imgs = el.querySelectorAll('.maker-overlay-page-image');
-        if (imgs.length <= 1) { return; }
-        var capEl = el.querySelector('.maker-overlay-page-caption');
-        carouselTimer = setInterval(function () {
-            imgs[imgIndex].classList.remove('is-active');
-            imgIndex = (imgIndex + 1) % imgs.length;
-            imgs[imgIndex].classList.add('is-active');
-            if (capEl) { capEl.textContent = imgs[imgIndex].getAttribute('data-caption') || ''; }
-        }, Math.max(2, seconds) * 1000);
-    }
+    // Drive a single box: render list[0], carousel its images, and (if more than one
+    // project) rotate through the list. Each box keeps its own indices and timers.
+    function runRegion(region, list, label, s) {
+        var projIdx = 0;
+        var carTimer = null;
 
-    function showItem(items, idx, s) {
-        imgIndex = 0;
-        if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; }
-        el.innerHTML = renderProjectCard(items[idx].project, s, items[idx].label);
-        startCarousel(parseInt(s.carousel_seconds, 10) || 6);
+        function startCarousel() {
+            var imgs = region.querySelectorAll('.maker-overlay-page-image');
+            if (imgs.length <= 1) { return; }
+            var capEl = region.querySelector('.maker-overlay-page-caption');
+            var imgIdx = 0;
+            carTimer = setInterval(function () {
+                imgs[imgIdx].classList.remove('is-active');
+                imgIdx = (imgIdx + 1) % imgs.length;
+                imgs[imgIdx].classList.add('is-active');
+                if (capEl) { capEl.textContent = imgs[imgIdx].getAttribute('data-caption') || ''; }
+            }, Math.max(2, parseInt(s.carousel_seconds, 10) || 6) * 1000);
+            regionTimers.push(carTimer);
+        }
+
+        function showProj(idx) {
+            // Stop the previous project's carousel before swapping in the next card.
+            if (carTimer) { clearInterval(carTimer); carTimer = null; }
+            region.innerHTML = renderProjectCard(list[idx], s, label);
+            startCarousel();
+        }
+
+        showProj(0);
+        if (list.length > 1) {
+            var rot = setInterval(function () {
+                projIdx = (projIdx + 1) % list.length;
+                showProj(projIdx);
+            }, (parseInt(s.project_rotate_seconds, 10) || 15) * 1000);
+            regionTimers.push(rot);
+        }
     }
 
     function render() {
         clearTimers();
+        el.innerHTML = '';
         // Bad API key / DB error -> hide entirely rather than show a misleading empty card.
         if (!state || !state.ok) { el.style.display = 'none'; return; }
-        imgIndex = 0;
         var s = state.settings || {};
 
         if (parseInt(s.visible, 10) !== 1) {
             el.style.display = 'none';
             return;
         }
-        applyShell(s);
-
-        // Build one combined rotation across every enabled category, in order:
-        // Current (the single auto-tracked project) -> Finished -> Upcoming.
-        var items = [];
-        if (parseInt(s.show_current, 10) === 1 && state.current) {
-            items.push({ project: state.current, label: 'Current' });
-        }
-        if (parseInt(s.show_finished, 10) === 1) {
-            (state.finished || []).forEach(function (p) { items.push({ project: p, label: 'Finished' }); });
-        }
-        if (parseInt(s.show_upcoming, 10) === 1) {
-            (state.upcoming || []).forEach(function (p) { items.push({ project: p, label: 'Coming up' }); });
-        }
-
-        // Nothing enabled, or nothing to show -> hide rather than render an empty card.
-        if (!items.length) { el.style.display = 'none'; return; }
-
         el.style.display = 'block';
-        projIndex = projIndex % items.length;
-        showItem(items, projIndex, s);
 
-        if (items.length > 1) {
-            rotateTimer = setInterval(function () {
-                projIndex = (projIndex + 1) % items.length;
-                showItem(items, projIndex, s);
-            }, (parseInt(s.project_rotate_seconds, 10) || 15) * 1000);
+        // Assemble the enabled boxes in display order: Featured, Current, Upcoming, Finished.
+        // Featured highlights the single auto-tracked project; the rest rotate their bucket.
+        var showFeatured = parseInt(s.show_featured, 10) === 1 && state.featured;
+        var boxes = [];
+
+        if (showFeatured) {
+            boxes.push({ list: [state.featured], label: 'Now working on', position: s.position_featured || 'bottom-right' });
+        }
+        if (parseInt(s.show_current, 10) === 1) {
+            // The featured project has its own box, so drop it from the Current rotation
+            // (when Featured is on) to avoid it appearing twice on screen.
+            var currentList = (state.current || []).filter(function (p) {
+                return !(showFeatured && state.featured && p.id === state.featured.id);
+            });
+            if (currentList.length) {
+                boxes.push({ list: currentList, label: 'Current projects', position: s.position_current || 'bottom-left' });
+            }
+        }
+        if (parseInt(s.show_upcoming, 10) === 1 && (state.upcoming || []).length) {
+            boxes.push({ list: state.upcoming, label: 'Coming up', position: s.position_upcoming || 'top-right' });
+        }
+        if (parseInt(s.show_finished, 10) === 1 && (state.finished || []).length) {
+            boxes.push({ list: state.finished, label: 'Finished', position: s.position_finished || 'top-left' });
+        }
+
+        if (!boxes.length) { el.style.display = 'none'; return; }
+
+        var layout = s.box_layout || 'positioned';
+        if (layout === 'stacked-left' || layout === 'stacked-right') {
+            // One vertical column on the chosen side; cards flow inside it (CSS makes them
+            // static), so the per-box positions are ignored in this layout.
+            var stack = document.createElement('div');
+            stack.className = 'maker-overlay-stack ' + (layout === 'stacked-right' ? 'stack-right' : 'stack-left');
+            el.appendChild(stack);
+            boxes.forEach(function (b) {
+                var card = buildRegion(null, s);
+                stack.appendChild(card);
+                runRegion(card, b.list, b.label, s);
+            });
+        } else {
+            // Each box is a fixed card anchored to its own corner / middle.
+            boxes.forEach(function (b) {
+                var card = buildRegion(b.position, s);
+                el.appendChild(card);
+                runRegion(card, b.list, b.label, s);
+            });
         }
     }
 
@@ -266,7 +318,6 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(function (data) {
                 if (!data || !data.settings) return;
                 state = data;
-                projIndex = 0;
                 render();
             })
             .catch(function () { /* keep last good state */ });

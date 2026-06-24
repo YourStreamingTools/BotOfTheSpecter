@@ -996,9 +996,15 @@ try {
                 position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
                 show_title TINYINT(1) NOT NULL DEFAULT 1,
                 show_description TINYINT(1) NOT NULL DEFAULT 1,
-                show_current TINYINT(1) NOT NULL DEFAULT 1,
+                show_featured TINYINT(1) NOT NULL DEFAULT 1,
+                show_current TINYINT(1) NOT NULL DEFAULT 0,
                 show_finished TINYINT(1) NOT NULL DEFAULT 0,
                 show_upcoming TINYINT(1) NOT NULL DEFAULT 0,
+                box_layout ENUM('positioned','stacked-left','stacked-right') NOT NULL DEFAULT 'positioned',
+                position_featured ENUM('top-left','top-right','bottom-left','bottom-right','middle') NOT NULL DEFAULT 'bottom-right',
+                position_current ENUM('top-left','top-right','bottom-left','bottom-right','middle') NOT NULL DEFAULT 'bottom-left',
+                position_finished ENUM('top-left','top-right','bottom-left','bottom-right','middle') NOT NULL DEFAULT 'top-left',
+                position_upcoming ENUM('top-left','top-right','bottom-left','bottom-right','middle') NOT NULL DEFAULT 'top-right',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_queue' => "
@@ -1172,6 +1178,24 @@ try {
     if ($col_check && $col_check->num_rows == 0) {
         $usrDBconn->query("ALTER TABLE profile ADD COLUMN media_migrated TINYINT(1) DEFAULT 0");
         echo "<script>console.log('Added media_migrated column to profile table.');</script>";
+    }
+    // Migration: widen the makers overlay per-box position ENUMs to include 'middle'
+    // (centered) for installs whose position columns were created before that option.
+    $makerPosCols = [
+        'position_featured' => 'bottom-right',
+        'position_current'  => 'bottom-left',
+        'position_finished' => 'top-left',
+        'position_upcoming' => 'top-right',
+    ];
+    foreach ($makerPosCols as $posCol => $posDefault) {
+        $posColRes = $usrDBconn->query("SHOW COLUMNS FROM maker_overlay_settings LIKE '$posCol'");
+        if ($posColRes && $posColRes->num_rows > 0) {
+            $posColRow = $posColRes->fetch_assoc();
+            if (stripos($posColRow['Type'] ?? '', "'middle'") === false) {
+                $usrDBconn->query("ALTER TABLE maker_overlay_settings MODIFY `$posCol` ENUM('top-left','top-right','bottom-left','bottom-right','middle') NOT NULL DEFAULT '$posDefault'");
+                echo "<script>console.log('Widened $posCol ENUM to include middle.');</script>";
+            }
+        }
     }
     // Special handling for profile table - remove deprecated discord columns
     $deprecated_columns = ['discord_alert', 'discord_mod', 'discord_alert_online'];

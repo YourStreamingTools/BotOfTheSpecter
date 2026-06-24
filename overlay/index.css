@@ -1944,6 +1944,20 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .maker-overlay-page.pos-top-right { top: 24px; right: 24px; }
 .maker-overlay-page.pos-bottom-left { bottom: 24px; left: 24px; }
 .maker-overlay-page.pos-bottom-right { bottom: 24px; right: 24px; }
+.maker-overlay-page.pos-middle { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+/* Stacked layout: one fixed column on a side; cards flow inside it (not fixed). */
+.maker-overlay-stack {
+    position: fixed;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 50;
+}
+.maker-overlay-stack.stack-left { left: 24px; }
+.maker-overlay-stack.stack-right { right: 24px; }
+.maker-overlay-stack .maker-overlay-page { position: static; }
 
 .maker-overlay-page-content {
     display: flex;

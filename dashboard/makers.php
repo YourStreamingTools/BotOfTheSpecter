@@ -60,11 +60,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
 
     // --- Save overlay settings ---
     if ($action === 'save_settings') {
-        $validPos = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
-        $position = in_array($_POST['position'] ?? '', $validPos, true) ? $_POST['position'] : 'bottom-right';
+        $validPos = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle'];
+        $validLayouts = ['positioned', 'stacked-left', 'stacked-right'];
+        $boxLayout = in_array($_POST['box_layout'] ?? '', $validLayouts, true) ? $_POST['box_layout'] : 'positioned';
+        $posFeatured = in_array($_POST['position_featured'] ?? '', $validPos, true) ? $_POST['position_featured'] : 'bottom-right';
+        $posCurrent  = in_array($_POST['position_current'] ?? '', $validPos, true) ? $_POST['position_current'] : 'bottom-left';
+        $posFinished = in_array($_POST['position_finished'] ?? '', $validPos, true) ? $_POST['position_finished'] : 'top-left';
+        $posUpcoming = in_array($_POST['position_upcoming'] ?? '', $validPos, true) ? $_POST['position_upcoming'] : 'top-right';
         $visible = intval(!empty($_POST['visible']));
         $showTitle = intval(!empty($_POST['show_title']));
         $showDesc = intval(!empty($_POST['show_description']));
+        $showFeatured = intval(!empty($_POST['show_featured']));
         $showCurrent = intval(!empty($_POST['show_current']));
         $showFinished = intval(!empty($_POST['show_finished']));
         $showUpcoming = intval(!empty($_POST['show_upcoming']));
@@ -75,19 +81,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $allowedFonts = ['Arial', 'Verdana', 'Georgia', 'Tahoma', 'Trebuchet MS', 'Times New Roman', 'Courier New', 'Inter'];
         $font = in_array($_POST['font_family'] ?? '', $allowedFonts, true) ? $_POST['font_family'] : 'Arial';
 
-        // current_project_id and the legacy display_mode column are intentionally NOT
-        // written here. The featured "current" project is derived from recency, and which
-        // categories appear is controlled by the show_current/finished/upcoming flags.
+        // Legacy display_mode/position/current_project_id columns are intentionally NOT
+        // written here. Which boxes show and where they sit is driven by the show_*/
+        // position_* flags; the featured project is derived from recency.
         $stmt = $db->prepare("INSERT INTO maker_overlay_settings
-            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, position, show_title, show_description, show_current, show_finished, show_upcoming)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured, position_current, position_finished, position_upcoming)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE visible = VALUES(visible),
                 carousel_seconds = VALUES(carousel_seconds), project_rotate_seconds = VALUES(project_rotate_seconds),
                 accent_color = VALUES(accent_color), text_color = VALUES(text_color), font_family = VALUES(font_family),
-                position = VALUES(position), show_title = VALUES(show_title), show_description = VALUES(show_description),
-                show_current = VALUES(show_current), show_finished = VALUES(show_finished), show_upcoming = VALUES(show_upcoming)");
-        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) position(s) show_title(i) show_description(i) show_current(i) show_finished(i) show_upcoming(i)
-        $stmt->bind_param("iiissssiiiii", $visible, $carousel, $rotate, $accent, $textColor, $font, $position, $showTitle, $showDesc, $showCurrent, $showFinished, $showUpcoming);
+                show_title = VALUES(show_title), show_description = VALUES(show_description),
+                show_featured = VALUES(show_featured), show_current = VALUES(show_current),
+                show_finished = VALUES(show_finished), show_upcoming = VALUES(show_upcoming),
+                box_layout = VALUES(box_layout),
+                position_featured = VALUES(position_featured), position_current = VALUES(position_current),
+                position_finished = VALUES(position_finished), position_upcoming = VALUES(position_upcoming)");
+        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) position_featured(s) position_current(s) position_finished(s) position_upcoming(s)
+        $stmt->bind_param("iiisssiiiiiisssss", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $posFeatured, $posCurrent, $posFinished, $posUpcoming);
         $ok = $stmt->execute();
         $err = $stmt->error;
         $stmt->close();
@@ -269,7 +279,10 @@ $settings = [
     'carousel_seconds' => 6, 'project_rotate_seconds' => 15, 'accent_color' => '#9146FF',
     'text_color' => '#FFFFFF', 'font_family' => 'Arial', 'position' => 'bottom-right',
     'show_title' => 1, 'show_description' => 1,
-    'show_current' => 1, 'show_finished' => 0, 'show_upcoming' => 0,
+    'show_featured' => 1, 'show_current' => 0, 'show_finished' => 0, 'show_upcoming' => 0,
+    'box_layout' => 'positioned',
+    'position_featured' => 'bottom-right', 'position_current' => 'bottom-left',
+    'position_finished' => 'top-left', 'position_upcoming' => 'top-right',
 ];
 if ($res = $db->query("SELECT * FROM maker_overlay_settings WHERE id = 1")) {
     if ($row = $res->fetch_assoc()) { $settings = array_merge($settings, $row); }
@@ -348,19 +361,50 @@ ob_start();
     <div class="sp-card-body">
         <form id="makerSettingsForm">
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
-                <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_categories') ?></label>
-                    <label style="display:block; margin-bottom:0.2rem;"><input type="checkbox" name="show_current" value="1" <?= intval($settings['show_current']) ? 'checked' : '' ?>> <?= t('makers_show_current') ?></label>
-                    <label style="display:block; margin-bottom:0.2rem;"><input type="checkbox" name="show_finished" value="1" <?= intval($settings['show_finished']) ? 'checked' : '' ?>> <?= t('makers_show_finished') ?></label>
-                    <label style="display:block;"><input type="checkbox" name="show_upcoming" value="1" <?= intval($settings['show_upcoming']) ? 'checked' : '' ?>> <?= t('makers_show_upcoming') ?></label>
-                </div>
-                <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_position') ?></label>
-                    <select name="position" class="sp-input">
-                        <?php foreach (['top-left' => t('makers_pos_top_left'), 'top-right' => t('makers_pos_top_right'), 'bottom-left' => t('makers_pos_bottom_left'), 'bottom-right' => t('makers_pos_bottom_right')] as $val => $lbl): ?>
-                            <option value="<?= $val ?>" <?= ($settings['position'] === $val) ? 'selected' : '' ?>><?= $lbl ?></option>
+                <div style="grid-column:1 / -1;">
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_layout') ?></label>
+                    <select name="box_layout" class="sp-input" style="max-width:280px; margin-bottom:0.3rem;">
+                        <?php foreach (['positioned' => t('makers_layout_positioned'), 'stacked-left' => t('makers_layout_stacked_left'), 'stacked-right' => t('makers_layout_stacked_right')] as $lv => $ll): ?>
+                            <option value="<?= $lv ?>" <?= (($settings['box_layout'] ?? 'positioned') === $lv) ? 'selected' : '' ?>><?= htmlspecialchars($ll) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.6rem;"><?= t('makers_layout_hint') ?></p>
+                    <label style="display:block; font-weight:600; margin-bottom:0.4rem;"><?= t('makers_boxes') ?></label>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="text-align:left; color:var(--text-secondary);">
+                                <th style="padding:0.25rem 0.5rem; font-weight:600;"><?= t('makers_box') ?></th>
+                                <th style="padding:0.25rem 0.5rem; font-weight:600; width:5rem;"><?= t('makers_show') ?></th>
+                                <th style="padding:0.25rem 0.5rem; font-weight:600;"><?= t('makers_position') ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $boxRows = [
+                                'featured' => t('makers_box_featured'),
+                                'current'  => t('makers_box_current'),
+                                'upcoming' => t('makers_box_upcoming'),
+                                'finished' => t('makers_box_finished'),
+                            ];
+                            $posOptions = ['top-left' => t('makers_pos_top_left'), 'top-right' => t('makers_pos_top_right'), 'bottom-left' => t('makers_pos_bottom_left'), 'bottom-right' => t('makers_pos_bottom_right'), 'middle' => t('makers_pos_middle')];
+                            foreach ($boxRows as $boxKey => $boxLbl):
+                                $showKey = 'show_' . $boxKey;
+                                $posKey = 'position_' . $boxKey;
+                            ?>
+                            <tr>
+                                <td style="padding:0.3rem 0.5rem;"><?= htmlspecialchars($boxLbl) ?></td>
+                                <td style="padding:0.3rem 0.5rem;"><input type="checkbox" name="<?= $showKey ?>" value="1" <?= intval($settings[$showKey] ?? 0) ? 'checked' : '' ?>></td>
+                                <td style="padding:0.3rem 0.5rem;">
+                                    <select name="<?= $posKey ?>" class="sp-input">
+                                        <?php foreach ($posOptions as $pv => $pl): ?>
+                                            <option value="<?= $pv ?>" <?= (($settings[$posKey] ?? '') === $pv) ? 'selected' : '' ?>><?= htmlspecialchars($pl) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
                 <div>
                     <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_font') ?></label>
