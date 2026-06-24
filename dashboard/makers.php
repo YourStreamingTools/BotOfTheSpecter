@@ -74,9 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $allowedFonts = ['Arial', 'Verdana', 'Georgia', 'Tahoma', 'Trebuchet MS', 'Times New Roman', 'Courier New', 'Inter'];
         $font = in_array($_POST['font_family'] ?? '', $allowedFonts, true) ? $_POST['font_family'] : 'Arial';
 
-        // current_project_id is intentionally NOT in this statement: it is managed by the
-        // set_current / create_project / finish actions. ON DUPLICATE KEY UPDATE only touches
-        // the listed columns, so saving settings never disturbs which project is featured.
+        // current_project_id is a legacy column and intentionally NOT written here. The
+        // featured "current" project is now derived from recency (the current-status
+        // project with the newest updated_at), so saving settings never disturbs it.
         $stmt = $db->prepare("INSERT INTO maker_overlay_settings
             (id, display_mode, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, position, show_title, show_description)
             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -107,17 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $newId = $db->insert_id;
         $err = $stmt->error;
         $stmt->close();
-        // First current project auto-becomes the featured one.
-        if ($ok && $status === 'current') {
-            $chk = $db->query("SELECT current_project_id FROM maker_overlay_settings WHERE id = 1");
-            $row = $chk ? $chk->fetch_assoc() : null;
-            if (!$row || $row['current_project_id'] === null) {
-                $up = $db->prepare("UPDATE maker_overlay_settings SET current_project_id = ?, display_mode = 'current' WHERE id = 1");
-                $up->bind_param("i", $newId);
-                $up->execute();
-                $up->close();
-            }
-        }
+        // Auto-track model: a freshly created current project has the newest updated_at,
+        // so it becomes the featured card on its own — no manual featured pointer to set.
         if ($ok) { maker_notify_overlay($makerApiKey); }
         maker_json(['success' => $ok, 'id' => $newId, 'error' => $ok ? null : $err]);
     }
@@ -137,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         if ($id <= 0 || $title === '') { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
         // Stamp completed_at when moving into finished and it's not already set.
         $completedSql = ($status === 'finished') ? ", completed_at = COALESCE(completed_at, NOW())" : "";
-        $stmt = $db->prepare("UPDATE maker_projects SET title = ?, description = ?, status = ?, link_url = ?" . $completedSql . " WHERE id = ?");
+        $stmt = $db->prepare("UPDATE maker_projects SET title = ?, description = ?, status = ?, link_url = ?, updated_at = NOW()" . $completedSql . " WHERE id = ?");
         $stmt->bind_param("ssssi", $title, $description, $status, $link, $id);
         $ok = $stmt->execute();
         $err = $stmt->error;
@@ -158,15 +149,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $stmt->bind_param("i", $id);
         $ok = $stmt->execute();
         $stmt->close();
-        $clr = $db->prepare("UPDATE maker_overlay_settings SET current_project_id = NULL WHERE id = 1 AND current_project_id = ?");
-        $clr->bind_param("i", $id);
-        $clr->execute();
-        $clr->close();
+        // No manual featured pointer to clear: the overlay auto-falls to the next
+        // most-recent current project after a delete.
         if ($ok) { maker_notify_overlay($makerApiKey); }
         maker_json(['success' => $ok]);
     }
 
-    // --- Feature a project as the current one ---
+    // --- Feature a project as the current one (auto-track: promote + touch) ---
     if ($action === 'set_current') {
         $id = intval($_POST['id'] ?? 0);
         if ($id <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
@@ -176,10 +165,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $exists = $chk->get_result()->fetch_assoc();
         $chk->close();
         if (!$exists) { maker_json(['success' => false, 'error' => t('makers_err_no_such_project')]); }
-        $stmt = $db->prepare("UPDATE maker_overlay_settings SET current_project_id = ?, display_mode = 'current' WHERE id = 1");
+        // "Feature now" = mark it current and stamp it as the most recently worked-on
+        // project, so it becomes the featured card immediately.
+        $stmt = $db->prepare("UPDATE maker_projects SET status = 'current', updated_at = NOW() WHERE id = ?");
         $stmt->bind_param("i", $id);
         $ok = $stmt->execute();
         $stmt->close();
+        $db->query("UPDATE maker_overlay_settings SET display_mode = 'current' WHERE id = 1");
         if ($ok) { maker_notify_overlay($makerApiKey); }
         maker_json(['success' => $ok]);
     }
@@ -219,7 +211,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
                 $errors[] = t('makers_err_could_not_save', [$display]);
             }
         }
-        if (!empty($added)) { maker_notify_overlay($makerApiKey); }
+        if (!empty($added)) {
+            // Adding images counts as working on the project: bump its timestamp so it
+            // becomes/stays the featured current card.
+            $touch = $db->prepare("UPDATE maker_projects SET updated_at = NOW() WHERE id = ?");
+            $touch->bind_param("i", $projectId);
+            $touch->execute();
+            $touch->close();
+            maker_notify_overlay($makerApiKey);
+        }
         maker_json(['success' => !empty($added), 'added' => $added, 'errors' => $errors]);
     }
 
@@ -234,7 +234,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $stmt->bind_param("iss", $projectId, $file, $caption);
         $ok = $stmt->execute();
         $stmt->close();
-        if ($ok) { maker_notify_overlay($makerApiKey); }
+        if ($ok) {
+            $touch = $db->prepare("UPDATE maker_projects SET updated_at = NOW() WHERE id = ?");
+            $touch->bind_param("i", $projectId);
+            $touch->execute();
+            $touch->close();
+            maker_notify_overlay($makerApiKey);
+        }
         maker_json(['success' => $ok]);
     }
 
@@ -268,12 +274,27 @@ if ($res = $db->query("SELECT * FROM maker_overlay_settings WHERE id = 1")) {
 }
 
 $projects = [];
-if ($res = $db->query("SELECT id, title, description, status, link_url, completed_at FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), sort_order ASC, id ASC")) {
+if ($res = $db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), sort_order ASC, id ASC")) {
     while ($row = $res->fetch_assoc()) {
         $row['images'] = [];
         $projects[(int)$row['id']] = $row;
     }
     $res->free();
+}
+
+// Auto-track: the featured "current" card is the current-status project worked on most
+// recently (newest updated_at; newer id breaks ties). Mirrors overlay/maker.php so the
+// "Featured" badge here matches what viewers actually see.
+$featuredId = 0;
+$featuredStamp = '';
+foreach ($projects as $pid => $pr) {
+    if ($pr['status'] !== 'current') { continue; }
+    $stamp = (string)($pr['updated_at'] ?? '');
+    if ($featuredId === 0 || strcmp($stamp, $featuredStamp) > 0
+        || ($stamp === $featuredStamp && $pid > $featuredId)) {
+        $featuredId = $pid;
+        $featuredStamp = $stamp;
+    }
 }
 if (!empty($projects)) {
     if ($res = $db->query("SELECT id, project_id, media_file, caption FROM maker_project_images ORDER BY sort_order ASC, id ASC")) {
@@ -409,7 +430,7 @@ ob_start();
         <?php else: ?>
             <?php foreach ($projects as $p):
                 $pid = (int)$p['id'];
-                $isFeatured = ((int)($settings['current_project_id'] ?? 0) === $pid);
+                $isFeatured = ($featuredId === $pid);
             ?>
             <div class="sp-card" style="margin-bottom:1rem; border:1px solid var(--border, rgba(255,255,255,0.1));" data-project="<?= $pid ?>">
                 <div class="sp-card-body">

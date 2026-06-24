@@ -36,7 +36,7 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $state = [
         'ok'       => true,
         'settings' => $default_settings,
-        'current'  => [],
+        'current'  => null,
         'finished' => [],
         'upcoming' => [],
     ];
@@ -68,7 +68,7 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
 
     // Load all projects, then attach images in a second pass.
     $projects = [];
-    if ($res = @$db->query("SELECT id, title, description, status, link_url, completed_at FROM maker_projects ORDER BY sort_order ASC, id ASC")) {
+    if ($res = @$db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY sort_order ASC, id ASC")) {
         while ($row = $res->fetch_assoc()) {
             $row['id'] = (int)$row['id'];
             $row['images'] = [];
@@ -93,24 +93,21 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
         }
     }
 
-    $featured_id = $state['settings']['current_project_id'];
     foreach ($projects as $p) {
-        if ($p['status'] === 'current') {
-            $state['current'][] = $p;
-        } elseif ($p['status'] === 'finished') {
+        if ($p['status'] === 'finished') {
             $state['finished'][] = $p;
         } elseif ($p['status'] === 'upcoming') {
             $state['upcoming'][] = $p;
+        } elseif ($p['status'] === 'current') {
+            // Auto-track: the featured "current" card is the current-status project
+            // worked on most recently (newest updated_at; newer id breaks ties).
+            $cur = $state['current'];
+            if ($cur === null
+                || strcmp((string)$p['updated_at'], (string)$cur['updated_at']) > 0
+                || ((string)$p['updated_at'] === (string)$cur['updated_at'] && $p['id'] > $cur['id'])) {
+                $state['current'] = $p;
+            }
         }
-    }
-    // A featured/pinned project (set from the dashboard or chat) leads the current
-    // rotation; the rest follow in their normal sort order. Every current project shows.
-    if ($featured_id !== null && !empty($state['current'])) {
-        usort($state['current'], function ($a, $b) use ($featured_id) {
-            if ($a['id'] === $featured_id) { return -1; }
-            if ($b['id'] === $featured_id) { return 1; }
-            return 0;
-        });
     }
     $db->close();
     return $state;
@@ -239,13 +236,13 @@ document.addEventListener('DOMContentLoaded', function () {
             list = state.upcoming || [];
             label = 'Coming up';
         } else {
-            list = state.current || [];
+            if (state.current) { list = [state.current]; }
             label = '';
         }
 
         if (!list.length) {
             el.style.display = 'block';
-            var emptyMsg = mode === 'current' ? 'No current projects yet'
+            var emptyMsg = mode === 'current' ? 'No current project set'
                          : mode === 'finished' ? 'No finished projects yet'
                          : 'No upcoming ideas yet';
             el.innerHTML = '<div class="maker-overlay-page-content"><div class="maker-overlay-page-empty">' +
