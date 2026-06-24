@@ -298,6 +298,14 @@ allowed_ops = {
     '/': operator.floordiv
 }
 
+def start_looped_task(name, coro_factory):
+    existing = looped_tasks.get(name)
+    if existing and not existing.done():
+        return existing
+    task = create_task(coro_factory())
+    looped_tasks[name] = task
+    return task
+
 # Custom cooldown functions
 async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_message=True):
     global command_usage
@@ -11028,10 +11036,11 @@ async def process_weather_websocket(data):
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
-    global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
+    global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, ad_upcoming_notified
     stream_online = True
-    looped_tasks["timed_message"] = create_task(timed_message())
-    looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
+    ad_upcoming_notified = False
+    start_looped_task("timed_message", timed_message)
+    start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
     await generate_winning_lotto_numbers()
     # Reach out to the Twitch API to get stream data
     async with httpClientSession() as session:
@@ -12620,8 +12629,8 @@ async def check_stream_online():
                         stream_data = data['data'][0]
                         current_game = stream_data.get('game_name', None)
                         stream_title = stream_data.get('title', None)
-                        looped_tasks["timed_message"] = create_task(timed_message())
-                        looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
+                        start_looped_task("timed_message", timed_message)
+                        start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
                         os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
                         with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
                             file.write('True')
@@ -14102,11 +14111,10 @@ async def handle_ad_break_start(duration_seconds):
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
-    global CHANNEL_NAME, stream_online, ad_upcoming_notified
+    global CHANNEL_NAME, stream_online
     last_notification_time = None
     last_ad_time = None
     last_snooze_count = None
-    ad_upcoming_notified = False  # Initialize flag to prevent duplicate notifications
     while stream_online:
         try:
             last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
