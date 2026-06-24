@@ -312,10 +312,10 @@ ob_start();
                 <div class="cc-preview" id="ccPreview">
                     <span class="cc-preview-placeholder"><?= t('closed_captions_preview_placeholder') ?></span>
                 </div>
-                <div id="ccConfidenceLegend" style="display:flex;gap:14px;margin-top:6px;font-size:0.72em;color:rgba(255,255,255,0.5);">
-                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#32d486;flex-shrink:0;"></span> ≥80% — high</span>
-                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f6c451;flex-shrink:0;"></span> 60–79% — check</span>
-                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff6555;flex-shrink:0;"></span> &lt;60% — mis-hear</span>
+                <div id="ccConfidenceLegend" style="display:flex;gap:14px;margin-top:6px;font-size:0.72em;color:var(--text-muted);">
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;"></span> ≥80% — high</span>
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0;"></span> 60–79% — check</span>
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;"></span> &lt;60% — mis-hear</span>
                 </div>
             </div>
         </div>
@@ -1033,7 +1033,7 @@ ob_start();
         preview.textContent = '';
         if (committed) {
             const tokens = committed.split(/( +)/);
-            const confColor = (pct) => pct >= 80 ? '#32d486' : pct >= 60 ? '#f6c451' : '#ff6555';
+            const confColor = (pct) => pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
             let wordIdx = 0;
             tokens.forEach(token => {
                 if (!token) return;
@@ -1063,10 +1063,10 @@ ob_start();
                     'border-radius:999px;font-size:0.72em;font-weight:700;vertical-align:middle;' +
                     'letter-spacing:0.03em;' +
                     (pct >= 80
-                        ? 'background:rgba(50,212,134,0.15);color:#32d486;border:1px solid rgba(50,212,134,0.3);'
+                        ? 'background:var(--green-bg);color:var(--green);border:1px solid var(--green);'
                         : pct >= 60
-                            ? 'background:rgba(246,196,81,0.15);color:#f6c451;border:1px solid rgba(246,196,81,0.3);'
-                            : 'background:rgba(255,101,85,0.15);color:#ff6555;border:1px solid rgba(255,101,85,0.3);');
+                            ? 'background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);'
+                            : 'background:var(--red-bg);color:var(--red);border:1px solid var(--red);');
                 preview.appendChild(badge);
             }
         }
