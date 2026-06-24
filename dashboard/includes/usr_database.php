@@ -996,6 +996,9 @@ try {
                 position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
                 show_title TINYINT(1) NOT NULL DEFAULT 1,
                 show_description TINYINT(1) NOT NULL DEFAULT 1,
+                show_current TINYINT(1) NOT NULL DEFAULT 1,
+                show_finished TINYINT(1) NOT NULL DEFAULT 0,
+                show_upcoming TINYINT(1) NOT NULL DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_queue' => "

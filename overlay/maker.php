@@ -29,6 +29,9 @@ $default_settings = [
     'position'               => 'bottom-right',
     'show_title'             => 1,
     'show_description'        => 1,
+    'show_current'           => 1,
+    'show_finished'          => 0,
+    'show_upcoming'          => 0,
 ];
 
 // Build the snapshot used by both the JSON endpoint and the initial render.
@@ -61,6 +64,9 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $s['visible']                = (int)$s['visible'];
     $s['show_title']             = (int)$s['show_title'];
     $s['show_description']       = (int)$s['show_description'];
+    $s['show_current']           = (int)$s['show_current'];
+    $s['show_finished']          = (int)$s['show_finished'];
+    $s['show_upcoming']          = (int)$s['show_upcoming'];
     $s['carousel_seconds']       = max(2, (int)$s['carousel_seconds']);
     $s['project_rotate_seconds'] = max(3, (int)$s['project_rotate_seconds']);
     if ($s['current_project_id'] !== null) { $s['current_project_id'] = (int)$s['current_project_id']; }
@@ -206,10 +212,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }, Math.max(2, seconds) * 1000);
     }
 
-    function showProject(list, idx, s, label) {
+    function showItem(items, idx, s) {
         imgIndex = 0;
         if (carouselTimer) { clearInterval(carouselTimer); carouselTimer = null; }
-        el.innerHTML = renderProjectCard(list[idx], s, label);
+        el.innerHTML = renderProjectCard(items[idx].project, s, items[idx].label);
         startCarousel(parseInt(s.carousel_seconds, 10) || 6);
     }
 
@@ -226,38 +232,30 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         applyShell(s);
 
-        var mode = s.display_mode || 'current';
-        var list = [];
-        var label = '';
-        if (mode === 'finished') {
-            list = state.finished || [];
-            label = 'Finished';
-        } else if (mode === 'upcoming') {
-            list = state.upcoming || [];
-            label = 'Coming up';
-        } else {
-            if (state.current) { list = [state.current]; }
-            label = '';
+        // Build one combined rotation across every enabled category, in order:
+        // Current (the single auto-tracked project) -> Finished -> Upcoming.
+        var items = [];
+        if (parseInt(s.show_current, 10) === 1 && state.current) {
+            items.push({ project: state.current, label: 'Current' });
+        }
+        if (parseInt(s.show_finished, 10) === 1) {
+            (state.finished || []).forEach(function (p) { items.push({ project: p, label: 'Finished' }); });
+        }
+        if (parseInt(s.show_upcoming, 10) === 1) {
+            (state.upcoming || []).forEach(function (p) { items.push({ project: p, label: 'Coming up' }); });
         }
 
-        if (!list.length) {
-            el.style.display = 'block';
-            var emptyMsg = mode === 'current' ? 'No current project set'
-                         : mode === 'finished' ? 'No finished projects yet'
-                         : 'No upcoming ideas yet';
-            el.innerHTML = '<div class="maker-overlay-page-content"><div class="maker-overlay-page-empty">' +
-                           escapeHtml(emptyMsg) + '</div></div>';
-            return;
-        }
+        // Nothing enabled, or nothing to show -> hide rather than render an empty card.
+        if (!items.length) { el.style.display = 'none'; return; }
 
         el.style.display = 'block';
-        projIndex = projIndex % list.length;
-        showProject(list, projIndex, s, label);
+        projIndex = projIndex % items.length;
+        showItem(items, projIndex, s);
 
-        if (list.length > 1) {
+        if (items.length > 1) {
             rotateTimer = setInterval(function () {
-                projIndex = (projIndex + 1) % list.length;
-                showProject(list, projIndex, s, label);
+                projIndex = (projIndex + 1) % items.length;
+                showItem(items, projIndex, s);
             }, (parseInt(s.project_rotate_seconds, 10) || 15) * 1000);
         }
     }

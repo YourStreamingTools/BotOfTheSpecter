@@ -7699,11 +7699,11 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Usage: !craft new <project title>")
                         return
                     title = argument[:255]
-                    # Newest updated_at makes this the featured card automatically; just
-                    # make sure the overlay is in 'current' mode so it shows live.
+                    # Newest updated_at makes this the featured card automatically; make
+                    # sure the Current category is enabled so the overlay shows it live.
                     await cursor.execute("INSERT INTO maker_projects (title, status) VALUES (%s, 'current')", (title,))
                     new_id = cursor.lastrowid
-                    await cursor.execute("UPDATE maker_overlay_settings SET display_mode = 'current' WHERE id = 1")
+                    await cursor.execute("UPDATE maker_overlay_settings SET show_current = 1 WHERE id = 1")
                     mutated = True
                     await send_chat_message(f"New project #{new_id} set as current: {title}")
                 elif subcommand in ('note', 'desc', 'context'):
@@ -7750,7 +7750,7 @@ class TwitchBot(commands.Bot):
                     # "Feature now": mark it current and stamp it as the most recently
                     # worked-on project so it becomes the featured card immediately.
                     await cursor.execute("UPDATE maker_projects SET status = 'current', updated_at = NOW() WHERE id = %s", (target,))
-                    await cursor.execute("UPDATE maker_overlay_settings SET display_mode = 'current' WHERE id = 1")
+                    await cursor.execute("UPDATE maker_overlay_settings SET show_current = 1 WHERE id = 1")
                     mutated = True
                     await send_chat_message(f"Now featuring project #{target}: {row.get('title')}")
                 elif subcommand == 'finish':
@@ -7776,9 +7776,13 @@ class TwitchBot(commands.Bot):
                     if mode not in valid_modes:
                         await send_chat_message("Usage: !craft mode <current|finished|upcoming>")
                         return
-                    await cursor.execute("UPDATE maker_overlay_settings SET display_mode = %s WHERE id = 1", (mode,))
+                    # "mode" shows only this category (exclusive); use show/hide for multi.
+                    await cursor.execute(
+                        "UPDATE maker_overlay_settings SET show_current = %s, show_finished = %s, show_upcoming = %s WHERE id = 1",
+                        (1 if mode == 'current' else 0, 1 if mode == 'finished' else 0, 1 if mode == 'upcoming' else 0)
+                    )
                     mutated = True
-                    await send_chat_message(f"Overlay display mode set to {mode}.")
+                    await send_chat_message(f"Overlay now showing {mode} only.")
                 elif subcommand == 'image':
                     pid = await featured_id()
                     if not pid:
@@ -7797,10 +7801,22 @@ class TwitchBot(commands.Bot):
                     mutated = True
                     await send_chat_message(f"Image '{filename}' attached to the current project.")
                 elif subcommand in ('show', 'hide'):
-                    vis = 1 if subcommand == 'show' else 0
-                    await cursor.execute("UPDATE maker_overlay_settings SET visible = %s WHERE id = 1", (vis,))
-                    mutated = True
-                    await send_chat_message(f"Makers overlay {'shown' if vis else 'hidden'}.")
+                    on = 1 if subcommand == 'show' else 0
+                    cat = argument.lower().strip()
+                    if cat in valid_modes:
+                        # Toggle a single category on the overlay.
+                        column = 'show_' + cat
+                        await cursor.execute(f"UPDATE maker_overlay_settings SET {column} = %s WHERE id = 1", (on,))
+                        mutated = True
+                        await send_chat_message(f"{cat.capitalize()} category {'shown' if on else 'hidden'} on the overlay.")
+                    elif cat in ('', 'overlay', 'all'):
+                        # No category: toggle the whole overlay's visibility.
+                        await cursor.execute("UPDATE maker_overlay_settings SET visible = %s WHERE id = 1", (on,))
+                        mutated = True
+                        await send_chat_message(f"Makers overlay {'shown' if on else 'hidden'}.")
+                    else:
+                        await send_chat_message("Usage: !craft show|hide [current|finished|upcoming]  (no category = whole overlay)")
+                        return
                 elif subcommand in ('remove', 'delete'):
                     if not argument.isdigit():
                         await send_chat_message("Usage: !craft remove <project id>")
@@ -7822,7 +7838,7 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(f"Projects: {summary}")
                     return
                 else:
-                    await send_chat_message("!craft: new <title>, note <text>, link <url>, current <id>, finish, upcoming <title>, mode <current|finished|upcoming>, image <file>, show, hide, list, remove <id>")
+                    await send_chat_message("!craft: new <title>, note <text>, link <url>, current <id>, finish, upcoming <title>, mode <cat>, show [cat], hide [cat], image <file>, list, remove <id>")
                     return
             if mutated:
                 add_usage('craft', bucket_key, cooldown_bucket)
