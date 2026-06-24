@@ -717,6 +717,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             <input type="checkbox" id="narrator-speak-name" checked>&nbsp;Read the sender's name
                         </label>
                         <div class="narrator-skip">
+                            <label class="ding-volume-label" for="narrator-user-filter-input">Skip usernames (shown in chat, not spoken)</label>
+                            <input type="text" id="narrator-user-filter-input" class="filter-input"
+                                placeholder="Enter username to skip narrating (press Enter to add)"
+                                onkeypress="handleNarratorUsernameFilterInput(event)">
+                            <div class="filter-list" id="narrator-user-filter-list"></div>
                             <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
                             <input type="text" id="narrator-filter-input" class="filter-input"
                                 placeholder="Enter phrase to skip narrating (press Enter to add)"
@@ -1464,6 +1469,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 narrator_volume: 1,
                 narrator_pitch: 1,
                 narrator_speak_name: true,
+                narrator_filters_usernames: [],
                 narrator_filters_messages: []
             };
             async function loadSettingsFromServer() {
@@ -1491,6 +1497,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         if (typeof userSettings.narrator_volume !== 'number') userSettings.narrator_volume = 1;
                         if (typeof userSettings.narrator_pitch !== 'number') userSettings.narrator_pitch = 1;
                         if (userSettings.narrator_speak_name === undefined) userSettings.narrator_speak_name = true;
+                        if (!Array.isArray(userSettings.narrator_filters_usernames)) userSettings.narrator_filters_usernames = [];
                         if (!Array.isArray(userSettings.narrator_filters_messages)) userSettings.narrator_filters_messages = [];
                         return true;
                     }
@@ -3735,14 +3742,22 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             userSettings[settingsKey] = settingsVal;  // mirror to per-user server settings
             saveSettingsToServer();
         }
-        // Skip-list lives in the per-user server settings only (like message filters),
-        // rendered after the settings load. Phrases here are shown in chat but not spoken.
+        // Skip-lists live in the per-user server settings only (like the message filters),
+        // rendered after the settings load. Matches here are shown in chat but not spoken.
         function loadNarratorFilters() {
             if (!Array.isArray(userSettings.narrator_filters_messages)) userSettings.narrator_filters_messages = [];
             return userSettings.narrator_filters_messages;
         }
         function saveNarratorFilters(list) {
             userSettings.narrator_filters_messages = list;
+            saveSettingsToServer();
+        }
+        function loadNarratorUsernameFilters() {
+            if (!Array.isArray(userSettings.narrator_filters_usernames)) userSettings.narrator_filters_usernames = [];
+            return userSettings.narrator_filters_usernames;
+        }
+        function saveNarratorUsernameFilters(list) {
+            userSettings.narrator_filters_usernames = list;
             saveSettingsToServer();
         }
         function populateNarratorVoices() {
@@ -3815,6 +3830,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const lower = text.toLowerCase();
             return loadNarratorFilters().some(f => f && lower.includes(String(f).toLowerCase()));
         }
+        // Exact username match (login or display name), mirroring the main hide-filter.
+        // Nicknames are intentionally NOT matched here, only the real Twitch identity.
+        function narratorUsernameSkipMatched(event) {
+            const username = (event.chatter_user_login || '').toString().toLowerCase();
+            const displayName = (event.chatter_user_name || event.chatter_user_display_name || '').toString().toLowerCase();
+            return loadNarratorUsernameFilters().some(f => {
+                const fl = String(f).toLowerCase();
+                return fl === username || fl === displayName;
+            });
+        }
         function buildNarrationText(event) {
             const raw = (event.message && event.message.text ? String(event.message.text) : '').trim();
             if (!raw) return '';
@@ -3826,6 +3851,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         function narrateMessage(event) {
             if (!narratorEnabled || !narratorSupported()) return;
+            if (narratorUsernameSkipMatched(event)) return;
             const text = buildNarrationText(event);
             if (!text) return;
             enqueueNarration(text);
@@ -3868,6 +3894,44 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             saveNarratorFilters(filters);
             renderNarratorFilters();
         }
+        // ----- Skip-username list UI (exact-match; mirrors the username-filter tag list) -----
+        function renderNarratorUsernameFilters() {
+            const list = document.getElementById('narrator-user-filter-list');
+            if (!list) return;
+            list.innerHTML = '';
+            loadNarratorUsernameFilters().forEach(name => {
+                const tag = document.createElement('div');
+                tag.className = 'filter-tag';
+                const label = document.createElement('span');
+                label.textContent = name;
+                const btn = document.createElement('button');
+                btn.textContent = '✕';
+                btn.title = 'Remove skip username';
+                btn.addEventListener('click', () => removeNarratorUsernameFilter(name));
+                tag.appendChild(label);
+                tag.appendChild(btn);
+                list.appendChild(tag);
+            });
+        }
+        function handleNarratorUsernameFilterInput(event) {
+            if (event.key !== 'Enter') return;
+            const input = document.getElementById('narrator-user-filter-input');
+            if (!input) return;
+            const value = input.value.trim();
+            if (!value) return;
+            const filters = loadNarratorUsernameFilters();
+            if (!filters.includes(value)) {
+                filters.push(value);
+                saveNarratorUsernameFilters(filters);
+            }
+            input.value = '';
+            renderNarratorUsernameFilters();
+        }
+        function removeNarratorUsernameFilter(name) {
+            const filters = loadNarratorUsernameFilters().filter(f => f !== name);
+            saveNarratorUsernameFilters(filters);
+            renderNarratorUsernameFilters();
+        }
         // Reflect current narrator state into the controls (called on init and again
         // after the server settings finish loading, so cross-device prefs apply).
         function refreshNarratorUI() {
@@ -3890,6 +3954,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (speakName) speakName.checked = narratorSpeakName;
             if (controls) controls.classList.toggle('is-collapsed', !narratorEnabled);
             populateNarratorVoices();
+            renderNarratorUsernameFilters();
             renderNarratorFilters();
         }
         function initNarrator() {
