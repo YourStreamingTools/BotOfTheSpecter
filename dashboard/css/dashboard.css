@@ -4188,3 +4188,40 @@ label.checkbox input[type="checkbox"] {
 .mig-procedural { background: var(--grey-bg); color: var(--text-secondary); }
 .mig-review { margin-top: 0.35rem; }
 .mig-sql { background: var(--bg-elev, rgba(0,0,0,.2)); padding: 0.6rem; border-radius: var(--radius); overflow-x: auto; font-size: 0.8rem; white-space: pre; }
+
+/* Makers overlay: drag-to-place position editor (makers.php) */
+.maker-pos-canvas {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 16 / 9;
+    background: var(--bg-elev, rgba(0, 0, 0, .2));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+}
+.maker-pos-chip {
+    position: absolute;
+    width: 18.75%;
+    height: 22%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: #fff;
+    background: var(--accent);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: var(--radius-sm, 4px);
+    cursor: grab;
+    overflow: hidden;
+    touch-action: none;
+}
+.maker-pos-chip:active { cursor: grabbing; }
+.maker-pos-chip.is-disabled { opacity: 0.3; }
