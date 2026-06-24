@@ -36,7 +36,7 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $state = [
         'ok'       => true,
         'settings' => $default_settings,
-        'current'  => null,
+        'current'  => [],
         'finished' => [],
         'upcoming' => [],
     ];
@@ -95,14 +95,22 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
 
     $featured_id = $state['settings']['current_project_id'];
     foreach ($projects as $p) {
-        if ($p['status'] === 'finished') {
+        if ($p['status'] === 'current') {
+            $state['current'][] = $p;
+        } elseif ($p['status'] === 'finished') {
             $state['finished'][] = $p;
         } elseif ($p['status'] === 'upcoming') {
             $state['upcoming'][] = $p;
         }
     }
-    if ($featured_id !== null && isset($projects[$featured_id])) {
-        $state['current'] = $projects[$featured_id];
+    // A featured/pinned project (set from the dashboard or chat) leads the current
+    // rotation; the rest follow in their normal sort order. Every current project shows.
+    if ($featured_id !== null && !empty($state['current'])) {
+        usort($state['current'], function ($a, $b) use ($featured_id) {
+            if ($a['id'] === $featured_id) { return -1; }
+            if ($b['id'] === $featured_id) { return 1; }
+            return 0;
+        });
     }
     $db->close();
     return $state;
@@ -231,13 +239,13 @@ document.addEventListener('DOMContentLoaded', function () {
             list = state.upcoming || [];
             label = 'Coming up';
         } else {
-            if (state.current) { list = [state.current]; }
+            list = state.current || [];
             label = '';
         }
 
         if (!list.length) {
             el.style.display = 'block';
-            var emptyMsg = mode === 'current' ? 'No current project set'
+            var emptyMsg = mode === 'current' ? 'No current projects yet'
                          : mode === 'finished' ? 'No finished projects yet'
                          : 'No upcoming ideas yet';
             el.innerHTML = '<div class="maker-overlay-page-content"><div class="maker-overlay-page-empty">' +
