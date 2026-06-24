@@ -300,6 +300,14 @@ def safe_create_task(coro):
     task.add_done_callback(_background_tasks.discard)
     return task
 
+def start_looped_task(name, coro_factory):
+    existing = looped_tasks.get(name)
+    if existing and not existing.done():
+        return existing
+    task = create_task(coro_factory())
+    looped_tasks[name] = task
+    return task
+
 async def dispatch_module_event(event: str, **kwargs):
     any_handled = False
     for module in _channel_modules:
@@ -13322,8 +13330,8 @@ async def process_stream_online_websocket():
     finally:
         if connection:
             await connection.close()
-    looped_tasks["timed_message"] = create_task(timed_message())
-    looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
+    start_looped_task("timed_message", timed_message)
+    start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -15125,8 +15133,8 @@ async def check_stream_online():
                         # Extract game and title from streams data
                         current_game = stream_data.get('game_name', None)
                         stream_title = stream_data.get('title', None)
-                        looped_tasks["timed_message"] = create_task(timed_message())
-                        looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
+                        start_looped_task("timed_message", timed_message)
+                        start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
                         # Log the status to the file
                         os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
                         with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
@@ -16748,15 +16756,11 @@ async def handle_ad_break_start(duration_seconds):
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
-    global CHANNEL_NAME, stream_online, ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, ad_1min_notified, ad_1min_last_notified_next_ad_at
+    global CHANNEL_NAME, stream_online
     last_notification_time = None
     last_1min_notification_time = None
     last_ad_time = None
     last_snooze_count = None
-    ad_upcoming_notified = False  # Initialize flag to prevent duplicate notifications
-    ad_upcoming_last_notified_next_ad_at = None
-    ad_1min_notified = False
-    ad_1min_last_notified_next_ad_at = None
     while stream_online:
         try:
             last_notification_time, last_1min_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
