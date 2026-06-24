@@ -60,13 +60,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
 
     // --- Save overlay settings ---
     if ($action === 'save_settings') {
-        $validPos = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle'];
         $validLayouts = ['positioned', 'stacked-left', 'stacked-right'];
         $boxLayout = in_array($_POST['box_layout'] ?? '', $validLayouts, true) ? $_POST['box_layout'] : 'positioned';
-        $posFeatured = in_array($_POST['position_featured'] ?? '', $validPos, true) ? $_POST['position_featured'] : 'bottom-right';
-        $posCurrent  = in_array($_POST['position_current'] ?? '', $validPos, true) ? $_POST['position_current'] : 'bottom-left';
-        $posFinished = in_array($_POST['position_finished'] ?? '', $validPos, true) ? $_POST['position_finished'] : 'top-left';
-        $posUpcoming = in_array($_POST['position_upcoming'] ?? '', $validPos, true) ? $_POST['position_upcoming'] : 'top-right';
+        $validCanvases = ['1280x720', '1920x1080', '2560x1440'];
+        $previewCanvas = in_array($_POST['preview_canvas'] ?? '', $validCanvases, true) ? $_POST['preview_canvas'] : '1920x1080';
+        // Drag-editor coordinates: each box's top-left as a 0-100 percentage of the canvas.
+        $posClamp = function ($v, $default) {
+            return is_numeric($v) ? max(0, min(100, (float)$v)) : $default;
+        };
+        $fx = $posClamp($_POST['position_featured_x'] ?? null, 79);
+        $fy = $posClamp($_POST['position_featured_y'] ?? null, 64);
+        $cx = $posClamp($_POST['position_current_x'] ?? null, 2);
+        $cy = $posClamp($_POST['position_current_y'] ?? null, 64);
+        $ux = $posClamp($_POST['position_upcoming_x'] ?? null, 79);
+        $uy = $posClamp($_POST['position_upcoming_y'] ?? null, 3);
+        $dx = $posClamp($_POST['position_finished_x'] ?? null, 2);
+        $dy = $posClamp($_POST['position_finished_y'] ?? null, 3);
         $visible = intval(!empty($_POST['visible']));
         $showTitle = intval(!empty($_POST['show_title']));
         $showDesc = intval(!empty($_POST['show_description']));
@@ -85,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         // written here. Which boxes show and where they sit is driven by the show_*/
         // position_* flags; the featured project is derived from recency.
         $stmt = $db->prepare("INSERT INTO maker_overlay_settings
-            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured, position_current, position_finished, position_upcoming)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured_x, position_featured_y, position_current_x, position_current_y, position_upcoming_x, position_upcoming_y, position_finished_x, position_finished_y, preview_canvas)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE visible = VALUES(visible),
                 carousel_seconds = VALUES(carousel_seconds), project_rotate_seconds = VALUES(project_rotate_seconds),
                 accent_color = VALUES(accent_color), text_color = VALUES(text_color), font_family = VALUES(font_family),
@@ -94,10 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
                 show_featured = VALUES(show_featured), show_current = VALUES(show_current),
                 show_finished = VALUES(show_finished), show_upcoming = VALUES(show_upcoming),
                 box_layout = VALUES(box_layout),
-                position_featured = VALUES(position_featured), position_current = VALUES(position_current),
-                position_finished = VALUES(position_finished), position_upcoming = VALUES(position_upcoming)");
-        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) position_featured(s) position_current(s) position_finished(s) position_upcoming(s)
-        $stmt->bind_param("iiisssiiiiiisssss", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $posFeatured, $posCurrent, $posFinished, $posUpcoming);
+                position_featured_x = VALUES(position_featured_x), position_featured_y = VALUES(position_featured_y),
+                position_current_x = VALUES(position_current_x), position_current_y = VALUES(position_current_y),
+                position_upcoming_x = VALUES(position_upcoming_x), position_upcoming_y = VALUES(position_upcoming_y),
+                position_finished_x = VALUES(position_finished_x), position_finished_y = VALUES(position_finished_y),
+                preview_canvas = VALUES(preview_canvas)");
+        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) + 8 position coords (d) + preview_canvas(s)
+        $stmt->bind_param("iiisssiiiiiisdddddddds", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $fx, $fy, $cx, $cy, $ux, $uy, $dx, $dy, $previewCanvas);
         $ok = $stmt->execute();
         $err = $stmt->error;
         $stmt->close();
@@ -281,8 +293,11 @@ $settings = [
     'show_title' => 1, 'show_description' => 1,
     'show_featured' => 1, 'show_current' => 0, 'show_finished' => 0, 'show_upcoming' => 0,
     'box_layout' => 'positioned',
-    'position_featured' => 'bottom-right', 'position_current' => 'bottom-left',
-    'position_finished' => 'top-left', 'position_upcoming' => 'top-right',
+    'position_featured_x' => 79, 'position_featured_y' => 64,
+    'position_current_x' => 2, 'position_current_y' => 64,
+    'position_upcoming_x' => 79, 'position_upcoming_y' => 3,
+    'position_finished_x' => 2, 'position_finished_y' => 3,
+    'preview_canvas' => '1920x1080',
 ];
 if ($res = $db->query("SELECT * FROM maker_overlay_settings WHERE id = 1")) {
     if ($row = $res->fetch_assoc()) { $settings = array_merge($settings, $row); }
@@ -370,12 +385,11 @@ ob_start();
                     </select>
                     <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.6rem;"><?= t('makers_layout_hint') ?></p>
                     <label style="display:block; font-weight:600; margin-bottom:0.4rem;"><?= t('makers_boxes') ?></label>
-                    <table style="width:100%; border-collapse:collapse;">
+                    <table style="width:100%; max-width:380px; border-collapse:collapse; margin-bottom:0.8rem;">
                         <thead>
                             <tr style="text-align:left; color:var(--text-secondary);">
                                 <th style="padding:0.25rem 0.5rem; font-weight:600;"><?= t('makers_box') ?></th>
                                 <th style="padding:0.25rem 0.5rem; font-weight:600; width:5rem;"><?= t('makers_show') ?></th>
-                                <th style="padding:0.25rem 0.5rem; font-weight:600;"><?= t('makers_position') ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -386,25 +400,41 @@ ob_start();
                                 'upcoming' => t('makers_box_upcoming'),
                                 'finished' => t('makers_box_finished'),
                             ];
-                            $posOptions = ['top-left' => t('makers_pos_top_left'), 'top-right' => t('makers_pos_top_right'), 'bottom-left' => t('makers_pos_bottom_left'), 'bottom-right' => t('makers_pos_bottom_right'), 'middle' => t('makers_pos_middle')];
                             foreach ($boxRows as $boxKey => $boxLbl):
                                 $showKey = 'show_' . $boxKey;
-                                $posKey = 'position_' . $boxKey;
                             ?>
                             <tr>
                                 <td style="padding:0.3rem 0.5rem;"><?= htmlspecialchars($boxLbl) ?></td>
                                 <td style="padding:0.3rem 0.5rem;"><input type="checkbox" name="<?= $showKey ?>" value="1" <?= intval($settings[$showKey] ?? 0) ? 'checked' : '' ?>></td>
-                                <td style="padding:0.3rem 0.5rem;">
-                                    <select name="<?= $posKey ?>" class="sp-input">
-                                        <?php foreach ($posOptions as $pv => $pl): ?>
-                                            <option value="<?= $pv ?>" <?= (($settings[$posKey] ?? '') === $pv) ? 'selected' : '' ?>><?= htmlspecialchars($pl) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_drag_label') ?></label>
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.5rem;"><?= t('makers_drag_hint') ?></p>
+                    <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_canvas_size') ?></label>
+                    <select id="makerCanvasSize" name="preview_canvas" class="sp-input" style="max-width:220px; margin-bottom:0.6rem;">
+                        <?php foreach (['1280x720' => '1280 × 720 (720p)', '1920x1080' => '1920 × 1080 (1080p)', '2560x1440' => '2560 × 1440 (2K)'] as $cv => $cl): ?>
+                            <option value="<?= $cv ?>" <?= (($settings['preview_canvas'] ?? '1920x1080') === $cv) ? 'selected' : '' ?>><?= $cl ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div id="makerPosCanvas" class="maker-pos-canvas">
+                        <?php
+                        $dragBoxes = [
+                            'featured' => t('makers_box_featured'),
+                            'current'  => t('makers_box_current'),
+                            'upcoming' => t('makers_box_upcoming'),
+                            'finished' => t('makers_box_finished'),
+                        ];
+                        foreach ($dragBoxes as $bk => $bl):
+                            $xv = (float)($settings['position_' . $bk . '_x'] ?? 0);
+                            $yv = (float)($settings['position_' . $bk . '_y'] ?? 0);
+                        ?>
+                        <div class="maker-pos-chip" data-box="<?= $bk ?>" style="left:<?= $xv ?>%; top:<?= $yv ?>%;"><?= htmlspecialchars($bl) ?></div>
+                        <input type="hidden" name="position_<?= $bk ?>_x" id="makerPosX_<?= $bk ?>" value="<?= $xv ?>">
+                        <input type="hidden" name="position_<?= $bk ?>_y" id="makerPosY_<?= $bk ?>" value="<?= $yv ?>">
+                        <?php endforeach; ?>
+                    </div>
                 </div>
                 <div>
                     <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_font') ?></label>
@@ -709,6 +739,80 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
+
+    // Drag-to-place editor: drag each box on the preview canvas; persist its top-left as
+    // an x/y percentage into the hidden inputs that save with the settings form.
+    (function () {
+        var canvas = document.getElementById('makerPosCanvas');
+        if (!canvas) { return; }
+        var chips = canvas.querySelectorAll('.maker-pos-chip');
+        var dragging = null, grabX = 0, grabY = 0;
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+        // Size the chips to the real box footprint for the chosen OBS canvas, so the
+        // preview is true-to-scale. The overlay card is a fixed 360px wide, so its share
+        // of the canvas (and representative height) scales with the canvas width.
+        var canvasWidths = { '1280x720': 1280, '1920x1080': 1920, '2560x1440': 2560 };
+        var sizeSel = document.getElementById('makerCanvasSize');
+        function applyCanvasSize() {
+            var w = canvasWidths[sizeSel ? sizeSel.value : '1920x1080'] || 1920;
+            var scale = 1920 / w;
+            var chipW = 18.75 * scale, chipH = 22 * scale;
+            chips.forEach(function (chip) {
+                chip.style.width = chipW + '%';
+                chip.style.height = chipH + '%';
+                var left = clamp(parseFloat(chip.style.left) || 0, 0, 100 - chipW);
+                var top = clamp(parseFloat(chip.style.top) || 0, 0, 100 - chipH);
+                chip.style.left = left + '%';
+                chip.style.top = top + '%';
+                var box = chip.getAttribute('data-box');
+                document.getElementById('makerPosX_' + box).value = left.toFixed(2);
+                document.getElementById('makerPosY_' + box).value = top.toFixed(2);
+            });
+        }
+        if (sizeSel) { sizeSel.addEventListener('change', applyCanvasSize); }
+
+        chips.forEach(function (chip) {
+            chip.addEventListener('pointerdown', function (e) {
+                dragging = chip;
+                chip.setPointerCapture(e.pointerId);
+                var r = chip.getBoundingClientRect();
+                grabX = e.clientX - r.left;
+                grabY = e.clientY - r.top;
+                e.preventDefault();
+            });
+            chip.addEventListener('pointermove', function (e) {
+                if (dragging !== chip) { return; }
+                var cr = canvas.getBoundingClientRect();
+                var wpct = (chip.offsetWidth / cr.width) * 100;
+                var hpct = (chip.offsetHeight / cr.height) * 100;
+                var xp = clamp(((e.clientX - cr.left - grabX) / cr.width) * 100, 0, 100 - wpct);
+                var yp = clamp(((e.clientY - cr.top - grabY) / cr.height) * 100, 0, 100 - hpct);
+                chip.style.left = xp + '%';
+                chip.style.top = yp + '%';
+                var box = chip.getAttribute('data-box');
+                document.getElementById('makerPosX_' + box).value = xp.toFixed(2);
+                document.getElementById('makerPosY_' + box).value = yp.toFixed(2);
+            });
+            function endDrag() { if (dragging === chip) { dragging = null; } }
+            chip.addEventListener('pointerup', endDrag);
+            chip.addEventListener('pointercancel', endDrag);
+        });
+        // Dim a chip when its box is unchecked, so the canvas mirrors what will show.
+        function syncDisabled() {
+            ['featured', 'current', 'upcoming', 'finished'].forEach(function (box) {
+                var cb = document.querySelector('input[name="show_' + box + '"]');
+                var chip = canvas.querySelector('.maker-pos-chip[data-box="' + box + '"]');
+                if (cb && chip) { chip.classList.toggle('is-disabled', !cb.checked); }
+            });
+        }
+        ['featured', 'current', 'upcoming', 'finished'].forEach(function (box) {
+            var cb = document.querySelector('input[name="show_' + box + '"]');
+            if (cb) { cb.addEventListener('change', syncDisabled); }
+        });
+        applyCanvasSize();
+        syncDisabled();
+    })();
 });
 </script>
 <?php

@@ -34,10 +34,10 @@ $default_settings = [
     'show_finished'          => 0,
     'show_upcoming'          => 0,
     'box_layout'             => 'positioned',
-    'position_featured'      => 'bottom-right',
-    'position_current'       => 'bottom-left',
-    'position_finished'      => 'top-left',
-    'position_upcoming'      => 'top-right',
+    'position_featured_x'    => 79, 'position_featured_y' => 64,
+    'position_current_x'     => 2,  'position_current_y'  => 64,
+    'position_upcoming_x'    => 79, 'position_upcoming_y' => 3,
+    'position_finished_x'    => 2,  'position_finished_y' => 3,
 ];
 
 // Build the snapshot used by both the JSON endpoint and the initial render.
@@ -75,6 +75,10 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $s['show_current']           = (int)$s['show_current'];
     $s['show_finished']          = (int)$s['show_finished'];
     $s['show_upcoming']          = (int)$s['show_upcoming'];
+    foreach (['position_featured_x','position_featured_y','position_current_x','position_current_y',
+              'position_finished_x','position_finished_y','position_upcoming_x','position_upcoming_y'] as $pk) {
+        $s[$pk] = max(0, min(100, (float)$s[$pk]));
+    }
     $s['carousel_seconds']       = max(2, (int)$s['carousel_seconds']);
     $s['project_rotate_seconds'] = max(3, (int)$s['project_rotate_seconds']);
     if ($s['current_project_id'] !== null) { $s['current_project_id'] = (int)$s['current_project_id']; }
@@ -174,10 +178,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Build one positioned box (a fixed card in its own corner). Styling is applied
     // inline on the card itself so the chosen font/colours win over the base CSS rule.
-    function buildRegion(corner, s) {
+    function buildRegion(s) {
         var region = document.createElement('div');
-        // No corner -> bare card (used inside a stack, positioned by the stack container).
-        region.className = 'maker-overlay-page' + (corner ? ' pos-' + corner : '');
+        // Bare styled card. Positioning is applied by the caller: an inline left/top in
+        // positioned layout, or the stack container in stacked layout.
+        region.className = 'maker-overlay-page';
         region.style.setProperty('--maker-accent', s.accent_color || '#9146FF');
         region.style.setProperty('--maker-text', s.text_color || '#FFFFFF');
         region.style.color = s.text_color || '#FFFFFF';
@@ -269,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var boxes = [];
 
         if (showFeatured) {
-            boxes.push({ list: [state.featured], label: 'Now working on', position: s.position_featured || 'bottom-right' });
+            boxes.push({ list: [state.featured], label: 'Now working on', x: s.position_featured_x, y: s.position_featured_y });
         }
         if (parseInt(s.show_current, 10) === 1) {
             // The featured project has its own box, so drop it from the Current rotation
@@ -278,14 +283,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 return !(showFeatured && state.featured && p.id === state.featured.id);
             });
             if (currentList.length) {
-                boxes.push({ list: currentList, label: 'Current projects', position: s.position_current || 'bottom-left' });
+                boxes.push({ list: currentList, label: 'Current projects', x: s.position_current_x, y: s.position_current_y });
             }
         }
         if (parseInt(s.show_upcoming, 10) === 1 && (state.upcoming || []).length) {
-            boxes.push({ list: state.upcoming, label: 'Coming up', position: s.position_upcoming || 'top-right' });
+            boxes.push({ list: state.upcoming, label: 'Coming up', x: s.position_upcoming_x, y: s.position_upcoming_y });
         }
         if (parseInt(s.show_finished, 10) === 1 && (state.finished || []).length) {
-            boxes.push({ list: state.finished, label: 'Finished', position: s.position_finished || 'top-left' });
+            boxes.push({ list: state.finished, label: 'Finished', x: s.position_finished_x, y: s.position_finished_y });
         }
 
         if (!boxes.length) { el.style.display = 'none'; return; }
@@ -293,19 +298,21 @@ document.addEventListener('DOMContentLoaded', function () {
         var layout = s.box_layout || 'positioned';
         if (layout === 'stacked-left' || layout === 'stacked-right') {
             // One vertical column on the chosen side; cards flow inside it (CSS makes them
-            // static), so the per-box positions are ignored in this layout.
+            // static), so the per-box x/y positions are ignored in this layout.
             var stack = document.createElement('div');
             stack.className = 'maker-overlay-stack ' + (layout === 'stacked-right' ? 'stack-right' : 'stack-left');
             el.appendChild(stack);
             boxes.forEach(function (b) {
-                var card = buildRegion(null, s);
+                var card = buildRegion(s);
                 stack.appendChild(card);
                 runRegion(card, b.list, b.label, s);
             });
         } else {
-            // Each box is a fixed card anchored to its own corner / middle.
+            // Each box is a fixed card anchored by its top-left at the stored x/y percent.
             boxes.forEach(function (b) {
-                var card = buildRegion(b.position, s);
+                var card = buildRegion(s);
+                card.style.left = (b.x != null ? b.x : 0) + '%';
+                card.style.top = (b.y != null ? b.y : 0) + '%';
                 el.appendChild(card);
                 runRegion(card, b.list, b.label, s);
             });
