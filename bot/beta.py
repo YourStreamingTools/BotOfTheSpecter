@@ -7689,17 +7689,21 @@ class TwitchBot(commands.Bot):
                 # Make sure the singleton settings row exists.
                 await cursor.execute("INSERT INTO maker_overlay_settings (id) VALUES (1) ON DUPLICATE KEY UPDATE id = id")
                 async def featured_id():
-                    await cursor.execute("SELECT current_project_id FROM maker_overlay_settings WHERE id = 1")
+                    # Auto-track: the "current" project is the current-status project worked
+                    # on most recently (newest updated_at; newer id breaks ties).
+                    await cursor.execute("SELECT id FROM maker_projects WHERE status = 'current' ORDER BY updated_at DESC, id DESC LIMIT 1")
                     row = await cursor.fetchone()
-                    return row.get('current_project_id') if row else None
+                    return row.get('id') if row else None
                 if subcommand in ('new', 'wip'):
                     if not argument:
                         await send_chat_message("Usage: !craft new <project title>")
                         return
                     title = argument[:255]
+                    # Newest updated_at makes this the featured card automatically; just
+                    # make sure the overlay is in 'current' mode so it shows live.
                     await cursor.execute("INSERT INTO maker_projects (title, status) VALUES (%s, 'current')", (title,))
                     new_id = cursor.lastrowid
-                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = %s, display_mode = 'current' WHERE id = 1", (new_id,))
+                    await cursor.execute("UPDATE maker_overlay_settings SET display_mode = 'current' WHERE id = 1")
                     mutated = True
                     await send_chat_message(f"New project #{new_id} set as current: {title}")
                 elif subcommand in ('note', 'desc', 'context'):
@@ -7718,7 +7722,7 @@ class TwitchBot(commands.Bot):
                         new_desc = (existing + ' ' + addition).strip() if existing else addition
                     else:
                         new_desc = argument
-                    await cursor.execute("UPDATE maker_projects SET description = %s WHERE id = %s", (new_desc[:2000], pid))
+                    await cursor.execute("UPDATE maker_projects SET description = %s, updated_at = NOW() WHERE id = %s", (new_desc[:2000], pid))
                     mutated = True
                     await send_chat_message("Project note updated.")
                 elif subcommand == 'link':
@@ -7730,7 +7734,7 @@ class TwitchBot(commands.Bot):
                     if url and not (url.startswith('http://') or url.startswith('https://')):
                         await send_chat_message("Link must start with http:// or https://")
                         return
-                    await cursor.execute("UPDATE maker_projects SET link_url = %s WHERE id = %s", (url[:500] or None, pid))
+                    await cursor.execute("UPDATE maker_projects SET link_url = %s, updated_at = NOW() WHERE id = %s", (url[:500] or None, pid))
                     mutated = True
                     await send_chat_message("Project link updated.")
                 elif subcommand == 'current':
@@ -7743,7 +7747,10 @@ class TwitchBot(commands.Bot):
                     if not row:
                         await send_chat_message(f"No project with id #{target}.")
                         return
-                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = %s, display_mode = 'current' WHERE id = 1", (target,))
+                    # "Feature now": mark it current and stamp it as the most recently
+                    # worked-on project so it becomes the featured card immediately.
+                    await cursor.execute("UPDATE maker_projects SET status = 'current', updated_at = NOW() WHERE id = %s", (target,))
+                    await cursor.execute("UPDATE maker_overlay_settings SET display_mode = 'current' WHERE id = 1")
                     mutated = True
                     await send_chat_message(f"Now featuring project #{target}: {row.get('title')}")
                 elif subcommand == 'finish':
@@ -7752,9 +7759,10 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("No current project to finish.")
                         return
                     await cursor.execute("UPDATE maker_projects SET status = 'finished', completed_at = NOW() WHERE id = %s", (pid,))
-                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = NULL WHERE id = 1")
+                    # No manual pointer to clear: the overlay auto-falls to the next
+                    # most-recent current project (or the empty state if none remain).
                     mutated = True
-                    await send_chat_message("Project marked as finished. Set a new one with !craft new <title>.")
+                    await send_chat_message("Project marked as finished. The next current project is now featured automatically.")
                 elif subcommand == 'upcoming':
                     if not argument:
                         await send_chat_message("Usage: !craft upcoming <idea title>")
@@ -7784,6 +7792,8 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("Image must be a .png, .jpg, .jpeg or .gif file uploaded on the dashboard.")
                         return
                     await cursor.execute("INSERT INTO maker_project_images (project_id, media_file) VALUES (%s, %s)", (pid, filename))
+                    # Adding an image counts as working on the project: keep it featured.
+                    await cursor.execute("UPDATE maker_projects SET updated_at = NOW() WHERE id = %s", (pid,))
                     mutated = True
                     await send_chat_message(f"Image '{filename}' attached to the current project.")
                 elif subcommand in ('show', 'hide'):
@@ -7798,7 +7808,8 @@ class TwitchBot(commands.Bot):
                     target = int(argument)
                     await cursor.execute("DELETE FROM maker_project_images WHERE project_id = %s", (target,))
                     await cursor.execute("DELETE FROM maker_projects WHERE id = %s", (target,))
-                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = NULL WHERE id = 1 AND current_project_id = %s", (target,))
+                    # No manual featured pointer to clear: recency picks the next current
+                    # project automatically.
                     mutated = True
                     await send_chat_message(f"Removed project #{target}.")
                 elif subcommand in ('list', 'projects'):
