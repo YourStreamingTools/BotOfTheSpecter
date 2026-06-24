@@ -312,10 +312,10 @@ ob_start();
                 <div class="cc-preview" id="ccPreview">
                     <span class="cc-preview-placeholder"><?= t('closed_captions_preview_placeholder') ?></span>
                 </div>
-                <div id="ccConfidenceLegend" style="display:flex;gap:14px;margin-top:6px;font-size:0.72em;color:var(--text-muted);">
-                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;"></span> ≥80% — high</span>
-                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0;"></span> 60–79% — check</span>
-                    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;"></span> &lt;60% — mis-hear</span>
+                <div id="ccConfidenceLegend" class="cc-conf-legend">
+                    <span><span class="cc-conf-dot cc-conf-high"></span> ≥80% — high</span>
+                    <span><span class="cc-conf-dot cc-conf-med"></span> 60–79% — check</span>
+                    <span><span class="cc-conf-dot cc-conf-low"></span> &lt;60% — mis-hear</span>
                 </div>
             </div>
         </div>
@@ -1033,7 +1033,7 @@ ob_start();
         preview.textContent = '';
         if (committed) {
             const tokens = committed.split(/( +)/);
-            const confColor = (pct) => pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+            const confClass = (pct) => pct >= 80 ? 'cc-conf-high' : pct >= 60 ? 'cc-conf-med' : 'cc-conf-low';
             let wordIdx = 0;
             tokens.forEach(token => {
                 if (!token) return;
@@ -1047,7 +1047,7 @@ ob_start();
                 const wConf = (showConfidence() && wordConfidences && wordConfidences[wordIdx] != null) ? wordConfidences[wordIdx] : null;
                 if (wConf != null) {
                     const pct = Math.round(wConf * 100);
-                    wordSpan.style.color = confColor(pct);
+                    wordSpan.classList.add(confClass(pct));
                     wordSpan.title = pct + '% confidence';
                 }
                 preview.appendChild(wordSpan);
@@ -1059,14 +1059,7 @@ ob_start();
                 const badge = document.createElement('span');
                 badge.title = 'Overall phrase confidence';
                 badge.textContent = pct + '%';
-                badge.style.cssText = 'display:inline-block;margin-left:8px;padding:1px 7px;' +
-                    'border-radius:999px;font-size:0.72em;font-weight:700;vertical-align:middle;' +
-                    'letter-spacing:0.03em;' +
-                    (pct >= 80
-                        ? 'background:var(--green-bg);color:var(--green);border:1px solid var(--green);'
-                        : pct >= 60
-                            ? 'background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber);'
-                            : 'background:var(--red-bg);color:var(--red);border:1px solid var(--red);');
+                badge.className = 'cc-conf-badge ' + confClass(pct);
                 preview.appendChild(badge);
             }
         }

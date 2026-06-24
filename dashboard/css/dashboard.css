@@ -4008,6 +4008,47 @@ label.checkbox input[type="checkbox"] {
     color: var(--text-secondary);
     opacity: 0.7;
 }
+/* Confidence indicators — theme-aware via the shared status tokens. */
+.cc-conf-high { color: var(--green); }
+.cc-conf-med  { color: var(--amber); }
+.cc-conf-low  { color: var(--red); }
+.cc-conf-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 6px;
+    font-size: 0.72em;
+    color: var(--text-muted);
+}
+.cc-conf-legend > span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.cc-conf-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.cc-conf-dot.cc-conf-high { background: var(--green); }
+.cc-conf-dot.cc-conf-med  { background: var(--amber); }
+.cc-conf-dot.cc-conf-low  { background: var(--red); }
+.cc-conf-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 7px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+}
+.cc-conf-badge.cc-conf-high { background: var(--green-bg); border-color: var(--green); }
+.cc-conf-badge.cc-conf-med  { background: var(--amber-bg); border-color: var(--amber); }
+.cc-conf-badge.cc-conf-low  { background: var(--red-bg); border-color: var(--red); }
 .cc-url-box {
     font-family: monospace;
     margin-bottom: 0;
