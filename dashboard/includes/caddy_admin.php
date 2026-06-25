@@ -166,16 +166,24 @@ if (!function_exists('caddy_collect_handler_flags')) {
                 $flags[$proto === 'fastcgi' ? 'php' : 'reverse_proxy'] = true;
             } elseif ($name === 'static_response') {
                 // `redir` adapts to a static_response that sets a Location header.
-                $hasLocation = false;
+                $location = null;
                 if (isset($h['headers']) && is_array($h['headers'])) {
-                    foreach (array_keys($h['headers']) as $hk) {
+                    foreach ($h['headers'] as $hk => $hv) {
                         if (strcasecmp((string) $hk, 'Location') === 0) {
-                            $hasLocation = true;
+                            $location = is_array($hv) ? (string) ($hv[0] ?? '') : (string) $hv;
                             break;
                         }
                     }
                 }
-                $flags[$hasLocation ? 'redirect' : 'response'] = true;
+                if ($location !== null) {
+                    $flags['redirect'] = true;
+                    // First Location wins; keep the raw target (may carry {placeholders}).
+                    if (!isset($flags['redirect_to']) && $location !== '') {
+                        $flags['redirect_to'] = $location;
+                    }
+                } else {
+                    $flags['response'] = true;
+                }
             } elseif ($name === 'file_server') {
                 $flags['static'] = true;
             }
@@ -183,19 +191,15 @@ if (!function_exists('caddy_collect_handler_flags')) {
     }
 }
 
-if (!function_exists('caddy_route_type')) {
+if (!function_exists('caddy_classify_flags')) {
     /**
-     * Classify one top-level route into a stable type code the UI maps to a
-     * label. Priority reflects what a site "is": a PHP app that also has a
-     * file_server fallback is a PHP app, not a static host.
+     * Reduce collected handler flags to a single stable type code. Priority
+     * reflects what a site "is": a PHP app with a file_server fallback is a PHP
+     * app, not a static host.
      *
      * @return string one of: php, reverse_proxy, redirect, static, response, other
      */
-    function caddy_route_type($route) {
-        $flags = [];
-        if (is_array($route) && isset($route['handle'])) {
-            caddy_collect_handler_flags($route['handle'], $flags);
-        }
+    function caddy_classify_flags(array $flags) {
         if (!empty($flags['php'])) {
             return 'php';
         }
@@ -212,6 +216,22 @@ if (!function_exists('caddy_route_type')) {
             return 'response';
         }
         return 'other';
+    }
+}
+
+if (!function_exists('caddy_route_type')) {
+    /**
+     * Classify one top-level route into a stable type code the UI maps to a
+     * label.
+     *
+     * @return string see caddy_classify_flags()
+     */
+    function caddy_route_type($route) {
+        $flags = [];
+        if (is_array($route) && isset($route['handle'])) {
+            caddy_collect_handler_flags($route['handle'], $flags);
+        }
+        return caddy_classify_flags($flags);
     }
 }
 
@@ -247,11 +267,17 @@ if (!function_exists('caddy_parse_sites')) {
                         }
                     }
                 }
+                $flags = [];
+                if (isset($route['handle'])) {
+                    caddy_collect_handler_flags($route['handle'], $flags);
+                }
+                $type = caddy_classify_flags($flags);
                 $rows[] = [
                     'server' => (string) $name,
                     'listen' => array_values(array_unique($listen)),
                     'hosts' => array_values(array_unique($hosts)),
-                    'type' => caddy_route_type($route),
+                    'type' => $type,
+                    'target' => ($type === 'redirect' && isset($flags['redirect_to'])) ? $flags['redirect_to'] : null,
                 ];
             }
         }
