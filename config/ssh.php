@@ -28,9 +28,7 @@ $recorder_ssh_host = "";
 $recorder_ssh_username = $server_username;
 $recorder_ssh_password = $server_password;
 
-// Web Server Information (Caddy origin host; serves the dashboard).
-// Used only by admin/caddy.php for `systemctl reload/restart caddy`.
-// Leave blank in dev; production supplies the real host/credentials.
+// Web Server
 $web_ssh_host = '';
 $web_ssh_username = $server_username;
 $web_ssh_password = $server_password;
