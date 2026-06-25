@@ -86,9 +86,11 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     if ($s['current_project_id'] !== null) { $s['current_project_id'] = (int)$s['current_project_id']; }
     unset($s);
 
-    // Load all projects, then attach images in a second pass.
+    // Load all projects, then attach images in a second pass. Newest-touched first
+    // (updated_at DESC, id DESC) so each box rotates the most recently added/edited
+    // project first; matches the dashboard library order.
     $projects = [];
-    if ($res = @$db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY sort_order ASC, id ASC")) {
+    if ($res = @$db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY updated_at DESC, id DESC")) {
         while ($row = $res->fetch_assoc()) {
             $row['id'] = (int)$row['id'];
             $row['images'] = [];
