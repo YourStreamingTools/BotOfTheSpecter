@@ -6182,4 +6182,6 @@ Diese Aktion kann nicht rückgängig gemacht werden.',
     'caddy_type_reverse_proxy' => 'Reverse-Proxy',
     'caddy_type_response' => 'Feste Antwort',
     'caddy_type_other' => 'Sonstige',
+    'caddy_host_fallback' => 'Fallback — jeder andere Hostname',
+    'caddy_host_all_subdomains' => 'alle Subdomains',
 ];
