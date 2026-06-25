@@ -29,6 +29,7 @@ $default_settings = [
     'position'               => 'bottom-right',
     'show_title'             => 1,
     'show_description'        => 1,
+    'show_link'              => 1,
     'show_featured'          => 1,
     'show_current'           => 0,
     'show_finished'          => 0,
@@ -71,6 +72,7 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
     $s['visible']                = (int)$s['visible'];
     $s['show_title']             = (int)$s['show_title'];
     $s['show_description']       = (int)$s['show_description'];
+    $s['show_link']              = (int)$s['show_link'];
     $s['show_featured']          = (int)$s['show_featured'];
     $s['show_current']           = (int)$s['show_current'];
     $s['show_finished']          = (int)$s['show_finished'];
@@ -219,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (parseInt(s.show_description, 10) === 1 && p.description) {
             html += '<div class="maker-overlay-page-desc">' + escapeHtml(p.description) + '</div>';
         }
-        if (p.link_url) {
+        if (parseInt(s.show_link, 10) === 1 && p.link_url) {
             html += '<div class="maker-overlay-page-link">' + escapeHtml(p.link_url) + '</div>';
         }
         html += '</div>';

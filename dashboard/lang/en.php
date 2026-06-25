@@ -188,6 +188,7 @@ return [
     'makers_overlay_visible' => 'Overlay visible',
     'makers_show_title' => 'Show title',
     'makers_show_description' => 'Show description',
+    'makers_show_link' => 'Show link',
     'makers_save_settings' => 'Save settings',
     'makers_add_project' => 'Add Project',
     'makers_title' => 'Title',

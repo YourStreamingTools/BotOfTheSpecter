@@ -165,6 +165,7 @@ return [
     'makers_overlay_visible' => 'Overlay visible',
     'makers_show_title' => 'Afficher le titre',
     'makers_show_description' => 'Afficher la description',
+    'makers_show_link' => 'Afficher le lien',
     'makers_save_settings' => 'Enregistrer les paramètres',
     'makers_add_project' => 'Ajouter un projet',
     'makers_title' => 'Titre',
