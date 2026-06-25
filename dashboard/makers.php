@@ -321,8 +321,11 @@ if ($res = $db->query("SELECT * FROM maker_overlay_settings WHERE id = 1")) {
     $res->free();
 }
 
+// Group by status (current → upcoming → finished), and within each group put the most
+// recently added/edited project first (updated_at DESC, id DESC) so the one you just
+// created or uploaded to is at the top instead of buried at the bottom of the list.
 $projects = [];
-if ($res = $db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), sort_order ASC, id ASC")) {
+if ($res = $db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), updated_at DESC, id DESC")) {
     while ($row = $res->fetch_assoc()) {
         $row['images'] = [];
         $projects[(int)$row['id']] = $row;
