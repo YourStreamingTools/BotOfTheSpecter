@@ -47,7 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } catch (Exception $e) {
             $version = '';
         }
-        $version = is_string($version) ? trim($version) : '';
+        // `caddy version` prints "v2.11.4 h1:<module-hash>=", and executeCommand()
+        // appends "[exit_code:N]" (and may add a "[stderr]" block). Keep just the
+        // version token (e.g. v2.11.4) for display.
+        $version = is_string($version) ? $version : '';
+        $version = preg_replace('/\s*\[exit_code:.*$/s', '', $version);
+        $version = preg_replace('/\s*\[stderr\].*$/s', '', $version);
+        $version = trim($version);
+        if (preg_match('/v?\d+\.\d+\.\d+\S*/', $version, $m)) {
+            $version = $m[0];
+        }
         echo json_encode(['ok' => ($version !== ''), 'version' => $version]);
         exit;
     }
