@@ -191,9 +191,8 @@ ob_start();
             <?php echo $caddyUp ? t('caddy_status_running') : t('caddy_status_unreachable'); ?>
         </span>
         <span style="margin-left:1rem; color:var(--text-muted);">
-            <?php echo t('caddy_version_label'); ?>: <span id="caddy-version-value">&mdash;</span>
+            <?php echo t('caddy_version_label'); ?>: <span id="caddy-version-value"><?php echo empty($web_ssh_host) ? '&mdash;' : '<i class="fas fa-spinner fa-spin"></i>'; ?></span>
         </span>
-        <button class="sp-btn sp-btn-sm" id="caddy-version-btn" type="button"><i class="fas fa-rotate"></i> <?php echo t('caddy_check_version'); ?></button>
     </div>
 </div>
 
@@ -298,6 +297,7 @@ ob_start();
 
 <script>
 const CADDY_IS_SUPER = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
+const CADDY_SSH_READY = <?php echo empty($web_ssh_host) ? 'false' : 'true'; ?>;
 const CADDY_I18N = {
     destructiveTitle: <?php echo json_encode(t('caddy_destructive_confirm_title')); ?>,
     destructiveText: <?php echo json_encode(t('caddy_destructive_confirm_text')); ?>,
@@ -333,12 +333,12 @@ document.getElementById('caddy-config-toggle')?.addEventListener('click', () => 
     v.style.display = (v.style.display === 'none') ? 'block' : 'none';
 });
 
-document.getElementById('caddy-version-btn')?.addEventListener('click', async (e) => {
-    e.target.disabled = true;
+(async function caddyLoadVersion() {
+    if (!CADDY_SSH_READY) return;
+    const el = document.getElementById('caddy-version-value');
     const res = await caddyPost({ action: 'caddy_version' });
-    document.getElementById('caddy-version-value').textContent = res.ok ? res.version : (res.error || 'unknown');
-    e.target.disabled = false;
-});
+    el.textContent = res.ok ? res.version : (res.error || 'unknown');
+})();
 
 if (CADDY_IS_SUPER) {
     document.getElementById('caddy-send')?.addEventListener('click', async () => {
