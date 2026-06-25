@@ -16869,14 +16869,18 @@ async def check_and_handle_ads(last_notification_time, last_1min_notification_ti
                                         message = message.replace("(duration)", duration_text)
                                     else:
                                         message = f"Heads up! An ad break is coming up in {minutes_until} minutes and will last {duration_text}."
-                                    try:
-                                        sent_ok = await send_chat_message(message)
-                                        if not sent_ok:
-                                            api_logger.error(f"[ADS] Failed to send 5-minute ad notification: {message}")
-                                        else:
-                                            api_logger.info(f"[ADS] Sent 5-minute ad notification: {message}")
-                                    except Exception as e:
-                                        api_logger.error(f"[ADS] Exception while sending 5-minute ad notification: {e}")
+                                    if can_send_ad_message():
+                                        try:
+                                            sent_ok = await send_chat_message(message)
+                                            if not sent_ok:
+                                                api_logger.error(f"[ADS] Failed to send 5-minute ad notification: {message}")
+                                            else:
+                                                try_mark_ad_message_sent_after(True)
+                                                api_logger.info(f"[ADS] Sent 5-minute ad notification: {message}")
+                                        except Exception as e:
+                                            api_logger.error(f"[ADS] Exception while sending 5-minute ad notification: {e}")
+                                    else:
+                                        api_logger.info("[ADS] Skipped 5-minute ad notification due to cooldown")
                                 else:
                                     api_logger.debug("[ADS] Ad 5-minute upcoming notification disabled by settings")
                                 last_notification_time = next_ad_at
@@ -16893,14 +16897,18 @@ async def check_and_handle_ads(last_notification_time, last_1min_notification_ti
                                         message = message.replace("(duration)", duration_text)
                                     else:
                                         message = f"Ads are starting in 1 minute!"
-                                    try:
-                                        sent_ok = await send_chat_message(message)
-                                        if not sent_ok:
-                                            api_logger.error(f"[ADS] Failed to send 1-minute ad notification: {message}")
-                                        else:
-                                            api_logger.info(f"[ADS] Sent 1-minute ad notification: {message}")
-                                    except Exception as e:
-                                        api_logger.error(f"[ADS] Exception while sending 1-minute ad notification: {e}")
+                                    if can_send_ad_message():
+                                        try:
+                                            sent_ok = await send_chat_message(message)
+                                            if not sent_ok:
+                                                api_logger.error(f"[ADS] Failed to send 1-minute ad notification: {message}")
+                                            else:
+                                                try_mark_ad_message_sent_after(True)
+                                                api_logger.info(f"[ADS] Sent 1-minute ad notification: {message}")
+                                        except Exception as e:
+                                            api_logger.error(f"[ADS] Exception while sending 1-minute ad notification: {e}")
+                                    else:
+                                        api_logger.info("[ADS] Skipped 1-minute ad notification due to cooldown")
                                 else:
                                     api_logger.debug("[ADS] Ad 1-minute upcoming notification disabled by settings")
                                 last_1min_notification_time = next_ad_at
