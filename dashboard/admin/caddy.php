@@ -196,29 +196,58 @@ ob_start();
     </div>
 </div>
 
+<?php
+    $typeLabels = [
+        'php' => t('caddy_type_php'),
+        'reverse_proxy' => t('caddy_type_reverse_proxy'),
+        'redirect' => t('caddy_type_redirect'),
+        'static' => t('caddy_type_static'),
+        'response' => t('caddy_type_response'),
+        'other' => t('caddy_type_other'),
+    ];
+    $hostTotal = 0;
+    $typeCounts = [];
+    $listenSet = [];
+    foreach ($sites as $s) {
+        $hostTotal += count($s['hosts']);
+        $typeCounts[$s['type']] = ($typeCounts[$s['type']] ?? 0) + 1;
+        foreach ($s['listen'] as $l) {
+            $listenSet[$l] = true;
+        }
+    }
+    $listenStr = !empty($listenSet) ? implode(', ', array_keys($listenSet)) : '—';
+?>
 <div class="sp-card">
     <div class="sp-card-header"><h2 class="sp-card-title"><?php echo t('caddy_sites_heading'); ?></h2></div>
-    <div class="sp-card-body sp-table-wrap">
-        <table class="sp-table">
-            <thead><tr>
-                <th><?php echo t('caddy_th_server'); ?></th>
-                <th><?php echo t('caddy_th_listen'); ?></th>
-                <th><?php echo t('caddy_th_hosts'); ?></th>
-                <th><?php echo t('caddy_th_handlers'); ?></th>
-            </tr></thead>
-            <tbody>
-            <?php if (!empty($sites)): foreach ($sites as $s): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($s['server']); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $s['listen'])); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $s['hosts'])); ?></td>
-                    <td><?php echo htmlspecialchars(implode(', ', $s['handlers'])); ?></td>
-                </tr>
-            <?php endforeach; else: ?>
-                <tr><td colspan="4" style="color:var(--text-muted);"><?php echo t('caddy_no_data'); ?></td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
+    <div class="sp-card-body">
+        <p style="color:var(--text-secondary);"><?php echo t('caddy_sites_intro'); ?></p>
+        <?php if (!empty($sites)): ?>
+            <p><strong><?php echo htmlspecialchars(t('caddy_sites_summary', [$hostTotal, count($sites), $listenStr])); ?></strong></p>
+            <p>
+                <?php foreach ($typeCounts as $code => $cnt): ?>
+                    <span class="sp-badge sp-badge-grey"><?php echo (int) $cnt . ' &times; ' . htmlspecialchars($typeLabels[$code] ?? $code); ?></span>
+                <?php endforeach; ?>
+            </p>
+        <?php endif; ?>
+        <div class="sp-table-wrap">
+            <table class="sp-table">
+                <thead><tr>
+                    <th><?php echo t('caddy_th_hosts'); ?></th>
+                    <th><?php echo t('caddy_th_type'); ?></th>
+                </tr></thead>
+                <tbody>
+                <?php if (!empty($sites)): foreach ($sites as $s): ?>
+                    <?php $badgeClass = ($s['type'] === 'php') ? 'sp-badge-green' : 'sp-badge-grey'; ?>
+                    <tr>
+                        <td><?php echo !empty($s['hosts']) ? htmlspecialchars(implode(', ', $s['hosts'])) : '<span style="color:var(--text-muted);">&mdash;</span>'; ?></td>
+                        <td><span class="sp-badge <?php echo $badgeClass; ?>"><?php echo htmlspecialchars($typeLabels[$s['type']] ?? $s['type']); ?></span></td>
+                    </tr>
+                <?php endforeach; else: ?>
+                    <tr><td colspan="2" style="color:var(--text-muted);"><?php echo t('caddy_no_data'); ?></td></tr>
+                <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

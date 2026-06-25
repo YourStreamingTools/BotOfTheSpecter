@@ -136,11 +136,93 @@ if (!function_exists('caddy_admin_request')) {
     }
 }
 
+if (!function_exists('caddy_collect_handler_flags')) {
+    /**
+     * Walk a route's handle chain (descending into Caddy's `subroute` wrapper,
+     * which a Caddyfile always produces) and flag the meaningful handler kinds.
+     * Infra handlers (encode, headers, vars, rewrite, …) are ignored on purpose.
+     */
+    function caddy_collect_handler_flags($handleList, array &$flags) {
+        if (!is_array($handleList)) {
+            return;
+        }
+        foreach ($handleList as $h) {
+            if (!is_array($h)) {
+                continue;
+            }
+            $name = $h['handler'] ?? null;
+            if ($name === 'subroute') {
+                $routes = (isset($h['routes']) && is_array($h['routes'])) ? $h['routes'] : [];
+                foreach ($routes as $r) {
+                    if (isset($r['handle'])) {
+                        caddy_collect_handler_flags($r['handle'], $flags);
+                    }
+                }
+                continue;
+            }
+            if ($name === 'reverse_proxy') {
+                // php_fastcgi adapts to a reverse_proxy with a fastcgi transport.
+                $proto = $h['transport']['protocol'] ?? '';
+                $flags[$proto === 'fastcgi' ? 'php' : 'reverse_proxy'] = true;
+            } elseif ($name === 'static_response') {
+                // `redir` adapts to a static_response that sets a Location header.
+                $hasLocation = false;
+                if (isset($h['headers']) && is_array($h['headers'])) {
+                    foreach (array_keys($h['headers']) as $hk) {
+                        if (strcasecmp((string) $hk, 'Location') === 0) {
+                            $hasLocation = true;
+                            break;
+                        }
+                    }
+                }
+                $flags[$hasLocation ? 'redirect' : 'response'] = true;
+            } elseif ($name === 'file_server') {
+                $flags['static'] = true;
+            }
+        }
+    }
+}
+
+if (!function_exists('caddy_route_type')) {
+    /**
+     * Classify one top-level route into a stable type code the UI maps to a
+     * label. Priority reflects what a site "is": a PHP app that also has a
+     * file_server fallback is a PHP app, not a static host.
+     *
+     * @return string one of: php, reverse_proxy, redirect, static, response, other
+     */
+    function caddy_route_type($route) {
+        $flags = [];
+        if (is_array($route) && isset($route['handle'])) {
+            caddy_collect_handler_flags($route['handle'], $flags);
+        }
+        if (!empty($flags['php'])) {
+            return 'php';
+        }
+        if (!empty($flags['reverse_proxy'])) {
+            return 'reverse_proxy';
+        }
+        if (!empty($flags['redirect'])) {
+            return 'redirect';
+        }
+        if (!empty($flags['static'])) {
+            return 'static';
+        }
+        if (!empty($flags['response'])) {
+            return 'response';
+        }
+        return 'other';
+    }
+}
+
 if (!function_exists('caddy_parse_sites')) {
     /**
-     * Flatten apps.http.servers into display rows.
+     * One row per top-level route (≈ one Caddyfile site block): the hostnames it
+     * matches and a friendly type code. A Caddyfile collapses every block into a
+     * single HTTP server, so grouping by route — not by server — is what gives a
+     * readable, per-site breakdown.
      *
-     * @return array<int,array{server:string,listen:array,hosts:array,handlers:array}>
+     * @return array<int,array{server:string,listen:array,hosts:array,type:string}>
      */
     function caddy_parse_sites($config) {
         $rows = [];
@@ -153,10 +235,9 @@ if (!function_exists('caddy_parse_sites')) {
         }
         foreach ($servers as $name => $srv) {
             $listen = (isset($srv['listen']) && is_array($srv['listen'])) ? $srv['listen'] : [];
-            $hosts = [];
-            $handlers = [];
             $routes = (isset($srv['routes']) && is_array($srv['routes'])) ? $srv['routes'] : [];
             foreach ($routes as $route) {
+                $hosts = [];
                 if (isset($route['match']) && is_array($route['match'])) {
                     foreach ($route['match'] as $m) {
                         if (isset($m['host']) && is_array($m['host'])) {
@@ -166,20 +247,13 @@ if (!function_exists('caddy_parse_sites')) {
                         }
                     }
                 }
-                if (isset($route['handle']) && is_array($route['handle'])) {
-                    foreach ($route['handle'] as $h) {
-                        if (isset($h['handler'])) {
-                            $handlers[] = (string) $h['handler'];
-                        }
-                    }
-                }
+                $rows[] = [
+                    'server' => (string) $name,
+                    'listen' => array_values(array_unique($listen)),
+                    'hosts' => array_values(array_unique($hosts)),
+                    'type' => caddy_route_type($route),
+                ];
             }
-            $rows[] = [
-                'server' => (string) $name,
-                'listen' => array_values(array_unique($listen)),
-                'hosts' => array_values(array_unique($hosts)),
-                'handlers' => array_values(array_unique($handlers)),
-            ];
         }
         return $rows;
     }
