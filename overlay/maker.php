@@ -129,6 +129,14 @@ function maker_load_state($host, $user, $pass, $username, $default_settings) {
             }
         }
     }
+    // Explicit pin wins: if the user pinned a project via "Feature now" and it is still a
+    // live current project, show that as Featured instead of the auto-tracked newest one.
+    $pinId = $state['settings']['current_project_id'] ?? null;
+    if ($pinId !== null) {
+        foreach ($state['current'] as $cp) {
+            if ((int)$cp['id'] === (int)$pinId) { $state['featured'] = $cp; break; }
+        }
+    }
     $db->close();
     return $state;
 }

@@ -206,6 +206,8 @@ return [
     'makers_js_failed' => 'Échec',
     'makers_js_confirm_delete' => 'Supprimer ce projet et ses images ?',
     'makers_js_upload_failed' => 'Échec du téléversement',
+    'makers_err_file_too_large' => 'Fichier trop volumineux — dépasse la limite de téléversement de %2$s du serveur : %1$s',
+    'makers_js_upload_too_big' => 'Le serveur a rejeté la requête — vos images sont peut-être trop volumineuses pour être téléversées en une seule fois.',
     // ===== i18n batch 5 (auto-added) =====
     // raids.php
     'raids_heading' => 'Raids',
