@@ -249,6 +249,18 @@ videoalerts.botofthespecter.com {
     }
 }
 
+# Wildcard catch-all for botofthespecter.com subdomains that don't have their
+# own block above (e.g. web1 — the server's own hostname). Exact-host blocks
+# always win; only unmatched subdomains land here. The wildcard cert is issued
+# via the global Cloudflare DNS-01 config (wildcards require DNS-01).
+*.botofthespecter.com {
+    root * /var/www/html
+    import php_app
+    log {
+        output file /var/log/caddy/wildcard-botofthespecter.log
+    }
+}
+
 # Fallback for unrouted subdomains and direct IP access
 * {
     root * /var/www/html
