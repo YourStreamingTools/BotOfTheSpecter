@@ -206,6 +206,8 @@ return [
     'makers_js_failed' => 'Fehlgeschlagen',
     'makers_js_confirm_delete' => 'Dieses Projekt und seine Bilder löschen?',
     'makers_js_upload_failed' => 'Hochladen fehlgeschlagen',
+    'makers_err_file_too_large' => 'Datei zu groß — überschreitet das Server-Uploadlimit von %2$s: %1$s',
+    'makers_js_upload_too_big' => 'Der Server hat die Anfrage abgelehnt — Ihre Bilder sind möglicherweise zu groß, um sie auf einmal hochzuladen.',
     // ===== i18n batch 5 (auto-added) =====
     // raids.php
     'raids_heading' => 'Raids',

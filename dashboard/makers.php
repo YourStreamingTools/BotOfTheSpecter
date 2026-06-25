@@ -173,8 +173,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $stmt->bind_param("i", $id);
         $ok = $stmt->execute();
         $stmt->close();
-        // No manual featured pointer to clear: the overlay auto-falls to the next
-        // most-recent current project after a delete.
+        // If the deleted project was the pinned Featured one, clear the pin so the overlay
+        // falls back to the most-recent current project instead of pointing at nothing.
+        $clear = $db->prepare("UPDATE maker_overlay_settings SET current_project_id = NULL WHERE id = 1 AND current_project_id = ?");
+        $clear->bind_param("i", $id);
+        $clear->execute();
+        $clear->close();
         if ($ok) { maker_notify_overlay($makerApiKey); }
         maker_json(['success' => $ok]);
     }
@@ -189,13 +193,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $exists = $chk->get_result()->fetch_assoc();
         $chk->close();
         if (!$exists) { maker_json(['success' => false, 'error' => t('makers_err_no_such_project')]); }
-        // "Feature now" = mark it current and stamp it as the most recently worked-on
-        // project, so it becomes the featured card immediately.
+        // "Feature now" pins this project as the Featured card. The pin is sticky: it stays
+        // put when other projects are edited, gain images, or are newly created — only another
+        // "Feature now" moves it. Mark it current so the (current-only) Featured box shows it.
         $stmt = $db->prepare("UPDATE maker_projects SET status = 'current', updated_at = NOW() WHERE id = ?");
         $stmt->bind_param("i", $id);
         $ok = $stmt->execute();
         $stmt->close();
-        $db->query("UPDATE maker_overlay_settings SET display_mode = 'current' WHERE id = 1");
+        $pin = $db->prepare("UPDATE maker_overlay_settings SET current_project_id = ? WHERE id = 1");
+        $pin->bind_param("i", $id);
+        $pin->execute();
+        $pin->close();
         if ($ok) { maker_notify_overlay($makerApiKey); }
         maker_json(['success' => $ok]);
     }
@@ -209,12 +217,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $added = [];
         $errors = [];
         foreach ($_FILES['imageFiles']['tmp_name'] as $key => $tmp) {
-            if (empty($tmp)) { continue; }
-            $origName = $_FILES['imageFiles']['name'][$key];
-            $fileSize = $_FILES['imageFiles']['size'][$key];
-            $fileError = $_FILES['imageFiles']['error'][$key] ?? 0;
+            $fileError = $_FILES['imageFiles']['error'][$key] ?? UPLOAD_ERR_NO_FILE;
+            // A genuinely empty slot (no file chosen for this input) is skipped silently.
+            if ($fileError === UPLOAD_ERR_NO_FILE) { continue; }
+            $origName = $_FILES['imageFiles']['name'][$key] ?? '';
+            $fileSize = $_FILES['imageFiles']['size'][$key] ?? 0;
             $display = htmlspecialchars(basename($origName));
-            if ($fileError !== UPLOAD_ERR_OK || !is_uploaded_file($tmp)) { $errors[] = t('makers_err_upload_failed', [$display]); continue; }
+            // PHP leaves tmp_name empty when it rejects a file before it lands (bigger than
+            // upload_max_filesize, or a partial transfer). Report that clearly instead of
+            // silently dropping it, which previously surfaced only as a generic "Upload failed".
+            if ($fileError === UPLOAD_ERR_INI_SIZE || $fileError === UPLOAD_ERR_FORM_SIZE) {
+                $errors[] = t('makers_err_file_too_large', [$display, ini_get('upload_max_filesize')]);
+                continue;
+            }
+            if ($fileError !== UPLOAD_ERR_OK || empty($tmp) || !is_uploaded_file($tmp)) { $errors[] = t('makers_err_upload_failed', [$display]); continue; }
             if ($current_storage_used + $fileSize > $max_storage_size) { $errors[] = t('makers_err_storage_limit', [$display]); continue; }
             $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
             if (!in_array($ext, $makerImageExts, true)) { $errors[] = t('makers_err_not_image', [$display]); continue; }
@@ -313,18 +329,25 @@ if ($res = $db->query("SELECT id, title, description, status, link_url, complete
     $res->free();
 }
 
-// Auto-track: the featured "current" card is the current-status project worked on most
-// recently (newest updated_at; newer id breaks ties). Mirrors overlay/maker.php so the
-// "Featured" badge here matches what viewers actually see.
+// Featured "current" card = the project the user pinned via "Feature now"
+// (maker_overlay_settings.current_project_id), as long as it still exists and is current.
+// Falls back to auto-track — the current-status project worked on most recently (newest
+// updated_at; newer id breaks ties) — when nothing valid is pinned. Mirrors overlay/maker.php
+// so the "Featured" badge here matches what viewers actually see.
 $featuredId = 0;
-$featuredStamp = '';
-foreach ($projects as $pid => $pr) {
-    if ($pr['status'] !== 'current') { continue; }
-    $stamp = (string)($pr['updated_at'] ?? '');
-    if ($featuredId === 0 || strcmp($stamp, $featuredStamp) > 0
-        || ($stamp === $featuredStamp && $pid > $featuredId)) {
-        $featuredId = $pid;
-        $featuredStamp = $stamp;
+$pinnedId = (int)($settings['current_project_id'] ?? 0);
+if ($pinnedId > 0 && isset($projects[$pinnedId]) && $projects[$pinnedId]['status'] === 'current') {
+    $featuredId = $pinnedId;
+} else {
+    $featuredStamp = '';
+    foreach ($projects as $pid => $pr) {
+        if ($pr['status'] !== 'current') { continue; }
+        $stamp = (string)($pr['updated_at'] ?? '');
+        if ($featuredId === 0 || strcmp($stamp, $featuredStamp) > 0
+            || ($stamp === $featuredStamp && $pid > $featuredId)) {
+            $featuredId = $pid;
+            $featuredStamp = $stamp;
+        }
     }
 }
 if (!empty($projects)) {
@@ -586,7 +609,15 @@ document.addEventListener('DOMContentLoaded', function () {
         return fetch('makers.php', {
             method: 'POST',
             body: isForm ? data : new URLSearchParams(data)
-        }).then(function (r) { return r.json(); });
+        }).then(function (r) {
+            // Tolerate a non-JSON reply: when the whole POST exceeds the server's
+            // post_max_size, PHP discards it and returns page HTML, so JSON.parse would throw
+            // and the caller would see nothing. Surface that as a clear message instead.
+            return r.text().then(function (txt) {
+                try { return JSON.parse(txt); }
+                catch (e) { return { success: false, error: <?= json_encode(t('makers_js_upload_too_big')) ?> }; }
+            });
+        });
     }
 
     // Settings save

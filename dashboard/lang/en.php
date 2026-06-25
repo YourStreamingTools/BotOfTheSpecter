@@ -229,6 +229,8 @@ return [
     'makers_js_failed' => 'Failed',
     'makers_js_confirm_delete' => 'Delete this project and its images?',
     'makers_js_upload_failed' => 'Upload failed',
+    'makers_err_file_too_large' => 'File too large — exceeds the %2$s server upload limit: %1$s',
+    'makers_js_upload_too_big' => 'The server rejected the request — your images may be too large to upload at once.',
     // ===== i18n batch 5 (auto-added) =====
     // raids.php
     'raids_heading' => 'Raids',
