@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $visible = intval(!empty($_POST['visible']));
         $showTitle = intval(!empty($_POST['show_title']));
         $showDesc = intval(!empty($_POST['show_description']));
+        $showLink = intval(!empty($_POST['show_link']));
         $showFeatured = intval(!empty($_POST['show_featured']));
         $showCurrent = intval(!empty($_POST['show_current']));
         $showFinished = intval(!empty($_POST['show_finished']));
@@ -94,12 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         // written here. Which boxes show and where they sit is driven by the show_*/
         // position_* flags; the featured project is derived from recency.
         $stmt = $db->prepare("INSERT INTO maker_overlay_settings
-            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured_x, position_featured_y, position_current_x, position_current_y, position_upcoming_x, position_upcoming_y, position_finished_x, position_finished_y, preview_canvas)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_link, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured_x, position_featured_y, position_current_x, position_current_y, position_upcoming_x, position_upcoming_y, position_finished_x, position_finished_y, preview_canvas)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE visible = VALUES(visible),
                 carousel_seconds = VALUES(carousel_seconds), project_rotate_seconds = VALUES(project_rotate_seconds),
                 accent_color = VALUES(accent_color), text_color = VALUES(text_color), font_family = VALUES(font_family),
-                show_title = VALUES(show_title), show_description = VALUES(show_description),
+                show_title = VALUES(show_title), show_description = VALUES(show_description), show_link = VALUES(show_link),
                 show_featured = VALUES(show_featured), show_current = VALUES(show_current),
                 show_finished = VALUES(show_finished), show_upcoming = VALUES(show_upcoming),
                 box_layout = VALUES(box_layout),
@@ -108,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
                 position_upcoming_x = VALUES(position_upcoming_x), position_upcoming_y = VALUES(position_upcoming_y),
                 position_finished_x = VALUES(position_finished_x), position_finished_y = VALUES(position_finished_y),
                 preview_canvas = VALUES(preview_canvas)");
-        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) + 8 position coords (d) + preview_canvas(s)
-        $stmt->bind_param("iiisssiiiiiisdddddddds", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $fx, $fy, $cx, $cy, $ux, $uy, $dx, $dy, $previewCanvas);
+        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_link(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) + 8 position coords (d) + preview_canvas(s)
+        $stmt->bind_param("iiisssiiiiiiisdddddddds", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showLink, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $fx, $fy, $cx, $cy, $ux, $uy, $dx, $dy, $previewCanvas);
         $ok = $stmt->execute();
         $err = $stmt->error;
         $stmt->close();
@@ -306,7 +307,7 @@ $settings = [
     'display_mode' => 'current', 'current_project_id' => null, 'visible' => 1,
     'carousel_seconds' => 6, 'project_rotate_seconds' => 15, 'accent_color' => '#9146FF',
     'text_color' => '#FFFFFF', 'font_family' => 'Arial', 'position' => 'bottom-right',
-    'show_title' => 1, 'show_description' => 1,
+    'show_title' => 1, 'show_description' => 1, 'show_link' => 1,
     'show_featured' => 1, 'show_current' => 0, 'show_finished' => 0, 'show_upcoming' => 0,
     'box_layout' => 'positioned',
     'position_featured_x' => 79, 'position_featured_y' => 64,
@@ -488,6 +489,7 @@ ob_start();
                 <label><input type="checkbox" name="visible" value="1" <?= intval($settings['visible']) ? 'checked' : '' ?>> <?= t('makers_overlay_visible') ?></label>
                 <label><input type="checkbox" name="show_title" value="1" <?= intval($settings['show_title']) ? 'checked' : '' ?>> <?= t('makers_show_title') ?></label>
                 <label><input type="checkbox" name="show_description" value="1" <?= intval($settings['show_description']) ? 'checked' : '' ?>> <?= t('makers_show_description') ?></label>
+                <label><input type="checkbox" name="show_link" value="1" <?= intval($settings['show_link']) ? 'checked' : '' ?>> <?= t('makers_show_link') ?></label>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
                 <span id="makerSettingsStatus" style="align-self:center; font-size:0.85rem;"></span>

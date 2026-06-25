@@ -996,6 +996,7 @@ try {
                 position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
                 show_title TINYINT(1) NOT NULL DEFAULT 1,
                 show_description TINYINT(1) NOT NULL DEFAULT 1,
+                show_link TINYINT(1) NOT NULL DEFAULT 1,
                 show_featured TINYINT(1) NOT NULL DEFAULT 1,
                 show_current TINYINT(1) NOT NULL DEFAULT 0,
                 show_finished TINYINT(1) NOT NULL DEFAULT 0,
