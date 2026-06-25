@@ -237,10 +237,22 @@ ob_start();
                 </tr></thead>
                 <tbody>
                 <?php if (!empty($sites)): foreach ($sites as $s): ?>
-                    <?php $badgeClass = ($s['type'] === 'php') ? 'sp-badge-green' : 'sp-badge-grey'; ?>
+                    <?php
+                        $badgeClass = ($s['type'] === 'php') ? 'sp-badge-green' : 'sp-badge-grey';
+                        $redirectTarget = '';
+                        if ($s['type'] === 'redirect' && !empty($s['target'])) {
+                            // Strip Caddy {placeholders} (e.g. {http.request.uri}) for a clean destination.
+                            $redirectTarget = trim(preg_replace('/\{[^}]*\}/', '', $s['target']));
+                        }
+                    ?>
                     <tr>
                         <td><?php echo !empty($s['hosts']) ? htmlspecialchars(implode(', ', $s['hosts'])) : '<span style="color:var(--text-muted);">&mdash;</span>'; ?></td>
-                        <td><span class="sp-badge <?php echo $badgeClass; ?>"><?php echo htmlspecialchars($typeLabels[$s['type']] ?? $s['type']); ?></span></td>
+                        <td>
+                            <span class="sp-badge <?php echo $badgeClass; ?>"><?php echo htmlspecialchars($typeLabels[$s['type']] ?? $s['type']); ?></span>
+                            <?php if ($redirectTarget !== ''): ?>
+                                <span style="color:var(--text-muted);">&rarr; <?php echo htmlspecialchars($redirectTarget); ?></span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; else: ?>
                     <tr><td colspan="2" style="color:var(--text-muted);"><?php echo t('caddy_no_data'); ?></td></tr>
