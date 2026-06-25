@@ -6183,4 +6183,6 @@ Cette action est irréversible.',
     'caddy_type_reverse_proxy' => 'Reverse-proxy',
     'caddy_type_response' => 'Réponse fixe',
     'caddy_type_other' => 'Autre',
+    'caddy_host_fallback' => 'par défaut — tout autre nom d\'hôte',
+    'caddy_host_all_subdomains' => 'tous les sous-domaines',
 ];

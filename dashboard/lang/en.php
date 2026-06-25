@@ -6218,4 +6218,6 @@ This action cannot be undone.',
     'caddy_type_reverse_proxy' => 'Reverse proxy',
     'caddy_type_response' => 'Fixed response',
     'caddy_type_other' => 'Other',
+    'caddy_host_fallback' => 'fallback — any other hostname',
+    'caddy_host_all_subdomains' => 'all subdomains',
 ];

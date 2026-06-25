@@ -235,6 +235,26 @@ if (!function_exists('caddy_route_type')) {
     }
 }
 
+if (!function_exists('caddy_host_kind')) {
+    /**
+     * Classify a host matcher so the UI can annotate it.
+     *  - '*'        => 'fallback'  (catch-all: any host nothing else matched, + raw IP)
+     *  - '*.zone'   => 'wildcard'  (any subdomain of zone)
+     *  - otherwise  => 'normal'
+     *
+     * @return string fallback|wildcard|normal
+     */
+    function caddy_host_kind($host) {
+        if ($host === '*') {
+            return 'fallback';
+        }
+        if (is_string($host) && strlen($host) > 2 && substr($host, 0, 2) === '*.') {
+            return 'wildcard';
+        }
+        return 'normal';
+    }
+}
+
 if (!function_exists('caddy_parse_sites')) {
     /**
      * One row per top-level route (≈ one Caddyfile site block): the hostnames it

@@ -245,8 +245,21 @@ ob_start();
                             $redirectTarget = trim(preg_replace('/\{[^}]*\}/', '', $s['target']));
                         }
                     ?>
+                    <?php
+                        $hostParts = [];
+                        foreach ($s['hosts'] as $h) {
+                            $kind = caddy_host_kind($h);
+                            if ($kind === 'fallback') {
+                                $hostParts[] = '<code>*</code> <span style="color:var(--text-muted);">(' . htmlspecialchars(t('caddy_host_fallback')) . ')</span>';
+                            } elseif ($kind === 'wildcard') {
+                                $hostParts[] = htmlspecialchars($h) . ' <span style="color:var(--text-muted);">(' . htmlspecialchars(t('caddy_host_all_subdomains')) . ')</span>';
+                            } else {
+                                $hostParts[] = htmlspecialchars($h);
+                            }
+                        }
+                    ?>
                     <tr>
-                        <td><?php echo !empty($s['hosts']) ? htmlspecialchars(implode(', ', $s['hosts'])) : '<span style="color:var(--text-muted);">&mdash;</span>'; ?></td>
+                        <td><?php echo !empty($hostParts) ? implode(', ', $hostParts) : '<span style="color:var(--text-muted);">&mdash;</span>'; ?></td>
                         <td>
                             <span class="sp-badge <?php echo $badgeClass; ?>"><?php echo htmlspecialchars($typeLabels[$s['type']] ?? $s['type']); ?></span>
                             <?php if ($redirectTarget !== ''): ?>
