@@ -1,43 +1,66 @@
 # Makers & Crafting Overlay — Plan
 
-> Status: Draft (see §12 open decisions).
-> Owner: TBD. Last revised 2026-05-30.
+> Status: **Shipped** (stable in `beta.py`, dashboard, overlay). Last reconciled against code 2026-06-26.
+> Originally drafted 2026-05-30; this revision rewrites the plan to match what actually shipped.
+> **One open item:** port `!craft` + `MAKER_UPDATE` to `beta-v6.py` (see §13). Stable `bot.py` was correctly left untouched.
+
+## 0. As-built status at a glance
+
+The feature shipped and evolved past the original draft over ~11 commits (`fd72c7a9` first landing → `4218e898` recency sort). Everything below the line reflects the **code as it exists now**; subsections flag where reality diverged from the 2026-05-30 draft.
+
+| Surface | File | Status |
+|---|---|---|
+| Per-user schema (3 tables) | `./dashboard/includes/usr_database.php` (~lines 962-1015) | ✅ Shipped (expanded) |
+| Overlay (OBS browser source) | `./overlay/maker.php` | ✅ Shipped |
+| Overlay CSS | `./overlay/index.css` (`.maker-*`) | ✅ Shipped |
+| Dashboard management page | `./dashboard/makers.php` | ✅ Shipped |
+| Dashboard overlays card | `./dashboard/overlays.php` (~lines 110-122) | ✅ Shipped |
+| Menu registration | `./dashboard/menu.php` (~line 49, `navbar_makers_crafting`) | ✅ Shipped (Stream Tools submenu) |
+| i18n keys | `./dashboard/lang/en.php` (93+ `makers_*` / `overlays_makers*`) | ✅ Shipped (de/fr unverified) |
+| Bot `!craft` family + `MAKER_UPDATE` | `./bot/beta.py` (~lines 7650-7845, branch ~14912) | ✅ Shipped |
+| `builtin_commands.json` entry | `./api/builtin_commands.json` (`craft`) | ✅ Shipped |
+| WebSocket server | `./websocket/server.py` | ✅ No change needed (generic `else`, ~1233-1246) |
+| Stable bot | `./bot/bot.py` | ✅ Untouched (correct) |
+| **v6 port** | `./bot/beta-v6.py` | ❌ **Not done** — `!craft`/`maker`/`MAKER_UPDATE` all absent |
+
+**Headline divergences from the draft** (detail inline): the single mutually-exclusive `display_mode` became **four independently-toggleable boxes** (a new *featured* box joined current/finished/upcoming); the 4-corner `position` enum became **per-box x/y drag positioning**; both the old `display_mode` and `position` columns are now **dead/unused**.
 
 ## 1. Scope
 
-A new browser-source overlay for makers / crafting content that shows the streamer's **current project and its context**, updatable live from chat without leaving the workflow. It supports three display modes and either an image carousel or text-only context per project.
+A browser-source overlay for makers / crafting content that shows the streamer's **current project and its context**, updatable live from chat without leaving the workflow. **As built** it renders up to four independently-toggleable cards (featured / current / upcoming / finished), each positioned anywhere on the canvas, with either an image carousel or text-only context per project.
 
-**Confirmed product decisions** (2026-05-30):
+**Confirmed product decisions** (2026-05-30, all honoured):
 
-1. **Images come from the unified media library.** Streamers upload project photos through the dashboard; files live in the same storage/CDN as alert media (`/var/www/media/{user}/` → `https://media.botofthespecter.com/{user}/{file}`). No raw files or URLs are typed in chat. **Note:** the media library is audio/video-only today — images are a new content type this plan adds to the same storage (see §3.3, §7).
-2. **All three display modes ship in v1**: single current project, cycle finished projects, highlight upcoming ideas.
-3. **Always-visible card.** The overlay stays on screen the whole stream and updates in place, so late-joining viewers always see what's being made. A streamer-controlled show/hide toggle exists but defaults to visible.
-4. **Dashboard + chat hybrid management.** Project library, image upload/attach, and styling live in the dashboard; chat commands drive fast in-stream actions (new project, set note, switch mode, mark finished, show/hide).
+1. **Images come from the unified media library.** Streamers upload project photos through the dashboard; files live in the same storage/CDN as alert media (`/var/www/media/{user}/` → `https://media.botofthespecter.com/{user}/{file}`). No raw files or URLs are typed in chat. Images are a content type this feature added to that shared storage. **As built:** no `makers/` subdir — files land directly in `/var/www/media/{username}/` (decision §12.3 → shared).
+2. **All display modes shipped in v1.** As built this became four toggleable boxes rather than three exclusive modes (see §4).
+3. **Always-visible card.** The overlay stays on screen and updates in place. A `visible` master toggle plus per-box `show_*` flags default the featured box on and the rest off.
+4. **Dashboard + chat hybrid management.** Project library, image upload/attach, and styling live in `makers.php`; `!craft` chat commands drive fast in-stream actions.
 
-**Affected systems**
+**Affected systems (as built)**
 
-- `./bot/beta.py` — **primary implementation target.** New `!craft` chat command family + a `MAKER_UPDATE` websocket signal land here first, per [bot-versions.md](../rules/bot-versions.md).
-- `./bot/beta-v6.py` — port from beta once stable (TwitchIO 3.2.2 API differs — re-verify command registration).
-- `./bot/bot.py` (stable) — no changes (no critical fix involved).
-- `./websocket/server.py` — no change strictly required; the generic `else` branch in `notify_http` already broadcasts unknown events to the channel's clients + global listeners. Optionally add explicit `MAKER_UPDATE` handling for logging parity (see §9).
-- `./api/api.py` — no changes. Overlay self-serves via PHP; bot and dashboard write per-user MySQL directly, per [data-flow.md](../rules/data-flow.md). See §10.
-- `./overlay/maker.php` — new file. Always-visible card; PHP renders initial state + exposes a `?type=json` endpoint; JS re-fetches on `MAKER_UPDATE`.
-- `./overlay/index.css` — new `.maker-overlay-page-*` classes (overlay CSS lives in its own folder — no cross-folder linking, per the ui-theme system).
-- `./dashboard/makers.php` — new file. Project CRUD, image upload/attach, styling controls.
-- `./dashboard/overlays.php` — add a Makers card (OBS URL + quick settings link).
-- `./dashboard/usr_database.php` — three new per-user tables (auto-deploy via the existing `CREATE TABLE IF NOT EXISTS` loop).
+- `./bot/beta.py` — **primary implementation target.** `!craft` chat command family + `MAKER_UPDATE` websocket signal landed here.
+- `./bot/beta-v6.py` — **NOT YET PORTED.** No `craft`/`maker` code present. This is the remaining work (§13).
+- `./bot/bot.py` (stable) — correctly untouched (no critical fix involved).
+- `./websocket/server.py` — **no change made.** `MAKER_UPDATE` is unrecognised and handled by the generic `else` branch in `notify_http` (~lines 1233-1246), which emits to the channel's `code` clients + global listeners. The optional explicit-branch polish (§9) was not done.
+- `./api/api.py` — **no change.** Overlay self-serves via PHP; bot and dashboard write per-user MySQL directly.
+- `./overlay/maker.php` — new file. Server-renders initial state + exposes `?type=json`; JS re-fetches on `MAKER_UPDATE`.
+- `./overlay/index.css` — `.maker-*` classes (overlay folder's own stylesheet).
+- `./dashboard/makers.php` — new file. Project CRUD, image upload/attach, styling controls, drag-positioning editor.
+- `./dashboard/overlays.php` — Makers card added (OBS URL + gear → `makers.php`).
+- `./dashboard/menu.php` — registered under Stream Tools (`navbar_makers_crafting`, `fa-palette`).
+- `./dashboard/includes/usr_database.php` — three per-user tables in the `$tables` schema array (auto-deploy via `CREATE TABLE IF NOT EXISTS`). **Path note:** the schema file moved under `includes/` (commit `1bd301d0`); the original draft referenced `./dashboard/usr_database.php`.
 - Per-user MySQL DB — `maker_projects`, `maker_project_images`, `maker_overlay_settings`.
 
-**Explicitly out of scope** (separable, future work):
+**Explicitly out of scope** (still out, as built):
 
-- Adding the Makers card into `all.php` (the master overlay is built around transient alerts, not a persistent card — see §12.6).
+- Adding the Makers card into `all.php` (master overlay is built around transient alerts — see §12.6).
 - Per-project analytics (time spent, view counts).
-- Pulling images from external sources (Etsy, Instagram). Dashboard upload only for v1.
+- Pulling images from external sources (Etsy, Instagram).
 - Viewer-submitted project ideas. The overlay is streamer-owned; chat commands are broadcaster/mod-only.
 
 ## 2. Current state inventory
 
-What exists today that this plan builds on, so we extend rather than reinvent.
+What this plan built on. (Unchanged from the draft — both overlay patterns were reused as intended.)
 
 ### Overlay patterns (two, both reused)
 
@@ -46,46 +69,36 @@ What exists today that this plan builds on, so we extend rather than reinvent.
 | **DB-persisted + JSON re-fetch** | `./overlay/counters.php` | PHP reads per-user DB on load, renders, exposes `?type=json`; JS keeps the value fresh. Survives OBS browser-source reload. |
 | **WebSocket push** | `./overlay/deaths.php`, `all.php` | Socket.io 4.8.3 client registers with `?code=API_KEY`, listens for named events, re-renders. Auto-reconnect with backoff. |
 
-**This overlay combines both** (the right fit for an always-visible card that only changes on command): PHP persists + renders the current state on load; a lightweight `MAKER_UPDATE` websocket signal tells the overlay to re-fetch its JSON and re-render. No constant polling — satisfies [overlays.md](../rules/overlays.md) rule 2 ("all real-time data comes from the WebSocket; don't poll the API for live updates").
+**This overlay combines both** (the right fit for an always-visible card that only changes on command): PHP persists + renders the current state on load; a lightweight `MAKER_UPDATE` websocket signal tells the overlay to re-fetch its JSON and re-render. No constant polling — satisfies [overlays.md](../rules/overlays.md) rule 2.
 
-### Chat command → overlay path (already wired)
+### Chat command → overlay path (as wired)
 
 1. Bot command handler in `beta.py` writes per-user MySQL directly (`mysql_connection()` → channel's own DB).
-2. Bot calls `websocket_notice(event="…", additional_data={…})` (`beta.py` ~line 12754).
-3. `websocket_notice` URL-encodes params → HTTP GET `https://websocket.botofthespecter.com/notify?...` (~line 12945).
-4. WebSocket server `notify_http` validates the key, then broadcasts. **Unknown events fall through to the generic `else` branch** (`server.py` ~line 812) which emits to every client registered under that `code` plus global listeners. So a brand-new event needs **no server-side change**.
-5. Overlay (Socket.io client) reacts.
+2. Bot calls `websocket_notice(event="MAKER_UPDATE", additional_data={"action": subcommand})` (`beta.py` ~line 7845, fire-and-forget via `safe_create_task`).
+3. `websocket_notice` (~line 14729) has an `elif event == "MAKER_UPDATE"` branch (~line 14912) that does `params.update(additional_data)`, URL-encodes, and HTTP GETs `https://websocket.botofthespecter.com/notify?...` (~line 14939).
+4. WebSocket server `notify_http` validates the key, then the generic `else` (~line 1233) emits `MAKER_UPDATE` to every client under that `code` plus global listeners. **No server-side change was required and none was made.**
+5. Overlay (Socket.io client) reacts by re-fetching `maker.php?type=json`.
 
-**One bot-side gotcha:** `websocket_notice`'s final `else` (`beta.py` ~line 12940) *rejects* unrecognised events ("requires additional parameters or is not recognized"). So the bot needs one new `elif event == "MAKER_UPDATE"` branch that passes `additional_data` through. Several existing events already do exactly `params.update(additional_data)` — copy that.
+**Also emitted from the dashboard:** `makers.php` calls `maker_notify_overlay($apiKey)` (GET `…/notify?code=…&event=MAKER_UPDATE`) after **every** state change (create/update/delete project, set_current, upload/attach/delete image, save_settings), so dashboard edits hot-update the overlay too.
 
 ### Unified media library (images reuse it)
 
 - Storage (server): `/var/www/media/{username}/`. CDN: `https://media.botofthespecter.com/{username}/{file}`.
-- Today it holds **MP3/MP4 only** (sound alerts, video alerts, twitch event sounds, walkons) — see [media-unified-library.md](./media-unified-library.md).
-- Images (`jpg/png/webp`) are a **new content type**. This plan uploads them into the same `/var/www/media/{username}/` dir (new feature, no migration concern — independent of the `users.new_media` alert-migration flag) through a dedicated Makers uploader, so makers images and alert media share one CDN host and storage-usage accounting.
-
-### Dashboard overlay-config pattern
-
-`overlays.php` per-overlay shape (e.g. credits, `overlays.php` ~lines 29-58, 110-130):
-- A per-user settings table (e.g. `credits_overlay_settings`, singleton `WHERE id = 1`).
-- A `sp-card` showing the OBS browser-source URL + a gear button opening an `sp-modal-backdrop` settings modal.
-- A POST handler (`*_overlay_save`) doing `INSERT … ON DUPLICATE KEY UPDATE`, returning JSON.
-
-For Makers, the *quick* settings (mode, visibility, styling) fit this modal; the richer project library + image management warrant a dedicated `makers.php` page linked from the card.
+- Images (`png/jpg/jpeg/gif`) were added as a content type into that shared dir. **As built:** validated via `./dashboard/includes/upload_helpers.php` (`upload_validate_extension_and_mime()`, `upload_sanitize_filename()`, `upload_unique_target()`), with storage-cap accounting. **Note vs draft:** `gif` is allowed; `webp` (named in the draft) is **not**.
 
 ### Schema deployment
 
-`./dashboard/usr_database.php` holds a `$tables` array (~line 40) of `CREATE TABLE IF NOT EXISTS` statements applied to every per-user DB. Adding entries there auto-provisions the new tables across all users — same path the `walkons` table used.
+`./dashboard/includes/usr_database.php` holds the `$tables` array of `CREATE TABLE IF NOT EXISTS` statements applied to every per-user DB. The three maker tables were added there and auto-provision across all users — same path `walkons` used.
 
-### Command namespace — collision to avoid
+### Command namespace — collision avoided
 
-The [working-and-study.md](./working-and-study.md) plan defines a **viewer-scoped** `!project` command (each viewer partitions their own task backlog). The Makers overlay is **broadcaster/mod-only**. To avoid a confusing shared verb, this plan uses **`!craft`** as the canonical command (see §12.1 for the naming decision). `!project` is **not** available.
+`!project` is the viewer-scoped working/study command; the Makers surface is broadcaster/mod-only, so it uses **`!craft`** (with aliases `wip`, `projects`, etc.). Decision §12.1 → `!craft`, honoured.
 
-## 3. Data model (per-user DB)
+## 3. Data model (per-user DB) — as built
 
-Three new tables. Match the house style: InnoDB, `utf8mb4_unicode_ci`, indexes (not hard FKs — cascade handled in app code, consistent with the rest of the schema).
+Three tables in `./dashboard/includes/usr_database.php` (~lines 962-1015). InnoDB, `utf8mb4_unicode_ci`, indexed (no hard FKs — cascade in app code).
 
-### 3.1 `maker_projects`
+### 3.1 `maker_projects` (matches the draft exactly)
 
 ```sql
 CREATE TABLE IF NOT EXISTS maker_projects (
@@ -102,12 +115,11 @@ CREATE TABLE IF NOT EXISTS maker_projects (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ```
 
-- `status` is the project's lifecycle stage and the basis for the three display modes: `current` = work-in-progress, `finished` = completed (shown in the finished carousel), `upcoming` = idea/backlog.
-- `description` is the "related context" (materials, technique, notes) — free text.
-- `link_url` optional (pattern, shop listing, reference). Rendered as a small link/QR-free label; validated to `http(s)://` only.
-- `completed_at` set when a project is marked finished (used to sort the finished carousel newest-first).
+- `status` drives which box a project appears in. **Multiple `current`-status rows are allowed** (a pool of WIPs — decision §12.5).
+- `updated_at` doubles as the **recency signal** for auto-featuring: the featured project is the most-recently-updated `current` row unless a manual pin overrides it. Every bot mutation (`note`/`link`/`image`/`current`) stamps `updated_at = NOW()`.
+- `description` is free-text context; `link_url` validated `http(s)://`; `completed_at` stamped on finish, sorts the finished box newest-first.
 
-### 3.2 `maker_project_images`
+### 3.2 `maker_project_images` (matches the draft exactly)
 
 ```sql
 CREATE TABLE IF NOT EXISTS maker_project_images (
@@ -121,16 +133,17 @@ CREATE TABLE IF NOT EXISTS maker_project_images (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ```
 
-- `media_file` is a filename inside `/var/www/media/{username}/`; the overlay builds `https://media.botofthespecter.com/{username}/{media_file}`.
-- A project with zero image rows renders as a **text-only** card (the notes' "simple text updates when images are not needed").
-- Deleting a project deletes its image rows in app code (no DB cascade). Deleting an image row does **not** delete the underlying file (it may be shared / reusable).
+- `media_file` is a filename inside `/var/www/media/{username}/`; the overlay builds the CDN URL.
+- A project with zero image rows renders as a **text-only** card.
+- Deleting a project deletes its image rows in app code (no DB cascade). Deleting an image row does **not** delete the file (shared/reusable).
+- `sort_order` exists and the overlay/dashboard read `ORDER BY sort_order ASC, id ASC`, **but no reorder UI shipped** (see §13).
 
-### 3.3 `maker_overlay_settings` (singleton, `id = 1`)
+### 3.3 `maker_overlay_settings` (singleton `id = 1`) — significantly expanded vs the draft
 
 ```sql
 CREATE TABLE IF NOT EXISTS maker_overlay_settings (
     id TINYINT PRIMARY KEY DEFAULT 1,
-    display_mode ENUM('current','finished','upcoming') NOT NULL DEFAULT 'current',
+    display_mode ENUM('current','finished','upcoming') NOT NULL DEFAULT 'current',   -- DEAD/UNUSED (see note)
     current_project_id INT DEFAULT NULL,
     visible TINYINT(1) NOT NULL DEFAULT 1,
     carousel_seconds INT NOT NULL DEFAULT 6,
@@ -138,125 +151,149 @@ CREATE TABLE IF NOT EXISTS maker_overlay_settings (
     accent_color VARCHAR(7) DEFAULT '#9146FF',
     text_color VARCHAR(7) DEFAULT '#FFFFFF',
     font_family VARCHAR(50) DEFAULT 'Arial',
-    position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
+    position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',  -- DEAD/UNUSED
     show_title TINYINT(1) NOT NULL DEFAULT 1,
     show_description TINYINT(1) NOT NULL DEFAULT 1,
+    show_link TINYINT(1) NOT NULL DEFAULT 1,
+    show_featured TINYINT(1) NOT NULL DEFAULT 1,
+    show_current TINYINT(1) NOT NULL DEFAULT 0,
+    show_finished TINYINT(1) NOT NULL DEFAULT 0,
+    show_upcoming TINYINT(1) NOT NULL DEFAULT 0,
+    box_layout ENUM('positioned','stacked-left','stacked-right') NOT NULL DEFAULT 'positioned',
+    position_featured_x DECIMAL(5,2) NOT NULL DEFAULT 79.00,
+    position_featured_y DECIMAL(5,2) NOT NULL DEFAULT 64.00,
+    position_current_x  DECIMAL(5,2) NOT NULL DEFAULT 2.00,
+    position_current_y  DECIMAL(5,2) NOT NULL DEFAULT 64.00,
+    position_upcoming_x DECIMAL(5,2) NOT NULL DEFAULT 79.00,
+    position_upcoming_y DECIMAL(5,2) NOT NULL DEFAULT 3.00,
+    position_finished_x DECIMAL(5,2) NOT NULL DEFAULT 2.00,
+    position_finished_y DECIMAL(5,2) NOT NULL DEFAULT 3.00,
+    preview_canvas VARCHAR(12) NOT NULL DEFAULT '1920x1080',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ```
 
-- `display_mode` — which of the three modes the overlay renders right now.
-- `current_project_id` — the featured WIP shown in `current` mode (points at a `maker_projects.id`; `NULL` → show an "idle" placeholder or nothing).
-- `visible` — show/hide the whole card (default on; chat-toggleable).
-- `carousel_seconds` — image auto-advance interval inside one project.
-- `project_rotate_seconds` — cycle interval between projects in `finished`/`upcoming` modes.
-- Styling fields (`accent_color`, `text_color`, `font_family`, `position`, `show_*`) drive the card appearance; colours validated to `#RRGGBB`, font against an allowlist (the `counters.php` / `todolist.php` pattern).
+Field notes (as built):
 
-## 4. Display modes
+- **`current_project_id`** — manual "Feature now" pin (set by the dashboard `set_current` action, which also forces that project to `status='current'`). When `NULL`, the overlay falls back to recency (most-recently-updated `current` project). The bot has **no `!craft pin`**; `!craft current <id>` works by recency (stamps `updated_at`), not by writing this column.
+- **`visible`** — master on/off for the whole overlay.
+- **`show_featured` / `show_current` / `show_finished` / `show_upcoming`** — per-box visibility. These (not `display_mode`) decide what renders; **multiple boxes can show at once.** Defaults: featured on, the rest off.
+- **`show_title` / `show_description` / `show_link`** — content toggles within a card.
+- **`box_layout`** — `positioned` (free x/y), `stacked-left`, or `stacked-right`.
+- **`position_*_x` / `position_*_y`** — per-box placement as canvas percentages (drag-editor output). Replaces the 4-corner enum.
+- **`preview_canvas`** — `1280x720` / `1920x1080` / `2560x1440`; scales the dashboard drag-editor preview only.
+- **`carousel_seconds`** (2–60) image advance within a project; **`project_rotate_seconds`** (3–120) rotation between projects in a multi-project box.
+- Styling: `accent_color` / `text_color` validated `#RRGGBB`; `font_family` from an 8-font whitelist (Arial, Verdana, Georgia, Tahoma, Trebuchet MS, Times New Roman, Courier New, Inter).
+- **`display_mode` and `position` are DEAD columns** — left in the schema from the original design but never read by `maker.php`. Candidates for removal once the system-DB migrations tooling (`.claude/plans/2026-06-21-system-db-migrations.md`) exists; until then leave them (they're per-user, harmless, and removing them ad-hoc isn't worth a schema sweep).
 
-The overlay reads `display_mode` and renders accordingly:
+## 4. Display model — as built (changed from the draft)
 
-| Mode | Source query | Render |
+The draft proposed **one** `display_mode` showing exactly one of three categories. **What shipped instead:** four independent boxes, each toggled by its own `show_*` flag and placed independently, able to render simultaneously.
+
+| Box | Source | Render |
 |---|---|---|
-| **current** | the one project where `id = current_project_id` (+ its images) | Single card: title, context, image carousel (auto-advance every `carousel_seconds`). Text-only if no images. |
-| **finished** | `SELECT … WHERE status='finished' ORDER BY completed_at DESC` (+ images) | Cycle through finished projects every `project_rotate_seconds`; each project runs its own image carousel while shown. |
-| **upcoming** | `SELECT … WHERE status='upcoming' ORDER BY sort_order, id` (+ images) | Highlight upcoming ideas — same rotation as finished, framed as "Coming up". |
+| **featured** | the pinned `current_project_id`, else most-recently-updated `current` project (+ its images) | Single hero card: title, context, image carousel (every `carousel_seconds`). Text-only if no images. Default on. |
+| **current** | `status='current'` projects | Rotates through WIPs every `project_rotate_seconds`, each with its own image carousel. Default off. |
+| **upcoming** | `status='upcoming'` ORDER BY `sort_order`, `id` | "Coming up" rotation. Default off. |
+| **finished** | `status='finished'` ORDER BY `completed_at DESC` | Completed-projects rotation. Default off. |
 
-Empty-state handling per mode (no current project set / no finished projects / no upcoming ideas) renders a muted placeholder rather than a blank card, so the browser source is never an empty rectangle.
+- The bot's `!craft mode <featured|current|finished|upcoming>` is a convenience that flips to showing **only** that one box (sets its flag on, the others off) — the exclusive-mode idea from the draft survives as one command, not as the core mechanism.
+- `!craft show` / `!craft hide` toggle a single box (or the whole overlay's `visible` when given no category).
+- Empty boxes render a muted placeholder rather than a blank rectangle.
+- The `?type=json` endpoint returns `{ ok, settings, featured, current[], finished[], upcoming[] }`; the client renders whichever boxes are flagged on and runs the carousels/rotations from the timing fields.
 
-## 5. Chat command surface (`!craft`)
+## 5. Chat command surface (`!craft`) — as built
 
-Broadcaster/mod-only (reuse the existing `command_permissions("mod", …)` gate seen on `!deaths`). One parent command with subcommands, registered via the existing `builtin_commands` dict + handler in `beta.py` event processing — the same wiring the working/study plan uses.
+Broadcaster/mod-only (single command-level gate via the `builtin_commands` row; default `mod`, dashboard-configurable status/permission/cooldown). Registered with `@commands.command(name='craft')` in `beta.py` (~line 7650) plus a `craft` entry in `./api/builtin_commands.json`. **Per-subcommand enable toggles were not built** — gating is all-or-nothing at the command level (divergence from draft §5).
 
-| Command | Behaviour |
-|---|---|
-| `!craft new <title>` | Create a project (`status='current'`), set it as `current_project_id`, switch `display_mode='current'`. Bot confirms in chat with the new project id. |
-| `!craft note <text>` | Set the featured project's `description` (the context line). `!craft note +<text>` appends. |
-| `!craft link <url>` | Set the featured project's `link_url` (validated `http(s)://`). |
-| `!craft current <id>` | Make project `<id>` the featured current one (and `display_mode='current'`). |
-| `!craft finish` | Mark the featured project `status='finished'`, stamp `completed_at`. Clears `current_project_id` (or leaves it; see §12.4). |
-| `!craft upcoming <title>` | Create a project with `status='upcoming'`. |
-| `!craft mode <current\|finished\|upcoming>` | Switch the overlay display mode. |
-| `!craft image <filename>` | Attach an already-uploaded media image (by filename) to the featured project. Validates the file exists under `/var/www/media/{channel}/`. (Primary image management is the dashboard; this is the in-stream convenience.) |
-| `!craft show` / `!craft hide` | Toggle `visible`. |
-| `!craft list` | Bot replies in chat with projects + ids, grouped by status (concise, single message). |
-| `!craft remove <id>` | Delete a project (+ its image rows). |
+| Command | Aliases | Behaviour |
+|---|---|---|
+| `!craft new <title>` | `wip` | Create a `current` project; recency auto-features it; sets `show_featured=1`. |
+| `!craft note <text>` | `desc`, `context` | Set the featured project's `description` (max 2000). `+<text>` appends. Stamps `updated_at`. |
+| `!craft link <url>` | — | Set the featured project's `link_url` (validated `http(s)://`, max 500). |
+| `!craft current <id>` | — | Make `<id>` the featured project by stamping `updated_at=NOW()` (recency), force `status='current'`, `show_featured=1`. |
+| `!craft finish` | — | Mark featured project `finished`, stamp `completed_at`. Overlay auto-falls to the next-most-recent `current`. |
+| `!craft upcoming <title>` | — | Create an `upcoming` project (not featured). |
+| `!craft mode <featured\|current\|finished\|upcoming>` | — | Show only that one box. |
+| `!craft image <filename>` | — | Attach an uploaded image (by filename) to the featured project. **Validates extension (`png/jpg/jpeg/gif`) + char-set only — no file-existence check** (divergence from draft §8.3). |
+| `!craft show [category]` / `!craft hide [category]` | — | Toggle one box on/off, or the whole overlay's `visible` if no category. |
+| `!craft list` | `projects` | Reply in chat with projects + ids grouped by status (≤10 per message). |
+| `!craft remove <id>` | `delete` | Delete a project (+ its image rows). Overlay auto-falls to the next `current` by recency. |
 
-Every state-changing command: **write per-user MySQL → emit `MAKER_UPDATE`** so the overlay re-fetches and re-renders instantly. Bot replies are concise single lines (chat-clutter is the main risk). Each subcommand gets an enable/disable toggle in the dashboard so a streamer can lock the surface down.
+Every state-changing command writes per-user MySQL → emits `MAKER_UPDATE` (`{action: subcommand}`). Replies are concise single lines.
 
-## 6. Overlay rendering (`./overlay/maker.php`)
+## 6. Overlay rendering (`./overlay/maker.php`) — as built
 
 OBS browser source: `https://overlay.botofthespecter.com/maker.php?code=API_KEY`.
 
-**PHP (server-render + JSON endpoint), following `counters.php`:**
-- Resolve `?code=` → username via `website.users` (prepared statement).
-- `?type=json` → return the full overlay state: `settings` + the projects/images relevant to `display_mode`. `Cache-Control: no-store`.
-- Default (no `type`) → render the initial card HTML (so a reload shows current state immediately) and boot the JS.
-- All config loaded from the per-user DB on page load — overlay stays stateless ([overlays.md](../rules/overlays.md) rule 1). API key in the URL is the only auth (rule 9).
+- Resolves `?code=` → username via `website.users` (`SELECT username FROM users WHERE api_key = ?`).
+- `?type=json` → returns the full state object (above), `Cache-Control: no-store`, `Access-Control-Allow-Origin: *`.
+- Default → server-renders the boxes' initial HTML (positions injected as inline `left`/`top` %), then boots the JS.
+- JS: Socket.io 4.8.3 to `wss://websocket.botofthespecter.com`, `REGISTER` with `{code, …}`, on `MAKER_UPDATE` → re-fetch `?type=json` and re-render (no full reload). Auto-reconnect with backoff.
+- Carousels (`carousel_seconds`) and project rotation (`project_rotate_seconds`) run client-side from the JSON.
+- Honours `visible`, the per-box `show_*` flags, `box_layout`, x/y positions, colours (`--maker-accent`/`--maker-text`), and `font_family`.
+- Stateless — all config from the per-user DB on load; `?code` is the only auth. CSS in `./overlay/index.css` (`.maker-*`).
 
-**JS (Socket.io 4.8.3 client), following `deaths.php`:**
-- Connect to `wss://websocket.botofthespecter.com`, `REGISTER` with `{ code, channel:'Overlay', name:'Makers' }`.
-- On `MAKER_UPDATE`: re-fetch `?type=json`, re-render the card (no full reload).
-- Auto-reconnect with capped backoff (rule 4 — OBS sources stay open for hours).
-- Image carousel + project rotation handled client-side from the fetched JSON (timers from `carousel_seconds` / `project_rotate_seconds`).
-- Resolution-independent sizing (rule 7) — the `counters.php` fit-to-source approach is a good reference; use relative units, no hardcoded px.
-- Honour `visible` (hide the card entirely when off) and `position`.
+## 7. Dashboard (`./dashboard/makers.php` + card in `overlays.php`) — as built
 
-**CSS:** new `.maker-overlay-page-*` block in `./overlay/index.css` (the overlay folder's own stylesheet — never link dashboard CSS). Reuse existing token/animation conventions; do not invent new colours outside the configured `accent_color`/`text_color`.
+**`makers.php`:**
+- **Project library** — create / edit / delete; set title, description (≤2000), `link_url` (regex `^https?://`), status. Listed grouped by status, each group `ORDER BY updated_at DESC, id DESC`. **"Feature now"** button (`set_current`) sets the sticky `current_project_id` pin. **No reorder UI** despite `sort_order` existing.
+- **Image management** — `upload_image` writes to `/var/www/media/{username}/` (created if absent) with MIME+extension validation (`png/jpg/jpeg/gif`) via `upload_helpers.php`, filename sanitisation, collision-safe unique naming, and storage-cap accounting; `attach_image` links an existing media file (with caption); `delete_image` removes the row (file persists). No image-reorder UI.
+- **Quick settings** (`save_settings`) — `visible`, per-box `show_*` flags, content `show_title/description/link`, `carousel_seconds` (2–60), `project_rotate_seconds` (3–120), `accent_color`/`text_color`, `font_family` (8-font whitelist), `box_layout`, `preview_canvas`, and a **drag-positioning editor** that writes the eight `position_*_x/y` values. The legacy `position` enum is intentionally **not** written. No `display_mode` picker (display is bot/flag-driven).
+- Every action calls `maker_notify_overlay()` → emits `MAKER_UPDATE` so the overlay hot-updates.
+- Fully i18n'd via `t()` (93+ `makers_*` / `overlays_makers*` keys in `en.php`; de/fr coverage **unverified** — flag for the i18n remediation pass). Registered in `menu.php` (~line 49) under Stream Tools as `navbar_makers_crafting` (`fa-palette`).
 
-## 7. Dashboard (`./dashboard/makers.php` + card in `overlays.php`)
+**`overlays.php`:** a `sp-card` "Makers & Crafting" (`overlays_makers_crafting`) with a gear linking to `makers.php` and the OBS URL `https://overlay.botofthespecter.com/maker.php?code=API_KEY_HERE`.
 
-**`makers.php` (new page):**
-- **Project library** — list grouped by status; create/edit/delete; set title, description, link, status; reorder; "set as current" button. Uses the `sp-card` / `sp-modal` patterns and `dashboard.css` `sp-` classes (per the ui-theme system — dashboard pages load `dashboard.css` from their own folder).
-- **Image management** — per project: upload (multi), attach existing media files, set captions, reorder, remove. Upload writes to `/var/www/media/{username}/` (creating the dir if absent), validating **image** MIME + extension (`jpg/jpeg/png/webp`) and a size cap; reuses `storage_used.php` accounting.
-- **Quick settings** — display mode, visibility, carousel/rotation timing, styling (accent/text colour, font, position, show title/description), per-subcommand enable toggles. POST handler `maker_overlay_save` → `INSERT … ON DUPLICATE KEY UPDATE` on `maker_overlay_settings`, returns JSON. After save, emit `MAKER_UPDATE` (via the existing dashboard→websocket trigger path) so the overlay hot-updates.
+## 8. Bot gap analysis (`./bot/beta.py`) — resolved
 
-**`overlays.php` (existing page):** add a `sp-card` for "Makers & Crafting" showing the OBS URL `https://overlay.botofthespecter.com/maker.php?code=API_KEY_HERE` and a link/gear to `makers.php`.
+1. ✅ `!craft` family implemented in event/command processing, registered in `builtin_commands.json`, gated mod/broadcaster (command-level only — no per-subcommand gating).
+2. ✅ `websocket_notice` has the `elif event == "MAKER_UPDATE": params.update(additional_data)` branch (~line 14912). Payload is a lightweight `{action}` signal; the overlay re-fetches real state from `maker.php?type=json`.
+3. ⚠️ `!craft image` does **not** validate file existence under `/var/www/media/{channel}/` — only extension/char-set checks. The draft wanted `ssh_manager.file_exists('WEB', …)`. Optional hardening (§13).
+4. ✅ No token/refresh, no new background task. DB is the source of truth.
 
-## 8. Bot gap analysis (`./bot/beta.py`)
+## 9. WebSocket gap analysis (`./websocket/server.py`) — resolved
 
-1. **New command family** `!craft …` — handler in event message processing, registered in `builtin_commands`, gated to mod/broadcaster. Help text added to `builtin_commands` info.
-2. **One new branch in `websocket_notice`** — `elif event == "MAKER_UPDATE": params.update(additional_data or {})` (the final `else` otherwise rejects unknown events). Payload is a lightweight signal (e.g. `{action, project_id}`); the overlay re-fetches the real state from `maker.php?type=json`, so we never stuff nested project/image data through the query string.
-3. **`!craft image`** validates file existence under `/var/www/media/{channel}/` — reuse the existing `ssh_manager.file_exists('WEB', …)` helper the WALKON path already uses, or a direct check if the bot shares the media volume.
-4. No token/refresh, no new background task. The bot stays stateless about overlay rendering — DB is the source of truth.
+- ✅ **No change made or needed.** `MAKER_UPDATE` is unrecognised → handled by the generic `else` in `notify_http` (~lines 1233-1246), which emits to all clients under the channel `code` + global listeners. Code-scoping is enforced there.
+- The optional explicit-branch logging polish was **not** done (low priority; defer unless logging noise matters).
+- No server-side ticker — carousel/rotation timing is client-side.
 
-## 9. WebSocket gap analysis (`./websocket/server.py`)
+## 10. API gap analysis (`./api/api.py`) — resolved
 
-- **No change strictly required.** `MAKER_UPDATE` is unrecognised → handled by the generic `else` in `notify_http` (~line 812), which emits to all clients under the channel `code` + global listeners. Code-scoping (one streamer's events don't leak to another) is already enforced there.
-- **Optional polish:** add `MAKER_UPDATE` to an explicit branch for consistent logging (mirroring `STREAM_ONLINE` etc.) and, if desired, restrict to overlay clients. Low priority — defer unless logging noise matters.
-- No new server-side ticker (carousel/rotation timing is client-side in the overlay).
+✅ **No changes.** Overlay self-serves via `maker.php` (per-user DB direct); dashboard reads/writes per-user DB via PHP; bot writes per-user DB via `mysql_connection()`. (Future, out of scope: a `/api/extension/makers` endpoint if the Twitch Extension panel ever surfaces projects to viewers.)
 
-## 10. API gap analysis (`./api/api.py`)
+## 11. Implementation order — completed (1–7), pending (8)
 
-**No changes.** Every read/write path is covered:
-- Overlay self-serves config + project data via `maker.php` PHP (per-user DB direct).
-- Dashboard reads/writes the per-user DB directly via PHP.
-- Bot writes the per-user DB directly via `mysql_connection()`, per [data-flow.md](../rules/data-flow.md).
+1. ✅ Schema — three tables in `./dashboard/includes/usr_database.php`.
+2. ✅ Dashboard `makers.php` — project library CRUD.
+3. ✅ Overlay `maker.php` — featured/current rendering + `?type=json` + Socket.io `MAKER_UPDATE` refetch.
+4. ✅ Bot `!craft` commands + the `websocket_notice` branch.
+5. ✅ Image management — upload/attach (MIME validation) + overlay carousel + `!craft image`.
+6. ✅ The four boxes — project rotation + `!craft mode` / `upcoming` / `finish` + per-box `show_*` flags.
+7. ✅ Styling + drag-positioning editor in the dashboard; card in `overlays.php`.
+8. ❌ **Port to `beta-v6.py`** — not started (see §13).
 
-Future (out of scope): if the Twitch Extension panel ever surfaces the project list to viewers, that would need a new `/api/extension/makers` endpoint. Not part of this plan.
+Steps 1–7 deliver a fully usable feature on the `beta.py` bot.
 
-## 11. Implementation order
+## 12. Open decisions — resolved
 
-Each step is independently shippable; together they deliver all three modes.
+1. **Command name** → **`!craft`** (with aliases `wip`/`projects`/`desc`/`context`/`delete`). ✅
+2. **File names** → overlay `maker.php` (singular), dashboard `makers.php` (plural). ✅
+3. **Image storage** → shared `/var/www/media/{username}/`, **no `makers/` subdir**. ✅
+4. **`!craft finish` + featured pointer** → no manual pointer to clear; recency auto-falls to the next `current` project (or empty state). ✅
+5. **Multiple `current` projects** → **pool + featured pointer** shipped: many `current` rows allowed; featured = sticky pin (`current_project_id`) or most-recent by recency. ✅
+6. **Add to `all.php`?** → **No**, shipped standalone. ✅ (revisit only on demand)
+7. **Image count / size caps** → enforced via the shared storage cap + per-file `upload_max_filesize`; **no explicit per-project image-count cap** was added. (Optional follow-up if abuse appears.)
+8. **Carousel transition style** → client-side, cosmetic; not separately configurable.
 
-1. **Schema** — add the three tables to `./dashboard/usr_database.php` (`CREATE TABLE IF NOT EXISTS` auto-deploys to all per-user DBs).
-2. **Dashboard `makers.php` — project library CRUD** (no images yet). Validates the data model end to end.
-3. **Overlay `maker.php` — `current` mode** (PHP render + `?type=json` + Socket.io `MAKER_UPDATE` refetch). First visible win: a live single-project card.
-4. **Bot `!craft` commands** + the `websocket_notice` branch. Wires chat → DB → overlay.
-5. **Image management** — dashboard upload/attach (image MIME validation) + overlay carousel + `!craft image`.
-6. **`finished` and `upcoming` modes** — project rotation in the overlay + `!craft mode` / `!craft upcoming` / `!craft finish`.
-7. **Styling + quick-settings modal** in dashboard; add the card to `overlays.php`.
-8. **Port to `beta-v6.py`** once stable (separate session; re-verify TwitchIO 3.2.2 command registration).
+## 13. Remaining work / follow-ups
 
-Steps 1–4 alone ship a usable "current project, live from chat" overlay.
+Ordered by value:
 
-## 12. Open decisions
-
-1. **Command name.** Recommendation: **`!craft`** (short, on-theme; `!project` is taken by working/study's viewer-scoped command). Alternatives: `!making`, `!makers`, `!wip`, `!showcase`. Worth confirming since it's user-facing. Aliases can be added cheaply.
-2. **Standalone file name** — `maker.php` (recommended, singular, matches `deaths.php`/`weather.php`) vs `makers.php`/`crafting.php`. Dashboard page proposed as `makers.php` (plural reads better for a library page) — fine to differ, but confirm.
-3. **Image upload into the shared media library vs a dedicated `makers/` subdir.** Recommendation: shared `/var/www/media/{username}/` so storage accounting and the CDN host stay unified. Downside: makers photos and alert sounds share one flat dir. A `/var/www/media/{username}/makers/` subdir would isolate them — decide based on how `media.php`'s future file browser should treat images.
-4. **`!craft finish` and `current_project_id`** — when the featured project is finished, clear `current_project_id` (overlay shows idle placeholder in `current` mode) or auto-promote the next `current`-status project? Recommendation: clear it and let the streamer pick the next with `!craft new`/`!craft current`.
-5. **Multiple `current`-status projects.** The model allows many `status='current'` rows but only one is *featured* via `current_project_id`. Is that the intended mental model (a pool of WIPs, one featured), or should `current` be exactly one at a time? Recommendation: pool + featured pointer (more flexible; `!craft list` shows all WIPs).
-6. **Add to `all.php`?** The master overlay is built for transient alerts, not a persistent card. Recommendation: ship standalone; revisit adding an always-visible Makers region to `all.php` only if streamers ask.
-7. **Image count / size caps per project.** Recommendation: cap ~10 images/project and reuse the existing per-file size limit from `media.php` uploads; surface storage usage in `makers.php`.
-8. **Carousel transition style** (crossfade vs slide) and whether captions overlay the image or sit beneath — cosmetic; pick during step 5, default to crossfade + caption beneath.
+1. **Port `!craft` + `MAKER_UPDATE` to `./bot/beta-v6.py`.** The only feature-completeness gap. TwitchIO 3.2.2 differs from 2.10 — re-verify command registration, the `commands` API, and the `websocket_notice` equivalent; do **not** assume the `beta.py` block drops in verbatim ([bot-versions.md](../rules/bot-versions.md)). Stable `bot.py` stays untouched.
+2. **`!craft image` file-existence validation** — add the `ssh_manager.file_exists('WEB', …)` check the draft intended, so attaching a non-existent filename fails fast instead of producing a broken overlay image. (Low effort; both `beta.py` and the v6 port.)
+3. **Image-reorder UI** in `makers.php` — `sort_order` exists and is honoured by queries, but there's no drag-to-reorder control. Carousels currently order by `sort_order, id` with no way to change `sort_order`.
+4. **i18n de/fr coverage** — confirm the `makers_*` / `overlays_makers*` keys exist in `de.php` and `fr.php`; fold into the dashboard i18n remediation pass if not.
+5. **Per-subcommand enable toggles** — the draft wanted each `!craft` subcommand individually lockable; only command-level gating shipped. Decide whether to build this or formally drop it.
+6. **Retire dead columns** `display_mode` and `position` from `maker_overlay_settings` — defer to the system-DB migrations tooling ([2026-06-21-system-db-migrations.md](./2026-06-21-system-db-migrations.md)) rather than an ad-hoc per-user schema sweep.
+7. **webp support** (optional) — the draft listed `webp`; only `png/jpg/jpeg/gif` shipped. Add to the upload allowlist + `!craft image` check if wanted.
