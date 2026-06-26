@@ -438,13 +438,17 @@ ob_start();
                         </tbody>
                     </table>
                     <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_drag_label') ?></label>
-                    <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.5rem;"><?= t('makers_drag_hint') ?></p>
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.35rem;"><?= t('makers_drag_hint') ?></p>
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.5rem;"><i class="fas fa-magnet" style="margin-right:0.35rem;"></i><?= t('makers_snap_hint') ?></p>
                     <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_canvas_size') ?></label>
-                    <select id="makerCanvasSize" name="preview_canvas" class="sp-input" style="max-width:220px; margin-bottom:0.6rem;">
-                        <?php foreach (['1280x720' => '1280 × 720 (720p)', '1920x1080' => '1920 × 1080 (1080p)', '2560x1440' => '2560 × 1440 (2K)'] as $cv => $cl): ?>
-                            <option value="<?= $cv ?>" <?= (($settings['preview_canvas'] ?? '1920x1080') === $cv) ? 'selected' : '' ?>><?= $cl ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-bottom:0.6rem;">
+                        <select id="makerCanvasSize" name="preview_canvas" class="sp-input" style="max-width:220px;">
+                            <?php foreach (['1280x720' => '1280 × 720 (720p)', '1920x1080' => '1920 × 1080 (1080p)', '2560x1440' => '2560 × 1440 (2K)'] as $cv => $cl): ?>
+                                <option value="<?= $cv ?>" <?= (($settings['preview_canvas'] ?? '1920x1080') === $cv) ? 'selected' : '' ?>><?= $cl ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" id="makerExpandBtn" class="sp-btn sp-btn-sm sp-btn-secondary"><i class="fas fa-expand"></i> <?= t('makers_expand_editor') ?></button>
+                    </div>
                     <div id="makerPosCanvas" class="maker-pos-canvas">
                         <?php
                         $dragBoxes = [
@@ -461,7 +465,11 @@ ob_start();
                         <input type="hidden" name="position_<?= $bk ?>_x" id="makerPosX_<?= $bk ?>" value="<?= $xv ?>">
                         <input type="hidden" name="position_<?= $bk ?>_y" id="makerPosY_<?= $bk ?>" value="<?= $yv ?>">
                         <?php endforeach; ?>
+                        <div class="maker-pos-guide maker-pos-guide-v" id="makerGuideV"></div>
+                        <div class="maker-pos-guide maker-pos-guide-h" id="makerGuideH"></div>
+                        <button type="button" class="maker-pos-expand-close" id="makerExpandClose" title="<?= htmlspecialchars(t('makers_collapse_editor')) ?>" aria-label="<?= htmlspecialchars(t('makers_collapse_editor')) ?>">&times;</button>
                     </div>
+                    <div class="maker-pos-backdrop" id="makerPosBackdrop"></div>
                 </div>
                 <div>
                     <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_font') ?></label>
@@ -785,6 +793,53 @@ document.addEventListener('DOMContentLoaded', function () {
         var dragging = null, grabX = 0, grabY = 0;
         function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+        // --- Smart snapping ---------------------------------------------------------------
+        // While dragging, align the chip's near edge / center / far edge to other chips and
+        // to the canvas edges, center and thirds. A guide line flags an active snap. Hold Alt
+        // to bypass and place freely.
+        var guideV = document.getElementById('makerGuideV');
+        var guideH = document.getElementById('makerGuideH');
+        var SNAP_PX = 7; // snap pull distance in screen pixels (converted to % per axis)
+        // Candidate snap lines for one axis: canvas edges/center/thirds + every other chip's
+        // near edge, center and far edge.
+        function snapLines(activeChip, cr, axis) {
+            var lines = [0, 100 / 3, 50, 200 / 3, 100];
+            chips.forEach(function (other) {
+                if (other === activeChip) { return; }
+                var near = parseFloat(other.style[axis === 'x' ? 'left' : 'top']) || 0;
+                var sizePct = axis === 'x'
+                    ? (other.offsetWidth / cr.width) * 100
+                    : (other.offsetHeight / cr.height) * 100;
+                lines.push(near, near + sizePct / 2, near + sizePct);
+            });
+            return lines;
+        }
+        // Nudge the chip's left/top (%) so its closest anchor lands on a snap line. Returns
+        // the new position and the snapped line (for the guide), or null when nothing is in range.
+        function snapAxis(pos, sizePct, lines, threshPct) {
+            var anchors = [pos, pos + sizePct / 2, pos + sizePct];
+            var best = null;
+            for (var i = 0; i < lines.length; i++) {
+                for (var a = 0; a < anchors.length; a++) {
+                    var d = Math.abs(anchors[a] - lines[i]);
+                    if (d <= threshPct && (best === null || d < best.dist)) {
+                        best = { pos: pos + (lines[i] - anchors[a]), line: lines[i], dist: d };
+                    }
+                }
+            }
+            return best;
+        }
+        function showGuide(el, prop, pct) {
+            if (!el) { return; }
+            if (pct === null) { el.classList.remove('is-active'); return; }
+            el.style[prop] = pct + '%';
+            el.classList.add('is-active');
+        }
+        function hideGuides() {
+            if (guideV) { guideV.classList.remove('is-active'); }
+            if (guideH) { guideH.classList.remove('is-active'); }
+        }
+
         // Size the chips to the real box footprint for the chosen OBS canvas, so the
         // preview is true-to-scale. The overlay card is a fixed 360px wide, so its share
         // of the canvas (and representative height) scales with the canvas width.
@@ -823,15 +878,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 var cr = canvas.getBoundingClientRect();
                 var wpct = (chip.offsetWidth / cr.width) * 100;
                 var hpct = (chip.offsetHeight / cr.height) * 100;
-                var xp = clamp(((e.clientX - cr.left - grabX) / cr.width) * 100, 0, 100 - wpct);
-                var yp = clamp(((e.clientY - cr.top - grabY) / cr.height) * 100, 0, 100 - hpct);
+                var rawX = ((e.clientX - cr.left - grabX) / cr.width) * 100;
+                var rawY = ((e.clientY - cr.top - grabY) / cr.height) * 100;
+                var snapX = null, snapY = null;
+                if (!e.altKey) {
+                    var sx = snapAxis(rawX, wpct, snapLines(chip, cr, 'x'), SNAP_PX / cr.width * 100);
+                    var sy = snapAxis(rawY, hpct, snapLines(chip, cr, 'y'), SNAP_PX / cr.height * 100);
+                    if (sx) { rawX = sx.pos; snapX = sx.line; }
+                    if (sy) { rawY = sy.pos; snapY = sy.line; }
+                }
+                var xp = clamp(rawX, 0, 100 - wpct);
+                var yp = clamp(rawY, 0, 100 - hpct);
+                // Clamping at a canvas edge can pull the chip off the snapped line; only show a
+                // guide when an anchor still sits on it.
+                if (snapX !== null && ![xp, xp + wpct / 2, xp + wpct].some(function (v) { return Math.abs(v - snapX) < 0.4; })) { snapX = null; }
+                if (snapY !== null && ![yp, yp + hpct / 2, yp + hpct].some(function (v) { return Math.abs(v - snapY) < 0.4; })) { snapY = null; }
+                showGuide(guideV, 'left', snapX);
+                showGuide(guideH, 'top', snapY);
                 chip.style.left = xp + '%';
                 chip.style.top = yp + '%';
                 var box = chip.getAttribute('data-box');
                 document.getElementById('makerPosX_' + box).value = xp.toFixed(2);
                 document.getElementById('makerPosY_' + box).value = yp.toFixed(2);
             });
-            function endDrag() { if (dragging === chip) { dragging = null; } }
+            function endDrag() { if (dragging === chip) { dragging = null; hideGuides(); } }
             chip.addEventListener('pointerup', endDrag);
             chip.addEventListener('pointercancel', endDrag);
         });
@@ -847,6 +917,24 @@ document.addEventListener('DOMContentLoaded', function () {
             var cb = document.querySelector('input[name="show_' + box + '"]');
             if (cb) { cb.addEventListener('change', syncDisabled); }
         });
+
+        // Expand the editor to a large centered panel for easier, more precise placement.
+        // It's the same canvas element (same chips, snapping and hidden inputs) — only its
+        // size changes, so everything keeps working untouched.
+        var expandBtn = document.getElementById('makerExpandBtn');
+        var expandClose = document.getElementById('makerExpandClose');
+        var backdrop = document.getElementById('makerPosBackdrop');
+        function setExpanded(on) {
+            canvas.classList.toggle('is-expanded', on);
+            if (backdrop) { backdrop.classList.toggle('is-active', on); }
+        }
+        if (expandBtn) { expandBtn.addEventListener('click', function () { setExpanded(true); }); }
+        if (expandClose) { expandClose.addEventListener('click', function () { setExpanded(false); }); }
+        if (backdrop) { backdrop.addEventListener('click', function () { setExpanded(false); }); }
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && canvas.classList.contains('is-expanded')) { setExpanded(false); }
+        });
+
         applyCanvasSize();
         syncDisabled();
     })();

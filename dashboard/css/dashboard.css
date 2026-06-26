@@ -4266,3 +4266,54 @@ label.checkbox input[type="checkbox"] {
 }
 .maker-pos-chip:active { cursor: grabbing; }
 .maker-pos-chip.is-disabled { opacity: 0.3; }
+
+/* Smart-alignment snap guides: thin lines shown only while a snap is active */
+.maker-pos-guide {
+    position: absolute;
+    background: var(--amber, #fbbf24);
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+}
+.maker-pos-guide.is-active { display: block; }
+.maker-pos-guide-v { top: 0; bottom: 0; width: 1px; }
+.maker-pos-guide-h { left: 0; right: 0; height: 1px; }
+
+/* Expand-to-large: dim backdrop + the canvas promoted to a centered 16:9 panel */
+.maker-pos-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 999;
+    display: none;
+}
+.maker-pos-backdrop.is-active { display: block; }
+.maker-pos-canvas.is-expanded {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(92vw, 156vh);
+    max-width: 1400px;
+    z-index: 1000;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+}
+.maker-pos-expand-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 2rem;
+    height: 2rem;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    line-height: 1;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    z-index: 6;
+}
+.maker-pos-canvas.is-expanded .maker-pos-expand-close { display: flex; }
