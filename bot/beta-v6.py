@@ -9889,12 +9889,8 @@ async def process_dynamic_variables(
                 # Handle (count)
                 if '(count)' in response:
                     try:
+                        # Counters only ever increment by 1 per use; user input never affects the amount.
                         count_increment = 1
-                        if arg is not None:
-                            try:
-                                count_increment = int(arg)
-                            except (ValueError, TypeError):
-                                count_increment = 1
                         await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
                         cc_result = await cursor.fetchone()
                         if cc_result:
@@ -9914,12 +9910,8 @@ async def process_dynamic_variables(
                     if count_name_match:
                         count_key = count_name_match.group(1)
                         try:
+                            # Counters only ever increment by 1 per use; user input never affects the amount.
                             count_increment = 1
-                            if arg is not None:
-                                try:
-                                    count_increment = int(arg)
-                                except (ValueError, TypeError):
-                                    count_increment = 1
                             await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (count_key,))
                             cc_result = await cursor.fetchone()
                             if cc_result:
@@ -9948,12 +9940,8 @@ async def process_dynamic_variables(
                 # Handle (usercount) - regular commands only; channel points use reward_counts below
                 if '(usercount)' in response and not channel_point_data:
                     try:
+                        # Counters only ever increment by 1 per use; user input never affects the amount.
                         count_increment = 1
-                        if arg is not None:
-                            try:
-                                count_increment = int(arg)
-                            except (ValueError, TypeError):
-                                count_increment = 1
                         await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
                         uc_result = await cursor.fetchone()
                         if uc_result:
