@@ -5829,6 +5829,8 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
                     return
                 end_time = active_timer["end_time"]
+                if end_time.tzinfo is None:
+                    end_time = end_time.replace(tzinfo=timezone.utc)
                 remaining_time = end_time - time_right_now(timezone.utc)
                 minutes_left = remaining_time.total_seconds() // 60
                 seconds_left = remaining_time.total_seconds() % 60
