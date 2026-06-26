@@ -231,15 +231,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Drive a single box: render list[0], carousel its images, and (if more than one
-    // project) rotate through the list. Each box keeps its own indices and timers.
+    // project) rotate through the list. Each project renders into its own crossfade layer
+    // and its first image is preloaded, so rotations fade smoothly with no blank-box blink.
     function runRegion(region, list, label, s) {
         var projIdx = 0;
         var carTimer = null;
+        var activeLayer = null;
+        // Match the CSS --maker-fade (10% of the per-image on-screen time) so the old layer
+        // is removed only once it has finished fading out.
+        var fadeMs = Math.max(2, parseInt(s.carousel_seconds, 10) || 6) * 100;
 
-        function startCarousel() {
-            var imgs = region.querySelectorAll('.maker-overlay-page-image');
+        function startCarousel(layer) {
+            var imgs = layer.querySelectorAll('.maker-overlay-page-image');
             if (imgs.length <= 1) { return; }
-            var capEl = region.querySelector('.maker-overlay-page-caption');
+            var capEl = layer.querySelector('.maker-overlay-page-caption');
             var imgIdx = 0;
             carTimer = setInterval(function () {
                 imgs[imgIdx].classList.remove('is-active');
@@ -247,14 +252,50 @@ document.addEventListener('DOMContentLoaded', function () {
                 imgs[imgIdx].classList.add('is-active');
                 if (capEl) { capEl.textContent = imgs[imgIdx].getAttribute('data-caption') || ''; }
             }, Math.max(2, parseInt(s.carousel_seconds, 10) || 6) * 1000);
+            layer._carouselTimer = carTimer; // so the layer's carousel stops when it is removed
             regionTimers.push(carTimer);
         }
 
+        // Preload the project's first (immediately shown) image into the browser cache, then
+        // run cb. cb also fires on error, when the image is already cached, or after a short
+        // ceiling so a slow/broken image can't stall the rotation.
+        function preloadFirst(p, cb) {
+            if (!p.images || !p.images.length) { cb(); return; }
+            var probe = new Image();
+            var done = false;
+            function finish() { if (!done) { done = true; cb(); } }
+            probe.onload = finish;
+            probe.onerror = finish;
+            probe.src = p.images[0].url;
+            if (probe.complete) { finish(); }
+            setTimeout(finish, 1500);
+        }
+
         function showProj(idx) {
-            // Stop the previous project's carousel before swapping in the next card.
+            // Stop the outgoing project's carousel before bringing in the next card.
             if (carTimer) { clearInterval(carTimer); carTimer = null; }
-            region.innerHTML = renderProjectCard(list[idx], s, label);
-            startCarousel();
+            var nextLayer = document.createElement('div');
+            nextLayer.className = 'maker-overlay-page-layer';
+            nextLayer.innerHTML = renderProjectCard(list[idx], s, label);
+            region.appendChild(nextLayer);
+            var prev = activeLayer;
+            activeLayer = nextLayer;
+
+            preloadFirst(list[idx], function () {
+                // A full re-render (MAKER_UPDATE) detaches the region; bail so we don't
+                // crossfade or start carousels on dead nodes.
+                if (!region.isConnected) { return; }
+                void nextLayer.offsetWidth; // commit opacity:0 so adding is-shown transitions
+                nextLayer.classList.add('is-shown');
+                startCarousel(nextLayer);
+                if (prev) {
+                    prev.classList.remove('is-shown');
+                    setTimeout(function () {
+                        if (prev._carouselTimer) { clearInterval(prev._carouselTimer); }
+                        if (prev.parentNode) { prev.parentNode.removeChild(prev); }
+                    }, fadeMs + 80);
+                }
+            });
         }
 
         showProj(0);
@@ -279,6 +320,11 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         el.style.display = 'block';
+
+        // Crossfade duration = ~10% of the per-image on-screen time (min 2s -> 0.2s). Shared
+        // by the image carousel and the project-rotation crossfade via the --maker-fade var.
+        var fadeSeconds = Math.max(2, parseInt(s.carousel_seconds, 10) || 6) * 0.1;
+        el.style.setProperty('--maker-fade', fadeSeconds + 's');
 
         // Assemble the enabled boxes in display order: Featured, Current, Upcoming, Finished.
         // Featured highlights the single auto-tracked project; the rest rotate their bucket.
