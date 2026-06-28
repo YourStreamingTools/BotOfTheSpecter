@@ -155,7 +155,17 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
         $types .= 's';
         $values[] = $expiresAt;
     }
-    $sql = "UPDATE bot_chat_token SET " . implode(', ', $setSql) . " LIMIT 1";
+    $rowId = isset($settings['row']['id']) ? (int) $settings['row']['id'] : 0;
+    if ($rowId > 0) {
+        // Anchor the write to the exact row every reader loads (ORDER BY id ASC LIMIT 1),
+        // so a stray multi-row table can't leave the renew updating a different row than is read back.
+        $sql = "UPDATE bot_chat_token SET " . implode(', ', $setSql) . " WHERE id = ? LIMIT 1";
+        $types .= 'i';
+        $values[] = $rowId;
+    } else {
+        // No usable id on the fetched row: at least match the ordering every reader uses.
+        $sql = "UPDATE bot_chat_token SET " . implode(', ', $setSql) . " ORDER BY id ASC LIMIT 1";
+    }
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         return ['success' => false, 'error' => t('admin_twitch_tokens_err_prepare_update', [$conn->error])];
