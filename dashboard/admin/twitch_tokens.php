@@ -139,7 +139,7 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
             return ['success' => false, 'error' => t('admin_twitch_tokens_err_insert_row', [$error])];
         }
         $insert->close();
-        return ['success' => true];
+        return verifyPersistedChatToken($conn, $accessToken);
     }
     if (!$tokenColumn || !isSafeColumnName($tokenColumn)) {
         return ['success' => false, 'error' => t('admin_twitch_tokens_err_no_token_column')];
@@ -177,6 +177,21 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
         return ['success' => false, 'error' => t('admin_twitch_tokens_err_update_token', [$error])];
     }
     $stmt->close();
+    return verifyPersistedChatToken($conn, $accessToken);
+}
+
+// Read back the row every reader loads and confirm the chat token persisted intact. This
+// catches silent VARCHAR truncation or a wrong-row write BEFORE we report success, so the
+// admin page never shows a green "renewed" status for a token the bot can't actually use.
+function verifyPersistedChatToken($conn, $accessToken) {
+    $verify = fetchWebsiteTwitchSettings($conn);
+    $storedToken = isset($verify['chat_token']) ? (string) $verify['chat_token'] : '';
+    // fetchWebsiteTwitchSettings trims the stored value, so trim the expected side too — the
+    // comparison stays symmetric and a legit token can never read as a false mismatch.
+    $expectedToken = trim((string) $accessToken);
+    if ($storedToken !== $expectedToken) {
+        return ['success' => false, 'error' => t('admin_twitch_tokens_err_persist_mismatch', [strlen($storedToken), strlen($expectedToken)])];
+    }
     return ['success' => true];
 }
 
@@ -225,6 +240,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
         $token = isset($_POST['access_token']) ? trim($_POST['access_token']) : '';
         $autoRenewIf24h = isset($_POST['auto_renew_if_24h']) && $_POST['auto_renew_if_24h'] === '1';
         $syncChatExpiry = isset($_POST['sync_chat_expiry']) && $_POST['sync_chat_expiry'] === '1';
+        // Only the chat-token path sets this: if the (app) token is invalid, mint+persist a fresh one.
+        $renewIfInvalid = isset($_POST['renew_if_invalid']) && $_POST['renew_if_invalid'] === '1';
         if (empty($token)) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_access_token_required')]);
             exit;
@@ -286,6 +303,30 @@ if ($curlError) {
             }
             echo json_encode($resp);
         } else {
+            // Chat token is invalid: mint a fresh app access token via client_credentials and
+            // persist it to bot_chat_token so the bot (and every reader) picks up the new token.
+            if ($renewIfInvalid) {
+                $settings = fetchWebsiteTwitchSettings($conn);
+                if (!empty($settings['client_id']) && !empty($settings['client_secret'])) {
+                    $renewResult = requestTwitchAppAccessToken($settings['client_id'], $settings['client_secret']);
+                    if (!empty($renewResult['success'])) {
+                        $persistResult = persistWebsiteChatToken($conn, $renewResult['access_token'], $renewResult['expires_in'] ?? 0);
+                        if (!empty($persistResult['success'])) {
+                            echo json_encode([
+                                'success' => true,
+                                'auto_renewed' => true,
+                                'renewed_token' => $renewResult['access_token'],
+                                'renewed_expires_in' => $renewResult['expires_in'] ?? 0
+                            ]);
+                            exit;
+                        }
+                        // Minted a fresh token but could not save it (incl. truncation read-back
+                        // mismatch) — surface the real error instead of the generic invalid one.
+                        echo json_encode(['success' => false, 'error' => $persistResult['error'] ?? t('admin_twitch_tokens_err_persist_token')]);
+                        exit;
+                    }
+                }
+            }
             $error = json_decode($response, true);
             $errorMsg = isset($error['message']) ? $error['message'] : t('admin_twitch_tokens_err_validate_http', [$httpCode]);
             echo json_encode(['success' => false, 'error' => $errorMsg]);
@@ -1540,7 +1581,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function validateChatToken(token) {
+function validateChatToken(token, allowAutoRenew = true) {
     const statusCell = document.getElementById('chat-status');
     const expiryCell = document.getElementById('chat-expiry');
     const button = document.getElementById('validate-chat-btn');
@@ -1550,8 +1591,15 @@ function validateChatToken(token) {
     const formData = new FormData();
     formData.append('validate_token', '1');
     formData.append('access_token', token);
-    formData.append('auto_renew_if_24h', '1');
     formData.append('sync_chat_expiry', '1');
+    if (allowAutoRenew) {
+        // Primary validations (page load / Validate button) let the server auto-renew the app
+        // token: refresh it within 24h of expiry, or mint + persist a fresh one if it's invalid,
+        // so the bot always picks up a working token from bot_chat_token. Post-renew re-validations
+        // pass false, so a renewal can never loop.
+        formData.append('auto_renew_if_24h', '1');
+        formData.append('renew_if_invalid', '1');
+    }
     fetch('', {
         method: 'POST',
         body: formData
@@ -1564,7 +1612,8 @@ function validateChatToken(token) {
                 statusCell.textContent = TT_I18N.statusAutoRenewed;
                 statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = TT_I18N.statusRefreshing;
-                setTimeout(() => validateChatToken(chatToken), 500);
+                // Re-validate without the renew flag so a bad renewal can't loop.
+                setTimeout(() => validateChatToken(chatToken, false), 500);
                 return;
             }
             const val = data.validation;
@@ -1788,7 +1837,7 @@ function renewChatToken(clientId, clientSecret) {
                 document.getElementById('copy-chat-token').addEventListener('click', function() {
                     copyChatToken('chat-token-input');
                 });
-                setTimeout(() => validateChatToken(chatToken), 400);
+                setTimeout(() => validateChatToken(chatToken, false), 400);
             } else {
                 const err = data.error || TT_I18N.errChatGenerate;
                 resultContent.innerHTML = `<p class="sp-text-danger">${err}</p>`;
