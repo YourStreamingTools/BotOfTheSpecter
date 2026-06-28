@@ -145,49 +145,64 @@ function format_admin_elapsed_seconds($seconds) {
     return $minutes . 'm';
 }
 
-function get_admin_bot_uptime_from_version_file($username, $botType) {
-    try {
-        if (empty($username) || !class_exists('SSHConnectionManager')) {
-            return ['uptime_seconds' => null, 'uptime_human' => t('admin_start_bots_label_unknown')];
-        }
-        global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-        if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
-            return ['uptime_seconds' => null, 'uptime_human' => t('admin_start_bots_label_unknown')];
-        }
-        $versionFilePath = "/home/botofthespecter/logs/version";
-        if ($botType === 'beta' || $botType === 'custom') {
-            $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
-        } elseif ($botType === 'v6') {
-            $versionFilePath .= "/v6/{$username}_v6_version_control.txt";
-        } else {
-            $versionFilePath .= "/{$username}_version_control.txt";
-        }
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        if (!$connection) {
-            return ['uptime_seconds' => null, 'uptime_human' => t('admin_start_bots_label_unknown')];
-        }
-        $mtimeCmd = "stat -c %Y " . escapeshellarg($versionFilePath) . " 2>/dev/null";
-        $mtimeOutput = SSHConnectionManager::executeCommand($connection, $mtimeCmd);
-        if (function_exists('sanitizeSSHOutput')) {
-            $mtimeOutput = sanitizeSSHOutput($mtimeOutput);
-        } else {
-            $mtimeOutput = preg_replace('/\\s*\\[exit_code:\\s*-?\\d+\\]\\s*$/', '', (string) $mtimeOutput);
-            $mtimeOutput = trim((string) $mtimeOutput);
-        }
-        if ($mtimeOutput !== false && $mtimeOutput !== null && is_numeric(trim((string) $mtimeOutput))) {
-            $mtime = (int) trim((string) $mtimeOutput);
-            if ($mtime > 0) {
-                $elapsed = max(0, time() - $mtime);
-                return [
-                    'uptime_seconds' => $elapsed,
-                    'uptime_human' => format_admin_elapsed_seconds($elapsed)
-                ];
-            }
-        }
-    } catch (Exception $e) {
-        client_console_log('admin uptime lookup failed for ' . $username . ': ' . $e->getMessage(), 'warn');
+function scan_running_bots_via_ps($filterUsername = null) {
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    $bots = [];
+    if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password) || !class_exists('SSHConnectionManager')) {
+        return $bots;
     }
-    return ['uptime_seconds' => null, 'uptime_human' => t('admin_start_bots_label_unknown')];
+    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+    if (!$connection) {
+        return $bots;
+    }
+    $output = SSHConnectionManager::executeCommand($connection, "ps -ww -eo pid=,etimes=,args=");
+    if (function_exists('sanitizeSSHOutput')) {
+        $output = sanitizeSSHOutput($output);
+    }
+    if ($output === false || $output === null) {
+        return $bots;
+    }
+    foreach (preg_split('/\r?\n/', (string) $output) as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        // Columns: <pid> <etimes> <args...>
+        if (!preg_match('/^(\d+)\s+(\d+)\s+(.*)$/', $line, $m)) {
+            continue;
+        }
+        $pid = (int) $m[1];
+        $etimes = (int) $m[2];
+        $args = $m[3];
+        if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $args, $sm)) {
+            continue;
+        }
+        $script = $sm[2]; // 'bot' | 'beta-v6' | 'beta'
+        if (!preg_match('/-channel\s+(\S+)/', $args, $cm)) {
+            continue;
+        }
+        $uname = $cm[1];
+        if ($filterUsername !== null && strcasecmp($uname, $filterUsername) !== 0) {
+            continue;
+        }
+        if ($script === 'bot') {
+            $botType = 'stable';
+        } elseif ($script === 'beta-v6') {
+            $botType = 'v6';
+        } else {
+            $botType = preg_match('/(^|\s)-custom(\s|$)/', $args) ? 'custom' : 'beta';
+        }
+        // One bot per channel is expected; first match wins.
+        if (!isset($bots[$uname])) {
+            $bots[$uname] = [
+                'pid' => $pid,
+                'bot_type' => $botType,
+                'uptime_seconds' => $etimes,
+                'uptime_human' => format_admin_elapsed_seconds($etimes)
+            ];
+        }
+    }
+    return $bots;
 }
 
 // Lightweight wrapper to provide a start_bot_for_user() function when missing.
@@ -288,74 +303,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
             echo json_encode(['success' => false, 'message' => 'SSH configuration not available', 'bots' => []]);
             exit;
         }
-        // Use the bot control helper to check each user's stable bot status (matches admin index behaviour)
+        // Single SSH `ps` call returns every running bot at once. This used to be an
+        // O(N users x several SSH calls) loop over status.py -- the main slowness.
         require_once __DIR__ . '/../includes/bot_control_functions.php';
         $running_bots = [];
-        // Fetch all users to check their bot status
-        $stmtUsers = $conn->prepare("SELECT username FROM users");
-        if ($stmtUsers && $stmtUsers->execute()) {
-            $res = $stmtUsers->get_result();
-            while ($u = $res->fetch_assoc()) {
-                $uname = $u['username'];
-                try {
-                    // Check for stable bot first
-                    $stableStatus = checkBotRunning($uname, 'stable');
-                    if (isset($stableStatus['running']) && $stableStatus['running']) {
-                        $uptime = get_admin_bot_uptime_from_version_file($uname, 'stable');
-                        $running_bots[] = [
-                            'username' => $uname,
-                            'pid' => $stableStatus['pid'] ?? 'unknown',
-                            'bot_type' => 'stable',
-                            'version' => $stableStatus['version'] ?? '',
-                            'uptime_seconds' => $uptime['uptime_seconds'],
-                            'uptime_human' => $uptime['uptime_human']
-                        ];
-                    } else {
-                        // If stable is not running, check custom BEFORE beta.
-                        // checkBotRunning('beta') also falls back to custom mode, so order matters.
-                        $customStatus = checkBotRunning($uname, 'custom');
-                        if (isset($customStatus['running']) && $customStatus['running']) {
-                            $uptime = get_admin_bot_uptime_from_version_file($uname, 'custom');
-                            $running_bots[] = [
-                                'username' => $uname,
-                                'pid' => $customStatus['pid'] ?? 'unknown',
-                                'bot_type' => 'custom',
-                                'version' => $customStatus['version'] ?? '',
-                                'uptime_seconds' => $uptime['uptime_seconds'],
-                                'uptime_human' => $uptime['uptime_human']
-                            ];
-                        } else {
-                            // If neither stable nor custom is running, check for beta bot
-                            $betaStatus = checkBotRunning($uname, 'beta');
-                            if (isset($betaStatus['running']) && $betaStatus['running']) {
-                                $uptime = get_admin_bot_uptime_from_version_file($uname, 'beta');
-                                $running_bots[] = [
-                                    'username' => $uname,
-                                    'pid' => $betaStatus['pid'] ?? 'unknown',
-                                    'bot_type' => 'beta',
-                                    'version' => $betaStatus['version'] ?? '',
-                                    'uptime_seconds' => $uptime['uptime_seconds'],
-                                    'uptime_human' => $uptime['uptime_human']
-                                ];
-                            }
-                        }
-                    }
-                } catch (Exception $e) {
-                    // Ignore per-user errors but capture in debug
-                    client_console_log('checkBotRunning error for ' . $uname . ': ' . $e->getMessage());
-                }
-            }
-            $stmtUsers->close();
-        } else {
-            $debug = ob_get_clean();
-            echo json_encode(['success' => false, 'message' => 'Failed to fetch users from database', 'bots' => [], 'debug' => $debug]);
-            exit;
+        $scanned = scan_running_bots_via_ps();
+        foreach ($scanned as $scanUname => $scanInfo) {
+            $running_bots[] = [
+                'username' => $scanUname,
+                'pid' => $scanInfo['pid'],
+                'bot_type' => $scanInfo['bot_type'],
+                'version' => '',
+                'uptime_seconds' => $scanInfo['uptime_seconds'],
+                'uptime_human' => $scanInfo['uptime_human']
+            ];
         }
         $debug = ob_get_clean();
         echo json_encode(['success' => true, 'bots' => $running_bots, 'debug' => $debug]);
     } catch (Exception $e) {
         $debug = ob_get_clean();
         echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'bots' => [], 'debug' => $debug]);
+    }
+    exit;
+}
+
+// Lightweight single-bot status check (used by Restart All to verify ONE bot without
+// re-scanning every user). One SSH `ps` call, filtered to this channel.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['check_one_bot'])) {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    header('Content-Type: application/json');
+    try {
+        require_once __DIR__ . '/../includes/bot_control_functions.php';
+        $uname = trim($_GET['username'] ?? '');
+        if ($uname === '') {
+            echo json_encode(['success' => false, 'message' => 'Missing username', 'pid' => 0]);
+            exit;
+        }
+        $scanned = scan_running_bots_via_ps($uname);
+        $entry = null;
+        foreach ($scanned as $info) {
+            $entry = $info; // filtered set, at most one
+            break;
+        }
+        if ($entry) {
+            echo json_encode([
+                'success' => true,
+                'running' => true,
+                'pid' => $entry['pid'],
+                'bot_type' => $entry['bot_type']
+            ]);
+        } else {
+            echo json_encode(['success' => true, 'running' => false, 'pid' => 0]);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'pid' => 0]);
     }
     exit;
 }
@@ -798,6 +801,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     client_console_log("Bot restart request - Username: {$username}, Bot Type: {$botType}, PID: {$pid}");
     $success = false;
     $message = '';
+    $restartedPid = 0;
     if (empty($username)) {
         $message = t('admin_start_bots_err_username_required');
     } else {
@@ -872,6 +876,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $result = performBotAction('run', $actionBotType, $params);
                     client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
+                    $restartedPid = is_array($result) ? (int) ($result['pid'] ?? 0) : 0;
                     // Clarify which bot type was started
                     $message = $result['message'] . t('admin_start_bots_msg_version_suffix', [ucfirst($botType)]);
                 } else {
@@ -900,7 +905,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
         $username
     );
     $debug = ob_get_clean();
-    echo json_encode(['success' => $success, 'message' => $message, 'debug' => $debug]);
+    echo json_encode(['success' => $success, 'message' => $message, 'pid' => $restartedPid, 'bot_type' => $botType, 'debug' => $debug]);
     exit;
 }
 
@@ -2373,35 +2378,36 @@ ob_start();
                     body: formData
                 });
                 const data = await response.json();
-                if (data.success) {
-                    // Wait a moment for the bot to fully restart
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    // Refresh bot status to get new PID
-                    const statusResponse = await fetch('?get_running_bots=1');
-                    const statusData = await statusResponse.json();
-                    if (statusData.success) {
-                        // Find the bot in the new list
-                        const updatedBot = statusData.bots.find(b => b.username === botInfo.username);
-                        if (updatedBot && updatedBot.pid) {
-                            botInfo.newPid = updatedBot.pid;
-                            // Check if PID changed
-                            if (botInfo.newPid !== botInfo.originalPid) {
-                                botInfo.restarted = true;
-                                successCount++;
-                            } else {
-                                // PID didn't change, consider it a failure
-                                failCount++;
-                                console.warn(`Bot ${botInfo.username} has same PID after restart: ${botInfo.originalPid}`);
-                            }
-                        } else {
-                            // Bot not found in running list after restart
-                            failCount++;
-                            console.warn(`Bot ${botInfo.username} not found in running list after restart`);
-                        }
-                    }
-                } else {
+                if (!data.success) {
                     failCount++;
                     console.error(`Failed to restart ${botInfo.username}:`, data.message);
+                } else {
+                    // Prefer the new PID reported directly by the restart handler --
+                    // no full re-scan of every user (that was the slowness + flakiness).
+                    let newPid = (data.pid && Number(data.pid) > 0) ? Number(data.pid) : 0;
+                    // If the handler could not capture the fresh PID in its short window,
+                    // verify with a lightweight single-bot check (one SSH call), polling briefly.
+                    if (newPid === 0 || newPid === Number(botInfo.originalPid)) {
+                        for (let attempt = 0; attempt < 3; attempt++) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            try {
+                                const chkResp = await fetch('?check_one_bot=1&username=' + encodeURIComponent(botInfo.username) + '&bot_type=' + encodeURIComponent(botInfo.botType));
+                                const chk = await chkResp.json();
+                                if (chk && chk.success && chk.pid && Number(chk.pid) > 0) {
+                                    newPid = Number(chk.pid);
+                                    if (newPid !== Number(botInfo.originalPid)) break;
+                                }
+                            } catch (e) { /* keep polling */ }
+                        }
+                    }
+                    if (newPid > 0 && newPid !== Number(botInfo.originalPid)) {
+                        botInfo.newPid = newPid;
+                        botInfo.restarted = true;
+                        successCount++;
+                    } else {
+                        failCount++;
+                        console.warn(`Bot ${botInfo.username} did not come back with a new PID (original ${botInfo.originalPid}, saw ${newPid || 'none'})`);
+                    }
                 }
             } catch (error) {
                 failCount++;
@@ -2409,7 +2415,7 @@ ob_start();
             }
             // Small delay between restarts
             if (i < botRestartTracking.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
         }
         // Re-enable button
@@ -2419,6 +2425,8 @@ ob_start();
         }
         // Close the progress toast before showing final results
         Swal.close();
+        // Sync the whole table from server truth once, at the end.
+        try { refreshRunningStatus(); } catch (e) { /* non-fatal */ }
         // Show final results
         if (failCount === 0) {
             Swal.fire({
@@ -2426,7 +2434,7 @@ ob_start();
                 title: SB_I18N.allRestartedTitle,
                 html: sbFormat(SB_I18N.allRestartedHtml, successCount) + `<br><br>` +
                     botRestartTracking.map(b =>
-                        `<span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: PID ${b.originalPid} ? ${b.newPid || SB_I18N.unknown}`
+                        `<span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: PID ${b.originalPid} &rarr; ${b.newPid || SB_I18N.unknown}`
                     ).join('<br>'),
                 confirmButtonText: SB_I18N.okBtn
             });
@@ -2437,8 +2445,8 @@ ob_start();
                 html: sbFormat(SB_I18N.restartIssuesSuccess, successCount) + `<br>` +
                     sbFormat(SB_I18N.restartIssuesFailed, failCount) + `<br><br>` +
                     botRestartTracking.map(b => {
-                        const status = b.restarted ? '?' : '?';
-                        return `${status} <span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: ${b.originalPid} ? ${b.newPid || SB_I18N.failed}`;
+                        const status = b.restarted ? '&#10003;' : '&#10007;';
+                        return `${status} <span class="has-text-weight-bold">${escapeHtml(b.username)}</span>: ${b.originalPid} &rarr; ${b.newPid || SB_I18N.failed}`;
                     }).join('<br>'),
                 confirmButtonText: SB_I18N.okBtn
             });
