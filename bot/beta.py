@@ -3611,17 +3611,34 @@ class TwitchBot(commands.Bot):
                                     'permission': cc_result.get("permission")
                                 }
                             else:
-                                # Check Custom User Command
-                                await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
-                                custom_user_command = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
-                                if custom_user_command:
+                                # Check if the typed name is an alias of a custom command (BETA)
+                                alias_result = None
+                                try:
+                                    await asyncio_wait_for(cursor.execute('SELECT command, response, status, cooldown, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                    alias_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                                except Exception as alias_lookup_err:
+                                    chat_logger.warning(f"[EVENT MESSAGE] Alias lookup failed for '{command}' (aliases column may be missing): {alias_lookup_err}")
+                                if alias_result:
+                                    command = alias_result.get("command")  # redirect to canonical command (true alias)
                                     command_data = {
-                                        'type': 'user',
-                                        'response': custom_user_command['response'],
-                                        'status': custom_user_command['status'],
-                                        'cooldown': custom_user_command['cooldown'],
-                                        'user_id': custom_user_command['user_id']
+                                        'type': 'custom',
+                                        'response': alias_result.get("response"),
+                                        'status': alias_result.get("status"),
+                                        'cooldown': alias_result.get("cooldown"),
+                                        'permission': alias_result.get("permission")
                                     }
+                                else:
+                                    # Check Custom User Command
+                                    await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                    custom_user_command = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                                    if custom_user_command:
+                                        command_data = {
+                                            'type': 'user',
+                                            'response': custom_user_command['response'],
+                                            'status': custom_user_command['status'],
+                                            'cooldown': custom_user_command['cooldown'],
+                                            'user_id': custom_user_command['user_id']
+                                        }
                 except Exception as cmd_lookup_err:
                     bot_logger.error(f"[EVENT MESSAGE] DB error during custom command lookup for '!{command}': {cmd_lookup_err}")
                     return

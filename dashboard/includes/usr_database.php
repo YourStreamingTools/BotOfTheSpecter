@@ -72,6 +72,7 @@ try {
                 status TEXT,
                 cooldown INT DEFAULT '15',
                 permission VARCHAR(255) DEFAULT 'everyone',
+                aliases TEXT,
                 PRIMARY KEY (command(255))
             ) ENGINE=InnoDB",
         'custom_user_commands' => "

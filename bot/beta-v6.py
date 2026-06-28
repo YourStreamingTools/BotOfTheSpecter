@@ -3172,6 +3172,17 @@ class TwitchBot(commands.AutoBot):
                         chat_logger.info("Timezone not set, defaulting to UTC")
                     await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
                     cc_result = await cursor.fetchone()
+                    if not cc_result:
+                        # Resolve a custom command alias (BETA): the typed name may be listed in another command's aliases
+                        try:
+                            await cursor.execute('SELECT command, response, status, cooldown, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,))
+                            alias_result = await cursor.fetchone()
+                        except Exception as alias_lookup_err:
+                            chat_logger.warning(f"Alias lookup failed for '{command}' (aliases column may be missing): {alias_lookup_err}")
+                            alias_result = None
+                        if alias_result:
+                            command = alias_result.get("command")  # redirect to canonical command (true alias)
+                            cc_result = alias_result
                     if cc_result:
                         response = cc_result.get("response")
                         cc_status = cc_result.get("status")
