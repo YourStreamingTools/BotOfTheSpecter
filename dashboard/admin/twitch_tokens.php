@@ -1169,17 +1169,27 @@ document.addEventListener('DOMContentLoaded', function() {
     let chatToken = <?php echo json_encode($oauth ?? ''); ?>;
     // Load token validation cache on page load
     function loadTokenCache() {
+        let cacheLoadOk = false;
         fetch('?load_token_cache=1', {
             method: 'GET'
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.cache) {
-                tokenCache = data.cache;
-                displayCachedValidation();
+            if (data && data.success) {
+                cacheLoadOk = true;
+                if (data.cache) {
+                    tokenCache = data.cache;
+                    displayCachedValidation();
+                }
             }
         })
-        .catch(err => console.warn('Failed to load token cache:', err));
+        .catch(err => console.warn('Failed to load token cache:', err))
+        .finally(() => {
+            if (cacheLoadOk) {
+                autoValidateUserTokensCacheFirst();
+            }
+            autoValidateCustomTokens();
+        });
     }
     // Display cached validation data on page load
     function displayCachedValidation() {
@@ -1216,6 +1226,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Display cached data for custom tokens
         const customRows = document.querySelectorAll('#custom-tokens-table-body tr[data-bot-channel-id]');
         customRows.forEach(row => {
+            if ((row.getAttribute('data-token') || '').trim() !== '') return;
             const tokenId = row.id.replace('custom-row-', '');
             if (tokenCache[tokenId]) {
                 const cached = tokenCache[tokenId];
@@ -1263,6 +1274,63 @@ document.addEventListener('DOMContentLoaded', function() {
         if (minutes > 0) timeParts.push(`${minutes} ${minutes > 1 ? TT_I18N.unitMinutes : TT_I18N.unitMinute}`);
         if (secs > 0) timeParts.push(`${secs} ${secs > 1 ? TT_I18N.unitSeconds : TT_I18N.unitSecond}`);
         return timeParts.join(', ') || TT_I18N.zeroSeconds;
+    }
+    // Run async thunks with a bounded concurrency so we never burst the validate endpoint.
+    function runWithConcurrency(thunks, limit) {
+        let idx = 0;
+        const next = () => {
+            if (idx >= thunks.length) return Promise.resolve();
+            const thunk = thunks[idx++];
+            return Promise.resolve().then(thunk).catch(() => {}).then(next);
+        };
+        const starters = [];
+        const n = Math.min(limit, thunks.length);
+        for (let i = 0; i < n; i++) starters.push(next());
+        return Promise.all(starters);
+    }
+    // Cache-first user-token validation: only re-check tokens with no cache entry or a stale one.
+    const TOKEN_CACHE_TTL_SECONDS = 600; // 10 minutes
+    // After validation settles, mark rows showing Invalid and arm the "Renew Invalid" button.
+    function refreshInvalidUserTokensButton() {
+        const rows = Array.from(document.querySelectorAll('#tokens-table-body tr[data-user-id]'));
+        invalidTokens = rows
+            .filter(row => {
+                const cell = document.getElementById(`status-${row.id.replace('row-', '')}`);
+                return cell && cell.textContent === TT_I18N.statusInvalid;
+            })
+            .map(row => row.getAttribute('data-user-id'));
+        if (invalidTokens.length > 0) {
+            renewInvalidBtn.disabled = false;
+            renewInvalidBtn.classList.remove('is-disabled-inactive');
+        } else {
+            renewInvalidBtn.disabled = true;
+            renewInvalidBtn.classList.add('is-disabled-inactive');
+        }
+    }
+    function autoValidateUserTokensCacheFirst() {
+        const nowSec = Math.floor(new Date().getTime() / 1000);
+        const rows = Array.from(document.querySelectorAll('#tokens-table-body tr[data-user-id]'));
+        const toValidate = rows.filter(row => {
+            const tokenId = row.id.replace('row-', '');
+            const cached = tokenCache[tokenId];
+            if (!cached || !cached.timestamp) return true;
+            return (nowSec - cached.timestamp) > TOKEN_CACHE_TTL_SECONDS;
+        });
+        if (!toValidate.length) {
+            // Nothing stale to re-check, but cached-invalid rows should still arm the button.
+            refreshInvalidUserTokensButton();
+            return;
+        }
+        runWithConcurrency(toValidate.map(row => () => validateToken(null, row.id.replace('row-', ''))), 6)
+            .then(refreshInvalidUserTokensButton);
+    }
+    // Auto-validate every custom bot token that actually has a token stored (small table).
+    function autoValidateCustomTokens() {
+        const rows = Array.from(document.querySelectorAll('#custom-tokens-table-body tr[id^="custom-row-"]'));
+        const thunks = rows
+            .filter(row => (row.getAttribute('data-token') || '').trim() !== '')
+            .map(row => () => validateCustomToken(null, row.id.replace('custom-row-', '')));
+        if (thunks.length) runWithConcurrency(thunks, 6);
     }
     // Load cache on page load
     loadTokenCache();
@@ -1752,7 +1820,7 @@ function validateCustomToken(token, tokenId) {
     if (!botChannelId && botUsernameAttr) {
         fetchFormData.set('bot_username', botUsernameAttr);
     }
-    fetch('', { method: 'POST', body: fetchFormData })
+    return fetch('', { method: 'POST', body: fetchFormData })
         .then(response => response.json())
         .then(fetchData => {
             if (!fetchData.success) {
