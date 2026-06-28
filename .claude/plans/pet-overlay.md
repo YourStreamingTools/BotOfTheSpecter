@@ -36,7 +36,7 @@ Most "multi-channel" requirements in the brief are **already-solved infrastructu
 - `./bot/beta.py` — **primary target.** A `PetManager` that loads per-channel trigger config (cached), hooks chat/command/redemption/EventSub paths, emits `PET_REACT`/`PET_STATE`, applies stat effects. New `websocket_notice` branches. Per [bot-versions.md](../rules/bot-versions.md).
 - `./bot/beta-v6.py` — port once stable.
 - `./bot/bot.py` (stable) — **not changed.**
-- `./websocket/server.py` — **no change strictly required** (generic `else` in `notify_http` broadcasts unknown events to the channel + globals); optional explicit `PET_*` branches for logging.
+- `./websocket/server.py` — **no change strictly required** (the generic `else` in `notify_http` broadcasts unknown events to the channel + globals); optional explicit `PET_*` branches for logging.
 - `./api/api.py` — **no changes** (overlay self-serves via PHP; bot/dashboard write per-user MySQL directly, per [data-flow.md](../rules/data-flow.md)).
 
 ---
@@ -156,72 +156,21 @@ All three are unrecognised by the server and fall through `notify_http`'s generi
 
 ### 3.1 Data model (per-user DB)
 
-InnoDB, `utf8mb4_unicode_ci`, indexes not hard FKs (cascade in app code) — house style.
+Four tables, all living in the channel's own per-user DB. House style throughout: InnoDB, `utf8mb4_unicode_ci`, indexes rather than hard foreign keys (cascades handled in app code). All four are added to `./dashboard/usr_database.php`'s `$tables` array so they auto-provision across per-user DBs.
 
-```sql
--- Singleton config (id = 1)
-CREATE TABLE IF NOT EXISTS pet_settings (
-    id TINYINT PRIMARY KEY DEFAULT 1,
-    enabled TINYINT(1) NOT NULL DEFAULT 0,
-    pet_name VARCHAR(60) DEFAULT 'Pet',
-    idle_animation VARCHAR(60) DEFAULT 'idle',
-    position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
-    scale DECIMAL(4,2) NOT NULL DEFAULT 1.00,
-    flip TINYINT(1) NOT NULL DEFAULT 0,
-    show_stats TINYINT(1) NOT NULL DEFAULT 1,
-    visible_stats VARCHAR(120) DEFAULT 'happiness,hunger,energy',
-    bubble_enabled TINYINT(1) NOT NULL DEFAULT 1,
-    sound_enabled TINYINT(1) NOT NULL DEFAULT 0,
-    decay_happiness DECIMAL(6,3) NOT NULL DEFAULT 2.000,  -- points per hour
-    decay_hunger    DECIMAL(6,3) NOT NULL DEFAULT 3.000,
-    decay_energy    DECIMAL(6,3) NOT NULL DEFAULT 1.000,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+**`pet_settings`** — one singleton row per channel (`id = 1`) holding display and tuning config:
+- `enabled` (off by default), `pet_name` (default "Pet"), `idle_animation` (default "idle").
+- `position` — one of the four corners, default bottom-right; `scale` (a decimal, default 1.00); `flip`.
+- `show_stats` (on by default) and `visible_stats` (default "happiness,hunger,energy").
+- `bubble_enabled` (on by default), `sound_enabled` (off by default).
+- Per-stat decay rates expressed as points per hour (decimals): happiness 2.0, hunger 3.0, energy 1.0.
+- `updated_at`.
 
--- Animation states (sprite sheets)
-CREATE TABLE IF NOT EXISTS pet_animations (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(60) NOT NULL,            -- idle, happy, hype, sad, sleep, eat, custom…
-    sprite_file VARCHAR(255) NOT NULL,    -- file in /var/www/media/{user}/ (pet/ subdir)
-    frame_width INT NOT NULL,
-    frame_height INT NOT NULL,
-    frame_count INT NOT NULL DEFAULT 1,
-    fps INT NOT NULL DEFAULT 12,
-    loop TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uniq_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+**`pet_animations`** — one row per animation state (a sprite sheet). `name` is unique (idle, happy, hype, sad, sleep, eat, or a custom state). Each row stores `sprite_file` (a file under the user's media `pet/` subdir), `frame_width`, `frame_height`, `frame_count` (default 1), `fps` (default 12), a `loop` flag (on by default), and `created_at`.
 
--- Triggers → reaction (the heart of customization; one table for all trigger kinds)
-CREATE TABLE IF NOT EXISTS pet_triggers (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    trigger_type ENUM('chat_keyword','command','redemption','event','interaction') NOT NULL,
-    trigger_value VARCHAR(255) NOT NULL,  -- keyword / command name / reward_id / event(follow|sub|raid|cheer|first_chat) / interaction(feed|play)
-    animation VARCHAR(60) NOT NULL,       -- → pet_animations.name
-    bubble_text VARCHAR(255) DEFAULT NULL,-- supports {user}
-    effect_happiness INT NOT NULL DEFAULT 0,
-    effect_hunger INT NOT NULL DEFAULT 0,
-    effect_energy INT NOT NULL DEFAULT 0,
-    xp INT NOT NULL DEFAULT 0,
-    cooldown_seconds INT NOT NULL DEFAULT 5,
-    enabled TINYINT(1) NOT NULL DEFAULT 1,
-    INDEX idx_type_value (trigger_type, trigger_value)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+**`pet_triggers`** — the heart of customization, with one table covering every trigger kind. `trigger_type` is one of `chat_keyword`, `command`, `redemption`, `event`, or `interaction`; `trigger_value` holds the keyword / command name / reward_id / event name (follow|sub|raid|cheer|first_chat) / interaction name (feed|play). Each row maps to an `animation` (matching `pet_animations.name`), an optional `bubble_text` (supports the `{user}` placeholder), per-stat effects (`effect_happiness`, `effect_hunger`, `effect_energy`, default 0), `xp` gained, a `cooldown_seconds` (default 5), and an `enabled` flag. Indexed on `(trigger_type, trigger_value)` so a lookup is cheap.
 
--- Current persistent state (singleton, id = 1) — decay computed lazily, not ticked
-CREATE TABLE IF NOT EXISTS pet_state (
-    id TINYINT PRIMARY KEY DEFAULT 1,
-    happiness INT NOT NULL DEFAULT 80,
-    hunger INT NOT NULL DEFAULT 80,
-    energy INT NOT NULL DEFAULT 80,
-    level INT NOT NULL DEFAULT 1,
-    xp INT NOT NULL DEFAULT 0,
-    last_interaction_at DATETIME DEFAULT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
-
-All four added to `./dashboard/usr_database.php`'s `$tables` array → auto-provisioned across per-user DBs.
+**`pet_state`** — one singleton row per channel (`id = 1`) for the persistent stats: `happiness`, `hunger`, `energy` (each 0–100, default 80), `level` (default 1), `xp`, `last_interaction_at`, and `updated_at`. Decay is never ticked server-side — the current value is computed lazily on read as `max(0, stored − rate × elapsed)`.
 
 ---
 

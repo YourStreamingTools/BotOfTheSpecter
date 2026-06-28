@@ -6,9 +6,9 @@
 
 ## Summary
 
-A new admin page (`dashboard/admin/caddy.php`) that lets admins observe and
+I want a new admin page (`dashboard/admin/caddy.php`) that lets admins observe and
 (for super admins) control the Caddy web server through Caddy's
-[admin API](https://caddyserver.com/docs/api) (`localhost:2019`).
+[admin API](https://caddyserver.com/docs/api) on `localhost:2019`.
 
 - **Normal admins (`is_admin`)** get **read-only** monitoring.
 - **Super admins (`super_admin`)** get **full control** — arbitrary config
@@ -38,93 +38,69 @@ DNS-only). So this page manages exactly one Caddy instance: the web host's.
 
 ## Architecture
 
-### File & placement
+### File and placement
 
-- New file: `dashboard/admin/caddy.php`.
-- Structure follows `dashboard/admin/migrations.php`:
-  1. `require_once '/var/www/lib/session_bootstrap.php';`
-  2. `require_once __DIR__ . '/admin_access.php';` (enforces `is_admin`)
-  3. load i18n, `db_connect.php`, `config/ssh.php`
-  4. handle POST `action=…` AJAX requests → return JSON, `exit`
-  5. set `$pageTitle`, build page content
-  6. `include_once __DIR__ . '/../layout.php';`
-- The same file serves the page (GET) and its AJAX actions (POST), exactly like
-  `admin/index.php`.
+The new file is `dashboard/admin/caddy.php`, and it follows the same shape as
+`dashboard/admin/migrations.php`. It bootstraps the session, then includes
+`admin_access.php` (which enforces `is_admin`), then loads i18n, the DB
+connection, and the SSH config. POST requests carrying an `action=…` parameter
+are handled as AJAX, returning JSON and exiting early; a plain GET renders the
+page by setting the page title, building the content, and including the shared
+`layout.php`. In other words, the same file serves both the page and its AJAX
+actions, exactly the way `admin/index.php` already does.
 
 ### Menu registration
 
-Add one entry to the `$admin` array in `dashboard/menu.php` (currently lines
-82–104), in the infrastructure group near `terminal.php`:
-
-```php
-[ 'label' => t('menu_admin_caddy'), 'icon' => 'fas fa-server', 'href' => 'caddy.php' ],
-```
+Add one entry to the `$admin` array in `dashboard/menu.php`, in the
+infrastructure group near the `terminal.php` entry. The new item points at
+`caddy.php`, uses a server icon, and labels itself via the `menu_admin_caddy`
+translation key.
 
 ## Role model
 
-`admin_access.php` already guarantees the visitor is `is_admin`. The page then
-loads the super-admin flag using the same query `users.php` uses:
-
-```php
-$isSuperAdmin = false;
-if (($uid = (int)($_SESSION['user_id'] ?? 0)) > 0) {
-    $stmt = $conn->prepare("SELECT super_admin FROM users WHERE id = ? LIMIT 1");
-    $stmt->bind_param("i", $uid);
-    $stmt->execute();
-    $stmt->bind_result($saFlag);
-    if ($stmt->fetch()) { $isSuperAdmin = ((int)$saFlag === 1); }
-    $stmt->close();
-}
-```
+`admin_access.php` already guarantees the visitor is `is_admin`. On top of that,
+the page loads the super-admin flag using the same approach `users.php` uses: a
+prepared `SELECT super_admin FROM users WHERE id = ?` keyed on the session's
+`user_id`, treating a value of `1` as super admin.
 
 - Normal admin → control UI hidden/disabled; read-only panels only.
 - Super admin → full control UI shown.
 - **Server-side enforcement is authoritative.** Every mutating AJAX action
-  re-checks `$isSuperAdmin` before doing anything and returns
-  `403 {"success":false,"error":...}` if false. The UI disabling is cosmetic —
-  never trusted for authorization.
+  re-checks the super-admin flag before doing anything and returns a
+  `403` JSON error (`{"success":false,"error":…}`) if it's false. The UI
+  disabling is cosmetic — never trusted for authorization.
 
 ## Transport
 
 ### Caddy admin API (reads + API writes) — direct, no SSH
 
-The dashboard PHP runs on the web host alongside Caddy, so it curls
-`http://localhost:2019` directly. A single helper centralises this:
-
-```php
-function caddy_admin_request($method, $path, $body = null, $contentType = 'application/json')
-```
+The dashboard PHP runs on the web host alongside Caddy, so it can curl
+`http://localhost:2019` directly. A single helper centralises this — a function
+that takes a method, a path, an optional body, and a content type, and returns a
+structured result (an `ok` flag, the HTTP status, the body, and any error
+string). Its design rules:
 
 - **Path allowlist** — only these prefixes are permitted:
   `/config`, `/id`, `/adapt`, `/load`, `/reverse_proxy`, `/pki`.
 - `/stop` is **rejected at this layer** even if explicitly requested.
-- Reasonable curl timeout; structured error return (`['ok'=>bool, 'status'=>int,
-  'body'=>..., 'error'=>...]`).
-- Reads (`GET`) are allowed for any admin; mutating methods require
-  `$isSuperAdmin` (checked by the caller before invoking the helper).
+- A reasonable curl timeout, with the structured error return described above.
+- Reads (`GET`) are allowed for any admin; mutating methods require the
+  super-admin flag, which the caller checks before invoking the helper.
 
 ### reload / restart — existing SSH infrastructure
 
-Reuse `SSHConnectionManager` against the web host and run:
+Reuse `SSHConnectionManager` against the web host and run
+`sudo -n systemctl reload caddy` or `sudo -n systemctl restart caddy`. This
+mirrors the service-control handler in `admin/index.php`, which runs
+`sudo -n systemctl $action $service`.
 
-- `sudo -n systemctl reload caddy`
-- `sudo -n systemctl restart caddy`
-
-This mirrors `admin/index.php`'s service-control handler (`sudo -n systemctl
-$action $service`). Requires web-host SSH variables in `config/ssh.php`:
-
-```php
-// Web Server Information
-$web_ssh_host = '';
-$web_ssh_username = $server_username;
-$web_ssh_password = $server_password;
-```
-
-Add the blank placeholders to the dev stub (`config/ssh.php`); production
-(`/var/www/config/ssh.php`) already has SSH access to all servers. If
-`$web_ssh_host` is empty, the reload/restart buttons render disabled with a
-"web host SSH not configured" note (graceful degradation, same spirit as the
-existing SSH failure handling).
+That path needs web-host SSH credentials in `config/ssh.php` — a web SSH host,
+plus username and password reusing the shared server credentials. Production
+(`/var/www/config/ssh.php`) already has SSH access to every server; the only
+change needed is adding blank placeholders for the web host to the dev stub
+(`config/ssh.php`). If the web SSH host is empty, the reload/restart buttons
+render disabled with a "web host SSH not configured" note — graceful
+degradation in the same spirit as the existing SSH failure handling.
 
 > Note: a `restart` only helps when Caddy is **running-but-wedged**. A fully
 > dead Caddy also takes down the dashboard (Caddy serves it), so that case is
@@ -161,8 +137,8 @@ existing SSH failure handling).
 
 ## Guard rails
 
-- **`/stop` excluded everywhere** — request-layer rejection in
-  `caddy_admin_request()`; not offered in any UI.
+- **`/stop` excluded everywhere** — request-layer rejection in the Caddy admin
+  helper; not offered in any UI.
 - **Secret redaction** applied to every config payload before it reaches the
   browser or the audit log (the `GET /config/` response contains the resolved
   `CF_API_TOKEN`).
@@ -205,18 +181,24 @@ existing SSH failure handling).
 - Invalid JSON in the raw console / Load tab → 400-style JSON error before any
   request is sent to Caddy.
 
-## Verification
+## How we know it's right
 
-- Read-only panels render for a normal admin; control UI absent.
-- A normal admin POSTing a mutating `action` receives 403 (server-side check),
-  not just a hidden button.
-- Super admin can: view redacted config; run a `GET` via console; run a scoped
-  `PATCH`; load a Caddyfile (adapt → load); reload; restart (with confirm).
-- `/stop` is refused both in UI and at the request layer.
-- The CF API token never appears in any browser response or audit row.
-- `admin_audit_log` rows exist for each mutating action.
-- `php -l` passes on `caddy.php`; `de.php`/`fr.php` parse (no apostrophe-escape
-  breakage).
+The behaviour to confirm once this is built:
+
+- A normal admin sees the read-only panels and no control UI.
+- A normal admin who POSTs a mutating `action` anyway gets a `403` from the
+  server-side super-admin re-check — the security does not depend on the hidden
+  button.
+- A super admin can view the redacted config, run a `GET` through the console,
+  run a scoped `PATCH`, load a Caddyfile (adapt → load), reload, and restart
+  (behind the typed confirmation).
+- `/stop` is refused both in the UI and at the request layer.
+- The Cloudflare API token never appears in any browser response or audit row.
+- An `admin_audit_log` row is written for every mutating action.
+
+Each touched file should also pass its language's syntax check, and the German
+and French language files in particular need their apostrophes escaped correctly
+so they still parse.
 
 ## Files touched
 

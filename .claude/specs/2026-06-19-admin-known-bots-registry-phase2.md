@@ -7,7 +7,7 @@
 ## Problem
 
 Phase 1 made the dashboard leaderboards hide bots using the admin-managed `website.known_bots`
-registry, but that only affects **display**. The bots themselves still: accrue watch time, earn
+registry, but that only affects **display**. The bots themselves still accrue watch time, earn
 points, and get welcomed / auto-shouted-out by the Twitch bot, because the bot only consults the
 **per-channel** exclusion lists (`watch_time_excluded_users`, `bot_settings.excluded_users`) plus a
 tiny hardcoded `IGNORED_WELCOME_USERNAMES` set (just `botofthespecter` + the bot's own login).
@@ -23,7 +23,7 @@ excluded everywhere, for every channel — the "registry everywhere" intent.
 
 ## Goals
 
-- Each bot reads the active global registry (`SELECT bot_login FROM known_bots WHERE is_active = 1`)
+- Each bot reads the active global registry (the active rows' `bot_login` values from `known_bots`)
   through a short-lived cache and **unions it with the existing per-channel lists** at three points:
   1. **Watch-time tracking** (`track_watch_time`) — union into the `watch_time_excluded_users` filter.
   2. **Points** — union into the `bot_settings.excluded_users` check, both where points are *awarded*
@@ -47,54 +47,64 @@ excluded everywhere, for every channel — the "registry everywhere" intent.
 
 ### Shared cached loader (one per bot file)
 
-Mirror Phase 1's API cache and `beta-v6.py`'s existing `_website_twitch_creds_cache` pattern:
+Each bot file gets a small `get_known_bots()` helper that mirrors Phase 1's API cache and
+`beta-v6.py`'s existing `_website_twitch_creds_cache` pattern. It keeps a module-level cache holding
+the last-loaded set plus a timestamp, with a TTL of 300 seconds. When called, it returns the cached
+set if it's still fresh; otherwise it does a single read of the active rows from
+`website.known_bots`, lowercases the logins into a set, stores it, and returns it. Roughly:
 
 ```text
 _known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
 KNOWN_BOTS_CACHE_TTL = 300   # seconds
-
-async def get_known_bots() -> set:
-    # lazy TTL cache; reads website.known_bots WHERE is_active = 1 via mysql_connection("website");
-    # returns a lowercased set; on any DB error returns the last good cache (or empty set) and logs a
-    # warning — degrading to per-channel-only behaviour (i.e. exactly today's behaviour).
 ```
+
+Design points:
 
 - **Lazy TTL cache** (checked on use), not a background task — simpler, matches the API and v6's
   creds cache, and avoids version-specific startup-registration differences. The first call after
   expiry does one website-DB read; all callers within the TTL get the cached set.
+- **Lowercased set.** All registry logins are stored lowercased, so the helper returns a lowercased
+  set and every comparison site normalises to lowercase before testing membership.
 - **Fallback = empty set** on error. Unlike the API (which falls back to the 41-login seed), the bot
   does **not** carry its own copy of the seed — the DB is the single source of truth and the API
-  guarantees the table is seeded. A transient read failure simply falls back to the per-channel
-  lists (today's behaviour), never to a stale hardcoded list that could drift.
-- **Placement:** module-level helper below the `# Functions for all the commands` marker
-  (`beta.py:11115`, `beta-v6.py:9374`); cache constant + dict beside the other module-level caches.
+  guarantees the table is seeded. A transient read failure simply returns the last good cache (or an
+  empty set) and logs a warning, falling back to the per-channel lists (today's behaviour), never to
+  a stale hardcoded list that could drift.
+- **Placement:** the helper lives as a module-level function below the
+  `# Functions for all the commands` marker in each file, with the cache constant and dict sitting
+  beside the other module-level caches.
 
 ### Consumption points & union semantics
 
-All comparisons normalise to lowercase (the registry is stored lowercased).
+All comparisons normalise to lowercase (the registry is stored lowercased). At each site the global
+set returned by `get_known_bots()` is unioned with the existing per-channel list, then the existing
+membership test runs against that union:
 
 | # | Point | Today reads | Phase 2 |
 |---|-------|-------------|---------|
-| 1 | `track_watch_time` | `watch_time_excluded_users` CSV → list, filter `active_users` by `user_login` | `excluded = {per-channel lowered} \| await get_known_bots()`; filter `user_login.lower() not in excluded` |
-| 2 | points **award** (`user_points`) | `bot_settings.excluded_users` → lowered list; `if author_lower not in list` | union the list with `await get_known_bots()` before the check |
-| 3 | `!points` **lookup** | same `bot_settings.excluded_users` list; `if target not in list` | same union before the check |
-| 4 | welcome + auto-shoutout | `IGNORED_WELCOME_USERNAMES` (static set) | add `or name.lower() in await get_known_bots()` at the welcome-decision site |
+| 1 | `track_watch_time` | `watch_time_excluded_users` CSV → list, filter `active_users` by `user_login` | union the per-channel set with the known-bots set, then keep only users whose lowered login is not in that union |
+| 2 | points **award** (`user_points`) | `bot_settings.excluded_users` → lowered list; skip excluded authors | union that list with the known-bots set before the check |
+| 3 | `!points` **lookup** | same `bot_settings.excluded_users` list; skip excluded targets | same union before the check |
+| 4 | welcome + auto-shoutout | `IGNORED_WELCOME_USERNAMES` (static set) | also skip if the lowered name is in the known-bots set, checked at the welcome-decision site |
 
 `IGNORED_WELCOME_USERNAMES` is built at import time (before the event loop / DB), so we do **not**
 mutate that constant — we add an async membership check at each welcome decision point.
 
-### TwitchIO version differences (why two file-specific tasks)
+### TwitchIO version differences (why two file-specific work items)
 
-- **DB idiom:** `beta.py` uses `conn = await mysql_connection("website")` then `conn.cursor(...)`;
-  `beta-v6.py` uses `async with await mysql_handler.get_connection(db_name="website") as conn:` with
-  `conn.cursor(DictCursor)` (DirectConnection). The loader must match each file's idiom.
+The two files need their own handling because their idioms differ:
+
+- **DB idiom:** `beta.py` obtains a connection via `await mysql_connection("website")` and then
+  opens a cursor on it; `beta-v6.py` uses `async with await mysql_handler.get_connection(db_name="website")`
+  with a `DictCursor` (DirectConnection). The loader in each file must match that file's idiom.
 - **Welcome vs counting placement:** in `beta.py`, the `IGNORED_WELCOME_USERNAMES` check sits at a
-  **shared early-return** (`~3803`) that runs *before* the `message_counts` INSERT — so the
-  known-bots welcome skip must be placed at the welcome-decision branch *after* counting, to honour
-  the "no `message_counts` change" non-goal. In `beta-v6.py`, the welcome check
-  (`send_first_command_welcome_if_needed`, `~3695`) is already separate from counting, so the union
-  goes there directly.
-- Helper-placement marker differs (`beta.py:11115` vs `beta-v6.py:9374`).
+  **shared early-return** that runs *before* the `message_counts` INSERT — so the known-bots welcome
+  skip must be placed at the welcome-decision branch *after* counting, to honour the
+  "no `message_counts` change" non-goal. In `beta-v6.py`, the welcome check
+  (`send_first_command_welcome_if_needed`) is already separate from counting, so the union goes there
+  directly.
+- The helper-placement marker is in a different spot in each file, but in both cases it's the
+  module-level `# Functions for all the commands` region.
 
 ## Open decision (please confirm at review)
 
@@ -106,24 +116,27 @@ decision. Recommendation: keep counting unchanged.
 
 ## Error handling
 
-- `get_known_bots()` never raises to its callers: DB error → last-good cache or empty set + a logged
-  warning. Watch-time/points/welcome therefore degrade gracefully to per-channel-only behaviour.
+- `get_known_bots()` never raises to its callers: a DB error yields the last-good cache or an empty
+  set plus a logged warning. Watch-time/points/welcome therefore degrade gracefully to
+  per-channel-only behaviour.
 - No change to how the per-channel lists are read or to their failure handling.
 
-## Verification
+## How we'll know it's right
 
-- `python -m py_compile bot/beta.py` and `python -m py_compile bot/beta-v6.py` pass.
-- Functional (staging, on a beta/v6 channel): add a test login to the registry via the admin page;
-  within ~5 min the bot stops welcoming it, stops crediting it points (`!points <bot>` → 0), and
-  stops accruing its watch time; a per-channel `watch_time_excluded_users` entry still works; the
-  bot still functions normally for real users. Disabling the registry entry restores behaviour.
+Both touched files should pass a Python syntax check after the edits. Beyond that, the behaviour to
+confirm on staging (a beta/v6 channel): add a test login to the registry via the admin page; within
+~5 minutes the bot should stop welcoming it, stop crediting it points (`!points <bot>` returns 0),
+and stop accruing its watch time, while a per-channel `watch_time_excluded_users` entry still works
+and the bot keeps functioning normally for real users. Disabling the registry entry should restore
+the prior behaviour after the cache expires. If the website DB read fails, the bot should keep
+running on per-channel exclusions alone, which is exactly today's behaviour.
 
 ## File change list (Phase 2)
 
 | File | Change |
 |------|--------|
-| `./bot/beta.py` | Add `KNOWN_BOTS_CACHE_TTL` + `_known_bots_cache` + `get_known_bots()` (below the helper marker); union it at `track_watch_time`, points award, `!points` lookup, and the welcome/auto-shoutout decision (after `message_counts`). |
-| `./bot/beta-v6.py` | Same, using the v6 DB idiom + helper placement; welcome union at `send_first_command_welcome_if_needed`. |
+| `./bot/beta.py` | Add the `KNOWN_BOTS_CACHE_TTL` constant, the `_known_bots_cache` dict, and the `get_known_bots()` helper (below the helper marker); union the registry set in at `track_watch_time`, points award, the `!points` lookup, and the welcome/auto-shoutout decision (placed after `message_counts`). |
+| `./bot/beta-v6.py` | Same, using the v6 DB idiom and helper placement; the welcome union goes in `send_first_command_welcome_if_needed`. |
 
 No changes to `bot.py`, the API, the dashboard, or any DB schema.
 

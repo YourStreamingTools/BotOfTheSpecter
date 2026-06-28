@@ -33,8 +33,8 @@ Almost everything this feature needs is **already-solved infrastructure**. Where
 - `./overlay/avatar.php` — **new.** Display-only renderer: swaps mouth PNGs on `AVATAR_STATE`, runs client-side blink + idle bounce, applies position/scale. Loads its display config once on page load via a JSON endpoint (mirrors closed-captions `?action=get_..._settings`).
 - `./overlay/avatar.css` (or a namespaced block in the overlay folder's own stylesheet) — `.avatar-overlay-page-*` classes only (overlay folder's own stylesheet, **no cross-folder CSS linking**, per the ui-theme rule).
 - `./dashboard/avatar.php` — **new.** Two halves, like closed-captions: (a) a **mic engine** (Web Audio voice-activity → emit `AVATAR_STATE`) with a start/stop button + a live "mouth" preview; (b) an **appearance/asset config** form (upload talk-state PNGs, position, scale, mic threshold, smoothing, blink + bounce settings) saved to the per-user DB and pushed live via `AVATAR_SETTINGS_UPDATE`.
-- `./dashboard/menu.php` — add an Avatar nav entry with a `t()` lang key (e.g. `navbar_avatar`), mirroring line 48's `navbar_closed_captions`.
-- `./dashboard/overlays.php` — add an Avatar card (OBS URL + settings link), mirroring the Closed Captions card at lines 236–248.
+- `./dashboard/menu.php` — add an Avatar nav entry with a `t()` lang key (e.g. `navbar_avatar`), mirroring the existing `navbar_closed_captions` entry.
+- `./dashboard/overlays.php` — add an Avatar card (OBS URL + settings link), mirroring the existing Closed Captions card.
 - `./dashboard/lang/{en,de,fr}.php` — new i18n keys (base `en.php` + de/fr translations; escape French apostrophes).
 - `./dashboard/includes/usr_database.php` — add `avatar_settings` to the `$tables` array (auto-provisioned by the `CREATE TABLE IF NOT EXISTS` loop) **and** an "ensure default row" `INSERT ... WHERE NOT EXISTS` (mirrors the closed-captions block).
 - `./bot/beta.py` — **only for Phase 3** (event-driven expressions). New `AvatarManager` that maps Twitch events/redemptions → a temporary reaction expression and emits `AVATAR_STATE`. Per [bot-versions.md](../rules/bot-versions.md). **MVP needs no bot change at all** (see §3).
@@ -170,7 +170,7 @@ Twitch event / redemption ──▶ bot (beta.py) AvatarManager
 
 ### 3.1 Data model (per-user DB)
 
-InnoDB, `utf8mb4_unicode_ci`, single-row settings table keyed `id = 1` — the proven `closed_captions_settings` pattern (`./dashboard/includes/usr_database.php` lines 892–905). MVP ships **one** table. Phase 2 (multiple expressions) adds a second `avatar_expressions` table; the MVP `talk_*` columns become the implicit "default" expression so no data migration is needed.
+InnoDB, `utf8mb4_unicode_ci`, single-row settings table keyed `id = 1` — the proven `closed_captions_settings` pattern already in `./dashboard/includes/usr_database.php`. MVP ships **one** table. Phase 2 (multiple expressions) adds a second `avatar_expressions` table; the MVP `talk_*` columns become the implicit "default" expression so no data migration is needed.
 
 ```sql
 -- Singleton config (id = 1) — MVP
@@ -204,11 +204,7 @@ CREATE TABLE IF NOT EXISTS avatar_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-Add `avatar_settings` to the `$tables` array in `./dashboard/includes/usr_database.php`, and add an "ensure default row" insert alongside the closed-captions one:
-
-```php
-$usrDBconn->query("INSERT INTO avatar_settings (id, enabled) SELECT 1, 0 WHERE NOT EXISTS (SELECT 1 FROM avatar_settings WHERE id = 1)");
-```
+Add `avatar_settings` to the `$tables` array in `./dashboard/includes/usr_database.php`, and seed it alongside the closed-captions default-row step: an `INSERT ... SELECT 1, 0 ... WHERE NOT EXISTS (...)` guard that creates the singleton row (id = 1, disabled) the first time without overwriting an existing one.
 
 **Phase 2 — multiple expressions** (added when 2c/[P2] lands; MVP columns stay as the `default` row):
 
@@ -231,7 +227,7 @@ CREATE TABLE IF NOT EXISTS avatar_expressions (
 
 ## 4. Technical Considerations
 
-**Mic in a browser, not OBS (the load-bearing constraint).** OBS's CEF browser source does not expose `getUserMedia` to page mic access in a usable way for this, and the streamer would have to grant it per-source even if it did. Closed Captions already proved the answer: do audio in the dashboard tab the streamer keeps open. We copy its `getUserMedia` + explicit-permission-prompt flow (`./dashboard/closed-captions.php` `start()`), its reconnect/backoff (`scheduleReconnect`), and its `REGISTER` + scoped-emit shape. The only swap is Web **Audio** (`AnalyserNode` RMS) instead of Web **Speech**.
+**Mic in a browser, not OBS (the load-bearing constraint).** OBS's CEF browser source does not expose `getUserMedia` to page mic access in a usable way for this, and the streamer would have to grant it per-source even if it did. Closed Captions already proved the answer: do audio in the dashboard tab the streamer keeps open. We copy its `getUserMedia` + explicit-permission-prompt flow (the closed-captions `start()` routine), its reconnect/backoff (`scheduleReconnect`), and its `REGISTER` + scoped-emit shape. The only swap is Web **Audio** (`AnalyserNode` RMS) instead of Web **Speech**.
 
 **Voice-activity smoothing.** Naive "volume > threshold" produces a strobing mouth on plosives and gaps. Use attack/release: open immediately when RMS crosses the threshold; keep open until RMS stays below for `release_ms`. Emit `AVATAR_STATE` only on a state *change* (debounced), not every frame — this keeps WebSocket traffic to a handful of messages per sentence, not 60/s.
 
