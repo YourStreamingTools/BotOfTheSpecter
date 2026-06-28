@@ -3844,10 +3844,39 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const raw = (event.message && event.message.text ? String(event.message.text) : '').trim();
             if (!raw) return '';
             if (narratorSkipMatched(raw)) return '';
-            if (!narratorSpeakName) return raw;
+            // Build the spoken body from message fragments so emotes aren't read out
+            // literally (e.g. "botoftSTORE"). Each emote becomes the word "EMOTE";
+            // real text is kept as-is and surrounding whitespace is collapsed.
+            const fragments = (event.message && Array.isArray(event.message.fragments)) ? event.message.fragments : null;
+            let spokenBody = raw;
+            let emoteOnly = false;
+            if (fragments && fragments.length) {
+                let hasEmote = false;
+                let hasText = false;
+                const parts = [];
+                for (const frag of fragments) {
+                    if (frag && frag.type === 'emote') {
+                        hasEmote = true;
+                        parts.push('EMOTE');
+                    } else {
+                        const t = (frag && frag.text) ? String(frag.text) : '';
+                        if (t.trim()) hasText = true;
+                        parts.push(t);
+                    }
+                }
+                emoteOnly = hasEmote && !hasText;
+                spokenBody = parts.join('').replace(/\s+/g, ' ').trim();
+            }
             const nickname = getNickname(event.chatter_user_id);
             const name = (nickname || event.chatter_user_name || event.chatter_user_login || '').toString().trim();
-            return name ? `${name} says ${raw}` : raw;
+            // Emote-only message: don't spell out each "EMOTE", just announce one.
+            if (emoteOnly) {
+                if (!narratorSpeakName) return 'Emote';
+                return name ? `${name} has sent an emote` : 'Emote';
+            }
+            if (!spokenBody) return '';
+            if (!narratorSpeakName) return spokenBody;
+            return name ? `${name} says ${spokenBody}` : spokenBody;
         }
         function narrateMessage(event) {
             if (!narratorEnabled || !narratorSupported()) return;
