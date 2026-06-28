@@ -398,7 +398,8 @@
     font-size: 0.8rem;
 }
 .alerts-preview-options .sp-input {
-    width: 70px;
+    width: auto;
+    min-width: 150px;
     padding: 4px 8px;
     font-size: 0.8rem;
 }
