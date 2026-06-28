@@ -95,7 +95,8 @@ function requestTwitchAppAccessToken($clientID, $clientSecret) {
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlError = curl_error($ch);
-if ($curlError) {
+    curl_close($ch);
+    if ($curlError) {
         return ['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])];
     }
     if ($httpCode !== 200) {
@@ -260,7 +261,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-if ($curlError) {
+        curl_close($ch);
+        if ($curlError) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
@@ -447,7 +449,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-if ($curlError) {
+        curl_close($ch);
+        if ($curlError) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
@@ -780,7 +783,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-if ($curlError) {
+        curl_close($ch);
+        if ($curlError) {
             echo json_encode(['success' => false, 'error' => t('admin_twitch_tokens_err_curl', [$curlError])]);
             exit;
         }
@@ -1563,17 +1567,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 validationResult.style.display = '';
                 validationResult.className = 'sp-alert sp-alert-success';
-                ;
             } else {
                 validationContent.innerHTML = `<p class="sp-text-danger">${data.error}</p>`;
                 validationResult.style.display = '';
-                ;
                 validationResult.className = 'sp-alert sp-alert-danger';
             }
         } catch (error) {
             validationContent.innerHTML = `<p class="sp-text-danger">${TT_I18N.errValidating}</p>`;
             validationResult.style.display = '';
-            ;
             validationResult.className = 'sp-alert sp-alert-danger';
         }
         validateBtn.classList.remove('sp-btn-loading');
@@ -1683,7 +1684,7 @@ function validateToken(token, tokenId) {
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 button.disabled = false;
                 button.classList.remove('sp-btn-loading');
-                return Promise.reject(new Error(fetchData.error || TT_I18N.errNoToken));
+                return Promise.reject({ handled: true });
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
@@ -1736,6 +1737,10 @@ function validateToken(token, tokenId) {
         return data;
     })
     .catch(error => {
+        if (error && error.handled) {
+            // The no-token branch already set a "No Token" status; don't overwrite it.
+            return { success: false };
+        }
         const msg = (error && error.message) ? error.message : TT_I18N.errNetwork;
         statusCell.textContent = TT_I18N.statusError;
         statusCell.className = 'sp-text-danger';
@@ -1877,7 +1882,7 @@ function validateCustomToken(token, tokenId) {
                 statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
-                return Promise.reject(new Error(fetchData.error || TT_I18N.errNoToken));
+                return Promise.reject({ handled: true });
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
@@ -1925,6 +1930,10 @@ function validateCustomToken(token, tokenId) {
             }
         })
         .catch((err) => {
+            if (err && err.handled) {
+                // The no-token branch already set a "No Token" status; don't overwrite it.
+                return;
+            }
             const msg = (err && err.message) ? err.message : TT_I18N.errNetwork;
             statusCell.textContent = TT_I18N.statusError;
             statusCell.className = 'sp-text-danger';
