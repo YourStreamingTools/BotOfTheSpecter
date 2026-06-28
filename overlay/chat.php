@@ -122,8 +122,25 @@ if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'save_
         if (!is_dir($logsDir)) {
             mkdir($logsDir, 0755, true);
         }
-        file_put_contents($historyFile, json_encode($messages, JSON_UNESCAPED_UNICODE));
-        echo json_encode(['success' => true]);
+        // Atomic write: several Chat Overlay sources may save concurrently, so
+        // write to a unique temp file and rename it over the target. rename() is
+        // atomic on the same filesystem — readers never see a half-written file
+        // and concurrent writers resolve to last-writer-wins (their buffers are
+        // near-identical since every source sees the same WebSocket stream).
+        $tmpFile = $historyFile . '.tmp.' . getmypid() . '.' . uniqid('', true);
+        $encoded = json_encode($messages, JSON_UNESCAPED_UNICODE);
+        if ($encoded !== false && file_put_contents($tmpFile, $encoded) !== false) {
+            @chmod($tmpFile, 0644);
+            if (@rename($tmpFile, $historyFile)) {
+                echo json_encode(['success' => true]);
+            } else {
+                @unlink($tmpFile);
+                echo json_encode(['success' => false, 'error' => 'Write failed']);
+            }
+        } else {
+            @unlink($tmpFile);
+            echo json_encode(['success' => false, 'error' => 'Write failed']);
+        }
     } else {
         echo json_encode(['success' => false, 'error' => 'Invalid JSON']);
     }
@@ -197,7 +214,14 @@ $badgeCacheJson = json_encode(
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const maxMessages = parseInt(params.get('max') || '20', 10);
-        const count = parseInt(params.get('count') || '1', 10);
+        // Random per-instance ID so several Chat Overlay browser sources can
+        // register on the same channel without colliding on the WebSocket
+        // client name — the server disconnects any client that registers with a
+        // duplicate "{channel} - {name}" identity. Every instance loads AND
+        // saves the same persisted history (written atomically server-side), so
+        // chat survives scene switches and source reloads no matter how many
+        // sources are active.
+        const instanceId = Math.random().toString(36).slice(2, 8);
 
         function showOverlayError(message, type) {
             let banner = document.getElementById('overlayErrorBanner');
@@ -237,7 +261,6 @@ $badgeCacheJson = json_encode(
         // Debounced save — triggers 5 s after the last new message so the file
         // stays current without hammering the server on every single message.
         function scheduleSave() {
-            if (count > 1) return;
             if (saveTimer) clearTimeout(saveTimer);
             saveTimer = setTimeout(saveHistory, 5000);
         }
@@ -379,8 +402,8 @@ $badgeCacheJson = json_encode(
                     <span class="chat-overlay-page-text">${msgHtml}</span>
                 </div>`;
             container.appendChild(el);
-            if (!isHistory && count <= 1) {
-                // Track live messages for history persistence (only primary instance)
+            if (!isHistory) {
+                // Track live messages for shared history persistence
                 messageBuffer.push(data);
                 if (messageBuffer.length > 100) messageBuffer.shift();
                 scheduleSave();
@@ -412,8 +435,7 @@ $badgeCacheJson = json_encode(
             clearChat();
             messageBuffer = [];
             if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-            // Only the primary instance owns the history file (count <= 1).
-            if (count <= 1 && code) {
+            if (code) {
                 fetch('?action=save_history&code=' + encodeURIComponent(code), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -439,20 +461,18 @@ $badgeCacheJson = json_encode(
         }
         setInterval(refreshSettings, 60000);
         // Flush history on page unload (refresh / close) as a fallback
-        if (count <= 1) {
-            window.addEventListener('beforeunload', () => {
-                if (messageBuffer.length === 0) return;
-                const url = '?action=save_history&code=' + encodeURIComponent(code);
-                const body = JSON.stringify(messageBuffer.slice(-100));
-                navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-            });
-        }
+        window.addEventListener('beforeunload', () => {
+            if (messageBuffer.length === 0) return;
+            const url = '?action=save_history&code=' + encodeURIComponent(code);
+            const body = JSON.stringify(messageBuffer.slice(-100));
+            navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+        });
         // WebSocket connection
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             socket.on('connect', () => {
                 reconnectAttempts = 0;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Chat Overlay ' + count });
+                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Chat Overlay ' + instanceId });
             });
             socket.on('disconnect',    () => attemptReconnect());
             socket.on('connect_error', () => attemptReconnect());
