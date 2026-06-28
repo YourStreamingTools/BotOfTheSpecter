@@ -159,8 +159,44 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
                 // If the command name is changed, update it as well
                 $dbPermission = $permissionsMap[$permission];
-                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ? WHERE command = ?");
-                $updateSTMT->bind_param("ssiss", $new_command_name, $command_response, $cooldown, $dbPermission, $command_to_edit);
+                // Normalize aliases (BETA): lowercase, sanitized, deduped, comma-separated
+                $aliases_raw = isset($_POST['aliases']) ? $_POST['aliases'] : '';
+                $self_lower = sanitize_command_name($new_command_name);
+                $normalized_aliases = [];
+                foreach (explode(',', $aliases_raw) as $alias_tok) {
+                    $alias_tok = sanitize_command_name($alias_tok);
+                    if ($alias_tok === '' || $alias_tok === $self_lower) continue;
+                    if (in_array($alias_tok, $normalized_aliases, true)) continue;
+                    $normalized_aliases[] = $alias_tok;
+                }
+                // Drop aliases already taken by another command's name or aliases
+                $alias_conflicts = [];
+                if (!empty($normalized_aliases)) {
+                    $taken = [];
+                    $aliasCheck = $db->prepare("SELECT command, aliases FROM custom_commands WHERE command != ?");
+                    $aliasCheck->bind_param('s', $command_to_edit);
+                    $aliasCheck->execute();
+                    $aliasCheckRes = $aliasCheck->get_result();
+                    while ($row = $aliasCheckRes->fetch_assoc()) {
+                        $taken[strtolower(trim($row['command']))] = true;
+                        if (!empty($row['aliases'])) {
+                            foreach (explode(',', $row['aliases']) as $other) {
+                                $other = strtolower(trim($other));
+                                if ($other !== '') $taken[$other] = true;
+                            }
+                        }
+                    }
+                    $aliasCheck->close();
+                    $kept = [];
+                    foreach ($normalized_aliases as $alias_tok) {
+                        if (isset($taken[$alias_tok])) { $alias_conflicts[] = $alias_tok; }
+                        else { $kept[] = $alias_tok; }
+                    }
+                    $normalized_aliases = $kept;
+                }
+                $aliases_value = implode(',', $normalized_aliases);
+                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ?, aliases = ? WHERE command = ?");
+                $updateSTMT->bind_param("ssisss", $new_command_name, $command_response, $cooldown, $dbPermission, $aliases_value, $command_to_edit);
                 $updateSTMT->execute();
                 if ($new_command_name !== $command_to_edit) {
                     $renameOptionsSTMT = $db->prepare("UPDATE custom_command_random_pick_options SET command = ? WHERE command = ?");
@@ -171,6 +207,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($updateSTMT->affected_rows > 0) {
                     $status = t('custom_commands_msg_update_success', [$command_to_edit]);
                     $notification_status = "sp-alert-success";
+                    if (!empty($alias_conflicts)) {
+                        $status .= ' ' . t('custom_commands_alias_conflict_warning', [implode(', ', $alias_conflicts)]);
+                    }
                 } else {
                     $status = t('custom_commands_msg_update_not_found', [$command_to_edit]);
                     $notification_status = "sp-alert-danger";
@@ -212,8 +251,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Insert new command into MySQL database
                 try {
                     $dbPermission = $permissionsMap[$permission];
-                    $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, 'Enabled', ?, ?)");
-                    $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $dbPermission);
+                    // Normalize aliases (BETA): lowercase, sanitized, deduped, comma-separated
+                    $aliases_raw = isset($_POST['aliases']) ? $_POST['aliases'] : '';
+                    $normalized_aliases = [];
+                    foreach (explode(',', $aliases_raw) as $alias_tok) {
+                        $alias_tok = sanitize_command_name($alias_tok);
+                        if ($alias_tok === '' || $alias_tok === $newCommand) continue;
+                        if (in_array($alias_tok, $normalized_aliases, true)) continue;
+                        $normalized_aliases[] = $alias_tok;
+                    }
+                    // Drop aliases already taken by an existing command's name or aliases
+                    $alias_conflicts = [];
+                    if (!empty($normalized_aliases)) {
+                        $taken = [];
+                        $aliasCheckRes = $db->query("SELECT command, aliases FROM custom_commands");
+                        if ($aliasCheckRes) {
+                            while ($row = $aliasCheckRes->fetch_assoc()) {
+                                $taken[strtolower(trim($row['command']))] = true;
+                                if (!empty($row['aliases'])) {
+                                    foreach (explode(',', $row['aliases']) as $other) {
+                                        $other = strtolower(trim($other));
+                                        if ($other !== '') $taken[$other] = true;
+                                    }
+                                }
+                            }
+                        }
+                        $kept = [];
+                        foreach ($normalized_aliases as $alias_tok) {
+                            if (isset($taken[$alias_tok])) { $alias_conflicts[] = $alias_tok; }
+                            else { $kept[] = $alias_tok; }
+                        }
+                        $normalized_aliases = $kept;
+                    }
+                    $aliases_value = implode(',', $normalized_aliases);
+                    $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission, aliases) VALUES (?, ?, 'Enabled', ?, ?, ?)");
+                    $insertSTMT->bind_param("ssiss", $newCommand, $newResponse, $cooldown, $dbPermission, $aliases_value);
                     $insertSTMT->execute();
                     $insertSTMT->close();
                     $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
@@ -333,6 +405,9 @@ ob_start();
                     htmlspecialchars($commandAdded)
                 );
                 ?>
+                <?php if (!empty($alias_conflicts)): ?>
+                    <br><?php echo t('custom_commands_alias_conflict_warning', [implode(', ', $alias_conflicts)]); ?>
+                <?php endif; ?>
             </span>
         </div>
     <?php else: ?>
@@ -394,6 +469,17 @@ ob_start();
                             <?php endforeach; ?>
                         </select>
                     </div>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="add_aliases">
+                        <?php echo t('custom_commands_aliases_label'); ?>
+                        <span class="sp-badge sp-badge-amber" style="margin-left:0.4rem;">BETA</span>
+                    </label>
+                    <div class="sp-input-wrap">
+                        <i class="fas fa-tags sp-input-icon"></i>
+                        <input class="sp-input" type="text" name="aliases" id="add_aliases" value="" placeholder="<?php echo t('custom_commands_aliases_placeholder'); ?>">
+                    </div>
+                    <small class="sp-help"><?php echo t('custom_commands_aliases_help'); ?></small>
                 </div>
             </div>
         </form>
@@ -468,6 +554,17 @@ ob_start();
                             </select>
                         </div>
                     </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="edit_aliases">
+                            <?php echo t('custom_commands_aliases_label'); ?>
+                            <span class="sp-badge sp-badge-amber" style="margin-left:0.4rem;">BETA</span>
+                        </label>
+                        <div class="sp-input-wrap">
+                            <i class="fas fa-tags sp-input-icon"></i>
+                            <input class="sp-input" type="text" name="aliases" id="edit_aliases" value="" placeholder="<?php echo t('custom_commands_aliases_placeholder'); ?>">
+                        </div>
+                        <small class="sp-help"><?php echo t('custom_commands_aliases_help'); ?></small>
+                    </div>
                 </div>
             </form>
         <?php else: ?>
@@ -513,7 +610,17 @@ ob_start();
                     <tbody>
                         <?php foreach ($commands as $command): ?>
                             <tr>
-                                <td>!<?php echo htmlspecialchars($command['command']); ?></td>
+                                <td>
+                                    !<?php echo htmlspecialchars($command['command']); ?>
+                                    <?php if (!empty($command['aliases'])): ?>
+                                        <div class="sp-help" style="margin-top:0.15rem;">
+                                            <i class="fas fa-tags" style="margin-right:0.25rem;"></i><?php
+                                                $aliasList = array_filter(array_map('trim', explode(',', $command['aliases'])));
+                                                echo htmlspecialchars(implode(', ', array_map(function ($a) { return '!' . $a; }, $aliasList)));
+                                            ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?php echo htmlspecialchars($command['response']); ?></td>
                                 <td style="text-align:center;"><?php echo $permissionsMapReverse[$command['permission']] ?? 'Everyone'; ?></td>
                                 <td style="text-align:center;"><?php echo (int)$command['cooldown']; ?><?php echo t('custom_commands_cooldown_seconds'); ?></td>
@@ -1105,6 +1212,7 @@ function showResponse() {
     } else {
         permissionInput.value = 'Everyone';
     }
+    document.getElementById('edit_aliases').value = (commandData ? (commandData.aliases || '') : '');
     // Update character count for the edit response field
     updateCharCount('command_response', 'editResponseCharCount');
     updateManyOptionsButtonVisibility('command_response', 'editManyOptionsBtn');
