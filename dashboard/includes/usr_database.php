@@ -490,6 +490,8 @@ try {
                 celebration_intensity VARCHAR(20) DEFAULT 'light',
                 celebration_area VARCHAR(50) DEFAULT 'full',
                 screen_position VARCHAR(20) DEFAULT NULL,
+                position_x DECIMAL(5,2) DEFAULT NULL,
+                position_y DECIMAL(5,2) DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_category_variant (alert_category, variant_index)

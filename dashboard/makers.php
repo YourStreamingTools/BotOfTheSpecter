@@ -441,6 +441,8 @@ ob_start();
                     <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.35rem;"><?= t('makers_drag_hint') ?></p>
                     <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.5rem;"><i class="fas fa-magnet" style="margin-right:0.35rem;"></i><?= t('makers_snap_hint') ?></p>
                     <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_canvas_size') ?></label>
+                    <?php /* Supported canvas range: 1280×720 (720p) min → 2560×1440 (2K) max */ ?>
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.5rem;"><?= t('makers_canvas_range') ?></p>
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-bottom:0.6rem;">
                         <select id="makerCanvasSize" name="preview_canvas" class="sp-input" style="max-width:220px;">
                             <?php foreach (['1280x720' => '1280 × 720 (720p)', '1920x1080' => '1920 × 1080 (1080p)', '2560x1440' => '2560 × 1440 (2K)'] as $cv => $cl): ?>
