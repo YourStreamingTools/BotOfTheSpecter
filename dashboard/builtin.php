@@ -270,13 +270,18 @@ ob_start();
                             $hasForceLevel = isset($cmdForceLevels[$cmdKey]);
                             $forceLevel = $hasForceLevel ? $cmdForceLevels[$cmdKey] : null;
                             $aliases = isset($cmdAliases[$cmdKey]) ? $cmdAliases[$cmdKey] : [];
-                            $tooltipText = !empty($aliases) ? t('builtin_commands_aliases_tooltip', ['aliases' => '!' . implode(', !', $aliases)]) : '';
                         ?>
                         <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
-                            <td style="text-align:center; font-weight:600; color:var(--blue); vertical-align:middle;">
-                                <span <?php echo !empty($tooltipText) ? 'title="' . htmlspecialchars($tooltipText) . '" style="cursor: help; position: relative;"' : ''; ?>>
-                                    !<?php echo htmlspecialchars($command['command']); ?>
-                                </span>
+                            <td style="text-align:center; vertical-align:middle;">
+                                <span class="bc-command-name">!<?php echo htmlspecialchars($command['command']); ?></span>
+                                <?php if (!empty($aliases)): ?>
+                                    <div class="bc-aliases">
+                                        <span class="bc-aliases-label"><?php echo t('builtin_commands_aliases_label'); ?></span>
+                                        <?php foreach ($aliases as $alias): ?>
+                                            <span class="sp-badge sp-badge-grey">!<?php echo htmlspecialchars($alias); ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
                             </td>
                             <td style="vertical-align: middle;"><?php echo htmlspecialchars($desc); ?></td>
                             <td>

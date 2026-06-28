@@ -4383,3 +4383,22 @@ label.checkbox input[type="checkbox"] {
     z-index: 6;
 }
 .maker-pos-canvas.is-expanded .maker-pos-expand-close { display: flex; }
+
+/* ----------------------------------------------------------
+   Built-in commands page — command name + alias pills
+   ---------------------------------------------------------- */
+.bc-command-name { font-weight: 600; color: var(--blue); }
+.bc-aliases {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+}
+.bc-aliases-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
