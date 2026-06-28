@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.13"
+VERSION = "5.7.14"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -71,6 +71,14 @@ CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
 TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
+# Specter chat credentials are sourced from the website DB (bot_chat_token) with a short
+# cache; the env values above are only used as a fallback if the DB is unavailable.
+WEBSITE_TWITCH_CREDS_CACHE_TTL = 60  # seconds
+_website_twitch_creds_cache = {
+    "loaded_at": 0.0,
+    "access_token": TWITCH_OAUTH_API_TOKEN,
+    "client_id": TWITCH_OAUTH_API_CLIENT_ID,
+}
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 SHAZAM_API = os.getenv('SHAZAM_API')
 STEAM_API = os.getenv('STEAM_API')
@@ -10592,15 +10600,80 @@ async def track_chat_message():
         if connection:
             await connection.ensure_closed()
 
+def _first_present_key(row, candidates):
+    for candidate in candidates:
+        if candidate in row:
+            return candidate
+    return None
+
+# Pull the botofthespecter chat credentials (access token + client ID) from the website DB
+# (bot_chat_token table), cache them briefly, and fall back to the environment variables if
+# the DB row is missing or unavailable.
+async def get_website_twitch_app_credentials(force_refresh=False):
+    global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID, _website_twitch_creds_cache
+    now_ts = time.time()
+    cached_loaded_at = float(_website_twitch_creds_cache.get("loaded_at") or 0.0)
+    if not force_refresh and (now_ts - cached_loaded_at) < WEBSITE_TWITCH_CREDS_CACHE_TTL:
+        return {
+            "access_token": _website_twitch_creds_cache.get("access_token") or TWITCH_OAUTH_API_TOKEN,
+            "client_id": _website_twitch_creds_cache.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID,
+        }
+    access_token = TWITCH_OAUTH_API_TOKEN
+    client_id = TWITCH_OAUTH_API_CLIENT_ID
+    connection = None
+    try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1")
+            row = await cursor.fetchone()
+            if row:
+                token_key = _first_present_key(
+                    row,
+                    ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token", "twitch_access_token", "bot_oauth_token"),
+                )
+                client_id_key = _first_present_key(
+                    row,
+                    ("twitch_client_id", "client_id", "clientID"),
+                )
+                db_token = (str(row.get(token_key, "")).strip() if token_key else "")
+                db_client_id = (str(row.get(client_id_key, "")).strip() if client_id_key else "")
+                if db_token:
+                    access_token = db_token
+                if db_client_id:
+                    client_id = db_client_id
+    except Exception as e:
+        twitch_logger.warning(f"[TWITCH CREDS] Failed to fetch Twitch app credentials from website DB: {e}")
+    finally:
+        if connection:
+            await connection.ensure_closed()
+    TWITCH_OAUTH_API_TOKEN = access_token
+    TWITCH_OAUTH_API_CLIENT_ID = client_id
+    _website_twitch_creds_cache = {
+        "loaded_at": now_ts,
+        "access_token": access_token,
+        "client_id": client_id,
+    }
+    return {
+        "access_token": access_token,
+        "client_id": client_id,
+    }
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     if len(message) > 255:
         chat_logger.error(f"Message too long: {len(message)} characters (max 255)")
         return False
+    # Pull the botofthespecter chat credentials from the website DB (fallback to env).
+    website_creds = await get_website_twitch_app_credentials()
+    access_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
+    client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
+    if not access_token or not client_id:
+        chat_logger.error("Missing Twitch app credentials for chat message API")
+        return False
     url = "https://api.twitch.tv/helix/chat/messages"
     headers = {
-        "Authorization": f"Bearer {TWITCH_OAUTH_API_TOKEN}",
-        "Client-Id": TWITCH_OAUTH_API_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+        "Client-Id": client_id,
         "Content-Type": "application/json"
     }
     data = {
