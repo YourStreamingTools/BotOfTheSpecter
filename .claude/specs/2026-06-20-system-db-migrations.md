@@ -24,7 +24,7 @@ with no single place to review or apply schema changes.
 > `dashboard/includes/usr_database.php` (107-table declarative auto-migrator). Phase 3 governs only
 > the shared/system databases.
 
-## Decisions (locked with the user)
+## Decisions (settled)
 
 | Decision | Choice |
 | --- | --- |
@@ -58,57 +58,60 @@ with no single place to review or apply schema changes.
 
 ### 1. Migration files
 
-Location: `./migrations/{db}/{YYYYMMDD}_{NNNN}_{slug}.php` (one folder per managed DB) — **outside the
-public web root** (`dashboard/`). On the server this is `/var/www/migrations/{db}/`; the runner
-resolves it absolutely (with a repo-root dev fallback) so the DDL files are never web-servable.
-Each file `return`s a definition:
+Migrations live at `./migrations/{db}/{YYYYMMDD}_{NNNN}_{slug}.php` (one folder per managed DB),
+deliberately **outside the public web root** (`dashboard/`). On the server that resolves to
+`/var/www/migrations/{db}/`; the runner resolves it absolutely (with a repo-root dev fallback) so the
+DDL files are never web-servable. Each file `return`s a small definition array — a `description`, an
+ordered `up` list of SQL strings, and a matching `down` list. The shape is intentionally tiny so the
+page can render it verbatim before anything runs:
 
 ```php
-<?php
 return [
     'description' => 'Create known_bots registry',
-    'up'   => [
-        "CREATE TABLE IF NOT EXISTS known_bots ( ... ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-    ],
-    'down' => [
-        "DROP TABLE IF EXISTS known_bots",
-    ],
+    'up'   => [ "CREATE TABLE IF NOT EXISTS known_bots ( ... ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4" ],
+    'down' => [ "DROP TABLE IF EXISTS known_bots" ],
 ];
 ```
 
-- `up` / `down` are **ordered arrays of SQL strings** — the common, fully-reviewable case (the page
-  renders them verbatim before applying).
-- For data backfills / renames / conditional logic, `up` (and `down`) may instead be a
-  `callable(mysqli $conn): void`. Such a migration is flagged **"procedural"** in the UI (its effect
-  can't be shown as plain SQL); the file should also set a `'preview' => 'human description'`.
-- Migrations are ordered by filename. `migration_id` = the filename stem (e.g.
+A few rules fall out of that format:
+
+- `up` / `down` as **ordered arrays of SQL strings** is the common, fully-reviewable case — the page
+  shows them exactly as written before applying.
+- For data backfills, renames, or conditional logic, `up` (and `down`) may instead be a
+  `callable(mysqli $conn): void`. Such a migration is flagged **"procedural"** in the UI, because its
+  effect can't be shown as plain SQL; the file should also carry a `'preview'` string describing in
+  human terms what it does.
+- Migrations are ordered by filename, and the `migration_id` is the filename stem (e.g.
   `20260620_0001_create_known_bots`).
-- Procedural migrations get helper functions from the runner: `column_exists($conn,$t,$c)`,
-  `index_exists($conn,$t,$i)`, `table_exists($conn,$t)` — so guarded `ALTER`s (e.g. the
-  `users.is_deceased` migration) are safe to re-run / adopt.
+- Procedural migrations are handed guard helpers by the runner — `column_exists($conn,$t,$c)`,
+  `index_exists($conn,$t,$i)`, `table_exists($conn,$t)` — so guarded `ALTER`s (for example the
+  `users.is_deceased` migration) stay safe to re-run and safe to adopt.
 
 ### 2. Managed-DB registry
 
-`./config/migrations.php` returns the list of system DBs under management and their connection target:
+`./config/migrations.php` returns the list of system DBs under management and their connection target.
+It's a flat map of db name to a small descriptor:
 
 ```php
-<?php
 return [
-    'website'      => ['label' => 'Website'],
-    'specterdiscordbot'   => ['label' => 'Discord Bot'],
-    'roadmap'      => ['label' => 'Roadmap'],
-    'spam_pattern' => ['label' => 'Spam Patterns'],
+    'website'           => ['label' => 'Website'],
+    'specterdiscordbot' => ['label' => 'Discord Bot'],
+    'roadmap'           => ['label' => 'Roadmap'],
+    'spam_pattern'      => ['label' => 'Spam Patterns'],
 ];
 ```
 
-All are the same MySQL server, different db name; credentials come from the existing
+These are all the same MySQL server, different db name; credentials come from the existing
 `config/database.php` (PHP rule: config via `./config/*.php`, never `.env`). Per-user DBs are **not**
-listed here. Adding a future system DB = add a key + a `migrations/{db}/` folder.
+listed here. Adding a future system DB means adding a key plus a `migrations/{db}/` folder — nothing
+else.
 
 ### 3. Tracking table (per DB) + foundational bootstrap
 
-Each managed DB gets its own ledger, created by the runner on first access (the migration system's
-own bookkeeping — the one CREATE it must still do defensively):
+Each managed DB gets its own ledger, which the runner creates on first access. This is the one CREATE
+the migration system still has to do defensively, because it can't migrate its own bookkeeping into
+existence. The ledger records what's been applied, when, by whom, and the checksum of the file at
+apply time:
 
 ```sql
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -123,102 +126,119 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-**Two tables remain ensured-on-demand (intentionally, not "dead code"):** `schema_migrations`
-(the migration ledger itself — can't migrate its own bookkeeping into existence) and
-`admin_audit_log` (the audit ledger the whole admin panel + this page depend on, created in
-`admin_access.php`). Everything else moves into migrations. This boundary is stated so the line is
-principled, not accidental.
+**Two tables stay ensured-on-demand on purpose, and this is not "dead code":** `schema_migrations`
+(the ledger itself) and `admin_audit_log` (the audit ledger the whole admin panel and this page depend
+on, created in `admin_access.php`). Everything else moves into migrations. I'm stating this boundary
+explicitly so the line is principled rather than accidental.
 
 ### 4. Runner library
 
-`./dashboard/includes/migration_runner.php` — pure logic, no auto-execution on include:
+`./dashboard/includes/migration_runner.php` is pure logic — nothing executes just because it's
+included. Its surface:
 
-- `migration_connect($db)` → mysqli to a managed DB (validates `$db` is in the registry; db name
-  validated against `^[a-z0-9_]{1,64}$` like `usr_database.php`).
-- `migration_ensure_ledger($conn)` → create `schema_migrations` if missing.
-- `migration_scan($db)` → read + parse files in `migrations/{db}/`, return ordered list with id,
-  description, up/down, procedural flag, checksum.
-- `migration_status($db)` → join scanned files against the ledger → `applied[]`, `pending[]`,
-  `drifted[]` (applied but file checksum changed), `missing[]` (in ledger but file gone).
-- `migration_apply($db, $migration_id, $confirmDestructive)` → run `up` in order; on any error abort
-  (do **not** record); on success insert ledger row + `admin_audit_log('migration_apply', …)`.
-- `migration_rollback($db, $migration_id)` → only the **last applied** migration per DB (LIFO); run
-  `down`; on success delete ledger row + audit.
-- `migration_adopt_baseline($db)` → for an existing environment: if the ledger is empty and the
-  baseline's tables already exist, record the baseline as applied **without running it** (so prod
-  isn't disrupted when the defensive CREATEs are removed). Surfaced in the UI as "Adopt baseline".
-- **Destructive guard:** `up` containing `DROP` / `TRUNCATE` / `DELETE` (word-boundary, case-insensitive)
-  requires `$confirmDestructive` = true (UI double-confirm).
-- Nothing here runs unless the page (or an opt-in CLI) calls it.
+- `migration_connect($db)` — mysqli to a managed DB, after validating `$db` is in the registry and the
+  db name matches `^[a-z0-9_]{1,64}$` (same pattern as `usr_database.php`).
+- `migration_ensure_ledger($conn)` — create `schema_migrations` if missing.
+- `migration_scan($db)` — read and parse the files in `migrations/{db}/`, returning an ordered list
+  with id, description, up/down, procedural flag, and checksum.
+- `migration_status($db)` — join the scanned files against the ledger into `applied[]`, `pending[]`,
+  `drifted[]` (applied but the file's checksum changed), and `missing[]` (in the ledger but the file
+  is gone).
+- `migration_apply($db, $migration_id, $confirmDestructive)` — run `up` in order; on any error, abort
+  and do **not** record it; on success, insert the ledger row and write an
+  `admin_audit_log('migration_apply', …)` entry.
+- `migration_rollback($db, $migration_id)` — only the **last applied** migration per DB (LIFO); run
+  `down`; on success delete the ledger row and audit.
+- `migration_adopt_baseline($db)` — for an existing environment: if the ledger is empty and the
+  baseline's tables already exist, record the baseline as applied **without running it**, so prod isn't
+  disrupted when the defensive CREATEs are removed. Surfaced in the UI as "Adopt baseline".
+- **Destructive guard:** an `up` that contains `DROP` / `TRUNCATE` / `DELETE` (word-boundary,
+  case-insensitive) requires `$confirmDestructive = true`, which the UI backs with a double-confirm.
+
+Nothing in here runs unless the page (or an opt-in CLI) calls it.
 
 ### 5. Admin page — `./dashboard/admin/migrations.php`
 
-Clones the `known_bots.php` boot/pattern exactly: `ob_start` → `session_bootstrap.php` →
+The page clones the `known_bots.php` boot pattern exactly: `ob_start` → `session_bootstrap.php` →
 `admin_access.php` (is_admin) → i18n → `db_connect.php` → `userdata.php` → `session_write_close`.
 
-UI (one section per managed DB):
-- Header: DB label + counts (`N applied · M pending · drift?`).
-- Pending migrations: id + description, **Review SQL** (expands up/down, or shows the procedural
-  preview + a "procedural" badge), **Apply**. Destructive ones show a warning + require a typed/extra
-  confirm.
-- Applied migrations: ✓ id + applied_at + applied_by; the most recent shows **Roll back**.
-- Drift / missing warnings called out (never auto-fixed).
-- **Apply all pending** (runs pending in order, stops at first failure). Destructive migrations are
-  **skipped** by Apply-all and must be applied individually with their confirm step, so a bulk apply
-  can never silently run a `DROP`/`TRUNCATE`/`DELETE`.
-- AJAX POST handlers (`apply` / `rollback` / `apply_all` / `adopt_baseline`) → JSON + `exit`, each
-  `admin_audit_log`-ed. Registered in `menu.php` `$admin`; i18n keys in en/de/fr; styles in
-  `dashboard.css`.
+The UI has one section per managed DB:
+
+- Header: DB label plus counts (`N applied · M pending · drift?`).
+- Pending migrations: id + description, a **Review SQL** control (expands up/down, or shows the
+  procedural preview plus a "procedural" badge), and **Apply**. Destructive ones show a warning and
+  require a typed/extra confirm.
+- Applied migrations: ✓ id + applied_at + applied_by; the most recent one offers **Roll back**.
+- Drift / missing warnings are called out and never auto-fixed.
+- An **Apply all pending** action runs pending migrations in order and stops at the first failure.
+  Destructive migrations are **skipped** by Apply-all and must be applied individually with their
+  confirm step, so a bulk apply can never silently run a `DROP`/`TRUNCATE`/`DELETE`.
+
+The state changes go through AJAX POST handlers (`apply` / `rollback` / `apply_all` /
+`adopt_baseline`), each returning JSON then `exit`, and each written to `admin_audit_log`. The page is
+registered in `menu.php` under `$admin`, with i18n keys in en/de/fr and styles in `dashboard.css`.
 
 ### 6. v1 content — `website` DB
 
+The first real content brings the `website` DB fully under migrations:
+
 - `migrations/website/20260620_0001_baseline.php` — idempotent `CREATE TABLE IF NOT EXISTS` for the
   current website tables: `known_bots`, `custom_webhooks`, `feedback`, `system_metrics`,
-  `freestuff_games`, **and the previously-assumed** `admin_api_keys`, `bot_chat_token` (their DDL is
-  finally written here; the implementer must confirm it matches live production before this ships).
-  `down` is intentionally empty/guarded (we don't drop core tables on rollback of a baseline).
-- `migrations/website/20260620_0002_add_users_is_deceased.php` — **procedural**, uses
-  `column_exists()` to add `users.is_deceased` + `users.deceased_date` only if missing (replaces the
-  hand-comment in `users.php`).
-- **Retire the website defensive CREATEs:** remove `ensure_custom_webhooks_table()`,
-  `ensure_known_bots_table()`, their `lifespan` calls, the `*_TABLE_DDL` constants, and the on-demand
-  `freestuff_games` CREATE in `save_freestuff_game()` from `api.py`; remove the defensive
-  `CREATE TABLE IF NOT EXISTS` blocks from `known_bots.php`, `webhooks.php`, `feedback.php`, and the
-  `system_metrics` creator. (`admin_audit_log` bootstrap stays — see §3.)
-- Other system DBs: create `migrations/{specterdiscordbot,roadmap,spam_pattern}/20260620_0001_baseline.php`
-  capturing their current schema, registered + adoptable, but their existing creators (e.g. roadmap's
-  `initializeRoadmapDatabase()`) are **not** removed in v1.
+  `freestuff_games`, **and the previously-assumed** `admin_api_keys`, `bot_chat_token`. Their DDL
+  finally gets written down here, and that DDL has to be confirmed against live production before this
+  ships (see the open question below). `down` is intentionally empty/guarded — we don't drop core
+  tables on rollback of a baseline.
+- `migrations/website/20260620_0002_add_users_is_deceased.php` — **procedural**, using
+  `column_exists()` to add `users.is_deceased` and `users.deceased_date` only if they're missing. This
+  replaces the hand-comment in `users.php`.
+- **Retiring the website defensive CREATEs** is part of the same change: drop
+  `ensure_custom_webhooks_table()` and `ensure_known_bots_table()`, their `lifespan` calls, the
+  `*_TABLE_DDL` constants, and the on-demand `freestuff_games` CREATE inside `save_freestuff_game()`
+  from `api.py`; and remove the defensive `CREATE TABLE IF NOT EXISTS` blocks from `known_bots.php`,
+  `webhooks.php`, `feedback.php`, and the `system_metrics` creator. (`admin_audit_log` bootstrap stays
+  — see §3.)
+- The other system DBs each get a `migrations/{specterdiscordbot,roadmap,spam_pattern}/20260620_0001_baseline.php`
+  capturing their current schema, registered and adoptable — but their existing creators (e.g.
+  roadmap's `initializeRoadmapDatabase()`) are **not** removed in v1.
 
 ### 7. Deployment / adoption flow
 
-1. Deploy the code (runner + page + migration files + the api.py/PHP removals).
-2. In `migrations.php`, each managed DB shows its baseline as **pending**; an existing prod DB shows
-   **Adopt baseline** (tables already present) → one click records it applied without running.
-3. `website/0002` (is_deceased) shows pending → review → Apply.
-4. Thereafter, every schema change = a new migration file → appears pending → reviewed → applied.
+The rollout is meant to be boring and safe:
 
-Because the defensive CREATEs are removed, **the baseline must be adopted/applied in every
-environment** as part of deploy. `migration_adopt_baseline` makes that a safe one-click no-op on
-existing DBs; a fresh DB runs the baseline to create everything.
+1. Deploy the code (runner + page + migration files + the api.py/PHP removals).
+2. In `migrations.php`, each managed DB shows its baseline as **pending**; an existing prod DB instead
+   shows **Adopt baseline** (tables already present) → one click records it applied without running.
+3. `website/0002` (is_deceased) shows pending → review → Apply.
+4. From then on, every schema change is a new migration file → appears pending → reviewed → applied.
+
+Because the defensive CREATEs are removed, **the baseline must be adopted/applied in every environment**
+as part of deploy. `migration_adopt_baseline` makes that a safe one-click no-op on existing DBs, while a
+fresh DB runs the baseline to create everything.
 
 ## Error handling
 
-- Apply aborts on the first failing statement and does **not** record the migration (so a partial
-  apply is re-runnable after a fix; authors keep `up` idempotent where possible).
+- Apply aborts on the first failing statement and does **not** record the migration, so a partial apply
+  is re-runnable after a fix (authors keep `up` idempotent where possible).
 - All managed-DB connections validate the db name; failures are reported in the UI, never silent.
 - Destructive migrations require explicit confirmation; checksum drift and ledger/file mismatches are
   surfaced as warnings and never auto-resolved.
-- Audit every apply/rollback/adopt with actor + DB + migration_id via `admin_audit_log`.
+- Every apply / rollback / adopt is audited with actor + DB + migration_id via `admin_audit_log`.
 
 ## Verification
 
-- `php -l` on the new/changed PHP (`migrations.php`, `migration_runner.php`, `config/migrations.php`,
-  each migration file, edited admin pages, menu, lang).
-- `python -m py_compile api/api.py` after removing the ensure_*/DDL/freestuff CREATE code.
-- Functional (staging): fresh empty DB → baseline applies → all website tables exist. Existing DB →
-  "Adopt baseline" records applied with no schema change. `0002` adds the columns idempotently
-  (re-apply safe). Destructive confirm works. Rollback of last migration runs `down`. Removing the
-  defensive CREATEs does not break the bot/API/dashboard once the baseline is adopted.
+Before this ships, every new or changed PHP file — the page, the runner, `config/migrations.php`, each
+migration file, the edited admin pages, the menu, and the language files — should pass a PHP lint check,
+and `api/api.py` should still compile cleanly once the ensure_*/DDL/freestuff CREATE code is pulled out.
+
+The behaviour I want to see on staging confirms the design holds together:
+
+- A fresh, empty DB: applying the baseline creates every website table.
+- An existing DB: "Adopt baseline" records it as applied with no schema change.
+- `0002` adds the `is_deceased` / `deceased_date` columns idempotently — re-applying is a no-op.
+- The destructive-change confirmation actually blocks until it's confirmed.
+- Rolling back the last migration runs its `down`.
+- With the defensive CREATEs gone, the bot, API, and dashboard all keep working once the baseline is
+  adopted.
 
 ## File change list (v1)
 
@@ -247,7 +267,7 @@ existing DBs; a fresh DB runs the baseline to create everything.
 
 ## Open question for review
 
-The baseline DDL for the **assumed-to-exist** tables (`admin_api_keys`, `bot_chat_token`) must be
-authored to match live production exactly. The plan will require capturing their real `SHOW CREATE
-TABLE` from prod before finalizing the baseline, rather than guessing. Flagging so it's a conscious
-step, not an assumption.
+The baseline DDL for the **assumed-to-exist** tables (`admin_api_keys`, `bot_chat_token`) has to be
+authored to match live production exactly. That means capturing their real `SHOW CREATE TABLE` from
+prod before finalizing the baseline rather than guessing at it. Flagging it here so it stays a conscious
+step instead of an assumption.

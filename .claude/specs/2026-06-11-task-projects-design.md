@@ -11,7 +11,7 @@ The Working & Study system lets each chat viewer manage personal tasks via chat 
 
 ### 1. Schema — `user_projects` registry (per-user DB)
 
-Added to the central schema manager `./dashboard/includes/usr_database.php` (`$tables`), never inline elsewhere:
+The new registry table lives in the central schema manager (`./dashboard/includes/usr_database.php`, the `$tables` array) so it auto-creates per user — never declared inline anywhere else:
 
 ```sql
 CREATE TABLE IF NOT EXISTS user_projects (
@@ -48,33 +48,41 @@ Tasks keep their `project` **name string** — no FK migration, no rewrite of th
 
 **Delete invariant safety:** the deleted project's active task becomes the default project's active task only if the default has none, else it is appended to the default backlog; pending items append to the end of the default backlog in order; completed/rejected rows just get `project = NULL`.
 
-All mutating subcommands emit a `PROJECT_UPDATE` websocket event: `{channel_code, user_id, user_name, change: 'create'|'switch'|'clear'|'move'|'rename'|'delete', name, old_name?, task_id?}` so the dashboard/overlay can live-refresh. Task moves additionally emit `TASK_UPDATE` for the affected task(s), which already carry `project`.
+All mutating subcommands emit a `PROJECT_UPDATE` websocket event so the dashboard/overlay can live-refresh. The payload shape is:
 
-Helpers are module-level functions below the `# Functions for all the commands` marker, per project convention.
+```json
+{ "channel_code": "...", "user_id": "...", "user_name": "...",
+  "change": "create|switch|clear|move|rename|delete",
+  "name": "...", "old_name": "...", "task_id": 0 }
+```
+
+Task moves additionally emit `TASK_UPDATE` for the affected task(s), which already carry `project`.
+
+Helpers go in as module-level functions below the `# Functions for all the commands` marker, per project convention.
 
 ### 3. WebSocket (`websocket/server.py`)
 
-- Explicit `PROJECT_UPDATE` relay handler using `broadcast_to_task_clients_only` (channel-scoped, same pattern as the eight TASK_* relays) — **not** the `*` catch-all, which would leak to global listeners.
-- `/notify` whitelist gains `PROJECT_UPDATE` so the bot's existing HTTP fan-out path works.
+- An explicit `PROJECT_UPDATE` relay handler using `broadcast_to_task_clients_only` (channel-scoped, same pattern as the eight TASK_* relays) — **not** the `*` catch-all, which would leak to global listeners.
+- The `/notify` whitelist gains `PROJECT_UPDATE` so the bot's existing HTTP fan-out path works.
 
 ### 4. Dashboard (`dashboard/working-or-study.php`)
 
-- `ch_get_tasks` viewer SELECT adds `project` and `backlog_position`.
-- Viewer task table gains a **Project** column (tag, or em-dash for default).
-- Client-side **project filter** dropdown above the viewer table (All / Default / each project, with counts), populated from loaded data.
-- `PROJECT_UPDATE` socket handler → refetch tasks.
-- New strings via `t()` keys in en/de/fr.
+- The `ch_get_tasks` viewer SELECT adds `project` and `backlog_position`.
+- The viewer task table gains a **Project** column (tag, or em-dash for default).
+- A client-side **project filter** dropdown sits above the viewer table (All / Default / each project, with counts), populated from loaded data.
+- A `PROJECT_UPDATE` socket handler triggers a task refetch.
+- New UI strings go through `t()` keys in en/de/fr.
 
 ### 5. Overlay (`overlay/working-or-study.php` + `overlay/index.css`)
 
-- `get_channel_tasks` viewer query adds `project`.
-- Viewer rows render a small project chip (split and unified views) from initial load and from `TASK_CREATE`/`TASK_UPDATE` payloads (the bot already sends `task.project`; the overlay currently discards it).
-- `PROJECT_UPDATE` handler → refetch task lists.
-- Chip styles in `overlay/index.css` under the `study-overlay-page` namespace (no new CSS files, resolution-independent).
+- The `get_channel_tasks` viewer query adds `project`.
+- Viewer rows render a small project chip (split and unified views) from initial load and from `TASK_CREATE`/`TASK_UPDATE` payloads — the bot already sends `task.project`, but the overlay currently discards it.
+- A `PROJECT_UPDATE` handler refetches the task lists.
+- Chip styles live in `overlay/index.css` under the `study-overlay-page` namespace (no new CSS files, resolution-independent).
 
 ### 6. Help text (`api/builtin_commands.json`)
 
-`!project` entry documents move/rename/delete and reserved words; `!projects` entry documents counts + active marker.
+The `!project` entry documents move/rename/delete and the reserved words; the `!projects` entry documents counts + active marker.
 
 ## High-severity bug fixes (bundled, same files)
 
@@ -97,4 +105,4 @@ Changes touch the bot **and** the websocket server — both processes need a res
 
 ## Testing
 
-No automated test suite exists for these surfaces. Verification: `php -l` on every touched PHP file, `python -m py_compile` on touched Python. Manual smoke flow: `!project Alpha` → `!task a` → `!later b` → `!project move 1 Beta` → `!projects` → `!project rename Beta | Gamma` → `!project delete Gamma` — watching dashboard + overlay update live.
+There's no automated test suite for these surfaces, so verification is manual. Every touched PHP file should pass a syntax check and every touched Python file should compile cleanly before anything ships. The real confidence comes from a manual smoke flow run against a live channel: `!project Alpha` → `!task a` → `!later b` → `!project move 1 Beta` → `!projects` → `!project rename Beta | Gamma` → `!project delete Gamma`, watching the dashboard and overlay update live at each step.

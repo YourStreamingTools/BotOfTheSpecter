@@ -1,356 +1,97 @@
-# Known-Bots Registry — Phase 2 (Bot Consumers) Implementation Plan
+# Known-Bots Registry — Phase 2 (Bot Consumers)
 
-**Goal:** Make the Twitch bot consume the global `website.known_bots` registry — unioned with the existing per-channel exclusion lists — so known bots stop accruing watch time, earning points, and being welcomed/auto-shouted-out.
-
-**Architecture:** Each of `beta.py` and `beta-v6.py` gains a module-level lazy-TTL cached loader `get_known_bots()` that reads `website.known_bots` and returns a lowercased set. That set is unioned in at four call sites: watch-time tracking, points award, the `!points` lookup, and the welcome/auto-shoutout decision. The per-channel lists keep working; the global set is additive. No schema, API, or dashboard change.
-
-**Tech Stack:** Python 3 / TwitchIO (2.10 for `beta.py`, 3.2.2 for `beta-v6.py`) / aiomysql via the bot's `mysql_connection` helper.
+**Goal:** Make the Twitch bot consume the global `website.known_bots` registry — unioned with the existing per-channel exclusion lists — so known bots stop accruing watch time, earning points, and being welcomed or auto-shouted-out.
 
 **Spec:** `.claude/specs/2026-06-19-admin-known-bots-registry-phase2.md`
 
-## Global Constraints
+## The idea
 
-- **No test framework exists.** Verify with `python -m py_compile <file>`. Do NOT add pytest.
-- **Only `beta.py` and `beta-v6.py`.** `bot.py` (stable) must NOT be touched (bot-version policy).
-- **TwitchIO API differs between the two files** (2.10 vs 3.2.2). Do NOT assume a `beta.py` edit drops into `beta-v6.py` verbatim — each task uses its file's own DB idiom and call sites.
-- **Do NOT change `message_counts` behaviour.** Known bots must still be *counted* when they chat; Phase 2 only skips welcome/shoutout/points/watch-time for them.
-- **DB rule:** parameterized read; the `known_bots` table is in the central `website` DB — read it via `mysql_connection("website")`, never per-user.
-- **Apply edits by matching the shown current code by content** (line numbers below are approximate and may have drifted). Read the live function before editing.
-- **The registry is lowercased**; normalise both sides of every membership check to lowercase.
+Phase 1 built the admin-managed registry. Phase 2 is the consuming side: each of `beta.py` and `beta-v6.py` gains a module-level loader, `get_known_bots()`, that reads `website.known_bots` and returns a lowercased set of active bot logins. That set is unioned into the per-channel exclusion lists at every place the bot already decides whether a user counts as "real": watch-time tracking, the points award, the `!points` lookup, and the welcome / auto-shoutout decision.
 
----
+The per-channel lists keep working exactly as they do today — the global registry is purely additive. There's no schema change, no API change, and no dashboard change in this phase; we're only teaching the bot to read a table that already exists.
 
-### Task 1: `beta.py` (TwitchIO 2.10) — consume the global registry
+**Tech:** Python 3 / TwitchIO (2.10 for `beta.py`, 3.2.2 for `beta-v6.py`) / aiomysql via each bot's own MySQL helper.
 
-**Files:**
-- Modify: `./bot/beta.py` — add the loader (below the `# Functions for all the commands` marker, ~line 11115); union at `track_watch_time` (~16190), points award (~4152), `!points` lookup (~4980), and the welcome/auto-shoutout path (`message_counting_and_welcome_messages` ~3822 and the first-message check ~3965).
+## Constraints and ground rules
 
-**Interfaces:**
-- Consumes: `mysql_connection(db_name)` (beta.py:490), `DictCursor`, `time`, `bot_logger` — all already imported/used in this file.
-- Produces: `get_known_bots() -> set` (module-level), used by the four call sites in this task.
+- **Only `beta.py` and `beta-v6.py` change.** Stable `bot.py` is off-limits under the bot-version policy. This feature lands in beta and v6 only.
+- **The two files don't share an idiom.** TwitchIO 2.10 and 3.2.2 differ, and so does each file's DB-access style. The loader and the call-site edits have to follow whatever pattern each file already uses; a `beta.py` edit can't be pasted into `beta-v6.py` verbatim.
+- **`message_counts` behaviour must not change.** Known bots are still *counted* when they chat. Phase 2 only stops them from being welcomed, shouted out, given points, or credited with watch time. This is the subtle one — getting the ordering wrong would silently stop counting bots, which we don't want.
+- **The registry lives in the central `website` DB.** Read `known_bots` through the website-scoped connection, never per-user, and use a parameterized read.
+- **Everything is lowercased.** The registry is stored lowercased; normalise both sides of every membership check to lowercase so comparisons are reliable.
+- **Match code by content, not by position.** The call sites have drifted before; locate each one by the surrounding code (the function it lives in and the lines around it), not by a fixed offset.
 
-- [ ] **Step 1: Add the cached loader**
+## The loader
 
-Insert immediately below the `# Functions for all the commands` marker (~line 11115), as a module-level function:
+Both files get the same shape of helper, placed below the `# Functions for all the commands` marker as a module-level async function. It keeps a tiny module-level cache — a "loaded at" timestamp and a frozenset of bot logins — with a 300-second TTL. Within the TTL it returns the cached set; past it, it re-reads the table.
 
-```python
-# Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the
-# per-channel exclusion lists for watch-time, points, and welcome/shoutout.
-KNOWN_BOTS_CACHE_TTL = 300  # seconds
-_known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
+The read itself is a single parameterless query against the website DB:
 
-async def get_known_bots():
-    # Returns a lowercased set of active global bot logins from website.known_bots.
-    # Lazy TTL cache; on any error returns the last good cache (or empty set) so callers
-    # degrade gracefully to per-channel-only exclusion (i.e. today's behaviour).
-    global _known_bots_cache
-    now = time.time()
-    if _known_bots_cache["loaded_at"] and (now - _known_bots_cache["loaded_at"]) < KNOWN_BOTS_CACHE_TTL:
-        return set(_known_bots_cache["bots"])
-    bots = set(_known_bots_cache["bots"])  # fall back to last good cache on error
-    connection = None
-    try:
-        connection = await mysql_connection("website")
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT bot_login FROM known_bots WHERE is_active = 1")
-            rows = await cursor.fetchall()
-            bots = {str(r["bot_login"]).strip().lower() for r in rows if r.get("bot_login")}
-        _known_bots_cache = {"loaded_at": now, "bots": frozenset(bots)}
-    except Exception as e:
-        bot_logger.error(f"[KNOWN BOTS] Failed to load known_bots from website DB: {e}")
-    finally:
-        if connection:
-            await connection.close()
-    return set(bots)
+```sql
+SELECT bot_login FROM known_bots WHERE is_active = 1
 ```
 
-> Verify before moving on: confirm `DictCursor`, `time`, and `bot_logger` are the symbols this file already uses (they appear in `track_watch_time`). If the connection close idiom in this file differs (e.g. `connection.release()`), match whatever `track_watch_time` uses for its `finally` cleanup.
-
-- [ ] **Step 2: Union into watch-time tracking**
-
-In `track_watch_time` (~16188-16192), find:
-
-```python
-            excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
-            excluded_users_list = excluded_users.split(',') if excluded_users else []
-            # Filter active users to exclude those in the list
-            non_excluded_users = [user for user in active_users if user['user_login'] not in excluded_users_list]
-```
-
-Replace with:
-
-```python
-            excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
-            excluded_users_list = excluded_users.split(',') if excluded_users else []
-            # Phase 2: union the per-channel list with the global known-bots registry
-            excluded_logins = {u.strip().lower() for u in excluded_users_list if u.strip()} | await get_known_bots()
-            non_excluded_users = [user for user in active_users if user['user_login'].lower() not in excluded_logins]
-```
-
-- [ ] **Step 3: Union into points award**
-
-In the points-award path (~4152-4154), find:
-
-```python
-            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
-            author_lower = messageAuthor.lower()
-            if author_lower not in excluded_users:
-```
+Rows are stripped and lowercased into a set, the cache is refreshed, and the set is returned. The important reliability detail: on **any** exception the loader logs the failure and falls back to the last good cache (empty set on first failure) rather than raising. That way a transient DB hiccup degrades gracefully to per-channel-only exclusion — i.e. exactly today's behaviour — instead of breaking the call sites that depend on it.
 
-Replace with:
+The two files differ only in how they open the website connection:
 
-```python
-            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
-            excluded_users = set(excluded_users) | await get_known_bots()  # Phase 2: + global known bots
-            author_lower = messageAuthor.lower()
-            if author_lower not in excluded_users:
-```
+- **`beta.py`** uses its existing `mysql_connection("website")` helper with a `DictCursor`, and cleans the connection up in a `finally` block, matching the close/release idiom `track_watch_time` already uses.
+- **`beta-v6.py`** uses the v6 accessor, `async with await mysql_handler.get_connection(db_name="website")`, mirroring how `get_website_twitch_app_credentials` reads the website DB in that file.
 
-- [ ] **Step 4: Union into the `!points` lookup**
+In both cases the surrounding symbols — `DictCursor`, `time`, `bot_logger` — are ones the file already imports and uses, so before wiring the loader in, confirm those names match the live file (and adjust the connection-close idiom if the file's convention differs).
 
-In the `!points` command lookup (~4980-4981), find:
+## Where the registry gets unioned in
 
-```python
-                        if settings and 'excluded_users' in settings:
-                            excluded_users = [u.strip().lower() for u in settings['excluded_users'].split(',')]
-                            if target_user_name in excluded_users:
-```
+### `beta.py` (TwitchIO 2.10)
 
-Replace with (also normalises `target_user_name` to lowercase, fixing a latent case mismatch):
-
-```python
-                        if settings and 'excluded_users' in settings:
-                            excluded_users = set(u.strip().lower() for u in settings['excluded_users'].split(',')) | await get_known_bots()
-                            if target_user_name.lower() in excluded_users:
-```
-
-- [ ] **Step 5: Skip welcome/auto-shoutout for known bots — WITHOUT affecting `message_counts`**
-
-In `message_counting_and_welcome_messages`, the `message_counts` INSERT runs first and must keep
-running for known bots. Find the INSERT + commit (~3817-3822):
-
-```python
-                await cursor.execute(
-                    'INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) '
-                    'ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s',
-                    (messageAuthor, user_level, user_level)
-                )
-                await connection.commit()
-```
-
-Replace with (adds an early return AFTER counting, so the bot is counted but not welcomed/shouted-out):
-
-```python
-                await cursor.execute(
-                    'INSERT INTO message_counts (username, message_count, user_level) VALUES (%s, 1, %s) '
-                    'ON DUPLICATE KEY UPDATE message_count = message_count + 1, user_level = %s',
-                    (messageAuthor, user_level, user_level)
-                )
-                await connection.commit()
-                # Phase 2: known bots are counted above, but never welcomed or auto-shouted-out.
-                if messageAuthor.lower() in await get_known_bots():
-                    return
-```
-
-> Confirm this return is inside `message_counting_and_welcome_messages` and that nothing after the
-> commit (other than seen_today bookkeeping + welcome/shoutout) must run for a known bot. The whole
-> point is to skip the welcome + auto-shoutout that follow; returning here does that. Do NOT move the
-> check above the INSERT — that would stop counting the bot (forbidden by the Global Constraints).
-
-- [ ] **Step 6: Skip the first-message welcome for known bots**
-
-In the first-message welcome check (~3965), find:
-
-```python
-        if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() == CHANNEL_NAME.lower():
-            return
-```
-
-Replace with:
-
-```python
-        if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() in await get_known_bots() or messageAuthor.lower() == CHANNEL_NAME.lower():
-            return
-```
-
-> Confirm the enclosing function is `async` (it must be, to `await`). If this exact condition appears
-> in more than one place, apply it only in the welcome/first-message function identified by the
-> surrounding context.
-
-- [ ] **Step 7: Verify**
-
-Run:
-```bash
-python -m py_compile bot/beta.py
-```
-Expected: exits 0, no output.
-
-Then confirm the loader and all four call sites are wired:
-```bash
-grep -n "async def get_known_bots" bot/beta.py        # expect 1
-grep -c "await get_known_bots()" bot/beta.py          # expect 5 (watch-time, points award, points lookup, welcome skip, first-message)
-```
-
----
-
-### Task 2: `beta-v6.py` (TwitchIO 3.2.2) — consume the global registry
-
-**Files:**
-- Modify: `./bot/beta-v6.py` — add the loader (below the `# Functions for all the commands` marker, ~line 9374); union at `track_watch_time` (~13555), points award (~3785), `!points` lookup (~4632), and `send_first_command_welcome_if_needed` (~3695).
-
-**Interfaces:**
-- Consumes: `mysql_handler.get_connection(db_name=...)` / `DirectConnection` (v6:358-422), `DictCursor`, `time`, `bot_logger` — all already used in this file (see `get_website_twitch_app_credentials` ~430-468).
-- Produces: `get_known_bots() -> set` (module-level), used by the four v6 call sites.
-
-- [ ] **Step 1: Add the cached loader (v6 DB idiom)**
-
-Insert below the `# Functions for all the commands` marker (~line 9374), as a module-level function. Note the v6 connection idiom (`async with await mysql_handler.get_connection(...)`), which differs from `beta.py`:
-
-```python
-# Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the
-# per-channel exclusion lists for watch-time, points, and welcome/shoutout.
-KNOWN_BOTS_CACHE_TTL = 300  # seconds
-_known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
-
-async def get_known_bots():
-    # Returns a lowercased set of active global bot logins from website.known_bots.
-    # Lazy TTL cache; on any error returns the last good cache (or empty set) so callers
-    # degrade gracefully to per-channel-only exclusion (i.e. today's behaviour).
-    global _known_bots_cache
-    now = time.time()
-    if _known_bots_cache["loaded_at"] and (now - _known_bots_cache["loaded_at"]) < KNOWN_BOTS_CACHE_TTL:
-        return set(_known_bots_cache["bots"])
-    bots = set(_known_bots_cache["bots"])  # fall back to last good cache on error
-    try:
-        async with await mysql_handler.get_connection(db_name="website") as connection:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT bot_login FROM known_bots WHERE is_active = 1")
-                rows = await cursor.fetchall()
-                bots = {str(r["bot_login"]).strip().lower() for r in rows if r.get("bot_login")}
-        _known_bots_cache = {"loaded_at": now, "bots": frozenset(bots)}
-    except Exception as e:
-        bot_logger.error(f"[KNOWN BOTS] Failed to load known_bots from website DB: {e}")
-    return set(bots)
-```
+There are five edits beyond the loader, all of the same flavour: take whatever exclusion set already exists at that point and union `await get_known_bots()` into it.
 
-> Verify before moving on: confirm the website-DB read idiom matches `get_website_twitch_app_credentials`
-> in this file (the symbol names `mysql_handler`, `DictCursor`, `bot_logger`). If that function uses a
-> different accessor (e.g. `await mysql_connection("website")` directly), match it exactly instead.
+- **Watch-time tracking** (`track_watch_time`). The per-channel `excluded_users` string is split into a list as before; we then build a lowercased set from it, union the known-bots set in, and filter active users by lowercased `user_login` against that combined set. Known bots simply drop out of the non-excluded list, so they never accrue watch time.
 
-- [ ] **Step 2: Union into watch-time tracking**
-
-In `track_watch_time` (~13552-13557), find:
+- **Points award.** The award path already builds a lowercased `excluded_users` list from settings. We turn it into a set, union the known-bots set, and keep the existing "award only if author not excluded" guard. Known bots fall into the excluded set and earn nothing.
 
-```python
-            excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
-            excluded_users_list = excluded_users.split(',') if excluded_users else []
-            non_excluded_users = [user for user in active_users if user['user_login'] not in excluded_users_list]
-```
+- **`!points` lookup.** The lookup builds the same lowercased exclusion list. We union the known-bots set in here too, and while we're at it normalise `target_user_name` to lowercase in the membership check — that fixes a latent case mismatch in the existing code, so a bot looked up by mixed-case name still reports as excluded.
 
-Replace with:
+- **Welcome / auto-shoutout, without disturbing counting** (`message_counting_and_welcome_messages`). This is the careful one. The `message_counts` INSERT-and-commit must run first and must still run for known bots. So the known-bots check goes in as an early `return` placed **after** the commit: the bot is counted, then we bail out before the welcome and auto-shoutout logic. The check must not move above the INSERT — doing so would stop counting the bot, which the constraints forbid. Before committing this, confirm nothing else after the commit (beyond the seen-today bookkeeping and the welcome/shoutout itself) needs to run for a known bot.
 
-```python
-            excluded_users = excluded_users_data['excluded_users'] if excluded_users_data else ''
-            excluded_users_list = excluded_users.split(',') if excluded_users else []
-            # Phase 2: union the per-channel list with the global known-bots registry
-            excluded_logins = {u.strip().lower() for u in excluded_users_list if u.strip()} | await get_known_bots()
-            non_excluded_users = [user for user in active_users if user['user_login'].lower() not in excluded_logins]
-```
+- **First-message welcome.** There's a separate first-message guard that already returns early for ignored usernames and for the channel owner. We extend that same condition to also return when the author is in the known-bots set. The enclosing function is async (it has to be, to await the loader); if a similar-looking guard appears elsewhere, only the welcome/first-message one gets this change.
 
-- [ ] **Step 3: Union into points award**
+That's five `await get_known_bots()` call sites in `beta.py`: watch-time, points award, `!points` lookup, the post-count welcome/shoutout skip, and the first-message guard.
 
-In the points-award path (~3785-3787), find:
+### `beta-v6.py` (TwitchIO 3.2.2)
 
-```python
-            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
-            author_lower = messageAuthor.lower()
-            if author_lower not in excluded_users:
-```
+The watch-time, points-award, and `!points`-lookup edits are conceptually identical to `beta.py` — same union-the-set approach, same lowercasing — differing only in the v6 DB idiom for the loader.
 
-Replace with:
+The welcome path is simpler in v6. Welcoming lives in `send_first_command_welcome_if_needed`, which is **separate** from message counting, so there's no `message_counts` ordering concern here. We just extend that function's existing early-return guard to also fire for known bots, alongside the ignored-usernames and channel-owner checks. Before making the change, confirm in the live file that the `message_counts` INSERT is genuinely not gated by this same condition; if v6 turns out to share an early-return that precedes counting, fall back to the `beta.py` approach of skipping *after* the count instead.
 
-```python
-            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
-            excluded_users = set(excluded_users) | await get_known_bots()  # Phase 2: + global known bots
-            author_lower = messageAuthor.lower()
-            if author_lower not in excluded_users:
-```
+That's four `await get_known_bots()` call sites in `beta-v6.py`: watch-time, points award, `!points` lookup, and the welcome guard.
 
-- [ ] **Step 4: Union into the `!points` lookup**
+## Files affected
 
-In the `!points` command lookup (~4631-4633), find:
+| File | Change |
+| ---- | ------ |
+| `./bot/beta.py` | Add `get_known_bots()` loader; union the global registry at watch-time, points award, `!points` lookup, the post-count welcome/shoutout skip, and the first-message guard. |
+| `./bot/beta-v6.py` | Add `get_known_bots()` loader (v6 DB idiom); union at watch-time, points award, `!points` lookup, and the welcome guard. |
+| `./bot/bot.py` | **No change** — stable is out of scope. |
 
-```python
-                        if settings and 'excluded_users' in settings:
-                            excluded_users = [u.strip().lower() for u in settings['excluded_users'].split(',')]
-                            if target_user_name.lower() in excluded_users:
-```
+No schema, API, or dashboard files are touched.
 
-Replace with:
+## How we'll know it's right
 
-```python
-                        if settings and 'excluded_users' in settings:
-                            excluded_users = set(u.strip().lower() for u in settings['excluded_users'].split(',')) | await get_known_bots()
-                            if target_user_name.lower() in excluded_users:
-```
+Each touched file should pass a Python syntax check (`py_compile`) before anything else — there's no test framework here and we're not adding one. Beyond that, the loader should be the single definition in each file and each call site should actually be awaiting it (five awaits in `beta.py`, four in `beta-v6.py`), so a quick read-through confirming the wiring is part of the work.
 
-- [ ] **Step 5: Skip welcome for known bots**
+Real confidence comes from a staging run on a beta/v6 channel, since the behaviour needs live bots and the DB:
 
-In `send_first_command_welcome_if_needed` (~3695) — which in v6 is separate from message counting, so no `message_counts` concern — find:
-
-```python
-            if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() == CHANNEL_NAME.lower():
-                return
-```
-
-Replace with:
-
-```python
-            if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() in await get_known_bots() or messageAuthor.lower() == CHANNEL_NAME.lower():
-                return
-```
-
-> Before editing, confirm in this file that the `message_counts` INSERT is NOT gated by this same
-> condition (per the extraction it is not in v6). If you find a shared early-return that precedes the
-> `message_counts` INSERT here too, apply the `beta.py` Step 5 approach instead (skip AFTER counting).
-
-- [ ] **Step 6: Verify**
-
-Run:
-```bash
-python -m py_compile bot/beta-v6.py
-```
-Expected: exits 0, no output.
-
-Then confirm wiring:
-```bash
-grep -n "async def get_known_bots" bot/beta-v6.py     # expect 1
-grep -c "await get_known_bots()" bot/beta-v6.py        # expect 4 (watch-time, points award, points lookup, welcome)
-```
-
----
-
-## Functional verification (after both tasks, on a staging beta/v6 channel)
-
-Requires running bots + DB; not dev-box verifiable beyond `py_compile`:
-
-1. Restart the `beta` (and/or `beta-v6`) bot process.
-2. Via the Phase 1 admin page, add a test login that is actively in the channel (e.g. a secondary account). Within ≤5 min (cache TTL): the bot stops welcoming it, `!points <login>` reports 0, and its watch time stops incrementing. Real users are unaffected.
-3. Confirm `message_counts` for that login STILL increments when it chats (Phase 2 must not change counting).
-4. Confirm a per-channel `watch_time_excluded_users` entry still works (union preserved).
-5. Disable the registry entry → behaviour returns within the TTL.
-
-## Coverage notes
-
-All planned call sites are accounted for: loader with TTL + fallback (T1S1/T2S1); watch-time union (T1S2/T2S2); points award union (T1S3/T2S3); `!points` lookup union (T1S4/T2S4); welcome/shoutout skip (T1S5-6 / T2S5); `message_counts` preserved (T1S5 places skip AFTER the INSERT; T2 welcome path is separate); beta-only + v6-only, stable untouched; website-DB read via `mysql_connection`/`mysql_handler`. Symbol names `get_known_bots` / `_known_bots_cache` / `KNOWN_BOTS_CACHE_TTL` are consistent across both tasks; `await get_known_bots()` call-count checks (5 in beta, 4 in v6) match the listed sites.
+1. Restart the `beta` (and/or `beta-v6`) process.
+2. Using the Phase 1 admin page, add a test login that's actively present in the channel (e.g. a secondary account). Within the cache TTL (≤5 min) the bot should stop welcoming it, `!points <login>` should report 0, and its watch time should stop incrementing — while real users are unaffected.
+3. Confirm `message_counts` for that login still increments when it chats. This is the regression guard: Phase 2 must not change counting.
+4. Confirm a per-channel `watch_time_excluded_users` entry still works on its own, proving the union didn't replace the existing list.
+5. Disable the registry entry and confirm behaviour returns to normal within the TTL.
 
 ## Open decision carried from the spec
 
-Whether known bots should also stop being counted in `message_counts`. This plan implements the
-**recommended** option (keep counting; skip only welcome/shoutout/points/watch-time). If you instead
-want counting suppressed, T1S5 simplifies to adding the check at the shared early-return — confirm
-before execution.
+Whether known bots should *also* be dropped from `message_counts`. This plan takes the recommended position — keep counting, skip only welcome/shoutout/points/watch-time. If we later decide counting should be suppressed too, the `beta.py` welcome change simplifies to moving the known-bots check to the shared early-return ahead of the INSERT. That's a deliberate choice to confirm before building, not a detail to flip silently.
 
 ## Deploy
 
-Restart the `beta` and `beta-v6` bot processes. No DB/API/dashboard change.
+Restart the `beta` and `beta-v6` bot processes. Nothing else moves — no DB, API, or dashboard deploy.

@@ -5,12 +5,12 @@
 
 ## Problem
 
-The dashboard leaderboards (`dashboard.php` → API `GET /dashboard/leaderboards`) hide
-bots from the watch/chat boards using a **hardcoded** Python set `KNOWN_BOT_LOGINS`
-(the current 41 third-party bot logins) in `./api/api.py`. Editing that list means a code change
-and an API deploy. We want admins to manage the list from the dashboard admin pages, and
-we want it to become a **canonical global "these accounts are bots" registry** that other
-systems can reuse over time.
+The dashboard leaderboards (`dashboard.php` → API `GET /dashboard/leaderboards`) hide bots
+from the watch/chat boards using a hardcoded Python set, `KNOWN_BOT_LOGINS`, in `./api/api.py`
+(the current 41 third-party bot logins). Editing that list today means a code change and an
+API deploy. I want admins to be able to manage the list from the dashboard admin pages, and I
+want it to grow into a canonical, global "these accounts are bots" registry that other systems
+can reuse over time.
 
 ## Decisions (locked)
 
@@ -28,7 +28,7 @@ systems can reuse over time.
 - Provide an admin page to add / disable / delete bot logins, audit-logged.
 - The API reads the list through a short-lived cache and **falls back to the hardcoded seed**
   if the table is empty or unreachable, so leaderboards never break.
-- Behaviour is identical to today the moment it ships (table is seeded with the current 41 logins).
+- Behaviour is identical to today the moment it ships (the table is seeded with the current 41 logins).
 
 ## Non-goals (Phase 1)
 
@@ -56,6 +56,8 @@ Admin (browser)
 
 ### 1. Data model — `known_bots` (central `website` DB)
 
+One row per bot login. The schema:
+
 ```sql
 CREATE TABLE IF NOT EXISTS known_bots (
     id          INT NOT NULL AUTO_INCREMENT,
@@ -69,45 +71,45 @@ CREATE TABLE IF NOT EXISTS known_bots (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-**Created at runtime** (matching how `freestuff_games` / `custom_webhooks` / `admin_api_keys` already exist — i.e. no canonical-schema-file entry; the `./help` folder is deprecated and must not be edited):
+The table is **created at runtime**, the same way `freestuff_games`, `custom_webhooks`, and
+`admin_api_keys` already come into existence — there is no canonical-schema-file entry, and the
+deprecated `./help` folder must not be touched.
 
-1. **Defensive runtime** `ensure_known_bots_table()` in `./api/api.py`, called from the
-   `lifespan` startup handler immediately after `ensure_custom_webhooks_table()` (api.py:621).
-   It runs `CREATE TABLE IF NOT EXISTS`, then if the table is empty, **seeds the current
-   hardcoded set** (`DEFAULT_KNOWN_BOTS_SEED`) with `added_by='system'`, `is_active=1`.
+A defensive `ensure_known_bots_table()` helper in `./api/api.py` handles this. It runs from the
+`lifespan` startup handler, right after the existing custom-webhooks table is ensured. It issues
+the `CREATE TABLE IF NOT EXISTS`, and then, if the table is empty, seeds it with the current
+hardcoded set (`DEFAULT_KNOWN_BOTS_SEED`) using `added_by='system'`, `is_active=1`.
 
-   **Empty-table semantics:** seeding happens only on an *empty* table (at startup), and the
-   read fallback (below) also triggers only on an *empty* result. So an admin removing a few
-   entries works as expected (the remaining rows are authoritative), but a table emptied to
-   zero rows re-applies the seed on the next read/restart — i.e. "filter nothing" is not a
-   reachable state. That degenerate case is acceptable and intentional.
+**Empty-table semantics:** seeding happens only on an *empty* table (at startup), and the read
+fallback (below) also triggers only on an *empty* result. So an admin removing a few entries
+works as expected — the remaining rows are authoritative — but a table emptied all the way to
+zero rows re-applies the seed on the next read or restart. In other words, "filter nothing" is
+not a reachable state. That degenerate case is acceptable and intentional.
 
 ### 2. API read path — `./api/api.py`
 
-- Rename the existing `KNOWN_BOT_LOGINS` set to `DEFAULT_KNOWN_BOTS_SEED` (same 41 entries).
-  It becomes the seed source for `ensure_known_bots_table()` **and** the fallback for reads.
-- Add the cached read-through, mirroring the Twitch-creds cache (api.py:180-219):
+The existing `KNOWN_BOT_LOGINS` set is renamed to `DEFAULT_KNOWN_BOTS_SEED` (same 41 entries).
+It serves a dual purpose now: the seed source for `ensure_known_bots_table()` and the fallback
+for reads.
 
-  ```python
-  _known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
-  _KNOWN_BOTS_TTL = 300  # 5 min — admin edits take effect within this window
+A small read-through cache sits in front of the table, modelled on the existing Twitch-credentials
+cache: a module-level holder with a loaded-at timestamp and a frozenset of logins, governed by a
+300-second (5-minute) TTL. That TTL is the window within which an admin edit takes effect on the
+leaderboards.
 
-  async def get_known_bots_list() -> set:
-      # returns a lowercased set of active bot logins;
-      # falls back to DEFAULT_KNOWN_BOTS_SEED on empty result or any error
-  ```
+An async `get_known_bots_list()` returns a lowercased set of the active bot logins. It reads
+`SELECT bot_login FROM known_bots WHERE is_active = 1` through the `website` DB helper
+(`get_mysql_connection()`, **not** the per-user `get_mysql_connection_user()`), and falls back to
+`DEFAULT_KNOWN_BOTS_SEED` whenever the result is empty or the query errors.
 
-  Reads `SELECT bot_login FROM known_bots WHERE is_active = 1` via `get_mysql_connection()`
-  (the `website` DB helper — **not** `get_mysql_connection_user()`).
-
-- In `get_dashboard_leaderboards`: replace `excluded_logins = set(KNOWN_BOT_LOGINS)` with
-  `excluded_logins = set(await get_known_bots_list())`, then keep the existing union with the
-  per-channel `watch_time_excluded_users` row exactly as-is.
+Inside `get_dashboard_leaderboards`, the line that builds `excluded_logins` from the hardcoded set
+is swapped to build it from `await get_known_bots_list()` instead. The existing union with the
+per-channel `watch_time_excluded_users` row stays exactly as it is.
 
 ### 3. Board coverage
 
-Apply the existing `LOWER(<col>) NOT IN (<placeholders>)` filter (built once from
-`excluded_logins`) to every person-keyed board in the endpoint:
+The same `LOWER(<col>) NOT IN (<placeholders>)` filter — built once from `excluded_logins` — is
+applied to every person-keyed board in the endpoint:
 
 | Board | Table | Name column |
 | --- | --- | --- |
@@ -118,90 +120,96 @@ Apply the existing `LOWER(<col>) NOT IN (<placeholders>)` filter (built once fro
 | Kisses | `kiss_counts` | `username` |
 | Highfives | `highfive_counts` | `username` |
 
-Non-person boards (commands, rewards, deaths-by-game, songs) are untouched. Filtering happens
-in SQL **before `LIMIT`**, so each board still returns a full set of real users.
+Non-person boards (commands, rewards, deaths-by-game, songs) are untouched. Filtering happens in
+SQL **before `LIMIT`**, so each board still returns a full set of real users.
 
 ### 4. Admin UI — `./dashboard/admin/known_bots.php` (new)
 
-Clone the proven `./dashboard/admin/api_keys.php` structure:
+This page clones the proven structure of `./dashboard/admin/api_keys.php`.
 
 - **Boot sequence:** `ob_start()` → `session_bootstrap.php` → `admin_access.php` (gates
   `is_admin = 1`) → i18n → `db_connect.php` (`$conn`, website DB) → `userdata.php` →
   `session_write_close()`.
-- **AJAX POST handlers** (`if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST[...]))`):
-  - `add_bot` — normalize login (`strtolower`, strip leading `@`, `trim`), validate against
-    `^[a-z0-9_]{1,25}$`, prepared `INSERT`, handle UNIQUE duplicate as a friendly error.
-    Optional `notes`. Sets `added_by` = current admin username.
+- **AJAX POST handlers**, dispatched on the request method and the posted action:
+  - `add_bot` — normalize the login (`strtolower`, strip a leading `@`, `trim`), validate it
+    against `^[a-z0-9_]{1,25}$`, then a prepared `INSERT`. A UNIQUE-key collision is surfaced as a
+    friendly duplicate error rather than a raw SQL failure. `notes` is optional. `added_by` is set
+    to the current admin's username.
   - `delete_bot` — prepared `DELETE` by `id`.
   - `toggle_bot` — prepared `UPDATE ... SET is_active = ?` by `id`.
-  - All: validate first, `ob_end_clean()`, `header('Content-Type: application/json')`,
-    `echo json_encode(['success'=>..., 'message'=>...])`, `exit`.
-  - Each successful action calls `admin_audit_log('known_bot_add'|'known_bot_delete'|
-    'known_bot_toggle', 'success', [...], 'known_bot', $bot_login)`.
-- **Render:** a table of existing bots (login, active toggle, added_by, created_at, delete
-  button) + an add form. JS uses `fetch` + `FormData`, updates the table on success, shows
-  errors via the existing alert mechanism (e.g. `Swal`). Seed rows (`added_by='system'`) are
-  deletable like any other (admins own the list).
-- **No CSRF token** — consistent with all current admin pages (session + `is_admin` gate).
+  - Every handler validates first, then clears any buffered output, sets the JSON content type,
+    echoes a `{success, message}` payload, and exits.
+  - Each successful action writes an audit entry via `admin_audit_log` under the
+    `known_bot_add` / `known_bot_delete` / `known_bot_toggle` actions, with the affected
+    `bot_login` as the target.
+- **Render:** a table of existing bots (login, active toggle, added_by, created_at, delete button)
+  plus an add form. The JS uses `fetch` + `FormData`, updates the table on success, and shows
+  errors through the existing alert mechanism (e.g. `Swal`). Seed rows (`added_by='system'`) are
+  deletable like any other row — admins own the list.
+- **No CSRF token**, consistent with all current admin pages (session + `is_admin` gate).
 
 ### 5. Navigation, i18n, CSS
 
-- Register in `./dashboard/menu.php` `$admin` array: `['label'=>t('menu_admin_known_bots'),
-  'icon'=>'fas fa-robot', 'href'=>'known_bots.php']`.
+- Register the page in the `$admin` array in `./dashboard/menu.php`, with a `t('menu_admin_known_bots')`
+  label, a `fas fa-robot` icon, and `known_bots.php` as the href.
 - Add i18n keys to `./dashboard/lang/en.php` (base) **and** `de.php` + `fr.php`:
   `menu_admin_known_bots`, `known_bots_title`, `known_bots_intro`, `known_bots_add`,
   `known_bots_login_label`, `known_bots_notes_label`, `known_bots_col_added_by`,
   `known_bots_col_active`, `known_bots_col_created`, `known_bots_delete`,
-  `known_bots_confirm_delete`, and the success/error message strings the handlers return.
-  (Escape French apostrophes; gate edited PHP with `php -l`.)
-- Component styles go in `./dashboard/css/dashboard.css` using existing theme tokens — no
+  `known_bots_confirm_delete`, plus the success/error message strings the handlers return.
+  (French apostrophes need escaping; edited PHP should pass `php -l`.)
+- Component styles live in `./dashboard/css/dashboard.css` using the existing theme tokens — no
   inline styles, no page `<style>` block.
 
 ## Error handling
 
-- `get_known_bots_list()` returns `DEFAULT_KNOWN_BOTS_SEED` on empty result or any DB error,
+- `get_known_bots_list()` returns `DEFAULT_KNOWN_BOTS_SEED` on an empty result or any DB error,
   and logs a warning — leaderboards always have a working filter.
-- `ensure_known_bots_table()` failures are logged but must not crash startup (wrap; the seed
-  fallback covers reads anyway).
-- Admin handlers return `{success:false, message:...}` for invalid/duplicate logins; no raw
-  SQL errors leak to the client.
+- `ensure_known_bots_table()` failures are logged but must not crash startup (wrap it; the seed
+  fallback covers reads regardless).
+- Admin handlers return `{success:false, message:...}` for invalid or duplicate logins; no raw SQL
+  errors leak to the client.
 
-## Verification
+## How we'll know it's right
 
-- `python -m py_compile api/api.py` passes.
-- `php -l` passes on `known_bots.php`, `menu.php`, and the three lang files.
-- First API startup creates + seeds the table; `SELECT COUNT(*)` matches the seed-set size.
-- Add a bot in the admin page → it appears on no leaderboard within ≤5 min (cache TTL);
-  toggling `is_active` off restores it.
-- Drop/empty the table → leaderboards still filter using the seed (fallback works).
-- Per-channel `watch_time_excluded_users` additions still take effect (union preserved).
+Each touched file should pass its language's syntax check (`api.py` for Python, and the new PHP
+page, `menu.php`, and the three lang files for PHP). Beyond that, the behaviour to confirm:
+
+- On the API's first startup the table is created and seeded, and a count of the rows matches the
+  size of the seed set.
+- Adding a bot in the admin page makes it disappear from every leaderboard within the cache TTL
+  (≤ 5 minutes); toggling `is_active` off brings it back.
+- Emptying the table entirely still leaves leaderboards filtering against the seed — proving the
+  fallback path.
+- Per-channel `watch_time_excluded_users` additions continue to take effect, confirming the union
+  with the global registry is preserved.
 
 ## File change list (Phase 1)
 
 | File | Change |
 | --- | --- |
-| `./api/api.py` | Rename set → `DEFAULT_KNOWN_BOTS_SEED`; add `_known_bots_cache`, `_KNOWN_BOTS_TTL`, `get_known_bots_list()`, `ensure_known_bots_table()`; call it in `lifespan`; use cached list + filter Streaks + 3 interaction boards in `get_dashboard_leaderboards`. |
+| `./api/api.py` | Rename the set to `DEFAULT_KNOWN_BOTS_SEED`; add the cache holder, TTL, `get_known_bots_list()`, and `ensure_known_bots_table()`; call the latter from `lifespan`; use the cached list and extend filtering to Streaks + the 3 interaction boards in `get_dashboard_leaderboards`. |
 | `./dashboard/admin/known_bots.php` | **New** admin page (CRUD + audit). |
-| `./dashboard/menu.php` | Add `$admin` menu entry. |
-| `./dashboard/lang/en.php`, `de.php`, `fr.php` | Add i18n keys. |
+| `./dashboard/menu.php` | Add the `$admin` menu entry. |
+| `./dashboard/lang/en.php`, `de.php`, `fr.php` | Add the i18n keys. |
 | `./dashboard/css/dashboard.css` | Add component styles for the page. |
 
 ## Phase 2 (outline — separate spec)
 
-`beta.py` + `beta-v6.py` gain a cached loader for `website.known_bots` (bot reads `website`
+`beta.py` and `beta-v6.py` gain a cached loader for `website.known_bots` (the bot reads `website`
 via `mysql_connection("website")`), consumed — **unioned with** the existing per-channel lists,
-not replacing them — at:
+never replacing them — at:
 
 - **Watch-time tracking** (`track_watch_time`) — union with `watch_time_excluded_users`.
 - **Points** award path — union with `bot_settings.excluded_users`.
 - **Welcome / shoutout** — union with `IGNORED_WELCOME_USERNAMES`.
 
-Requires a bot deploy and wider testing. Stable `bot.py` excluded by policy. Discord
-(`specterdiscord.py`) / Kick (`kick.py`) can read the same table later if desired.
+That phase needs a bot deploy and wider testing. Stable `bot.py` is excluded by policy. Discord
+(`specterdiscord.py`) and Kick (`kick.py`) can read the same table later if we decide it's useful.
 
 ## Notes / constraints honored
 
-- PHP config rule: page uses `./config/` includes (`db_connect.php`), never `.env`.
+- PHP config rule: the page uses `./config/` includes (`db_connect.php`), never `.env`.
 - DB rule: parameterized queries throughout; `website` scope via `get_mysql_connection()` /
   `db_connect.php`, never per-user.
 - Secrets rule: no credentials touched.
