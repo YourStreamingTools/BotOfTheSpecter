@@ -413,13 +413,20 @@ ob_start();
                 </div>
                 <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
                     <div class="sp-form-group">
-                        <label class="sp-label" for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
-                        <select name="command_to_edit" id="command_to_edit" class="sp-select" onchange="showResponse()" required>
-                            <option value=""><?php echo t('custom_commands_edit_select_placeholder'); ?></option>
-                            <?php foreach ($commands as $command): ?>
-                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label class="sp-label" for="command_to_edit_search"><?php echo t('custom_commands_edit_select_label'); ?></label>
+                        <div class="cc-combobox" id="commandToEditCombobox">
+                            <input type="hidden" name="command_to_edit" id="command_to_edit" value="">
+                            <div class="sp-input-wrap">
+                                <i class="fas fa-search sp-input-icon"></i>
+                                <input class="sp-input cc-combobox-input" type="text" id="command_to_edit_search" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="command_to_edit_list" aria-autocomplete="list" placeholder="<?php echo t('custom_commands_edit_select_placeholder'); ?>">
+                                <i class="fas fa-chevron-down cc-combobox-caret"></i>
+                            </div>
+                            <ul class="cc-combobox-list" id="command_to_edit_list" role="listbox">
+                                <?php foreach ($commands as $command): ?>
+                                    <li class="cc-combobox-option" role="option" data-value="<?php echo htmlspecialchars($command['command']); ?>">!<?php echo htmlspecialchars($command['command']); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
@@ -569,6 +576,7 @@ document.addEventListener("DOMContentLoaded", function() {
     yourLinksShortener.initializeField('command_response');
     initializeRandomPickWatcher('response', 'command');
     initializeRandomPickWatcher('command_response', 'new_command_name');
+    initCommandToEditCombobox();
 });
 
 function sanitizeCommandName(commandName) {
@@ -952,6 +960,131 @@ function searchFunction() {
 
 
 
+function initCommandToEditCombobox() {
+    var combobox = document.getElementById('commandToEditCombobox');
+    if (!combobox) {
+        return;
+    }
+    var hidden = document.getElementById('command_to_edit');
+    var search = document.getElementById('command_to_edit_search');
+    var list = document.getElementById('command_to_edit_list');
+    var options = Array.prototype.slice.call(list.querySelectorAll('.cc-combobox-option'));
+    var activeIndex = -1;
+
+    function openList() {
+        combobox.classList.add('is-open');
+        search.setAttribute('aria-expanded', 'true');
+    }
+    function closeList() {
+        combobox.classList.remove('is-open');
+        search.setAttribute('aria-expanded', 'false');
+        activeIndex = -1;
+        options.forEach(function(opt) { opt.classList.remove('is-active'); });
+    }
+    function visibleOptions() {
+        return options.filter(function(opt) { return opt.style.display !== 'none'; });
+    }
+    function filterList() {
+        var query = search.value.trim().toLowerCase().replace(/^!/, '');
+        var anyVisible = false;
+        options.forEach(function(opt) {
+            var match = opt.getAttribute('data-value').toLowerCase().indexOf(query) > -1;
+            opt.style.display = match ? '' : 'none';
+            if (match) { anyVisible = true; }
+        });
+        var empty = list.querySelector('.cc-combobox-empty');
+        if (!anyVisible) {
+            if (!empty) {
+                empty = document.createElement('li');
+                empty.className = 'cc-combobox-empty';
+                empty.textContent = <?php echo json_encode(t('builtin_commands_no_commands')); ?>;
+                list.appendChild(empty);
+            }
+            empty.style.display = '';
+        } else if (empty) {
+            empty.style.display = 'none';
+        }
+        activeIndex = -1;
+        options.forEach(function(opt) { opt.classList.remove('is-active'); });
+    }
+    function setActive(index) {
+        var vis = visibleOptions();
+        if (!vis.length) {
+            return;
+        }
+        if (index < 0) { index = vis.length - 1; }
+        if (index >= vis.length) { index = 0; }
+        activeIndex = index;
+        options.forEach(function(opt) { opt.classList.remove('is-active'); });
+        vis[index].classList.add('is-active');
+        vis[index].scrollIntoView({ block: 'nearest' });
+    }
+    function selectOption(opt) {
+        if (!opt) {
+            return;
+        }
+        var value = opt.getAttribute('data-value');
+        hidden.value = value;
+        search.value = '!' + value;
+        options.forEach(function(item) { item.classList.remove('is-selected'); });
+        opt.classList.add('is-selected');
+        closeList();
+        showResponse();
+        hidden.dispatchEvent(new Event('change'));
+    }
+
+    search.addEventListener('focus', function() { filterList(); openList(); });
+    search.addEventListener('input', function() { openList(); filterList(); });
+    search.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!combobox.classList.contains('is-open')) { filterList(); openList(); }
+            setActive(activeIndex + 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActive(activeIndex - 1);
+        } else if (e.key === 'Enter') {
+            if (combobox.classList.contains('is-open')) {
+                var vis = visibleOptions();
+                var choice = (activeIndex > -1 && vis[activeIndex]) ? vis[activeIndex] : (vis.length === 1 ? vis[0] : null);
+                if (choice) {
+                    e.preventDefault();
+                    selectOption(choice);
+                }
+            }
+        } else if (e.key === 'Escape') {
+            closeList();
+        }
+    });
+    list.addEventListener('mousedown', function(e) {
+        var opt = e.target.closest('.cc-combobox-option');
+        if (opt) {
+            e.preventDefault();
+            selectOption(opt);
+        }
+    });
+    document.addEventListener('click', function(e) {
+        if (!combobox.contains(e.target)) {
+            closeList();
+        }
+    });
+    var form = combobox.closest('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!hidden.value) {
+                e.preventDefault();
+                filterList();
+                openList();
+                search.focus();
+                Swal.fire({
+                    icon: 'info',
+                    title: <?php echo json_encode(t('custom_commands_edit_select_placeholder')); ?>
+                });
+            }
+        });
+    }
+}
+
 function showResponse() {
     var command = document.getElementById('command_to_edit').value;
     var commands = <?php echo json_encode($commands); ?>;
@@ -982,6 +1115,7 @@ function showResponse() {
 
 function clearEditCustomCommandForm() {
     var commandSelect = document.getElementById('command_to_edit');
+    var commandSearch = document.getElementById('command_to_edit_search');
     var newCommandInput = document.getElementById('new_command_name');
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
@@ -990,6 +1124,12 @@ function clearEditCustomCommandForm() {
     if (commandSelect) {
         commandSelect.value = '';
     }
+    if (commandSearch) {
+        commandSearch.value = '';
+    }
+    document.querySelectorAll('#command_to_edit_list .cc-combobox-option.is-selected').forEach(function(opt) {
+        opt.classList.remove('is-selected');
+    });
     if (newCommandInput) {
         newCommandInput.value = '';
     }
