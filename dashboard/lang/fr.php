@@ -2157,7 +2157,7 @@ return [
     'overlays_credits_slow' => 'Lent',
     'overlays_credits_fast' => 'Rapide',
     'overlays_chat_overlay_note' => 'Personnalisez la limite de messages avec <code>&amp;max=30</code> (par défaut : 20).<br>
-                Utilisez <code>&amp;count=2</code> (par défaut : 1) pour exécuter plusieurs sources d\'overlay de chat en même temps dans différentes scènes OBS.',
+                Ajoutez cette même URL comme source d\'overlay de chat dans autant de scènes OBS que vous le souhaitez — elles partagent toutes le même historique de chat, qui est donc conservé lorsque vous changez de scène.',
     'overlays_music_overlay_note' => 'Ajoutez <code>&amp;nowplaying</code> à l\'URL pour afficher le texte « En cours de lecture ».<br>
                 Exemple : <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
                 Personnalisez la couleur avec <code>&amp;color=white</code>.',

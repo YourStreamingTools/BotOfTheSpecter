@@ -2214,7 +2214,7 @@ return [
     'overlays_credits_slow' => 'Slow',
     'overlays_credits_fast' => 'Fast',
     'overlays_chat_overlay_note' => 'Customize the message cap with <code>&amp;max=30</code> (default: 20).<br>
-                Use <code>&amp;count=2</code> (default: 1) to run multiple Chat Overlay sources at the same time across different OBS scenes.',
+                Add this same URL as a Chat Overlay source in as many OBS scenes as you like — they all share one chat history, so it carries over when you switch scenes.',
     'overlays_music_overlay_note' => 'Add <code>&amp;nowplaying</code> to the URL to display now playing text.<br>
                 Example: <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
                 Customize color with <code>&amp;color=white</code>.',
