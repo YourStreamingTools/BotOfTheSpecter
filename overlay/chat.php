@@ -405,6 +405,22 @@ $badgeCacheJson = json_encode(
         function clearChat() {
             container.innerHTML = '';
         }
+        // Clear the visible overlay AND wipe persisted history so the chat
+        // doesn't repopulate (here or on the next OBS refresh). Used for both a
+        // mod /clear (CHAT_CLEAR) and the stream going offline (STREAM_OFFLINE).
+        function clearChatAndHistory() {
+            clearChat();
+            messageBuffer = [];
+            if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+            // Only the primary instance owns the history file (count <= 1).
+            if (count <= 1 && code) {
+                fetch('?action=save_history&code=' + encodeURIComponent(code), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify([]),
+                }).catch(() => { /* best-effort — overlay still clears visually */ });
+            }
+        }
         // Render today's chat history before connecting so the overlay is populated immediately
         if (messageBuffer.length > 0) {
             messageBuffer.forEach(msg => addMessage(msg, true));
@@ -441,10 +457,13 @@ $badgeCacheJson = json_encode(
             socket.on('disconnect',    () => attemptReconnect());
             socket.on('connect_error', () => attemptReconnect());
             socket.on('CHAT_MESSAGE', data => addMessage(data, false));
-            socket.on('CHAT_CLEAR', () => clearChat());
+            socket.on('CHAT_CLEAR', () => clearChatAndHistory());
             socket.on('CHAT_MESSAGE_DELETE', data => {
                 if (data && data.message_id) removeMessage(data.message_id);
             });
+            // Stream went offline — clear the overlay so it doesn't carry old
+            // messages into the next stream.
+            socket.on('STREAM_OFFLINE', () => clearChatAndHistory());
         }
         function attemptReconnect() {
             reconnectAttempts++;
