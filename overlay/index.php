@@ -165,7 +165,7 @@ if ($username) {
             }
             function renderAlert(config, eventData) {
                 const container = document.getElementById('alertContainer');
-                applyScreenPosition(container, config.screen_position, config.alert_category);
+                applyScreenPosition(container, config, config.alert_category);
                 const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
                 const cssWeight = weightMap[config.font_weight] || '600';
                 // Load font
@@ -500,9 +500,38 @@ if ($username) {
                 if (!variants) return null;
                 return variants.find(v => v.enabled == 1) || null;
             }
-            // Place a container at one of the 9 screen positions (overrides its base CSS).
-            function applyScreenPosition(el, pos, category) {
+            // Place a container at a position defined by the alert config.
+            // cfg is the full config row (or {} / null). When cfg.position_x and
+            // cfg.position_y are both set, those are used as % from the top-left
+            // of the viewport (left/top anchored, transform:none) with a best-effort
+            // clamp so the right/bottom edges stay on screen.  When absent, the
+            // existing 9-preset screen_position string logic runs unchanged.
+            function applyScreenPosition(el, cfg, category) {
                 if (!el) return;
+                const rx = cfg && cfg.position_x != null && cfg.position_x !== '' ? parseFloat(cfg.position_x) : null;
+                const ry = cfg && cfg.position_y != null && cfg.position_y !== '' ? parseFloat(cfg.position_y) : null;
+                if (rx !== null && ry !== null) {
+                    let x = rx, y = ry;
+                    // Clamp so right/bottom edges stay within the viewport.
+                    const elW = el.offsetWidth;
+                    const elH = el.offsetHeight;
+                    const W = window.innerWidth;
+                    const H = window.innerHeight;
+                    if (elW > 0 && elH > 0 && W > 0 && H > 0) {
+                        const maxLeft = ((W - elW) / W) * 100;
+                        const maxTop  = ((H - elH) / H) * 100;
+                        if (x > maxLeft) x = maxLeft;
+                        if (y > maxTop)  y = maxTop;
+                    }
+                    el.style.left      = x + '%';
+                    el.style.top       = y + '%';
+                    el.style.right     = 'auto';
+                    el.style.bottom    = 'auto';
+                    el.style.transform = 'none';
+                    return;
+                }
+                // Fall through: use the 9-preset screen_position string.
+                const pos = cfg && cfg.screen_position ? cfg.screen_position : null;
                 const parts = String(pos || defaultPositionFor(category)).split('-');
                 const h = parts[0], v = parts[1];
                 const M = '24px';
@@ -520,7 +549,7 @@ if ($username) {
             function renderDeaths(data) {
                 const deathOverlay = document.getElementById('deathOverlay');
                 if (!deathOverlay) return;
-                applyScreenPosition(deathOverlay, (getEnabledVariant('deaths') || {}).screen_position, 'deaths');
+                applyScreenPosition(deathOverlay, getEnabledVariant('deaths') || {}, 'deaths');
                 deathOverlay.innerHTML = `
                     <div class="deaths-overlay-page-content">
                         <div class="deaths-overlay-page-title">
@@ -564,7 +593,7 @@ if ($username) {
                 }
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 if (!weatherOverlay) return;
-                applyScreenPosition(weatherOverlay, (getEnabledVariant('weather') || {}).screen_position, 'weather');
+                applyScreenPosition(weatherOverlay, getEnabledVariant('weather') || {}, 'weather');
                 weatherOverlay.innerHTML = `
                     <div class="weather-overlay-page-content">
                         <div class="weather-overlay-page-header">
@@ -624,7 +653,7 @@ if ($username) {
             function showWalkonVideo(url) {
                 const el = document.getElementById('walkonOverlay');
                 if (!el) return;
-                applyScreenPosition(el, (getEnabledVariant('walkons') || {}).screen_position, 'walkons');
+                applyScreenPosition(el, getEnabledVariant('walkons') || {}, 'walkons');
                 el.innerHTML = `<video class="walkon-video" src="${url}" autoplay></video>`;
                 el.style.display = 'block';
                 const vid = el.querySelector('video');
@@ -635,7 +664,7 @@ if ($username) {
             function showWalkonCard(avatarUrl, name) {
                 const el = document.getElementById('walkonOverlay');
                 if (!el) return;
-                applyScreenPosition(el, (getEnabledVariant('walkons') || {}).screen_position, 'walkons');
+                applyScreenPosition(el, getEnabledVariant('walkons') || {}, 'walkons');
                 const avatar = avatarUrl
                     ? `<img class="walkon-card-avatar" src="${avatarUrl}" alt="">`
                     : `<div class="walkon-card-avatar"></div>`;

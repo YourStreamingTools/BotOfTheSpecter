@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             alert_image = ?, image_scale = ?, image_volume = ?,
             alert_sound = ?, sound_volume = ?,
             celebration_enabled = ?, celebration_effect = ?, celebration_intensity = ?, celebration_area = ?,
-            screen_position = ?
+            screen_position = ?, position_x = ?, position_y = ?
             WHERE id = ?");
         $variant_name = $_POST['variant_name'] ?? '';
         $enabled = intval($_POST['enabled'] ?? 1);
@@ -162,10 +162,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $celebration_intensity = $_POST['celebration_intensity'] ?? 'light';
         $celebration_area = $_POST['celebration_area'] ?? 'full';
         $screen_position = $_POST['screen_position'] ?? null;
+        // Drag-to-place coordinates: box top-left as a 0-100 percentage of the 16:9
+        // canvas. Clamped here so a bad payload can't push a box off-screen.
+        $position_x = max(0, min(100, floatval($_POST['position_x'] ?? 0)));
+        $position_y = max(0, min(100, floatval($_POST['position_y'] ?? 0)));
         // Type string realigned to the real column types: 'd' for the two DECIMAL
         // animation durations (previously 'i', which truncated fractional seconds),
-        // and 'screen_position' appended before the WHERE id.
-        $stmt->bind_param('sisissddssiiiiisssissssiisiisiissssi',
+        // 'screen_position' (s) plus the two DECIMAL drag coordinates (d, d) appended
+        // before the trailing WHERE id (i).
+        $stmt->bind_param('sisissddssiiiiisssissssiisiisiissssddi',
             $variant_name, $enabled, $alert_condition,
             $duration, $animation_in, $animation_out,
             $animation_in_duration, $animation_out_duration,
@@ -177,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $alert_image, $image_scale, $image_volume,
             $alert_sound, $sound_volume,
             $celebration_enabled, $celebration_effect, $celebration_intensity, $celebration_area,
-            $screen_position,
+            $screen_position, $position_x, $position_y,
             $id
         );
         if ($stmt->execute()) {
@@ -333,15 +338,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'set_alert_position') {
+        // Drag-to-place coordinates: the box top-left as a 0-100 percentage of the
+        // 16:9 canvas. Replaces the old 9-preset string. Clamped server-side.
         $id = intval($_POST['id'] ?? 0);
-        $position = $_POST['position'] ?? '';
-        $allowedPositions = ['left-top','center-top','right-top','left-middle','center-center','right-middle','left-bottom','center-bottom','right-bottom'];
-        if ($id <= 0 || !in_array($position, $allowedPositions, true)) {
+        if ($id <= 0) {
             echo json_encode(['success' => false, 'message' => 'Invalid position.']);
             exit;
         }
-        $stmt = $db->prepare("UPDATE twitch_alerts SET screen_position = ? WHERE id = ?");
-        $stmt->bind_param('si', $position, $id);
+        $position_x = max(0, min(100, floatval($_POST['x'] ?? 0)));
+        $position_y = max(0, min(100, floatval($_POST['y'] ?? 0)));
+        $stmt = $db->prepare("UPDATE twitch_alerts SET position_x = ?, position_y = ? WHERE id = ?");
+        $stmt->bind_param('ddi', $position_x, $position_y, $id);
         $stmt->execute();
         $stmt->close();
         echo json_encode(['success' => true]);
@@ -428,27 +435,6 @@ $animationsOut = ['Fade out' => 'fadeOut', 'Slide left' => 'slideOutLeft', 'Slid
 // Font options
 $fonts = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald', 'Raleway', 'Poppins', 'Nunito', 'Ubuntu', 'Bebas Neue', 'Bangers', 'Permanent Marker', 'Press Start 2P', 'Creepster'];
 $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-Bold' => '600', 'Bold' => '700', 'Extra-Bold' => '800'];
-
-// Screen-position grid (3x3). A NULL screen_position falls back to the per-category
-// default resolved in JS (weather=left-top, deaths=left-bottom, everything else=center-center).
-$screenPositions = [
-    'left-top'      => 'alerts_pos_left_top',
-    'center-top'    => 'alerts_pos_center_top',
-    'right-top'     => 'alerts_pos_right_top',
-    'left-middle'   => 'alerts_pos_left_middle',
-    'center-center' => 'alerts_pos_center_center',
-    'right-middle'  => 'alerts_pos_right_middle',
-    'left-bottom'   => 'alerts_pos_left_bottom',
-    'center-bottom' => 'alerts_pos_center_bottom',
-    'right-bottom'  => 'alerts_pos_right_bottom',
-];
-function alerts_render_position_grid($gridId, $positions) {
-    echo '<div class="alerts-position-grid" id="' . htmlspecialchars($gridId) . '">';
-    foreach ($positions as $posVal => $posKey) {
-        echo '<button type="button" class="alerts-position-btn" data-position="' . htmlspecialchars($posVal) . '" title="' . htmlspecialchars(t($posKey)) . '"><span class="alerts-position-dot"></span></button>';
-    }
-    echo '</div>';
-}
 
 // Media base URL for preview thumbnails inside this configurator
 $mediaBase = "https://media.botofthespecter.com/$username/";
@@ -572,19 +558,29 @@ ob_start();
                     <i class="fas fa-paper-plane"></i> <?= t('alerts_trigger_live_test') ?>
                 </button>
             </div>
-            <div class="alerts-preview-area" id="preview-area">
+            <div class="alerts-preview-area alerts-pos-canvas" id="preview-area">
                 <div class="alerts-no-selection" id="preview-placeholder">
                     <?= t('alerts_preview_placeholder') ?>
                 </div>
-                <div class="alerts-preview-box" id="preview-box" style="display:none;">
+                <div class="alerts-preview-box alerts-pos-draggable" id="preview-box" style="display:none;">
                     <div class="alerts-preview-content" id="preview-content">
                         <img src="" alt="" class="preview-image" id="preview-img" style="display:none;">
                         <div class="preview-text" id="preview-text"></div>
                     </div>
                 </div>
                 <!-- Sample preview for the legacy-themed categories (weather, deaths) -->
-                <div class="alerts-preview-legacy" id="preview-legacy" style="display:none;"></div>
+                <div class="alerts-preview-legacy alerts-pos-draggable" id="preview-legacy" style="display:none;"></div>
+                <!-- Representative walk-on card; drag target for the walk-ons category -->
+                <div class="alerts-preview-walkon alerts-pos-draggable" id="preview-walkon-sample" style="display:none;">
+                    <div class="apwk-avatar"></div>
+                    <div class="apwk-name">DisplayName</div>
+                </div>
+                <!-- Snap guides + expand-close, children of the canvas -->
+                <div class="alerts-pos-guide alerts-pos-guide-v" id="alerts-pos-guide-v"></div>
+                <div class="alerts-pos-guide alerts-pos-guide-h" id="alerts-pos-guide-h"></div>
+                <button type="button" class="alerts-pos-expand-close" id="alerts-pos-expand-close" title="<?= htmlspecialchars(t('alerts_collapse_editor')) ?>" aria-label="<?= htmlspecialchars(t('alerts_collapse_editor')) ?>">&times;</button>
             </div>
+            <div class="alerts-pos-backdrop" id="alerts-pos-backdrop"></div>
             <div class="alerts-preview-options">
                 <span class="alerts-preview-options-label"><?= t('alerts_preview_canvas') ?></span>
                 <label class="alerts-mini-toggle">
@@ -592,10 +588,14 @@ ob_start();
                     <span class="alerts-mini-toggle-slider"></span>
                     <span class="alerts-mini-toggle-text"><?= t('alerts_autoplay') ?></span>
                 </label>
-                <label><?= t('alerts_width') ?></label>
-                <input type="number" class="sp-input" id="preview-width" value="800" min="200" max="1920">
-                <label><?= t('alerts_height') ?></label>
-                <input type="number" class="sp-input" id="preview-height" value="600" min="200" max="1080">
+                <select id="alerts-canvas-size" class="sp-input" title="<?= htmlspecialchars(t('makers_canvas_range')) ?>">
+                    <option value="1280x720">1280 &times; 720 (720p)</option>
+                    <option value="1920x1080" selected>1920 &times; 1080 (1080p)</option>
+                    <option value="2560x1440">2560 &times; 1440 (2K)</option>
+                </select>
+                <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="alerts-pos-expand-btn" title="<?= htmlspecialchars(t('alerts_expand_editor')) ?>">
+                    <i class="fas fa-expand"></i> <?= t('alerts_expand_editor') ?>
+                </button>
                 <div class="alerts-bg-swatches">
                     <button type="button" class="alerts-bg-swatch active" data-bg="transparent" title="<?= htmlspecialchars(t('alerts_bg_transparent')) ?>"></button>
                     <button type="button" class="alerts-bg-swatch" data-bg="dark" title="<?= htmlspecialchars(t('alerts_bg_dark')) ?>"></button>
@@ -631,7 +631,8 @@ ob_start();
                         </div>
                         <div class="alerts-form-group" id="simple-position-group">
                             <label><?= t('alerts_screen_position') ?></label>
-                            <?php alerts_render_position_grid('position-grid-simple', $screenPositions); ?>
+                            <p class="alerts-help-text"><i class="fas fa-up-down-left-right"></i> <?= t('alerts_drag_hint') ?></p>
+                            <p class="alerts-help-text"><i class="fas fa-magnet"></i> <?= t('alerts_snap_hint') ?></p>
                         </div>
                     </div>
                 </section>
@@ -722,7 +723,8 @@ ob_start();
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
                             <label><?= t('alerts_screen_position') ?></label>
-                            <?php alerts_render_position_grid('position-grid-form', $screenPositions); ?>
+                            <p class="alerts-help-text"><i class="fas fa-up-down-left-right"></i> <?= t('alerts_drag_hint') ?></p>
+                            <p class="alerts-help-text"><i class="fas fa-magnet"></i> <?= t('alerts_snap_hint') ?></p>
                         </div>
                         <div class="alerts-form-group">
                             <label><?= t('alerts_image_position') ?></label>
@@ -1087,21 +1089,103 @@ $(document).ready(function() {
     // Enable/disable-only categories — selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
     const simpleCategories = ['weather', 'deaths', 'walkons'];
-    // Screen position: a NULL value in the DB means "use the category default".
+    // ---- Drag-to-place position editor -------------------------------------
+    // A NULL screen_position (no saved x/y) falls back to the per-category default.
     const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
     function defaultPositionFor(cat) { return positionDefaults[cat] || 'center-center'; }
-    // Map a 9-grid position onto the preview canvas's flex alignment.
-    function applyPreviewPosition(pos) {
-        var p = String(pos || 'center-center').split('-');
-        var h = p[0], v = p[1];
-        var justify = h === 'left' ? 'flex-start' : (h === 'right' ? 'flex-end' : 'center');
-        var align = v === 'top' ? 'flex-start' : (v === 'bottom' ? 'flex-end' : 'center');
-        $('#preview-area').css({ 'justify-content': justify, 'align-items': align });
+    const canvasWidths = { '1280x720': 1280, '1920x1080': 1920, '2560x1440': 2560 };
+    var previewScale = 1;
+    function clampNum(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    // Which draggable box represents the currently selected variant.
+    function activeDragBox() {
+        if (!currentAlertId) return null;
+        var a = alertsData[currentAlertId];
+        if (!a) return null;
+        if (a.alert_category === 'walkons') return document.getElementById('preview-walkon-sample');
+        if (a.alert_category === 'weather' || a.alert_category === 'deaths') return document.getElementById('preview-legacy');
+        return document.getElementById('preview-box');
     }
-    // Sample preview for the legacy-themed categories (weather, deaths).
-    function renderLegacyPreview(category, pos) {
-        $('#preview-box').hide();
-        $('#preview-placeholder').hide();
+    // True-to-scale: a box on a smaller OBS canvas is relatively larger, so scale the
+    // visible box by 1920 / chosenWidth (matches the makers editor).
+    function applyPreviewScale() {
+        var sel = document.getElementById('alerts-canvas-size');
+        var w = canvasWidths[sel ? sel.value : '1920x1080'] || 1920;
+        previewScale = 1920 / w;
+        ['preview-box', 'preview-legacy', 'preview-walkon-sample'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.style.transformOrigin = 'top left';
+                el.style.transform = 'scale(' + previewScale + ')';
+            }
+        });
+    }
+    // Convert an old 9-preset string to a top-left percent, using the box's measured
+    // (rendered) size and ~2.5% margins to echo the overlay's old 24px corner feel.
+    function presetToPercent(preset, wpct, hpct) {
+        var m = 2.5;
+        var p = String(preset || 'center-center').split('-');
+        var h = p[0], v = p[1];
+        var x = (h === 'left') ? m : (h === 'right' ? 100 - wpct - m : (100 - wpct) / 2);
+        var y = (v === 'top') ? m : (v === 'bottom' ? 100 - hpct - m : (100 - hpct) / 2);
+        return { x: clampNum(x, 0, Math.max(0, 100 - wpct)), y: clampNum(y, 0, Math.max(0, 100 - hpct)) };
+    }
+    // Place a box at x/y percent (top-left), clamped to the canvas using the element's
+    // RENDERED size so the right/bottom edges stay on screen. Returns the clamped pair.
+    function placeBoxPercent(el, x, y) {
+        var canvas = document.getElementById('preview-area');
+        var cr = canvas.getBoundingClientRect();
+        var br = el.getBoundingClientRect();
+        var wpct = cr.width ? (br.width / cr.width) * 100 : 0;
+        var hpct = cr.height ? (br.height / cr.height) * 100 : 0;
+        var cx = clampNum(x, 0, Math.max(0, 100 - wpct));
+        var cy = clampNum(y, 0, Math.max(0, 100 - hpct));
+        el.style.left = cx + '%';
+        el.style.top = cy + '%';
+        return { x: parseFloat(cx.toFixed(2)), y: parseFloat(cy.toFixed(2)) };
+    }
+    // Seed the active box from saved x/y, else a converted screen_position, else the
+    // category default. Writes the resolved percent back into the working state.
+    function seedActiveBox() {
+        if (!currentAlertId) return;
+        var a = alertsData[currentAlertId];
+        var el = activeDragBox();
+        if (!el || el.style.display === 'none') return;
+        var hasPos = a.position_x !== null && a.position_x !== undefined && a.position_x !== '' &&
+                     a.position_y !== null && a.position_y !== undefined && a.position_y !== '';
+        var x, y;
+        if (hasPos) {
+            x = clampNum(parseFloat(a.position_x), 0, 100);
+            y = clampNum(parseFloat(a.position_y), 0, 100);
+        } else {
+            var cr = document.getElementById('preview-area').getBoundingClientRect();
+            var br = el.getBoundingClientRect();
+            var wpct = cr.width ? (br.width / cr.width) * 100 : 0;
+            var hpct = cr.height ? (br.height / cr.height) * 100 : 0;
+            var pc = presetToPercent(a.screen_position || defaultPositionFor(a.alert_category), wpct, hpct);
+            x = pc.x; y = pc.y;
+        }
+        var placed = placeBoxPercent(el, x, y);
+        a.position_x = placed.x;
+        a.position_y = placed.y;
+    }
+    // Re-clamp the active box after a canvas-size or expand change (position stays in %).
+    function repositionActiveBox() {
+        if (!currentAlertId) return;
+        var el = activeDragBox();
+        if (!el || el.style.display === 'none') return;
+        var a = alertsData[currentAlertId];
+        if (a.position_x === null || a.position_x === undefined || a.position_x === '') { seedActiveBox(); return; }
+        var placed = placeBoxPercent(el, parseFloat(a.position_x), parseFloat(a.position_y));
+        a.position_x = placed.x;
+        a.position_y = placed.y;
+    }
+    $('#alerts-canvas-size').on('change', function() {
+        applyPreviewScale();
+        repositionActiveBox();
+    });
+    // Sample preview content for the legacy-themed categories (weather, deaths). The
+    // walk-on sample is static markup; only weather/deaths need their card built here.
+    function renderLegacyPreview(category) {
         var html = '';
         if (category === 'weather') {
             html = '<div class="alerts-preview-weather">'
@@ -1114,16 +1198,118 @@ $(document).ready(function() {
                  + '<div class="apd-game">Elden Ring</div>'
                  + '<div class="apd-count">42</div>'
                  + '</div>';
-        } else if (category === 'walkons') {
-            // Represents the "sound + picture & name" mode; sound-only/video are set per viewer.
-            html = '<div class="alerts-preview-walkon">'
-                 + '<div class="apwk-avatar"></div>'
-                 + '<div class="apwk-name">DisplayName</div>'
-                 + '</div>';
         }
-        $('#preview-legacy').html(html).show();
-        applyPreviewPosition(pos);
+        $('#preview-legacy').html(html);
     }
+    // Pointer-drag + smart-snap + expand wiring for the preview-canvas boxes.
+    (function setupPositionEditor() {
+        var canvas = document.getElementById('preview-area');
+        if (!canvas) return;
+        var boxes = ['preview-box', 'preview-legacy', 'preview-walkon-sample']
+            .map(function(id) { return document.getElementById(id); })
+            .filter(Boolean);
+        var guideV = document.getElementById('alerts-pos-guide-v');
+        var guideH = document.getElementById('alerts-pos-guide-h');
+        var SNAP_PX = 7; // snap pull distance in screen pixels (converted to % per axis)
+        var dragging = null, grabX = 0, grabY = 0;
+        // Candidate snap lines for one axis: canvas edges, center and thirds.
+        function snapLines() { return [0, 100 / 3, 50, 200 / 3, 100]; }
+        // Nudge the box so its near edge / center / far edge lands on a snap line.
+        function snapAxis(pos, sizePct, lines, threshPct) {
+            var anchors = [pos, pos + sizePct / 2, pos + sizePct];
+            var best = null;
+            for (var i = 0; i < lines.length; i++) {
+                for (var a = 0; a < anchors.length; a++) {
+                    var d = Math.abs(anchors[a] - lines[i]);
+                    if (d <= threshPct && (best === null || d < best.dist)) {
+                        best = { pos: pos + (lines[i] - anchors[a]), line: lines[i], dist: d };
+                    }
+                }
+            }
+            return best;
+        }
+        function showGuide(el, prop, pct) {
+            if (!el) return;
+            if (pct === null) { el.classList.remove('is-active'); return; }
+            el.style[prop] = pct + '%';
+            el.classList.add('is-active');
+        }
+        function hideGuides() {
+            if (guideV) guideV.classList.remove('is-active');
+            if (guideH) guideH.classList.remove('is-active');
+        }
+        boxes.forEach(function(box) {
+            box.addEventListener('pointerdown', function(e) {
+                if (!currentAlertId) return;
+                dragging = box;
+                box.setPointerCapture(e.pointerId);
+                var r = box.getBoundingClientRect();
+                grabX = e.clientX - r.left;
+                grabY = e.clientY - r.top;
+                e.preventDefault();
+            });
+            box.addEventListener('pointermove', function(e) {
+                if (dragging !== box) return;
+                var cr = canvas.getBoundingClientRect();
+                var br = box.getBoundingClientRect();
+                var wpct = (br.width / cr.width) * 100;
+                var hpct = (br.height / cr.height) * 100;
+                var rawX = ((e.clientX - cr.left - grabX) / cr.width) * 100;
+                var rawY = ((e.clientY - cr.top - grabY) / cr.height) * 100;
+                var snapX = null, snapY = null;
+                if (!e.altKey) {
+                    var sx = snapAxis(rawX, wpct, snapLines(), SNAP_PX / cr.width * 100);
+                    var sy = snapAxis(rawY, hpct, snapLines(), SNAP_PX / cr.height * 100);
+                    if (sx) { rawX = sx.pos; snapX = sx.line; }
+                    if (sy) { rawY = sy.pos; snapY = sy.line; }
+                }
+                var xp = clampNum(rawX, 0, 100 - wpct);
+                var yp = clampNum(rawY, 0, 100 - hpct);
+                // Clamping at an edge can pull the box off the snapped line; only show a
+                // guide when an anchor still sits on it.
+                if (snapX !== null && ![xp, xp + wpct / 2, xp + wpct].some(function(v) { return Math.abs(v - snapX) < 0.4; })) snapX = null;
+                if (snapY !== null && ![yp, yp + hpct / 2, yp + hpct].some(function(v) { return Math.abs(v - snapY) < 0.4; })) snapY = null;
+                showGuide(guideV, 'left', snapX);
+                showGuide(guideH, 'top', snapY);
+                box.style.left = xp + '%';
+                box.style.top = yp + '%';
+                if (alertsData[currentAlertId]) {
+                    alertsData[currentAlertId].position_x = parseFloat(xp.toFixed(2));
+                    alertsData[currentAlertId].position_y = parseFloat(yp.toFixed(2));
+                }
+            });
+            function endDrag() {
+                if (dragging !== box) return;
+                dragging = null;
+                hideGuides();
+                if (!currentAlertId) return;
+                var a = alertsData[currentAlertId];
+                if (simpleCategories.indexOf(a.alert_category) !== -1) {
+                    // weather/deaths/walk-ons: single field, save immediately like the toggle.
+                    $.post('', { action: 'set_alert_position', id: currentAlertId, x: a.position_x, y: a.position_y }, null, 'json');
+                } else {
+                    markDirty();
+                }
+            }
+            box.addEventListener('pointerup', endDrag);
+            box.addEventListener('pointercancel', endDrag);
+        });
+        // Expand the editor to a large centred panel; same canvas, chips and snapping.
+        var expandBtn = document.getElementById('alerts-pos-expand-btn');
+        var expandClose = document.getElementById('alerts-pos-expand-close');
+        var backdrop = document.getElementById('alerts-pos-backdrop');
+        function setExpanded(on) {
+            canvas.classList.toggle('is-expanded', on);
+            if (backdrop) backdrop.classList.toggle('is-active', on);
+            repositionActiveBox();
+        }
+        if (expandBtn) expandBtn.addEventListener('click', function() { setExpanded(true); });
+        if (expandClose) expandClose.addEventListener('click', function() { setExpanded(false); });
+        if (backdrop) backdrop.addEventListener('click', function() { setExpanded(false); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && canvas.classList.contains('is-expanded')) setExpanded(false);
+        });
+    })();
     function updateAddButtonFor(category) {
         var $cat = $('.alerts-category[data-category="' + category + '"]');
         if (!$cat.length) return;
@@ -1287,6 +1473,7 @@ $(document).ready(function() {
         $('#settings-form').show();
         $('#preview-placeholder').hide();
         $('#preview-legacy').hide();
+        $('#preview-walkon-sample').hide();
         $('#preview-box').show();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', false);
         // General
@@ -1302,9 +1489,6 @@ $(document).ready(function() {
         // Layout
         $('.layout-preset-btn').removeClass('active');
         $('.layout-preset-btn[data-layout="' + a.layout_preset + '"]').addClass('active');
-        var formPos = a.screen_position || defaultPositionFor(a.alert_category);
-        $('#position-grid-form .alerts-position-btn').removeClass('active');
-        $('#position-grid-form .alerts-position-btn[data-position="' + formPos + '"]').addClass('active');
         $('#set-bg-color').val(a.bg_color);
         $('#set-bg-color-text').val(a.bg_color);
         $('#set-bg-opacity').val(a.bg_opacity);
@@ -1341,6 +1525,8 @@ $(document).ready(function() {
         $('#set-celebration-effect').val(a.celebration_effect);
         $('#set-celebration-intensity').val(a.celebration_intensity);
         updatePreview();
+        applyPreviewScale();
+        seedActiveBox();
         loadingVariant = false;
         clearDirty();
     }
@@ -1351,18 +1537,27 @@ $(document).ready(function() {
         $('#settings-form').hide();
         $('#settings-placeholder').hide();
         $('#simple-settings').show();
+        $('#preview-placeholder').hide();
+        $('#preview-box').hide();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
         $('#set-simple-enabled').prop('checked', a.enabled == 1);
-        var pos = a.screen_position || defaultPositionFor(a.alert_category);
-        $('#position-grid-simple .alerts-position-btn').removeClass('active');
-        $('#position-grid-simple .alerts-position-btn[data-position="' + pos + '"]').addClass('active');
-        // All three (weather, deaths, walk-ons) now have a screen position + sample
+        // All three (weather, deaths, walk-ons) have a draggable position + sample
         // preview; only the help note differs for walk-ons (mode is per-viewer).
         $('#simple-position-group').show();
         var isWalkon = a.alert_category === 'walkons';
         $('#simple-note-positioned').toggle(!isWalkon);
         $('#simple-note-walkon').toggle(isWalkon);
-        renderLegacyPreview(a.alert_category, pos);
+        // Show the draggable sample that represents this category.
+        if (isWalkon) {
+            $('#preview-legacy').hide();
+            $('#preview-walkon-sample').show();
+        } else {
+            $('#preview-walkon-sample').hide();
+            renderLegacyPreview(a.alert_category);
+            $('#preview-legacy').show();
+        }
+        applyPreviewScale();
+        seedActiveBox();
         loadingVariant = false;
         clearDirty();
     }
@@ -1373,19 +1568,6 @@ $(document).ready(function() {
         if (alertsData[currentAlertId]) alertsData[currentAlertId].enabled = enabled;
         $('.alerts-variant-enabled-toggle[data-id="' + currentAlertId + '"]').prop('checked', this.checked);
         $.post('', { action: 'toggle_alert', id: currentAlertId, enabled: enabled }, null, 'json');
-    });
-    // Position picker in the simple panel also fires immediately.
-    $(document).on('click', '#position-grid-simple .alerts-position-btn', function() {
-        if (!currentAlertId) return;
-        var pos = $(this).data('position');
-        $('#position-grid-simple .alerts-position-btn').removeClass('active');
-        $(this).addClass('active');
-        var a = alertsData[currentAlertId];
-        if (a) {
-            a.screen_position = pos;
-            if (a.alert_category !== 'walkons') renderLegacyPreview(a.alert_category, pos);
-        }
-        $.post('', { action: 'set_alert_position', id: currentAlertId, position: pos }, null, 'json');
     });
     function updateMediaPreview(type, filename) {
         if (type === 'image') {
@@ -1490,8 +1672,6 @@ $(document).ready(function() {
             'text-shadow': textShadow ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'
         });
         $('.preview-accent').css('color', accentColor);
-        var previewPos = $('#position-grid-form .alerts-position-btn.active').data('position') || 'center-center';
-        applyPreviewPosition(previewPos);
         loadGoogleFont(fontFamily);
     }
     var loadedFonts = {};
@@ -1510,12 +1690,6 @@ $(document).ready(function() {
     });
     $(document).on('click', '.layout-preset-btn', function() {
         $('.layout-preset-btn').removeClass('active');
-        $(this).addClass('active');
-        updatePreview();
-        markDirty();
-    });
-    $(document).on('click', '#position-grid-form .alerts-position-btn', function() {
-        $('#position-grid-form .alerts-position-btn').removeClass('active');
         $(this).addClass('active');
         updatePreview();
         markDirty();
@@ -1643,7 +1817,11 @@ $(document).ready(function() {
             celebration_effect: $('#set-celebration-effect').val(),
             celebration_intensity: $('#set-celebration-intensity').val(),
             celebration_area: 'full',
-            screen_position: $('#position-grid-form .alerts-position-btn.active').data('position') || 'center-center'
+            // Drag-to-place: box top-left as a 0-100 percent of the 16:9 canvas.
+            // screen_position is preserved unchanged for overlay back-compat fallback.
+            screen_position: alertsData[currentAlertId].screen_position || null,
+            position_x: alertsData[currentAlertId].position_x,
+            position_y: alertsData[currentAlertId].position_y
         };
     }
     $(document).on('click', '.alerts-new-variant-btn', function(e) {

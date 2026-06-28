@@ -425,6 +425,79 @@
 .alerts-bg-swatch[data-bg="red"]   { background: #e74c3c; }
 .alerts-bg-swatch.active           { border-color: var(--accent); }
 
+/* ---- Drag-to-place position editor (preview canvas) ------------------ */
+
+.alerts-pos-canvas {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.alerts-pos-draggable {
+    position: absolute;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+.alerts-pos-draggable:active { cursor: grabbing; }
+
+/* Smart-alignment snap guides */
+.alerts-pos-guide {
+    position: absolute;
+    background: var(--amber, #fbbf24);
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+}
+.alerts-pos-guide.is-active { display: block; }
+.alerts-pos-guide-v { top: 0; bottom: 0; width: 1px; }
+.alerts-pos-guide-h { left: 0; right: 0; height: 1px; }
+
+/* Expand-to-large: dim backdrop + canvas promoted to centred 16:9 panel */
+.alerts-pos-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 999;
+    display: none;
+}
+.alerts-pos-backdrop.is-active { display: block; }
+.alerts-pos-canvas.is-expanded {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(92vw, 156vh);
+    max-width: 1400px;
+    z-index: 1000;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+}
+.alerts-pos-expand-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 2rem;
+    height: 2rem;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    line-height: 1;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    z-index: 6;
+}
+.alerts-pos-canvas.is-expanded .alerts-pos-expand-close { display: flex; }
+
 /* ---- RIGHT: settings panel ------------------------------------------ */
 
 .alerts-settings-panel {
@@ -702,44 +775,6 @@
     height: 22px;
     background: var(--border);
     margin: 0 4px;
-}
-
-/* Screen-position picker (3x3 grid) */
-.alerts-position-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 4px;
-    width: 96px;
-    height: 96px;
-}
-.alerts-position-btn {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--transition);
-}
-.alerts-position-btn:hover {
-    border-color: var(--border-hover);
-}
-.alerts-position-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    transition: all var(--transition);
-}
-.alerts-position-btn.active {
-    border-color: var(--accent);
-    background: var(--accent-light);
-}
-.alerts-position-btn.active .alerts-position-dot {
-    background: var(--accent);
 }
 
 /* Sample previews for the legacy-themed categories (mirrors overlay/index.css) */
