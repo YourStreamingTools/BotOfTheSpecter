@@ -2145,6 +2145,72 @@ input[type="checkbox"].switch:disabled + label {
     color: var(--text-primary);
 }
 
+/* Searchable "Command to Edit" picker (combobox) */
+.cc-combobox {
+    position: relative;
+}
+.cc-combobox-input {
+    padding-right: 2.4rem;
+}
+.cc-combobox-caret {
+    position: absolute;
+    right: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+    font-size: 0.72rem;
+    transition: transform var(--transition);
+    z-index: 1;
+}
+.cc-combobox.is-open .cc-combobox-caret {
+    transform: translateY(-50%) rotate(180deg);
+}
+.cc-combobox-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin: 0;
+    padding: 0.3rem;
+    list-style: none;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+}
+.cc-combobox.is-open .cc-combobox-list {
+    display: block;
+}
+.cc-combobox-option {
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cc-combobox-option:hover,
+.cc-combobox-option.is-active {
+    background: var(--accent-light);
+    color: var(--text-primary);
+}
+.cc-combobox-option.is-selected {
+    color: var(--accent-hover);
+    font-weight: 600;
+}
+.cc-combobox-empty {
+    padding: 0.6rem 0.7rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
 @media (max-width: 768px) {
     .cc-form-grid { grid-template-columns: 1fr; }
 }
