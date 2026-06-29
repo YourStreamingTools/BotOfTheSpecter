@@ -3660,11 +3660,10 @@ class TwitchBot(commands.Bot):
                             # Handle (call.) - collect for deferred execution after the main response
                             pending_call = None
                             if '(call.' in response:
-                                calling_match = re.search(r'\(call\.(\w+)\)', response)
+                                calling_match = re.search(r'\(call\.(\w+)(?:\.([^)]+))?\)', response)
                                 if calling_match:
-                                    match_call = calling_match.group(1)
-                                    response = response.replace(f"(call.{match_call})", "").strip()
-                                    pending_call = match_call
+                                    pending_call = (calling_match.group(1), calling_match.group(2))
+                                    response = response.replace(calling_match.group(0), "").strip()
                             # Extract user mention
                             user_mention = re.search(r'@(\w+)', messageContent)
                             user_name = user_mention.group(1) if user_mention else messageAuthor
@@ -3673,7 +3672,7 @@ class TwitchBot(commands.Bot):
                                 await process_dynamic_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
                             # Fire (call.) after the main response has been sent
                             if pending_call:
-                                await self.call_command(pending_call, message, arg_str)
+                                await self.call_command(pending_call[0], message, pending_call[1])
                             # Record usage
                             add_usage(command, 'global', 'default')
                         else:
@@ -10404,7 +10403,7 @@ class TwitchBot(commands.Bot):
                 await connection.close()
 
     @commands.command(name='todolist')
-    async def todolist_command(self, ctx: commands.Context):
+    async def todolist_command(self, ctx: commands.Context, *categories):
         global bot_owner
         connection = None
         connection = await mysql_connection()
@@ -10426,7 +10425,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('todolist', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
-            await todolist_command_handler(ctx, connection)
+            category_ids = parse_todolist_category_ids(categories)
+            await todolist_command_handler(ctx, connection, category_ids)
             add_usage('todolist', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"[TODOLIST] An error occurred in todolist_command: {e}")
@@ -12424,11 +12424,10 @@ async def process_dynamic_variables(
                         response = response.replace('(pronouns.them)', 'them')
                 # Handle (call.) - defer command invocation until after the main message is sent
                 if '(call.' in response:
-                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                    calling_match = re.search(r'\(call\.(\w+)(?:\.([^)]+))?\)', response)
                     if calling_match:
-                        match_call = calling_match.group(1)
-                        response = response.replace(f"(call.{match_call})", "")
-                        pending_calls.append(match_call)
+                        response = response.replace(calling_match.group(0), "")
+                        pending_calls.append((calling_match.group(1), calling_match.group(2)))
                 # Handle (shoutout.username) - trigger a shoutout for a named user
                 if '(shoutout.' in response:
                     so_match = re.search(r'\(shoutout\.(\w+)\)', response)
@@ -12668,11 +12667,11 @@ async def process_dynamic_variables(
             if send_to_chat:
                 await send_long_chat_message(response)
             # Fire any deferred (call.) commands after the main message
-            for call_cmd in pending_calls:
+            for call_cmd, call_args in pending_calls:
                 try:
                     bot_ref = BOTS_TWITCH_BOT
                     if bot_ref and hasattr(bot_ref, 'call_command'):
-                        await bot_ref.call_command(call_cmd, None)
+                        await bot_ref.call_command(call_cmd, None, call_args)
                     else:
                         chat_logger.warning(f"[MESSAGE VARS] Cannot call command '{call_cmd}': bot not available")
                 except Exception as e:
@@ -15742,15 +15741,59 @@ async def todo_command_confirm_removal(ctx, params, user_id, connection):
             await send_chat_message(f"{user.name}, you have no pending task removal to confirm.")
             chat_logger.error(f"[TODO] {user.name} tried to confirm removal without pending task.")
 
+def parse_todolist_category_ids(categories=()):
+    if not categories:
+        return None
+    ids = []
+    for part in categories:
+        for piece in str(part).split(','):
+            piece = piece.strip()
+            if piece.isdigit():
+                category_id = int(piece)
+                if category_id > 0 and category_id not in ids:
+                    ids.append(category_id)
+    return ids
+
 # ToDo List Function - Todolist (view top 5 public tasks)
-async def todolist_command_handler(ctx, connection):
+async def todolist_command_handler(ctx, connection, category_ids=None):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
-        await cursor.execute(
+        where_parts = [
+            "(t.private = 0 OR t.private IS NULL)",
+            "(t.completed IS NULL OR t.completed != 'Yes')",
+        ]
+        params = []
+        list_label = "To-Do List"
+
+        if category_ids is not None:
+            if not category_ids:
+                await send_chat_message(f"{user.name}, please provide a valid category ID for the to-do list.")
+                chat_logger.info(f"[TODOLIST] {user.name} requested the to-do list with invalid category IDs.")
+                return
+
+            placeholders = ','.join(['%s'] * len(category_ids))
+            await cursor.execute(
+                f"SELECT id, category FROM categories WHERE id IN ({placeholders})",
+                category_ids,
+            )
+            valid_categories = await cursor.fetchall()
+            valid_ids = [row['id'] for row in valid_categories]
+            if not valid_ids:
+                await send_chat_message(f"{user.name}, no matching to-do categories were found.")
+                chat_logger.info(f"[TODOLIST] {user.name} requested the to-do list for unknown category IDs: {category_ids}.")
+                return
+
+            cat_placeholders = ','.join(['%s'] * len(valid_ids))
+            where_parts.append(f"t.category IN ({cat_placeholders})")
+            params.extend(valid_ids)
+            list_label = f"To-Do List ({', '.join(row['category'] for row in valid_categories)})"
+
+        sql = (
             "SELECT t.id, t.objective, t.completed, c.category AS category_name "
             "FROM todos t LEFT JOIN categories c ON t.category = c.id "
-            "WHERE (t.private = 0 OR t.private IS NULL) AND (t.completed IS NULL OR t.completed != 'Yes') ORDER BY t.id ASC LIMIT 5"
+            f"WHERE {' AND '.join(where_parts)} ORDER BY t.id ASC LIMIT 5"
         )
+        await cursor.execute(sql, params)
         tasks = await cursor.fetchall()
         if not tasks:
             await send_chat_message(f"{user.name}, there are no tasks on the to-do list right now.")
@@ -15760,7 +15803,7 @@ async def todolist_command_handler(ctx, connection):
         for task in tasks:
             status = '✓' if task.get('completed') == 'Yes' else '○'
             parts.append(f"{status} #{task['id']}: {task['objective']}")
-        await send_chat_message(f"To-Do List: {' | '.join(parts)}")
+        await send_chat_message(f"{list_label}: {' | '.join(parts)}")
         chat_logger.info(f"[TODOLIST] {user.name} viewed the to-do list.")
 
 # Function to get Category Names for the ToDo List

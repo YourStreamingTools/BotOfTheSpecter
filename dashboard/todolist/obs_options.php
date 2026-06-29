@@ -115,6 +115,8 @@ ob_start();
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</pre>
                     <p><?= t('todo_obs_options_modal_category_intro') ?></p>
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;category=1</pre>
+                    <p><?= t('todo_obs_options_modal_category_multi_intro') ?></p>
+                    <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;category=1,3</pre>
                     <p style="font-size:0.8rem; margin-bottom:0.75rem;"><?= t('todo_obs_options_modal_category_note') ?></p>
                     <p><?= t('todo_obs_options_modal_theme_intro') ?></p>
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;theme=true</pre>
