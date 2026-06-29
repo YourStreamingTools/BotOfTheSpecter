@@ -30,32 +30,52 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
-// Get the selected category filter, default to "all" if not provided
-$categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 'all';
+require_once __DIR__ . '/category_filter.php';
 
-// Build the SQL query based on the category filter (use join to include category name)
-if ($categoryFilter === 'all') {
-  $stmt = $db->prepare("SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id ORDER BY t.id ASC");
-} else {
-  $stmt = $db->prepare("SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.category = ? ORDER BY t.id ASC");
-  $stmt->bind_param('i', $categoryFilter);
-}
-
-$stmt->execute();
-$result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$num_rows = count($result);
+$categoryFilter = parse_todo_category_filter();
 
 // Handle remove item form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $todo_id = intval($_POST['todo_id']);
-  // Delete item from database
   $stmt = $db->prepare("DELETE FROM todos WHERE id = ?");
   $stmt->bind_param('i', $todo_id);
   $stmt->execute();
-  // Redirect back to remove page
-  header('Location: remove.php');
+
+  $qs = todo_category_filter_query_string($categoryFilter);
+  header('Location: remove.php' . ($qs ? '?' . $qs : ''));
   exit();
 }
+
+$categories_sql = "SELECT * FROM categories ORDER BY id ASC";
+$categories_stmt = $db->prepare($categories_sql);
+$categories_stmt->execute();
+$categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+$sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id";
+$whereParts = [];
+$bindTypes = '';
+$bindParams = [];
+
+$categorySqlFilter = todo_category_sql_filter($categoryFilter);
+if ($categorySqlFilter !== null) {
+  $whereParts[] = $categorySqlFilter['sql'];
+  $bindTypes .= $categorySqlFilter['types'];
+  $bindParams = array_merge($bindParams, $categorySqlFilter['params']);
+}
+
+if (!empty($whereParts)) {
+  $sql .= ' WHERE ' . implode(' AND ', $whereParts);
+}
+$sql .= ' ORDER BY t.id ASC';
+
+$stmt = $db->prepare($sql);
+if ($bindTypes !== '') {
+  $stmt->bind_param($bindTypes, ...$bindParams);
+}
+$stmt->execute();
+$result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$num_rows = count($result);
+$categoryFilterQs = todo_category_filter_query_string($categoryFilter);
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
@@ -76,24 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label for="searchInput" class="sp-label"><?= t('todo_remove_search_label') ?></label>
           <input type="text" name="search" id="searchInput" placeholder="<?= htmlspecialchars(t('todo_remove_search_placeholder')) ?>" class="sp-input" onkeyup="searchFunction()">
         </div>
-        <div style="min-width:200px;">
-          <label for="categoryFilter" class="sp-label"><?= t('todo_remove_filter_label') ?></label>
-          <select id="categoryFilter" class="sp-select" onchange="applyCategoryFilter()">
-            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>><?= t('todo_remove_filter_all') ?></option>
-            <?php
-            $categories_sql = "SELECT * FROM categories";
-            $categories_stmt = $db->prepare($categories_sql);
-            $categories_stmt->execute();
-            $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            foreach ($categories_result as $category_row) {
-              $categoryId = $category_row['id'];
-              $categoryName = htmlspecialchars($category_row['category']);
-              $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
-              echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
-            }
-            ?>
-          </select>
-        </div>
+        <?php render_todo_category_filter($categories_result, $categoryFilter, 'remove.php', 'todo_remove_filter_label', 'todo_remove_filter_all'); ?>
       </div>
       <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;"><?= t('todo_remove_pick_heading') ?></h2>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
@@ -111,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   : '<span class="sp-badge sp-badge-amber">' . t('todo_remove_badge_not_completed') . '</span>' ?>
               </div>
               <div>
-                <form method="POST" style="margin-bottom:0;" class="remove-task-form">
+                <form method="POST" action="remove.php<?php echo $categoryFilterQs ? '?' . htmlspecialchars($categoryFilterQs) : ''; ?>" style="margin-bottom:0;" class="remove-task-form">
                   <input type="hidden" name="todo_id" value="<?= $row['id'] ?>">
                   <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-task-btn" style="width:100%;">
                     <i class="fas fa-trash"></i> <?= t('todo_remove_btn_remove') ?>
@@ -130,11 +133,6 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-function applyCategoryFilter() {
-  var selectedCategoryId = document.getElementById("categoryFilter").value;
-  window.location.href = "remove.php?category=" + selectedCategoryId;
-}
-
 document.querySelectorAll('.remove-task-btn').forEach(function(btn) {
   btn.addEventListener('click', function(e) {
     e.preventDefault();

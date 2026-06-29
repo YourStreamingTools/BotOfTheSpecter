@@ -3971,6 +3971,26 @@ label.checkbox input[type="checkbox"] {
     }
 }
 
+/* ===== Todolist: category filter ===== */
+.todo-cat-filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-top: 0.35rem;
+}
+.todo-cat-filter-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+.todo-cat-filter-option input {
+    accent-color: var(--accent);
+}
+
 /* ===== Todolist: categories ===== */
 .todo-cat-intro {
     display: flex;

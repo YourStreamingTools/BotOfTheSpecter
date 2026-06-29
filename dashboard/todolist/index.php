@@ -26,17 +26,35 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Get the selected category filter, default to "all" if not provided
-$categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 'all';
+require_once __DIR__ . '/category_filter.php';
 
-// Build the SQL query based on the category filter (use join to include category name)
-if ($categoryFilter === 'all') {
-  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id ORDER BY t.id ASC";
-  $stmt = $db->prepare($sql);
-} else {
-  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.category = ? ORDER BY t.id ASC";
-  $stmt = $db->prepare($sql);
-  $stmt->bind_param("i", $categoryFilter);
+$categoryFilter = parse_todo_category_filter();
+
+$categories_sql = "SELECT * FROM categories ORDER BY id ASC";
+$categories_stmt = $db->prepare($categories_sql);
+$categories_stmt->execute();
+$categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+$sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id";
+$whereParts = [];
+$bindTypes = '';
+$bindParams = [];
+
+$categorySqlFilter = todo_category_sql_filter($categoryFilter);
+if ($categorySqlFilter !== null) {
+  $whereParts[] = $categorySqlFilter['sql'];
+  $bindTypes .= $categorySqlFilter['types'];
+  $bindParams = array_merge($bindParams, $categorySqlFilter['params']);
+}
+
+if (!empty($whereParts)) {
+  $sql .= ' WHERE ' . implode(' AND ', $whereParts);
+}
+$sql .= ' ORDER BY t.id ASC';
+
+$stmt = $db->prepare($sql);
+if ($bindTypes !== '') {
+  $stmt->bind_param($bindTypes, ...$bindParams);
 }
 $stmt->execute();
 $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -54,24 +72,7 @@ ob_start();
         <label for="searchInput" class="sp-label"><?= t('todo_index_search_objectives') ?></label>
         <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="<?= htmlspecialchars(t('todo_index_search_placeholder')) ?>">
       </div>
-      <div style="min-width:200px;">
-        <label for="categoryFilter" class="sp-label"><?= t('todo_index_filter_by_category') ?></label>
-        <select id="categoryFilter" class="sp-select" onchange="applyCategoryFilter()">
-          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>><?= htmlspecialchars(t('todo_index_category_all')) ?></option>
-          <?php
-            $categories_sql = "SELECT * FROM categories";
-            $categories_stmt = $db->prepare($categories_sql);
-            $categories_stmt->execute();
-            $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            foreach ($categories_result as $category_row) {
-              $categoryId = htmlspecialchars($category_row['id']);
-              $categoryName = htmlspecialchars($category_row['category']);
-              $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
-              echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
-            }
-          ?>
-        </select>
-      </div>
+      <?php render_todo_category_filter($categories_result, $categoryFilter, 'index.php', 'todo_index_filter_by_category', 'todo_index_category_all'); ?>
     </div>
     <?php if ($num_rows < 1): ?>
       <div class="sp-alert sp-alert-info">
@@ -162,10 +163,6 @@ ob_start();
   }
   setInterval(updateTimestamps, 1000);
   document.addEventListener('DOMContentLoaded', updateTimestamps);
-  function applyCategoryFilter() {
-    var selectedCategoryId = document.getElementById("categoryFilter").value;
-    window.location.href = "index.php?category=" + selectedCategoryId;
-  }
 </script>
 <?php
 $scripts = ob_get_clean();
