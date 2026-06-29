@@ -26,20 +26,9 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Check if a specific category is selected
-$categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 'all';
-if ($categoryFilter !== 'all') {
-  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.category = ? AND t.completed = 'No'";
-  $stmt = $db->prepare($sql);
-  $stmt->bind_param("i", $categoryFilter);
-} else {
-  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.completed = 'No'";
-  $stmt = $db->prepare($sql);
-}
+require_once __DIR__ . '/category_filter.php';
 
-$stmt->execute();
-$incompleteTasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$num_rows = count($incompleteTasks);
+$categoryFilter = parse_todo_category_filter();
 
 // Mark task as completed
 if (isset($_POST['task_id'])) {
@@ -48,18 +37,37 @@ if (isset($_POST['task_id'])) {
   $stmt = $db->prepare($sql);
   $stmt->bind_param("i", $task_id);
   $stmt->execute();
-  
-  header('Location: completed.php');
+
+  $qs = todo_category_filter_query_string($categoryFilter);
+  header('Location: completed.php' . ($qs ? '?' . $qs : ''));
   exit();
 }
 
-// Retrieve categories for the filter dropdown
-$categorySql = "SELECT * FROM categories";
+$categorySql = "SELECT * FROM categories ORDER BY id ASC";
 $categoryStmt = $db->query($categorySql);
 $categories = $categoryStmt->fetch_all(MYSQLI_ASSOC);
 
-// Check if a specific category is selected
-$categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
+$sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id";
+$whereParts = ["t.completed = 'No'"];
+$bindTypes = '';
+$bindParams = [];
+
+$categorySqlFilter = todo_category_sql_filter($categoryFilter);
+if ($categorySqlFilter !== null) {
+  $whereParts[] = $categorySqlFilter['sql'];
+  $bindTypes .= $categorySqlFilter['types'];
+  $bindParams = array_merge($bindParams, $categorySqlFilter['params']);
+}
+
+$sql .= ' WHERE ' . implode(' AND ', $whereParts) . ' ORDER BY t.id ASC';
+$stmt = $db->prepare($sql);
+if ($bindTypes !== '') {
+  $stmt->bind_param($bindTypes, ...$bindParams);
+}
+$stmt->execute();
+$incompleteTasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$num_rows = count($incompleteTasks);
+$categoryFilterQs = todo_category_filter_query_string($categoryFilter);
 
 ob_start();
 ?>
@@ -82,17 +90,7 @@ ob_start();
           <label for="searchInput" class="sp-label"><?= t('todo_completed_search_label') ?></label>
           <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="<?= htmlspecialchars(t('todo_completed_search_placeholder')) ?>">
         </div>
-        <div style="min-width:200px;">
-          <label for="categoryFilter" class="sp-label"><?= t('todo_completed_filter_label') ?></label>
-          <select id="categoryFilter" class="sp-select">
-            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>><?= t('todo_completed_filter_all') ?></option>
-            <?php foreach ($categories as $category): ?>
-              <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
-                <?php echo htmlspecialchars($category['category']); ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
+        <?php render_todo_category_filter($categories, $categoryFilter, 'completed.php', 'todo_completed_filter_label', 'todo_completed_filter_all'); ?>
       </div>
       <p style="margin-bottom:1rem; color:var(--text-secondary);"><?= t('todo_completed_total_count') ?> <?php echo $num_rows; ?></p>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
@@ -107,7 +105,7 @@ ob_start();
                 </p>
               </div>
               <div>
-                <form method="post" action="completed.php" style="margin-bottom:0;" class="mark-completed-form">
+                <form method="post" action="completed.php<?php echo $categoryFilterQs ? '?' . htmlspecialchars($categoryFilterQs) : ''; ?>" style="margin-bottom:0;" class="mark-completed-form">
                   <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
                   <button type="button" class="sp-btn sp-btn-success sp-btn-sm mark-completed-btn" style="width:100%;">
                     <i class="fas fa-check"></i> <?= t('todo_completed_mark_button') ?>
@@ -125,12 +123,6 @@ ob_start();
 $content = ob_get_clean();
 ob_start();
 ?>
-<script>
-  document.getElementById("categoryFilter").addEventListener("change", function() {
-    var selectedCategoryId = this.value;
-    window.location.href = "completed.php?category=" + selectedCategoryId;
-  });
-</script>
 <script>
 document.querySelectorAll('.mark-completed-btn').forEach(function(btn) {
   btn.addEventListener('click', function(e) {
