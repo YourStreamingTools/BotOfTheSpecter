@@ -1058,17 +1058,17 @@ ob_start();
         </div>
     </div>
     <div class="sp-table-wrap">
-        <table class="sp-table">
+        <table class="sp-table start-bots-table">
             <thead>
                 <tr>
-                    <th><?php echo t('admin_start_bots_th_user'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_twitch_id'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_bot_status'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_bot_type'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_running_for'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_token_status'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_mod_status'); ?></th>
-                    <th><?php echo t('admin_start_bots_th_actions'); ?></th>
+                    <th class="col-user"><?php echo t('admin_start_bots_th_user'); ?></th>
+                    <th class="col-twitch-id"><?php echo t('admin_start_bots_th_twitch_id'); ?></th>
+                    <th class="col-status"><?php echo t('admin_start_bots_th_bot_status'); ?></th>
+                    <th class="col-type"><?php echo t('admin_start_bots_th_bot_type'); ?></th>
+                    <th class="col-uptime"><?php echo t('admin_start_bots_th_running_for'); ?></th>
+                    <th class="col-token"><?php echo t('admin_start_bots_th_token_status'); ?></th>
+                    <th class="col-mod"><?php echo t('admin_start_bots_th_mod_status'); ?></th>
+                    <th class="col-actions"><?php echo t('admin_start_bots_th_actions'); ?></th>
                 </tr>
             </thead>
             <tbody id="users-table-body">
@@ -1077,7 +1077,7 @@ ob_start();
                     <tr data-username="<?php echo htmlspecialchars($user['username']); ?>"
                         data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>"
                         data-custom-enabled="<?php echo $customBotEnabled ? '1' : '0'; ?>">
-                        <td>
+                        <td class="col-user">
                             <div style="display:flex;align-items:center;">
                                 <img src="<?php echo htmlspecialchars($user['profile_image']); ?>"
                                     alt="<?php echo htmlspecialchars($user['username']); ?>"
@@ -1085,86 +1085,86 @@ ob_start();
                                 <span><?php echo htmlspecialchars($user['twitch_display_name'] ?: $user['username']); ?></span>
                             </div>
                         </td>
-                        <td><?php echo htmlspecialchars($user['twitch_user_id']); ?></td>
-                        <td>
+                        <td class="col-twitch-id"><?php echo htmlspecialchars($user['twitch_user_id']); ?></td>
+                        <td class="col-status">
                             <span class="sp-badge bot-status-tag"
                                 data-username="<?php echo htmlspecialchars($user['username']); ?>">
                                 <span class="icon"><i class="fas fa-spinner fa-pulse"></i></span>
                                 <span><?php echo t('admin_start_bots_status_checking'); ?></span>
                             </span>
                         </td>
-                        <td>
+                        <td class="col-type">
                             <span class="sp-badge sp-badge-amber bot-type-tag">
                                 <span><?php echo t('admin_start_bots_label_unknown'); ?></span>
                             </span>
                         </td>
-                        <td>
+                        <td class="col-uptime">
                             <span class="sp-badge sp-badge-grey running-time-tag">
                                 <span>-</span>
                             </span>
                         </td>
-                        <td>
+                        <td class="col-token">
                             <span class="sp-badge token-status-tag"
                                 data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>">
                                 <span class="icon"><i class="fas fa-question"></i></span>
                                 <span><?php echo t('admin_start_bots_label_unknown'); ?></span>
                             </span>
                         </td>
-                        <td>
+                        <td class="col-mod">
                             <span class="sp-badge mod-status-tag">
                                 <span class="icon"><i class="fas fa-question"></i></span>
                                 <span><?php echo t('admin_start_bots_label_unknown'); ?></span>
                             </span>
                         </td>
-                        <td>
+                        <td class="col-actions">
                             <div class="sp-btn-group">
                                 <button class="sp-btn sp-btn-warning make-mod-btn"
                                     onclick="makeBotMod('<?php echo htmlspecialchars($user['twitch_user_id']); ?>')"
                                     style="display: none;" title="<?php echo htmlspecialchars(t('admin_start_bots_btn_make_mod_title'), ENT_QUOTES); ?>">
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_make_mod'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_make_mod'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-success start-stable-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'stable')"
                                     disabled>
                                     <span class="icon"><i class="fas fa-play"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_start_stable'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_start_stable'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-info start-beta-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'beta')"
                                     disabled>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_start_beta'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_start_beta'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-primary start-custom-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
                                     <?php echo $customBotEnabled ? '' : 'disabled'; ?> title="<?php echo htmlspecialchars($customBotEnabled ? t('admin_start_bots_btn_start_custom_title_enabled') : t('admin_start_bots_btn_start_custom_title_disabled'), ENT_QUOTES); ?>">
                                     <span class="icon"><i class="fas fa-user-astronaut"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_start_custom'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_start_custom'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-warning restart-bot-btn"
                                     onclick="restartBot('<?php echo htmlspecialchars($user['username']); ?>', 'stable', 0, this)"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_restart'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_restart'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-info switch-bot-btn"
                                     onclick="switchBotType('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'beta')"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-exchange-alt"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_switch_beta'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_switch_beta'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-primary switch-custom-btn"
                                     onclick="switchBotType('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-user-astronaut"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_switch_custom'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_switch_custom'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-danger stop-bot-btn"
                                     onclick="stopBot('<?php echo htmlspecialchars($user['username']); ?>', 0, this)"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-stop"></i></span>
-                                    <span><?php echo t('admin_start_bots_btn_stop'); ?></span>
+                                    <span class="btn-label"><?php echo t('admin_start_bots_btn_stop'); ?></span>
                                 </button>
                                 <button class="sp-btn sp-btn-dark attach-console-btn"
                                     onclick="attachConsole('<?php echo htmlspecialchars($user['username']); ?>')"
@@ -1199,6 +1199,8 @@ ob_start();
     </div>
 </div>
 <script>
+    const COMPACT_BREAKPOINT = 1600;
+
     const SB_I18N = {
         unknown: <?php echo json_encode(t('admin_start_bots_label_unknown')); ?>,
         checking: <?php echo json_encode(t('admin_start_bots_status_checking')); ?>,
@@ -1345,7 +1347,81 @@ ob_start();
                 });
             });
         }
+        // On smaller screens, simplify action button labels (keep full on desktop)
+        // (see COMPACT_BREAKPOINT)
+        applyCompactActionLabels();
+        applyCompactTableColumns();
+
+        // Re-apply on resize so columns and labels react live
+        window.addEventListener('resize', function () {
+            applyCompactActionLabels();
+            applyCompactTableColumns();
+        });
     });
+
+    function applyCompactActionLabels() {
+        if (window.innerWidth > COMPACT_BREAKPOINT) return;
+        const rows = document.querySelectorAll('#users-table-body tr');
+        rows.forEach(row => {
+            row.querySelectorAll('.col-actions .sp-btn .btn-label').forEach(label => {
+                let txt = label.textContent.trim();
+                // Turn the buttons into the simple versions requested for small screens
+                txt = txt.replace(/^Start\s+/i, '');           // "Stable", "Beta", "Custom"
+                txt = txt.replace(/^Switch to\s+/i, '→ ');    // "→ Stable"
+                if (txt.length > 12) {
+                    const parts = txt.split(/\s+/);
+                    if (parts.length > 1) txt = parts[parts.length - 1];
+                }
+                // Restart and Stop stay as-is (already short)
+                // Make Mod is important - keep full text
+                if (/^make mod$/i.test(txt)) {
+                    txt = 'Make Mod';
+                }
+                label.textContent = txt;
+            });
+        });
+    }
+
+    function setCompactButtonLabel(btn, fullText) {
+        const labelSpan = btn.querySelector('.btn-label') || btn.querySelector('span:last-child');
+        if (!labelSpan) {
+            btn.querySelector('span:last-child').textContent = fullText; // fallback
+            return;
+        }
+        if (window.innerWidth > COMPACT_BREAKPOINT) {
+            labelSpan.textContent = fullText;
+            return;
+        }
+        let txt = String(fullText || '').trim();
+        // Language-friendly shortening for small screens: keep the distinctive last part
+        txt = txt.replace(/^Start\s+/i, '');
+        txt = txt.replace(/^Switch to\s+/i, '→ ');
+        // If still long (localized), keep only the last word for the type/target
+        if (txt.length > 12) {
+            const parts = txt.split(/\s+/);
+            if (parts.length > 1) txt = parts[parts.length - 1];
+        }
+        // Make Mod is important - keep full text
+        if (/^make mod$/i.test(txt)) {
+            txt = 'Make Mod';
+        }
+        labelSpan.textContent = txt;
+    }
+
+    function applyCompactTableColumns() {
+        // Force-hide unwanted columns on "smaller" screens via JS as reliable backup
+        // (in case CSS media query doesn't trigger due to viewport, zoom, device pixel ratio, etc.)
+        const table = document.querySelector('table.start-bots-table');
+        if (!table) return;
+        const colsToHide = ['col-twitch-id', 'col-type', 'col-uptime', 'col-token', 'col-mod'];
+        const isCompact = window.innerWidth <= COMPACT_BREAKPOINT;
+        colsToHide.forEach(function(cls) {
+            table.querySelectorAll('th.' + cls + ', td.' + cls).forEach(function(el) {
+                el.style.display = isCompact ? 'none' : '';
+            });
+        });
+    }
+
     // Debounced refresh - delays the actual refresh to avoid multiple rapid calls
     function scheduleRefresh(delayMs = 2000) {
         // Clear any pending refresh
@@ -1469,21 +1545,21 @@ ob_start();
                                 switchBtn.style.display = 'inline-flex';
                                 switchBtn.disabled = false;
                                 switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
-                                switchBtn.querySelector('span:last-child').textContent = btnText;
+                                setCompactButtonLabel(switchBtn, btnText);
                             }
                             if (switchCustomBtn) {
                                 if (runningType === 'custom') {
                                     switchCustomBtn.style.display = 'inline-flex';
                                     switchCustomBtn.disabled = false;
                                     switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`);
-                                    switchCustomBtn.querySelector('span:last-child').textContent = SB_I18N.switchToBeta;
+                                    setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToBeta);
                                 } else {
                                     const canSwitchToCustom = canStartCustom && runningType !== 'custom';
                                     if (canSwitchToCustom) {
                                         switchCustomBtn.style.display = 'inline-flex';
                                         switchCustomBtn.disabled = false;
                                         switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`);
-                                        switchCustomBtn.querySelector('span:last-child').textContent = SB_I18N.switchToCustom;
+                                        setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToCustom);
                                     } else {
                                         switchCustomBtn.style.display = 'none';
                                         switchCustomBtn.disabled = true;
@@ -1550,6 +1626,9 @@ ob_start();
                         }
                     });
                 }
+                // Re-shorten any switch labels the refresh just set
+                applyCompactActionLabels();
+                applyCompactTableColumns();
             })
             .catch(error => {
                 console.error('Error fetching running bots:', error);
@@ -1628,8 +1707,8 @@ ob_start();
                             if (stopBotBtn) { stopBotBtn.style.display = 'inline-flex'; stopBotBtn.disabled = false; stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this)`); }
                             const attachConsoleBtnR = row.querySelector('.attach-console-btn');
                             if (attachConsoleBtnR) { attachConsoleBtnR.style.display = 'inline-flex'; attachConsoleBtnR.disabled = false; }
-                            if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? SB_I18N.switchToStable : (isBetaFamily ? SB_I18N.switchToStable : SB_I18N.switchToBeta); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
-                            if (switchCustomBtn) { if (runningType === 'custom') { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`); switchCustomBtn.querySelector('span:last-child').textContent = SB_I18N.switchToBeta; } else { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); switchCustomBtn.querySelector('span:last-child').textContent = SB_I18N.switchToCustom; } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } } }
+                            if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? SB_I18N.switchToStable : (isBetaFamily ? SB_I18N.switchToStable : SB_I18N.switchToBeta); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); setCompactButtonLabel(switchBtn, btnText); }
+                            if (switchCustomBtn) { if (runningType === 'custom') { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`); setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToBeta); } else { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToCustom); } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } } }
                         } else {
                             if (botTag) { botTag.className = 'sp-badge sp-badge-red bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.notRunning) + '</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag'; botTypeTag.innerHTML = '<span>' + escapeHtml(SB_I18N.botNotRunning) + '</span>'; }
@@ -1655,6 +1734,8 @@ ob_start();
                         timer: 2000
                     });
                 }
+                applyCompactActionLabels();
+                applyCompactTableColumns();
             })
             .catch(error => console.error('Error fetching running bots:', error));
     }
