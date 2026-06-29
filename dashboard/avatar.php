@@ -301,7 +301,6 @@ ob_start();
             </div>
             <div class="sp-card-body">
                 <p class="av-help-text"><?= t('avatar_mic_desc') ?></p>
-                <p class="av-help-text av-cc-active-note av-hidden" id="avCcActiveNote"><i class="fas fa-closed-captioning"></i> <?= t('avatar_mic_cc_active') ?></p>
                 <div class="av-control-row">
                     <button type="button" id="avStartBtn" class="sp-btn sp-btn-success sp-btn-block"><i class="fas fa-play"></i> <?= t('avatar_start_mic') ?></button>
                     <button type="button" id="avStopBtn" class="sp-btn sp-btn-danger sp-btn-block" disabled><i class="fas fa-stop"></i> <?= t('avatar_stop_mic') ?></button>
@@ -461,7 +460,6 @@ ob_start();
         attackMs: <?php echo json_encode((int) $av['attack_ms']); ?>,
         releaseMs: <?php echo json_encode((int) $av['release_ms']); ?>,
     };
-    let captionerActive = false;
     let micRunning = false;
     let mouthState = 'idle';
     let isBlinking = false;
@@ -495,10 +493,6 @@ ob_start();
         });
         socket.on('disconnect', () => { socketReady = false; scheduleReconnect(); });
         socket.on('connect_error', () => { socketReady = false; scheduleReconnect(); });
-        socket.on('CAPTIONER_STATUS', (payload) => {
-            captionerActive = !!(payload && payload.active);
-            updateMicUi();
-        });
     }
     connectSocket();
 
@@ -513,7 +507,6 @@ ob_start();
     const micStatus = document.getElementById('avMicStatus');
     const startBtn = document.getElementById('avStartBtn');
     const stopBtn = document.getElementById('avStopBtn');
-    const ccNote = document.getElementById('avCcActiveNote');
     const previewImg = document.getElementById('avPreviewImg');
     const previewPlaceholder = document.getElementById('avPreviewPlaceholder');
 
@@ -569,19 +562,6 @@ ob_start();
         }, delay);
     };
 
-    const updateMicUi = () => {
-        if (captionerActive) {
-            if (ccNote) ccNote.classList.remove('av-hidden');
-            if (startBtn) startBtn.disabled = true;
-            if (micRunning) stopMic();
-            setStatus(avLang.listening, 'online');
-        } else {
-            if (ccNote) ccNote.classList.add('av-hidden');
-            if (startBtn) startBtn.disabled = micRunning;
-            if (!micRunning) setStatus(avLang.idle, 'offline');
-        }
-    };
-
     const computeRms = () => {
         if (!analyser) return 0;
         const buf = new Uint8Array(analyser.fftSize);
@@ -619,13 +599,12 @@ ob_start();
         if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
         if (audioContext) { try { audioContext.close(); } catch (e) {} audioContext = null; }
         emitAvatarState('idle');
-        if (!captionerActive) setStatus(avLang.idle, 'offline');
-        if (startBtn) startBtn.disabled = captionerActive;
+        setStatus(avLang.idle, 'offline');
+        if (startBtn) startBtn.disabled = false;
         if (stopBtn) stopBtn.disabled = true;
     };
 
     const startMic = async () => {
-        if (captionerActive) return;
         setStatus(avLang.starting, 'warn');
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -797,7 +776,6 @@ ob_start();
     }
 
     updatePreviewFrame();
-    updateMicUi();
     schedulePreviewBlink();
 })();
 </script>

@@ -64,22 +64,6 @@ if ($ccStmt) {
     $ccStmt->close();
 }
 
-$avatarSettings = [
-    'enabled' => 0,
-    'mic_threshold' => 0.080,
-    'attack_ms' => 40,
-    'release_ms' => 180,
-];
-$avLoadStmt = $db->prepare('SELECT enabled, mic_threshold, attack_ms, release_ms FROM avatar_settings WHERE id = 1');
-if ($avLoadStmt) {
-    $avLoadStmt->execute();
-    $avLoadResult = $avLoadStmt->get_result();
-    if ($avLoadResult->num_rows > 0) {
-        $avatarSettings = array_merge($avatarSettings, $avLoadResult->fetch_assoc());
-    }
-    $avLoadStmt->close();
-}
-
 // Caption corrections (per-user glossary / fix-up dictionary) load
 $ccCorrections = [];
 $ccCorrStmt = $db->prepare("SELECT match_text, replace_text, match_mode, case_sensitive, enabled FROM closed_captions_corrections ORDER BY sort_order, id");
@@ -487,12 +471,7 @@ ob_start();
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
-    const avatarSettings = <?php echo json_encode([
-        'enabled' => (bool) $avatarSettings['enabled'],
-        'mic_threshold' => (float) $avatarSettings['mic_threshold'],
-        'attack_ms' => (int) $avatarSettings['attack_ms'],
-        'release_ms' => (int) $avatarSettings['release_ms'],
-    ]); ?>;
+
     let ccProfanityFilter = <?php echo json_encode((bool)$cc['profanity_filter']); ?>;
     // Curated caption fonts — derived from the PHP allow-list so this can't drift from
     // the overlay's copies. Used to load + preview the chosen typeface on the dashboard.
@@ -567,18 +546,6 @@ ob_start();
         if (socket && socketReady && socket.connected) {
             socket.emit('CLOSED_CAPTION', { code: apiKey, text: tag, isFinal: true, action: true });
         }
-    };
-    let avatarMouthState = 'idle';
-    const emitAvatarState = (state) => {
-        if (!avatarSettings.enabled) return;
-        if (!socket || !socketReady || !socket.connected) return;
-        if (avatarMouthState === state) return;
-        avatarMouthState = state;
-        socket.emit('AVATAR_STATE', { code: apiKey, state: state, expression: 'default' });
-    };
-    const emitCaptionerStatus = (active) => {
-        if (!socket || !socketReady || !socket.connected) return;
-        socket.emit('CAPTIONER_STATUS', { code: apiKey, active: !!active });
     };
     let translateChain = Promise.resolve();
     function emitFinalCaption(text) {
@@ -852,8 +819,8 @@ ob_start();
         let vadState = 'idle';
         let releaseTimer = null;
         let config = {
-            threshold: avatarSettings.mic_threshold || 0.08,
-            releaseMs: avatarSettings.release_ms || 180,
+            threshold: 0.08,
+            releaseMs: 180,
         };
         const silenceListeners = [];
         const onSilenceFlush = (fn) => { silenceListeners.push(fn); };
@@ -876,7 +843,6 @@ ob_start();
         const notifyVad = (state) => {
             if (vadState === state) return;
             vadState = state;
-            if (avatarSettings.enabled) emitAvatarState(state);
         };
         const tick = () => {
             if (!running) return;
@@ -910,7 +876,7 @@ ob_start();
         const start = async (deviceId) => {
             if (running) return true;
             running = true;
-            setConfig({ threshold: avatarSettings.mic_threshold, releaseMs: avatarSettings.release_ms });
+            setConfig({ threshold: 0.08, releaseMs: 180 });
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const detAudio = { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false };
@@ -937,7 +903,6 @@ ob_start();
             if (!running) return;
             running = false;
             stopTracks();
-            if (avatarSettings.enabled) emitAvatarState('idle');
         };
         const getSourceNode = () => sourceNode;
         const getAudioContext = () => audioContext;
@@ -1377,7 +1342,6 @@ ob_start();
         pendingUtterance = '';
         pendingConfidence = null;
         pendingWordConfidences = null;
-        avatarMouthState = 'idle';
         const tapOk = await audioTap.start(detectorDeviceId);
         if (!tapOk) {
             setStatus(ccLang.micDenied, 'offline');
@@ -1393,7 +1357,6 @@ ob_start();
         setStatus(ccLang.listening, 'online');
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
-        emitCaptionerStatus(true);
         const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
         liveTranslator.ensure(srcLang);
         if (ccActionTagsEnabled) { soundDetector.start(); }
@@ -1409,14 +1372,12 @@ ob_start();
         liveTranslator.stop();
         setTranslateNotice('', false);
         emitClear();
-        emitCaptionerStatus(false);
         committedText = '';
         pendingUtterance = '';
         committedConfidence = null;
         committedWordConfidences = null;
         pendingConfidence = null;
         pendingWordConfidences = null;
-        avatarMouthState = 'idle';
         setPreview('', '', null, null);
         setStatus(ccLang.idle, 'offline');
         if (startBtn) startBtn.disabled = false;
