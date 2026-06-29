@@ -2,6 +2,26 @@
 ob_start();
 include '/var/www/config/database.php';
 
+function parse_overlay_category_ids($raw)
+{
+    if ($raw === null || $raw === '') {
+        return [1];
+    }
+
+    $ids = [];
+    foreach (explode(',', (string) $raw) as $part) {
+        $part = trim($part);
+        if ($part !== '' && ctype_digit($part)) {
+            $id = (int) $part;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+    }
+
+    return array_values($ids);
+}
+
 $error_html = '';
 $tasks = [];
 $category = '';
@@ -27,12 +47,14 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
     } else {
         $error_html = "Invalid API key.<br>Get your API Key from your <a href='https://dashboard.botofthespecter.com/profile.php'>profile</a>."
             . "<p>If you wish to define a working category, please add it like this: <strong>todolist.php?code=API_KEY&category=1</strong></br>"
+            . "Multiple categories are supported too: <strong>todolist.php?code=API_KEY&category=1,3</strong></br>"
             . "(where ID 1 is called Default defined on the categories page.)</p>";
     }
 } else {
     $error_html = "<p>Please provide your API key in the URL like this: <strong>todolist.php?code=API_KEY</strong></p>"
         . "<p>Get your API Key from your <a href='https://dashboard.botofthespecter.com/profile.php'>profile</a>.</p>"
         . "<p>If you wish to define a working category, please add it like this: <strong>todolist.php?code=API_KEY&category=1</strong></br>"
+        . "Multiple categories are supported too: <strong>todolist.php?code=API_KEY&category=1,3</strong></br>"
         . "(where ID 1 is called Default defined on the categories page.)</p>";
 }
 $conn->close();
@@ -72,29 +94,32 @@ if (!$error_html) {
     $font_size = intval(preg_replace('/\D/', '', $font_size_raw));
     if ($font_size <= 0) $font_size = 12;
     $listType = ($list === 'Numbered') ? 'ol' : 'ul';
-    $category_id = isset($_GET['category']) && !empty($_GET['category']) ? $_GET['category'] : "1";
-    $category_id = intval($category_id);
-    // Validate category_id
-    $stmt = $user_db->prepare("SELECT category FROM categories WHERE id = ?");
-    $stmt->bind_param("i", $category_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $category_row = $result->fetch_assoc();
-    if ($category_row) {
-        $category = $category_row['category'];
-        if ($show_completed) {
-            $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? AND (private = 0 OR private IS NULL) ORDER BY id ASC");
-        } else {
-            $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? AND (private = 0 OR private IS NULL) AND completed != 'Yes' ORDER BY id ASC");
-        }
-        $stmt->bind_param("i", $category_id);
-        $stmt->execute();
-        $tasks_result = $stmt->get_result();
-        while ($row = $tasks_result->fetch_assoc()) {
-            $tasks[] = $row;
-        }
+    $category_ids = parse_overlay_category_ids($_GET['category'] ?? null);
+    if (empty($category_ids)) {
+        $error_html = "Invalid category ID.<br>Use one ID or comma-separated IDs, for example <strong>&category=1</strong> or <strong>&category=1,3</strong>.";
     } else {
-        $error_html = "Invalid category ID.<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.";
+        $placeholders = implode(',', array_fill(0, count($category_ids), '?'));
+        $stmt = $user_db->prepare("SELECT id, category FROM categories WHERE id IN ($placeholders) ORDER BY id ASC");
+        $types = str_repeat('i', count($category_ids));
+        $stmt->bind_param($types, ...$category_ids);
+        $stmt->execute();
+        $category_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        if (count($category_rows) !== count($category_ids)) {
+            $error_html = "Invalid category ID.<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.";
+        } else {
+            $category = implode(', ', array_column($category_rows, 'category'));
+            if ($show_completed) {
+                $stmt = $user_db->prepare("SELECT * FROM todos WHERE category IN ($placeholders) AND (private = 0 OR private IS NULL) ORDER BY id ASC");
+            } else {
+                $stmt = $user_db->prepare("SELECT * FROM todos WHERE category IN ($placeholders) AND (private = 0 OR private IS NULL) AND completed != 'Yes' ORDER BY id ASC");
+            }
+            $stmt->bind_param($types, ...$category_ids);
+            $stmt->execute();
+            $tasks_result = $stmt->get_result();
+            while ($row = $tasks_result->fetch_assoc()) {
+                $tasks[] = $row;
+            }
+        }
     }
 }
 if (isset($user_db) && $user_db instanceof mysqli) {
