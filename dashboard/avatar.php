@@ -126,13 +126,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
     if (!is_dir($avatarMediaDir)) {
         mkdir($avatarMediaDir, 0755, true);
     }
+    $col = $avatarUploadSlots[$slot];
+    $oldFilename = !empty($av[$col]) ? basename((string) $av[$col]) : '';
+    $oldPath = $oldFilename !== '' ? $avatarMediaDir . '/' . $oldFilename : '';
+    $oldSize = ($oldPath !== '' && is_file($oldPath)) ? filesize($oldPath) : 0;
     $safeName = upload_sanitize_filename($orig, $ext);
     $target = upload_unique_target($avatarMediaDir, $safeName);
     if (!upload_reencode_image($tmp, $target['path'], $ext, AVATAR_IMAGE_MAX_PX, AVATAR_IMAGE_MIN_PX)) {
         echo json_encode(['success' => false, 'error' => t('avatar_upload_error_invalid')]);
         exit;
     }
-    $col = $avatarUploadSlots[$slot];
+    $savedSize = filesize($target['path']);
+    $projectedUsed = $current_storage_used - $oldSize + $savedSize;
+    if ($projectedUsed > $max_storage_size) {
+        @unlink($target['path']);
+        echo json_encode(['success' => false, 'error' => t('avatar_upload_error_storage')]);
+        exit;
+    }
     $saveUp = $db->prepare("INSERT INTO avatar_settings (id, {$col}) VALUES (1, ?) ON DUPLICATE KEY UPDATE {$col} = VALUES({$col})");
     $saveUp->bind_param('s', $target['name']);
     $ok = $saveUp->execute();
@@ -142,11 +152,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
         echo json_encode(['success' => false, 'error' => t('avatar_upload_error', ['db'])]);
         exit;
     }
+    if ($oldFilename !== '' && $oldFilename !== $target['name'] && is_file($oldPath)) {
+        $stillReferenced = false;
+        foreach ($avatarUploadSlots as $otherCol) {
+            if ($otherCol === $col) {
+                continue;
+            }
+            if (!empty($av[$otherCol]) && basename((string) $av[$otherCol]) === $oldFilename) {
+                $stillReferenced = true;
+                break;
+            }
+        }
+        if (!$stillReferenced) {
+            @unlink($oldPath);
+        }
+    }
+    $current_storage_used = $projectedUsed;
+    $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
     echo json_encode([
         'success' => true,
         'filename' => $target['name'],
         'url' => $avatarMediaUrl . rawurlencode($target['name']),
         'message' => t('avatar_upload_success', [$target['name']]),
+        'storage_used' => $current_storage_used,
+        'max_storage' => $max_storage_size,
+        'storage_percentage' => $storage_percentage,
     ]);
     exit;
 }
@@ -226,6 +256,15 @@ $frameUrls = [
 
 ob_start();
 ?>
+<div class="sp-alert sp-alert-info media-storage-bar" id="avStorageBar">
+    <div class="media-storage-header">
+        <span><i class="fas fa-database"></i> <strong><?= t('alerts_storage_usage') ?>:</strong></span>
+        <span id="avStorageText"><?= round($current_storage_used / 1024 / 1024, 2) ?>MB / <?= round($max_storage_size / 1024 / 1024, 2) ?>MB (<?= round($storage_percentage, 2) ?>%)</span>
+    </div>
+    <progress class="progress" id="avStorageProgress" value="<?= $storage_percentage ?>" max="100"></progress>
+    <p class="av-help-text av-storage-note"><?= t('avatar_storage_note') ?></p>
+</div>
+
 <div class="sp-page-header">
     <h1><i class="fas fa-user-astronaut"></i> <?= t('avatar_page_title') ?></h1>
     <p><?= t('avatar_intro_description') ?></p>
@@ -653,6 +692,17 @@ ob_start();
                     const nameEl = input.parentElement && input.parentElement.querySelector('.av-file-name');
                     if (nameEl) nameEl.textContent = data.filename;
                     updatePreviewFrame();
+                    if (typeof data.storage_used === 'number' && typeof data.max_storage === 'number') {
+                        const usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
+                        const maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
+                        const pct = typeof data.storage_percentage === 'number'
+                            ? data.storage_percentage.toFixed(2)
+                            : ((data.storage_used / data.max_storage) * 100).toFixed(2);
+                        const textEl = document.getElementById('avStorageText');
+                        const progEl = document.getElementById('avStorageProgress');
+                        if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + pct + '%)';
+                        if (progEl) progEl.value = pct;
+                    }
                 } else if (data && data.error) {
                     alert(data.error);
                 }

@@ -2977,6 +2977,10 @@ label.switch .check { display: none; }
 .media-storage-bar .progress {
     width: 100%;
 }
+.media-storage-bar .av-storage-note {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+}
 
 /* ---- upload card ---- */
 .media-upload-card {
