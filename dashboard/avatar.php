@@ -471,6 +471,7 @@ ob_start();
     let muteNode = null;
     let rafId = null;
     let releaseTimer = null;
+    let stateHeartbeat = null;
 
     const socketUrl = 'wss://websocket.botofthespecter.com';
     let socket = null;
@@ -490,18 +491,46 @@ ob_start();
             attempts = 0;
             socketReady = true;
             socket.emit('REGISTER', { code: apiKey, channel: 'Dashboard', name: 'Avatar Dashboard' });
+            if (micRunning) {
+                pushAvatarState(mouthState, true);
+            }
         });
         socket.on('disconnect', () => { socketReady = false; scheduleReconnect(); });
         socket.on('connect_error', () => { socketReady = false; scheduleReconnect(); });
+        socket.on('AVATAR_STATE_REQUEST', () => {
+            if (micRunning) {
+                pushAvatarState(mouthState, true);
+            }
+        });
     }
     connectSocket();
 
-    const emitAvatarState = (state) => {
-        if (!socket || !socketReady || !socket.connected) return;
-        if (mouthState === state) return;
-        mouthState = state;
+    const pushAvatarState = (state, force) => {
+        if (!socket || !socketReady || !socket.connected) return false;
         socket.emit('AVATAR_STATE', { code: apiKey, state: state, expression: 'default' });
+        return true;
+    };
+
+    const emitAvatarState = (state, force) => {
+        if (!force && mouthState === state) return;
+        mouthState = state;
+        pushAvatarState(state, true);
         updatePreviewFrame();
+    };
+
+    const startStateHeartbeat = () => {
+        stopStateHeartbeat();
+        stateHeartbeat = setInterval(() => {
+            if (!micRunning) return;
+            pushAvatarState(mouthState, true);
+        }, 1500);
+    };
+
+    const stopStateHeartbeat = () => {
+        if (stateHeartbeat) {
+            clearInterval(stateHeartbeat);
+            stateHeartbeat = null;
+        }
     };
 
     const micStatus = document.getElementById('avMicStatus');
@@ -591,6 +620,7 @@ ob_start();
 
     const stopMic = () => {
         micRunning = false;
+        stopStateHeartbeat();
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         if (releaseTimer) { clearTimeout(releaseTimer); releaseTimer = null; }
         if (sourceNode) { try { sourceNode.disconnect(); } catch (e) {} sourceNode = null; }
@@ -624,6 +654,8 @@ ob_start();
             if (startBtn) startBtn.disabled = true;
             if (stopBtn) stopBtn.disabled = false;
             setStatus(avLang.listening, 'online');
+            emitAvatarState('idle', true);
+            startStateHeartbeat();
             rafId = requestAnimationFrame(tick);
         } catch (e) {
             setStatus(avLang.micDenied, 'offline');

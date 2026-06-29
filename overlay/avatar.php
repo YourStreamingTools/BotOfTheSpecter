@@ -248,16 +248,20 @@ ob_end_clean();
                 renderFrame();
             };
 
+            let lastRenderedUrl = '';
+
             const renderFrame = () => {
                 const url = pickFrameUrl();
                 const talking = mouthState === 'talking' || mouthState === 'loud';
                 root.dataset.state = talking ? 'talking' : 'idle';
                 if (!url) {
+                    lastRenderedUrl = '';
                     imgFrame.removeAttribute('src');
                     imgFrame.classList.remove('is-visible');
                     return;
                 }
-                if (imgFrame.getAttribute('src') !== url) {
+                if (lastRenderedUrl !== url) {
+                    lastRenderedUrl = url;
                     imgFrame.src = url;
                 }
                 imgFrame.classList.add('is-visible');
@@ -292,10 +296,12 @@ ob_end_clean();
                 if (!payload) return;
                 const state = String(payload.state || 'idle');
                 if (state !== 'talking' && state !== 'idle' && state !== 'loud') return;
-                if (mouthState === state && !isBlinking) return;
+                const changed = mouthState !== state;
                 mouthState = state;
                 if (!settings.enabled) return;
-                renderFrame();
+                if (changed || isBlinking) {
+                    renderFrame();
+                }
             };
 
             const settingsEndpoint = window.location.pathname + '?code=' + encodeURIComponent(overlayApiKey) + '&action=get_avatar_settings';
@@ -341,6 +347,11 @@ ob_end_clean();
                 setTimeout(connect, delay);
             };
 
+            const requestAvatarState = () => {
+                if (!socket || !socket.connected) return;
+                socket.emit('AVATAR_STATE_REQUEST', { code: overlayApiKey });
+            };
+
             function connect() {
                 setConnectionStatus('Connecting…', 'connecting');
                 socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
@@ -348,6 +359,7 @@ ob_end_clean();
                     reconnectAttempts = 0;
                     setConnectionStatus('Connected', 'connected');
                     socket.emit('REGISTER', { code: overlayApiKey, channel: 'Overlay', name: 'Avatar' });
+                    requestAvatarState();
                     loadSettings();
                 });
                 socket.on('disconnect', () => {
@@ -362,7 +374,6 @@ ob_end_clean();
                 socket.on('AVATAR_SETTINGS_UPDATE', () => loadSettings());
             }
 
-            loadSettings();
             connect();
         })();
     </script>
