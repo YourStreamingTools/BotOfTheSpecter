@@ -930,6 +930,30 @@ try {
                 show_confidence TINYINT(1) NOT NULL DEFAULT 1,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'avatar_settings' => "
+            CREATE TABLE IF NOT EXISTS avatar_settings (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                enabled TINYINT(1) NOT NULL DEFAULT 0,
+                closed_image VARCHAR(255) DEFAULT NULL,
+                open_image VARCHAR(255) DEFAULT NULL,
+                blink_image VARCHAR(255) DEFAULT NULL,
+                position ENUM('top-left','top-right','bottom-left','bottom-right','custom') NOT NULL DEFAULT 'bottom-right',
+                pos_x INT NOT NULL DEFAULT 0,
+                pos_y INT NOT NULL DEFAULT 0,
+                scale DECIMAL(4,2) NOT NULL DEFAULT 1.00,
+                flip TINYINT(1) NOT NULL DEFAULT 0,
+                mic_threshold DECIMAL(5,3) NOT NULL DEFAULT 0.080,
+                attack_ms INT NOT NULL DEFAULT 40,
+                release_ms INT NOT NULL DEFAULT 180,
+                loud_threshold DECIMAL(5,3) NOT NULL DEFAULT 0.250,
+                blink_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                blink_interval_min INT NOT NULL DEFAULT 3,
+                blink_interval_max INT NOT NULL DEFAULT 6,
+                bounce_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                bounce_intensity TINYINT NOT NULL DEFAULT 5,
+                active_expression VARCHAR(60) NOT NULL DEFAULT 'default',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'closed_captions_corrections' => "
             CREATE TABLE IF NOT EXISTS closed_captions_corrections (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -1301,6 +1325,9 @@ try {
     // Ensure default row for closed_captions_settings exists
     if ($usrDBconn->query("INSERT INTO closed_captions_settings (id, enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language) SELECT 1, 1, 'en-US', 32, '#FFFFFF', 'box', 'bottom', 2, 5, 0, 0, '' WHERE NOT EXISTS (SELECT 1 FROM closed_captions_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default closed_captions_settings row ensured.');
+    }
+    if ($usrDBconn->query("INSERT INTO avatar_settings (id, enabled) SELECT 1, 0 WHERE NOT EXISTS (SELECT 1 FROM avatar_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default avatar_settings row ensured.');
     }
     // Ensure default options for streamer_preferences exist
     if (

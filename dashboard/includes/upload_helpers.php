@@ -15,6 +15,7 @@ if (!function_exists('upload_extension_mime_map')) {
             'webm' => ['video/webm', 'audio/webm'],
             'gif'  => ['image/gif'],
             'png'  => ['image/png'],
+            'webp' => ['image/webp'],
             'jpg'  => ['image/jpeg', 'image/pjpeg'],
             'jpeg' => ['image/jpeg', 'image/pjpeg'],
         ];
@@ -87,6 +88,44 @@ if (!function_exists('upload_sanitize_filename')) {
             $base = substr($base, 0, 80);
         }
         return $base . '.' . strtolower((string)$ext);
+    }
+}
+
+if (!function_exists('upload_reencode_image')) {
+    /**
+     * Re-encode PNG/WebP to strip metadata. Returns true on success.
+     * Falls back to copy when GD is unavailable.
+     */
+    function upload_reencode_image($srcPath, $destPath, $ext, $maxDim = 4096) {
+        $ext = strtolower((string) $ext);
+        if (!in_array($ext, ['png', 'webp'], true)) {
+            return false;
+        }
+        if (!function_exists('imagecreatefromstring')) {
+            return @copy($srcPath, $destPath);
+        }
+        $raw = @file_get_contents($srcPath);
+        if ($raw === false) {
+            return false;
+        }
+        $img = @imagecreatefromstring($raw);
+        if ($img === false) {
+            return false;
+        }
+        $w = imagesx($img);
+        $h = imagesy($img);
+        if ($w <= 0 || $h <= 0 || $w > $maxDim || $h > $maxDim) {
+            imagedestroy($img);
+            return false;
+        }
+        $ok = false;
+        if ($ext === 'png') {
+            $ok = imagepng($img, $destPath, 6);
+        } elseif ($ext === 'webp' && function_exists('imagewebp')) {
+            $ok = imagewebp($img, $destPath, 85);
+        }
+        imagedestroy($img);
+        return (bool) $ok;
     }
 }
 
