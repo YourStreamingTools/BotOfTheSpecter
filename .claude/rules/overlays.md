@@ -2,9 +2,9 @@
 
 Overlays are PHP pages loaded as **OBS browser sources**. They have constraints normal web pages don't.
 
-## Current overlay set (20 files in `./overlay/`)
+## Current overlay set (`./overlay/`)
 
-`all.php` (master / recommended), `index.php`, `alert.php`, `sound-alert.php`, `tts.php`, `music.php`, `walkons.php`, `chat.php`, `video-alert.php`, `deaths.php`, `weather.php`, `discord.php`, `credits.php`, `subathon.php`, `todolist.php`, `twitch.php`, `working-or-study.php`, `patreon.php`, `kofi.php`, `fourthwall.php`.
+`all.php` (master / recommended), `index.php`, `alert.php`, `sound-alert.php`, `tts.php`, `music.php`, `walkons.php`, `chat.php`, `video-alert.php`, `deaths.php`, `weather.php`, `discord.php`, `credits.php`, `subathon.php`, `todolist.php`, `twitch.php`, `working-or-study.php`, `patreon.php`, `kofi.php`, `fourthwall.php`, `closed-captions.php`, `avatar.php`. See `.claude/specs/2026-06-29-avatar-overlay-design.md` for Avatar behaviour.
 
 ## Rules
 
