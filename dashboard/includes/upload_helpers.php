@@ -104,11 +104,17 @@ if (!function_exists('upload_reencode_image')) {
         if (!function_exists('imagecreatefromstring')) {
             return @copy($srcPath, $destPath);
         }
-        $raw = @file_get_contents($srcPath);
-        if ($raw === false) {
-            return false;
+        $img = false;
+        if ($ext === 'png' && function_exists('imagecreatefrompng')) {
+            $img = @imagecreatefrompng($srcPath);
         }
-        $img = @imagecreatefromstring($raw);
+        if ($img === false) {
+            $raw = @file_get_contents($srcPath);
+            if ($raw === false) {
+                return false;
+            }
+            $img = @imagecreatefromstring($raw);
+        }
         if ($img === false) {
             return false;
         }
@@ -118,6 +124,9 @@ if (!function_exists('upload_reencode_image')) {
             imagedestroy($img);
             return false;
         }
+        // GD defaults composite alpha onto black unless blending is disabled before save.
+        imagealphablending($img, false);
+        imagesavealpha($img, true);
         $ok = false;
         if ($ext === 'png') {
             $ok = imagepng($img, $destPath, 6);
