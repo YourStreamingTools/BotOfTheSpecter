@@ -64,6 +64,22 @@ if ($ccStmt) {
     $ccStmt->close();
 }
 
+$avatarSettings = [
+    'enabled' => 0,
+    'mic_threshold' => 0.080,
+    'attack_ms' => 40,
+    'release_ms' => 180,
+];
+$avLoadStmt = $db->prepare('SELECT enabled, mic_threshold, attack_ms, release_ms FROM avatar_settings WHERE id = 1');
+if ($avLoadStmt) {
+    $avLoadStmt->execute();
+    $avLoadResult = $avLoadStmt->get_result();
+    if ($avLoadResult->num_rows > 0) {
+        $avatarSettings = array_merge($avatarSettings, $avLoadResult->fetch_assoc());
+    }
+    $avLoadStmt->close();
+}
+
 // Caption corrections (per-user glossary / fix-up dictionary) load
 $ccCorrections = [];
 $ccCorrStmt = $db->prepare("SELECT match_text, replace_text, match_mode, case_sensitive, enabled FROM closed_captions_corrections ORDER BY sort_order, id");
@@ -471,6 +487,12 @@ ob_start();
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
+    const avatarSettings = <?php echo json_encode([
+        'enabled' => (bool) $avatarSettings['enabled'],
+        'mic_threshold' => (float) $avatarSettings['mic_threshold'],
+        'attack_ms' => (int) $avatarSettings['attack_ms'],
+        'release_ms' => (int) $avatarSettings['release_ms'],
+    ]); ?>;
     let ccProfanityFilter = <?php echo json_encode((bool)$cc['profanity_filter']); ?>;
     // Curated caption fonts — derived from the PHP allow-list so this can't drift from
     // the overlay's copies. Used to load + preview the chosen typeface on the dashboard.
@@ -545,6 +567,18 @@ ob_start();
         if (socket && socketReady && socket.connected) {
             socket.emit('CLOSED_CAPTION', { code: apiKey, text: tag, isFinal: true, action: true });
         }
+    };
+    let avatarMouthState = 'idle';
+    const emitAvatarState = (state) => {
+        if (!avatarSettings.enabled) return;
+        if (!socket || !socketReady || !socket.connected) return;
+        if (avatarMouthState === state) return;
+        avatarMouthState = state;
+        socket.emit('AVATAR_STATE', { code: apiKey, state: state, expression: 'default' });
+    };
+    const emitCaptionerStatus = (active) => {
+        if (!socket || !socketReady || !socket.connected) return;
+        socket.emit('CAPTIONER_STATUS', { code: apiKey, active: !!active });
     };
     let translateChain = Promise.resolve();
     function emitFinalCaption(text) {
@@ -807,6 +841,109 @@ ob_start();
         const stop = () => { destroy(); };
         return { ensure, translate, isActive, stop };
     })();
+    const audioTap = (function () {
+        let audioContext = null;
+        let mediaStream = null;
+        let sourceNode = null;
+        let analyserNode = null;
+        let muteNode = null;
+        let rafId = null;
+        let running = false;
+        let vadState = 'idle';
+        let releaseTimer = null;
+        let config = {
+            threshold: avatarSettings.mic_threshold || 0.08,
+            releaseMs: avatarSettings.release_ms || 180,
+        };
+        const silenceListeners = [];
+        const onSilenceFlush = (fn) => { silenceListeners.push(fn); };
+        const notifySilenceFlush = () => { silenceListeners.forEach((fn) => fn()); };
+        const setConfig = (c) => {
+            if (c && c.threshold != null) config.threshold = Number(c.threshold);
+            if (c && c.releaseMs != null) config.releaseMs = Number(c.releaseMs);
+        };
+        const computeRms = () => {
+            if (!analyserNode) return 0;
+            const buf = new Uint8Array(analyserNode.fftSize);
+            analyserNode.getByteTimeDomainData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) {
+                const v = (buf[i] - 128) / 128;
+                sum += v * v;
+            }
+            return Math.sqrt(sum / buf.length);
+        };
+        const notifyVad = (state) => {
+            if (vadState === state) return;
+            vadState = state;
+            if (avatarSettings.enabled) emitAvatarState(state);
+        };
+        const tick = () => {
+            if (!running) return;
+            const rms = computeRms();
+            if (rms >= config.threshold) {
+                if (releaseTimer) { clearTimeout(releaseTimer); releaseTimer = null; }
+                notifyVad('talking');
+            } else if (vadState === 'talking' && !releaseTimer) {
+                releaseTimer = setTimeout(() => {
+                    releaseTimer = null;
+                    notifyVad('idle');
+                    notifySilenceFlush();
+                }, config.releaseMs);
+            }
+            rafId = requestAnimationFrame(tick);
+        };
+        const teardown = () => {
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            if (releaseTimer) { clearTimeout(releaseTimer); releaseTimer = null; }
+            vadState = 'idle';
+        };
+        const stopTracks = () => {
+            teardown();
+            if (sourceNode) { try { sourceNode.disconnect(); } catch (e) {} sourceNode = null; }
+            if (analyserNode) { try { analyserNode.disconnect(); } catch (e) {} analyserNode = null; }
+            if (muteNode) { try { muteNode.disconnect(); } catch (e) {} muteNode = null; }
+            if (mediaStream) { mediaStream.getTracks().forEach((tr) => tr.stop()); mediaStream = null; }
+            if (audioContext) { try { audioContext.close(); } catch (e) {} audioContext = null; }
+            running = false;
+        };
+        const start = async (deviceId) => {
+            if (running) return true;
+            running = true;
+            setConfig({ threshold: avatarSettings.mic_threshold, releaseMs: avatarSettings.release_ms });
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const detAudio = { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+                if (deviceId) detAudio.deviceId = { exact: deviceId };
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: detAudio });
+                if (!running) { stopTracks(); return false; }
+                if (audioContext.state === 'suspended') { try { await audioContext.resume(); } catch (e) {} }
+                sourceNode = audioContext.createMediaStreamSource(mediaStream);
+                analyserNode = audioContext.createAnalyser();
+                analyserNode.fftSize = 2048;
+                muteNode = audioContext.createGain();
+                muteNode.gain.value = 0;
+                sourceNode.connect(analyserNode);
+                analyserNode.connect(muteNode);
+                muteNode.connect(audioContext.destination);
+                rafId = requestAnimationFrame(tick);
+                return true;
+            } catch (e) {
+                stopTracks();
+                return false;
+            }
+        };
+        const stop = () => {
+            if (!running) return;
+            running = false;
+            stopTracks();
+            if (avatarSettings.enabled) emitAvatarState('idle');
+        };
+        const getSourceNode = () => sourceNode;
+        const getAudioContext = () => audioContext;
+        const isRunning = () => running;
+        return { start, stop, setConfig, onSilenceFlush, getSourceNode, getAudioContext, isRunning };
+    })();
     const soundDetector = (function () {
         const MODEL_URL = 'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1';
         const TARGET_SR = 16000;          // YAMNet requires 16 kHz mono
@@ -853,9 +990,6 @@ ob_start();
         `;
         let tfLoading = null;             // promise for the one-time tf.min.js script load
         let model = null;
-        let audioContext = null;
-        let mediaStream = null;
-        let sourceNode = null;
         let workletNode = null;
         let muteNode = null;
         let workletUrl = null;
@@ -943,8 +1077,8 @@ ob_start();
                 inferBusy = false;
             }
         };
-        const start = async (deviceId) => {
-            if (!ccActionTagsEnabled || running) return;
+        const start = async () => {
+            if (!ccActionTagsEnabled || running || !audioTap.isRunning()) return;
             running = true;
             ringFilled = 0;
             setSoundStatus(ccLang.soundLoading, true);
@@ -955,20 +1089,17 @@ ob_start();
                 setSoundStatus(ccLang.soundOff, true);
                 return;
             }
-            if (!running) return; // stopped while the model was loading
+            if (!running) return;
             try {
-                // Native-rate context (NOT forced to 16 kHz) + a fully RAW tap (no AEC/NS/AGC),
-                // pinned to the recognizer's mic. Both prevent a device-level reconfigure that
-                // would make the speech recognizer drop words. Downsampling happens in the worklet.
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const detAudio = { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false };
-                if (deviceId) detAudio.deviceId = { exact: deviceId };
-                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: detAudio });
-                if (!running) { teardown(); return; }
-                if (audioContext.state === 'suspended') { try { await audioContext.resume(); } catch (e) {} }
+                const audioContext = audioTap.getAudioContext();
+                const sourceNode = audioTap.getSourceNode();
+                if (!audioContext || !sourceNode) {
+                    running = false;
+                    setSoundStatus(ccLang.soundOff, true);
+                    return;
+                }
                 workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
                 await audioContext.audioWorklet.addModule(workletUrl);
-                sourceNode = audioContext.createMediaStreamSource(mediaStream);
                 workletNode = new AudioWorkletNode(audioContext, 'cc-capture-processor');
                 workletNode.port.onmessage = (e) => { if (running) pushSamples(e.data); };
                 muteNode = audioContext.createGain();
@@ -986,10 +1117,7 @@ ob_start();
         const teardown = () => {
             if (inferTimer) { clearInterval(inferTimer); inferTimer = null; }
             if (workletNode) { try { workletNode.port.onmessage = null; workletNode.disconnect(); } catch (e) {} workletNode = null; }
-            if (sourceNode) { try { sourceNode.disconnect(); } catch (e) {} sourceNode = null; }
             if (muteNode) { try { muteNode.disconnect(); } catch (e) {} muteNode = null; }
-            if (mediaStream) { mediaStream.getTracks().forEach(tr => tr.stop()); mediaStream = null; }
-            if (audioContext) { try { audioContext.close(); } catch (e) {} audioContext = null; }
             if (workletUrl) { try { URL.revokeObjectURL(workletUrl); } catch (e) {} workletUrl = null; }
             ringFilled = 0;
             inferBusy = false;
@@ -1095,6 +1223,22 @@ ob_start();
     let committedConfidence = null; // 0–1 from Web Speech API, null when unavailable
     let committedWordConfidences = null; // per-word confidence array, null when unavailable
     let detectorDeviceId = null; // mic the recognizer locked onto; the detector pins the same one
+    const flushPendingUtterance = () => {
+        const chunk = pendingUtterance.trim();
+        if (!chunk) return;
+        committedText = punctuateFinal(chunk);
+        committedText = applyLocaleSpelling(committedText);
+        committedText = applyCorrections(committedText);
+        committedText = applyProfanityFilter(committedText);
+        committedConfidence = pendingConfidence;
+        committedWordConfidences = pendingWordConfidences;
+        emitFinalCaption(committedText);
+        setPreview(committedText, '', committedConfidence, committedWordConfidences);
+        pendingUtterance = '';
+        pendingConfidence = null;
+        pendingWordConfidences = null;
+    };
+    audioTap.onSilenceFlush(flushPendingUtterance);
     const QUESTION_STARTERS = new Set([
         'what','whats','who','whos','whom','whose','where','wheres','when','whens',
         'why','whys','how','hows','which','is','are','am','was','were','do','does',
@@ -1102,16 +1246,39 @@ ob_start();
         'has','had','must','isnt','arent','dont','doesnt','didnt','cant','couldnt',
         'wont','wouldnt','shouldnt'
     ]);
+    const STATEMENT_EXCLUSIONS = [
+        /^what a\b/i,
+        /^what the\b/i,
+        /^how (?:nice|great|cool|awesome|funny|weird|strange|cute|sweet|lovely|amazing|wonderful|terrible|bad|good)\b/i,
+    ];
+    const isLikelyQuestion = (text) => {
+        const t = String(text || '').trim();
+        if (!t) return false;
+        if (/[?]$/.test(t)) return true;
+        for (const re of STATEMENT_EXCLUSIONS) {
+            if (re.test(t)) return false;
+        }
+        const lower = t.toLowerCase();
+        if (/^(what|how|why|where|when|who|which|can|could|will|would|should|is|are|am|was|were|do|does|did|have|has|had)\s+\w+/i.test(lower)) {
+            const m = lower.match(/^[a-z']+/);
+            const w = m ? m[0].replace(/['']/g, '') : '';
+            if (QUESTION_STARTERS.has(w)) return true;
+        }
+        const m = lower.match(/[a-z']+/);
+        const w = m ? m[0].replace(/['']/g, '') : '';
+        return QUESTION_STARTERS.has(w);
+    };
     const punctuateFinal = (text) => {
         let t = String(text || '').trim();
         if (!t) return t;
         t = t.charAt(0).toUpperCase() + t.slice(1);
-        if (/[.?!…]$/.test(t)) return t; // already ends with terminal punctuation
-        const m = t.toLowerCase().match(/[a-z’']+/);
-        const w = m ? m[0].replace(/['’]/g, '') : '';
-        t += QUESTION_STARTERS.has(w) ? '?' : '.';
+        if (/[.?!…]$/.test(t)) return t;
+        t += isLikelyQuestion(t) ? '?' : '.';
         return t;
     };
+    let pendingUtterance = '';
+    let pendingConfidence = null;
+    let pendingWordConfidences = null;
     if (!SR) {
         if (unsupported) unsupported.classList.remove('cc-hidden');
         if (startBtn) startBtn.disabled = true;
@@ -1140,34 +1307,32 @@ ob_start();
                 }
             }
             if (finalChunk.trim()) {
-                committedText = punctuateFinal(finalChunk.trim());
-                // Apply locale spelling first (US→AU/UK), then user corrections, then profanity.
-                committedText = applyLocaleSpelling(committedText);
-                committedText = applyCorrections(committedText);
-                committedText = applyProfanityFilter(committedText);
-                committedConfidence = finalConfidence;
+                pendingUtterance = (pendingUtterance ? pendingUtterance + ' ' : '') + finalChunk.trim();
+                pendingConfidence = finalConfidence;
                 const rawWords = finalChunk.trim().split(/\s+/);
                 if (finalResultObj && finalResultObj.length > 1) {
                     const alts = [];
                     for (let j = 0; j < finalResultObj.length; j++) {
                         alts.push(finalResultObj[j].transcript.trim().split(/\s+/));
                     }
-                    committedWordConfidences = rawWords.map((w, idx) => {
+                    pendingWordConfidences = rawWords.map((w, idx) => {
                         const lw = w.toLowerCase().replace(/[^a-z0-9'\u2019]/g, '');
                         const matches = alts.filter(aw => (aw[idx] || '').toLowerCase().replace(/[^a-z0-9'\u2019]/g, '') === lw).length;
                         return matches / alts.length;
                     });
                 } else {
-                    committedWordConfidences = rawWords.map(() => finalConfidence != null ? finalConfidence : null);
+                    pendingWordConfidences = rawWords.map(() => finalConfidence != null ? finalConfidence : null);
                 }
-                emitFinalCaption(committedText);
-                setPreview(committedText, '', committedConfidence, committedWordConfidences);
             }
             if (interim.trim()) {
                 let filteredInterim = applyLocaleSpelling(interim.trim());
                 filteredInterim = applyProfanityFilter(filteredInterim);
                 emitCaption(filteredInterim, false);
-                setPreview(committedText, filteredInterim, committedConfidence, committedWordConfidences);
+                const previewCommitted = committedText + (pendingUtterance ? (committedText ? ' ' : '') + pendingUtterance : '');
+                setPreview(previewCommitted, filteredInterim, pendingConfidence || committedConfidence, pendingWordConfidences || committedWordConfidences);
+            } else if (pendingUtterance) {
+                const previewCommitted = committedText + (committedText ? ' ' : '') + pendingUtterance;
+                setPreview(previewCommitted, '', pendingConfidence || committedConfidence, pendingWordConfidences || committedWordConfidences);
             }
         };
         r.onerror = (event) => {
@@ -1209,6 +1374,15 @@ ob_start();
             }
         }
         committedText = '';
+        pendingUtterance = '';
+        pendingConfidence = null;
+        pendingWordConfidences = null;
+        avatarMouthState = 'idle';
+        const tapOk = await audioTap.start(detectorDeviceId);
+        if (!tapOk) {
+            setStatus(ccLang.micDenied, 'offline');
+            return;
+        }
         recognition = buildRecognition();
         runState = 'started';
         try {
@@ -1219,26 +1393,30 @@ ob_start();
         setStatus(ccLang.listening, 'online');
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
-        // Build the on-device translation session for the current spoken language (the Start
-        // click is the user gesture the Translator API needs). No-ops / falls back gracefully
-        // when translation is off, target == source, or the API/model is unavailable.
+        emitCaptionerStatus(true);
         const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
         liveTranslator.ensure(srcLang);
-        // Opt-in sound action-tag detection: only loads YAMNet/TF.js when enabled.
-        if (ccActionTagsEnabled) { soundDetector.start(detectorDeviceId); }
+        if (ccActionTagsEnabled) { soundDetector.start(); }
     };
     const stop = () => {
         runState = 'stopped';
         if (recognition) {
             try { recognition.stop(); } catch (e) { /* noop */ }
         }
+        flushPendingUtterance();
         soundDetector.stop();
+        audioTap.stop();
         liveTranslator.stop();
         setTranslateNotice('', false);
         emitClear();
+        emitCaptionerStatus(false);
         committedText = '';
+        pendingUtterance = '';
         committedConfidence = null;
         committedWordConfidences = null;
+        pendingConfidence = null;
+        pendingWordConfidences = null;
+        avatarMouthState = 'idle';
         setPreview('', '', null, null);
         setStatus(ccLang.idle, 'offline');
         if (startBtn) startBtn.disabled = false;

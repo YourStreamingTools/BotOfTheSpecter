@@ -246,6 +246,19 @@ ob_start();
             </div>
         </div>
     </div>
+    <!-- Avatar -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="sp-card-title"><i class="fas fa-user-astronaut"></i> <?= t('overlays_avatar') ?></div>
+            <a href="avatar.php" class="sp-btn sp-btn-sm sp-btn-secondary" title="<?= htmlspecialchars(t('overlays_avatar_settings_title')) ?>"><i class="fas fa-cog"></i></a>
+        </div>
+        <div class="sp-card-body">
+            <?= t('overlays_avatar_desc') ?>
+            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
+                https://overlay.botofthespecter.com/avatar.php?code=API_KEY_HERE
+            </div>
+        </div>
+    </div>
     <!-- Discord Join Notifications -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">

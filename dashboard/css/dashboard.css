@@ -4529,3 +4529,99 @@ label.checkbox input[type="checkbox"] {
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
+
+/* ----- Avatar page ----- */
+.av-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+.av-url-card { margin-bottom: 1.5rem; }
+.av-url-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.av-url-row .av-url-box {
+    flex: 1 1 280px;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    margin-bottom: 0;
+}
+.av-browser-note {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+.av-browser-note-icon {
+    font-size: 1.5rem;
+    color: var(--blue);
+    flex-shrink: 0;
+}
+.av-browser-note-title { font-weight: 700; margin-bottom: 0.4rem; }
+.av-browser-note-body { margin-bottom: 0; }
+.av-help-text { color: var(--text-secondary); margin-bottom: 1rem; }
+.av-hidden { display: none !important; }
+.av-control-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+.av-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.25rem;
+    margin: 1rem 0;
+}
+.av-save-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+.av-save-status { font-size: 0.85rem; }
+.av-save-status.is-success { color: var(--green); }
+.av-save-status.is-error { color: var(--red); }
+.av-preview-wrap { margin-top: 0.5rem; }
+.av-preview-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+.av-preview-stage {
+    position: relative;
+    min-height: 8rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-input);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.av-preview-img {
+    max-width: 100%;
+    max-height: 10rem;
+    object-fit: contain;
+}
+.av-preview-placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+}
+.av-file-name { color: var(--text-muted); display: block; margin-top: 0.35rem; }
+.av-url-box { font-family: monospace; word-break: break-all; }
+@media (max-width: 1023px) {
+    .av-layout { grid-template-columns: 1fr; }
+    .av-form-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+    .av-control-row { flex-direction: column; }
+}

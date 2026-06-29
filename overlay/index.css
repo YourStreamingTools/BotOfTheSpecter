@@ -2435,3 +2435,129 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .closed-captions-overlay-page-error-screen a {
     color: #5cb8ff;
 }
+
+/* ===== Avatar Overlay ===== */
+.avatar-overlay-page {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+.avatar-overlay-page-root {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none;
+    transform-origin: center bottom;
+    --av-pos-x: 0px;
+    --av-pos-y: 0px;
+    --av-bounce-px: 2px;
+    --av-bounce-rot: 2deg;
+}
+
+.avatar-overlay-page-root[data-enabled="false"] {
+    display: none;
+}
+
+.avatar-overlay-page-root[data-position="top-left"] {
+    top: 4vh;
+    left: 4vw;
+}
+.avatar-overlay-page-root[data-position="top-right"] {
+    top: 4vh;
+    right: 4vw;
+}
+.avatar-overlay-page-root[data-position="bottom-left"] {
+    bottom: 4vh;
+    left: 4vw;
+}
+.avatar-overlay-page-root[data-position="bottom-right"] {
+    bottom: 4vh;
+    right: 4vw;
+}
+.avatar-overlay-page-root[data-position="custom"] {
+    top: var(--av-pos-y);
+    left: var(--av-pos-x);
+}
+
+.avatar-overlay-page-stage {
+    position: relative;
+    display: inline-block;
+    transform-origin: center bottom;
+    line-height: 0;
+}
+
+.avatar-overlay-page-root[data-bounce="on"] .avatar-overlay-page-stage {
+    animation: avatarOverlayBounce 3.2s ease-in-out infinite;
+}
+
+@keyframes avatarOverlayBounce {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(calc(-1 * var(--av-bounce-px))) rotate(var(--av-bounce-rot)); }
+}
+
+.avatar-overlay-page-stage.is-blinking {
+    opacity: 0.08;
+    transition: opacity 80ms ease;
+}
+
+.avatar-overlay-page-img {
+    display: none;
+    max-width: 40vw;
+    max-height: 50vh;
+    width: auto;
+    height: auto;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.avatar-overlay-page-img.is-visible {
+    display: block;
+}
+
+.avatar-overlay-page-status {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 100;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.6);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #fff;
+    transition: opacity 350ms ease;
+}
+
+.avatar-overlay-page-status[data-state="connected"] {
+    border-color: #32d486;
+    color: #32d486;
+    opacity: 0;
+    pointer-events: none;
+}
+.avatar-overlay-page-status[data-state="connecting"] {
+    color: #f6c451;
+}
+.avatar-overlay-page-status[data-state="error"] {
+    color: #ff6555;
+}
+
+.avatar-overlay-page-error-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 4vw;
+    text-align: center;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.85);
+}
+.avatar-overlay-page-error-screen a {
+    color: #5cb8ff;
+}
