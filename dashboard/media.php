@@ -292,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uploadStatus = "";
         $uploadHadError = false;
         $targetDir = $media_path;
-        $allowedExts = ['mp3', 'mp4', 'png', 'jpg', 'jpeg', 'gif', 'webm'];
+        $allowedExts = ['mp3', 'mp4', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'webm'];
         $extLabel = t('media_upload_ext_label');
         if ($targetDir) {
             foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
@@ -345,8 +345,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deleteStatus = "";
         $db->begin_transaction();
         foreach ($_POST['delete_files'] as $file_to_delete) {
-            $filename = basename($file_to_delete);
-            $full_path = $media_path . '/' . $filename;
+            $relative = str_replace('\\', '/', (string) $file_to_delete);
+            $relative = ltrim($relative, '/');
+            if ($relative === '' || strpos($relative, '..') !== false) {
+                $deleteStatus .= t('media_delete_failed', [htmlspecialchars(basename((string) $file_to_delete))]) . "<br>";
+                continue;
+            }
+            $filename = basename($relative);
+            $full_path = $media_path . '/' . $relative;
             if (!is_file($full_path)) {
                 $deleteStatus .= t('media_delete_failed', [htmlspecialchars($filename)]) . "<br>";
                 continue;
@@ -394,16 +400,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// All files come from the unified media library
-$all_media_files = is_dir($media_path) ? array_values(array_diff(scandir($media_path), array('.', '..'))) : [];
+// All files in the unified media library (root + one subdirectory level, e.g. avatar/)
+$all_media_files = [];
+if (is_dir($media_path)) {
+    foreach (scandir($media_path) as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $full = $media_path . '/' . $entry;
+        if (is_file($full)) {
+            $all_media_files[] = $entry;
+        } elseif (is_dir($full)) {
+            foreach (scandir($full) as $sub) {
+                if ($sub === '.' || $sub === '..') {
+                    continue;
+                }
+                $subFull = $full . '/' . $sub;
+                if (is_file($subFull)) {
+                    $all_media_files[] = $entry . '/' . $sub;
+                }
+            }
+        }
+    }
+}
 sort($all_media_files, SORT_STRING | SORT_FLAG_CASE);
+
+$media_base_url = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/';
+
+function media_public_url($baseUrl, $relativePath) {
+    $parts = explode('/', str_replace('\\', '/', (string) $relativePath));
+    return $baseUrl . implode('/', array_map('rawurlencode', $parts));
+}
 
 function media_file_type($filename) {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
     if ($ext === 'mp3') return 'audio';
     if ($ext === 'mp4') return 'video';
-    if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webm'], true)) return 'image';
+    if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'webm'], true)) return 'image';
     return 'other';
+}
+
+function media_is_previewable_image($filename) {
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    return in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true);
 }
 function media_file_size($path) {
     return is_file($path) ? filesize($path) : 0;
@@ -445,7 +484,7 @@ ob_start();
                     <i class="fas fa-cloud-upload-alt media-drop-zone-icon"></i>
                     <span class="file-list-label"><?= t('media_no_files_selected') ?></span>
                     <div class="media-drop-zone-hint"><?= t('media_click_or_drag') ?></div>
-                    <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3,.mp4,.png,.jpg,.jpeg,.gif,.webm" hidden>
+                    <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3,.mp4,.png,.jpg,.jpeg,.gif,.webp,.webm" hidden>
                 </label>
             </div>
             <div class="upload-status-container media-upload-status">
@@ -506,6 +545,7 @@ ob_start();
     <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="walkons"><?= t('media_filter_walkons') ?></button>
     <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="unused"><?= t('media_filter_unused') ?></button>
     <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="videos"><?= t('media_filter_videos') ?></button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="images"><?= t('media_filter_images') ?></button>
     <input type="search" class="sp-input media-search-input" id="media-search-input" placeholder="<?= htmlspecialchars(t('media_search_placeholder')) ?>">
 </div>
 <!-- Files list -->
@@ -528,10 +568,12 @@ ob_start();
                     if (!is_file($media_path . '/' . $file)) continue;
                     $size = media_file_size($media_path . '/' . $file);
                     $type = media_file_type($file);
-                    $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? []);
-                    $eventCount  = count($twitchSoundAlertMappings[$file] ?? []);
-                    $walkonCount = count($walkonsByFile[$file] ?? []);
-                    $alertCount  = count($alertMediaFiles[$file] ?? []);
+                    $fileBase = basename($file);
+                    $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? [])
+                        + count($soundAlertMappings[$fileBase] ?? []) + count($videoAlertMappings[$fileBase] ?? []);
+                    $eventCount  = count($twitchSoundAlertMappings[$file] ?? []) + count($twitchSoundAlertMappings[$fileBase] ?? []);
+                    $walkonCount = count($walkonsByFile[$file] ?? []) + count($walkonsByFile[$fileBase] ?? []);
+                    $alertCount  = count($alertMediaFiles[$file] ?? []) + count($alertMediaFiles[$fileBase] ?? []);
                     $totalCount  = $rewardCount + $eventCount + $walkonCount + $alertCount;
                     $summaryParts = [];
                     if ($rewardCount > 0) $summaryParts[] = t($rewardCount === 1 ? 'media_summary_reward' : 'media_summary_reward_plural', [$rewardCount]);
@@ -550,6 +592,13 @@ ob_start();
                     data-alert-count="<?php echo $alertCount; ?>"
                     data-total="<?php echo $totalCount; ?>">
                     <input type="checkbox" class="media-file-check" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
+                    <?php if (media_is_previewable_image($file)): ?>
+                    <a class="media-file-thumb" href="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" target="_blank" rel="noopener" title="<?php echo htmlspecialchars($file); ?>">
+                        <img src="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" alt="" loading="lazy" decoding="async">
+                    </a>
+                    <?php else: ?>
+                    <span class="media-file-thumb media-file-thumb-empty" aria-hidden="true"></span>
+                    <?php endif; ?>
                     <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>">
                         <?php echo htmlspecialchars($file); ?>
                     </button>
@@ -620,7 +669,8 @@ ob_start();
 window.__MEDIA_DATA = <?php echo $mediaDataJson; ?>;
 window.__MEDIA_CTX  = {
     apiKey:   <?php echo json_encode($api_key); ?>,
-    channel:  <?php echo json_encode($username); ?>
+    channel:  <?php echo json_encode($username); ?>,
+    mediaBase: <?php echo json_encode($media_base_url); ?>
 };
 window.__MEDIA_I18N = {
     unknown_reward:        <?php echo json_encode(t('media_js_unknown_reward')); ?>,
@@ -712,8 +762,15 @@ $(document).ready(function () {
         var ext = (file.split('.').pop() || '').toLowerCase();
         if (ext === 'mp4') return 'video';
         if (ext === 'mp3') return 'audio';
-        if (['png', 'jpg', 'jpeg', 'gif', 'webm'].indexOf(ext) !== -1) return 'image';
+        if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'webm'].indexOf(ext) !== -1) return 'image';
         return 'other';
+    }
+    function mediaPublicUrl(file) {
+        return (window.__MEDIA_CTX.mediaBase || '') + String(file).split('/').map(encodeURIComponent).join('/');
+    }
+    function isPreviewableImage(file) {
+        var ext = (file.split('.').pop() || '').toLowerCase();
+        return ['png', 'jpg', 'jpeg', 'gif', 'webp'].indexOf(ext) !== -1;
     }
     function rewardTitle(id) {
         return data.reward_titles[id] || I18N.unknown_reward;
@@ -774,6 +831,9 @@ $(document).ready(function () {
         // Image files are alert-builder territory only — no channel-points,
         // events or walkons. Render just the read-only usage chips.
         if (type === 'image') {
+            if (isPreviewableImage(file)) {
+                html += '<div class="media-modal-preview"><img src="' + escapeHtml(mediaPublicUrl(file)) + '" alt=""></div>';
+            }
             if (alertBuilder.length === 0) {
                 html += '<div class="media-modal-section media-modal-section-readonly">'
                      +    '<div class="media-modal-section-title">' + escapeHtml(I18N.used_by_alert_builder) + '</div>'
@@ -1034,6 +1094,7 @@ $(document).ready(function () {
                 case 'walkons': match = row.dataset.hasWalkons === '1'; break;
                 case 'unused':  match = row.dataset.total === '0'; break;
                 case 'videos':  match = type === 'video'; break;
+                case 'images':  match = type === 'image'; break;
                 default:        match = true;
             }
             if (match && search) match = file.indexOf(search) !== -1;

@@ -2229,6 +2229,7 @@ return [
     'media_filter_walkons' => 'Walkons',
     'media_filter_unused' => 'Inutilisés',
     'media_filter_videos' => 'Vidéos',
+    'media_filter_images' => 'Images',
     'media_search_placeholder' => 'Rechercher des fichiers…',
     'media_library_title' => 'Votre bibliothèque multimédia',
     'media_delete_selected' => 'Supprimer la sélection',
@@ -4024,7 +4025,7 @@ return [
     'media_status_walkon_added' => 'Walkon ajouté.',
     'media_status_walkon_removed' => 'Walkon supprimé.',
     // media.php — upload status messages
-    'media_upload_ext_label' => 'audio (MP3), vidéo (MP4/WEBM) ou image (PNG/JPG/GIF)',
+    'media_upload_ext_label' => 'audio (MP3), vidéo (MP4/WEBM) ou image (PNG/JPG/GIF/WEBP)',
     'media_upload_error' => 'Erreur lors du téléversement de %s.',
     'media_upload_failed_invalid' => 'Échec du téléversement de %s. Téléversement invalide.',
     'media_upload_failed_storage' => 'Échec du téléversement de %s. Limite de stockage dépassée.',
