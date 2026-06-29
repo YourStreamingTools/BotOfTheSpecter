@@ -27,6 +27,10 @@ $allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'cu
 $avatarImageExts = ['png', 'webp'];
 $avatarMediaDir = rtrim($media_path, '/\\') . '/avatar';
 $avatarMediaUrl = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/avatar/';
+const AVATAR_IMAGE_MIN_PX = 128;
+const AVATAR_IMAGE_MAX_PX = 4096;
+const AVATAR_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
 $avatarUploadSlots = [
     'idle_open' => 'closed_image',
     'idle_blink' => 'closed_blink_image',
@@ -91,8 +95,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
     $tmp = $_FILES['image']['tmp_name'];
     $orig = $_FILES['image']['name'] ?? 'image.png';
     $size = (int) ($_FILES['image']['size'] ?? 0);
-    if ($size <= 0 || $size > 5 * 1024 * 1024) {
-        echo json_encode(['success' => false, 'error' => t('avatar_upload_error', ['file too large'])]);
+    if ($size <= 0 || $size > AVATAR_IMAGE_MAX_BYTES) {
+        echo json_encode(['success' => false, 'error' => t('avatar_upload_error_file_size', [(int) (AVATAR_IMAGE_MAX_BYTES / (1024 * 1024))])]);
+        exit;
+    }
+    $dims = @getimagesize($tmp);
+    if (!$dims || empty($dims[0]) || empty($dims[1])) {
+        echo json_encode(['success' => false, 'error' => t('avatar_upload_error_invalid')]);
+        exit;
+    }
+    $imgW = (int) $dims[0];
+    $imgH = (int) $dims[1];
+    if ($imgW < AVATAR_IMAGE_MIN_PX || $imgH < AVATAR_IMAGE_MIN_PX) {
+        echo json_encode(['success' => false, 'error' => t('avatar_upload_error_too_small', [AVATAR_IMAGE_MIN_PX, $imgW, $imgH])]);
+        exit;
+    }
+    if ($imgW > AVATAR_IMAGE_MAX_PX || $imgH > AVATAR_IMAGE_MAX_PX) {
+        echo json_encode(['success' => false, 'error' => t('avatar_upload_error_too_large', [AVATAR_IMAGE_MAX_PX, $imgW, $imgH])]);
         exit;
     }
     if (!is_uploaded_file($tmp)) {
@@ -109,8 +128,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
     }
     $safeName = upload_sanitize_filename($orig, $ext);
     $target = upload_unique_target($avatarMediaDir, $safeName);
-    if (!upload_reencode_image($tmp, $target['path'], $ext)) {
-        echo json_encode(['success' => false, 'error' => t('avatar_upload_error', ['encode failed'])]);
+    if (!upload_reencode_image($tmp, $target['path'], $ext, AVATAR_IMAGE_MAX_PX, AVATAR_IMAGE_MIN_PX)) {
+        echo json_encode(['success' => false, 'error' => t('avatar_upload_error_invalid')]);
         exit;
     }
     $col = $avatarUploadSlots[$slot];
@@ -291,7 +310,7 @@ ob_start();
                 </div>
                 <?php endforeach; ?>
             </div>
-            <p class="av-help-text"><?= t('avatar_upload_help') ?></p>
+            <p class="av-help-text"><?= t('avatar_upload_help', [AVATAR_IMAGE_MIN_PX, AVATAR_IMAGE_MAX_PX, (int) (AVATAR_IMAGE_MAX_BYTES / (1024 * 1024))]) ?></p>
 
             <div class="av-form-grid">
                 <div>
@@ -634,6 +653,8 @@ ob_start();
                     const nameEl = input.parentElement && input.parentElement.querySelector('.av-file-name');
                     if (nameEl) nameEl.textContent = data.filename;
                     updatePreviewFrame();
+                } else if (data && data.error) {
+                    alert(data.error);
                 }
             });
         });

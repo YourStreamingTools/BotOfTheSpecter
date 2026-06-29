@@ -96,7 +96,7 @@ if (!function_exists('upload_reencode_image')) {
      * Re-encode PNG/WebP to strip metadata. Returns true on success.
      * Falls back to copy when GD is unavailable.
      */
-    function upload_reencode_image($srcPath, $destPath, $ext, $maxDim = 4096) {
+    function upload_reencode_image($srcPath, $destPath, $ext, $maxDim = 4096, $minDim = 1) {
         $ext = strtolower((string) $ext);
         if (!in_array($ext, ['png', 'webp'], true)) {
             return false;
@@ -114,7 +114,7 @@ if (!function_exists('upload_reencode_image')) {
         }
         $w = imagesx($img);
         $h = imagesy($img);
-        if ($w <= 0 || $h <= 0 || $w > $maxDim || $h > $maxDim) {
+        if ($w <= 0 || $h <= 0 || $w < $minDim || $h < $minDim || $w > $maxDim || $h > $maxDim) {
             imagedestroy($img);
             return false;
         }
