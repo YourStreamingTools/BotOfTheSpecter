@@ -98,6 +98,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.registered_clients = {}
         self.last_timer_control_event = {}
+        self.last_avatar_state = {}
         # Global listeners that receive events from all channels
         self.global_listeners = []
         # Track explicitly registered event names so wildcard handling doesn't duplicate
@@ -241,6 +242,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("CLOSED_CAPTION_CLEAR", self.handle_closed_caption_clear),
             ("CLOSED_CAPTION_SETTINGS", self.handle_closed_caption_settings),
             ("AVATAR_STATE",         self.handle_avatar_state),
+            ("AVATAR_STATE_REQUEST", self.handle_avatar_state_request),
             ("AVATAR_SETTINGS_UPDATE", self.handle_avatar_settings_update),
             ("*", self.event)
         ]
@@ -349,6 +351,26 @@ class BotOfTheSpecter_WebsocketServer:
             return
         await self.broadcast_event_with_globals("CLOSED_CAPTION_SETTINGS", payload, code=code, source_sid=sid)
 
+    def _remember_avatar_state(self, code, payload):
+        if not code or not isinstance(payload, dict):
+            return
+        state = payload.get('state', 'idle')
+        if state not in ('idle', 'talking', 'loud'):
+            state = 'idle'
+        self.last_avatar_state[code] = {
+            'code': code,
+            'state': state,
+            'expression': payload.get('expression', 'default'),
+        }
+
+    async def _emit_avatar_state_to_sid(self, sid, code):
+        cached = self.last_avatar_state.get(code)
+        if not cached:
+            return
+        payload = dict(cached)
+        payload['channel_code'] = code
+        await self.sio.emit('AVATAR_STATE', payload, to=sid)
+
     async def handle_avatar_state(self, sid, data):
         payload = data if isinstance(data, dict) else {}
         code = self.get_code_by_sid(sid)
@@ -359,7 +381,19 @@ class BotOfTheSpecter_WebsocketServer:
             return
         state = payload.get('state', 'idle')
         self.logger.info(f"AVATAR_STATE from [{sid}] (code: {code}): state={state}")
+        self._remember_avatar_state(code, payload)
         await self.broadcast_event_with_globals("AVATAR_STATE", payload, code=code, source_sid=sid)
+
+    async def handle_avatar_state_request(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code and isinstance(payload, dict):
+            code = payload.get('code') or payload.get('channel_code')
+        if not code:
+            self.logger.warning(f"AVATAR_STATE_REQUEST from [{sid}]: could not resolve code, dropped")
+            return
+        await self._emit_avatar_state_to_sid(sid, code)
+        await self.broadcast_event_with_globals("AVATAR_STATE_REQUEST", payload, code=code, source_sid=sid)
 
     async def handle_avatar_settings_update(self, sid, data):
         payload = data if isinstance(data, dict) else {}
@@ -968,6 +1002,8 @@ class BotOfTheSpecter_WebsocketServer:
             else:
                 self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
                 await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+            if channel.lower() == 'overlay' and 'avatar' in sid_name.lower():
+                await self._emit_avatar_state_to_sid(sid, code)
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
         else:
             self.logger.warning("Code not provided and not a global listener during registration")
