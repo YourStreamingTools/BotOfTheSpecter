@@ -289,11 +289,12 @@ ob_end_clean();
             };
 
             const handleAvatarState = (payload) => {
-                if (!payload || !settings.enabled) return;
+                if (!payload) return;
                 const state = String(payload.state || 'idle');
                 if (state !== 'talking' && state !== 'idle' && state !== 'loud') return;
                 if (mouthState === state && !isBlinking) return;
                 mouthState = state;
+                if (!settings.enabled) return;
                 renderFrame();
             };
 

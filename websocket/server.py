@@ -240,6 +240,9 @@ class BotOfTheSpecter_WebsocketServer:
             ("CLOSED_CAPTION",       self.handle_closed_caption),
             ("CLOSED_CAPTION_CLEAR", self.handle_closed_caption_clear),
             ("CLOSED_CAPTION_SETTINGS", self.handle_closed_caption_settings),
+            ("AVATAR_STATE",         self.handle_avatar_state),
+            ("CAPTIONER_STATUS",     self.handle_captioner_status),
+            ("AVATAR_SETTINGS_UPDATE", self.handle_avatar_settings_update),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -346,6 +349,38 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.warning(f"CLOSED_CAPTION_SETTINGS from [{sid}]: could not resolve code, dropped")
             return
         await self.broadcast_event_with_globals("CLOSED_CAPTION_SETTINGS", payload, code=code, source_sid=sid)
+
+    async def handle_avatar_state(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code and isinstance(payload, dict):
+            code = payload.get('code') or payload.get('channel_code')
+        if not code:
+            self.logger.warning(f"AVATAR_STATE from [{sid}]: could not resolve code, dropped")
+            return
+        state = payload.get('state', 'idle')
+        self.logger.info(f"AVATAR_STATE from [{sid}] (code: {code}): state={state}")
+        await self.broadcast_event_with_globals("AVATAR_STATE", payload, code=code, source_sid=sid)
+
+    async def handle_captioner_status(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code and isinstance(payload, dict):
+            code = payload.get('code') or payload.get('channel_code')
+        if not code:
+            self.logger.warning(f"CAPTIONER_STATUS from [{sid}]: could not resolve code, dropped")
+            return
+        await self.broadcast_event_with_globals("CAPTIONER_STATUS", payload, code=code, source_sid=sid)
+
+    async def handle_avatar_settings_update(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        if not code and isinstance(payload, dict):
+            code = payload.get('code') or payload.get('channel_code')
+        if not code:
+            self.logger.warning(f"AVATAR_SETTINGS_UPDATE from [{sid}]: could not resolve code, dropped")
+            return
+        await self.broadcast_event_with_globals("AVATAR_SETTINGS_UPDATE", payload, code=code, source_sid=sid)
 
     async def handle_task_create(self, sid, data):
         payload = data if isinstance(data, dict) else {}
