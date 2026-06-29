@@ -936,6 +936,8 @@ try {
                 enabled TINYINT(1) NOT NULL DEFAULT 0,
                 closed_image VARCHAR(255) DEFAULT NULL,
                 open_image VARCHAR(255) DEFAULT NULL,
+                closed_blink_image VARCHAR(255) DEFAULT NULL,
+                open_blink_image VARCHAR(255) DEFAULT NULL,
                 blink_image VARCHAR(255) DEFAULT NULL,
                 position ENUM('top-left','top-right','bottom-left','bottom-right','custom') NOT NULL DEFAULT 'bottom-right',
                 pos_x INT NOT NULL DEFAULT 0,
@@ -1328,6 +1330,18 @@ try {
     }
     if ($usrDBconn->query("INSERT INTO avatar_settings (id, enabled) SELECT 1, 0 WHERE NOT EXISTS (SELECT 1 FROM avatar_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default avatar_settings row ensured.');
+    }
+    $avBlinkCol = $usrDBconn->query("SHOW COLUMNS FROM avatar_settings LIKE 'closed_blink_image'");
+    if ($avBlinkCol && $avBlinkCol->num_rows === 0) {
+        if ($usrDBconn->query("ALTER TABLE avatar_settings ADD closed_blink_image VARCHAR(255) DEFAULT NULL AFTER open_image") === TRUE) {
+            async_log('Added closed_blink_image column to avatar_settings.');
+        }
+    }
+    $avTalkBlinkCol = $usrDBconn->query("SHOW COLUMNS FROM avatar_settings LIKE 'open_blink_image'");
+    if ($avTalkBlinkCol && $avTalkBlinkCol->num_rows === 0) {
+        if ($usrDBconn->query("ALTER TABLE avatar_settings ADD open_blink_image VARCHAR(255) DEFAULT NULL AFTER closed_blink_image") === TRUE) {
+            async_log('Added open_blink_image column to avatar_settings.');
+        }
     }
     // Ensure default options for streamer_preferences exist
     if (

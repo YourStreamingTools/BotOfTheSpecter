@@ -27,11 +27,19 @@ $allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'cu
 $avatarImageExts = ['png', 'webp'];
 $avatarMediaDir = rtrim($media_path, '/\\') . '/avatar';
 $avatarMediaUrl = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/avatar/';
+$avatarUploadSlots = [
+    'idle_open' => 'closed_image',
+    'idle_blink' => 'closed_blink_image',
+    'talk_open' => 'open_image',
+    'talk_blink' => 'open_blink_image',
+];
 
 $av = [
     'enabled' => 0,
     'closed_image' => null,
     'open_image' => null,
+    'closed_blink_image' => null,
+    'open_blink_image' => null,
     'position' => 'bottom-right',
     'pos_x' => 0,
     'pos_y' => 0,
@@ -48,10 +56,17 @@ $av = [
 ];
 
 $avStmt = $db->prepare(
-    'SELECT enabled, closed_image, open_image, position, pos_x, pos_y, scale, flip, '
+    'SELECT enabled, closed_image, open_image, closed_blink_image, open_blink_image, position, pos_x, pos_y, scale, flip, '
     . 'mic_threshold, attack_ms, release_ms, blink_enabled, blink_interval_min, blink_interval_max, '
     . 'bounce_enabled, bounce_intensity FROM avatar_settings WHERE id = 1'
 );
+if (!$avStmt) {
+    $avStmt = $db->prepare(
+        'SELECT enabled, closed_image, open_image, position, pos_x, pos_y, scale, flip, '
+        . 'mic_threshold, attack_ms, release_ms, blink_enabled, blink_interval_min, blink_interval_max, '
+        . 'bounce_enabled, bounce_intensity FROM avatar_settings WHERE id = 1'
+    );
+}
 if ($avStmt) {
     $avStmt->execute();
     $avResult = $avStmt->get_result();
@@ -65,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
     $slot = $_POST['slot'] ?? '';
-    if (!in_array($slot, ['closed', 'open'], true)) {
+    if (!isset($avatarUploadSlots[$slot])) {
         echo json_encode(['success' => false, 'error' => 'invalid_slot']);
         exit;
     }
@@ -98,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
         echo json_encode(['success' => false, 'error' => t('avatar_upload_error', ['encode failed'])]);
         exit;
     }
-    $col = $slot === 'closed' ? 'closed_image' : 'open_image';
+    $col = $avatarUploadSlots[$slot];
     $saveUp = $db->prepare("INSERT INTO avatar_settings (id, {$col}) VALUES (1, ?) ON DUPLICATE KEY UPDATE {$col} = VALUES({$col})");
     $saveUp->bind_param('s', $target['name']);
     $ok = $saveUp->execute();
@@ -177,8 +192,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_save'])) {
 
 while (ob_get_level()) { ob_end_clean(); }
 
-$closedUrl = $av['closed_image'] ? $avatarMediaUrl . rawurlencode(basename((string) $av['closed_image'])) : '';
-$openUrl = $av['open_image'] ? $avatarMediaUrl . rawurlencode(basename((string) $av['open_image'])) : '';
+$avatarFrameUrl = function ($filename) use ($avatarMediaUrl) {
+    if (!$filename) {
+        return '';
+    }
+    return $avatarMediaUrl . rawurlencode(basename((string) $filename));
+};
+$frameUrls = [
+    'idle_open' => $avatarFrameUrl($av['closed_image'] ?? null),
+    'idle_blink' => $avatarFrameUrl($av['closed_blink_image'] ?? null),
+    'talk_open' => $avatarFrameUrl($av['open_image'] ?? null),
+    'talk_blink' => $avatarFrameUrl($av['open_blink_image'] ?? null),
+];
 
 ob_start();
 ?>
@@ -226,8 +251,7 @@ ob_start();
                 <div class="av-preview-wrap">
                     <div class="av-preview-label"><?= t('avatar_live_preview') ?></div>
                     <div class="av-preview-stage" id="avPreview">
-                        <img class="av-preview-img av-preview-closed" id="avPreviewClosed" alt="" <?php if ($closedUrl): ?>src="<?= htmlspecialchars($closedUrl) ?>"<?php endif; ?>>
-                        <img class="av-preview-img av-preview-open av-hidden" id="avPreviewOpen" alt="" <?php if ($openUrl): ?>src="<?= htmlspecialchars($openUrl) ?>"<?php endif; ?>>
+                        <img class="av-preview-img" id="avPreviewImg" alt="" <?php if ($frameUrls['idle_open']): ?>src="<?= htmlspecialchars($frameUrls['idle_open']) ?>"<?php endif; ?>>
                         <span class="av-preview-placeholder" id="avPreviewPlaceholder"><?= t('avatar_preview_placeholder') ?></span>
                     </div>
                 </div>
@@ -247,17 +271,25 @@ ob_start();
             </label>
             <p class="av-help-text"><?= t('avatar_enabled_help') ?></p>
 
-            <div class="av-form-grid">
+            <p class="av-help-text" style="margin-top:0;"><strong><?= t('avatar_images_title') ?></strong> — <?= t('avatar_images_help') ?></p>
+            <div class="av-form-grid av-frame-grid">
+                <?php
+                $frameUploadFields = [
+                    'idle_open' => 'avatar_idle_open_label',
+                    'idle_blink' => 'avatar_idle_blink_label',
+                    'talk_open' => 'avatar_talk_open_label',
+                    'talk_blink' => 'avatar_talk_blink_label',
+                ];
+                foreach ($frameUploadFields as $slotKey => $labelKey):
+                    $col = $avatarUploadSlots[$slotKey];
+                    $fileName = $av[$col] ?? null;
+                ?>
                 <div>
-                    <label><?= t('avatar_closed_image_label') ?></label>
-                    <input type="file" id="avClosedUpload" accept="image/png,image/webp" class="sp-input">
-                    <?php if ($av['closed_image']): ?><small class="av-file-name"><?= htmlspecialchars(basename((string) $av['closed_image'])) ?></small><?php endif; ?>
+                    <label><?= t($labelKey) ?></label>
+                    <input type="file" class="sp-input av-frame-upload" data-slot="<?= htmlspecialchars($slotKey) ?>" accept="image/png,image/webp">
+                    <?php if ($fileName): ?><small class="av-file-name"><?= htmlspecialchars(basename((string) $fileName)) ?></small><?php endif; ?>
                 </div>
-                <div>
-                    <label><?= t('avatar_open_image_label') ?></label>
-                    <input type="file" id="avOpenUpload" accept="image/png,image/webp" class="sp-input">
-                    <?php if ($av['open_image']): ?><small class="av-file-name"><?= htmlspecialchars(basename((string) $av['open_image'])) ?></small><?php endif; ?>
-                </div>
+                <?php endforeach; ?>
             </div>
             <p class="av-help-text"><?= t('avatar_upload_help') ?></p>
 
@@ -364,6 +396,7 @@ ob_start();
     };
     const avUrlReal = <?php echo json_encode($overlayLinkWithCode); ?>;
     const avUrlMasked = <?php echo json_encode($overlayLinkMasked); ?>;
+    const frameUrls = <?php echo json_encode($frameUrls); ?>;
 
     let vadConfig = {
         threshold: <?php echo json_encode((float) $av['mic_threshold']); ?>,
@@ -373,6 +406,8 @@ ob_start();
     let captionerActive = false;
     let micRunning = false;
     let mouthState = 'idle';
+    let isBlinking = false;
+    let blinkPreviewTimer = null;
     let audioContext = null;
     let mediaStream = null;
     let analyser = null;
@@ -414,16 +449,25 @@ ob_start();
         if (mouthState === state) return;
         mouthState = state;
         socket.emit('AVATAR_STATE', { code: apiKey, state: state, expression: 'default' });
-        updatePreviewMouth();
+        updatePreviewFrame();
     };
 
     const micStatus = document.getElementById('avMicStatus');
     const startBtn = document.getElementById('avStartBtn');
     const stopBtn = document.getElementById('avStopBtn');
     const ccNote = document.getElementById('avCcActiveNote');
-    const previewClosed = document.getElementById('avPreviewClosed');
-    const previewOpen = document.getElementById('avPreviewOpen');
+    const previewImg = document.getElementById('avPreviewImg');
     const previewPlaceholder = document.getElementById('avPreviewPlaceholder');
+
+    const pickFrameUrl = () => {
+        const talking = mouthState === 'talking';
+        if (talking) {
+            if (isBlinking && frameUrls.talk_blink) return frameUrls.talk_blink;
+            return frameUrls.talk_open || frameUrls.talk_blink || '';
+        }
+        if (isBlinking && frameUrls.idle_blink) return frameUrls.idle_blink;
+        return frameUrls.idle_open || frameUrls.idle_blink || '';
+    };
 
     const setStatus = (text, state) => {
         if (!micStatus) return;
@@ -431,14 +475,40 @@ ob_start();
         micStatus.className = 'status-indicator ' + state;
     };
 
-    const updatePreviewMouth = () => {
-        const talking = mouthState === 'talking';
-        if (previewOpen) previewOpen.classList.toggle('av-hidden', !talking);
-        if (previewClosed) previewClosed.classList.toggle('av-hidden', talking);
-        if (previewPlaceholder) {
-            const hasImg = previewClosed && previewClosed.getAttribute('src');
-            previewPlaceholder.style.display = hasImg ? 'none' : '';
+    const updatePreviewFrame = () => {
+        const url = pickFrameUrl();
+        if (previewImg) {
+            if (url) {
+                previewImg.src = url;
+                previewImg.classList.remove('av-hidden');
+            } else {
+                previewImg.removeAttribute('src');
+                previewImg.classList.add('av-hidden');
+            }
         }
+        if (previewPlaceholder) {
+            previewPlaceholder.style.display = url ? 'none' : '';
+        }
+    };
+
+    const schedulePreviewBlink = () => {
+        if (blinkPreviewTimer) clearTimeout(blinkPreviewTimer);
+        const blinkOn = document.getElementById('avBlink');
+        if (!blinkOn || !blinkOn.checked) return;
+        const min = parseInt(document.getElementById('avBlinkMin')?.value || '3', 10);
+        const max = parseInt(document.getElementById('avBlinkMax')?.value || '6', 10);
+        const lo = Math.max(1, min);
+        const hi = Math.max(lo, max);
+        const delay = (lo + Math.random() * (hi - lo)) * 1000;
+        blinkPreviewTimer = setTimeout(() => {
+            isBlinking = true;
+            updatePreviewFrame();
+            setTimeout(() => {
+                isBlinking = false;
+                updatePreviewFrame();
+                schedulePreviewBlink();
+            }, 120);
+        }, delay);
     };
 
     const updateMicUi = () => {
@@ -536,8 +606,12 @@ ob_start();
             setTimeout(() => {
                 if (socket && socketReady) socket.emit('AVATAR_STATE', { code: apiKey, state: 'idle', expression: 'default' });
             }, 1000);
-            mouthState = 'idle';
-            updatePreviewMouth();
+            mouthState = 'talking';
+            updatePreviewFrame();
+            setTimeout(() => {
+                mouthState = 'idle';
+                updatePreviewFrame();
+            }, 1000);
         });
     }
 
@@ -549,23 +623,19 @@ ob_start();
         return fetch(window.location.pathname, { method: 'POST', body: fd }).then(r => r.json());
     };
 
-    const closedUpload = document.getElementById('avClosedUpload');
-    const openUpload = document.getElementById('avOpenUpload');
-    if (closedUpload) closedUpload.addEventListener('change', () => {
-        const f = closedUpload.files && closedUpload.files[0];
-        if (!f) return;
-        uploadImage('closed', f).then(data => {
-            if (data.success && previewClosed) {
-                previewClosed.src = data.url;
-                updatePreviewMouth();
-            }
-        });
-    });
-    if (openUpload) openUpload.addEventListener('change', () => {
-        const f = openUpload.files && openUpload.files[0];
-        if (!f) return;
-        uploadImage('open', f).then(data => {
-            if (data.success && previewOpen) previewOpen.src = data.url;
+    document.querySelectorAll('.av-frame-upload').forEach((input) => {
+        input.addEventListener('change', () => {
+            const slot = input.getAttribute('data-slot');
+            const f = input.files && input.files[0];
+            if (!slot || !f) return;
+            uploadImage(slot, f).then((data) => {
+                if (data.success) {
+                    frameUrls[slot] = data.url;
+                    const nameEl = input.parentElement && input.parentElement.querySelector('.av-file-name');
+                    if (nameEl) nameEl.textContent = data.filename;
+                    updatePreviewFrame();
+                }
+            });
         });
     });
 
@@ -655,8 +725,9 @@ ob_start();
         });
     }
 
-    updatePreviewMouth();
+    updatePreviewFrame();
     updateMicUi();
+    schedulePreviewBlink();
 })();
 </script>
 <?php
