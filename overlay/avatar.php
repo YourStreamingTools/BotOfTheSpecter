@@ -12,6 +12,8 @@ $av_settings = [
     'enabled' => 0,
     'closed_image' => null,
     'open_image' => null,
+    'closed_blink_image' => null,
+    'open_blink_image' => null,
     'blink_image' => null,
     'position' => 'bottom-right',
     'pos_x' => 0,
@@ -63,10 +65,17 @@ if (!$error_html) {
         $table_exists = $user_db->query("SHOW TABLES LIKE 'avatar_settings'")->num_rows > 0;
         if ($table_exists) {
             $settingsStmt = $user_db->prepare(
-                'SELECT enabled, closed_image, open_image, blink_image, position, pos_x, pos_y, scale, flip, '
+                'SELECT enabled, closed_image, open_image, closed_blink_image, open_blink_image, position, pos_x, pos_y, scale, flip, '
                 . 'blink_enabled, blink_interval_min, blink_interval_max, bounce_enabled, bounce_intensity, active_expression '
                 . 'FROM avatar_settings WHERE id = 1'
             );
+            if (!$settingsStmt) {
+                $settingsStmt = $user_db->prepare(
+                    'SELECT enabled, closed_image, open_image, position, pos_x, pos_y, scale, flip, '
+                    . 'blink_enabled, blink_interval_min, blink_interval_max, bounce_enabled, bounce_intensity, active_expression '
+                    . 'FROM avatar_settings WHERE id = 1'
+                );
+            }
             if ($settingsStmt && $settingsStmt->execute()) {
                 $row = $settingsStmt->get_result()->fetch_assoc();
                 if ($row) {
@@ -94,14 +103,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             $scale = 1.0;
         }
         $mediaBase = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/avatar/';
-        $closedFile = $av_settings['closed_image'] ? basename((string) $av_settings['closed_image']) : '';
-        $openFile = $av_settings['open_image'] ? basename((string) $av_settings['open_image']) : '';
+        $frameFile = function ($key) use ($av_settings) {
+            if (empty($av_settings[$key])) {
+                return '';
+            }
+            return basename((string) $av_settings[$key]);
+        };
+        $frameUrl = function ($key) use ($mediaBase, $frameFile) {
+            $file = $frameFile($key);
+            return $file !== '' ? $mediaBase . rawurlencode($file) : '';
+        };
         echo json_encode([
             'success' => true,
             'data' => [
                 'enabled' => (int) $av_settings['enabled'],
-                'closed_url' => $closedFile !== '' ? $mediaBase . rawurlencode($closedFile) : '',
-                'open_url' => $openFile !== '' ? $mediaBase . rawurlencode($openFile) : '',
+                'idle_open_url' => $frameUrl('closed_image'),
+                'idle_blink_url' => $frameUrl('closed_blink_image'),
+                'talk_open_url' => $frameUrl('open_image'),
+                'talk_blink_url' => $frameUrl('open_blink_image'),
                 'position' => $position,
                 'pos_x' => (int) $av_settings['pos_x'],
                 'pos_y' => (int) $av_settings['pos_y'],
@@ -142,8 +161,7 @@ ob_end_clean();
         <div class="avatar-overlay-page-status" id="connectionStatus" data-state="connecting">Connecting&hellip;</div>
         <div class="avatar-overlay-page-root" id="avatarRoot" data-enabled="false" data-state="idle" data-position="bottom-right">
             <div class="avatar-overlay-page-stage" id="avatarStage">
-                <img class="avatar-overlay-page-img avatar-overlay-page-img--closed" id="avatarClosed" alt="" decoding="async">
-                <img class="avatar-overlay-page-img avatar-overlay-page-img--open" id="avatarOpen" alt="" decoding="async">
+                <img class="avatar-overlay-page-img is-visible" id="avatarFrame" alt="" decoding="async">
             </div>
         </div>
     <?php endif; ?>
@@ -156,16 +174,14 @@ ob_end_clean();
 
             const root = document.getElementById('avatarRoot');
             const stage = document.getElementById('avatarStage');
-            const imgClosed = document.getElementById('avatarClosed');
-            const imgOpen = document.getElementById('avatarOpen');
+            const imgFrame = document.getElementById('avatarFrame');
             const connectionStatus = document.getElementById('connectionStatus');
-            if (!root || !stage || !imgClosed || !imgOpen) return;
+            if (!root || !stage || !imgFrame) return;
 
             const allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'custom'];
             const settings = {
                 enabled: false,
-                closedUrl: '',
-                openUrl: '',
+                frames: { idle_open: '', idle_blink: '', talk_open: '', talk_blink: '' },
                 position: 'bottom-right',
                 posX: 0,
                 posY: 0,
@@ -180,6 +196,17 @@ ob_end_clean();
             let mouthState = 'idle';
             let blinkTimer = null;
             let isBlinking = false;
+
+            const pickFrameUrl = () => {
+                const talking = mouthState === 'talking' || mouthState === 'loud';
+                const f = settings.frames;
+                if (talking) {
+                    if (isBlinking && f.talk_blink) return f.talk_blink;
+                    return f.talk_open || f.talk_blink || '';
+                }
+                if (isBlinking && f.idle_blink) return f.idle_blink;
+                return f.idle_open || f.idle_blink || '';
+            };
 
             const setConnectionStatus = (text, state) => {
                 if (!connectionStatus) return;
@@ -212,33 +239,44 @@ ob_end_clean();
                 });
             };
 
+            const hasAnyFrame = () => Object.values(settings.frames).some((u) => !!u);
+
             const applyImages = async () => {
-                await Promise.all([preload(settings.closedUrl), preload(settings.openUrl)]);
-                if (settings.closedUrl) imgClosed.src = settings.closedUrl;
-                if (settings.openUrl) imgOpen.src = settings.openUrl;
-                root.dataset.enabled = settings.enabled && (settings.closedUrl || settings.openUrl) ? 'true' : 'false';
+                const urls = Object.values(settings.frames).filter(Boolean);
+                await Promise.all(urls.map(preload));
+                root.dataset.enabled = settings.enabled && hasAnyFrame() ? 'true' : 'false';
+                renderFrame();
             };
 
-            const renderMouth = () => {
+            const renderFrame = () => {
+                const url = pickFrameUrl();
                 const talking = mouthState === 'talking' || mouthState === 'loud';
-                imgClosed.classList.toggle('is-visible', !talking);
-                imgOpen.classList.toggle('is-visible', talking);
                 root.dataset.state = talking ? 'talking' : 'idle';
+                if (!url) {
+                    imgFrame.removeAttribute('src');
+                    imgFrame.classList.remove('is-visible');
+                    return;
+                }
+                if (imgFrame.getAttribute('src') !== url) {
+                    imgFrame.src = url;
+                }
+                imgFrame.classList.add('is-visible');
             };
 
             const scheduleBlink = () => {
                 if (blinkTimer) clearTimeout(blinkTimer);
                 if (!settings.blinkEnabled || !settings.enabled) return;
+                if (!settings.frames.idle_blink && !settings.frames.talk_blink) return;
                 const min = Math.max(1, Number(settings.blinkMin) || 3);
                 const max = Math.max(min, Number(settings.blinkMax) || min);
                 const delay = (min + Math.random() * (max - min)) * 1000;
                 blinkTimer = setTimeout(() => {
                     if (!settings.enabled) return;
                     isBlinking = true;
-                    stage.classList.add('is-blinking');
+                    renderFrame();
                     setTimeout(() => {
                         isBlinking = false;
-                        stage.classList.remove('is-blinking');
+                        renderFrame();
                         scheduleBlink();
                     }, 120);
                 }, delay);
@@ -247,7 +285,6 @@ ob_end_clean();
             const applySettings = async () => {
                 applyPlacement();
                 await applyImages();
-                renderMouth();
                 scheduleBlink();
             };
 
@@ -255,9 +292,9 @@ ob_end_clean();
                 if (!payload || !settings.enabled) return;
                 const state = String(payload.state || 'idle');
                 if (state !== 'talking' && state !== 'idle' && state !== 'loud') return;
-                if (mouthState === state) return;
+                if (mouthState === state && !isBlinking) return;
                 mouthState = state;
-                renderMouth();
+                renderFrame();
             };
 
             const settingsEndpoint = window.location.pathname + '?code=' + encodeURIComponent(overlayApiKey) + '&action=get_avatar_settings';
@@ -268,8 +305,12 @@ ob_end_clean();
                     if (!data.success || !data.data) return;
                     const d = data.data;
                     settings.enabled = Number(d.enabled) !== 0;
-                    settings.closedUrl = d.closed_url || '';
-                    settings.openUrl = d.open_url || '';
+                    settings.frames = {
+                        idle_open: d.idle_open_url || '',
+                        idle_blink: d.idle_blink_url || '',
+                        talk_open: d.talk_open_url || '',
+                        talk_blink: d.talk_blink_url || '',
+                    };
                     settings.position = allowedPositions.includes(d.position) ? d.position : 'bottom-right';
                     settings.posX = Number(d.pos_x) || 0;
                     settings.posY = Number(d.pos_y) || 0;

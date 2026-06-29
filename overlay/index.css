@@ -2495,11 +2495,6 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     50% { transform: translateY(calc(-1 * var(--av-bounce-px))) rotate(var(--av-bounce-rot)); }
 }
 
-.avatar-overlay-page-stage.is-blinking {
-    opacity: 0.08;
-    transition: opacity 80ms ease;
-}
-
 .avatar-overlay-page-img {
     display: none;
     max-width: 40vw;
