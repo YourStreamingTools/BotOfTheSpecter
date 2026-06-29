@@ -937,6 +937,113 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-table tbody tr:hover { background: var(--bg-card-hover); }
 
 /* ----------------------------------------------------------
+   Start Bots admin table - simplified view on smaller screens / tablets
+   The compact view (username + RUNNING + basic action buttons only) activates at <=1600px (COMPACT_BREAKPOINT in JS).
+   Full detailed table stays only on wider screens.
+   All JS-updated elements remain in DOM; we just hide columns + secondary buttons.
+   ---------------------------------------------------------- */
+@media (max-width: 1600px) {
+    table.start-bots-table th.col-twitch-id,
+    table.start-bots-table th.col-type,
+    table.start-bots-table th.col-uptime,
+    table.start-bots-table th.col-token,
+    table.start-bots-table th.col-mod,
+    table.start-bots-table td.col-twitch-id,
+    table.start-bots-table td.col-type,
+    table.start-bots-table td.col-uptime,
+    table.start-bots-table td.col-token,
+    table.start-bots-table td.col-mod {
+        display: none !important;
+    }
+
+    /* Tighten table for small screens */
+    .start-bots-table th,
+    .start-bots-table td {
+        padding: 0.55rem 0.6rem;
+        font-size: 0.85rem;
+    }
+
+    /* Make status badge the clear "RUNNING" indicator */
+    .start-bots-table .col-status .sp-badge {
+        font-size: 0.78rem;
+        padding: 0.25em 0.55em;
+        font-weight: 700;
+    }
+
+    .start-bots-table th {
+        font-size: 0.65rem;
+    }
+
+    /* Compact user cell */
+    .start-bots-table .col-user .admin-bot-avatar {
+        width: 24px;
+        height: 24px;
+        margin-right: 0.35rem !important;
+    }
+    .start-bots-table .col-user span {
+        font-size: 0.9rem;
+    }
+
+    /* Core action buttons only - make them simple and touch-friendly */
+    .start-bots-table .col-actions .sp-btn-group {
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+
+    .start-bots-table .col-actions .sp-btn {
+        padding: 0.35rem 0.55rem;
+        font-size: 0.75rem;
+        line-height: 1.3;
+    }
+
+    .start-bots-table .col-actions .sp-btn .icon {
+        margin-right: 0.25rem;
+    }
+
+    /* Hide Attach Console on small screens (Make Mod button is intentionally kept visible in compact view) */
+    .start-bots-table .attach-console-btn {
+        display: none !important;
+    }
+
+    /* Give the actions cell a bit more breathing room */
+    .start-bots-table .col-actions {
+        min-width: 170px;
+    }
+
+    /* Encourage sensible column sizing on simplified view */
+    .start-bots-table .col-user {
+        min-width: 130px;
+    }
+    .start-bots-table .col-status {
+        min-width: 110px;
+    }
+}
+
+/* Even tighter for phones */
+@media (max-width: 640px) {
+    .start-bots-table th,
+    .start-bots-table td {
+        padding: 0.4rem 0.35rem;
+        font-size: 0.8rem;
+    }
+
+    .start-bots-table .col-actions .sp-btn {
+        padding: 0.28rem 0.4rem;
+        font-size: 0.68rem;
+        gap: 0.15rem;
+    }
+
+    .start-bots-table .col-actions .btn-label {
+        /* On phones show compact labels (e.g. "Stable", "Beta", "Restart", "Stop") */
+        font-size: 0.65rem;
+    }
+
+    .start-bots-table .col-status .sp-badge {
+        font-size: 0.72rem;
+    }
+}
+
+/* ----------------------------------------------------------
    14. Alerts
    ---------------------------------------------------------- */
 .sp-alert {
