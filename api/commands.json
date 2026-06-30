@@ -82,6 +82,8 @@
 		"joinraffle": 	"Enters you into the currently running raffle.",
 		"leaveraffle": 	"Removes you from the currently running raffle.",
 		"stopraffle": 	"Ends the active raffle immediately without drawing any winners.",
-		"drawraffle": 	"Draws and announces the raffle winner(s) from all current entries. Optionally specify a raffle ID to draw a specific one."
+		"drawraffle": 	"Draws and announces the raffle winner(s) from all current entries. Optionally specify a raffle ID to draw a specific one.",
+		"wordreplaceoff":	"Opts you out of the Word Replacer module, so the bot won't randomly re-post your messages with syllables swapped. Works even while the module is enabled.",
+		"wordreplaceon":	"Opts you back into the Word Replacer module, so your messages are eligible for the random syllable-swap echo again."
 	}
 }

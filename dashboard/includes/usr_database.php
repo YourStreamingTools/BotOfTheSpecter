@@ -280,7 +280,12 @@ try {
                 term_blocking VARCHAR(500) DEFAULT 'False',
                 block_first_message_commands VARCHAR(10) DEFAULT 'False',
                 block_first_message_command_mode VARCHAR(20) DEFAULT 'all',
-                block_first_message_selected_commands VARCHAR(500) DEFAULT '[]'
+                block_first_message_selected_commands VARCHAR(500) DEFAULT '[]',
+                word_replace_enabled VARCHAR(10) DEFAULT 'False',
+                word_replace_word VARCHAR(32) DEFAULT 'fun',
+                word_replace_frequency INT DEFAULT 30,
+                word_replace_rate INT DEFAULT 10,
+                word_replace_cooldown INT DEFAULT 30
             ) ENGINE=InnoDB",
         'link_whitelist' => "
             CREATE TABLE IF NOT EXISTS link_whitelist (
@@ -296,6 +301,16 @@ try {
             CREATE TABLE IF NOT EXISTS blocked_terms (
                 term VARCHAR(255),
                 PRIMARY KEY (term)
+            ) ENGINE=InnoDB",
+        'word_replace_ignored_users' => "
+            CREATE TABLE IF NOT EXISTS word_replace_ignored_users (
+                username VARCHAR(255) PRIMARY KEY,
+                opted_out_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                source VARCHAR(32) DEFAULT 'chat'
+            ) ENGINE=InnoDB",
+        'word_replace_ignored_words' => "
+            CREATE TABLE IF NOT EXISTS word_replace_ignored_words (
+                word VARCHAR(64) PRIMARY KEY
             ) ENGINE=InnoDB",
         'stream_credits' => "
             CREATE TABLE IF NOT EXISTS stream_credits (

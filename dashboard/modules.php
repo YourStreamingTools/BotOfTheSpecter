@@ -358,7 +358,12 @@ $blockFirstMessageCommands = 'False';
 $blockFirstMessageCommandMode = 'all';
 $blockFirstMessageSelectedCommands = [];
 $availableBlockFirstMessageCommands = [];
-$getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands FROM protection LIMIT 1");
+$wordReplaceEnabled = 'False';
+$wordReplaceWord = 'fun';
+$wordReplaceFrequency = 30;
+$wordReplaceRate = 10;
+$wordReplaceCooldown = 30;
+$getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands, word_replace_enabled, word_replace_word, word_replace_frequency, word_replace_rate, word_replace_cooldown FROM protection LIMIT 1");
 if ($getProtection) {
     $settings = $getProtection->fetch_assoc();
     $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
@@ -375,7 +380,30 @@ if ($getProtection) {
             }
         }
     }
+    $wordReplaceEnabled = isset($settings['word_replace_enabled']) ? $settings['word_replace_enabled'] : 'False';
+    $wordReplaceWord = isset($settings['word_replace_word']) && $settings['word_replace_word'] !== '' ? $settings['word_replace_word'] : 'fun';
+    $wordReplaceFrequency = isset($settings['word_replace_frequency']) ? (int)$settings['word_replace_frequency'] : 30;
+    $wordReplaceRate = isset($settings['word_replace_rate']) ? (int)$settings['word_replace_rate'] : 10;
+    $wordReplaceCooldown = isset($settings['word_replace_cooldown']) ? (int)$settings['word_replace_cooldown'] : 30;
     $getProtection->free();
+}
+
+$wordReplaceIgnoredUsers = [];
+$getWordReplaceIgnoredUsers = $db->query("SELECT username, opted_out_at, source FROM word_replace_ignored_users ORDER BY opted_out_at DESC");
+if ($getWordReplaceIgnoredUsers) {
+    while ($row = $getWordReplaceIgnoredUsers->fetch_assoc()) {
+        $wordReplaceIgnoredUsers[] = $row;
+    }
+    $getWordReplaceIgnoredUsers->free();
+}
+
+$wordReplaceIgnoredWords = [];
+$getWordReplaceIgnoredWords = $db->query("SELECT word FROM word_replace_ignored_words ORDER BY word ASC");
+if ($getWordReplaceIgnoredWords) {
+    while ($row = $getWordReplaceIgnoredWords->fetch_assoc()) {
+        $wordReplaceIgnoredWords[] = $row;
+    }
+    $getWordReplaceIgnoredWords->free();
 }
 
 $commandOptionsResult = $db->query("SELECT command FROM builtin_commands UNION SELECT command FROM custom_commands UNION SELECT command FROM custom_user_commands");
@@ -1031,6 +1059,143 @@ ob_start();
                                                                             <i class="fas fa-trash-alt"></i>
                                                                             <span><?php echo t('protection_remove'); ?></span>
                                                                         </button>
+                                                                    </form>
+                                                                </td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                    <?php endif; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Word Replacer Section (Beta) -->
+                        <div class="module-container" style="margin-top:2rem;">
+                            <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
+                                <i class="fas fa-random" style="color:var(--accent);"></i>
+                                <?= t('modules_word_replace_title') ?>
+                                <span class="sp-badge sp-badge-amber" style="margin-left:0.75rem;"><?= t('modules_word_replace_beta_badge') ?></span>
+                            </h2>
+                            <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
+                                <p style="margin-bottom:0.75rem;"><strong><?= t('modules_word_replace_how_works') ?></strong></p>
+                                <p style="margin-bottom:0.75rem;"><?= t('modules_word_replace_desc') ?></p>
+                                <p style="margin-bottom:0;"><?= t('modules_word_replace_optout_note') ?></p>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+                                <div class="sp-card">
+                                    <div class="sp-card-body">
+                                        <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:1rem;">
+                                            <?= t('modules_word_replace_settings_title') ?>
+                                        </h3>
+                                        <form action="/api/module_data_post.php" method="post">
+                                            <div class="sp-form-group">
+                                                <label class="sp-label"><?= t('modules_word_replace_enable') ?></label>
+                                                <select class="sp-select" name="word_replace_enabled">
+                                                    <option value="True"<?= $wordReplaceEnabled == 'True' ? ' selected' : '' ?>><?= t('yes') ?></option>
+                                                    <option value="False"<?= $wordReplaceEnabled == 'False' ? ' selected' : '' ?>><?= t('no') ?></option>
+                                                </select>
+                                            </div>
+                                            <div class="sp-form-group">
+                                                <label class="sp-label"><?= t('modules_word_replace_word_label') ?></label>
+                                                <input class="sp-input" type="text" name="word_replace_word" value="<?= htmlspecialchars($wordReplaceWord) ?>" maxlength="32" pattern="[a-z0-9]+" required>
+                                            </div>
+                                            <div class="sp-form-group">
+                                                <label class="sp-label"><?= t('modules_word_replace_frequency_label') ?></label>
+                                                <input class="sp-input" type="number" name="word_replace_frequency" min="5" max="200" value="<?= (int)$wordReplaceFrequency ?>" required>
+                                            </div>
+                                            <div class="sp-form-group">
+                                                <label class="sp-label"><?= t('modules_word_replace_rate_label') ?></label>
+                                                <input class="sp-input" type="number" name="word_replace_rate" min="2" max="50" value="<?= (int)$wordReplaceRate ?>" required>
+                                            </div>
+                                            <div class="sp-form-group">
+                                                <label class="sp-label"><?= t('modules_word_replace_cooldown_label') ?></label>
+                                                <input class="sp-input" type="number" name="word_replace_cooldown" min="10" max="300" value="<?= (int)$wordReplaceCooldown ?>" required>
+                                            </div>
+                                            <button type="submit" name="submit" class="sp-btn sp-btn-primary" style="width:100%;">
+                                                <i class="fas fa-save"></i>
+                                                <span><?= t('protection_update_btn') ?></span>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="sp-card">
+                                    <div class="sp-card-body">
+                                        <h3 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">
+                                            <?= t('modules_word_replace_add_ignored_word') ?>
+                                        </h3>
+                                        <form action="/api/module_data_post.php" method="post" style="margin-bottom:1.5rem;">
+                                            <div class="sp-form-group">
+                                                <input class="sp-input" type="text" name="word_replace_ignored_word" placeholder="<?= htmlspecialchars(t('modules_word_replace_ignored_word_placeholder')) ?>" required>
+                                            </div>
+                                            <button type="submit" class="sp-btn sp-btn-secondary" style="width:100%;">
+                                                <i class="fas fa-plus"></i>
+                                                <span><?= t('modules_word_replace_add_word_btn') ?></span>
+                                            </button>
+                                        </form>
+                                        <h3 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">
+                                            <?= t('modules_word_replace_add_opted_out_user') ?>
+                                        </h3>
+                                        <form action="/api/module_data_post.php" method="post">
+                                            <div class="sp-form-group">
+                                                <input class="sp-input" type="text" name="word_replace_ignored_user" placeholder="<?= htmlspecialchars(t('modules_word_replace_opted_out_user_placeholder')) ?>" required>
+                                            </div>
+                                            <button type="submit" class="sp-btn sp-btn-secondary" style="width:100%;">
+                                                <i class="fas fa-user-slash"></i>
+                                                <span><?= t('modules_word_replace_add_user_btn') ?></span>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="sp-card" style="grid-column:1 / -1;">
+                                    <div class="sp-card-body">
+                                        <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><?= t('modules_word_replace_ignored_words_list') ?></h3>
+                                        <div class="sp-table-wrap" style="margin-bottom:1.5rem;">
+                                            <table class="sp-table">
+                                                <tbody>
+                                                    <?php if (empty($wordReplaceIgnoredWords)): ?>
+                                                        <tr><td style="text-align:center;color:var(--text-muted);"><?= t('modules_word_replace_no_ignored_words') ?></td></tr>
+                                                    <?php else: ?>
+                                                        <?php foreach ($wordReplaceIgnoredWords as $wrWord): ?>
+                                                            <tr>
+                                                                <td><?= htmlspecialchars($wrWord['word']) ?></td>
+                                                                <td style="text-align:right;">
+                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
+                                                                        <input type="hidden" name="remove_word_replace_ignored_word" value="<?= htmlspecialchars($wrWord['word']) ?>">
+                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i></button>
+                                                                    </form>
+                                                                </td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                    <?php endif; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><?= t('modules_word_replace_opted_out_users_list') ?></h3>
+                                        <div class="sp-table-wrap">
+                                            <table class="sp-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th><?= t('modules_word_replace_col_username') ?></th>
+                                                        <th><?= t('modules_word_replace_col_opted_out') ?></th>
+                                                        <th><?= t('modules_word_replace_col_source') ?></th>
+                                                        <th></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php if (empty($wordReplaceIgnoredUsers)): ?>
+                                                        <tr><td colspan="4" style="text-align:center;color:var(--text-muted);"><?= t('modules_word_replace_no_opted_out_users') ?></td></tr>
+                                                    <?php else: ?>
+                                                        <?php foreach ($wordReplaceIgnoredUsers as $wrUser): ?>
+                                                            <tr>
+                                                                <td><?= htmlspecialchars($wrUser['username']) ?></td>
+                                                                <td><?= htmlspecialchars($wrUser['opted_out_at'] ?? '') ?></td>
+                                                                <td><?= htmlspecialchars($wrUser['source'] ?? 'chat') ?></td>
+                                                                <td style="text-align:right;">
+                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
+                                                                        <input type="hidden" name="remove_word_replace_ignored_user" value="<?= htmlspecialchars($wrUser['username']) ?>">
+                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i></button>
                                                                     </form>
                                                                 </td>
                                                             </tr>

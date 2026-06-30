@@ -79,3 +79,6 @@ jmespath>=0.7.1,<2.0.0
 # Date and time utilities
 # Required by botocore for datetime parsing and timezone handling
 python-dateutil>=2.1,<3.0.0
+
+# English hyphenation / syllable splitting (word replace module)
+pyphen
