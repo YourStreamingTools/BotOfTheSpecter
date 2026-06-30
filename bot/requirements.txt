@@ -79,6 +79,9 @@ yt_dlp
 # Access to OpenAI models (chat, completions, etc.)
 openai
 
+# English hyphenation / syllable splitting (word replace module)
+pyphen
+
 # JSON query language
 # Required by botocore (pulled indirectly by streamlink / yt_dlp)
 jmespath>=0.7.1,<2.0.0

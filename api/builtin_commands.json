@@ -484,6 +484,14 @@
 			"description": "Draws and announces the raffle winner(s) from all current entries. Optionally specify a raffle ID to draw a specific one.",
 			"force_level": "mod",
 			"syntax": ["!drawraffle", "!drawraffle 4"]
+		},
+		"wordreplaceoff": {
+			"description": "Opts you out of the Word Replacer module, so the bot won't randomly re-post your messages with syllables swapped for the channel's configured word. Always available, even while the module is enabled.",
+			"syntax": "!wordreplaceoff"
+		},
+		"wordreplaceon": {
+			"description": "Opts you back into the Word Replacer module, so your messages are eligible for the random syllable-swap echo again.",
+			"syntax": "!wordreplaceon"
 		}
 	}
 }

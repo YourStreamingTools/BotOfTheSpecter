@@ -680,6 +680,100 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     }
+    elseif (isset($_POST['word_replace_enabled'])) {
+        $activeTab = "chat-protection";
+        $word_replace_enabled = $_POST['word_replace_enabled'] == 'True' ? 'True' : 'False';
+        $word_replace_word = strtolower(trim((string)($_POST['word_replace_word'] ?? 'fun')));
+        $word_replace_frequency = max(5, min(200, (int)($_POST['word_replace_frequency'] ?? 30)));
+        $word_replace_rate = max(2, min(50, (int)($_POST['word_replace_rate'] ?? 10)));
+        $word_replace_cooldown = max(10, min(300, (int)($_POST['word_replace_cooldown'] ?? 30)));
+        if ($word_replace_word === '' || !preg_match('/^[a-z0-9]{2,32}$/', $word_replace_word)) {
+            $_SESSION['update_message'] = "Invalid replacement word. Use 2–32 lowercase letters or numbers, no spaces.";
+        } else {
+            $stmt = $db->prepare(
+                "UPDATE protection SET word_replace_enabled = ?, word_replace_word = ?, "
+                . "word_replace_frequency = ?, word_replace_rate = ?, word_replace_cooldown = ?"
+            );
+            $stmt->bind_param(
+                "ssiii",
+                $word_replace_enabled,
+                $word_replace_word,
+                $word_replace_frequency,
+                $word_replace_rate,
+                $word_replace_cooldown
+            );
+            if ($stmt->execute()) {
+                $_SESSION['update_message'] = "Word Replacer settings updated successfully.";
+            } else {
+                $_SESSION['update_message'] = "Failed to update Word Replacer settings.";
+                error_log("Error updating word replace settings: " . $db->error);
+            }
+            $stmt->close();
+        }
+    }
+    elseif (isset($_POST['word_replace_ignored_word'])) {
+        $activeTab = "chat-protection";
+        $ignored_word = strtolower(trim((string)$_POST['word_replace_ignored_word']));
+        if ($ignored_word === '' || preg_match('/\s/', $ignored_word)) {
+            $_SESSION['update_message'] = "Ignored word must be a single word with no spaces.";
+        } else {
+            $stmt = $db->prepare("INSERT INTO word_replace_ignored_words (word) VALUES (?)");
+            $stmt->bind_param("s", $ignored_word);
+            if ($stmt->execute()) {
+                $_SESSION['update_message'] = "Word added to ignore list.";
+            } else {
+                $_SESSION['update_message'] = "Failed to add ignored word.";
+                error_log("Error inserting word_replace ignored word: " . $db->error);
+            }
+            $stmt->close();
+        }
+    }
+    elseif (isset($_POST['remove_word_replace_ignored_word'])) {
+        $activeTab = "chat-protection";
+        $remove_word = strtolower(trim((string)$_POST['remove_word_replace_ignored_word']));
+        $stmt = $db->prepare("DELETE FROM word_replace_ignored_words WHERE word = ?");
+        $stmt->bind_param("s", $remove_word);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Ignored word removed.";
+        } else {
+            $_SESSION['update_message'] = "Failed to remove ignored word.";
+            error_log("Error deleting word_replace ignored word: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['word_replace_ignored_user'])) {
+        $activeTab = "chat-protection";
+        $ignored_user = strtolower(trim((string)$_POST['word_replace_ignored_user']));
+        $ignored_user = ltrim($ignored_user, '@');
+        if ($ignored_user === '') {
+            $_SESSION['update_message'] = "Username is required.";
+        } else {
+            $stmt = $db->prepare(
+                "INSERT IGNORE INTO word_replace_ignored_users (username, source) VALUES (?, 'dashboard')"
+            );
+            $stmt->bind_param("s", $ignored_user);
+            if ($stmt->execute()) {
+                $_SESSION['update_message'] = "User added to opted-out list.";
+            } else {
+                $_SESSION['update_message'] = "Failed to add opted-out user.";
+                error_log("Error inserting word_replace ignored user: " . $db->error);
+            }
+            $stmt->close();
+        }
+    }
+    elseif (isset($_POST['remove_word_replace_ignored_user'])) {
+        $activeTab = "chat-protection";
+        $remove_user = strtolower(trim((string)$_POST['remove_word_replace_ignored_user']));
+        $stmt = $db->prepare("DELETE FROM word_replace_ignored_users WHERE username = ?");
+        $stmt->bind_param("s", $remove_user);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "User removed from opted-out list.";
+        } else {
+            $_SESSION['update_message'] = "Failed to remove opted-out user.";
+            error_log("Error deleting word_replace ignored user: " . $db->error);
+        }
+        $stmt->close();
+    }
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
         header("Location: /modules.php?tab=" . $activeTab);

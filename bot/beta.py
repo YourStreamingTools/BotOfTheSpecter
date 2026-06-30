@@ -152,7 +152,8 @@ builtin_commands = {
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
     "task", "done", "rename", "remove", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "pomo"
+    "project", "projects", "pomo",
+    "wordreplaceoff", "wordreplaceon"
 }
 # Working & Study commands act on each chatter's OWN task/pomo, so they seed with a
 # per-user cooldown bucket (not the global 'default') — a global cooldown would let one
@@ -3362,6 +3363,7 @@ class TwitchBot(commands.Bot):
         bot_logger.info(f'[BOT READY] Logged in as "{self.nick}"')
         await update_version_control()
         await builtin_commands_creation()
+        await load_word_replace_settings(force=True)
         await load_media_settings()
         await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
@@ -3813,6 +3815,8 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[EVENT MESSAGE] Deleted message from {messageAuthor} containing a non-whitelisted URL: {AuthorMessage}")
                     await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                     return
+            if not should_delete and messageContentRaw and not messageContentRaw.startswith('!'):
+                safe_create_task(word_replace_maybe_echo(messageAuthor, messageContentRaw, is_echo=False))
         except Exception as e:
             if isinstance(e, AttributeError) and "NoneType" in str(e):
                 bot_logger.warning(f"[EVENT MESSAGE] NoneType AttributeError swallowed: {e}")
@@ -7385,6 +7389,22 @@ class TwitchBot(commands.Bot):
         finally:
             if connection:
                 await connection.close()
+
+    @commands.command(name='wordreplaceoff')
+    async def word_replace_off_command(self, ctx):
+        username = ctx.author.name.lower()
+        if await word_replace_user_opt_out(username, True):
+            await send_chat_message("Okay — I won't randomly word-replace your messages anymore.")
+        else:
+            await send_chat_message("Word replace is already off for you.")
+
+    @commands.command(name='wordreplaceon')
+    async def word_replace_on_command(self, ctx):
+        username = ctx.author.name.lower()
+        if await word_replace_user_opt_out(username, False):
+            await send_chat_message("Okay — I might randomly word-replace your messages again.")
+        else:
+            await send_chat_message("Word replace is already on for you.")
 
     @commands.command(name='typo')
     async def typo_command(self, ctx, mentioned_username: str = None):
@@ -11172,6 +11192,385 @@ class TwitchBot(commands.Bot):
 ##
 # Functions for all the commands
 ##
+# ---------------------------------------------------------------------------
+# Word Replacer (random syllable swap)
+# Occasionally re-posts a viewer's chat line with random syllables swapped for a
+# streamer-set word (default "fun"). Configured per channel via the `protection`
+# table plus the word_replace_ignored_users / word_replace_ignored_words tables.
+# Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
+# ---------------------------------------------------------------------------
+try:
+    import pyphen
+except ImportError:
+    pyphen = None
+
+WORD_REPLACE_CACHE_TTL = 60
+EXPECTED_PROBABILITY = 0.95
+MAX_ATTEMPTS_CAP = 1000
+
+NON_WORD_PATTERN = re.compile(
+    r"(https?://(?:www\.)?[-A-Z0-9@:%._+~#=]{1,256}"
+    r"(?:\.[A-Z0-9()]{1,6})?\b(?:[-A-Z0-9()@:%_+.~#?&/=]*)"
+    r"|<a?:?\w{2,32}:\d{17,19}>?|@[!&]?\d{17,19}|#[!&]?\d{17,19}|[^A-Za-z]+)",
+    re.IGNORECASE,
+)
+WORD_PATTERN = re.compile(r"^[A-Za-z]+$")
+CAPS_PATTERN = re.compile(r"^[A-Z]$")
+ALL_CAPS_PATTERN = re.compile(r"^[A-Z]{2,}$")
+PLURAL_PATTERN = re.compile(r"[sz]$", re.IGNORECASE)
+VOWEL_CLUSTER_PATTERN = re.compile(
+    r"[aeiouyAEIOUY]+[^aeiouyAEIOUY\s]*|[bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ]+",
+)
+
+_hyphenator = None
+_word_replace_cache = None
+_word_replace_cache_time = 0.0
+_last_word_replace_echo = 0.0
+
+
+def _get_hyphenator():
+    global _hyphenator
+    if pyphen is None:
+        return None
+    if _hyphenator is None:
+        _hyphenator = pyphen.Pyphen(lang="en_US")
+    return _hyphenator
+
+
+def _syllablize(word):
+    dic = _get_hyphenator()
+    if dic is not None:
+        # Pyphen.inserted() returns the word with hyphens at every break point
+        # (e.g. "remember" -> "re-mem-ber"). Words here are pure [A-Za-z], so
+        # splitting on '-' is safe. (Pyphen.iterate() yields (head, tail) tuples,
+        # NOT syllable chunks — don't use it.)
+        parts = [part for part in dic.inserted(word).split("-") if part]
+        if len(parts) > 1:
+            return parts
+    clusters = VOWEL_CLUSTER_PATTERN.findall(word)
+    if clusters:
+        return clusters
+    return [word] if word else []
+
+
+def _chance(n, rng=random.random):
+    if n <= 1:
+        return True
+    return rng() < (1.0 / n)
+
+
+def _attempts(rate, syllables):
+    if rate <= 1 or syllables <= 0:
+        return 1
+    return min(MAX_ATTEMPTS_CAP, math.ceil(
+        math.log(1 - EXPECTED_PROBABILITY) / (syllables * math.log((rate - 1) / rate))
+    ))
+
+
+def _normalize_compare(text):
+    return re.sub(r"\s+", "", text).lower()
+
+
+def word_replace_is_transformable(content):
+    return bool(content and re.search(r"[a-zA-Z]", content))
+
+
+def should_random_trigger(frequency, rng=random.random):
+    if frequency <= 1:
+        return True
+    return _chance(frequency, rng)
+
+
+def is_word_replace_eligible(author, *, is_echo, channel_name, bot_username):
+    # Random echo only targets normal viewers — never the bot's own messages
+    # (echo / timed messages / alerts) or the streamer.
+    if is_echo:
+        return False
+    name = (author or "").strip().lower()
+    if not name:
+        return False
+    if name == (channel_name or "").strip().lower():
+        return False
+    skip = {(bot_username or "").strip().lower(), "botofthespecter"}
+    if name in skip:
+        return False
+    return True
+
+
+class _WordReplaceItem:
+    def __init__(self, parent, chars, rng):
+        self.chars = chars
+        self._parent = parent
+        self._rng = rng
+        self.word = bool(WORD_PATTERN.match(chars)) and chars.lower() not in parent.ignore_words
+        self.all_caps = self.word and bool(ALL_CAPS_PATTERN.match(chars))
+        last_char = chars[-1] if chars else ""
+        self.plural_char = (
+            last_char
+            if self.word and not parent.plural_word and PLURAL_PATTERN.search(last_char)
+            else None
+        )
+        self._syllables = _syllablize(chars) if self.word else []
+        self._current = chars if self.word else None
+        self._did_replace = False
+        if self.word:
+            self.transform()
+
+    @property
+    def syllables(self):
+        return len(self._syllables) if self.word else 0
+
+    @property
+    def did_replace(self):
+        return self._did_replace
+
+    @property
+    def length(self):
+        if self.word and self._current is not None:
+            return len(self._current)
+        return len(self.chars)
+
+    def transform(self):
+        if not self.word:
+            return self.chars
+        self._did_replace = False
+        result = ""
+        syllables = self._syllables
+        for i, syllable in enumerate(syllables):
+            if _chance(self._parent.rate, self._rng):
+                word = self._parent.word
+                self._did_replace = True
+                if self.plural_char and i == len(syllables) - 1:
+                    word += self.plural_char
+                if self.all_caps:
+                    result += word.upper()
+                else:
+                    for j, ch in enumerate(word):
+                        src = syllable[j] if j < len(syllable) else syllable[-1] if syllable else "a"
+                        result += ch.upper() if CAPS_PATTERN.match(src) else ch
+            else:
+                result += syllable
+        self._current = result
+        return result
+
+    def __str__(self):
+        return self._current if self.word and self._current is not None else self.chars
+
+
+class _WordReplaceContent:
+    def __init__(self, original, word, rate, ignore_words, rng):
+        self.original = original
+        self.word = word
+        self.rate = max(2, rate)
+        self.ignore_words = {w.lower() for w in ignore_words}
+        self.plural_word = bool(word) and bool(PLURAL_PATTERN.search(word[-1]))
+        self._rng = rng
+        parts = [p for p in NON_WORD_PATTERN.split(original) if p]
+        self.items = [_WordReplaceItem(self, part, rng) for part in parts]
+
+    @property
+    def syllables(self):
+        return sum(item.syllables for item in self.items)
+
+    @property
+    def did_replace(self):
+        return any(item.did_replace for item in self.items)
+
+    @property
+    def length(self):
+        return sum(item.length for item in self.items)
+
+    def transform(self):
+        return "".join(item.transform() for item in self.items)
+
+    def __str__(self):
+        return "".join(str(item) for item in self.items)
+
+    def is_valid(self, max_length):
+        if not self.did_replace:
+            return False
+        if self.length > max_length:
+            return False
+        return True
+
+    def is_sole_meme_word(self):
+        text = re.sub(r"[^\w]", "", str(self))
+        if text.lower().endswith("s") or text.lower().endswith("z"):
+            text = text[:-1]
+        return text.lower() == self.word.lower()
+
+
+def word_replace_transform(content, word="fun", rate=10, ignore_words=None, max_length=500, rng=None):
+    if not word_replace_is_transformable(content):
+        return None
+    word = (word or "fun").strip().lower()
+    if not word or re.search(r"\s", word):
+        return None
+    rate = max(2, int(rate))
+    ignore = ignore_words or []
+    roll = rng or random.random
+    wr_content = _WordReplaceContent(content, word, rate, ignore, roll)
+    if wr_content.syllables < 2:
+        return None
+    max_attempts = _attempts(rate, wr_content.syllables) if rate > 1 else 1
+    for _ in range(max_attempts):
+        output = wr_content.transform()
+        if (
+            wr_content.is_valid(max_length)
+            and _normalize_compare(output) != _normalize_compare(content)
+            and not wr_content.is_sole_meme_word()
+        ):
+            return output
+    return None
+
+
+async def load_word_replace_settings(force=False):
+    global _word_replace_cache, _word_replace_cache_time
+    now = time.monotonic()
+    if not force and _word_replace_cache is not None and (now - _word_replace_cache_time) < WORD_REPLACE_CACHE_TTL:
+        return _word_replace_cache
+    settings = {
+        "enabled": False,
+        "word": "fun",
+        "frequency": 30,
+        "rate": 10,
+        "cooldown": 30,
+        "ignored_users": set(),
+        "ignored_words": [],
+    }
+    try:
+        async with await mysql_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                try:
+                    await cursor.execute(
+                        "SELECT word_replace_enabled, word_replace_word, word_replace_frequency, "
+                        "word_replace_rate, word_replace_cooldown FROM protection LIMIT 1"
+                    )
+                    row = await cursor.fetchone()
+                except MySQLOtherErrors:
+                    row = None
+                if row:
+                    settings["enabled"] = row.get("word_replace_enabled") == "True"
+                    settings["word"] = (row.get("word_replace_word") or "fun").strip().lower() or "fun"
+                    settings["frequency"] = max(5, min(200, int(row.get("word_replace_frequency") or 30)))
+                    settings["rate"] = max(2, min(50, int(row.get("word_replace_rate") or 10)))
+                    settings["cooldown"] = max(10, min(300, int(row.get("word_replace_cooldown") or 30)))
+                try:
+                    await cursor.execute("SELECT username FROM word_replace_ignored_users")
+                    users = await cursor.fetchall()
+                    settings["ignored_users"] = {
+                        (u.get("username") or "").strip().lower()
+                        for u in (users or [])
+                        if u.get("username")
+                    }
+                except MySQLOtherErrors:
+                    settings["ignored_users"] = set()
+                try:
+                    await cursor.execute("SELECT word FROM word_replace_ignored_words")
+                    words = await cursor.fetchall()
+                    settings["ignored_words"] = [
+                        (w.get("word") or "").strip().lower()
+                        for w in (words or [])
+                        if w.get("word")
+                    ]
+                except MySQLOtherErrors:
+                    settings["ignored_words"] = []
+    except Exception as err:
+        chat_logger.warning(f"[WORD_REPLACE] Failed to load settings: {err}")
+    _word_replace_cache = settings
+    _word_replace_cache_time = now
+    return settings
+
+
+def patch_word_replace_ignored_user(username, ignored):
+    global _word_replace_cache
+    name = (username or "").strip().lower()
+    if not name:
+        return
+    if _word_replace_cache is None:
+        _word_replace_cache = {"ignored_users": set()}
+    users = _word_replace_cache.setdefault("ignored_users", set())
+    if ignored:
+        users.add(name)
+    else:
+        users.discard(name)
+
+
+async def word_replace_user_opt_out(username, opt_out, source="chat"):
+    name = (username or "").strip().lower()
+    if not name:
+        return False
+    changed = False
+    try:
+        async with await mysql_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                if opt_out:
+                    await cursor.execute(
+                        "INSERT IGNORE INTO word_replace_ignored_users (username, source) VALUES (%s, %s)",
+                        (name, source),
+                    )
+                    changed = cursor.rowcount > 0
+                else:
+                    await cursor.execute(
+                        "DELETE FROM word_replace_ignored_users WHERE username = %s",
+                        (name,),
+                    )
+                    changed = cursor.rowcount > 0
+                await connection.commit()
+    except Exception as err:
+        chat_logger.error(f"[WORD_REPLACE] opt-out DB error for {name}: {err}")
+        return False
+    if changed:
+        patch_word_replace_ignored_user(name, opt_out)
+    return changed
+
+
+def word_replace_cooldown_ready(settings):
+    cooldown = max(10, int(settings.get("cooldown") or 30))
+    return (time.monotonic() - _last_word_replace_echo) >= cooldown
+
+
+def word_replace_mark_echo():
+    global _last_word_replace_echo
+    _last_word_replace_echo = time.monotonic()
+
+
+async def word_replace_send_echo(content, settings):
+    transformed = word_replace_transform(
+        content,
+        word=settings.get("word") or "fun",
+        rate=int(settings.get("rate") or 10),
+        ignore_words=settings.get("ignored_words") or [],
+        max_length=MAX_CHAT_MESSAGE_LENGTH,
+    )
+    if not transformed:
+        return False
+    await send_chat_message(transformed[:MAX_CHAT_MESSAGE_LENGTH])
+    word_replace_mark_echo()
+    return True
+
+
+async def word_replace_maybe_echo(author, content, is_echo=False):
+    if not is_word_replace_eligible(
+        author, is_echo=is_echo, channel_name=CHANNEL_NAME, bot_username=BOT_USERNAME
+    ):
+        return
+    settings = await load_word_replace_settings()
+    if not settings.get("enabled"):
+        return
+    author_key = (author or "").strip().lower()
+    if author_key in settings.get("ignored_users", set()):
+        return
+    if not word_replace_is_transformable(content):
+        return
+    if not should_random_trigger(int(settings.get("frequency") or 30)):
+        return
+    if not word_replace_cooldown_ready(settings):
+        return
+    if await word_replace_send_echo(content, settings):
+        chat_logger.info(f"[WORD_REPLACE] Echoed for {author}: {content[:80]}")
+
+
 # Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the
 # per-channel exclusion lists for watch-time, points, and welcome/shoutout.
 KNOWN_BOTS_CACHE_TTL = 300  # seconds
