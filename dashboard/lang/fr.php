@@ -3563,6 +3563,7 @@ return [
     'modules_tab_joke_blacklist' => 'Liste noire de blagues',
     'modules_tab_welcome_messages' => 'Messages de bienvenue',
     'modules_tab_chat_protection' => 'Protection du chat',
+    'modules_tab_word_replacer' => 'Remplacement de mots',
     'modules_tab_ad_notices' => 'Notifications de pub',
     'modules_tab_twitch_event_alerts' => 'Alertes d\'événements Twitch',
     'modules_tab_twitch_chat_alerts' => 'Alertes de chat Twitch',
