@@ -102,6 +102,7 @@ function getMenuItems($role = 'default') {
         [ 'label' => t('menu_admin_known_bots'), 'icon' => 'fas fa-robot', 'href' => 'known_bots.php' ],
         [ 'divider' => true ],
         [ 'label' => t('menu_admin_caddy'), 'icon' => 'fas fa-server', 'href' => 'caddy.php' ],
+        [ 'label' => t('menu_admin_cdn_files'), 'icon' => 'fas fa-folder-open', 'href' => 'cdn_files.php' ],
         [ 'label' => t('menu_admin_web_terminal'), 'icon' => 'fas fa-terminal', 'href' => 'terminal.php' ],
     ];
     // todolist menu

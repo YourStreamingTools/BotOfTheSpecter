@@ -402,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
         <h1 class="sp-card-title"><i class="fas fa-users-cog" style="margin-right:0.5rem;"></i><?php echo t('admin_user_management_title'); ?></h1>
         <div class="search-wrapper" style="max-width:320px;">
             <span class="search-icon"><i class="fas fa-search"></i></span>
-            <input class="search-input" type="text" placeholder="<?php echo htmlspecialchars(t('admin_users_search_placeholder')); ?>" id="user-search" autocomplete="off">
+            <input class="search-input" type="text" placeholder="<?php echo htmlspecialchars(t('admin_users_search_placeholder')); ?>" id="user-search" autocomplete="off"<?php if (isset($_GET['search'])) { echo ' value="' . htmlspecialchars(trim((string) $_GET['search']), ENT_QUOTES) . '"'; } ?>>
             <button type="button" class="search-clear" id="user-search-clear" style="display:none;" onclick="document.getElementById('user-search').value='';this.style.display='none';filterUsers();"><i class="fas fa-times"></i></button>
         </div>
     </div>
@@ -1198,6 +1198,15 @@ document.getElementById('user-search').addEventListener('input', function() {
     if (clearBtn) clearBtn.style.display = this.value ? '' : 'none';
     filterUsers();
 });
+// If the search box was pre-filled from ?search= query param, run the filter and show the clear button.
+(function () {
+    const searchEl  = document.getElementById('user-search');
+    const clearBtn  = document.getElementById('user-search-clear');
+    if (searchEl && searchEl.value) {
+        if (clearBtn) clearBtn.style.display = '';
+        filterUsers();
+    }
+}());
 function markDeceased(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;

@@ -4668,3 +4668,119 @@ label.checkbox input[type="checkbox"] {
 @media (max-width: 640px) {
     .av-control-row { flex-direction: column; }
 }
+
+/* ---- CDN File Manager (admin/cdn_files.php) ---- */
+.cdnfm-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.cdnfm-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+.cdnfm-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+.cdnfm-label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+.cdnfm-store-select {
+    min-width: 150px;
+}
+.cdnfm-breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 120px;
+}
+.cdnfm-bc-item {
+    color: var(--accent-hover);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+.cdnfm-bc-item:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+.cdnfm-bc-current {
+    color: var(--text-primary);
+    font-weight: 600;
+    padding: 0.1rem 0.3rem;
+}
+.cdnfm-bc-sep {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    flex-shrink: 0;
+}
+.cdnfm-status {
+    padding: 0.4rem 0 0.6rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+.cdnfm-row-actions {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    white-space: nowrap;
+}
+.cdnfm-folder-link:hover {
+    text-decoration: underline;
+    color: var(--accent-hover);
+}
+.cdnfm-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    vertical-align: middle;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.cdnfm-folder-display-name {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-left: 0.2rem;
+}
+.cdnfm-orphan-badge {
+    font-size: 0.78rem;
+    vertical-align: middle;
+    margin-left: 0.25rem;
+}
+.cdnfm-view-user-link {
+    vertical-align: middle;
+    margin-left: 0.25rem;
+    font-size: 0.78rem;
+    padding: 0.1rem 0.35rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+.cdnfm-view-user-link:hover {
+    color: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+@media (max-width: 640px) {
+    .cdnfm-toolbar { flex-direction: column; align-items: flex-start; }
+    .cdnfm-toolbar-actions { margin-left: 0; }
+}
