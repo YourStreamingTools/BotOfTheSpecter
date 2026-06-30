@@ -478,6 +478,9 @@ ob_start();
     <li data-tab="chat-protection">
         <a><i class="fas fa-shield-alt"></i><span><?php echo t('modules_tab_chat_protection'); ?></span></a>
     </li>
+    <li data-tab="word-replacer">
+        <a><i class="fas fa-random"></i><span><?= t('modules_tab_word_replacer') ?></span></a>
+    </li>
     <li data-tab="game-deaths">
         <a><i class="fas fa-skull-crossbones"></i><span><?= t('modules_tab_game_deaths') ?></span></a>
     </li>
@@ -1071,8 +1074,10 @@ ob_start();
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <div class="tab-content" id="word-replacer">
                         <!-- Word Replacer Section (Beta) -->
-                        <div class="module-container" style="margin-top:2rem;">
+                        <div class="module-container">
                             <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
                                 <i class="fas fa-random" style="color:var(--accent);"></i>
                                 <?= t('modules_word_replace_title') ?>

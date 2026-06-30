@@ -681,7 +681,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->close();
     }
     elseif (isset($_POST['word_replace_enabled'])) {
-        $activeTab = "chat-protection";
+        $activeTab = "word-replacer";
         $word_replace_enabled = $_POST['word_replace_enabled'] == 'True' ? 'True' : 'False';
         $word_replace_word = strtolower(trim((string)($_POST['word_replace_word'] ?? 'fun')));
         $word_replace_frequency = max(5, min(200, (int)($_POST['word_replace_frequency'] ?? 30)));
@@ -712,7 +712,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     elseif (isset($_POST['word_replace_ignored_word'])) {
-        $activeTab = "chat-protection";
+        $activeTab = "word-replacer";
         $ignored_word = strtolower(trim((string)$_POST['word_replace_ignored_word']));
         if ($ignored_word === '' || preg_match('/\s/', $ignored_word)) {
             $_SESSION['update_message'] = "Ignored word must be a single word with no spaces.";
@@ -729,7 +729,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     elseif (isset($_POST['remove_word_replace_ignored_word'])) {
-        $activeTab = "chat-protection";
+        $activeTab = "word-replacer";
         $remove_word = strtolower(trim((string)$_POST['remove_word_replace_ignored_word']));
         $stmt = $db->prepare("DELETE FROM word_replace_ignored_words WHERE word = ?");
         $stmt->bind_param("s", $remove_word);
@@ -742,7 +742,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->close();
     }
     elseif (isset($_POST['word_replace_ignored_user'])) {
-        $activeTab = "chat-protection";
+        $activeTab = "word-replacer";
         $ignored_user = strtolower(trim((string)$_POST['word_replace_ignored_user']));
         $ignored_user = ltrim($ignored_user, '@');
         if ($ignored_user === '') {
@@ -762,7 +762,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     elseif (isset($_POST['remove_word_replace_ignored_user'])) {
-        $activeTab = "chat-protection";
+        $activeTab = "word-replacer";
         $remove_user = strtolower(trim((string)$_POST['remove_word_replace_ignored_user']));
         $stmt = $db->prepare("DELETE FROM word_replace_ignored_users WHERE username = ?");
         $stmt->bind_param("s", $remove_user);
