@@ -125,7 +125,7 @@
 			"syntax": "!todolist"
 		},
 		"task": {
-			"description": "Sets your current task on the Working & Study overlay. One active task per viewer; if you already have one, the new task is queued to the end of your backlog.",
+			"description": "Sets your current task on the Working & Study overlay. One active task per viewer; the new task becomes the one you're working on now, and any task you already had is moved to the front of your backlog. Use !later or !soon to queue a task without switching.",
 			"syntax": "!task Finish the chapter notes"
 		},
 		"done": {

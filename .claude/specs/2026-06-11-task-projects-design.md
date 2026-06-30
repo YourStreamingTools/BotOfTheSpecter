@@ -44,7 +44,7 @@ Tasks keep their `project` **name string** — no FK migration, no rewrite of th
 | `!project delete <name>` | Tasks are **never deleted** — they fall back to the default project, invariant-safe (see below). Registry row removed; any active pointers at the name → NULL. |
 | `!projects` | Lists from the registry with open-task counts and an active marker, e.g. `Alpha (2 open, active), Beta (0 open)`. |
 
-**Move target placement rule** (mirrors `!task` creation): if the target project has no active task, the moved task becomes its active task; otherwise it is appended to the end of the target's backlog as `pending`.
+**Move target placement rule:** if the target project has no active task, the moved task becomes its active task; otherwise it is appended to the end of the target's backlog as `pending`. (Note: this is deliberately gentler than `!task` itself — moving a task never bumps the target project's active task aside, whereas a fresh `!task` switches the viewer's active task and demotes the old one to backlog #1.)
 
 **Delete invariant safety:** the deleted project's active task becomes the default project's active task only if the default has none, else it is appended to the default backlog; pending items append to the end of the default backlog in order; completed/rejected rows just get `project = NULL`.
 

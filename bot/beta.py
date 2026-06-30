@@ -7921,55 +7921,47 @@ class TwitchBot(commands.Bot):
                     title = title[:255]
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    queued_position = None
                     project = await resolve_active_project(cursor, user_id)
+                    reward_points = await task_default_reward(cursor)
+                    # A new !task is always the thing you're working on NOW. If you already have an
+                    # active task it's demoted to the front of the backlog (#1) so !done next picks it
+                    # straight back up — use !later / !soon to queue a task without switching off this one.
                     await cursor.execute(
                         "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
-                    existing = await cursor.fetchone()
-                    # Pull the streamer's default reward so the dashboard award path stays consistent.
-                    await cursor.execute("SELECT default_reward_points FROM task_settings LIMIT 1")
-                    settings_row = await cursor.fetchone()
-                    reward_points = int(settings_row.get('default_reward_points') or 0) if settings_row else 0
-                    if existing:
-                        # Append to the end of the backlog.
+                    demoted = await cursor.fetchone()
+                    if demoted:
+                        # Bump the existing backlog down and drop the old active task in at position 1.
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
                             (user_id, project)
                         )
-                        max_row = await cursor.fetchone()
-                        queued_position = int(max_row.get('max_pos') or 0) + 1
                         await cursor.execute(
-                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
-                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, %s, %s)",
-                            (user_id, user_name, title, reward_points, queued_position, project)
+                            "UPDATE user_tasks SET status = 'pending', backlog_position = 1 WHERE id = %s",
+                            (demoted.get('id'),)
                         )
-                        new_id = cursor.lastrowid
-                        new_status = 'pending'
-                    else:
-                        await cursor.execute(
-                            "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
-                            "VALUES (%s, %s, %s, 'active', 'auto', %s, NULL, %s)",
-                            (user_id, user_name, title, reward_points, project)
-                        )
-                        new_id = cursor.lastrowid
-                        new_status = 'active'
-                    if queued_position is not None:
-                        await send_chat_message(f"@{user_name} you have an active task, so \"{title}\" was queued at #{queued_position}.")
+                    await cursor.execute(
+                        "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
+                        "VALUES (%s, %s, %s, 'active', 'auto', %s, NULL, %s)",
+                        (user_id, user_name, title, reward_points, project)
+                    )
+                    new_id = cursor.lastrowid
+                    if demoted:
+                        emit_task_update({
+                            "id": demoted.get('id'), "user_id": user_id, "user_name": user_name,
+                            "title": demoted.get('title'), "status": "pending", "project": project, "owner": "user"
+                        })
+                        await send_chat_message(f"@{user_name} now working on \"{title}\". Your previous task \"{demoted.get('title')}\" moved to your backlog at #1.")
                     else:
                         await send_chat_message(f"@{user_name} task set: \"{title}\". Use !done when finished.")
                     add_usage('task', bucket_key, cooldown_bucket)
-                    safe_create_task(websocket_notice(event="TASK_CREATE", additional_data={
-                        "channel_code": API_TOKEN,
-                        "owner": "user",
-                        "task": {
-                            "id": new_id, "user_id": user_id, "user_name": user_name,
-                            "title": title, "status": new_status, "approval_status": "auto",
-                            "reward_points": reward_points, "backlog_position": queued_position,
-                            "project": project, "owner": "user"
-                        }
-                    }))
+                    emit_task_create({
+                        "id": new_id, "user_id": user_id, "user_name": user_name,
+                        "title": title, "status": "active", "approval_status": "auto",
+                        "reward_points": reward_points, "backlog_position": None,
+                        "project": project, "owner": "user"
+                    })
         except Exception as e:
             chat_logger.error(f"[TASK] Error in task_command: {e}")
             await send_chat_message("An error occurred while setting your task.")
