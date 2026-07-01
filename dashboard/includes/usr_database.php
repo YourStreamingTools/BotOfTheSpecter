@@ -574,7 +574,8 @@ try {
                 new_default_vip_welcome_message TEXT,
                 default_mod_welcome_message TEXT,
                 new_default_mod_welcome_message TEXT,
-                music_source VARCHAR(20) DEFAULT 'system'
+                music_source VARCHAR(20) DEFAULT 'system',
+                music_playlist_filter TEXT DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'stream_lotto' => "
             CREATE TABLE IF NOT EXISTS stream_lotto (

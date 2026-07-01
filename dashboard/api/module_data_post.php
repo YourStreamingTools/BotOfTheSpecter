@@ -461,6 +461,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Database connection failed']);
                 exit();
             }
+            $music_source = null;
+            $music_playlist_filter = null;
             if (isset($_POST['music_source'])) {
                 $music_source = in_array($_POST['music_source'], ['system', 'user', 'both']) ? $_POST['music_source'] : 'system';
                 $update_stmt = $db_local->prepare("UPDATE streamer_preferences SET music_source = ? WHERE id = 1");
@@ -468,8 +470,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $update_stmt->execute();
                 $update_stmt->close();
             }
+            if (isset($_POST['music_playlist_filter'])) {
+                $decoded = json_decode($_POST['music_playlist_filter'], true);
+                $filter = is_array($decoded) ? array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== '')) : [];
+                $filter_json = json_encode($filter);
+                $update_stmt = $db_local->prepare("UPDATE streamer_preferences SET music_playlist_filter = ? WHERE id = 1");
+                $update_stmt->bind_param('s', $filter_json);
+                $update_stmt->execute();
+                $update_stmt->close();
+                $music_playlist_filter = $filter;
+            }
             $db_local->close();
-            echo json_encode(['success' => true, 'section' => $section, 'music_source' => $music_source ?? 'system']);
+            echo json_encode([
+                'success' => true,
+                'section' => $section,
+                'music_source' => $music_source ?? 'system',
+                'music_playlist_filter' => $music_playlist_filter,
+            ]);
             exit();
         }
         // Update or insert each field

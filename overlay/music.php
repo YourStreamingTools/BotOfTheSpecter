@@ -22,14 +22,23 @@ if ($stmt) {
 }
 
 $music_source = 'system';
+$music_playlist_filter = [];
 if ($username) {
     $user_db = new mysqli($db_servername, $db_username, $db_password, $username);
     if (!$user_db->connect_error) {
-        $prefRes = $user_db->query("SELECT music_source FROM streamer_preferences WHERE id = 1");
-        if ($prefRes && ($row = $prefRes->fetch_assoc()) && isset($row['music_source'])) {
-            $ms = $row['music_source'];
-            if (in_array($ms, ['system', 'user', 'both'], true)) {
-                $music_source = $ms;
+        $prefRes = $user_db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
+        if ($prefRes && ($row = $prefRes->fetch_assoc())) {
+            if (isset($row['music_source'])) {
+                $ms = $row['music_source'];
+                if (in_array($ms, ['system', 'user', 'both'], true)) {
+                    $music_source = $ms;
+                }
+            }
+            if (!empty($row['music_playlist_filter'])) {
+                $decoded = json_decode($row['music_playlist_filter'], true);
+                if (is_array($decoded)) {
+                    $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
+                }
             }
         }
         $user_db->close();
@@ -86,6 +95,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         let currentSongData = null; // Store song data for replay
         let volume = 10;
         let musicSource = <?php echo json_encode($music_source); ?>; // 'system', 'user', or 'both'
+        let excludedTracks = new Set(<?php echo json_encode(array_values($music_playlist_filter)); ?>);
         // systemPlaylist: tracks served from CDN
         let systemPlaylist = <?php
             echo json_encode(array_map(function($f) {
@@ -252,16 +262,31 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 playSongByIndex(currentIndex);
             }
         }
+        function trackFilterKey(song, isUser) {
+            return isUser ? ('USER:' + song.file) : song.file;
+        }
+        function isSongEnabled(song, isUser) {
+            return !excludedTracks.has(trackFilterKey(song, isUser));
+        }
+        function filterPlaylistByCheckboxes(list, isUser) {
+            return list.filter(song => isSongEnabled(song, isUser));
+        }
         function updateActivePlaylist() {
             if (musicSource === 'both') {
-                playlist = [...userPlaylist, ...systemPlaylist];
-                console.log('[Overlay] using combined playlist', playlist.length, 'tracks (', userPlaylist.length, 'uploads +', systemPlaylist.length, 'built-in)');
+                playlist = [
+                    ...filterPlaylistByCheckboxes(userPlaylist, true),
+                    ...filterPlaylistByCheckboxes(systemPlaylist, false),
+                ];
+                console.log('[Overlay] using combined playlist', playlist.length, 'active tracks');
             } else if (musicSource === 'user' && userPlaylist && userPlaylist.length > 0) {
-                playlist = userPlaylist;
-                console.log('[Overlay] using user playlist', userPlaylist.length, 'tracks');
+                playlist = filterPlaylistByCheckboxes(userPlaylist, true);
+                console.log('[Overlay] using user playlist', playlist.length, 'active tracks');
             } else {
-                playlist = systemPlaylist;
-                console.log('[Overlay] using system playlist', systemPlaylist.length, 'tracks');
+                playlist = filterPlaylistByCheckboxes(systemPlaylist, false);
+                console.log('[Overlay] using system playlist', playlist.length, 'active tracks');
+            }
+            if (playlist.length > 0 && currentIndex >= playlist.length) {
+                currentIndex = 0;
             }
         }
         function autoStartFirstSong() {
@@ -348,8 +373,12 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 if (typeof settings.music_source !== 'undefined') {
                     musicSource = settings.music_source || 'system';
                     console.log('[Overlay] music_source set to', musicSource);
-                    updateActivePlaylist();
                 }
+                if (Array.isArray(settings.playlist_filter)) {
+                    excludedTracks = new Set(settings.playlist_filter);
+                    console.log('[Overlay] playlist_filter updated', excludedTracks.size, 'excluded');
+                }
+                updateActivePlaylist();
             });
             socket.on('NOW_PLAYING', (data) => {
                 if (data?.song?.url) {
