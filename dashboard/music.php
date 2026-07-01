@@ -26,17 +26,25 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Read persisted music source preference (defaults to 'system')
+// Read persisted music preferences (defaults to 'system' source, all tracks enabled)
 $music_source = 'system';
+$music_playlist_filter = [];
 try {
-    $prefRes = $db->query("SELECT music_source FROM streamer_preferences WHERE id = 1");
-    if ($prefRes && ($row = $prefRes->fetch_assoc()) && isset($row['music_source'])) {
-        $music_source = $row['music_source'];
-        // enforce allowed values
-        if (!in_array($music_source, ['system', 'user', 'both'])) $music_source = 'system';
+    $prefRes = $db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
+    if ($prefRes && ($row = $prefRes->fetch_assoc())) {
+        if (isset($row['music_source'])) {
+            $music_source = $row['music_source'];
+            if (!in_array($music_source, ['system', 'user', 'both'])) $music_source = 'system';
+        }
+        if (!empty($row['music_playlist_filter'])) {
+            $decoded = json_decode($row['music_playlist_filter'], true);
+            if (is_array($decoded)) {
+                $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
+            }
+        }
     }
 } catch (Exception $e) {
-    // keep default if column missing or query fails
+    // keep defaults if column missing or query fails
 }
 
 // Fetch the files from the local music directory with metadata
@@ -202,13 +210,18 @@ $playlistForJs = [];
 foreach ($userMusicFiles as $f) { $playlistForJs[] = 'USER:' . $f['filename']; }
 foreach ($musicFiles as $f) { $playlistForJs[] = $f['filename']; }
 
-// Server-side visible counts & initial visibility (so page load matches DB preference)
-if ($music_source === 'user') {
-    $serverVisibleCount = count($userMusicFiles);
-} elseif ($music_source === 'both') {
-    $serverVisibleCount = count($userMusicFiles) + count($musicFiles);
-} else {
-    $serverVisibleCount = count($musicFiles);
+// Server-side active track count (source-visible and checkbox-enabled)
+$serverVisibleCount = 0;
+foreach ($userMusicFiles as $f) {
+    $key = 'USER:' . $f['filename'];
+    if (($music_source === 'user' || $music_source === 'both') && !in_array($key, $music_playlist_filter, true)) {
+        $serverVisibleCount++;
+    }
+}
+foreach ($musicFiles as $f) {
+    if (($music_source === 'system' || $music_source === 'both') && !in_array($f['filename'], $music_playlist_filter, true)) {
+        $serverVisibleCount++;
+    }
 }
 $visibleIndex = 0;
 
@@ -347,19 +360,34 @@ ob_start();
         <span id="playlistCountTag" class="sp-badge sp-badge-blue" data-label="<?php echo t('music_songs'); ?>"><?php echo $serverVisibleCount; ?> <?php echo t('music_songs'); ?></span>
     </header>
     <div class="sp-card-body">
-        <!-- Search -->
-        <div class="sp-form-group" style="margin-bottom:0.75rem;">
-            <div style="position:relative;">
-                <span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;">
-                    <i class="fas fa-search"></i>
-                </span>
-                <input id="searchInput" class="sp-input" type="text" placeholder="<?php echo t('music_search_playlist'); ?>" style="padding-left:2.25rem;">
+        <!-- Search + bulk filter -->
+        <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;margin-bottom:0.75rem;">
+            <div class="sp-form-group" style="flex:1;min-width:200px;margin-bottom:0;">
+                <div style="position:relative;">
+                    <span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input id="searchInput" class="sp-input" type="text" placeholder="<?php echo t('music_search_playlist'); ?>" style="padding-left:2.25rem;">
+                </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                <button id="playlistSelectAll" type="button" class="sp-btn sp-btn-ghost sp-btn-sm">
+                    <i class="fas fa-check-double"></i>
+                    <span><?php echo t('music_playlist_select_all'); ?></span>
+                </button>
+                <button id="playlistDeselectAll" type="button" class="sp-btn sp-btn-ghost sp-btn-sm">
+                    <i class="fas fa-ban"></i>
+                    <span><?php echo t('music_playlist_deselect_all'); ?></span>
+                </button>
             </div>
         </div>
         <div class="sp-table-wrap playlist-container">
             <table class="sp-table" id="playlistTable">
                 <thead>
                     <tr>
+                        <th style="width:2.5rem;text-align:center;" title="<?php echo htmlspecialchars(t('music_playlist_include')); ?>">
+                            <span class="icon is-small"><i class="fas fa-filter"></i></span>
+                        </th>
                         <th style="width:3rem;text-align:center;">#</th>
                         <th>
                             <span class="icon is-small mr-1"><i class="fas fa-music"></i></span>
@@ -372,14 +400,22 @@ ob_start();
                     <?php /* Render user uploads first (private to uploader) */ ?>
                     <?php foreach ($userMusicFiles as $uIndex => $fileData):
                         $index = $uIndex;
+                        $fileKey = 'USER:' . $fileData['filename'];
+                        $isEnabled = !in_array($fileKey, $music_playlist_filter, true);
                         $isVisible = ($music_source === 'user' || $music_source === 'both');
-                        if ($isVisible) { $visibleIndex++; }
-                        $displayNumber = $isVisible ? $visibleIndex : '';
-                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;'; ?>
+                        if ($isVisible && $isEnabled) { $visibleIndex++; }
+                        $displayNumber = ($isVisible && $isEnabled) ? $visibleIndex : '';
+                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;';
+                        $filteredClass = $isEnabled ? '' : ' is-filtered-out'; ?>
                         <tr data-index="<?php echo $index; ?>"
-                            data-file="<?php echo htmlspecialchars('USER:' . $fileData['filename']); ?>"
+                            data-file="<?php echo htmlspecialchars($fileKey); ?>"
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row user-upload" style="<?php echo $displayStyle; ?>">
+                            class="playlist-row user-upload<?php echo $filteredClass; ?>" style="<?php echo $displayStyle; ?>">
+                            <td style="text-align:center;">
+                                <label class="checkbox" style="display:inline-flex;margin:0;" title="<?php echo htmlspecialchars(t('music_playlist_include')); ?>">
+                                    <input type="checkbox" class="playlist-filter-cb" data-file="<?php echo htmlspecialchars($fileKey); ?>" <?php echo $isEnabled ? 'checked' : ''; ?>>
+                                </label>
+                            </td>
                             <td style="text-align:center;font-weight:600;color:var(--text-muted);">
                                 <span class="row-number"><?php echo $displayNumber; ?></span>
                                 <span class="now-playing-icon" style="display:none;">
@@ -402,14 +438,22 @@ ob_start();
                     <?php /* Now render global DMCA-free tracks */ ?>
                     <?php foreach ($musicFiles as $gIndex => $fileData):
                         $index = count($userMusicFiles) + $gIndex;
+                        $fileKey = $fileData['filename'];
+                        $isEnabled = !in_array($fileKey, $music_playlist_filter, true);
                         $isVisible = ($music_source === 'system' || $music_source === 'both');
-                        if ($isVisible) { $visibleIndex++; }
-                        $displayNumber = $isVisible ? $visibleIndex : '';
-                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;'; ?>
+                        if ($isVisible && $isEnabled) { $visibleIndex++; }
+                        $displayNumber = ($isVisible && $isEnabled) ? $visibleIndex : '';
+                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;';
+                        $filteredClass = $isEnabled ? '' : ' is-filtered-out'; ?>
                         <tr data-index="<?php echo $index; ?>"
-                            data-file="<?php echo htmlspecialchars($fileData['filename']); ?>"
+                            data-file="<?php echo htmlspecialchars($fileKey); ?>"
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row" style="<?php echo $displayStyle; ?>">
+                            class="playlist-row<?php echo $filteredClass; ?>" style="<?php echo $displayStyle; ?>">
+                            <td style="text-align:center;">
+                                <label class="checkbox" style="display:inline-flex;margin:0;" title="<?php echo htmlspecialchars(t('music_playlist_include')); ?>">
+                                    <input type="checkbox" class="playlist-filter-cb" data-file="<?php echo htmlspecialchars($fileKey); ?>" <?php echo $isEnabled ? 'checked' : ''; ?>>
+                                </label>
+                            </td>
                             <td style="text-align:center;font-weight:600;color:var(--text-muted);">
                                 <span class="row-number"><?php echo $displayNumber; ?></span>
                                 <span class="now-playing-icon" style="display:none;">
@@ -459,6 +503,8 @@ ob_start();
             currentIndex: -1,
             playlist: <?php echo json_encode($playlistForJs); ?>,
             currentSong: null,
+            musicSource: <?php echo json_encode($music_source); ?>,
+            excludedTracks: new Set(<?php echo json_encode(array_values($music_playlist_filter)); ?>),
         },
         // DOM elements cache
         elements: {},
@@ -489,18 +535,38 @@ ob_start();
             }
             return filename.replace('.mp3', '').replace(/_/g, ' ');
         },
-        getNextIndex(currentIndex, playlist, shuffle) {
+        getEnabledIndices() {
+            const source = MusicPlayer.state.musicSource || 'system';
+            return Array.from(document.querySelectorAll('.playlist-row:not(.placeholder)'))
+                .filter(row => {
+                    const file = row.getAttribute('data-file');
+                    if (!file || MusicPlayer.state.excludedTracks.has(file)) return false;
+                    return DOM.rowVisibleForSource(row, source);
+                })
+                .map(row => parseInt(row.getAttribute('data-index'), 10))
+                .filter(i => !isNaN(i));
+        },
+        getNextEnabledIndex(currentIndex, shuffle) {
+            const enabled = this.getEnabledIndices();
+            if (!enabled.length) return -1;
+            if (currentIndex < 0 || !enabled.includes(currentIndex)) return enabled[0];
             if (shuffle) {
+                if (enabled.length === 1) return enabled[0];
                 let next;
                 do {
-                    next = Math.floor(Math.random() * playlist.length);
-                } while (playlist.length > 1 && next === currentIndex);
+                    next = enabled[Math.floor(Math.random() * enabled.length)];
+                } while (enabled.length > 1 && next === currentIndex);
                 return next;
             }
-            return (currentIndex + 1) % playlist.length;
+            const pos = enabled.indexOf(currentIndex);
+            return enabled[(pos + 1) % enabled.length];
         },
-        getPrevIndex(currentIndex, playlist) {
-            return (currentIndex - 1 + playlist.length) % playlist.length;
+        getPrevEnabledIndex(currentIndex) {
+            const enabled = this.getEnabledIndices();
+            if (!enabled.length) return -1;
+            if (currentIndex < 0 || !enabled.includes(currentIndex)) return enabled[enabled.length - 1];
+            const pos = enabled.indexOf(currentIndex);
+            return enabled[(pos - 1 + enabled.length) % enabled.length];
         },
     };
     // ===== DOM FUNCTIONS =====
@@ -566,41 +632,56 @@ ob_start();
             }
             MusicPlayer.state.currentIndex = index;
         },
-        filterPlaylist(searchTerm) {
-            const term = searchTerm.toLowerCase().trim();
-            const rows = document.querySelectorAll('.playlist-row');
-            rows.forEach(row => {
-                const title = row.getAttribute('data-title');
-                if (title.includes(term)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+        rowVisibleForSource(row, source) {
+            if (row.classList.contains('placeholder')) return false;
+            const isUser = row.classList.contains('user-upload');
+            if (source === 'both') return true;
+            if (source === 'user') return isUser;
+            return !isUser;
+        },
+        isTrackEnabled(fileKey) {
+            return fileKey && !MusicPlayer.state.excludedTracks.has(fileKey);
+        },
+        syncPlaylistFilterStyles() {
+            document.querySelectorAll('.playlist-row:not(.placeholder)').forEach(row => {
+                const file = row.getAttribute('data-file');
+                const enabled = this.isTrackEnabled(file);
+                row.classList.toggle('is-filtered-out', !enabled);
+                const cb = row.querySelector('.playlist-filter-cb');
+                if (cb) cb.checked = enabled;
             });
         },
-        /* Show/hide playlist rows depending on selected music source and renumber visible rows. */
-        updatePlaylistForSource(source) {
-            const rows = Array.from(document.querySelectorAll('.playlist-row'));
+        shouldShowRow(row, source, searchTerm) {
+            if (row.classList.contains('placeholder')) return false;
+            if (!this.rowVisibleForSource(row, source)) return false;
+            if (searchTerm) {
+                const title = row.getAttribute('data-title');
+                if (!title || !title.includes(searchTerm)) return false;
+            }
+            return true;
+        },
+        refreshPlaylistDisplay() {
+            const source = MusicPlayer.state.musicSource || 'system';
+            const searchTerm = (MusicPlayer.elements.searchInput?.value || '').toLowerCase().trim();
+            const rows = Array.from(document.querySelectorAll('.playlist-row:not(.placeholder)'));
+            let activeCount = 0;
             let visibleCount = 0;
             rows.forEach(row => {
-                const isUser = row.classList.contains('user-upload');
-                let shouldShow = true;
-                if (source === 'both') {
-                    shouldShow = true;
-                } else if (source === 'user') {
-                    shouldShow = isUser;
-                } else {
-                    shouldShow = !isUser;
-                }
-                row.style.display = shouldShow ? '' : 'none';
-                if (shouldShow) {
-                    visibleCount++;
-                    // update visible numbering (do NOT change data-index)
+                const show = this.shouldShowRow(row, source, searchTerm);
+                row.style.display = show ? '' : 'none';
+                if (show) visibleCount++;
+                const file = row.getAttribute('data-file');
+                const enabled = this.isTrackEnabled(file);
+                row.classList.toggle('is-filtered-out', !enabled);
+                if (show && enabled) {
+                    activeCount++;
                     const numEl = row.querySelector('.row-number');
-                    if (numEl) numEl.textContent = visibleCount;
+                    if (numEl) numEl.textContent = activeCount;
+                } else {
+                    const numEl = row.querySelector('.row-number');
+                    if (numEl) numEl.textContent = '';
                 }
             });
-            // If nothing is visible, show a placeholder row
             const tbody = document.getElementById('playlistBody');
             const existingPlaceholder = document.querySelector('.playlist-row.placeholder');
             if (visibleCount === 0) {
@@ -608,16 +689,55 @@ ob_start();
                     const tr = document.createElement('tr');
                     tr.className = 'playlist-row placeholder';
                     tr.style.color = 'var(--text-muted)';
-                    tr.innerHTML = `<td colspan="3" style="padding:1.25rem; text-align:center;">${<?php echo json_encode(t('music_no_tracks_for_source')); ?>}</td>`;
+                    tr.innerHTML = `<td colspan="4" style="padding:1.25rem; text-align:center;">${<?php echo json_encode(t('music_no_tracks_for_source')); ?>}</td>`;
                     tbody.prepend(tr);
                 }
             } else if (existingPlaceholder) {
                 existingPlaceholder.remove();
             }
+            this.updatePlaylistCountTag(activeCount);
+        },
+        filterPlaylist(searchTerm) {
+            this.refreshPlaylistDisplay();
+        },
+        /* Show/hide playlist rows depending on selected music source and renumber active rows. */
+        updatePlaylistForSource(source) {
+            MusicPlayer.state.musicSource = source;
+            this.refreshPlaylistDisplay();
+        },
+        setAllPlaylistFilters(enabled, onlySourceVisible = true) {
+            const source = MusicPlayer.state.musicSource || 'system';
+            document.querySelectorAll('.playlist-row:not(.placeholder)').forEach(row => {
+                if (onlySourceVisible && !this.rowVisibleForSource(row, source)) return;
+                const file = row.getAttribute('data-file');
+                if (!file) return;
+                if (enabled) MusicPlayer.state.excludedTracks.delete(file);
+                else MusicPlayer.state.excludedTracks.add(file);
+            });
+            this.refreshPlaylistDisplay();
+            Events.persistPlaylistFilter();
+        },
+        setPlaylistFilter(fileKey, enabled) {
+            if (!fileKey) return;
+            if (enabled) MusicPlayer.state.excludedTracks.delete(fileKey);
+            else MusicPlayer.state.excludedTracks.add(fileKey);
+            this.refreshPlaylistDisplay();
+            Events.persistPlaylistFilter();
+        },
+        updatePlaylistCountTag(activeCount) {
+            const countTag = document.getElementById('playlistCountTag');
+            if (!countTag) return;
+            if (typeof activeCount !== 'number') {
+                const source = MusicPlayer.state.musicSource || 'system';
+                activeCount = Array.from(document.querySelectorAll('.playlist-row:not(.placeholder)'))
+                    .filter(row => row.style.display !== 'none' && this.rowVisibleForSource(row, source) && this.isTrackEnabled(row.getAttribute('data-file')))
+                    .length;
+            }
+            countTag.textContent = activeCount + ' ' + (countTag.getAttribute('data-label') || <?php echo json_encode(t('music_songs')); ?>);
         },
         rebuildPlaylistStateFromDOM() {
-            const rows = Array.from(document.querySelectorAll('.playlist-row'));
-            MusicPlayer.state.playlist = rows.map(r => r.getAttribute('data-file'));
+            const rows = Array.from(document.querySelectorAll('.playlist-row:not(.placeholder)'));
+            MusicPlayer.state.playlist = rows.map(r => r.getAttribute('data-file')).filter(Boolean);
         }
     };
     // ===== AUDIO PLAYER FUNCTIONS =====
@@ -666,9 +786,9 @@ ob_start();
         togglePlayPause() {
             const audio = MusicPlayer.elements.audioPlayer;
             if (audio.paused || !MusicPlayer.state.isPlaying) {
-                if (MusicPlayer.state.currentIndex === -1 && MusicPlayer.state.playlist.length > 0) {
-                    // No song playing, start with first song
-                    this.play(0);
+                if (MusicPlayer.state.currentIndex === -1) {
+                    const firstEnabled = Utils.getNextEnabledIndex(-1, false);
+                    if (firstEnabled >= 0) this.play(firstEnabled);
                 } else {
                     this.resume();
                 }
@@ -677,31 +797,26 @@ ob_start();
             }
         },
         next() {
-            const nextIndex = Utils.getNextIndex(
+            const nextIndex = Utils.getNextEnabledIndex(
                 MusicPlayer.state.currentIndex,
-                MusicPlayer.state.playlist,
                 MusicPlayer.state.shuffle
             );
-            this.play(nextIndex);
+            if (nextIndex >= 0) this.play(nextIndex);
         },
         previous() {
-            const prevIndex = Utils.getPrevIndex(
-                MusicPlayer.state.currentIndex,
-                MusicPlayer.state.playlist
-            );
-            this.play(prevIndex);
+            const prevIndex = Utils.getPrevEnabledIndex(MusicPlayer.state.currentIndex);
+            if (prevIndex >= 0) this.play(prevIndex);
         },
         handleEnded() {
             if (MusicPlayer.state.repeat) {
                 this.play(MusicPlayer.state.currentIndex);
             } else {
-                const nextIndex = Utils.getNextIndex(
+                const enabled = Utils.getEnabledIndices();
+                const nextIndex = Utils.getNextEnabledIndex(
                     MusicPlayer.state.currentIndex,
-                    MusicPlayer.state.playlist,
                     MusicPlayer.state.shuffle
                 );
-                // Check if we've reached the end of the playlist in non-shuffle mode
-                if (!MusicPlayer.state.shuffle && nextIndex === 0 && MusicPlayer.state.currentIndex === MusicPlayer.state.playlist.length - 1) {
+                if (nextIndex < 0 || (!MusicPlayer.state.shuffle && enabled.length > 0 && nextIndex === enabled[0] && MusicPlayer.state.currentIndex === enabled[enabled.length - 1])) {
                     MusicPlayer.state.isPlaying = false;
                     DOM.updatePlayPauseIcon(false);
                     DOM.highlightCurrentSong(-1);
@@ -725,6 +840,15 @@ ob_start();
                     code: '<?php echo $api_key; ?>',
                     channel: 'Dashboard',
                     name: 'Music Controller'
+                });
+                // Sync DB-persisted music source to websocket clients (overlays)
+                const source = (document.getElementById('music-source-select') || {}).value || MusicPlayer.state.musicSource || 'system';
+                MusicPlayer.socket.emit('MUSIC_SETTINGS', {
+                    music_source: source,
+                    repeat: MusicPlayer.state.repeat,
+                    shuffle: MusicPlayer.state.shuffle,
+                    volume: MusicPlayer.state.volume,
+                    playlist_filter: Array.from(MusicPlayer.state.excludedTracks),
                 });
                 // Set timeout for default volume
                 MusicPlayer.timeouts.settings = setTimeout(() => {
@@ -787,13 +911,8 @@ ob_start();
                 MusicPlayer.state.shuffle = !!settings.shuffle;
                 DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, MusicPlayer.state.shuffle);
             }
-            if (typeof settings.music_source !== 'undefined') {
-                const sel = document.getElementById('music-source-select');
-                if (sel) sel.value = settings.music_source;
-                if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
-                    DOM.updatePlaylistForSource(settings.music_source);
-                }
-            }
+            // music_source is persisted in the DB and rendered server-side; do not let
+            // stale websocket settings override the playlist on connect.
         },
         handleNowPlaying(data) {
             MusicPlayer.elements.refreshBtn.classList.remove('sp-btn-loading');
@@ -803,7 +922,10 @@ ob_start();
                 
                 // Try to find and highlight the song in playlist
                 const songFile = data.song.file || data.song;
-                const index = MusicPlayer.state.playlist.findIndex(f => f === songFile);
+                let index = MusicPlayer.state.playlist.findIndex(f => f === songFile);
+                if (index < 0 && songFile) {
+                    index = MusicPlayer.state.playlist.findIndex(f => f === 'USER:' + songFile);
+                }
                 if (index >= 0) {
                     DOM.highlightCurrentSong(index);
                 }
@@ -842,46 +964,70 @@ ob_start();
             }
             MusicPlayer.listenersInitialized = true;
         },
+        persistPlaylistFilter: Utils.debounce(() => {
+            const excluded = Array.from(MusicPlayer.state.excludedTracks);
+            const form = new FormData();
+            form.append('section_save', 'music');
+            form.append('music_playlist_filter', JSON.stringify(excluded));
+            fetch('/api/module_data_post.php', { method: 'POST', body: form }).catch(err => console.error(err));
+            if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                const source = (document.getElementById('music-source-select') || {}).value || MusicPlayer.state.musicSource || 'system';
+                MusicPlayer.socket.emit('MUSIC_SETTINGS', {
+                    music_source: source,
+                    repeat: MusicPlayer.state.repeat,
+                    shuffle: MusicPlayer.state.shuffle,
+                    volume: MusicPlayer.state.volume,
+                    playlist_filter: excluded,
+                });
+            }
+        }, 400),
         initPlaylistEvents() {
-            // Click on playlist rows
-            document.querySelectorAll('.playlist-row').forEach((row) => {
-                row.addEventListener('click', (e) => {
-                    // Don't trigger if clicking the play button
-                    if (e.target.closest('.play-song-btn')) return;
-                    
-                    const index = parseInt(row.getAttribute('data-index'));
-                    this.playSongAtIndex(index);
-                });
-            });
-            // Play buttons
-            document.querySelectorAll('.play-song-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+            const tbody = document.getElementById('playlistBody');
+            if (tbody && !tbody.dataset.eventsBound) {
+                tbody.dataset.eventsBound = '1';
+                tbody.addEventListener('change', (e) => {
+                    const cb = e.target.closest('.playlist-filter-cb');
+                    if (!cb) return;
                     e.stopPropagation();
-                    const index = parseInt(btn.getAttribute('data-index'));
-                    this.playSongAtIndex(index);
+                    DOM.setPlaylistFilter(cb.getAttribute('data-file'), cb.checked);
                 });
-            });
-            // Delete user-uploaded music (only visible to uploader)
-            document.querySelectorAll('.delete-user-music').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const file = btn.getAttribute('data-file');
-                    if (!confirm(<?php echo json_encode(t('music_confirm_delete_file')); ?>.replace('%s', file))) return;
-                    const form = new FormData();
-                    form.append('delete_user_music[]', file);
-                    try {
-                        const resp = await fetch(window.location.pathname, { method: 'POST', body: form });
-                        if (resp.ok) {
-                            location.reload();
-                        } else {
-                            alert(<?php echo json_encode(t('music_delete_file_failed')); ?>);
+                tbody.addEventListener('click', async (e) => {
+                    const delBtn = e.target.closest('.delete-user-music');
+                    if (delBtn) {
+                        e.stopPropagation();
+                        const file = delBtn.getAttribute('data-file');
+                        if (!confirm(<?php echo json_encode(t('music_confirm_delete_file')); ?>.replace('%s', file))) return;
+                        const form = new FormData();
+                        form.append('delete_user_music[]', file);
+                        try {
+                            const resp = await fetch(window.location.pathname, { method: 'POST', body: form });
+                            if (resp.ok) location.reload();
+                            else alert(<?php echo json_encode(t('music_delete_file_failed')); ?>);
+                        } catch (err) {
+                            console.error(err);
+                            alert(<?php echo json_encode(t('music_delete_failed')); ?>);
                         }
-                    } catch (err) {
-                        console.error(err);
-                        alert(<?php echo json_encode(t('music_delete_failed')); ?>);
+                        return;
                     }
+                    const playBtn = e.target.closest('.play-song-btn');
+                    if (playBtn) {
+                        e.stopPropagation();
+                        this.playSongAtIndex(parseInt(playBtn.getAttribute('data-index'), 10));
+                        return;
+                    }
+                    if (e.target.closest('.playlist-filter-cb') || e.target.closest('label.checkbox')) return;
+                    const row = e.target.closest('.playlist-row:not(.placeholder)');
+                    if (!row) return;
+                    this.playSongAtIndex(parseInt(row.getAttribute('data-index'), 10));
                 });
-            });
+            }
+            if (!MusicPlayer.filterControlsBound) {
+                MusicPlayer.filterControlsBound = true;
+                const selectAllBtn = document.getElementById('playlistSelectAll');
+                const deselectAllBtn = document.getElementById('playlistDeselectAll');
+                if (selectAllBtn) selectAllBtn.addEventListener('click', () => DOM.setAllPlaylistFilters(true));
+                if (deselectAllBtn) deselectAllBtn.addEventListener('click', () => DOM.setAllPlaylistFilters(false));
+            }
         },
         playSongAtIndex(index) {
             if (MusicPlayer.state.localPlayback) {
@@ -930,10 +1076,11 @@ ob_start();
                         const json = await resp.json();
                         if (json.success) {
                             // Persisted to DB OK - propagate live via websocket so overlays/controllers pick it up immediately
-                            WebSocket.sendCommand('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume });
+                            const playlistFilter = Array.from(MusicPlayer.state.excludedTracks);
+                            WebSocket.sendCommand('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume, playlist_filter: playlistFilter });
                             // Also emit explicit MUSIC_SETTINGS event so the websocket relayer forwards music_source right away
                             if (MusicPlayer.socket && MusicPlayer.socket.connected) {
-                                MusicPlayer.socket.emit('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume });
+                                MusicPlayer.socket.emit('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume, playlist_filter: playlistFilter });
                             }
                             const toast = document.createElement('div');
                             toast.className = 'sp-alert sp-alert-success';
@@ -991,7 +1138,8 @@ ob_start();
                 WebSocket.sendCommand('MUSIC_SETTINGS', {
                     repeat: MusicPlayer.state.repeat,
                     shuffle: MusicPlayer.state.shuffle,
-                    volume: MusicPlayer.state.volume
+                    volume: MusicPlayer.state.volume,
+                    playlist_filter: Array.from(MusicPlayer.state.excludedTracks),
                 });
             });
             // Shuffle
@@ -1001,7 +1149,8 @@ ob_start();
                 WebSocket.sendCommand('MUSIC_SETTINGS', {
                     repeat: MusicPlayer.state.repeat,
                     shuffle: MusicPlayer.state.shuffle,
-                    volume: MusicPlayer.state.volume
+                    volume: MusicPlayer.state.volume,
+                    playlist_filter: Array.from(MusicPlayer.state.excludedTracks),
                 });
             });
             // Refresh now playing
@@ -1129,6 +1278,7 @@ ob_start();
                                 Events.initPlaylistEvents();
                                 DOM.rebuildPlaylistStateFromDOM();
                                 const ms = (document.getElementById('music-source-select') || {}).value || 'system';
+                                DOM.syncPlaylistFilterStyles();
                                 DOM.updatePlaylistForSource(ms);
                             }
                             // show any server messages for uploads
@@ -1169,12 +1319,7 @@ ob_start();
         if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
             DOM.updatePlaylistForSource(initialSource);
         }
-        // Update the visible playlist count tag to match server-side initial value
-        const countTag = document.getElementById('playlistCountTag');
-        if (countTag) {
-            const visible = document.querySelectorAll('.playlist-row:not([style*="display:none"])').length;
-            countTag.textContent = visible + ' ' + (countTag.getAttribute('data-label') || <?php echo json_encode(t('music_songs')); ?>);
-        }
+
         // Initialize button states
         DOM.updateButtonState(MusicPlayer.elements.repeatBtn, false);
         DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, false);

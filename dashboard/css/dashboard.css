@@ -1422,6 +1422,14 @@ input[type="range"].modern-volume::-moz-range-thumb {
 }
 input[type="range"].modern-volume:hover::-moz-range-thumb { background: var(--accent-hover); transform: scale(1.1); }
 
+/* Music playlist per-track filter */
+.playlist-row.is-filtered-out {
+    opacity: 0.4;
+}
+.playlist-row.is-filtered-out:hover {
+    opacity: 0.55;
+}
+
 /* Progress bars */
 .progress {
     height: 0.75rem;
