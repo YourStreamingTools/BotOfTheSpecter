@@ -2,6 +2,17 @@
 // Start the session
 session_start();
 
+// CSRF token for state-changing form submissions
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
+// Safely embed a PHP value inside an inline <script> block
+function jsval($v) {
+    return json_encode($v, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+}
+
 // Database connection
 require '/var/www/specterbotapp/database.php';
 $redirectURI = 'https://specterbot.app/index.php';
@@ -22,7 +33,7 @@ function userDatabaseExists($username)
     return $count > 0;
 }
 
-if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+if (isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
     $authData = null;
     $cfg = require_once "/var/www/config/main.php";
     $apiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
@@ -59,12 +70,6 @@ if ($response && $http === 200) {
                 $authData = $res['payload'];
             }
         }
-    }
-    // Fallback to legacy base64 auth_data
-    if (!$authData && isset($_GET['auth_data'])) {
-        $authDataEncoded = $_GET['auth_data'];
-        $authDataJson = base64_decode($authDataEncoded);
-        $authData = json_decode($authDataJson, true);
     }
     if ($authData && isset($authData['success']) && $authData['success'] === true) {
         $accessToken = $authData['access_token'];
@@ -175,7 +180,7 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
             <p class="subtitle">
                 Welcome to the SpecterBot Custom API!<br>
                 This platform allows developers to integrate seamlessly with our service.<br>
-                Use your personalized subdomain at <code><?php echo $twitchUsername; ?>.specterbot.app</code> to
+                Use your personalized subdomain at <code><?php echo htmlspecialchars($twitchUsername, ENT_QUOTES); ?>.specterbot.app</code> to
                 interact with your custom endpoints.<br>
                 <?php if ($twitchUsername === 'guest_user'): ?>Please note that you need to sign in to verify your
                     database connection with SpecterBot.<?php endif; ?>
@@ -281,8 +286,10 @@ socket.on('disconnect', () => {
             <?php if (isset($_SESSION['access_token'])): ?>
             <?php
             $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
+            // Reject state-changing POSTs that don't carry a valid CSRF token
+            $csrfOk = ($_SERVER['REQUEST_METHOD'] !== 'POST') || (isset($_POST['csrf_token']) && hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token']));
             // Handle file save (create / edit)
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_file_name'], $_POST['save_file_content'])) {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && $csrfOk && isset($_POST['save_file_name'], $_POST['save_file_content'])) {
                 $rawName = trim($_POST['save_file_name']);
                 $rawName = preg_replace('/\.php$/i', '', $rawName);           // strip .php if typed
                 $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $rawName);  // whitelist chars
@@ -303,7 +310,7 @@ socket.on('disconnect', () => {
                 }
             }
             // Handle file deletion
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_file'])) {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && $csrfOk && isset($_POST['delete_file'])) {
                 $delFile = basename($_POST['delete_file']);
                 if ($delFile !== '' && $delFile !== 'index.php' && pathinfo($delFile, PATHINFO_EXTENSION) === 'php') {
                     $delPath = $userFolder . '/' . $delFile;
@@ -328,6 +335,7 @@ socket.on('disconnect', () => {
                             </button>
                             <p class="upload-hint">Only <code>.php</code> files are accepted. The filename becomes your overlay URL.</p>
                             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES); ?>">
                                 <label for="filesToUpload" class="drag-area" id="drag-area">
                                     <i class="fas fa-cloud-upload-alt"></i>
                                     <span>Drag &amp; Drop files here</span>
@@ -338,7 +346,7 @@ socket.on('disconnect', () => {
                                 <input type="submit" value="Upload Files" name="submit" class="button is-primary upload-submit">
                             </form>
                             <?php
-                            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
+                            if ($_SERVER['REQUEST_METHOD'] === 'POST' && $csrfOk && isset($_FILES['filesToUpload'])) {
                                 foreach ($_FILES['filesToUpload']['name'] as $key => $name) {
                                     if (!empty($name) && strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'php') {
                                         if (basename($name, '.php') === 'index') {
@@ -379,13 +387,13 @@ socket.on('disconnect', () => {
                                                 <tr>
                                                     <td>
                                                         <i class="fas fa-copy copy-link"
-                                                            data-link="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>"
+                                                            data-link="https://<?php echo htmlspecialchars($twitchUsername, ENT_QUOTES); ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>"
                                                             title="Copy link" style="cursor:pointer; color:var(--text-muted);"></i>
                                                     </td>
                                                     <td><?php echo htmlspecialchars(formatFileName($file)); ?></td>
                                                     <td>
-                                                        <a href="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>" target="_blank">
-                                                            https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>
+                                                        <a href="https://<?php echo htmlspecialchars($twitchUsername, ENT_QUOTES); ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>" target="_blank">
+                                                            https://<?php echo htmlspecialchars($twitchUsername, ENT_QUOTES); ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>
                                                         </a>
                                                     </td>
                                                     <td>
@@ -394,6 +402,7 @@ socket.on('disconnect', () => {
                                                                 data-filename="<?php echo htmlspecialchars(formatFileName($file)); ?>"
                                                                 data-filepath="<?php echo htmlspecialchars($file); ?>">Edit</button>
                                                             <form action="" method="POST" style="margin:0;">
+                                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES); ?>">
                                                                 <input type="hidden" name="delete_file" value="<?php echo htmlspecialchars($file); ?>">
                                                                 <button type="submit" class="button is-danger delete-single"
                                                                     data-filename="<?php echo htmlspecialchars(formatFileName($file)); ?>">Delete</button>
@@ -427,6 +436,7 @@ socket.on('disconnect', () => {
                         </header>
                         <section class="modal-card-body" style="padding:1rem 1.25rem;">
                             <form id="editor-form" action="" method="POST">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES); ?>">
                                 <div class="editor-filename-row">
                                     <label for="editor-filename" style="font-weight:600;color:var(--text-primary);">Filename</label>
                                     <div class="editor-filename-input-wrap">
@@ -576,15 +586,15 @@ socket.on('disconnect', () => {
         });
     </script>
     <script>
-        const userDatabaseStatus = "<?php echo $userDatabaseExists; ?>";
+        const userDatabaseStatus = <?php echo jsval($userDatabaseExists); ?>;
         if (userDatabaseStatus === "User database does not exist. Please use the bot to create your database first.") {
             alert("User database does not exist. Please use the bot to create your database first.");
         }
     </script>
     <script>console.log('Welcome to SpecterBot Custom API!');</script>
-    <script>console.log('Connection status: <?php echo $connection; ?>');</script>
-    <script>console.log('Your Twitch username is: <?php echo $twitchUsername; ?>');</script>
-    <script>console.log('User database status: <?php echo $userDatabaseExists; ?>');</script>
+    <script>console.log(<?php echo jsval('Connection status: ' . $connection); ?>);</script>
+    <script>console.log(<?php echo jsval('Your Twitch username is: ' . $twitchUsername); ?>);</script>
+    <script>console.log(<?php echo jsval('User database status: ' . $userDatabaseExists); ?>);</script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
     <script>
         // Light/dark theme toggle. The <head> bootstrap sets the initial theme.
