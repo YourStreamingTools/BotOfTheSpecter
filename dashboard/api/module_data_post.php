@@ -462,7 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 exit();
             }
             if (isset($_POST['music_source'])) {
-                $music_source = in_array($_POST['music_source'], ['system','user']) ? $_POST['music_source'] : 'system';
+                $music_source = in_array($_POST['music_source'], ['system', 'user', 'both']) ? $_POST['music_source'] : 'system';
                 $update_stmt = $db_local->prepare("UPDATE streamer_preferences SET music_source = ? WHERE id = 1");
                 $update_stmt->bind_param('s', $music_source);
                 $update_stmt->execute();

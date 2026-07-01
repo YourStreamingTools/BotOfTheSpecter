@@ -2529,6 +2529,7 @@ return [
     'music_music_source' => 'Musikquelle',
     'music_source_builtin' => 'Integriert (DMCA-frei)',
     'music_source_uploads' => 'Meine Uploads verwenden',
+    'music_source_both' => 'Beides (integriert + meine Uploads)',
     'music_upload_disclaimer' => 'Sie sind für alle von Ihnen hochgeladenen Dateien verantwortlich und müssen die gesetzlichen Rechte besitzen, sie zu verwenden und zu teilen. Wir prüfen oder garantieren keine Rechteklärung.',
     'music_preparing_upload' => 'Upload wird vorbereitet...',
     'music_your_upload' => 'Ihr Upload',

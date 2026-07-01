@@ -33,7 +33,7 @@ try {
     if ($prefRes && ($row = $prefRes->fetch_assoc()) && isset($row['music_source'])) {
         $music_source = $row['music_source'];
         // enforce allowed values
-        if (!in_array($music_source, ['system', 'user'])) $music_source = 'system';
+        if (!in_array($music_source, ['system', 'user', 'both'])) $music_source = 'system';
     }
 } catch (Exception $e) {
     // keep default if column missing or query fails
@@ -203,7 +203,13 @@ foreach ($userMusicFiles as $f) { $playlistForJs[] = 'USER:' . $f['filename']; }
 foreach ($musicFiles as $f) { $playlistForJs[] = $f['filename']; }
 
 // Server-side visible counts & initial visibility (so page load matches DB preference)
-$serverVisibleCount = ($music_source === 'user') ? count($userMusicFiles) : count($musicFiles);
+if ($music_source === 'user') {
+    $serverVisibleCount = count($userMusicFiles);
+} elseif ($music_source === 'both') {
+    $serverVisibleCount = count($userMusicFiles) + count($musicFiles);
+} else {
+    $serverVisibleCount = count($musicFiles);
+}
 $visibleIndex = 0;
 
 ob_start();
@@ -281,6 +287,7 @@ ob_start();
             <select id="music-source-select" class="sp-select" style="width:auto;">
                 <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>><?php echo t('music_source_builtin'); ?></option>
                 <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>><?php echo t('music_source_uploads'); ?></option>
+                <option value="both" <?php echo ($music_source === 'both') ? 'selected' : ''; ?>><?php echo t('music_source_both'); ?></option>
             </select>
         </div>
     </header>
@@ -365,7 +372,7 @@ ob_start();
                     <?php /* Render user uploads first (private to uploader) */ ?>
                     <?php foreach ($userMusicFiles as $uIndex => $fileData):
                         $index = $uIndex;
-                        $isVisible = ($music_source === 'user');
+                        $isVisible = ($music_source === 'user' || $music_source === 'both');
                         if ($isVisible) { $visibleIndex++; }
                         $displayNumber = $isVisible ? $visibleIndex : '';
                         $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;'; ?>
@@ -395,7 +402,7 @@ ob_start();
                     <?php /* Now render global DMCA-free tracks */ ?>
                     <?php foreach ($musicFiles as $gIndex => $fileData):
                         $index = count($userMusicFiles) + $gIndex;
-                        $isVisible = ($music_source !== 'user');
+                        $isVisible = ($music_source === 'system' || $music_source === 'both');
                         if ($isVisible) { $visibleIndex++; }
                         $displayNumber = $isVisible ? $visibleIndex : '';
                         $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;'; ?>
@@ -582,10 +589,11 @@ ob_start();
             rows.forEach(row => {
                 const isUser = row.classList.contains('user-upload');
                 let shouldShow = true;
-                if (source === 'user') {
+                if (source === 'both') {
+                    shouldShow = true;
+                } else if (source === 'user') {
                     shouldShow = isUser;
                 } else {
-                    // 'system' => hide user uploads
                     shouldShow = !isUser;
                 }
                 row.style.display = shouldShow ? '' : 'none';

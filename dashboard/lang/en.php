@@ -2587,6 +2587,7 @@ return [
     'music_music_source' => 'Music source',
     'music_source_builtin' => 'Built-in (DMCA-free)',
     'music_source_uploads' => 'Use my uploads',
+    'music_source_both' => 'Both (built-in + my uploads)',
     'music_upload_disclaimer' => 'You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.',
     'music_preparing_upload' => 'Preparing upload...',
     'music_your_upload' => 'Your upload',

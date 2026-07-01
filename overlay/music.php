@@ -21,6 +21,21 @@ if ($stmt) {
     $stmt->close();
 }
 
+$music_source = 'system';
+if ($username) {
+    $user_db = new mysqli($db_servername, $db_username, $db_password, $username);
+    if (!$user_db->connect_error) {
+        $prefRes = $user_db->query("SELECT music_source FROM streamer_preferences WHERE id = 1");
+        if ($prefRes && ($row = $prefRes->fetch_assoc()) && isset($row['music_source'])) {
+            $ms = $row['music_source'];
+            if (in_array($ms, ['system', 'user', 'both'], true)) {
+                $music_source = $ms;
+            }
+        }
+        $user_db->close();
+    }
+}
+
 // System music directory
 function getSystemMusicFiles() {
     $musicDir = '/var/www/cdn/music';
@@ -70,7 +85,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         let currentSong = null;
         let currentSongData = null; // Store song data for replay
         let volume = 10;
-        let musicSource = 'system'; // 'system' (CDN) or 'user' (uploader files)
+        let musicSource = <?php echo json_encode($music_source); ?>; // 'system', 'user', or 'both'
         // systemPlaylist: tracks served from CDN
         let systemPlaylist = <?php
             echo json_encode(array_map(function($f) {
@@ -168,6 +183,9 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 connectWebSocket();
             }, 5000);
         }
+        function getSongKey(song) {
+            return song.url ? song.url : `https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`;
+        }
         function playSong(url, songData = null) {
             if (!url) return;
             currentSong = url;
@@ -179,7 +197,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                         file: songData.file,
                         title: songData.title || songData.file.replace('.mp3','').replace(/_/g,' ')
                     };
-                    playedHistory.add(songData.file);
+                    playedHistory.add(url);
                 if (showNowPlaying) {
                     nowPlayingDiv.innerText = 'Now Playing: ' + currentSongData.title;
                 }
@@ -214,20 +232,20 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             playSong(url, song);
         }
         function playNextSong() {
-            // Use the active playlist (system or user). overlays will play user uploads when music_source === 'user'.
+            // Use the active playlist (system, user, or both).
             if (repeat) {
                 audioPlayer.currentTime = 0;
                 audioPlayer.play();
                 return;
             }
             if (shuffle && playlist.length > 1) {
-                let unplayed = playlist.filter(song => !playedHistory.has(song.file));
+                let unplayed = playlist.filter(song => !playedHistory.has(getSongKey(song)));
                 if (unplayed.length === 0) {
                     playedHistory.clear();
                     unplayed = [...playlist];
                 }
                 const nextSong = unplayed[Math.floor(Math.random() * unplayed.length)];
-                const nextIndex = playlist.findIndex(song => song.file === nextSong.file);
+                const nextIndex = playlist.findIndex(song => getSongKey(song) === getSongKey(nextSong));
                 playSongByIndex(nextIndex);
             } else {
                 currentIndex = (currentIndex + 1) % playlist.length;
@@ -235,7 +253,10 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             }
         }
         function updateActivePlaylist() {
-            if (musicSource === 'user' && userPlaylist && userPlaylist.length > 0) {
+            if (musicSource === 'both') {
+                playlist = [...userPlaylist, ...systemPlaylist];
+                console.log('[Overlay] using combined playlist', playlist.length, 'tracks (', userPlaylist.length, 'uploads +', systemPlaylist.length, 'built-in)');
+            } else if (musicSource === 'user' && userPlaylist && userPlaylist.length > 0) {
                 playlist = userPlaylist;
                 console.log('[Overlay] using user playlist', userPlaylist.length, 'tracks');
             } else {
