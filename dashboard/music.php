@@ -543,10 +543,6 @@ ob_start();
             MusicPlayer.elements.volumeRange.value = value;
             MusicPlayer.elements.volumePercentage.value = value;
             MusicPlayer.state.volume = value;
-            // Update range slider gradient
-            const percent = (value / 100) * 100;
-            MusicPlayer.elements.volumeRange.style.background = 
-                `linear-gradient(to right, #3273dc 0%, #3273dc ${percent}%, #dbdbdb ${percent}%, #dbdbdb 100%)`;
         },
         updateButtonState(button, isActive) {
             button.classList.toggle('sp-btn-primary', isActive);
