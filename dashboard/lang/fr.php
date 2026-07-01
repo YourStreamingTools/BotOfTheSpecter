@@ -2529,6 +2529,7 @@ return [
     'music_music_source' => 'Source de musique',
     'music_source_builtin' => 'Intégrée (sans DMCA)',
     'music_source_uploads' => 'Utiliser mes téléversements',
+    'music_source_both' => 'Les deux (intégrée + mes téléversements)',
     'music_upload_disclaimer' => 'Vous êtes responsable de tous les fichiers que vous téléversez et devez détenir les droits légaux pour les utiliser et les partager. Nous ne vérifions ni ne garantissons la libération des droits.',
     'music_preparing_upload' => 'Préparation du téléversement...',
     'music_your_upload' => 'Votre téléversement',
