@@ -593,31 +593,22 @@ class MySQLHelper:
         ):
             return MySQLHelper._app_creds_cache["access_token"], MySQLHelper._app_creds_cache["client_id"]
         access_token = None
-        client_id = None
         try:
             row = await self.fetchone(
-                "SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1",
-                database_name='website', dict_cursor=True
+                "SELECT twitch_oauth_api_token FROM bot_chat_token ORDER BY id ASC LIMIT 1",
+                database_name='website',
+                dict_cursor=True,
             )
-            if row:
-                for key in ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token", "twitch_access_token", "bot_oauth_token"):
-                    if row.get(key):
-                        access_token = str(row[key]).strip()
-                        break
-                for key in ("twitch_client_id", "client_id", "clientID"):
-                    if row.get(key):
-                        client_id = str(row[key]).strip()
-                        break
+            if row and row.get('twitch_oauth_api_token'):
+                access_token = str(row['twitch_oauth_api_token']).strip()
         except Exception as e:
             if self.logger:
-                self.logger.error(f"Error fetching app token from bot_chat_token: {e}")
+                self.logger.error(f"Error fetching app token from bot_chat_token.twitch_oauth_api_token: {e}")
         if not access_token:
             if self.logger:
-                self.logger.warning("No app access token found in bot_chat_token")
+                self.logger.warning("No app access token found in website.bot_chat_token.twitch_oauth_api_token")
             return None, None
-        # Fall back to env CLIENT_ID if table has no client_id column
-        if not client_id:
-            client_id = os.getenv('CLIENT_ID')
+        client_id = os.getenv('CLIENT_ID')
         MySQLHelper._app_creds_cache = {"loaded_at": now, "access_token": access_token, "client_id": client_id}
         return access_token, client_id
 
@@ -7503,11 +7494,13 @@ class ServerManagement(commands.Cog, name='Server Management'):
 
     async def _resume_stream_schedule_updates(self):
         try:
-            self.logger.info("Attempting to resume stream schedule timezone updates...")
-            # Wait a moment for the bot to be fully ready
+            self.logger.info("Attempting to resume stream schedule messages...")
             await asyncio.sleep(2)
-            # Fetch all stream schedule messages from database
-            query = "SELECT server_id, channel_id, message_id, timezone_message_id, timezone FROM stream_schedule_messages WHERE timezone_message_id IS NOT NULL AND timezone IS NOT NULL"
+            query = """
+                SELECT server_id, channel_id, message_id, timezone_message_id,
+                       title, schedule_content, color, timezone
+                FROM stream_schedule_messages
+            """
             schedules = await self.mysql.fetchall(query, database_name='specterdiscordbot', dict_cursor=True)
             if not schedules:
                 self.logger.info("No stream schedule messages found in database")
@@ -7517,29 +7510,28 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 try:
                     server_id = str(schedule['server_id'])
                     channel_id = str(schedule['channel_id'])
-                    timezone_message_id = str(schedule['timezone_message_id'])
-                    timezone = schedule['timezone']
-                    # Get the guild
+                    timezone_message_id = schedule.get('timezone_message_id')
+                    timezone = schedule.get('timezone')
                     guild = self.bot.get_guild(int(server_id))
                     if not guild:
                         self.logger.warning(f"Guild {server_id} not found, skipping stream schedule resume")
                         continue
-                    # Verify the timezone message still exists
-                    try:
-                        channel = guild.get_channel(int(channel_id))
-                        if not channel:
-                            self.logger.warning(f"Channel {channel_id} not found in guild {server_id}, skipping")
-                            continue
-                        message = await channel.fetch_message(int(timezone_message_id))
-                        self.logger.info(f"Resuming timezone update for server {server_id}, timezone: {timezone}")
-                        # Start the background update task for this timezone message
-                        await self._start_timezone_update_task(server_id, channel_id, timezone_message_id, timezone, guild.name)
-                    except discord.NotFound:
-                        self.logger.info(f"Timezone message {timezone_message_id} no longer exists in channel {channel_id}, skipping")
-                    except discord.Forbidden:
-                        self.logger.warning(f"Missing permissions to access message in channel {channel_id}")
-                    except Exception as e:
-                        self.logger.error(f"Error verifying timezone message {timezone_message_id}: {e}")
+                    await self._refresh_saved_stream_schedule(schedule, guild)
+                    if timezone_message_id and timezone:
+                        try:
+                            channel = guild.get_channel(int(channel_id))
+                            if not channel:
+                                self.logger.warning(f"Channel {channel_id} not found in guild {server_id}, skipping timezone resume")
+                                continue
+                            await channel.fetch_message(int(timezone_message_id))
+                            self.logger.info(f"Resuming timezone update for server {server_id}, timezone: {timezone}")
+                            await self._start_timezone_update_task(server_id, channel_id, str(timezone_message_id), timezone, guild.name)
+                        except discord.NotFound:
+                            self.logger.info(f"Timezone message {timezone_message_id} no longer exists in channel {channel_id}, skipping")
+                        except discord.Forbidden:
+                            self.logger.warning(f"Missing permissions to access message in channel {channel_id}")
+                        except Exception as e:
+                            self.logger.error(f"Error verifying timezone message {timezone_message_id}: {e}")
                 except Exception as e:
                     self.logger.error(f"Error resuming stream schedule for server {server_id}: {e}")
         except Exception as e:
@@ -8155,6 +8147,202 @@ class ServerManagement(commands.Cog, name='Server Management'):
             self.logger.error(f"Error in timezone update loop initialization: {e}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
+    async def _get_twitch_info_for_server(self, server_id: str):
+        try:
+            row = await self.mysql.fetchone(
+                """SELECT twitch_user_id, username FROM channel_mappings
+                   WHERE guild_id = %s AND is_active = 1 LIMIT 1""",
+                (str(server_id),),
+                database_name='specterdiscordbot',
+                dict_cursor=True,
+            )
+            if row and row.get('twitch_user_id'):
+                return row.get('twitch_user_id'), row.get('username')
+        except Exception as e:
+            self.logger.warning(f"Could not resolve Twitch info from channel_mappings for server {server_id}: {e}")
+        return None, None
+
+    def _build_stream_schedule_embed(
+        self,
+        title: str,
+        schedule: str,
+        color_hex: str,
+        timezone: str,
+        guild_name: str,
+        twitch_username: str = None,
+        next_stream_info: str = None,
+    ) -> discord.Embed:
+        try:
+            color_int = int(color_hex.replace('#', ''), 16)
+            embed_color = discord.Color(color_int)
+        except (ValueError, TypeError):
+            embed_color = discord.Color.from_rgb(145, 70, 255)
+        embed_kwargs = {
+            'title': title or 'Stream Schedule',
+            'description': schedule or '',
+            'color': embed_color,
+        }
+        if twitch_username:
+            embed_kwargs['url'] = f"https://www.twitch.tv/{twitch_username}/schedule"
+        embed = discord.Embed(**embed_kwargs)
+        if next_stream_info:
+            embed.add_field(name="Next Twitch Stream", value=next_stream_info, inline=False)
+        if timezone:
+            embed.add_field(name="Stream Schedule Timezone", value=timezone, inline=False)
+        embed.set_footer(text=f"Stream Schedule | {guild_name}")
+        return embed
+
+    async def _refresh_saved_stream_schedule(self, schedule: dict, guild: discord.Guild):
+        server_id = str(schedule['server_id'])
+        channel_id = str(schedule['channel_id'])
+        message_id = str(schedule['message_id'])
+        title = schedule.get('title') or 'Stream Schedule'
+        schedule_content = schedule.get('schedule_content') or ''
+        color_hex = schedule.get('color') or '#9146ff'
+        timezone = schedule.get('timezone') or 'UTC'
+        channel = guild.get_channel(int(channel_id))
+        if not channel:
+            self.logger.warning(f"Channel {channel_id} not found in guild {server_id}, skipping schedule refresh")
+            return
+        twitch_user_id, twitch_username = await self._get_twitch_info_for_server(server_id)
+        next_stream_info = None
+        if twitch_user_id:
+            next_stream_info = await self._fetch_next_twitch_stream_info(twitch_user_id, timezone)
+        embed = self._build_stream_schedule_embed(
+            title, schedule_content, color_hex, timezone, guild.name,
+            twitch_username=twitch_username, next_stream_info=next_stream_info,
+        )
+        try:
+            message = await channel.fetch_message(int(message_id))
+            await message.edit(embed=embed)
+            self.logger.info(f"Refreshed stream schedule embed (ID: {message_id}) for server {server_id}")
+        except discord.NotFound:
+            self.logger.info(f"Stream schedule message {message_id} no longer exists in channel {channel_id}")
+        except discord.Forbidden:
+            self.logger.warning(f"Missing permissions to edit stream schedule message {message_id} in channel {channel_id}")
+        except Exception as e:
+            self.logger.error(f"Error refreshing stream schedule message {message_id}: {e}")
+
+    def _resolve_schedule_timezone(self, schedule_timezone: str):
+        common_zones = {
+            'UTC': 'UTC',
+            'EST': 'US/Eastern',
+            'CST': 'US/Central',
+            'MST': 'US/Mountain',
+            'PST': 'US/Pacific',
+            'GMT': 'Europe/London',
+            'CET': 'Europe/Paris',
+            'IST': 'Asia/Kolkata',
+            'JST': 'Asia/Tokyo',
+            'AEST': 'Australia/Sydney',
+            'AEDT': 'Australia/Sydney',
+        }
+        tz_name = common_zones.get((schedule_timezone or 'UTC').upper(), schedule_timezone or 'UTC')
+        try:
+            return pytz.timezone(tz_name)
+        except Exception:
+            self.logger.warning(f"Unknown schedule timezone '{schedule_timezone}', defaulting to UTC")
+            return pytz.UTC
+
+    def _parse_twitch_schedule_time(self, iso_time: str):
+        if not iso_time:
+            return None
+        try:
+            return datetime.fromisoformat(iso_time.replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            try:
+                return datetime.strptime(iso_time[:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                return None
+
+    def _format_local_schedule_time(self, dt: datetime, tz, time_only: bool = False) -> str:
+        local = dt.astimezone(tz)
+        tz_abbr = local.strftime("%Z")
+        if time_only:
+            return f"{local.strftime('%I:%M %p')} {tz_abbr}"
+        return f"{local.strftime('%A, %d %B %Y')} at {local.strftime('%I:%M %p')} {tz_abbr}"
+
+    def _format_twitch_schedule_segment(self, segment: dict, tz) -> str:
+        start_dt = self._parse_twitch_schedule_time(segment.get('start_time'))
+        end_dt = self._parse_twitch_schedule_time(segment.get('end_time'))
+        if not start_dt:
+            return "Upcoming stream scheduled on Twitch."
+        lines = []
+        title = (segment.get('title') or '').strip()
+        category_obj = segment.get('category')
+        category = category_obj.get('name') if isinstance(category_obj, dict) else None
+        if title:
+            lines.append(f"**{title}**")
+        if category:
+            lines.append(category)
+        if end_dt:
+            lines.append(f"{self._format_local_schedule_time(start_dt, tz)} – {self._format_local_schedule_time(end_dt, tz, time_only=True)}")
+        else:
+            lines.append(self._format_local_schedule_time(start_dt, tz))
+        return "\n".join(lines)
+
+    async def _fetch_next_twitch_stream_info(self, broadcaster_id: str, schedule_timezone: str = 'UTC') -> str | None:
+        """Fetch the next upcoming segment from GET /helix/schedule (Get Channel Stream Schedule).
+
+        Uses the Twitch app access token from website.bot_chat_token.twitch_oauth_api_token (via get_bot_access_token).
+        """
+        if not broadcaster_id:
+            return None
+        try:
+            bearer, client_id = await self.mysql.get_bot_access_token()
+            if not bearer or not client_id:
+                self.logger.warning("No Twitch app token available from website.bot_chat_token.twitch_oauth_api_token for schedule fetch")
+                return None
+            headers = {'Client-ID': client_id, 'Authorization': f'Bearer {bearer}'}
+            # Omit start_time so Twitch returns segments after the current UTC time.
+            params = {'broadcaster_id': str(broadcaster_id), 'first': '5'}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    'https://api.twitch.tv/helix/schedule',
+                    headers=headers,
+                    params=params,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    if response.status == 401:
+                        self.logger.warning("Twitch schedule API authentication failed")
+                        return None
+                    if response.status != 200:
+                        self.logger.warning(f"Twitch schedule API returned {response.status}")
+                        return None
+                    data = await response.json()
+            schedule_data = data.get('data', {})
+            segments = schedule_data.get('segments') or []
+            if not segments:
+                return None
+            vacation = schedule_data.get('vacation')
+            tz = self._resolve_schedule_timezone(schedule_timezone)
+            now = datetime.now(tz)
+            if vacation and vacation.get('start_time') and vacation.get('end_time'):
+                vac_start = self._parse_twitch_schedule_time(vacation['start_time'])
+                vac_end = self._parse_twitch_schedule_time(vacation['end_time'])
+                if vac_start and vac_end:
+                    vac_start = vac_start.astimezone(tz)
+                    vac_end = vac_end.astimezone(tz)
+                    if vac_start <= now <= vac_end:
+                        for segment in segments:
+                            if segment.get('canceled_until'):
+                                continue
+                            start_dt = self._parse_twitch_schedule_time(segment.get('start_time'))
+                            if not start_dt:
+                                continue
+                            if start_dt.astimezone(tz) >= vac_end:
+                                vac_end_line = f"On vacation until {self._format_local_schedule_time(vac_end, tz)}"
+                                return f"{vac_end_line}\nNext stream after vacation:\n{self._format_twitch_schedule_segment(segment, tz)}"
+                        return None
+            for segment in segments:
+                if segment.get('canceled_until'):
+                    continue
+                return self._format_twitch_schedule_segment(segment, tz)
+            return None
+        except Exception as e:
+            self.logger.warning(f"Error fetching next Twitch stream: {e}")
+            return None
+
     async def post_stream_schedule_message(self, data):
         try:
             self.logger.info(f"post_stream_schedule_message called with data: {data}")
@@ -8188,23 +8376,29 @@ class ServerManagement(commands.Cog, name='Server Management'):
             if not channel:
                 self.logger.error(f"Channel {channel_id} not found in guild {guild.name}")
                 return
-            # Fetch Twitch username from channel code to create Twitch schedule link
+            # Fetch Twitch username and broadcaster ID from channel code
             twitch_username = None
+            twitch_user_id = None
             channel_code = data.get('channel_code')
             try:
                 if channel_code:
                     self.logger.info(f"Using channel_code from data: {channel_code}")
-                    # Use the channel_code (API key) to get the actual username from the users table
-                    user_row = await self.mysql.fetchone("SELECT username FROM users WHERE api_key = %s", (channel_code,), database_name='website', dict_cursor=True)
+                    user_row = await self.mysql.fetchone(
+                        "SELECT username, twitch_user_id FROM users WHERE api_key = %s",
+                        (channel_code,),
+                        database_name='website',
+                        dict_cursor=True,
+                    )
                     if user_row:
                         twitch_username = user_row['username']
+                        twitch_user_id = user_row.get('twitch_user_id')
                         self.logger.info(f"Found Twitch username: {twitch_username} for guild {server_id}")
                     else:
                         self.logger.warning(f"No user found with api_key: {channel_code}")
                 else:
                     self.logger.warning("No channel_code provided in data for fetching Twitch username")
             except Exception as e:
-                self.logger.warning(f"Could not fetch Twitch username for schedule link: {e}")
+                self.logger.warning(f"Could not fetch Twitch user info for schedule: {e}")
             # Check for existing stream schedule message and delete it
             try:
                 query = "SELECT channel_id, message_id, timezone_message_id FROM stream_schedule_messages WHERE server_id = %s"
@@ -8244,30 +8438,15 @@ class ServerManagement(commands.Cog, name='Server Management'):
                             self.logger.error(f"Error deleting old timezone message: {e}")
             except Exception as e:
                 self.logger.error(f"Error checking for existing stream schedule message: {e}")
-            # Convert hex color to Discord color
-            try:
-                # Remove # if present and convert to integer
-                color_int = int(color_hex.replace('#', ''), 16)
-                embed_color = discord.Color(color_int)
-                self.logger.info(f"Converted color {color_hex} to Discord color")
-            except (ValueError, TypeError) as e:
-                self.logger.warning(f"Invalid color {color_hex}, using default Twitch purple: {e}")
-                embed_color = discord.Color.from_rgb(145, 70, 255)
-            # Create embed for the stream schedule with URL if Twitch username available
-            embed_kwargs = {
-                'title': title,
-                'description': schedule,
-                'color': embed_color
-            }
-            # Add URL to embed if we have a Twitch username
+            next_stream_info = None
+            if twitch_user_id:
+                next_stream_info = await self._fetch_next_twitch_stream_info(twitch_user_id, timezone or 'UTC')
+            embed = self._build_stream_schedule_embed(
+                title, schedule, color_hex, timezone, guild.name,
+                twitch_username=twitch_username, next_stream_info=next_stream_info,
+            )
             if twitch_username:
-                embed_kwargs['url'] = f"https://www.twitch.tv/{twitch_username}/schedule"
                 self.logger.info(f"Added Twitch schedule URL to embed for {twitch_username}")
-            embed = discord.Embed(**embed_kwargs)
-            # Add only the base timezone time to main embed if timezone specified
-            if timezone:
-                embed.add_field(name="Stream Schedule Timezone", value=timezone, inline=False)
-            embed.set_footer(text=f"Stream Schedule | {guild.name}")
             try:
                 # Send the main schedule embed
                 sent_message = await channel.send(embed=embed)
