@@ -34,7 +34,7 @@ import yt_dlp
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "6.1"
+VERSION = "6.2"
 
 # Global configuration class
 class Config:
@@ -7949,6 +7949,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 'IST': 'Asia/Kolkata',
                 'JST': 'Asia/Tokyo',
                 'AEST': 'Australia/Sydney',
+                'AEDT': 'Australia/Sydney',
             }
             # Try to parse the base timezone
             try:
@@ -7973,7 +7974,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
             base_time_str = now_base.strftime("%H:%M %Z")
             # Build conversion string with base timezone first, then main timezones
             conversion_lines = [f"**{base_tz_display}**: {base_time_str}"]
-            # Add conversions for major timezones in order: UTC, US East, US Central, US Mountain, US West, London, Tokyo
+            # Add conversions for major timezones in order: UTC, US East, US Central, US Mountain, US West, London, Tokyo, Sydney
             conversion_zones = [
                 ('UTC', 'UTC'),
                 ('America/New_York', 'US East'),
@@ -7982,6 +7983,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 ('America/Los_Angeles', 'US West'),
                 ('Europe/London', 'London'),
                 ('Asia/Tokyo', 'Tokyo'),
+                ('Australia/Sydney', 'Sydney'),
             ]
             for tz_name, tz_display in conversion_zones:
                 # Skip if this timezone is the same as the base timezone
