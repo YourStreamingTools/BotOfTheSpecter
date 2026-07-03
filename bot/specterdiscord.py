@@ -8281,6 +8281,21 @@ class ServerManagement(commands.Cog, name='Server Management'):
             lines.append(self._format_local_schedule_time(start_dt, tz))
         return "\n".join(lines)
 
+    def _get_next_upcoming_segment(self, segments, tz, now, min_start=None):
+        for segment in segments:
+            if segment.get('canceled_until'):
+                continue
+            start_dt = self._parse_twitch_schedule_time(segment.get('start_time'))
+            if not start_dt:
+                continue
+            start_local = start_dt.astimezone(tz)
+            if start_local <= now:
+                continue
+            if min_start and start_local < min_start:
+                continue
+            return segment
+        return None
+
     async def _fetch_next_twitch_stream_info(self, broadcaster_id: str, schedule_timezone: str = 'UTC') -> str | None:
         """Fetch the next upcoming segment from GET /helix/schedule (Get Channel Stream Schedule).
 
@@ -8294,8 +8309,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 self.logger.warning("No Twitch app token available from website.bot_chat_token.twitch_oauth_api_token for schedule fetch")
                 return None
             headers = {'Client-ID': client_id, 'Authorization': f'Bearer {bearer}'}
-            # Omit start_time so Twitch returns segments after the current UTC time.
-            params = {'broadcaster_id': str(broadcaster_id), 'first': '5'}
+            params = {'broadcaster_id': str(broadcaster_id), 'first': '25'}
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     'https://api.twitch.tv/helix/schedule',
@@ -8324,20 +8338,14 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     vac_start = vac_start.astimezone(tz)
                     vac_end = vac_end.astimezone(tz)
                     if vac_start <= now <= vac_end:
-                        for segment in segments:
-                            if segment.get('canceled_until'):
-                                continue
-                            start_dt = self._parse_twitch_schedule_time(segment.get('start_time'))
-                            if not start_dt:
-                                continue
-                            if start_dt.astimezone(tz) >= vac_end:
-                                vac_end_line = f"On vacation until {self._format_local_schedule_time(vac_end, tz)}"
-                                return f"{vac_end_line}\nNext stream after vacation:\n{self._format_twitch_schedule_segment(segment, tz)}"
+                        next_segment = self._get_next_upcoming_segment(segments, tz, now, min_start=vac_end)
+                        if next_segment:
+                            vac_end_line = f"On vacation until {self._format_local_schedule_time(vac_end, tz)}"
+                            return f"{vac_end_line}\nNext stream after vacation:\n{self._format_twitch_schedule_segment(next_segment, tz)}"
                         return None
-            for segment in segments:
-                if segment.get('canceled_until'):
-                    continue
-                return self._format_twitch_schedule_segment(segment, tz)
+            next_segment = self._get_next_upcoming_segment(segments, tz, now)
+            if next_segment:
+                return self._format_twitch_schedule_segment(next_segment, tz)
             return None
         except Exception as e:
             self.logger.warning(f"Error fetching next Twitch stream: {e}")
