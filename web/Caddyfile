@@ -54,8 +54,11 @@
 # Static asset hosts proxy to the object-storage origin (STORAGE_HOST /
 # STORAGE_PREFIX from caddy.env); each host appends its bucket prefix.
 (asset_origin) {
-    reverse_proxy https://{env.STORAGE_HOST} {
+    reverse_proxy {env.STORAGE_HOST}:443 {
         header_up Host {env.STORAGE_HOST}
+        transport http {
+            tls
+        }
     }
     import security
     @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
