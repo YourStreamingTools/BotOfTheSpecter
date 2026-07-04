@@ -203,8 +203,20 @@ streamersconnect.com, www.streamersconnect.com {
 
 cdn.botofthespecter.com {
     rewrite * {env.STORAGE_PREFIX}/cdn{uri}
-    import asset_origin
+    # own proxy block: strip the origin's reflected CORS header so it doesn't
+    # collide with the Access-Control-Allow-Origin we set for the fonts below.
+    reverse_proxy {env.STORAGE_HOST}:443 {
+        header_up Host {env.STORAGE_HOST}
+        transport http {
+            tls
+        }
+        header_down -Access-Control-Allow-Origin
+        header_down -Access-Control-Allow-Methods
+    }
+    import security
     encode zstd gzip
+    @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
+    header @assets Cache-Control "public, max-age=31536000, immutable"
     header /css/fontawesome* Access-Control-Allow-Origin "*"
     header /css/fontawesome* Access-Control-Allow-Methods "GET, OPTIONS"
     log {
