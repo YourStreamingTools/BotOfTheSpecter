@@ -51,6 +51,17 @@
     header @assets Cache-Control "public, max-age=31536000, immutable"
 }
 
+# Static asset hosts proxy to the object-storage origin (STORAGE_HOST /
+# STORAGE_PREFIX from caddy.env); each host appends its bucket prefix.
+(asset_origin) {
+    reverse_proxy https://{env.STORAGE_HOST} {
+        header_up Host {env.STORAGE_HOST}
+    }
+    import security
+    @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
 # ===== PHP frontends =====
 
 botofthespecter.com, www.botofthespecter.com {
@@ -188,62 +199,60 @@ streamersconnect.com, www.streamersconnect.com {
 # ===== Static asset hosts =====
 
 cdn.botofthespecter.com {
-    root * /var/www/cdn
+    rewrite * {env.STORAGE_PREFIX}/cdn{uri}
+    import asset_origin
+    encode zstd gzip
     header /css/fontawesome* Access-Control-Allow-Origin "*"
     header /css/fontawesome* Access-Control-Allow-Methods "GET, OPTIONS"
-    import static_long_cache
     log {
         output file /var/log/caddy/cdn.log
     }
 }
 
 walkons.botofthespecter.com {
-    root * /var/www/walkons
-    import static_long_cache
+    rewrite * {env.STORAGE_PREFIX}/walkons{uri}
+    import asset_origin
     log {
         output file /var/log/caddy/walkons.log
     }
 }
 
-# Unified media library — single host for every per-channel MP3/MP4 once the
-# streamer has migrated. URLs look like:
-#   https://media.botofthespecter.com/{channel}/{filename}
-# which maps to /var/www/media/{channel}/{filename} on disk.
+# Unified per-channel media library (migrated streamers).
 media.botofthespecter.com {
-    root * /var/www/media
-    import static_long_cache
+    rewrite * {env.STORAGE_PREFIX}/media{uri}
+    import asset_origin
     log {
         output file /var/log/caddy/media.log
     }
 }
 
 music.botspecter.com, music.botofthespecter.com {
-    root * /var/www/usermusic
-    import static_long_cache
+    rewrite * {env.STORAGE_PREFIX}/usermusic{uri}
+    import asset_origin
     log {
         output file /var/log/caddy/usermusic.log
     }
 }
 
 soundalerts.botofthespecter.com {
-    root * /var/www/soundalerts
-    import static_long_cache
+    rewrite * {env.STORAGE_PREFIX}/soundalerts{uri}
+    import asset_origin
     log {
         output file /var/log/caddy/soundalerts.log
     }
 }
 
 tts.botofthespecter.com {
-    root * /var/www/tts
-    import static_long_cache
+    rewrite * {env.STORAGE_PREFIX}/tts{uri}
+    import asset_origin
     log {
         output file /var/log/caddy/tts.log
     }
 }
 
 videoalerts.botofthespecter.com {
-    root * /var/www/videoalerts
-    import static_long_cache
+    rewrite * {env.STORAGE_PREFIX}/videoalerts{uri}
+    import asset_origin
     log {
         output file /var/log/caddy/videoalerts.log
     }
