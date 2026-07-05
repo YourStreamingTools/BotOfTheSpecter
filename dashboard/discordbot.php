@@ -1680,7 +1680,7 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
       $channelType = $channel['type'] ?? 0;
-      $prefix = $channelType === 5 ? '?? ' : ''; // Announcement channels get a megaphone emoji, regular channels have no prefix
+      $prefix = $channelType === 5 ? "\u{1F4E2} " : ''; // Announcement channels
       $options .= "<option value=\"$channelId\"$selected>$prefix$channelName</option>\n";
     }
     return "
@@ -1741,7 +1741,7 @@ function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeho
       $channelId = htmlspecialchars($channel['id']);
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
-      $options .= "<option value=\"$channelId\"$selected>?? $channelName</option>\n";
+      $options .= "<option value=\"$channelId\"$selected>$channelName</option>\n";
     }
     return "
       <select class=\"sp-select\" id=\"$fieldId\" name=\"$fieldName\"$requiredAttr>$options</select>
