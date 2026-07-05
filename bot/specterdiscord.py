@@ -7491,6 +7491,41 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self.timezone_update_tasks = {}
         self._cache_refresh_task = asyncio.create_task(self._refresh_reaction_roles_cache())
         self._schedule_resume_task = asyncio.create_task(self._resume_stream_schedule_updates())
+        self._stream_schedule_refresh_task = asyncio.create_task(self._periodic_stream_schedule_refresh())
+
+    async def _periodic_stream_schedule_refresh(self):
+        try:
+            while not self.bot.is_closed():
+                await asyncio.sleep(3600)
+                await self._refresh_all_stream_schedules()
+        except asyncio.CancelledError:
+            self.logger.debug("Stream schedule periodic refresh task cancelled")
+        except Exception as e:
+            self.logger.error(f"Error in periodic stream schedule refresh: {e}")
+
+    async def _refresh_all_stream_schedules(self):
+        try:
+            query = """
+                SELECT server_id, channel_id, message_id, timezone_message_id,
+                       title, schedule_content, color, timezone
+                FROM stream_schedule_messages
+            """
+            schedules = await self.mysql.fetchall(query, database_name='specterdiscordbot', dict_cursor=True)
+            if not schedules:
+                return
+            self.logger.info(f"Refreshing {len(schedules)} stream schedule message(s)")
+            for schedule in schedules:
+                try:
+                    server_id = str(schedule['server_id'])
+                    guild = self.bot.get_guild(int(server_id))
+                    if not guild:
+                        self.logger.warning(f"Guild {server_id} not found, skipping stream schedule refresh")
+                        continue
+                    await self._refresh_saved_stream_schedule(schedule, guild)
+                except Exception as e:
+                    self.logger.error(f"Error refreshing stream schedule for server {schedule.get('server_id')}: {e}")
+        except Exception as e:
+            self.logger.error(f"Error in _refresh_all_stream_schedules: {e}")
 
     async def _resume_stream_schedule_updates(self):
         try:
@@ -8905,7 +8940,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
         await self.handle_auto_role_assignment(member)
 
     def cog_unload(self):
-        for task in (getattr(self, '_cache_refresh_task', None), getattr(self, '_schedule_resume_task', None)):
+        for task in (getattr(self, '_cache_refresh_task', None), getattr(self, '_schedule_resume_task', None), getattr(self, '_stream_schedule_refresh_task', None)):
             if task and not task.done():
                 task.cancel()
         for task in self.timezone_update_tasks.values():
