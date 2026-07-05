@@ -183,8 +183,41 @@ yourchat.botofthespecter.com {
     }
 }
 
-yourlinks.click, *.yourlinks.click {
+# YourLinks.click — the apex is the app/dashboard, served normally. The wildcard
+# subdomains (username.yourlinks.click) are public profiles + short links, all
+# dispatched through redirect.php, which reads the username from the Host header.
+# This replaces the app's Apache .htaccess mod_rewrite rules — Caddy never reads
+# .htaccess, which is why every subdomain was falling through to index.php.
+yourlinks.click {
     root * /var/www/yourlinks.click
+    import php_app
+    log {
+        output file /var/log/caddy/yourlinks.log
+    }
+}
+
+# www → apex. Without this, redirect.php sends www to "/" on the same host and
+# loops, because the wildcard block below routes "/" back into redirect.php.
+www.yourlinks.click {
+    redir https://yourlinks.click{uri} permanent
+}
+
+*.yourlinks.click {
+    root * /var/www/yourlinks.click
+
+    # "/" on a subdomain is the linktree / Twitch-redirect landing page.
+    @root path /
+    rewrite @root /redirect.php
+
+    # "/<linkname>" that is not a real static file is a short link. redirect.php
+    # still sees the original REQUEST_URI (Caddy preserves it across rewrites),
+    # so it extracts the link name and Host-based username just like mod_rewrite.
+    @shortlink {
+        not path /redirect.php*
+        not file
+    }
+    rewrite @shortlink /redirect.php
+
     import php_app
     log {
         output file /var/log/caddy/yourlinks.log
