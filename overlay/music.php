@@ -336,10 +336,11 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         });
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-            // Log all events and their data to the browser console
-            socket.onAny((event, ...args) => {
-                console.log('Event:', event, ...args);
-            });
+            if (urlParams.has('debug')) {
+                socket.onAny((event, ...args) => {
+                    console.log('Event:', event, ...args);
+                });
+            }
             socket.on('connect', () => {
                 if (reconnectTimer !== null) {
                     clearTimeout(reconnectTimer);
