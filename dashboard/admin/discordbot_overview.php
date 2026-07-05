@@ -46,6 +46,7 @@ foreach ($users as $userRow) {
             'guild_id' => $discordData['guild_id'] ?? '',
             'manual_ids' => $discordData['manual_ids'] ?? 0,
             'live_channel_id' => $discordData['live_channel_id'] ?? '',
+            'time_now_channel_id' => $discordData['time_now_channel_id'] ?? '',
             'online_text' => $discordData['online_text'] ?? '',
             'offline_text' => $discordData['offline_text'] ?? '',
             'stream_alert_channel_id' => $discordData['stream_alert_channel_id'] ?? '',
@@ -157,12 +158,14 @@ ob_start();
                                 <?php endif; ?>
                                 <p><strong><?php echo t('admin_discord_overview_card_guild_id'); ?></strong> <?php echo !empty($config['guild_id']) ? htmlspecialchars($config['guild_id']) : '<em>' . t('admin_discord_overview_not_set') . '</em>'; ?></p>
                                 <p><strong><?php echo t('admin_discord_overview_card_live_channel'); ?></strong> <?php echo !empty($config['live_channel_id']) ? htmlspecialchars($config['live_channel_id']) : '<em>' . t('admin_discord_overview_not_set') . '</em>'; ?></p>
+                                <p><strong><?php echo t('admin_discord_overview_card_time_now_channel'); ?></strong> <?php echo !empty($config['time_now_channel_id']) ? htmlspecialchars($config['time_now_channel_id']) : '<em>' . t('admin_discord_overview_not_set') . '</em>'; ?></p>
                                 <?php if ($trackedCount > 0): ?>
                                     <p><strong><?php echo t('admin_discord_overview_card_tracked_streams'); ?></strong> <span class="sp-badge sp-badge-blue"><?php echo $trackedCount; ?></span></p>
                                 <?php endif; ?>
                                 <?php 
                                     $enabledFeatures = [];
                                     if (!empty($config['stream_alert_channel_id'])) $enabledFeatures[] = t('admin_discord_overview_feature_stream_alerts');
+                                    if (!empty($config['time_now_channel_id'])) $enabledFeatures[] = t('admin_discord_overview_feature_time_now');
                                     if (!empty($config['moderation_channel_id'])) $enabledFeatures[] = t('admin_discord_overview_feature_moderation');
                                     if (!empty($config['alert_channel_id'])) $enabledFeatures[] = t('admin_discord_overview_feature_alerts');
                                     if (!empty($config['member_streams_id'])) $enabledFeatures[] = t('admin_discord_overview_feature_stream_monitoring');
@@ -249,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'lbl_guild_id' => t('admin_discord_overview_js_lbl_guild_id'),
         'lbl_manual_ids_mode' => t('admin_discord_overview_js_lbl_manual_ids_mode'),
         'lbl_live_channel_id' => t('admin_discord_overview_js_lbl_live_channel_id'),
+        'lbl_time_now_channel_id' => t('admin_discord_overview_js_lbl_time_now_channel_id'),
         'lbl_online_text' => t('admin_discord_overview_js_lbl_online_text'),
         'lbl_offline_text' => t('admin_discord_overview_js_lbl_offline_text'),
         'lbl_stream_alert_channel' => t('admin_discord_overview_js_lbl_stream_alert_channel'),
@@ -348,6 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
         html += `<h4 style="font-size:1rem;font-weight:700;margin:1rem 0 0.5rem;">${escapeHtml(L.sec_stream_config)}</h4>`;
         html += '<table class="sp-table"><tbody>';
         html += `<tr><td><strong>${escapeHtml(L.lbl_live_channel_id)}</strong></td><td>${config.live_channel_id ? escapeHtml(config.live_channel_id) : '<em>' + escapeHtml(L.val_not_set) + '</em>'}</td></tr>`;
+        html += `<tr><td><strong>${escapeHtml(L.lbl_time_now_channel_id)}</strong></td><td>${config.time_now_channel_id ? escapeHtml(config.time_now_channel_id) : '<em>' + escapeHtml(L.val_not_set) + '</em>'}</td></tr>`;
         html += `<tr><td><strong>${escapeHtml(L.lbl_online_text)}</strong></td><td>${config.online_text ? escapeHtml(config.online_text) : '<em>' + escapeHtml(L.val_not_set) + '</em>'}</td></tr>`;
         html += `<tr><td><strong>${escapeHtml(L.lbl_offline_text)}</strong></td><td>${config.offline_text ? escapeHtml(config.offline_text) : '<em>' + escapeHtml(L.val_not_set) + '</em>'}</td></tr>`;
         html += '<tr><td colspan="2"><hr></td></tr>';

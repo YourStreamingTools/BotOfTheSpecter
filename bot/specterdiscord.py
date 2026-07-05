@@ -2074,6 +2074,143 @@ class LiveChannelManager:
                 await asyncio.sleep(0.5)
         return None if api_error else results
 
+class TimeNowChannelManager:
+    def __init__(self, bot, logger=None, config_refresh_interval=300):
+        self.bot = bot
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.mysql = MySQLHelper(self.logger)
+        self.config_refresh_interval = config_refresh_interval
+        self._configs = []
+        self._update_task = None
+        self._config_refresh_task = None
+
+    def _resolve_timezone(self, timezone_name: str):
+        common_zones = {
+            'UTC': 'UTC',
+            'EST': 'US/Eastern',
+            'CST': 'US/Central',
+            'MST': 'US/Mountain',
+            'PST': 'US/Pacific',
+            'GMT': 'Europe/London',
+            'CET': 'Europe/Paris',
+            'IST': 'Asia/Kolkata',
+            'JST': 'Asia/Tokyo',
+            'AEST': 'Australia/Sydney',
+            'AEDT': 'Australia/Sydney',
+        }
+        tz_name = common_zones.get((timezone_name or 'UTC').upper(), timezone_name or 'UTC')
+        try:
+            return pytz.timezone(tz_name)
+        except Exception:
+            return pytz.UTC
+
+    def _format_time_now_name(self, timezone_name: str) -> str:
+        tz = self._resolve_timezone(timezone_name)
+        now = datetime.now(tz)
+        tz_abbr = now.strftime('%Z')
+        return f"🕐 {now.strftime('%I:%M %p')} {tz_abbr}"
+
+    async def refresh_configs(self):
+        try:
+            rows = await self.mysql.fetchall(
+                """SELECT u.username, du.guild_id, du.time_now_channel_id
+                   FROM discord_users du
+                   INNER JOIN users u ON u.id = du.user_id
+                   WHERE du.time_now_channel_id IS NOT NULL AND du.time_now_channel_id != ''
+                     AND du.guild_id IS NOT NULL AND du.guild_id != ''""",
+                database_name='website',
+                dict_cursor=True,
+            )
+            configs = []
+            for row in rows:
+                username = row.get('username')
+                if not username:
+                    continue
+                timezone_name = 'UTC'
+                try:
+                    tz_row = await self.mysql.fetchone(
+                        "SELECT timezone FROM profile",
+                        (),
+                        database_name=str(username).lower(),
+                        dict_cursor=True,
+                    )
+                    if tz_row and tz_row.get('timezone'):
+                        timezone_name = tz_row['timezone']
+                except Exception:
+                    pass
+                configs.append({
+                    'username': username,
+                    'guild_id': str(row['guild_id']),
+                    'channel_id': str(row['time_now_channel_id']),
+                    'timezone': timezone_name,
+                })
+            self._configs = configs
+            self.logger.info(f"Loaded {len(configs)} Time Now channel config(s)")
+        except Exception as e:
+            self.logger.error(f"Error loading Time Now channel configs: {e}")
+
+    async def _update_all_channels(self):
+        for cfg in self._configs:
+            try:
+                guild = self.bot.get_guild(int(cfg['guild_id']))
+                if not guild:
+                    self.logger.debug(f"Guild {cfg['guild_id']} not found for Time Now channel update")
+                    continue
+                channel = guild.get_channel(int(cfg['channel_id']))
+                if not channel:
+                    self.logger.debug(f"Time Now channel {cfg['channel_id']} not found in guild {cfg['guild_id']}")
+                    continue
+                new_name = self._format_time_now_name(cfg['timezone'])
+                if channel.name != new_name:
+                    await channel.edit(name=new_name, reason="Time Now channel update")
+                    self.logger.debug(f"Updated Time Now channel for {cfg['username']} to '{new_name}'")
+            except discord.Forbidden:
+                self.logger.warning(f"Missing permissions to edit Time Now channel {cfg.get('channel_id')} for {cfg.get('username')}")
+            except discord.HTTPException as e:
+                self.logger.error(f"Discord HTTP error updating Time Now channel for {cfg.get('username')}: {e}")
+            except Exception as e:
+                self.logger.error(f"Error updating Time Now channel for {cfg.get('username')}: {e}")
+
+    async def _update_loop(self):
+        try:
+            while not self.bot.is_closed():
+                try:
+                    await self._update_all_channels()
+                    now_utc = datetime.now(pytz.UTC)
+                    seconds_in_current_minute = now_utc.second + (now_utc.microsecond / 1_000_000)
+                    sleep_time = 60 - seconds_in_current_minute + 0.1
+                    await asyncio.sleep(max(1, sleep_time))
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error in Time Now update loop: {e}")
+                    await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            self.logger.debug("Time Now update task cancelled")
+
+    async def _config_refresh_loop(self):
+        try:
+            while not self.bot.is_closed():
+                try:
+                    await asyncio.sleep(self.config_refresh_interval)
+                    await self.refresh_configs()
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error refreshing Time Now configs: {e}")
+        except asyncio.CancelledError:
+            self.logger.debug("Time Now config refresh task cancelled")
+
+    async def start(self):
+        await self.refresh_configs()
+        if self._update_task and not self._update_task.done():
+            self._update_task.cancel()
+        if self._config_refresh_task and not self._config_refresh_task.done():
+            self._config_refresh_task.cancel()
+        self._update_task = asyncio.create_task(self._update_loop())
+        self._config_refresh_task = asyncio.create_task(self._config_refresh_loop())
+        self.logger.info("Time Now channel manager started")
+
 # Bot class
 class BotOfTheSpecter(commands.Bot):
     def __init__(self, discord_token, discord_logger, user_logger=None, **kwargs):
@@ -2092,6 +2229,7 @@ class BotOfTheSpecter(commands.Bot):
         self.channel_mapping = ChannelMapping(bot=self, logger=discord_logger)
         # Live channel manager - track currently online streams
         self.live_channel_manager = LiveChannelManager(self, self.logger)
+        self.time_now_channel_manager = TimeNowChannelManager(self, self.logger)
         self.mysql_helper = MySQLHelper(logger=discord_logger)
         self.cooldowns = {}
         self._stream_alert_locks = {}
@@ -2166,6 +2304,7 @@ class BotOfTheSpecter(commands.Bot):
         await self.channel_mapping.populate_missing_mappings_from_users(self)
         # Sync stream status using Twitch API (replaces old filesystem checks)
         asyncio.create_task(self.live_channel_manager.sync_all_channels_on_boot())
+        asyncio.create_task(self.time_now_channel_manager.start())
         await self.update_presence()
         await self.add_cog(QuoteCog(self, config.api_token, self.logger))
         await self.add_cog(UtilityCog(self, self.logger))
@@ -7489,43 +7628,68 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self.reaction_roles_cache = {}
         # Cache for timezone update tasks: {(server_id, timezone_message_id): asyncio.Task}
         self.timezone_update_tasks = {}
+        # Per-server stream schedule refresh tasks: {server_id: asyncio.Task}
+        self.schedule_update_tasks = {}
         self._cache_refresh_task = asyncio.create_task(self._refresh_reaction_roles_cache())
         self._schedule_resume_task = asyncio.create_task(self._resume_stream_schedule_updates())
-        self._stream_schedule_refresh_task = asyncio.create_task(self._periodic_stream_schedule_refresh())
 
-    async def _periodic_stream_schedule_refresh(self):
+    def _seconds_until_next_schedule_hour(self, schedule_timezone: str) -> float:
+        tz = self._resolve_schedule_timezone(schedule_timezone)
+        now = datetime.now(tz)
+        seconds_into_hour = now.minute * 60 + now.second + (now.microsecond / 1_000_000)
+        sleep_time = 3600 - seconds_into_hour + 0.1
+        return max(1, sleep_time)
+
+    async def _start_stream_schedule_refresh_task(self, server_id: str, schedule: dict):
         try:
-            while not self.bot.is_closed():
-                await asyncio.sleep(3600)
-                await self._refresh_all_stream_schedules()
-        except asyncio.CancelledError:
-            self.logger.debug("Stream schedule periodic refresh task cancelled")
+            if server_id in self.schedule_update_tasks:
+                old_task = self.schedule_update_tasks[server_id]
+                if not old_task.done():
+                    old_task.cancel()
+                    self.logger.info(f"Cancelled old stream schedule refresh task for server {server_id}")
+            update_task = asyncio.create_task(
+                self._update_stream_schedule_loop(server_id, schedule)
+            )
+            self.schedule_update_tasks[server_id] = update_task
+            self.logger.info(f"Started stream schedule refresh task for server {server_id}")
         except Exception as e:
-            self.logger.error(f"Error in periodic stream schedule refresh: {e}")
+            self.logger.error(f"Error starting stream schedule refresh task: {e}")
 
-    async def _refresh_all_stream_schedules(self):
+    async def _update_stream_schedule_loop(self, server_id: str, schedule: dict):
+        timezone = schedule.get('timezone') or 'UTC'
+        message_id = str(schedule['message_id'])
         try:
-            query = """
-                SELECT server_id, channel_id, message_id, timezone_message_id,
-                       title, schedule_content, color, timezone
-                FROM stream_schedule_messages
-            """
-            schedules = await self.mysql.fetchall(query, database_name='specterdiscordbot', dict_cursor=True)
-            if not schedules:
-                return
-            self.logger.info(f"Refreshing {len(schedules)} stream schedule message(s)")
-            for schedule in schedules:
+            self.logger.info(f"Starting stream schedule refresh loop for server {server_id} (timezone: {timezone})")
+            while True:
                 try:
-                    server_id = str(schedule['server_id'])
+                    sleep_time = self._seconds_until_next_schedule_hour(timezone)
+                    await asyncio.sleep(sleep_time)
                     guild = self.bot.get_guild(int(server_id))
                     if not guild:
-                        self.logger.warning(f"Guild {server_id} not found, skipping stream schedule refresh")
-                        continue
+                        self.logger.error(f"Guild {server_id} not found for stream schedule refresh")
+                        break
+                    channel_id = str(schedule['channel_id'])
+                    channel = guild.get_channel(int(channel_id))
+                    if not channel:
+                        self.logger.warning(f"Channel {channel_id} not found in guild {server_id}, stopping schedule refresh")
+                        break
+                    try:
+                        await channel.fetch_message(int(message_id))
+                    except discord.NotFound:
+                        self.logger.warning(f"Stream schedule message {message_id} not found, stopping refresh for server {server_id}")
+                        break
+                    except discord.Forbidden:
+                        self.logger.warning(f"Missing permissions to access stream schedule message {message_id}, stopping refresh")
+                        break
                     await self._refresh_saved_stream_schedule(schedule, guild)
+                except asyncio.CancelledError:
+                    self.logger.info(f"Stream schedule refresh task cancelled for server {server_id}")
+                    break
                 except Exception as e:
-                    self.logger.error(f"Error refreshing stream schedule for server {schedule.get('server_id')}: {e}")
+                    self.logger.error(f"Error in stream schedule refresh loop for server {server_id}: {e}")
+                    break
         except Exception as e:
-            self.logger.error(f"Error in _refresh_all_stream_schedules: {e}")
+            self.logger.error(f"Error initializing stream schedule refresh loop for server {server_id}: {e}")
 
     async def _resume_stream_schedule_updates(self):
         try:
@@ -7552,6 +7716,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         self.logger.warning(f"Guild {server_id} not found, skipping stream schedule resume")
                         continue
                     await self._refresh_saved_stream_schedule(schedule, guild)
+                    await self._start_stream_schedule_refresh_task(server_id, schedule)
                     if timezone_message_id and timezone:
                         try:
                             channel = guild.get_channel(int(channel_id))
@@ -8542,6 +8707,16 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         database_name='specterdiscordbot'
                     )
                     self.logger.info(f"Successfully saved stream schedule message (ID: {message_id}) and timezone message (ID: {timezone_message_id}) to database for server {server_id}, affected rows: {result}")
+                    await self._start_stream_schedule_refresh_task(str(server_id), {
+                        'server_id': server_id,
+                        'channel_id': channel_id,
+                        'message_id': message_id,
+                        'timezone_message_id': timezone_message_id,
+                        'title': title,
+                        'schedule_content': schedule,
+                        'color': color_hex,
+                        'timezone': timezone,
+                    })
                 except Exception as e:
                     self.logger.error(f"Error saving stream schedule message to database: {e}")
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
@@ -8940,7 +9115,10 @@ class ServerManagement(commands.Cog, name='Server Management'):
         await self.handle_auto_role_assignment(member)
 
     def cog_unload(self):
-        for task in (getattr(self, '_cache_refresh_task', None), getattr(self, '_schedule_resume_task', None), getattr(self, '_stream_schedule_refresh_task', None)):
+        for task in (getattr(self, '_cache_refresh_task', None), getattr(self, '_schedule_resume_task', None)):
+            if task and not task.done():
+                task.cancel()
+        for task in self.schedule_update_tasks.values():
             if task and not task.done():
                 task.cancel()
         for task in self.timezone_update_tasks.values():

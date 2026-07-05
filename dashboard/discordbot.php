@@ -487,13 +487,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Save Stream Online / Live Status settings
         $guild_id = $_POST['guild_id'];
         $live_channel_id = $_POST['live_channel_id'] ?? null;
+        $time_now_channel_id = $_POST['time_now_channel_id'] ?? null;
         $onlineText = isset($_POST['online_text']) ? $_POST['online_text'] : null;
         $offlineText = isset($_POST['offline_text']) ? $_POST['offline_text'] : null;
         $streamChannelID = !empty($_POST['stream_channel_id']) ? $_POST['stream_channel_id'] : null;
         $streamAlertEveryone = isset($_POST['stream_alert_everyone']) ? 1 : 0;
         $streamAlertCustomRole = !empty($_POST['stream_alert_custom_role']) ? $_POST['stream_alert_custom_role'] : null;
-        $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
-        $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
+        $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, time_now_channel_id = ?, guild_id = ? WHERE user_id = ?");
+        $stmt->bind_param("sssi", $live_channel_id, $time_now_channel_id, $guild_id, $user_id);
         if ($stmt->execute()) {
           $buildStatus .= t('discordbot_msg_live_channel_updated');
         } else {
@@ -884,6 +885,7 @@ $savedStreamersSTMT->close();
 
 // Set default values if no Discord data exists
 $existingLiveChannelId = $discordData['live_channel_id'] ?? "";
+$existingTimeNowChannelId = $discordData['time_now_channel_id'] ?? "";
 $existingGuildId = $discordData['guild_id'] ?? "";
 $existingOnlineText = $discordData['online_text'] ?? "";
 $existingOfflineText = $discordData['offline_text'] ?? "";
@@ -1199,7 +1201,7 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
 function updateExistingDiscordValues()
 {
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
-  global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
+  global $existingLiveChannelId, $existingTimeNowChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
   global $existingWelcomeChannelID, $existingWelcomeMessage, $existingWelcomeUseDefault, $existingWelcomeEmbed, $existingWelcomeColour, $existingAutoRoleID, $existingMessageLogChannelID, $existingRoleLogChannelID, $existingServerMgmtLogChannelID, $existingUserLogChannelID, $existingReactionRolesChannelID, $existingReactionRolesMessage, $existingReactionRolesMappings, $existingAllowMultipleReactions, $existingMessageTrackingEnabled, $existingMessageTrackingLogChannel, $existingMessageTrackingEdits, $existingMessageTrackingDeletes;
   global $existingRulesChannelID, $existingRulesTitle, $existingRulesContent, $existingRulesColor, $existingRulesAcceptRoleID;
@@ -1215,6 +1217,7 @@ function updateExistingDiscordValues()
   $discord_userResult = $discord_userSTMT->get_result();
   $discordData = $discord_userResult->fetch_assoc();
   $existingLiveChannelId = $discordData['live_channel_id'] ?? "";
+  $existingTimeNowChannelId = $discordData['time_now_channel_id'] ?? "";
   $existingGuildId = $discordData['guild_id'] ?? "";
   $existingOnlineText = $discordData['online_text'] ?? "";
   $existingOfflineText = $discordData['offline_text'] ?? "";
@@ -2332,6 +2335,16 @@ ob_start();
                 <p class="help"><?= t('discordbot_help_live_status_channel') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
+                </div>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label" for="time_now_channel_id" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-clock"></i></span>
+                  <?= t('discordbot_label_time_now_channel') ?>
+                </label>
+                <p class="help"><?= t('discordbot_help_time_now_channel') ?></p>
+                <div class="sp-input-wrap">
+                  <?php echo generateVoiceChannelInput('time_now_channel_id', 'time_now_channel_id', $existingTimeNowChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-clock', false); ?>
                 </div>
               </div>
               <div class="sp-form-group">
