@@ -1056,6 +1056,7 @@ try {
                 position_finished_x DECIMAL(5,2) NOT NULL DEFAULT 2.00,
                 position_finished_y DECIMAL(5,2) NOT NULL DEFAULT 3.00,
                 preview_canvas VARCHAR(12) NOT NULL DEFAULT '1920x1080',
+                image_fit VARCHAR(10) NOT NULL DEFAULT 'blur',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_queue' => "
