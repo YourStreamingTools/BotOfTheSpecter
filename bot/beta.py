@@ -5733,6 +5733,9 @@ class TwitchBot(commands.Bot):
                             if data and 'queue' in data:
                                 queue_length = len(data['queue'])
                                 queue_ids = {song['uri'] for song in data['queue']}
+                                currently_playing = data.get('currently_playing')
+                                if currently_playing and 'uri' in currently_playing:
+                                    queue_ids.add(currently_playing['uri'])
                                 for song_id in list(song_requests):
                                     if song_id not in queue_ids:
                                         song_info = song_requests[song_id]
@@ -6062,9 +6065,11 @@ class TwitchBot(commands.Bot):
                             async with req_session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=req_headers) as req_response:
                                 if req_response.status == 200:
                                     req_data = await req_response.json()
-                                    current_song_id = req_data.get("item", {}).get("uri")
+                                    item = req_data.get("item")
+                                    current_song_id = item.get("uri") if item else None
                                     if current_song_id and current_song_id in song_requests:
-                                        if song_requests[current_song_id].get("user") == ctx.author.name:
+                                        requested_user = song_requests[current_song_id].get("user")
+                                        if requested_user and requested_user.lower() == ctx.author.name.lower():
                                             is_requester = True
                     except Exception:
                         pass
@@ -16825,7 +16830,10 @@ async def check_song_requests():
                         data = await response.json()
                         if data and 'queue' in data:
                             queue = data['queue']
-                            queue_ids = [song['uri'] for song in queue]
+                            queue_ids = {song['uri'] for song in queue}
+                            currently_playing = data.get('currently_playing')
+                            if currently_playing and 'uri' in currently_playing:
+                                queue_ids.add(currently_playing['uri'])
                             for song_id in list(song_requests):
                                 if song_id not in queue_ids:
                                     song_info = song_requests[song_id]
