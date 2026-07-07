@@ -2081,8 +2081,10 @@ ob_start();
                             </div>
                         </div>
                     </div>
-                    <!-- Spotify Song Requests Tab -->
-                    <div class="tab-content" id="spotify-song-requests">
+                </div>
+                <!-- Spotify Song Requests Tab -->
+                <div class="tab-content" id="spotify-song-requests">
+                    <div class="module-container">
                         <div class="sp-card">
                             <header class="sp-card-header">
                                 <span class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('modules_spotify_song_requests_title'); ?></span>
@@ -2112,9 +2114,9 @@ ob_start();
                             </div>
                         </div>
                     </div>
+                </div>
         </div>
     </div>
-</div>
 <?php
 $content = ob_get_clean();
 ob_start();
