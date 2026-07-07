@@ -90,13 +90,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $textColor = preg_match('/^#[0-9A-Fa-f]{6}$/', $_POST['text_color'] ?? '') ? $_POST['text_color'] : '#FFFFFF';
         $allowedFonts = ['Arial', 'Verdana', 'Georgia', 'Tahoma', 'Trebuchet MS', 'Times New Roman', 'Courier New', 'Inter'];
         $font = in_array($_POST['font_family'] ?? '', $allowedFonts, true) ? $_POST['font_family'] : 'Arial';
+        $validFits = ['blur', 'cover', 'contain'];
+        $imageFit = in_array($_POST['image_fit'] ?? '', $validFits, true) ? $_POST['image_fit'] : 'blur';
 
         // Legacy display_mode/position/current_project_id columns are intentionally NOT
         // written here. Which boxes show and where they sit is driven by the show_*/
         // position_* flags; the featured project is derived from recency.
         $stmt = $db->prepare("INSERT INTO maker_overlay_settings
-            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_link, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured_x, position_featured_y, position_current_x, position_current_y, position_upcoming_x, position_upcoming_y, position_finished_x, position_finished_y, preview_canvas)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, visible, carousel_seconds, project_rotate_seconds, accent_color, text_color, font_family, show_title, show_description, show_link, show_featured, show_current, show_finished, show_upcoming, box_layout, position_featured_x, position_featured_y, position_current_x, position_current_y, position_upcoming_x, position_upcoming_y, position_finished_x, position_finished_y, preview_canvas, image_fit)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE visible = VALUES(visible),
                 carousel_seconds = VALUES(carousel_seconds), project_rotate_seconds = VALUES(project_rotate_seconds),
                 accent_color = VALUES(accent_color), text_color = VALUES(text_color), font_family = VALUES(font_family),
@@ -108,9 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
                 position_current_x = VALUES(position_current_x), position_current_y = VALUES(position_current_y),
                 position_upcoming_x = VALUES(position_upcoming_x), position_upcoming_y = VALUES(position_upcoming_y),
                 position_finished_x = VALUES(position_finished_x), position_finished_y = VALUES(position_finished_y),
-                preview_canvas = VALUES(preview_canvas)");
-        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_link(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) + 8 position coords (d) + preview_canvas(s)
-        $stmt->bind_param("iiisssiiiiiiisdddddddds", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showLink, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $fx, $fy, $cx, $cy, $ux, $uy, $dx, $dy, $previewCanvas);
+                preview_canvas = VALUES(preview_canvas),
+                image_fit = VALUES(image_fit)");
+        // Types: visible(i) carousel(i) rotate(i) accent(s) text(s) font(s) show_title(i) show_description(i) show_link(i) show_featured(i) show_current(i) show_finished(i) show_upcoming(i) box_layout(s) + 8 position coords (d) + preview_canvas(s) + image_fit(s)
+        $stmt->bind_param("iiisssiiiiiiisddddddddss", $visible, $carousel, $rotate, $accent, $textColor, $font, $showTitle, $showDesc, $showLink, $showFeatured, $showCurrent, $showFinished, $showUpcoming, $boxLayout, $fx, $fy, $cx, $cy, $ux, $uy, $dx, $dy, $previewCanvas, $imageFit);
         $ok = $stmt->execute();
         $err = $stmt->error;
         $stmt->close();
@@ -315,6 +318,7 @@ $settings = [
     'position_upcoming_x' => 79, 'position_upcoming_y' => 3,
     'position_finished_x' => 2, 'position_finished_y' => 3,
     'preview_canvas' => '1920x1080',
+    'image_fit' => 'blur',
 ];
 if ($res = $db->query("SELECT * FROM maker_overlay_settings WHERE id = 1")) {
     if ($row = $res->fetch_assoc()) { $settings = array_merge($settings, $row); }
@@ -478,6 +482,14 @@ ob_start();
                     <select name="font_family" class="sp-input">
                         <?php foreach ($fontOptions as $f): ?>
                             <option value="<?= htmlspecialchars($f) ?>" <?= ($settings['font_family'] === $f) ? 'selected' : '' ?>><?= htmlspecialchars($f) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_image_fit') ?></label>
+                    <select name="image_fit" class="sp-input">
+                        <?php foreach (['blur' => t('makers_fit_blur'), 'cover' => t('makers_fit_cover'), 'contain' => t('makers_fit_contain')] as $fv => $fl): ?>
+                            <option value="<?= $fv ?>" <?= (($settings['image_fit'] ?? 'blur') === $fv) ? 'selected' : '' ?>><?= htmlspecialchars($fl) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

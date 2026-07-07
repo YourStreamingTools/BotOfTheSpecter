@@ -39,6 +39,7 @@ $default_settings = [
     'position_current_x'     => 2,  'position_current_y'  => 64,
     'position_upcoming_x'    => 79, 'position_upcoming_y' => 3,
     'position_finished_x'    => 2,  'position_finished_y' => 3,
+    'image_fit'              => 'blur',
 ];
 
 // Build the snapshot used by both the JSON endpoint and the initial render.
@@ -213,9 +214,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (p.images && p.images.length) {
             html += '<div class="maker-overlay-page-carousel">';
             for (var i = 0; i < p.images.length; i++) {
-                html += '<img class="maker-overlay-page-image' + (i === 0 ? ' is-active' : '') +
-                        '" data-caption="' + escapeHtml(p.images[i].caption || '') +
-                        '" src="' + escapeHtml(p.images[i].url) + '" alt="">';
+                var imgUrl = escapeHtml(p.images[i].url);
+                var fitClass = escapeHtml(s.image_fit || 'blur');
+                html += '<div class="maker-overlay-page-image-item fit-' + fitClass + (i === 0 ? ' is-active' : '') +
+                        '" data-caption="' + escapeHtml(p.images[i].caption || '') + '">';
+                html += '<div class="maker-overlay-page-image-blur" style="background-image: url(\'' + imgUrl + '\');"></div>';
+                html += '<img class="maker-overlay-page-image-fg" src="' + imgUrl + '" alt="">';
+                html += '</div>';
             }
             html += '</div>';
             html += '<div class="maker-overlay-page-caption">' + escapeHtml(p.images[0].caption || '') + '</div>';
@@ -242,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var fadeMs = Math.max(2, parseInt(s.carousel_seconds, 10) || 6) * 100;
 
         function startCarousel(layer) {
-            var imgs = layer.querySelectorAll('.maker-overlay-page-image');
+            var imgs = layer.querySelectorAll('.maker-overlay-page-image-item');
             if (imgs.length <= 1) { return; }
             var capEl = layer.querySelector('.maker-overlay-page-caption');
             var imgIdx = 0;
