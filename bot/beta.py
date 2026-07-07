@@ -5710,6 +5710,42 @@ class TwitchBot(commands.Bot):
                 await self._media_songrequest(ctx, connection, bucket_key, cooldown_bucket)
                 return
             headers = {"Authorization": f"Bearer {access_token}"}
+            is_broadcaster = (ctx.message.author.name.lower() == CHANNEL_NAME.lower()) or (ctx.message.author.name.lower() == bot_owner.lower())
+            # Fetch settings to check enabled state and per-viewer limits
+            try:
+                settings = await get_media_settings(connection)
+                if not settings.get("enabled", 1) and not is_broadcaster:
+                    await send_chat_message("Song requests are currently disabled.")
+                    return
+                per_viewer_limit = settings.get("per_viewer_limit", 2)
+            except Exception as e:
+                api_logger.error(f"[SONG REQUEST] Failed to get media settings: {e}")
+                per_viewer_limit = 2
+                settings = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2}
+            # Sync / Prune the song_requests dictionary in real-time using Spotify queue
+            queue_length = 0
+            try:
+                queue_url = "https://api.spotify.com/v1/me/player/queue"
+                async with httpClientSession() as queue_session:
+                    async with queue_session.get(queue_url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data and 'queue' in data:
+                                queue_length = len(data['queue'])
+                                queue_ids = {song['uri'] for song in data['queue']}
+                                for song_id in list(song_requests):
+                                    if song_id not in queue_ids:
+                                        song_info = song_requests[song_id]
+                                        del song_requests[song_id]
+                                        api_logger.info(f"[SONG REQUEST] Song \"{song_info['song_name']} by {song_info['artist_name']}\" removed from tracking list (real-time sync).")
+            except Exception as e:
+                api_logger.error(f"[SONG REQUEST] Failed to prune song requests before limit check: {e}")
+            # Enforce song limit check (broadcaster/streamer is exempt)
+            if not is_broadcaster:
+                user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == ctx.message.author.name.lower())
+                if user_requests_count >= per_viewer_limit:
+                    await send_chat_message(f"You already have {per_viewer_limit} song(s) in the queue.")
+                    return
             message = ctx.message.content
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
@@ -5805,12 +5841,12 @@ class TwitchBot(commands.Bot):
                             song_id = track_data["uri"]
                             song_name = track_data["name"]
                             artist_name = track_data["artists"][0]["name"]
+                            duration_ms = track_data["duration_ms"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await send_chat_message(f"Sorry, I don't accept karaoke or instrumental versions.")
                                 return
-                            api_logger.info(f"[SONG REQUEST] Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
-                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
+                            api_logger.info(f"[SONG REQUEST] Spotify track resolved: {song_name} by {artist_name} (ID: {song_id})")
                         else:
                             api_logger.error(f"[SONG REQUEST] Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -5832,17 +5868,48 @@ class TwitchBot(commands.Bot):
                             song_id = track["uri"]
                             song_name = track["name"]
                             artist_name = track["artists"][0]["name"]
+                            duration_ms = track["duration_ms"]
                             unwanted_keywords = ["instrumental", "karaoke version"]
                             if any(keyword in song_name.lower() or keyword in artist_name.lower() for keyword in unwanted_keywords):
                                 await send_chat_message(f"No song found: {message_content}")
                                 return
-                            api_logger.info(f"[SONG REQUEST] Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
-                            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
+                            api_logger.info(f"[SONG REQUEST] Spotify track search resolved: {song_name} by {artist_name} (ID: {song_id})")
                         else:
                             api_logger.error(f"[SONG REQUEST] Spotify returned response code: {response.status}")
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
                             await send_chat_message(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
+            # Run evaluate_guardrails from media_helpers.py
+            try:
+                banlist = await get_media_banlist(connection)
+            except Exception as e:
+                api_logger.error(f"[SONG REQUEST] Failed to get media banlist: {e}")
+                banlist = []
+            if not is_broadcaster:
+                user_requests_count = sum(1 for song in song_requests.values() if song.get("user", "").lower() == ctx.message.author.name.lower())
+            else:
+                user_requests_count = 0
+            duration_seconds = duration_ms // 1000
+            ok, reason = evaluate_guardrails(
+                duration=duration_seconds,
+                queue_count=queue_length,
+                viewer_count=user_requests_count,
+                settings=settings,
+                video_id=song_id,
+                title=f"{song_name} {artist_name}",
+                banlist=banlist
+            )
+            if not ok:
+                msgs = {
+                    "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
+                    "queue_full": "The song queue is full, please try again later.",
+                    "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                    "banned": "Sorry, that song isn't allowed here.",
+                }
+                await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
+                return
+            api_logger.info(f"[SONG REQUEST] Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
+            song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
             # Add to Spotify queue
             request_url = f"https://api.spotify.com/v1/me/player/queue?uri={song_id}"
             async with httpClientSession() as queue_session:
