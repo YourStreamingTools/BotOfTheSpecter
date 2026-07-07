@@ -13768,6 +13768,12 @@ async def process_stream_offline_websocket():
         looped_tasks["hyperate_websocket"].cancel()
     if 'scheduled_clear_task' in globals() and scheduled_clear_task:
         scheduled_clear_task.cancel()
+    # Cancel handle_upcoming_ads immediately on stream end
+    if "handle_upcoming_ads" in looped_tasks:
+        task = looped_tasks["handle_upcoming_ads"]
+        if not task.done():
+            bot_logger.info("[STREAM OFFLINE] Cancelling task: handle_upcoming_ads")
+            task.cancel()
     # Clear automated shoutout tracking
     await clear_automated_shoutout_tracking()
     # Schedule the clearing task with a 5-minute delay
@@ -15524,6 +15530,12 @@ async def check_stream_online():
                         clear_ad_notice_session()
                         # Stop all timed messages when stream goes offline
                         await stop_all_timed_messages()
+                        # Cancel handle_upcoming_ads immediately on stream end
+                        if "handle_upcoming_ads" in looped_tasks:
+                            task = looped_tasks["handle_upcoming_ads"]
+                            if not task.done():
+                                bot_logger.info("[STREAM ONLINE] Cancelling task: handle_upcoming_ads")
+                                task.cancel()
                         # Log the status to the file
                         os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
                         with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
@@ -17118,14 +17130,6 @@ async def handle_ad_break_start(duration_seconds):
                     api_logger.info("[ADS] Skipped ad end fallback due to cooldown")
             except Exception as e:
                 api_logger.error(f"[ADS] Exception while sending ad end fallback message: {e}")
-        # Check for the next ad after this one completes
-        try:
-            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-            safe_create_task(check_next_ad_after_completion(ads_api_url, headers))
-        except Exception as e:
-            api_logger.error(f"[ADS] Exception scheduling next-ad check after ad end: {e}")
     try:
         handle_ad_break_end.start()
     except Exception as e:
@@ -17420,13 +17424,11 @@ async def check_and_handle_ads(last_notification_time, last_1min_notification_ti
                     except Exception as e:
                         api_logger.error(f"[ADS] Error parsing ad time: {e}")
                 if last_ad_at and last_ad_at != last_ad_time:
-                    # A new ad just finished, reset notification time and schedule next ad check
-                    api_logger.info("[ADS] Ad break completed, checking for next scheduled ad")
+                    # A new ad just finished, reset notification time
+                    api_logger.info("[ADS] Ad break completed, resetting notification states")
                     last_notification_time = None
                     last_1min_notification_time = None
                     last_ad_time = last_ad_at
-                    # Schedule a check for the next ad after a brief delay
-                    safe_create_task(check_next_ad_after_completion(ads_api_url, headers))
                 # Log preroll free time for debugging
                 if preroll_free_time > 0:
                     api_logger.debug(f"[ADS] Preroll free time remaining: {preroll_free_time} seconds")
@@ -17435,90 +17437,6 @@ async def check_and_handle_ads(last_notification_time, last_1min_notification_ti
         api_logger.error(f"[ADS] Error in check_and_handle_ads: {e}")
         return last_notification_time, last_1min_notification_time, last_ad_time, last_snooze_count
 
-# Function to check for the next ad after an ad break completes, allowing for timely notifications of upcoming ads even if they are scheduled shortly after the previous one ends
-async def check_next_ad_after_completion(ads_api_url, headers):
-    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, _next_ad_poll_running
-    if _next_ad_poll_running:
-        api_logger.debug("[ADS] Next-ad poll already running; skipping duplicate spawn")
-        return
-    _next_ad_poll_running = True
-    # Poll for up to 5 minutes (check every 10 seconds) to find the next ad and send timely notifications.
-    timeout = 300
-    interval = 10
-    elapsed = 0
-    try:
-        while elapsed < timeout:
-            try:
-                async with httpClientSession() as session:
-                    async with session.get(ads_api_url, headers=headers) as response:
-                        if response.status != 200:
-                            try:
-                                body = await response.text()
-                            except Exception:
-                                body = '<could not read response body>'
-                            api_logger.error(f"[ADS] Failed to fetch next ad data after completion. Status: {response.status}, body: {body}")
-                            # Continue polling until timeout
-                        else:
-                            try:
-                                data = await response.json()
-                            except Exception as e:
-                                # Log and continue polling
-                                api_logger.error(f"[ADS] Failed to parse JSON from next-ad response: {e}")
-                            else:
-                                ads_data = data.get("data", [])
-                                if not ads_data:
-                                    api_logger.debug("[ADS] No next ad data available after completion")
-                                else:
-                                    ad_info = ads_data[0]
-                                    next_ad_at = normalize_next_ad_at(ad_info.get("next_ad_at"))
-                                    duration = ad_info.get("duration")
-                                    if next_ad_at:
-                                        try:
-                                            # Parse the next ad time
-                                            next_ad_datetime = datetime.fromtimestamp(next_ad_at, set_timezone.UTC)
-                                            current_time = time_right_now(set_timezone.UTC)
-                                            time_until_ad = (next_ad_datetime - current_time).total_seconds()
-                                            api_logger.debug(f"[ADS] Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
-                                            # Leave the 30-90s window to the dedicated 1-minute handler.
-                                            if 30 <= time_until_ad <= 90:
-                                                api_logger.debug("[ADS] Skipping post-ad upcoming check; 1-minute handler owns this window")
-                                            elif time_until_ad <= 300:
-                                                minutes_until = (int(time_until_ad) + 59) // 60
-                                                if minutes_until >= 2 and ad_upcoming_last_notified_next_ad_at != next_ad_at:
-                                                    duration_text = format_duration(duration)
-                                                    settings = await get_ad_settings()
-                                                    if settings and settings.get('enable_ad_notice', True) and settings.get('enable_upcoming_ad_message', True):
-                                                        if settings.get('ad_upcoming_message'):
-                                                            message = settings['ad_upcoming_message']
-                                                            message = message.replace("(minutes)", str(minutes_until))
-                                                            message = message.replace("(duration)", duration_text)
-                                                        else:
-                                                            message = f"Heads up! Another ad break is coming up in {minutes_until} minute{'s' if minutes_until != 1 else ''} and will last {duration_text}."
-                                                        if can_send_ad_message():
-                                                            try:
-                                                                sent_ok = await send_chat_message(message)
-                                                                if not sent_ok:
-                                                                    api_logger.error(f"[ADS] Failed to send immediate next-ad notification: {message}")
-                                                                else:
-                                                                    ad_upcoming_last_notified_next_ad_at = next_ad_at
-                                                                    try_mark_ad_message_sent_after(True)
-                                                                    api_logger.info(f"[ADS] Sent immediate next-ad notification: {message}")
-                                                                    ad_upcoming_notified = True
-                                                                    return
-                                                            except Exception as e:
-                                                                api_logger.error(f"[ADS] Exception while sending immediate next-ad notification: {e}")
-                                                        else:
-                                                            api_logger.info("[ADS] Skipped immediate next-ad notification due to cooldown")
-                                                    else:
-                                                        api_logger.debug("[ADS] Post-ad upcoming notification disabled by settings")
-                                        except Exception as e:
-                                            api_logger.error(f"[ADS] Error parsing next ad time after completion: {e}")
-            except Exception as e:
-                api_logger.error(f"[ADS] Error checking next ad after completion: {e}")
-            await sleep(interval)
-            elapsed += interval
-    finally:
-        _next_ad_poll_running = False
 
 # Function to track chat messages for the bot counter
 async def track_chat_message():
