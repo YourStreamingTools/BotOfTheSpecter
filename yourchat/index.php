@@ -4339,11 +4339,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // remove global fullscreen lock
                 try { document.documentElement.classList.remove('overlay-fullscreen'); } catch (e) { }
                 exitBtn.style.display = 'none';
+                const composer = document.getElementById('message-input-container');
+                if (composer) composer.removeAttribute('aria-hidden');
                 setFullscreenIcon(false);
             } else {
                 // Enter fullscreen
                 container.classList.add('fullscreen-mode');
                 overlay.classList.add('fullscreen');
+                const composer = document.getElementById('message-input-container');
+                if (composer) composer.setAttribute('aria-hidden', 'true');
                 // move overlay to body so fixed positioning covers full viewport
                 try {
                     if (!window.__overlayOriginalParent) {
