@@ -8,7 +8,7 @@ require_once "/var/www/roadmap/admin/database.php";
 require_once __DIR__ . '/includes/session.php';
 roadmap_session_start();
 
-$canDeleteComments = roadmap_is_admin();
+$canDeleteComments = roadmap_is_admin() && isset($_GET['admin']) && $_GET['admin'] === '1';
 $item_id = (int)($_GET['item_id'] ?? 0);
 
 if ($item_id <= 0) {
