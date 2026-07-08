@@ -23,6 +23,7 @@ if (!isset($topbarTitle)) $topbarTitle = $pageTitle;
 
 $isLoggedIn  = roadmap_is_logged_in();
 $isAdmin     = roadmap_is_admin();
+$roadmapAdminPage = !empty($roadmapAdminPage);
 $displayName = htmlspecialchars($_SESSION['display_name'] ?? $_SESSION['username'] ?? '', ENT_QUOTES);
 $v = uuidv4();
 ?>
@@ -406,6 +407,7 @@ $v = uuidv4();
 <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
 <script src="/js/app.js?v=<?php echo $v; ?>" defer></script>
 <script>
+window.__ROADMAP_ADMIN_PAGE = <?php echo $roadmapAdminPage ? 'true' : 'false'; ?>;
 // ---- Utilities ----
 function linkifyText(text) {
     return text.replace(/(https?:\/\/[^\s]+)/g, function(url) {
@@ -472,7 +474,9 @@ function renderDetailsTags(button) {
 function loadActivity(itemId) {
     const sec = document.getElementById('commentsSection');
     if (!sec) return;
-    fetch('../get-activity.php?item_id='+encodeURIComponent(itemId))
+    let url = '../get-activity.php?item_id=' + encodeURIComponent(itemId);
+    if (window.__ROADMAP_ADMIN_PAGE) url += '&admin=1';
+    fetch(url)
         .then(r=>r.text())
         .then(html=>{ sec.innerHTML=html; })
         .catch(()=>{ sec.innerHTML='<p style="color:var(--red);font-size:0.875rem;">Error loading activity</p>'; });
@@ -687,22 +691,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 .catch(()=>alert('Error adding comment.'));
         });
     }
-    const commentsSection=document.getElementById('commentsSection');
-    if(commentsSection) {
-        commentsSection.addEventListener('click',function(e){
-            const btn=e.target.closest('.delete-comment-btn');
-            if(!btn) return;
-            e.preventDefault();
-            if(!confirm('Delete this comment?')) return;
-            const fd=new FormData();
-            fd.append('comment_id',btn.dataset.commentId||'');
-            const csrfEl=document.querySelector('meta[name="csrf-token"]');
-            fd.append('csrf_token',csrfEl?csrfEl.getAttribute('content'):'');
-            fetch('../admin/delete-comment.php',{method:'POST',body:fd})
-                .then(r=>r.json())
-                .then(d=>{ if(d.success) loadActivity(currentItemId); else alert('Error: '+(d.message||'Could not delete comment')); })
-                .catch(()=>alert('Network error'));
-        });
+    if (window.__ROADMAP_ADMIN_PAGE) {
+        const commentsSection=document.getElementById('commentsSection');
+        if(commentsSection) {
+            commentsSection.addEventListener('click',function(e){
+                const btn=e.target.closest('.delete-comment-btn');
+                if(!btn) return;
+                e.preventDefault();
+                if(!confirm('Delete this comment?')) return;
+                const fd=new FormData();
+                fd.append('comment_id',btn.dataset.commentId||'');
+                const csrfEl=document.querySelector('meta[name="csrf-token"]');
+                fd.append('csrf_token',csrfEl?csrfEl.getAttribute('content'):'');
+                fetch('../admin/delete-comment.php',{method:'POST',body:fd})
+                    .then(r=>r.json())
+                    .then(d=>{ if(d.success) loadActivity(currentItemId); else alert('Error: '+(d.message||'Could not delete comment')); })
+                    .catch(()=>alert('Network error'));
+            });
+        }
     }
 
     // Edit item modal

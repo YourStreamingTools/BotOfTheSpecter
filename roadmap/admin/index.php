@@ -16,6 +16,7 @@ initializeRoadmapDatabase();
 
 // Set page metadata
 $pageTitle = 'Roadmap Admin';
+$roadmapAdminPage = true;
 
 // Get all roadmap items grouped by category
 $conn = getRoadmapConnection();
