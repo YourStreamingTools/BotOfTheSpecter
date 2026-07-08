@@ -355,27 +355,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
-            $ssh_host = $bots_ssh_host;
-            $ssh_username = $bots_ssh_username;
-            $ssh_password = $bots_ssh_password;
+            $ssh_host = $bots_ssh_host ?? '';
+            $ssh_username = $bots_ssh_username ?? '';
+            $ssh_password = $bots_ssh_password ?? '';
             if ($service == 'fastapi.service') {
                 // Use the variable names defined in config/ssh.php
-                $ssh_host = $api_server_host;
-                $ssh_username = $api_server_username;
-                $ssh_password = $api_server_password;
+                $ssh_host = $api_server_host ?? '';
+                $ssh_username = $api_server_username ?? '';
+                $ssh_password = $api_server_password ?? '';
             } elseif ($service == 'websocket.service') {
                 // Use the variable names defined in config/ssh.php
-                $ssh_host = $websocket_server_host;
-                $ssh_username = $websocket_server_username;
-                $ssh_password = $websocket_server_password;
+                $ssh_host = $websocket_server_host ?? '';
+                $ssh_username = $websocket_server_username ?? '';
+                $ssh_password = $websocket_server_password ?? '';
             } elseif ($service == 'mysql.service') {
-                $ssh_host = $sql_server_host;
-                $ssh_username = $sql_server_username;
-                $ssh_password = $sql_server_password;
+                $ssh_host = $sql_server_host ?? '';
+                $ssh_username = $sql_server_username ?? '';
+                $ssh_password = $sql_server_password ?? '';
             } elseif ($service == 'twitch-recorder.service') {
-                $ssh_host = $recorder_ssh_host;
-                $ssh_username = $recorder_ssh_username;
-                $ssh_password = $recorder_ssh_password;
+                $ssh_host = $recorder_ssh_host ?? '';
+                $ssh_username = $recorder_ssh_username ?? '';
+                $ssh_password = $recorder_ssh_password ?? '';
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if (!$connection) {
@@ -1138,6 +1138,9 @@ if ($lookup_curl_errno) {
 function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password) {
     $status = 'Unknown';
     $pid = 'N/A';
+    if (empty($ssh_host)) {
+        return ['status' => $status, 'pid' => $pid];
+    }
     try {
         $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
         if ($connection) {
