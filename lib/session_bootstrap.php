@@ -72,22 +72,25 @@ require_once __DIR__ . '/web_session.php';
 require_once '/var/www/config/database.php';
 
 // ----------------------------------------------------------------
-// Promote DB credentials to true $GLOBALS scope.
+// Resolve DB credentials regardless of include scope.
 //
 // This bootstrap is sometimes require_once'd from *inside* a function
-// (e.g. support_session_start() in support/includes/session.php). When
-// that happens, every variable created at the bootstrap's top level —
-// including the $db_* vars set by database.php — lives only in the
-// caller's local function scope, not in true global scope. Helpers
-// like support_db() / website_db() then do `global $db_servername;`
-// and find nothing → mysqli is constructed with null host and reports
-// "No such file or directory" (it falls through to the Unix socket).
+// (e.g. roadmap_session_start(), support_session_start()). Two cases:
 //
-// Copying explicitly via $GLOBALS works regardless of how this file
-// was included. When bootstrap is at true global scope this is a no-op
-// (the value is already in $GLOBALS); when it isn't, this is what
-// makes the consumers' `global` declarations actually find something.
+//   A) database.php loads here for the first time inside that function
+//      → $db_* exist in the function's local scope only.
+//   B) database.php was already require_once'd at global scope earlier
+//      in the request (e.g. get-activity.php) → the require_once above
+//      is a no-op and $db_* only exist in global scope.
+//
+// Pull from global scope when local copies are missing, then promote to
+// $GLOBALS so helpers like website_db() can always `global $db_*` and
+// find something. The mysqli connection below reads from $GLOBALS so it
+// works in both cases.
 // ----------------------------------------------------------------
+if (!isset($db_servername) || !isset($db_username) || !isset($db_password)) {
+    global $db_servername, $db_username, $db_password;
+}
 if (isset($db_servername)) $GLOBALS['db_servername'] = $db_servername;
 if (isset($db_username))   $GLOBALS['db_username']   = $db_username;
 if (isset($db_password))   $GLOBALS['db_password']   = $db_password;
@@ -115,7 +118,12 @@ session_name('bots_session');
 // The DB connection is held for the lifetime of the request; the
 // session handler reuses it for read/write/destroy/gc.
 // ----------------------------------------------------------------
-$bots_session_db = new mysqli($db_servername, $db_username, $db_password, 'website');
+$bots_session_db = new mysqli(
+    $GLOBALS['db_servername'] ?? '',
+    $GLOBALS['db_username']   ?? '',
+    $GLOBALS['db_password']   ?? '',
+    'website'
+);
 if ($bots_session_db->connect_error) {
     error_log('[session_bootstrap] DB connect failed: ' . $bots_session_db->connect_error);
     // Fall back to default session handler so the page still loads with an empty session.
