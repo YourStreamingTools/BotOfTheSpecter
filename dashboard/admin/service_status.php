@@ -55,6 +55,9 @@ header('Content-Type: application/json');
 function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password) {
     $status = 'Unknown';
     $pid = 'N/A';
+    if (empty($ssh_host)) {
+        return ['status' => $status, 'pid' => $pid];
+    }
     try {
         $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
         if ($connection) {
@@ -86,39 +89,39 @@ $service = $_GET['service'] ?? '';
 $serviceMap = [
     'discordbot' => [
         'service_name' => 'discordbot.service',
-        'ssh_host' => $bots_ssh_host,
-        'ssh_username' => $bots_ssh_username,
-        'ssh_password' => $bots_ssh_password
+        'ssh_host' => $bots_ssh_host ?? '',
+        'ssh_username' => $bots_ssh_username ?? '',
+        'ssh_password' => $bots_ssh_password ?? ''
     ],
     'fastapi' => [
         'service_name' => 'fastapi.service',
-        'ssh_host' => $api_server_host,
-        'ssh_username' => $api_server_username,
-        'ssh_password' => $api_server_password
+        'ssh_host' => $api_server_host ?? '',
+        'ssh_username' => $api_server_username ?? '',
+        'ssh_password' => $api_server_password ?? ''
     ],
     'websocket' => [
         'service_name' => 'websocket.service',
-        'ssh_host' => $websocket_server_host,
-        'ssh_username' => $websocket_server_username,
-        'ssh_password' => $websocket_server_password
+        'ssh_host' => $websocket_server_host ?? '',
+        'ssh_username' => $websocket_server_username ?? '',
+        'ssh_password' => $websocket_server_password ?? ''
     ],
     'mysql' => [
         'service_name' => 'mysql.service',
-        'ssh_host' => $sql_server_host,
-        'ssh_username' => $sql_server_username,
-        'ssh_password' => $sql_server_password
+        'ssh_host' => $sql_server_host ?? '',
+        'ssh_username' => $sql_server_username ?? '',
+        'ssh_password' => $sql_server_password ?? ''
     ],
     'export_queue_worker' => [
         'service_name' => 'export_queue_worker.service',
-        'ssh_host' => $bots_ssh_host,
-        'ssh_username' => $bots_ssh_username,
-        'ssh_password' => $bots_ssh_password
+        'ssh_host' => $bots_ssh_host ?? '',
+        'ssh_username' => $bots_ssh_username ?? '',
+        'ssh_password' => $bots_ssh_password ?? ''
     ],
     'twitch_recorder' => [
         'service_name' => 'twitch-recorder.service',
-        'ssh_host' => $recorder_ssh_host,
-        'ssh_username' => $recorder_ssh_username,
-        'ssh_password' => $recorder_ssh_password
+        'ssh_host' => $recorder_ssh_host ?? '',
+        'ssh_username' => $recorder_ssh_username ?? '',
+        'ssh_password' => $recorder_ssh_password ?? ''
     ]
 ];
 
