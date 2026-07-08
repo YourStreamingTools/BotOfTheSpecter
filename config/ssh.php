@@ -95,13 +95,13 @@ if (!class_exists('SSHConnectionManager')) {
                 if ($attempt > 1) {
                     usleep(100000); // 0.1 second delay
                 }
-                $connection = ssh2_connect($host, 22);
+                $connection = @ssh2_connect($host, 22);
                 if ($connection) {
                     // Authenticate
-                    if (ssh2_auth_password($connection, $username, $password)) {
+                    if (@ssh2_auth_password($connection, $username, $password)) {
                         return $connection;
                     } else {
-                        if (function_exists('ssh2_disconnect')) { ssh2_disconnect($connection); }
+                        if (function_exists('ssh2_disconnect')) { @ssh2_disconnect($connection); }
                         error_log("SSH authentication failed for user {$username} to {$host}");
                         throw new Exception("Authentication failed. Please contact support if this issue persists.");
                     }
@@ -129,7 +129,7 @@ if (!class_exists('SSHConnectionManager')) {
             // This avoids relying solely on ssh2_get_exit_status, which can return null on some setups.
             $exit_marker = '__SSH_EXIT_STATUS__';
             $wrappedCommand = $isBackground ? $command : ($command . '; printf "' . $exit_marker . '%s" $?');
-            $stream = ssh2_exec($connection, $wrappedCommand);
+            $stream = @ssh2_exec($connection, $wrappedCommand);
             if (!$stream) {
                 return false;
             }
@@ -144,7 +144,7 @@ if (!class_exists('SSHConnectionManager')) {
                 // For regular commands, block and wait for output
                 stream_set_blocking($stream, true);
                 // Set a stream timeout to prevent hanging
-                $errorStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
+                $errorStream = @ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
                 stream_set_timeout($stream, 5); // Reduced from 8 to 5 seconds timeout
                 stream_set_timeout($errorStream, 5);
                 $output = stream_get_contents($stream);
@@ -196,7 +196,7 @@ if (!class_exists('SSHConnectionManager')) {
             if (!$stream) {
                 return false;
             }
-            $errorStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
+            $errorStream = @ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
             stream_set_blocking($stream, true);
             stream_set_blocking($errorStream, true);
             stream_set_timeout($stream, $timeoutSeconds);
@@ -217,12 +217,12 @@ if (!class_exists('SSHConnectionManager')) {
             return $combined;
         }
         public static function executeCommandStream($connection, $command) {
-            $stream = ssh2_exec($connection, $command);
+            $stream = @ssh2_exec($connection, $command);
             if (!$stream) {
                 return false;
             }
             // Get stderr stream as well
-            $errorStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
+            $errorStream = @ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
             // Set non-blocking mode for streaming
             stream_set_blocking($stream, false);
             stream_set_blocking($errorStream, false);
