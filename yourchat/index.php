@@ -612,31 +612,46 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                     Read the sender's name
                                 </label>
                                 <div class="narrator-skip">
-                                    <label class="ding-volume-label" for="narrator-user-filter-input">Skip usernames (shown in chat, not spoken)</label>
-                                    <input type="text" id="narrator-user-filter-input" class="sp-input"
-                                        placeholder="Enter username to skip narrating (press Enter to add)"
-                                        onkeypress="handleNarratorUsernameFilterInput(event)">
-                                    <div class="filter-list" id="narrator-user-filter-list"></div>
-                                    <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
-                                    <div class="narrator-phrase-add">
-                                        <input type="text" id="narrator-filter-input" class="sp-input"
-                                            placeholder="Enter words to skip (press Enter to add)"
-                                            onkeypress="handleNarratorFilterInput(event)">
-                                        <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
-                                            <input type="checkbox" id="narrator-filter-regex">&nbsp;Flexible pattern matching
-                                        </label>
+                                    <div class="narrator-skip-section">
+                                        <div class="filters-header">
+                                            <label class="ding-volume-label" for="narrator-user-filter-input">Skip usernames (shown in chat, not spoken)</label>
+                                            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" data-target="narrator-user-filter-list" aria-expanded="true">Hide</button>
+                                        </div>
+                                        <input type="text" id="narrator-user-filter-input" class="sp-input"
+                                            placeholder="Enter username to skip narrating (press Enter to add)"
+                                            onkeypress="handleNarratorUsernameFilterInput(event)">
+                                        <div class="filter-list" id="narrator-user-filter-list"></div>
                                     </div>
-                                    <div class="filter-list" id="narrator-filter-list"></div>
-                                    <label class="ding-volume-label" for="narrator-allow-input">Allow phrases (spoken even when sender is skipped)</label>
-                                    <div class="narrator-phrase-add">
-                                        <input type="text" id="narrator-allow-input" class="sp-input"
-                                            placeholder="e.g. ad break is coming up (press Enter to add)"
-                                            onkeypress="handleNarratorAllowInput(event)">
-                                        <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
-                                            <input type="checkbox" id="narrator-allow-regex">&nbsp;Flexible pattern matching
-                                        </label>
+                                    <div class="narrator-skip-section">
+                                        <div class="filters-header">
+                                            <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
+                                            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" data-target="narrator-filter-list" aria-expanded="true">Hide</button>
+                                        </div>
+                                        <div class="narrator-phrase-add">
+                                            <input type="text" id="narrator-filter-input" class="sp-input"
+                                                placeholder="Enter words to skip (press Enter to add)"
+                                                onkeypress="handleNarratorFilterInput(event)">
+                                            <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                                <input type="checkbox" id="narrator-filter-regex">&nbsp;Flexible pattern matching
+                                            </label>
+                                        </div>
+                                        <div class="filter-list" id="narrator-filter-list"></div>
                                     </div>
-                                    <div class="filter-list" id="narrator-allow-list"></div>
+                                    <div class="narrator-skip-section">
+                                        <div class="filters-header">
+                                            <label class="ding-volume-label" for="narrator-allow-input">Allow phrases (spoken even when sender is skipped)</label>
+                                            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" data-target="narrator-allow-list" aria-expanded="true">Hide</button>
+                                        </div>
+                                        <div class="narrator-phrase-add">
+                                            <input type="text" id="narrator-allow-input" class="sp-input"
+                                                placeholder="e.g. ad break is coming up (press Enter to add)"
+                                                onkeypress="handleNarratorAllowInput(event)">
+                                            <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                                <input type="checkbox" id="narrator-allow-regex">&nbsp;Flexible pattern matching
+                                            </label>
+                                        </div>
+                                        <div class="filter-list" id="narrator-allow-list"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1405,8 +1420,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 narrator_speak_name: true,
                 narrator_filters_usernames: [],
                 narrator_filters_messages: [],
-                narrator_allow_messages: []
+                narrator_allow_messages: [],
+                narrator_filter_use_regex: false,
+                narrator_allow_use_regex: false
             };
+            let settingsHydrated = false;
+            let settingsHydrateWaiters = [];
+            let settingsSaveChain = Promise.resolve();
+            function markSettingsHydrated() {
+                settingsHydrated = true;
+                settingsHydrateWaiters.splice(0).forEach(resolve => resolve());
+            }
+            function waitForSettingsHydrated() {
+                return settingsHydrated ? Promise.resolve() : new Promise(resolve => settingsHydrateWaiters.push(resolve));
+            }
             async function loadSettingsFromServer() {
                 try {
                     const response = await fetch('index.php?action=load_settings');
@@ -1435,45 +1462,53 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         if (!Array.isArray(userSettings.narrator_filters_usernames)) userSettings.narrator_filters_usernames = [];
                         if (!Array.isArray(userSettings.narrator_filters_messages)) userSettings.narrator_filters_messages = [];
                         if (!Array.isArray(userSettings.narrator_allow_messages)) userSettings.narrator_allow_messages = [];
+                        if (userSettings.narrator_filter_use_regex === undefined) userSettings.narrator_filter_use_regex = false;
+                        if (userSettings.narrator_allow_use_regex === undefined) userSettings.narrator_allow_use_regex = false;
                         return true;
                     }
                     return false;
                 } catch (e) {
                     console.error('Failed to load settings from server:', e);
                     return false;
+                } finally {
+                    markSettingsHydrated();
                 }
             }
             async function saveSettingsToServer() {
-                try {
-                    const response = await fetch('index.php?action=save_settings', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(userSettings)
-                    });
-                    const data = await response.json();
-                    if (!data.success) {
-                        console.error('Failed to save settings:', data.error || 'Unknown error');
-                        // Show user-friendly error notification
+                settingsSaveChain = settingsSaveChain.then(async () => {
+                    await waitForSettingsHydrated();
+                    try {
+                        const response = await fetch('index.php?action=save_settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(userSettings)
+                        });
+                        const data = await response.json();
+                        if (!data.success) {
+                            console.error('Failed to save settings:', data.error || 'Unknown error');
+                            // Show user-friendly error notification
+                            Toastify({
+                                text: 'Failed to save settings: ' + (data.error || 'Unknown error'),
+                                duration: 5000,
+                                gravity: 'top',
+                                position: 'right',
+                                backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+                            }).showToast();
+                        }
+                    } catch (e) {
+                        console.error('Failed to save settings to server:', e);
                         Toastify({
-                            text: 'Failed to save settings: ' + (data.error || 'Unknown error'),
+                            text: 'Network error saving settings',
                             duration: 5000,
                             gravity: 'top',
                             position: 'right',
                             backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
                         }).showToast();
                     }
-                } catch (e) {
-                    console.error('Failed to save settings to server:', e);
-                    Toastify({
-                        text: 'Network error saving settings',
-                        duration: 5000,
-                        gravity: 'top',
-                        position: 'right',
-                        backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
-                    }).showToast();
-                }
+                });
+                return settingsSaveChain;
             }
             async function saveSessionIdToServer(sessionId) {
                 if (shouldSkipAuthenticatedRequest('saveSessionIdToServer')) {
@@ -3397,8 +3432,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         const NARRATOR_VOLUME_KEY = 'yourchat-narrator-volume';
         const NARRATOR_PITCH_KEY = 'yourchat-narrator-pitch';
         const NARRATOR_SPEAK_NAME_KEY = 'yourchat-narrator-speak-name';
+        const NARRATOR_FILTER_REGEX_MODE_KEY = 'yourchat-narrator-filter-regex-mode';
+        const NARRATOR_ALLOW_REGEX_MODE_KEY = 'yourchat-narrator-allow-regex-mode';
         const NARRATOR_MAX_QUEUE = 3;  // drop the newest beyond this so narration stays near real-time
         let narratorEnabled = false;   // opt-in (default OFF)
+        let narratorFilterUseRegex = false;
+        let narratorAllowUseRegex = false;
         let narratorVoiceName = '';    // '' => browser default voice
         let narratorRate = 1;          // 0.5 .. 2.0
         let narratorVolume = 1;        // 0 .. 1
@@ -3435,6 +3474,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 if (sn === 'true') narratorSpeakName = true;
                 else if (sn === 'false') narratorSpeakName = false;
                 else narratorSpeakName = (userSettings.narrator_speak_name !== undefined) ? !!userSettings.narrator_speak_name : true;
+                const filterRegexMode = localStorage.getItem(NARRATOR_FILTER_REGEX_MODE_KEY);
+                if (filterRegexMode === 'true') narratorFilterUseRegex = true;
+                else if (filterRegexMode === 'false') narratorFilterUseRegex = false;
+                else narratorFilterUseRegex = !!userSettings.narrator_filter_use_regex;
+                const allowRegexMode = localStorage.getItem(NARRATOR_ALLOW_REGEX_MODE_KEY);
+                if (allowRegexMode === 'true') narratorAllowUseRegex = true;
+                else if (allowRegexMode === 'false') narratorAllowUseRegex = false;
+                else narratorAllowUseRegex = !!userSettings.narrator_allow_use_regex;
             } catch (e) {
                 // localStorage unavailable: rely on whatever the server settings provided
                 narratorEnabled = !!userSettings.narrator_enabled;
@@ -3443,7 +3490,27 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 narratorVolume = narratorClamp(userSettings.narrator_volume, 0, 1, 1);
                 narratorPitch = narratorClamp(userSettings.narrator_pitch, 0, 2, 1);
                 narratorSpeakName = userSettings.narrator_speak_name !== undefined ? !!userSettings.narrator_speak_name : true;
+                narratorFilterUseRegex = !!userSettings.narrator_filter_use_regex;
+                narratorAllowUseRegex = !!userSettings.narrator_allow_use_regex;
             }
+        }
+        function persistNarratorRegexMode(kind, enabled) {
+            const on = !!enabled;
+            if (kind === 'filter') {
+                narratorFilterUseRegex = on;
+                persistNarratorSetting(NARRATOR_FILTER_REGEX_MODE_KEY, on ? 'true' : 'false', 'narrator_filter_use_regex', on);
+            } else {
+                narratorAllowUseRegex = on;
+                persistNarratorSetting(NARRATOR_ALLOW_REGEX_MODE_KEY, on ? 'true' : 'false', 'narrator_allow_use_regex', on);
+            }
+        }
+        function applyNarratorRegexModeToUI() {
+            const filterToggle = document.getElementById('narrator-filter-regex');
+            const allowToggle = document.getElementById('narrator-allow-regex');
+            if (filterToggle) filterToggle.checked = narratorFilterUseRegex;
+            if (allowToggle) allowToggle.checked = narratorAllowUseRegex;
+            updateNarratorPhraseInputPlaceholder('narrator-filter-input', 'narrator-filter-regex');
+            updateNarratorPhraseInputPlaceholder('narrator-allow-input', 'narrator-allow-regex');
         }
         function persistNarratorSetting(lsKey, lsVal, settingsKey, settingsVal) {
             try { localStorage.setItem(lsKey, lsVal); } catch (e) { /* ignore */ }
@@ -3721,8 +3788,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 saveList(list);
             }
             input.value = '';
-            if (toggle) toggle.checked = false;
-            updateNarratorPhraseInputPlaceholder(inputId, toggleId);
             renderList();
         }
         function updateNarratorPhraseInputPlaceholder(inputId, toggleId) {
@@ -3748,9 +3813,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             pairs.forEach(([inputId, toggleId]) => {
                 const toggle = document.getElementById(toggleId);
                 if (!toggle) return;
-                toggle.addEventListener('change', () => updateNarratorPhraseInputPlaceholder(inputId, toggleId));
-                updateNarratorPhraseInputPlaceholder(inputId, toggleId);
+                const kind = toggleId === 'narrator-filter-regex' ? 'filter' : 'allow';
+                toggle.addEventListener('change', () => {
+                    persistNarratorRegexMode(kind, toggle.checked);
+                    updateNarratorPhraseInputPlaceholder(inputId, toggleId);
+                });
             });
+            applyNarratorRegexModeToUI();
         }
         function handleNarratorFilterInput(event) {
             if (event.key !== 'Enter') return;
@@ -3850,6 +3919,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (pitchValue) pitchValue.textContent = narratorPitch.toFixed(1);
             if (speakName) speakName.checked = narratorSpeakName;
             if (controls) controls.classList.toggle('is-collapsed', !narratorEnabled);
+            applyNarratorRegexModeToUI();
             populateNarratorVoices();
             renderNarratorUsernameFilters();
             renderNarratorFilters();

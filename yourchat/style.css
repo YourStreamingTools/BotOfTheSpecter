@@ -5028,11 +5028,24 @@ label.checkbox input[type="checkbox"] {
 .narrator-panel .narrator-skip {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.75rem;
     padding: 0.75rem;
     border-radius: var(--radius);
     background: var(--bg-surface);
     border: 1px solid var(--border);
+}
+
+.narrator-panel .narrator-skip-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.narrator-panel .narrator-skip .filters-header .ding-volume-label {
+    margin: 0;
+    white-space: normal;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .narrator-panel .narrator-skip .ding-volume-label { white-space: normal; }
