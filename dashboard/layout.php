@@ -279,8 +279,6 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- Custom Uptime Script -->
-    <script src="https://uptime.botofthespecter.com/en/cca64861/widget/script.js"></script>
     <!-- Custom JS -->
     <script src="/js/dashboard.js?v=<?php echo filemtime(__DIR__ . '/js/dashboard.js'); ?>"></script>
     <script src="/js/search.js?v=<?php echo filemtime(__DIR__ . '/js/search.js'); ?>"></script>
