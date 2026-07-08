@@ -145,6 +145,30 @@ if ($isLoggedIn) {
                 <a href="discordbot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cog"></i> <?= t('dashboard_manage_discord') ?></a>
             </div>
         </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--green);"><i class="fas fa-life-ring fa-2x"></i></div>
+                <h4 class="db-quick-title"><?= t('dashboard_support_portal') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_support_portal_desc') ?></p>
+                <a href="https://botofthespecter.com/sso.php?target=support" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_visit_support') ?></a>
+            </div>
+        </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--amber);"><i class="fas fa-map fa-2x"></i></div>
+                <h4 class="db-quick-title"><?= t('dashboard_roadmap') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_roadmap_desc') ?></p>
+                <a href="https://botofthespecter.com/sso.php?target=roadmap" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_view_roadmap') ?></a>
+            </div>
+        </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-comments fa-2x"></i></div>
+                <h4 class="db-quick-title"><?= t('dashboard_yourchat') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_yourchat_desc') ?></p>
+                <a href="https://yourchat.botofthespecter.com/" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_open_yourchat') ?></a>
+            </div>
+        </div>
     </div>
     <?php
     $content = ob_get_clean();
