@@ -19,7 +19,11 @@
 //      same logic). These are sessions where the user got a cookie
 //      but never finished auth. They pile up over time.
 //
-//   3. handoff_tokens where expires_at < NOW() - 1 day. The live TTL
+//   3. web_sessions where twitch_expires_at < NOW(). Twitch access
+//      tokens are 4h; a row past that is not a real login even if
+//      last_seen_at was bumped by a stray request.
+//
+//   4. handoff_tokens where expires_at < NOW() - 1 day. The live TTL
 //      is 5 minutes; anything past a day is debris regardless of `used`.
 //
 // Refuses to run from a webserver — cron-only by design. Outputs
@@ -44,6 +48,7 @@ $dryRun      = in_array('--dry-run', $args, true);
 $purgeEmpty  = in_array('--purge-empty', $args, true);
 
 require_once '/var/www/config/database.php';
+require_once '/var/www/lib/web_session.php';
 
 // Tunables. Adjust here if you want to be more or less aggressive.
 $STALE_SESSION_HOURS       = 4;   // matches session.gc_maxlifetime in the bootstrap
@@ -100,9 +105,16 @@ if ($purgeEmpty) {
 }
 
 // ----------------------------------------------------------------
-// Sweep 3 — old handoff_tokens.
+// Sweep 3 — Twitch token past expiry.
 // ----------------------------------------------------------------
-$sql3 = "DELETE FROM handoff_tokens
+$sql3 = "DELETE FROM web_sessions
+          WHERE twitch_expires_at IS NOT NULL
+            AND twitch_expires_at < NOW()";
+
+// ----------------------------------------------------------------
+// Sweep 4 — old handoff_tokens.
+// ----------------------------------------------------------------
+$sql4 = "DELETE FROM handoff_tokens
           WHERE expires_at < NOW() - INTERVAL ? DAY";
 
 if ($dryRun) {
@@ -120,13 +132,18 @@ if ($dryRun) {
               AND (last_seen_at IS NULL
                    OR last_seen_at < NOW() - INTERVAL {$INCOMPLETE_AUTH_GRACE_MIN} MINUTE)";
     $countIncomplete = (int)$conn->query($countIncompleteSql)->fetch_row()[0];
+    $countExpiredToken = (int)$conn->query(
+        "SELECT COUNT(*) FROM web_sessions
+          WHERE twitch_expires_at IS NOT NULL
+            AND twitch_expires_at < NOW()"
+    )->fetch_row()[0];
     $countHandoff = (int)$conn->query(
         "SELECT COUNT(*) FROM handoff_tokens
           WHERE expires_at < NOW() - INTERVAL {$HANDOFF_DEBRIS_DAYS} DAY"
     )->fetch_row()[0];
     printf(
-        "[session_gc] DRY-RUN would delete: stale=%d incomplete=%d handoff=%d\n",
-        $countStale, $countIncomplete, $countHandoff
+        "[session_gc] DRY-RUN would delete: stale=%d incomplete=%d expired_token=%d handoff=%d\n",
+        $countStale, $countIncomplete, $countExpiredToken, $countHandoff
     );
     $conn->close();
     exit(0);
@@ -146,7 +163,10 @@ $stmt->execute();
 $incompleteDeleted = $stmt->affected_rows;
 $stmt->close();
 
-$stmt = $conn->prepare($sql3);
+$conn->query($sql3);
+$expiredTokenDeleted = $conn->affected_rows;
+
+$stmt = $conn->prepare($sql4);
 $stmt->bind_param('i', $HANDOFF_DEBRIS_DAYS);
 $stmt->execute();
 $handoffDeleted = $stmt->affected_rows;
@@ -156,7 +176,7 @@ $conn->close();
 
 $elapsedMs = (int)round((microtime(true) - $started) * 1000);
 printf(
-    "[session_gc] post deleted: stale=%d incomplete=%d handoff=%d (%dms)\n",
-    $staleDeleted, $incompleteDeleted, $handoffDeleted, $elapsedMs
+    "[session_gc] post deleted: stale=%d incomplete=%d expired_token=%d handoff=%d (%dms)\n",
+    $staleDeleted, $incompleteDeleted, $expiredTokenDeleted, $handoffDeleted, $elapsedMs
 );
 exit(0);
