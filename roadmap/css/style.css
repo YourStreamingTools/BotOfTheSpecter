@@ -1242,11 +1242,27 @@ hr {
     white-space: nowrap;
 }
 
+.rm-comment-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
 .rm-comment-time {
     font-size: 0.7rem;
     color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+.rm-comment-avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.75rem;
 }
 
 .rm-comment-text {
