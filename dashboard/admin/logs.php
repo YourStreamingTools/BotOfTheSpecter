@@ -33,27 +33,42 @@ function read_bot_log_over_ssh($remote_path) {
     return ['logContent' => $logContent];
 }
 
-// Function to read Apache2 logs via SSH to localhost using server credentials
-function read_apache2_log_over_ssh($remote_path) {
+// Function to read Caddy site logs via SSH to localhost using server credentials
+function read_caddy_log_over_ssh($remote_path) {
     global $server_username, $server_password;
     if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
     $connection = ssh2_connect('localhost', 22);
     if (!$connection) return ['error' => 'Could not connect to SSH server'];
     if (!ssh2_auth_password($connection, $server_username, $server_password)) { return ['error' => 'SSH authentication failed']; }
-    // Check if file exists
     $cmd_exists = "test -f " . escapeshellarg($remote_path) . " && echo 1 || echo 0";
     $stream = ssh2_exec($connection, $cmd_exists);
     stream_set_blocking($stream, true);
     $exists = trim(stream_get_contents($stream));
     fclose($stream);
     if ($exists !== "1") { return ['error' => 'not_found']; }
-    // Read entire file
     $cmd = "cat " . escapeshellarg($remote_path);
     $stream = ssh2_exec($connection, $cmd);
     stream_set_blocking($stream, true);
     $logContent = stream_get_contents($stream);
     fclose($stream);
     if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
+}
+
+// Caddy server errors/warnings live in journald, not per-site log files
+function read_caddy_journal_over_ssh($lines = 500) {
+    global $server_username, $server_password;
+    if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
+    $connection = ssh2_connect('localhost', 22);
+    if (!$connection) return ['error' => 'Could not connect to SSH server'];
+    if (!ssh2_auth_password($connection, $server_username, $server_password)) { return ['error' => 'SSH authentication failed']; }
+    $lines = max(1, min(2000, (int) $lines));
+    $cmd = 'journalctl -u caddy -n ' . $lines . ' --no-pager -o cat 2>/dev/null';
+    $stream = ssh2_exec($connection, $cmd);
+    stream_set_blocking($stream, true);
+    $logContent = stream_get_contents($stream);
+    fclose($stream);
+    if (trim($logContent) === '') { return ['logContent' => '', 'empty' => true]; }
     return ['logContent' => $logContent];
 }
 
@@ -256,64 +271,101 @@ function highlight_mysql_logs($text) {
     return implode("<br>", $lines);
 }
 
-// Helper function to highlight Apache2 logs with proper formatting
-function highlight_apache2_logs($text, $logType) {
-    $escaped = htmlspecialchars($text);
-    $lines = explode("\n", $escaped);
-    // Define styles
+// Caddy site log paths — mirrors web/Caddyfile per-host log { output file ... } blocks
+function get_caddy_site_log_paths() {
+    return [
+        'caddy-botofthespecter' => '/var/log/caddy/botofthespecter.log',
+        'caddy-dashboard' => '/var/log/caddy/dashboard.log',
+        'caddy-members' => '/var/log/caddy/members.log',
+        'caddy-overlay' => '/var/log/caddy/overlay.log',
+        'caddy-support' => '/var/log/caddy/support.log',
+        'caddy-roadmap' => '/var/log/caddy/roadmap.log',
+        'caddy-specterbotapp' => '/var/log/caddy/specterbotapp.log',
+        'caddy-specterbotapp-users' => '/var/log/caddy/specterbotapp-users.log',
+        'caddy-specterbot-systems' => '/var/log/caddy/specterbot-systems.log',
+        'caddy-mybot-specterbot-systems' => '/var/log/caddy/mybot-specterbot-systems.log',
+        'caddy-yourchat' => '/var/log/caddy/yourchat.log',
+        'caddy-yourlinks' => '/var/log/caddy/yourlinks.log',
+        'caddy-streamersconnect' => '/var/log/caddy/streamersconnect.log',
+        'caddy-yourstreamingtools' => '/var/log/caddy/yourstreamingtools.log',
+        'caddy-cdn' => '/var/log/caddy/cdn.log',
+        'caddy-walkons' => '/var/log/caddy/walkons.log',
+        'caddy-media' => '/var/log/caddy/media.log',
+        'caddy-usermusic' => '/var/log/caddy/usermusic.log',
+        'caddy-soundalerts' => '/var/log/caddy/soundalerts.log',
+        'caddy-tts' => '/var/log/caddy/tts.log',
+        'caddy-videoalerts' => '/var/log/caddy/videoalerts.log',
+        'caddy-wildcard-botofthespecter' => '/var/log/caddy/wildcard-botofthespecter.log',
+        'caddy-fallback' => '/var/log/caddy/fallback.log',
+    ];
+}
+
+function is_caddy_log_type($logType) {
+    return $logType === 'caddy-journal' || isset(get_caddy_site_log_paths()[$logType]);
+}
+
+// Highlight Caddy JSON access logs and journal output
+function highlight_caddy_logs($text, $logType) {
+    $lines = explode("\n", $text);
     $dateStyle = 'style="color: var(--amber); font-weight: bold;"';
     $ipStyle = 'style="color: var(--blue); font-weight: bold;"';
-    $localhostStyle = 'style="color: var(--accent); font-weight: bold;"';
+    $methodStyle = 'style="color: var(--accent); font-weight: bold;"';
+    $uriStyle = 'style="color: var(--text-secondary);"';
+    $okStyle = 'style="color: var(--green); font-weight: bold;"';
+    $warnStyle = 'style="color: var(--amber); font-weight: bold;"';
     $errorStyle = 'style="color: var(--red); font-weight: bold;"';
-    foreach ($lines as &$line) {
-        if (strpos($logType, 'access') !== false) {
-            // Apache2 Access Log Format: IP - - [date] ...
-            // Handle IPv6 localhost (::1)
-            $line = preg_replace(
-                '/^(::1)/',
-                '<span ' . $localhostStyle . '>$1 (localhost IPv6)</span>',
-                $line
-            );
-            // Handle IPv4 localhost (127.0.0.1)
-            $line = preg_replace(
-                '/^(127\.0\.0\.1)/',
-                '<span ' . $localhostStyle . '>$1 (localhost)</span>',
-                $line
-            );
-            // Handle other IP addresses (IPv4)
-            $line = preg_replace(
-                '/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/',
-                '<span ' . $ipStyle . '>$1</span>',
-                $line
-            );
-            // Handle other IPv6 addresses
-            $line = preg_replace(
-                '/^([0-9a-fA-F:]+)(?!\s*\(localhost)/',
-                '<span ' . $ipStyle . '>$1</span>',
-                $line
-            );
-            // Highlight dates in access logs [15/Jun/2025:00:23:04 +1000]
-            $line = preg_replace(
-                '/\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2}\s[+-]\d{4})\]/',
-                '[<span ' . $dateStyle . '>$1</span>]',
-                $line
-            );
-        } elseif (strpos($logType, 'error') !== false) {
-            // Highlight dates in error logs [Sun Jun 15 00:00:03.003748 2025]
-            $line = preg_replace(
-                '/\[(\w{3}\s\w{3}\s\d{2}\s\d{2}:\d{2}:\d{2}\.\d+\s\d{4})\]/',
-                '[<span ' . $dateStyle . '>$1</span>]',
-                $line
-            );
-            // Highlight error levels
-            $line = preg_replace(
-                '/\[(error|warn|notice|info|debug|crit|alert|emerg)\]/',
-                '[<span ' . $errorStyle . '>$1</span>]',
-                $line
-            );
+    $levelStyle = 'style="color: var(--red); font-weight: bold;"';
+
+    $formatted = [];
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        if ($trimmed === '') {
+            continue;
         }
+
+        if ($logType === 'caddy-journal') {
+            $escaped = htmlspecialchars($trimmed);
+            $escaped = preg_replace(
+                '/\b(error|warn|warning|fatal|panic)\b/i',
+                '<span ' . $levelStyle . '>$1</span>',
+                $escaped
+            );
+            $formatted[] = $escaped;
+            continue;
+        }
+
+        if ($trimmed[0] === '{') {
+            $entry = json_decode($trimmed, true);
+            if (is_array($entry) && isset($entry['request'])) {
+                $ts = isset($entry['ts']) ? date('Y-m-d H:i:s', (int) $entry['ts']) : '';
+                $ip = htmlspecialchars($entry['request']['remote_ip'] ?? $entry['request']['client_ip'] ?? '?');
+                $method = htmlspecialchars($entry['request']['method'] ?? '?');
+                $host = htmlspecialchars($entry['request']['host'] ?? '');
+                $uri = htmlspecialchars($entry['request']['uri'] ?? '/');
+                $status = (int) ($entry['status'] ?? 0);
+                $duration = isset($entry['duration']) ? round((float) $entry['duration'] * 1000, 1) . 'ms' : '';
+                $statusStyle = $status >= 500 ? $errorStyle : ($status >= 400 ? $warnStyle : $okStyle);
+                $formatted[] = '<span ' . $dateStyle . '>[' . htmlspecialchars($ts) . ']</span> '
+                    . '<span ' . $ipStyle . '>' . $ip . '</span> '
+                    . '<span ' . $methodStyle . '>' . $method . '</span> '
+                    . ($host !== '' ? '<span style="color:var(--text-secondary);">' . $host . '</span> ' : '')
+                    . '<span ' . $uriStyle . '>' . $uri . '</span> '
+                    . '→ <span ' . $statusStyle . '>' . $status . '</span>'
+                    . ($duration !== '' ? ' <span style="color:var(--text-secondary);">(' . $duration . ')</span>' : '');
+                continue;
+            }
+        }
+
+        $escaped = htmlspecialchars($trimmed);
+        $escaped = preg_replace(
+            '/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|127\.0\.0\.1)/',
+            '<span ' . $ipStyle . '>$1</span>',
+            $escaped
+        );
+        $formatted[] = $escaped;
     }
-    return implode("<br>", $lines);
+
+    return empty($formatted) ? '' : implode('<br>', $formatted);
 }
 
 function highlight_admin_audit_logs($rows) {
@@ -476,181 +528,15 @@ if (isset($_GET['admin_system_log_type'])) {
     ob_clean();
     $logType = $_GET['admin_system_log_type'];
     // Determine log path and read method based on log type
-    switch ($logType) {        // Standard Apache2 Logs
-                case 'streamersconnect_ssl_access':
-                    $logPath = "/var/log/apache2/streamersconnect_ssl_access.log";
-                    $result = read_apache2_log_over_ssh($logPath);
-                    break;
-                case 'streamersconnect_ssl_error':
-                    $logPath = "/var/log/apache2/streamersconnect_ssl_error.log";
-                    $result = read_apache2_log_over_ssh($logPath);
-                    break;
-        case 'apache2-access':
-            $logPath = "/var/log/apache2/access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'apache2-error':
-            $logPath = "/var/log/apache2/error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'other_vhosts_access':
-            $logPath = "/var/log/apache2/other_vhosts_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        // Apache2 Access Logs
-        case 'beta.dashboard.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/beta.dashboard.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'botofthespecter.com_access':
-            $logPath = "/var/log/apache2/botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'cdn.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/cdn.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'dashboard.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/dashboard.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'members.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/members.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'overlay.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/overlay.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'soundalerts.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/soundalerts.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'tts.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/tts.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'videoalerts.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/videoalerts.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'walkons.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/walkons.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        // Apache2 Error Logs
-        case 'beta.dashboard.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/beta.dashboard.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'botofthespecter.com_error':
-            $logPath = "/var/log/apache2/botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'cdn.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/cdn.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'dashboard.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/dashboard.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'members.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/members.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'overlay.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/overlay.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'soundalerts.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/soundalerts.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'tts.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/tts.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'videoalerts.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/videoalerts.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'walkons.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/walkons.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'specterbot.app_error':
-            $logPath = "/var/log/apache2/specterbot.app_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'specterbot.app_access':
-            $logPath = "/var/log/apache2/specterbot.app_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'ghostbot.au_access':
-            $logPath = "/var/log/apache2/ghostbot_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'ghostbot.au_error':
-            $logPath = "/var/log/apache2/ghostbot_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'roadmap.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/roadmap_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'roadmap.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/roadmap_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'extension.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/extension.botofthespecter.com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'extension.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/extension.botofthespecter.com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'help.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/help-botofthespecter-com_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'help.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/help-botofthespecter-com_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'mybot.specterbot.systems_access':
-            $logPath = "/var/log/apache2/mybot.specterbot.systems-access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'mybot.specterbot.systems_error':
-            $logPath = "/var/log/apache2/mybot.specterbot.systems-error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'specterbot.systems_access':
-            $logPath = "/var/log/apache2/specterbot.systems-access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'specterbot.systems_error':
-            $logPath = "/var/log/apache2/specterbot.systems-error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'yourchat.botofthespecter.com_access':
-            $logPath = "/var/log/apache2/yourchat_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'yourchat.botofthespecter.com_error':
-            $logPath = "/var/log/apache2/yourchat_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'yourlinks.click_access':
-            $logPath = "/var/log/apache2/yourlinks.click_access.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
-        case 'yourlinks.click_error':
-            $logPath = "/var/log/apache2/yourlinks.click_error.log";
-            $result = read_apache2_log_over_ssh($logPath);
-            break;
+    $caddyLogPaths = get_caddy_site_log_paths();
+    if (isset($caddyLogPaths[$logType])) {
+        $logPath = $caddyLogPaths[$logType];
+        $result = read_caddy_log_over_ssh($logPath);
+    } elseif ($logType === 'caddy-journal') {
+        $logPath = 'journalctl -u caddy';
+        $result = read_caddy_journal_over_ssh();
+    } else {
+    switch ($logType) {
         case 'discordbot':
             // Discord bot log in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/specterdiscord/discordbot.txt";
@@ -687,6 +573,7 @@ if (isset($_GET['admin_system_log_type'])) {
             $result = read_log_over_ssh($logPath);
             break;
     }
+    }
     // Check if result is null or invalid
     if ($result === null || !is_array($result)) {
         echo json_encode(['error' => 'invalid_log_type']);
@@ -709,9 +596,8 @@ if (isset($_GET['admin_system_log_type'])) {
     // Safely access array keys with default values
     $logContent = isset($result['logContent']) ? $result['logContent'] : '';
     // Apply appropriate highlighting based on log type
-    if (strpos($logType, 'apache2-') === 0 || strpos($logType, '_access') !== false || strpos($logType, '_error') !== false || $logType === 'other_vhosts_access') {
-        // This is an Apache2 log, use specialized highlighting
-        $logContent = highlight_apache2_logs($logContent, $logType);
+    if (is_caddy_log_type($logType)) {
+        $logContent = highlight_caddy_logs($logContent, $logType);
     } elseif ($logType === 'mysql-error') {
         // This is a MySQL log, use MySQL-specific highlighting
         $logContent = highlight_mysql_logs($logContent);
@@ -755,61 +641,37 @@ if (isset($_GET['admin_token_log_type'])) {
 // Define system log types in a single PHP array for both PHP and JS
 $systemLogTypes = [
     [
-        'label' => t('admin_logs_group_standard_apache'),
+        'label' => t('admin_logs_group_caddy_journal'),
         'options' => [
-            ['value' => 'apache2-access', 'label' => t('admin_logs_opt_apache2_access_combined')],
-            ['value' => 'apache2-error', 'label' => t('admin_logs_opt_apache2_error_combined')],
-            ['value' => 'other_vhosts_access', 'label' => t('admin_logs_opt_other_vhosts_access')],
+            ['value' => 'caddy-journal', 'label' => t('admin_logs_opt_caddy_journal')],
         ]
     ],
     [
-        'label' => t('admin_logs_group_apache_access'),
+        'label' => t('admin_logs_group_caddy_sites'),
         'options' => [
-            ['value' => 'beta.dashboard.botofthespecter.com_access', 'label' => t('admin_logs_opt_beta_dashboard_access')],
-            ['value' => 'botofthespecter.com_access', 'label' => t('admin_logs_opt_main_site_access')],
-            ['value' => 'cdn.botofthespecter.com_access', 'label' => t('admin_logs_opt_cdn_access')],
-            ['value' => 'dashboard.botofthespecter.com_access', 'label' => t('admin_logs_opt_dashboard_access')],
-            ['value' => 'extension.botofthespecter.com_access', 'label' => t('admin_logs_opt_extension_access')],
-            ['value' => 'help.botofthespecter.com_access', 'label' => t('admin_logs_opt_help_access')],
-            ['value' => 'members.botofthespecter.com_access', 'label' => t('admin_logs_opt_members_access')],
-            ['value' => 'overlay.botofthespecter.com_access', 'label' => t('admin_logs_opt_overlay_access')],
-            ['value' => 'roadmap.botofthespecter.com_access', 'label' => t('admin_logs_opt_roadmap_access')],
-            ['value' => 'soundalerts.botofthespecter.com_access', 'label' => t('admin_logs_opt_soundalerts_access')],
-            ['value' => 'tts.botofthespecter.com_access', 'label' => t('admin_logs_opt_tts_access')],
-            ['value' => 'videoalerts.botofthespecter.com_access', 'label' => t('admin_logs_opt_videoalerts_access')],
-            ['value' => 'walkons.botofthespecter.com_access', 'label' => t('admin_logs_opt_walkons_access')],
-            ['value' => 'yourchat.botofthespecter.com_access', 'label' => t('admin_logs_opt_yourchat_access')],
-            ['value' => 'specterbot.app_access', 'label' => t('admin_logs_opt_specterbot_app_access')],
-            ['value' => 'mybot.specterbot.systems_access', 'label' => t('admin_logs_opt_mybot_systems_access')],
-            ['value' => 'specterbot.systems_access', 'label' => t('admin_logs_opt_specterbot_systems_access')],
-            ['value' => 'ghostbot.au_access', 'label' => t('admin_logs_opt_ghostbot_access')],
-            ['value' => 'yourlinks.click_access', 'label' => t('admin_logs_opt_yourlinks_access')],
-            ['value' => 'streamersconnect_ssl_access', 'label' => t('admin_logs_opt_streamersconnect_access')],
-        ]
-    ],
-    [
-        'label' => t('admin_logs_group_apache_error'),
-        'options' => [
-            ['value' => 'beta.dashboard.botofthespecter.com_error', 'label' => t('admin_logs_opt_beta_dashboard_error')],
-            ['value' => 'botofthespecter.com_error', 'label' => t('admin_logs_opt_main_site_error')],
-            ['value' => 'cdn.botofthespecter.com_error', 'label' => t('admin_logs_opt_cdn_error')],
-            ['value' => 'dashboard.botofthespecter.com_error', 'label' => t('admin_logs_opt_dashboard_error')],
-            ['value' => 'extension.botofthespecter.com_error', 'label' => t('admin_logs_opt_extension_error')],
-            ['value' => 'help.botofthespecter.com_error', 'label' => t('admin_logs_opt_help_error')],
-            ['value' => 'members.botofthespecter.com_error', 'label' => t('admin_logs_opt_members_error')],
-            ['value' => 'overlay.botofthespecter.com_error', 'label' => t('admin_logs_opt_overlay_error')],
-            ['value' => 'roadmap.botofthespecter.com_error', 'label' => t('admin_logs_opt_roadmap_error')],
-            ['value' => 'soundalerts.botofthespecter.com_error', 'label' => t('admin_logs_opt_soundalerts_error')],
-            ['value' => 'tts.botofthespecter.com_error', 'label' => t('admin_logs_opt_tts_error')],
-            ['value' => 'videoalerts.botofthespecter.com_error', 'label' => t('admin_logs_opt_videoalerts_error')],
-            ['value' => 'walkons.botofthespecter.com_error', 'label' => t('admin_logs_opt_walkons_error')],
-            ['value' => 'yourchat.botofthespecter.com_error', 'label' => t('admin_logs_opt_yourchat_error')],
-            ['value' => 'specterbot.app_error', 'label' => t('admin_logs_opt_specterbot_app_error')],
-            ['value' => 'mybot.specterbot.systems_error', 'label' => t('admin_logs_opt_mybot_systems_error')],
-            ['value' => 'specterbot.systems_error', 'label' => t('admin_logs_opt_specterbot_systems_error')],
-            ['value' => 'ghostbot.au_error', 'label' => t('admin_logs_opt_ghostbot_error')],
-            ['value' => 'yourlinks.click_error', 'label' => t('admin_logs_opt_yourlinks_error')],
-            ['value' => 'streamersconnect_ssl_error', 'label' => t('admin_logs_opt_streamersconnect_error')],
+            ['value' => 'caddy-botofthespecter', 'label' => t('admin_logs_opt_caddy_botofthespecter')],
+            ['value' => 'caddy-dashboard', 'label' => t('admin_logs_opt_caddy_dashboard')],
+            ['value' => 'caddy-members', 'label' => t('admin_logs_opt_caddy_members')],
+            ['value' => 'caddy-overlay', 'label' => t('admin_logs_opt_caddy_overlay')],
+            ['value' => 'caddy-support', 'label' => t('admin_logs_opt_caddy_support')],
+            ['value' => 'caddy-roadmap', 'label' => t('admin_logs_opt_caddy_roadmap')],
+            ['value' => 'caddy-yourchat', 'label' => t('admin_logs_opt_caddy_yourchat')],
+            ['value' => 'caddy-yourlinks', 'label' => t('admin_logs_opt_caddy_yourlinks')],
+            ['value' => 'caddy-yourstreamingtools', 'label' => t('admin_logs_opt_caddy_yourstreamingtools')],
+            ['value' => 'caddy-streamersconnect', 'label' => t('admin_logs_opt_caddy_streamersconnect')],
+            ['value' => 'caddy-specterbotapp', 'label' => t('admin_logs_opt_caddy_specterbotapp')],
+            ['value' => 'caddy-specterbotapp-users', 'label' => t('admin_logs_opt_caddy_specterbotapp_users')],
+            ['value' => 'caddy-specterbot-systems', 'label' => t('admin_logs_opt_caddy_specterbot_systems')],
+            ['value' => 'caddy-mybot-specterbot-systems', 'label' => t('admin_logs_opt_caddy_mybot_systems')],
+            ['value' => 'caddy-cdn', 'label' => t('admin_logs_opt_caddy_cdn')],
+            ['value' => 'caddy-walkons', 'label' => t('admin_logs_opt_caddy_walkons')],
+            ['value' => 'caddy-media', 'label' => t('admin_logs_opt_caddy_media')],
+            ['value' => 'caddy-usermusic', 'label' => t('admin_logs_opt_caddy_usermusic')],
+            ['value' => 'caddy-soundalerts', 'label' => t('admin_logs_opt_caddy_soundalerts')],
+            ['value' => 'caddy-tts', 'label' => t('admin_logs_opt_caddy_tts')],
+            ['value' => 'caddy-videoalerts', 'label' => t('admin_logs_opt_caddy_videoalerts')],
+            ['value' => 'caddy-wildcard-botofthespecter', 'label' => t('admin_logs_opt_caddy_wildcard_botofthespecter')],
+            ['value' => 'caddy-fallback', 'label' => t('admin_logs_opt_caddy_fallback')],
         ]
     ],
     [
