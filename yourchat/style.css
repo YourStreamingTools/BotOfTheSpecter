@@ -5453,28 +5453,33 @@ label.checkbox input[type="checkbox"] {
 }
 
 /* ----- Fullscreen ----- */
-.fullscreen-mode .yc-topbar,
-.fullscreen-mode .sp-card,
-.fullscreen-mode .yc-grid { display: none; }
-
+/* Hide the page shell while chat overlay is on <body> (composer is a child, not a sibling). */
 .fullscreen-mode.yc-wrap {
-    padding: 0 !important;
-    max-width: 100% !important;
+    display: none !important;
 }
 
 .chat-overlay.fullscreen {
+    --yc-chat-surface: var(--bg-base);
     position: fixed !important;
     inset: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
     max-width: none !important;
     max-height: none !important;
-    min-height: 100vh !important;
+    min-height: 0 !important;
+    border: none !important;
     border-radius: 0 !important;
     z-index: 2147483647 !important;
     margin: 0 !important;
-    padding: 1.25rem !important;
+    padding: 3.5rem 1.25rem 1.25rem !important;
     box-sizing: border-box !important;
+    background: var(--yc-chat-surface) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+[data-theme="light"] .chat-overlay.fullscreen {
+    --yc-chat-surface: var(--bg-base);
 }
 
 .fullscreen-exit-btn {
@@ -5504,8 +5509,17 @@ html.overlay-fullscreen body {
     overflow: hidden;
 }
 
-.fullscreen-mode ~ .message-input-container,
-.fullscreen-mode ~ .yc-footer { display: none !important; }
+html.overlay-fullscreen .yc-footer { display: none !important; }
+
+.chat-overlay.fullscreen .presence-summary {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    flex-shrink: 0;
+    margin-bottom: 0.75rem;
+    background: var(--yc-chat-bubble-subtle);
+    backdrop-filter: blur(6px);
+}
 
 /* ----- Composer ----- */
 .message-input-container {
