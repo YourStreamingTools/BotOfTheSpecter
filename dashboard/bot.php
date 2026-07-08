@@ -546,13 +546,7 @@ ob_start();
       <!-- System Status Card -->
       <div class="sp-card">
         <div class="sp-card-header">
-          <!-- Left side: Uptime Monitors button -->
-          <div class="header-left">
-            <a href="https://uptime.botofthespecter.com/" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
-              <i class="fas fa-chart-line"></i>
-              <span><?php echo t('bot_view_detailed_uptime'); ?></span>
-            </a>
-          </div>
+          <div class="header-left header-placeholder"></div>
           <!-- Center: Title -->
           <span class="sp-card-title" style="flex:1; justify-content:center;">
             <?php echo t('bot_system_status'); ?>
