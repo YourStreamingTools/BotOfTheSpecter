@@ -1,8 +1,8 @@
 <?php
 // Timeline view using changelog versions
 date_default_timezone_set('Australia/Sydney');
-session_start();
-session_write_close();
+require_once __DIR__ . '/includes/session.php';
+roadmap_session_start();
 
 // Set page metadata
 $pageTitle = 'Timeline';

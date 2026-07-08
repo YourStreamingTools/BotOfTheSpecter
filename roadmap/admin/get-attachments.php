@@ -4,8 +4,8 @@
  * Fetches all attachments for a roadmap item
  */
 
-session_start();
-session_write_close();
+require_once dirname(__DIR__) . '/includes/session.php';
+roadmap_session_start();
 
 require_once 'database.php';
 
@@ -30,7 +30,7 @@ if ($_GET['item_id'] ?? false) {
         $attachments = [];
         while ($row = $result->fetch_assoc()) {
             $row['file_size_formatted'] = formatBytes($row['file_size']);
-            $row['can_delete'] = $_SESSION['admin'] ?? false;
+            $row['can_delete'] = roadmap_is_admin();
             $attachments[] = $row;
         }
         
