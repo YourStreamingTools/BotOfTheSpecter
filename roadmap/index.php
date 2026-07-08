@@ -4,8 +4,8 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 date_default_timezone_set('Australia/Sydney');
-session_start();
-session_write_close();
+require_once __DIR__ . '/includes/session.php';
+roadmap_session_start();
 require_once "admin/database.php";
 
 $pageTitle = 'Roadmap';
@@ -65,7 +65,7 @@ window.__ROADMAP_SUBCAT_COLORS = <?php echo json_encode($subcatColorMap); ?>;
         <button type="button" class="sp-btn sp-btn-secondary" id="legendBtn">
             <i class="fa-solid fa-circle-info"></i> Legend
         </button>
-        <?php if ($_SESSION['admin'] ?? false): ?>
+        <?php if (roadmap_is_admin()): ?>
             <a href="admin/index.php" class="sp-btn sp-btn-primary">
                 <i class="fa-solid fa-screwdriver-wrench"></i> Admin Panel
             </a>

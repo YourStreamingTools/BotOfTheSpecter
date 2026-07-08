@@ -5,8 +5,8 @@ date_default_timezone_set('Australia/Sydney');
 require_once "/var/www/config/database.php";
 require_once "/var/www/roadmap/admin/database.php";
 
-session_start();
-session_write_close();
+require_once __DIR__ . '/includes/session.php';
+roadmap_session_start();
 
 $item_id = $_GET['item_id'] ?? 0;
 

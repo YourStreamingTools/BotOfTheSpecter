@@ -4,11 +4,10 @@
  * Handles deletion of file attachments for roadmap items
  */
 
-session_start();
-session_write_close();
+require_once dirname(__DIR__) . '/includes/session.php';
+roadmap_session_start();
 
-// Require admin authentication
-if (!isset($_SESSION['username']) || !($_SESSION['admin'] ?? false)) {
+if (!roadmap_is_logged_in() || !roadmap_is_admin()) {
     http_response_code(403);
     die(json_encode(['success' => false, 'message' => 'Unauthorized']));
 }

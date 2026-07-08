@@ -1,10 +1,9 @@
 ﻿<?php
-session_start();
-session_write_close();
+require_once dirname(__DIR__) . '/includes/session.php';
+roadmap_session_start();
 date_default_timezone_set('Australia/Sydney');
 
-// Require admin authentication
-if (!isset($_SESSION['username']) || !($_SESSION['admin'] ?? false)) {
+if (!roadmap_is_logged_in() || !roadmap_is_admin()) {
     header('Location: ../login.php');
     exit;
 }

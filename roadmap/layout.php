@@ -8,17 +8,21 @@ if (!function_exists('uuidv4')) {
     }
 }
 
-if (session_status() === PHP_SESSION_ACTIVE) {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
+if (!isset($roadmapSessionStarted)) {
+    require_once __DIR__ . '/includes/session.php';
+    roadmap_session_start();
+    $roadmapSessionStarted = true;
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 if (!isset($pageTitle))   $pageTitle   = 'Roadmap';
 if (!isset($topbarTitle)) $topbarTitle = $pageTitle;
 
-$isLoggedIn  = !empty($_SESSION['username']);
-$isAdmin     = !empty($_SESSION['admin']);
+$isLoggedIn  = roadmap_is_logged_in();
+$isAdmin     = roadmap_is_admin();
 $displayName = htmlspecialchars($_SESSION['display_name'] ?? $_SESSION['username'] ?? '', ENT_QUOTES);
 $v = uuidv4();
 ?>

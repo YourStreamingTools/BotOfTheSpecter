@@ -27,6 +27,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 $BOTS_SSO_TARGETS = [
     'support'         => 'https://support.botofthespecter.com/login.php',
     'members'         => 'https://members.botofthespecter.com/login.php',
+    'roadmap'         => 'https://roadmap.botofthespecter.com/login.php',
     'rtmp-sydney'     => 'https://au-east-1.botofthespecter.video/sso/login',
     'rtmp-us-east'    => 'https://us-east-1.botofthespecter.video/sso/login',
     'rtmp-us-west'    => 'https://us-west-1.botofthespecter.video/sso/login',
