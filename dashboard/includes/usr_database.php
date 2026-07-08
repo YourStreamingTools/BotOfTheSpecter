@@ -257,8 +257,8 @@ try {
         'timed_messages' => "
             CREATE TABLE IF NOT EXISTS timed_messages (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                interval_count INT,
-                chat_line_trigger INT,
+                interval_count INT DEFAULT NULL,
+                chat_line_trigger INT DEFAULT NULL,
                 message TEXT,
                 status VARCHAR(10) DEFAULT True,
                 trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'
@@ -1482,6 +1482,27 @@ try {
         // Expand enum to include 'both' for existing installations
         $usrDBconn->query("ALTER TABLE timed_messages MODIFY trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'");
     }
+
+    // Migration: Ensure chat_line_trigger allows NULL values
+    $check_chat_trigger = $usrDBconn->query("SHOW COLUMNS FROM timed_messages LIKE 'chat_line_trigger'");
+    if ($check_chat_trigger && $row = $check_chat_trigger->fetch_assoc()) {
+        if (strtoupper($row['Null']) === 'NO') {
+            if ($usrDBconn->query("ALTER TABLE timed_messages MODIFY chat_line_trigger INT NULL") === TRUE) {
+                async_log('Modified chat_line_trigger to allow NULL values.');
+            }
+        }
+    }
+    
+    // Migration: Ensure interval_count allows NULL values
+    $check_interval = $usrDBconn->query("SHOW COLUMNS FROM timed_messages LIKE 'interval_count'");
+    if ($check_interval && $row = $check_interval->fetch_assoc()) {
+        if (strtoupper($row['Null']) === 'NO') {
+            if ($usrDBconn->query("ALTER TABLE timed_messages MODIFY interval_count INT NULL") === TRUE) {
+                async_log('Modified interval_count to allow NULL values.');
+            }
+        }
+    }
+
     // Close the connection
     $usrDBconn->close();
 } catch (Exception $e) {
