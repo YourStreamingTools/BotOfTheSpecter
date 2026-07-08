@@ -4830,6 +4830,23 @@ label.checkbox input[type="checkbox"] {
     margin-bottom: 1rem;
 }
 
+.yc-grid--single { grid-template-columns: 1fr; }
+
+.yc-card-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.yc-import-panel {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.yc-import-panel .yc-card-desc { margin-bottom: 0.65rem; }
+
 @media (max-width: 768px) {
     .yc-grid { grid-template-columns: 1fr; }
 }
@@ -4955,7 +4972,7 @@ label.checkbox input[type="checkbox"] {
 }
 
 .chat-features-panel .ding-volume-row,
-.chat-features-panel .narrator-controls .ding-volume-row {
+.narrator-panel .ding-volume-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -4968,9 +4985,6 @@ label.checkbox input[type="checkbox"] {
     font-size: 0.875rem;
     color: var(--text-primary);
 }
-
-.ding-volume-row.is-collapsed,
-.narrator-controls.is-collapsed { display: none; }
 
 .ding-volume-label {
     font-weight: 600;
@@ -4998,14 +5012,20 @@ label.checkbox input[type="checkbox"] {
     min-width: 140px;
 }
 
-.chat-features-panel .narrator-controls {
+.narrator-panel .narrator-controls {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     margin-top: 0.35rem;
 }
 
-.chat-features-panel .narrator-skip {
+/* Must follow the display:flex rules above — equal specificity, source order wins. */
+.chat-features-panel .ding-volume-row.is-collapsed,
+.narrator-panel .narrator-controls.is-collapsed {
+    display: none;
+}
+
+.narrator-panel .narrator-skip {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -5015,7 +5035,7 @@ label.checkbox input[type="checkbox"] {
     border: 1px solid var(--border);
 }
 
-.chat-features-panel .narrator-skip .ding-volume-label { white-space: normal; }
+.narrator-panel .narrator-skip .ding-volume-label { white-space: normal; }
 
 .narrator-phrase-add .sp-input { margin-bottom: 0.35rem; }
 

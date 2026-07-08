@@ -575,25 +575,69 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 </div>
             </div>
             <div class="yc-grid">
-                <div class="sp-card">
+                <div class="sp-card narrator-panel">
                     <div class="sp-card-header">
-                        <div class="sp-card-title">Import / Export</div>
+                        <div class="sp-card-title">Narrator</div>
                     </div>
                     <div class="sp-card-body">
-                        <p class="yc-card-desc">Export your filters to a file or import from a previously saved file.</p>
-                        <div class="yc-inline-actions">
-                            <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="export-filters-btn">Export Filters</button>
-                            <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="open-import-filters-btn">Import Filters</button>
-                        </div>
-                        <div id="import-filters-panel-inline" style="display:none; margin-top:0.75rem;">
-                            <div class="sp-form-group">
-                                <textarea id="import-filters-textarea" class="sp-textarea"
-                                    placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import'
-                                    rows="6"></textarea>
-                            </div>
-                            <div class="yc-inline-actions">
-                                <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="import-filters-btn">Import Messages</button>
-                                <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="cancel-import-filters-btn">Cancel</button>
+                        <p class="yc-card-desc">Read incoming chat messages aloud using text-to-speech.</p>
+                        <div class="yc-feature-list">
+                            <label class="switch">
+                                <input type="checkbox" id="narrator-checkbox">
+                                Read chat messages aloud
+                            </label>
+                            <div class="narrator-controls is-collapsed" id="narrator-controls">
+                                <div class="ding-volume-row">
+                                    <label for="narrator-voice-select" class="ding-volume-label">Voice</label>
+                                    <select id="narrator-voice-select" class="sp-select narrator-voice-select" aria-label="Narrator voice"></select>
+                                    <button type="button" id="narrator-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
+                                </div>
+                                <div class="ding-volume-row">
+                                    <label for="narrator-rate-slider" class="ding-volume-label">Rate</label>
+                                    <input type="range" id="narrator-rate-slider" class="ding-volume-slider" min="50" max="200" step="5" value="100" aria-label="Narrator speaking rate">
+                                    <span class="ding-volume-value" id="narrator-rate-value">1.0x</span>
+                                </div>
+                                <div class="ding-volume-row">
+                                    <label for="narrator-volume-slider" class="ding-volume-label">Volume</label>
+                                    <input type="range" id="narrator-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Narrator volume">
+                                    <span class="ding-volume-value" id="narrator-volume-value">100%</span>
+                                </div>
+                                <div class="ding-volume-row">
+                                    <label for="narrator-pitch-slider" class="ding-volume-label">Pitch</label>
+                                    <input type="range" id="narrator-pitch-slider" class="ding-volume-slider" min="0" max="200" step="5" value="100" aria-label="Narrator pitch">
+                                    <span class="ding-volume-value" id="narrator-pitch-value">1.0</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="narrator-speak-name" checked>
+                                    Read the sender's name
+                                </label>
+                                <div class="narrator-skip">
+                                    <label class="ding-volume-label" for="narrator-user-filter-input">Skip usernames (shown in chat, not spoken)</label>
+                                    <input type="text" id="narrator-user-filter-input" class="sp-input"
+                                        placeholder="Enter username to skip narrating (press Enter to add)"
+                                        onkeypress="handleNarratorUsernameFilterInput(event)">
+                                    <div class="filter-list" id="narrator-user-filter-list"></div>
+                                    <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
+                                    <div class="narrator-phrase-add">
+                                        <input type="text" id="narrator-filter-input" class="sp-input"
+                                            placeholder="Enter words to skip (press Enter to add)"
+                                            onkeypress="handleNarratorFilterInput(event)">
+                                        <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                            <input type="checkbox" id="narrator-filter-regex">&nbsp;Flexible pattern matching
+                                        </label>
+                                    </div>
+                                    <div class="filter-list" id="narrator-filter-list"></div>
+                                    <label class="ding-volume-label" for="narrator-allow-input">Allow phrases (spoken even when sender is skipped)</label>
+                                    <div class="narrator-phrase-add">
+                                        <input type="text" id="narrator-allow-input" class="sp-input"
+                                            placeholder="e.g. ad break is coming up (press Enter to add)"
+                                            onkeypress="handleNarratorAllowInput(event)">
+                                        <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                            <input type="checkbox" id="narrator-allow-regex">&nbsp;Flexible pattern matching
+                                        </label>
+                                    </div>
+                                    <div class="filter-list" id="narrator-allow-list"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -605,77 +649,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     <div class="sp-card-body">
                         <p class="yc-card-desc">Optional chat UI features you can enable.</p>
                         <div class="yc-feature-list">
-                    <label class="switch">
-                        <input type="checkbox" id="notify-joins-checkbox">
-                        Show join/leave notifications
-                    </label>
-                    <label class="switch">
-                        <input type="checkbox" id="ding-sound-checkbox">
-                        Play a ding sound on each new chat message
-                    </label>
-                    <div class="ding-volume-row is-collapsed" id="ding-volume-row">
-                        <label for="ding-volume-slider" class="ding-volume-label">Ding volume</label>
-                        <input type="range" id="ding-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Ding volume">
-                        <span class="ding-volume-value" id="ding-volume-value">100%</span>
-                        <button type="button" id="ding-volume-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="narrator-checkbox">
-                        Read chat messages aloud (narrator)
-                    </label>
-                    <div class="narrator-controls is-collapsed" id="narrator-controls">
-                        <div class="ding-volume-row">
-                            <label for="narrator-voice-select" class="ding-volume-label">Voice</label>
-                            <select id="narrator-voice-select" class="sp-select narrator-voice-select" aria-label="Narrator voice"></select>
-                            <button type="button" id="narrator-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
-                        </div>
-                        <div class="ding-volume-row">
-                            <label for="narrator-rate-slider" class="ding-volume-label">Rate</label>
-                            <input type="range" id="narrator-rate-slider" class="ding-volume-slider" min="50" max="200" step="5" value="100" aria-label="Narrator speaking rate">
-                            <span class="ding-volume-value" id="narrator-rate-value">1.0x</span>
-                        </div>
-                        <div class="ding-volume-row">
-                            <label for="narrator-volume-slider" class="ding-volume-label">Volume</label>
-                            <input type="range" id="narrator-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Narrator volume">
-                            <span class="ding-volume-value" id="narrator-volume-value">100%</span>
-                        </div>
-                        <div class="ding-volume-row">
-                            <label for="narrator-pitch-slider" class="ding-volume-label">Pitch</label>
-                            <input type="range" id="narrator-pitch-slider" class="ding-volume-slider" min="0" max="200" step="5" value="100" aria-label="Narrator pitch">
-                            <span class="ding-volume-value" id="narrator-pitch-value">1.0</span>
-                        </div>
-                        <label class="switch">
-                            <input type="checkbox" id="narrator-speak-name" checked>
-                            Read the sender's name
-                        </label>
-                        <div class="narrator-skip">
-                            <label class="ding-volume-label" for="narrator-user-filter-input">Skip usernames (shown in chat, not spoken)</label>
-                            <input type="text" id="narrator-user-filter-input" class="sp-input"
-                                placeholder="Enter username to skip narrating (press Enter to add)"
-                                onkeypress="handleNarratorUsernameFilterInput(event)">
-                            <div class="filter-list" id="narrator-user-filter-list"></div>
-                            <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
-                            <div class="narrator-phrase-add">
-                                <input type="text" id="narrator-filter-input" class="sp-input"
-                                    placeholder="Enter words to skip (press Enter to add)"
-                                    onkeypress="handleNarratorFilterInput(event)">
-                                <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
-                                    <input type="checkbox" id="narrator-filter-regex">&nbsp;Flexible pattern matching
-                                </label>
+                            <label class="switch">
+                                <input type="checkbox" id="notify-joins-checkbox">
+                                Show join/leave notifications
+                            </label>
+                            <label class="switch">
+                                <input type="checkbox" id="ding-sound-checkbox">
+                                Play a ding sound on each new chat message
+                            </label>
+                            <div class="ding-volume-row is-collapsed" id="ding-volume-row">
+                                <label for="ding-volume-slider" class="ding-volume-label">Ding volume</label>
+                                <input type="range" id="ding-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Ding volume">
+                                <span class="ding-volume-value" id="ding-volume-value">100%</span>
+                                <button type="button" id="ding-volume-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
                             </div>
-                            <div class="filter-list" id="narrator-filter-list"></div>
-                            <label class="ding-volume-label" for="narrator-allow-input">Allow phrases (spoken even when sender is skipped)</label>
-                            <div class="narrator-phrase-add">
-                                <input type="text" id="narrator-allow-input" class="sp-input"
-                                    placeholder="e.g. ad break is coming up (press Enter to add)"
-                                    onkeypress="handleNarratorAllowInput(event)">
-                                <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
-                                    <input type="checkbox" id="narrator-allow-regex">&nbsp;Flexible pattern matching
-                                </label>
-                            </div>
-                            <div class="filter-list" id="narrator-allow-list"></div>
-                        </div>
-                    </div>
                         </div>
                     </div>
                 </div>
@@ -684,6 +671,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <div class="sp-card">
                     <div class="sp-card-header">
                         <div class="sp-card-title">Filters</div>
+                        <div class="yc-card-header-actions">
+                            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="export-filters-btn" title="Copy filters to clipboard">Export</button>
+                            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="open-import-filters-btn" title="Import filters from JSON">Import</button>
+                        </div>
                     </div>
                     <div class="sp-card-body">
                         <p class="yc-card-desc">Manage username and message filters separately. Each section can be collapsed.</p>
@@ -713,6 +704,18 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                         onkeypress="handleFilterInput(event, 'message')">
                                     <div class="filter-list" id="filter-list-msg"></div>
                                 </div>
+                            </div>
+                        </div>
+                        <div id="import-filters-panel-inline" class="yc-import-panel" hidden>
+                            <p class="yc-card-desc">Paste saved filter JSON below, or leave empty to attempt a legacy import.</p>
+                            <div class="sp-form-group">
+                                <textarea id="import-filters-textarea" class="sp-textarea"
+                                    placeholder='{"usernames":[...],"messages":[...]}'
+                                    rows="5"></textarea>
+                            </div>
+                            <div class="yc-inline-actions">
+                                <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="import-filters-btn">Import Filters</button>
+                                <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="cancel-import-filters-btn">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -1911,8 +1914,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const importBtn = document.getElementById('import-filters-btn');
                 const cancelBtn = document.getElementById('cancel-import-filters-btn');
                 if (exportBtn) exportBtn.addEventListener('click', exportFilters);
-                if (openImportBtn && importPanel) openImportBtn.addEventListener('click', () => { importPanel.style.display = 'block'; });
-                if (cancelBtn && importPanel) cancelBtn.addEventListener('click', () => { importPanel.style.display = 'none'; });
+                if (openImportBtn && importPanel) openImportBtn.addEventListener('click', () => { importPanel.hidden = false; });
+                if (cancelBtn && importPanel) cancelBtn.addEventListener('click', () => { importPanel.hidden = true; });
                 if (importBtn && importPanel) importBtn.addEventListener('click', () => {
                     // Prefer user-provided JSON in the textarea. If empty, attempt legacy import.
                     const textarea = importPanel.querySelector('#import-filters-textarea');
@@ -1921,7 +1924,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         try {
                             const parsed = JSON.parse(raw);
                             importFiltersFromObject(parsed);
-                            importPanel.style.display = 'none';
+                            importPanel.hidden = true;
                             // clear textarea after successful import
                             if (textarea) textarea.value = '';
                             return;
@@ -1934,7 +1937,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const legacy = tryLoadLegacyCombined();
                     if (legacy) {
                         importFiltersFromObject(legacy);
-                        importPanel.style.display = 'none';
+                        importPanel.hidden = true;
                     } else {
                         Toastify({ text: 'No legacy filters found', duration: 2500, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast();
                     }
