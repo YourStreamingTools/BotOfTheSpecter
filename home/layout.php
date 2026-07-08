@@ -1,7 +1,7 @@
 <?php
 // home/layout.php
 if (!isset($pageTitle))       $pageTitle       = "BotOfTheSpecter";
-if (!isset($pageDescription)) $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.";
+if (!isset($pageDescription)) $pageDescription = "BotOfTheSpecter is a Twitch-first streaming platform with a Discord extension, OBS overlays, dashboard tools, and optional integrations for music, tips, and more.";
 if (!isset($pageContent))     $pageContent     = "";
 $config           = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
@@ -97,7 +97,7 @@ $currentFile = basename($_SERVER['SCRIPT_NAME']);
             &copy; 2023&ndash;<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
             <?php include '/var/www/config/project-time.php'; ?>
             BotOfTheSpecter is operated under the business name &ldquo;YourStreamingTools&rdquo;, registered in Australia (ABN&nbsp;20&nbsp;447&nbsp;022&nbsp;747).<br>
-            Not affiliated with Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
+            Not affiliated with Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., StreamElements Inc., or Kick Streaming Pty Ltd.<br>
             All trademarks and brand names are property of their respective owners and are used for identification purposes only.
         </p>
     </div>
