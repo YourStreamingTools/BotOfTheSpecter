@@ -119,6 +119,7 @@ config/streamersconnect.php
 # This will be added later to the commits, for now, we're ignoring it.
 /ghostbot
 /mcps
+YourStreamingTools/
 
 # Python Cache files
 bot/__pycache__/
