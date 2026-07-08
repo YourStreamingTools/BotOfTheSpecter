@@ -3,8 +3,8 @@
 // ----------------------------------------------------------------
 // Account & active-sessions page on the IdP.
 //
-// Shows every row in web_sessions belonging to the current user (one
-// row per logged-in browser/device). Each row has a "Remove" button
+// Shows active rows in web_sessions for the current user (one row per
+// logged-in browser/device within the 4h session window). Each row has a "Remove" button
 // that revokes that single session. There's also a "Log out
 // everywhere" button that drops every session for the user.
 //
@@ -99,17 +99,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ----------------------------------------------------------------
-// Load every session belonging to this user.
+// Load active sessions only. Purge stale rows first so weeks-old
+// cookies that read() already ignores don't show up as "signed in".
 // ----------------------------------------------------------------
+bots_purge_stale_web_sessions($bots_session_db, $twitchUserId, BOTS_SESSION_LIFETIME);
+
 $sessions = [];
 $stmt = $bots_session_db->prepare(
     "SELECT session_id, ip, user_agent, created_at, last_seen_at, twitch_expires_at
      FROM web_sessions
      WHERE twitch_user_id = ?
+       AND last_seen_at > NOW() - INTERVAL ? SECOND
+       AND (twitch_expires_at IS NULL OR twitch_expires_at >= NOW())
      ORDER BY (session_id = ?) DESC, last_seen_at DESC"
 );
 if ($stmt) {
-    $stmt->bind_param('ss', $twitchUserId, $current_session_id);
+    $lifetime = BOTS_SESSION_LIFETIME;
+    $stmt->bind_param('sis', $twitchUserId, $lifetime, $current_session_id);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) $sessions[] = $row;

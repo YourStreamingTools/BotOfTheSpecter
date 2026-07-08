@@ -95,8 +95,8 @@ if (isset($db_servername)) $GLOBALS['db_servername'] = $db_servername;
 if (isset($db_username))   $GLOBALS['db_username']   = $db_username;
 if (isset($db_password))   $GLOBALS['db_password']   = $db_password;
 
-// 4-hour session lifetime to match Twitch access-token TTL
-$BOTS_SESSION_LIFETIME = 14400;
+// 4-hour session lifetime to match Twitch access-token TTL (defined in web_session.php)
+$BOTS_SESSION_LIFETIME = BOTS_SESSION_LIFETIME;
 
 // ----------------------------------------------------------------
 // Cookie config — must run before session_start().

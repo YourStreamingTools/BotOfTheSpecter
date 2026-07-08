@@ -11,6 +11,46 @@
 // session_start() in the right order).
 // ----------------------------------------------------------------
 
+if (!defined('BOTS_SESSION_LIFETIME')) {
+    define('BOTS_SESSION_LIFETIME', 14400);
+}
+
+/**
+ * Delete web_sessions rows that are no longer valid.
+ * A row is stale when last_seen_at is older than $lifetime, when
+ * last_seen_at is NULL, or when twitch_expires_at is in the past.
+ * Pass $twitchUserId to scope the sweep to one user (profile/login).
+ *
+ * @return int rows deleted
+ */
+function bots_purge_stale_web_sessions(mysqli $db, ?string $twitchUserId = null, int $lifetime = BOTS_SESSION_LIFETIME): int
+{
+    if ($twitchUserId !== null && $twitchUserId !== '') {
+        $stmt = $db->prepare(
+            "DELETE FROM web_sessions
+             WHERE twitch_user_id = ?
+               AND (last_seen_at IS NULL
+                    OR last_seen_at <= NOW() - INTERVAL ? SECOND
+                    OR (twitch_expires_at IS NOT NULL AND twitch_expires_at < NOW()))"
+        );
+        if (!$stmt) return 0;
+        $stmt->bind_param('si', $twitchUserId, $lifetime);
+    } else {
+        $stmt = $db->prepare(
+            "DELETE FROM web_sessions
+             WHERE last_seen_at IS NULL
+                OR last_seen_at <= NOW() - INTERVAL ? SECOND
+                OR (twitch_expires_at IS NOT NULL AND twitch_expires_at < NOW())"
+        );
+        if (!$stmt) return 0;
+        $stmt->bind_param('i', $lifetime);
+    }
+    $stmt->execute();
+    $count = $stmt->affected_rows;
+    $stmt->close();
+    return $count;
+}
+
 class WebSessionHandler implements SessionHandlerInterface
 {
     /** @var mysqli */
@@ -41,9 +81,25 @@ class WebSessionHandler implements SessionHandlerInterface
         $this->lockName = 'ps:' . substr($id, 0, 60);
         $safelock = $this->db->real_escape_string($this->lockName);
         $this->db->query("SELECT GET_LOCK('{$safelock}', 5)");
+        // Eagerly delete this cookie's row when last_seen_at has gone stale.
+        // Token expiry is handled after read() in session_bootstrap via
+        // id.twitch.tv/oauth2/validate — checking twitch_expires_at here
+        // would run before that validation and log users out incorrectly.
+        $purge = $this->db->prepare(
+            "DELETE FROM web_sessions
+             WHERE session_id = ?
+               AND (last_seen_at IS NULL
+                    OR last_seen_at <= NOW() - INTERVAL ? SECOND)"
+        );
+        if ($purge) {
+            $purge->bind_param('si', $id, $this->lifetime);
+            $purge->execute();
+            $purge->close();
+        }
         $stmt = $this->db->prepare(
             "SELECT data FROM web_sessions
-             WHERE session_id = ? AND last_seen_at > NOW() - INTERVAL ? SECOND
+             WHERE session_id = ?
+               AND last_seen_at > NOW() - INTERVAL ? SECOND
              LIMIT 1"
         );
         if (!$stmt) return '';
@@ -162,15 +218,7 @@ class WebSessionHandler implements SessionHandlerInterface
     #[\ReturnTypeWillChange]
     public function gc($max_lifetime)
     {
-        $stmt = $this->db->prepare(
-            "DELETE FROM web_sessions WHERE last_seen_at < NOW() - INTERVAL ? SECOND"
-        );
-        if (!$stmt) return 0;
-        $stmt->bind_param('i', $max_lifetime);
-        $stmt->execute();
-        $count = $stmt->affected_rows;
-        $stmt->close();
-        return $count;
+        return bots_purge_stale_web_sessions($this->db, null, (int)$max_lifetime);
     }
 }
 

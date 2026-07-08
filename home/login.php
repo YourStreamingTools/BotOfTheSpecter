@@ -140,6 +140,9 @@ if ($resp && $http === 200) {
             // BEFORE the DB sync so even a thrown exception during sync
             // still leaves us on a fresh, login-bound session id.
             session_regenerate_id(true);
+            if (isset($bots_session_db) && $bots_session_db instanceof mysqli) {
+                bots_purge_stale_web_sessions($bots_session_db, (string)$twitchUserId);
+            }
             $_SESSION['access_token']      = $accessToken;
             $_SESSION['refresh_token']     = $refreshToken;
             $_SESSION['twitchUserId']      = $twitchUserId;
