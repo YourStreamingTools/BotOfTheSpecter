@@ -387,83 +387,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_chat_history' && $_SERV
     exit;
 }
 
-// Handle activity feed load
-if (isset($_GET['action']) && $_GET['action'] === 'load_activity_feed') {
-    header('Content-Type: application/json');
-    if (!isset($_SESSION['user_id'])) {
-        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
-        exit;
-    }
-    $userId = $_SESSION['user_id'];
-    $logsDir = '/var/www/yourchat/activity-logs';
-    $activityFile = $logsDir . '/' . $userId . '_activity_feed.json';
-    if (file_exists($activityFile)) {
-        $activities = json_decode(file_get_contents($activityFile), true);
-        echo json_encode(['success' => true, 'activities' => $activities ?? []]);
-    } else {
-        echo json_encode(['success' => true, 'activities' => []]);
-    }
-    exit;
-}
-
-// Handle activity feed save
-if (isset($_GET['action']) && $_GET['action'] === 'save_activity_feed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    if (!isset($_SESSION['user_id'])) {
-        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
-        exit;
-    }
-    $userId = $_SESSION['user_id'];
-    $logsDir = '/var/www/yourchat/activity-logs';
-    $activityFile = $logsDir . '/' . $userId . '_activity_feed.json';
-    // Create directory if it doesn't exist
-    if (!is_dir($logsDir)) {
-        if (!mkdir($logsDir, 0755, true)) {
-            echo json_encode(['success' => false, 'error' => 'Failed to create directory']);
-            exit;
-        }
-    }
-    // Get JSON data from request body
-    $jsonData = file_get_contents('php://input');
-    if (empty($jsonData)) {
-        echo json_encode(['success' => false, 'error' => 'No data received']);
-        exit;
-    }
-    $activities = json_decode($jsonData, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
-        exit;
-    }
-    // Save to file
-    if (file_put_contents($activityFile, json_encode($activities, JSON_UNESCAPED_UNICODE)) === false) {
-        echo json_encode(['success' => false, 'error' => 'Failed to write to file']);
-        exit;
-    }
-    echo json_encode(['success' => true]);
-    exit;
-}
-
-// Handle activity feed clear
-if (isset($_GET['action']) && $_GET['action'] === 'clear_activity_feed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    if (!isset($_SESSION['user_id'])) {
-        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
-        exit;
-    }
-    $userId = $_SESSION['user_id'];
-    $logsDir = '/var/www/yourchat/activity-logs';
-    $activityFile = $logsDir . '/' . $userId . '_activity_feed.json';
-    // Delete the file if it exists
-    if (file_exists($activityFile)) {
-        if (!unlink($activityFile)) {
-            echo json_encode(['success' => false, 'error' => 'Failed to delete activity file']);
-            exit;
-        }
-    }
-    echo json_encode(['success' => true, 'message' => 'Activity feed cleared']);
-    exit;
-}
-
 // Handle Twitch event logging
 if (isset($_GET['action']) && $_GET['action'] === 'log_twitch_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -607,11 +530,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     </script>
 </head>
 <body>
-    <div class="container">
+    <div class="yc-wrap<?php echo $isLoggedIn ? '' : ' yc-wrap--login'; ?>">
         <?php if (!$isLoggedIn): ?>
-            <div class="login-container">
-                <h1>YourChat - Custom Twitch Chat Overlay</h1>
-                <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
+            <div class="yc-login-hero">
+                <h1>YourChat</h1>
+                <p>Custom Twitch chat overlay — log in to configure filters, nicknames, and chat features.</p>
+            </div>
+            <div class="db-login-card">
+                <h3>Sign in with Twitch</h3>
+                <p>Connect your channel to customize your chat overlay.</p>
                 <?php
                 $scopes = 'user:read:chat user:write:chat chat:read chat:edit channel:read:redemptions channel:read:ads moderator:read:chatters bits:read';
                 $authUrl = 'https://streamersconnect.com/?' . http_build_query([
@@ -621,82 +548,85 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     'return_url' => 'https://yourchat.botofthespecter.com/index.php'
                 ]);
                 ?>
-                <a href="<?php echo htmlspecialchars($authUrl); ?>" class="login-btn">Login with Twitch</a>
-                <p class="info-text" style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">Authentication powered by
-                    StreamersConnect</p>
+                <a href="<?php echo htmlspecialchars($authUrl); ?>" class="db-twitch-btn">Login with Twitch</a>
+                <p class="db-login-note">Authentication powered by StreamersConnect</p>
             </div>
         <?php else: ?>
-            <div class="header">
-                <div>
-                    <h1>YourChat Overlay</h1>
-                    <p>Logged in as <?php echo htmlspecialchars($_SESSION['user_display_name']); ?></p>
+            <div class="yc-topbar sp-card">
+                <div class="yc-topbar-main">
+                    <h1 class="yc-title">YourChat Overlay</h1>
+                    <p class="yc-subtitle">Logged in as <?php echo htmlspecialchars($_SESSION['user_display_name']); ?></p>
                 </div>
-                <div class="status-bar">
-                    <div class="status-indicator">
-                        <span class="status-light" id="ws-status"></span>
-                        <span id="ws-status-text" class="hide-on-narrow">Disconnected</span>
+                <div class="yc-topbar-actions">
+                    <div class="yc-status-group">
+                        <div class="yc-status-item">
+                            <span class="status-light" id="ws-status"></span>
+                            <span id="ws-status-text" class="hide-on-narrow">Disconnected</span>
+                        </div>
+                        <div class="yc-status-item">
+                            <span class="token-wrapper"><span class="token-label hide-on-narrow">Token:</span> <span id="token-timer">--:--</span></span>
+                        </div>
                     </div>
-                    <div class="status-indicator">
-                        <span class="token-wrapper"><span class="token-label hide-on-narrow">Token:</span> <span
-                                id="token-timer">--:--</span></span>
-                    </div>
-                    <div class="compact-actions" aria-hidden="false">
-                        <button class="clear-history-btn" onclick="clearChatHistory()" title="Clear Chat History"
-                            aria-label="Clear chat history">🗑️</button>
-                        <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen"
-                            aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
-                        <button class="clear-history-btn" id="spThemeToggle" title="Toggle light or dark theme" aria-label="Toggle theme">🌙</button>
-                        <button class="clear-history-btn" onclick="logoutUser()" title="Logout"
-                            aria-label="Logout">Logout</button>
-                    </div>
+                    <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="clearChatHistory()" title="Clear Chat History" aria-label="Clear chat history">🗑️</button>
+                    <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="toggleFullscreen()" title="Toggle Fullscreen" aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
+                    <button type="button" class="sp-theme-toggle" id="spThemeToggle" title="Toggle light or dark theme" aria-label="Toggle theme">🌙</button>
+                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" onclick="logoutUser()" title="Logout" aria-label="Logout">Logout</button>
                 </div>
             </div>
-            <div class="two-column-container">
-                <div class="settings-panel">
-                    <h3>Import / Export</h3>
-                    <p class="settings-description">Export your filters to a file or import from a previously saved file.
-                    </p>
-                    <div style="display:flex; gap:8px; margin-bottom:10px;">
-                        <button class="clear-history-btn" id="export-filters-btn">Export Filters</button>
-                        <button class="clear-history-btn" id="open-import-filters-btn">Import Filters</button>
+            <div class="yc-grid">
+                <div class="sp-card">
+                    <div class="sp-card-header">
+                        <div class="sp-card-title">Import / Export</div>
                     </div>
-                    <!-- Inline import menu shown under Export/Import buttons -->
-                    <div id="import-filters-panel-inline" style="display:none; margin-top:8px;">
-                        <div style="margin-bottom:8px;">
-                            <textarea id="import-filters-textarea"
-                                placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import'
-                                rows="6"
-                                style="width:100%; box-sizing:border-box; resize:vertical; padding:8px; font-family:monospace;"></textarea>
+                    <div class="sp-card-body">
+                        <p class="yc-card-desc">Export your filters to a file or import from a previously saved file.</p>
+                        <div class="yc-inline-actions">
+                            <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="export-filters-btn">Export Filters</button>
+                            <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="open-import-filters-btn">Import Filters</button>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <button class="clear-history-btn" id="import-filters-btn">Import Messages</button>
-                            <button class="clear-history-btn" id="cancel-import-filters-btn">Cancel</button>
+                        <div id="import-filters-panel-inline" style="display:none; margin-top:0.75rem;">
+                            <div class="sp-form-group">
+                                <textarea id="import-filters-textarea" class="sp-textarea"
+                                    placeholder='Paste filters JSON here (e.g. {"usernames":[...],"messages":[...]}) or leave empty to attempt legacy import'
+                                    rows="6"></textarea>
+                            </div>
+                            <div class="yc-inline-actions">
+                                <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="import-filters-btn">Import Messages</button>
+                                <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="cancel-import-filters-btn">Cancel</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="chat-features-panel settings-panel">
-                    <h3>Chat Features</h3>
-                    <p class="settings-description" style="margin-bottom:8px;">Optional chat UI features you can enable.</p>
-                    <label class="feature-item">
-                        <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
+                <div class="sp-card chat-features-panel">
+                    <div class="sp-card-header">
+                        <div class="sp-card-title">Chat Features</div>
+                    </div>
+                    <div class="sp-card-body">
+                        <p class="yc-card-desc">Optional chat UI features you can enable.</p>
+                        <div class="yc-feature-list">
+                    <label class="switch">
+                        <input type="checkbox" id="notify-joins-checkbox">
+                        Show join/leave notifications
                     </label>
-                    <label class="feature-item">
-                        <input type="checkbox" id="ding-sound-checkbox">&nbsp;Play a ding sound on each new chat message
+                    <label class="switch">
+                        <input type="checkbox" id="ding-sound-checkbox">
+                        Play a ding sound on each new chat message
                     </label>
                     <div class="ding-volume-row is-collapsed" id="ding-volume-row">
                         <label for="ding-volume-slider" class="ding-volume-label">Ding volume</label>
                         <input type="range" id="ding-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Ding volume">
                         <span class="ding-volume-value" id="ding-volume-value">100%</span>
-                        <button type="button" id="ding-volume-test" class="ding-volume-test">Test</button>
+                        <button type="button" id="ding-volume-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
                     </div>
-                    <label class="feature-item">
-                        <input type="checkbox" id="narrator-checkbox">&nbsp;Read chat messages aloud (narrator)
+                    <label class="switch">
+                        <input type="checkbox" id="narrator-checkbox">
+                        Read chat messages aloud (narrator)
                     </label>
                     <div class="narrator-controls is-collapsed" id="narrator-controls">
                         <div class="ding-volume-row">
                             <label for="narrator-voice-select" class="ding-volume-label">Voice</label>
-                            <select id="narrator-voice-select" class="narrator-voice-select" aria-label="Narrator voice"></select>
-                            <button type="button" id="narrator-test" class="ding-volume-test">Test</button>
+                            <select id="narrator-voice-select" class="sp-select narrator-voice-select" aria-label="Narrator voice"></select>
+                            <button type="button" id="narrator-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
                         </div>
                         <div class="ding-volume-row">
                             <label for="narrator-rate-slider" class="ding-volume-label">Rate</label>
@@ -713,18 +643,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             <input type="range" id="narrator-pitch-slider" class="ding-volume-slider" min="0" max="200" step="5" value="100" aria-label="Narrator pitch">
                             <span class="ding-volume-value" id="narrator-pitch-value">1.0</span>
                         </div>
-                        <label class="feature-item">
-                            <input type="checkbox" id="narrator-speak-name" checked>&nbsp;Read the sender's name
+                        <label class="switch">
+                            <input type="checkbox" id="narrator-speak-name" checked>
+                            Read the sender's name
                         </label>
                         <div class="narrator-skip">
                             <label class="ding-volume-label" for="narrator-user-filter-input">Skip usernames (shown in chat, not spoken)</label>
-                            <input type="text" id="narrator-user-filter-input" class="filter-input"
+                            <input type="text" id="narrator-user-filter-input" class="sp-input"
                                 placeholder="Enter username to skip narrating (press Enter to add)"
                                 onkeypress="handleNarratorUsernameFilterInput(event)">
                             <div class="filter-list" id="narrator-user-filter-list"></div>
                             <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
                             <div class="narrator-phrase-add">
-                                <input type="text" id="narrator-filter-input" class="filter-input"
+                                <input type="text" id="narrator-filter-input" class="sp-input"
                                     placeholder="Enter words to skip (press Enter to add)"
                                     onkeypress="handleNarratorFilterInput(event)">
                                 <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
@@ -734,7 +665,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             <div class="filter-list" id="narrator-filter-list"></div>
                             <label class="ding-volume-label" for="narrator-allow-input">Allow phrases (spoken even when sender is skipped)</label>
                             <div class="narrator-phrase-add">
-                                <input type="text" id="narrator-allow-input" class="filter-input"
+                                <input type="text" id="narrator-allow-input" class="sp-input"
                                     placeholder="e.g. ad break is coming up (press Enter to add)"
                                     onkeypress="handleNarratorAllowInput(event)">
                                 <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
@@ -744,69 +675,67 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             <div class="filter-list" id="narrator-allow-list"></div>
                         </div>
                     </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="two-column-container">
-                <div class="settings-panel">
-                    <div class="filters-header">
-                        <h3>Filters</h3>
+            <div class="yc-grid">
+                <div class="sp-card">
+                    <div class="sp-card-header">
+                        <div class="sp-card-title">Filters</div>
                     </div>
-                    <p class="settings-description">
-                        Manage username and message filters separately. Each section can be collapsed.
-                    </p>
-                    <div class="sub-filters">
-                        <div class="sub-panel">
-                            <div class="filters-header">
-                                <h4>Username Filters</h4>
-                                <button id="toggle-filters-users-btn" class="toggle-btn" data-target="filter-list-users"
-                                    aria-expanded="true">Hide</button>
+                    <div class="sp-card-body">
+                        <p class="yc-card-desc">Manage username and message filters separately. Each section can be collapsed.</p>
+                        <div class="sub-filters">
+                            <div class="sub-panel">
+                                <div class="filters-header">
+                                    <h4>Username Filters</h4>
+                                    <button type="button" id="toggle-filters-users-btn" class="sp-btn sp-btn-ghost sp-btn-sm" data-target="filter-list-users"
+                                        aria-expanded="true">Hide</button>
+                                </div>
+                                <div id="filters-users-body" class="filters-body">
+                                    <input type="text" id="filter-user-input" class="sp-input"
+                                        placeholder="Enter username to filter (press Enter to add)"
+                                        onkeypress="handleFilterInput(event, 'user')">
+                                    <div class="filter-list" id="filter-list-users"></div>
+                                </div>
                             </div>
-                            <div id="filters-users-body" class="filters-body">
-                                <input type="text" id="filter-user-input" class="filter-input"
-                                    placeholder="Enter username to filter (press Enter to add)"
-                                    onkeypress="handleFilterInput(event, 'user')">
-                                <div class="filter-list" id="filter-list-users"></div>
-                            </div>
-                        </div>
-                        <div class="sub-panel">
-                            <div class="filters-header">
-                                <h4>Message Filters</h4>
-                                <button id="toggle-filters-msg-btn" class="toggle-btn" data-target="filter-list-msg"
-                                    aria-expanded="true">Hide</button>
-                            </div>
-                            <div id="filters-msg-body" class="filters-body">
-                                <input type="text" id="filter-msg-input" class="filter-input"
-                                    placeholder="Enter phrase to filter (press Enter to add)"
-                                    onkeypress="handleFilterInput(event, 'message')">
-                                <div class="filter-list" id="filter-list-msg"></div>
+                            <div class="sub-panel">
+                                <div class="filters-header">
+                                    <h4>Message Filters</h4>
+                                    <button type="button" id="toggle-filters-msg-btn" class="sp-btn sp-btn-ghost sp-btn-sm" data-target="filter-list-msg"
+                                        aria-expanded="true">Hide</button>
+                                </div>
+                                <div id="filters-msg-body" class="filters-body">
+                                    <input type="text" id="filter-msg-input" class="sp-input"
+                                        placeholder="Enter phrase to filter (press Enter to add)"
+                                        onkeypress="handleFilterInput(event, 'message')">
+                                    <div class="filter-list" id="filter-list-msg"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="settings-panel">
-                    <div class="filters-header">
-                        <h3>Nickname Management</h3>
-                        <button id="toggle-nicknames-btn" class="toggle-btn" data-target="nickname-list"
+                <div class="sp-card">
+                    <div class="sp-card-header">
+                        <div class="sp-card-title">Nickname Management</div>
+                        <button type="button" id="toggle-nicknames-btn" class="sp-btn sp-btn-ghost sp-btn-sm" data-target="nickname-list"
                             aria-expanded="true">Hide</button>
                     </div>
-                    <p class="settings-description">Set custom nicknames for chatters. Nicknames are tied to user IDs and
-                        persist even if they change their username.</p>
-                    <div style="display:flex; gap:8px; margin-bottom:10px;">
-                        <input type="text" id="nickname-username" class="filter-input" placeholder="Enter Twitch username"
-                            style="flex:1;">
-                        <input type="text" id="nickname-value" class="filter-input" placeholder="Enter nickname"
-                            style="flex:1;">
-                        <button onclick="addNickname()"
-                            style="padding:10px 20px; background:#9147ff; color:white; border:none; border-radius:8px; cursor:pointer;">Add
-                            Nickname</button>
+                    <div class="sp-card-body">
+                        <p class="yc-card-desc">Set custom nicknames for chatters. Nicknames are tied to user IDs and persist even if they change their username.</p>
+                        <div class="yc-inline-fields">
+                            <input type="text" id="nickname-username" class="sp-input" placeholder="Enter Twitch username">
+                            <input type="text" id="nickname-value" class="sp-input" placeholder="Enter nickname">
+                            <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" onclick="addNickname()">Add Nickname</button>
+                        </div>
+                        <div id="nickname-list" class="filter-list"></div>
                     </div>
-                    <div id="nickname-list" class="filter-list"></div>
                 </div>
             </div>
-        </div>
         <div class="chat-overlay-wrapper">
             <div class="chat-overlay" id="chat-overlay">
-                <button class="fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()"
+                <button type="button" class="sp-btn sp-btn-danger fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()"
                     title="Exit Fullscreen (ESC)">
                     ✕
                 </button>
@@ -815,24 +744,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             </div>
         </div>
         <div class="message-input-container" id="message-input-container">
-            <input type="text" id="message-input" class="message-input" placeholder="Send a message to your chat..."
+            <input type="text" id="message-input" class="sp-input" placeholder="Send a message to your chat..."
                 maxlength="500">
-            <button class="send-message-btn" id="send-message-btn" onclick="sendChatMessage()"
+            <button type="button" class="sp-btn sp-btn-primary" id="send-message-btn" onclick="sendChatMessage()"
                 title="Send Message">Send</button>
-        </div>
-        <div class="activity-feed-container" id="activity-feed-container">
-            <div class="activity-feed-header">
-                <h3>✨ Activity Feed</h3>
-                <div class="activity-feed-controls">
-                    <button class="activity-feed-toggle-btn" id="activity-feed-toggle" onclick="toggleActivityFeed()" title="Collapse Activity Feed">−</button>
-                    <button class="activity-feed-clear-btn" id="activity-feed-clear" onclick="clearActivityFeed()" title="Clear Activity Feed">🗑️</button>
-                </div>
-            </div>
-            <div class="activity-feed-scroll" id="activity-feed-scroll">
-                <div class="activity-feed-content" id="activity-feed">
-                    <p class="activity-placeholder">No recent activity</p>
-                </div>
-            </div>
         </div>
         <script>
             // Configuration
@@ -1844,210 +1759,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     console.error('Error loading chat history:', error);
                 }
             }
-            // Activity Feed Management
-            let activityFeed = [];
-            const MAX_ACTIVITY_ITEMS = 100;
-            let activityFeedCollapsed = false;
-            // Add activity to feed
-            function addActivity(type, user, details) {
-                const activity = {
-                    type: type,
-                    user: user,
-                    details: details,
-                    timestamp: new Date().toISOString(),
-                    id: Date.now() + Math.random()
-                };
-                activityFeed.push(activity);
-                // Trim to max items
-                if (activityFeed.length > MAX_ACTIVITY_ITEMS) {
-                    activityFeed = activityFeed.slice(-MAX_ACTIVITY_ITEMS);
-                }
-                renderActivity(activity);
-                saveActivityFeed();
-            }
-            // Render a single activity item
-            function renderActivity(activity) {
-                const feedContainer = document.getElementById('activity-feed');
-                const placeholder = feedContainer.querySelector('.activity-placeholder');
-                if (placeholder) {
-                    placeholder.remove();
-                }
-                const activityCard = document.createElement('div');
-                activityCard.className = `activity-card activity-${activity.type}`;
-                activityCard.dataset.id = activity.id;
-                // Build activity card HTML
-                let icon = '';
-                let title = '';
-                let description = '';
-                switch(activity.type) {
-                    case 'raid':
-                        icon = '🎯';
-                        title = 'Raid';
-                        description = `<strong>${activity.user.name}</strong> raided with <strong>${activity.details.viewers}</strong> viewers!`;
-                        break;
-                    case 'cheer':
-                        icon = '💎';
-                        title = 'Cheer';
-                        description = `<strong>${activity.user.name}</strong> cheered <strong>${activity.details.bits}</strong> bits!`;
-                        if (activity.details.message) {
-                            description += `<br><span class="activity-message">${escapeHtml(activity.details.message)}</span>`;
-                        }
-                        break;
-                    case 'subscription':
-                        icon = '⭐';
-                        title = activity.details.is_gift ? 'Gift Sub' : 'Subscription';
-                        if (activity.details.is_gift) {
-                            description = `<strong>${activity.user.name}</strong> gifted a Tier ${activity.details.tier} sub!`;
-                        } else {
-                            description = `<strong>${activity.user.name}</strong> subscribed (Tier ${activity.details.tier})!`;
-                            if (activity.details.cumulative_months > 1) {
-                                description += ` ${activity.details.cumulative_months} months total!`;
-                            }
-                        }
-                        break;
-                    case 'follow':
-                        icon = '❤️';
-                        title = 'Follow';
-                        description = `<strong>${activity.user.name}</strong> followed!`;
-                        break;
-                    case 'redemption':
-                        icon = '🎁';
-                        title = 'Channel Points';
-                        description = `<strong>${activity.user.name}</strong> redeemed <strong>${activity.details.reward_title}</strong>`;
-                        if (activity.details.cost) {
-                            description += ` (${activity.details.cost} pts)`;
-                        }
-                        break;
-                    case 'hypetrain':
-                        icon = '🔥';
-                        title = 'Hype Train';
-                        description = `Hype Train Level <strong>${activity.details.level}</strong>! Progress: ${activity.details.progress}/${activity.details.goal}`;
-                        break;
-                }
-                activityCard.innerHTML = `
-                    <div class="activity-icon">${icon}</div>
-                    <div class="activity-content">
-                        ${activity.user.avatar ? `<img src="${activity.user.avatar}" class="activity-avatar" alt="${activity.user.name}">` : ''}
-                        <div class="activity-details">
-                            <div class="activity-description">${description}</div>
-                            <div class="activity-timestamp">${getRelativeTime(activity.timestamp)}</div>
-                        </div>
-                    </div>
-                `;
-                feedContainer.appendChild(activityCard);
-                // Scroll to the right (latest activity)
-                const scrollContainer = document.getElementById('activity-feed-scroll');
-                if (scrollContainer) {
-                    scrollContainer.scrollLeft = scrollContainer.scrollWidth;
-                }
-                // Animate card entrance
-                setTimeout(() => {
-                    activityCard.classList.add('activity-entered');
-                }, 10);
-            }
-            // Get relative time string
-            function getRelativeTime(timestamp) {
-                const now = new Date();
-                const then = new Date(timestamp);
-                const seconds = Math.floor((now - then) / 1000);
-                
-                if (seconds < 60) return 'just now';
-                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-                return `${Math.floor(seconds / 86400)}d ago`;
-            }
-            // Escape HTML to prevent XSS
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-            // Toggle activity feed visibility
-            function toggleActivityFeed() {
-                const container = document.getElementById('activity-feed-container');
-                const toggleBtn = document.getElementById('activity-feed-toggle');
-                activityFeedCollapsed = !activityFeedCollapsed;
-                if (activityFeedCollapsed) {
-                    container.classList.add('collapsed');
-                    toggleBtn.textContent = '+';
-                    toggleBtn.title = 'Expand Activity Feed';
-                } else {
-                    container.classList.remove('collapsed');
-                    toggleBtn.textContent = '−';
-                    toggleBtn.title = 'Collapse Activity Feed';
-                }
-            }
-            // Clear activity feed
-            async function clearActivityFeed() {
-                if (!confirm('Clear all activity feed items?')) return;
-                try {
-                    activityFeed = [];
-                    const feedContainer = document.getElementById('activity-feed');
-                    feedContainer.innerHTML = '<p class="activity-placeholder">No recent activity</p>';
-                    const response = await fetch('?action=clear_activity_feed', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    const result = await response.json();
-                    if (!result.success) {
-                        console.error('Failed to clear activity feed:', result.error);
-                    }
-                } catch (error) {
-                    console.error('Error clearing activity feed:', error);
-                }
-            }
-            // Save activity feed to server
-            async function saveActivityFeed() {
-                try {
-                    const response = await fetch('?action=save_activity_feed', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(activityFeed)
-                    });
-                    const result = await response.json();
-                    if (!result.success) {
-                        console.error('Failed to save activity feed:', result.error);
-                    }
-                } catch (error) {
-                    console.error('Error saving activity feed:', error);
-                }
-            }
-            // Load activity feed from server
-            async function loadActivityFeed() {
-                try {
-                    const response = await fetch('?action=load_activity_feed');
-                    const result = await response.json();
-                    if (result.success && result.activities && result.activities.length > 0) {
-                        activityFeed = result.activities;
-                        const feedContainer = document.getElementById('activity-feed');
-                        feedContainer.innerHTML = '';
-                        activityFeed.forEach(activity => {
-                            renderActivity(activity);
-                        });
-                        // Update timestamps periodically
-                        updateActivityTimestamps();
-                    }
-                } catch (error) {
-                    console.error('Error loading activity feed:', error);
-                }
-            }
-            // Update timestamps in activity feed
-            function updateActivityTimestamps() {
-                const feedContainer = document.getElementById('activity-feed');
-                const activityCards = feedContainer.querySelectorAll('.activity-card');
-                activityCards.forEach(card => {
-                    const id = card.dataset.id;
-                    const activity = activityFeed.find(a => a.id == id);
-                    if (activity) {
-                        const timestampEl = card.querySelector('.activity-timestamp');
-                        if (timestampEl) {
-                            timestampEl.textContent = getRelativeTime(activity.timestamp);
-                        }
-                    }
-                });
-            }
-            // Update timestamps every minute
-            setInterval(updateActivityTimestamps, 60000);
             // Filter management
             function renderFilters() {
                 // usernames
@@ -2121,7 +1832,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         // Collapsible filters UI for both username and message sections
         function initFilterCollapse() {
             try {
-                const buttons = document.querySelectorAll('.toggle-btn[data-target]');
+                const buttons = document.querySelectorAll('button[data-target]');
                 buttons.forEach(btn => {
                     const targetId = btn.getAttribute('data-target');
                     const body = document.getElementById(targetId);
@@ -3515,30 +3226,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap();
             // Scroll to bottom (only if user is not scrolling up)
             scrollToBottomIfNeeded(overlay);
-            // Add to unified activity feed model
-            const actorName = displayName || username || 'Anonymous';
-            if (msgId === 'raid') {
-                const viewers = parseInt(tags['msg-param-viewerCount'] || '0', 10) || 0;
-                addActivity('raid', {
-                    name: actorName,
-                    avatar: null
-                }, {
-                    viewers: viewers
-                });
-            } else if (msgId === 'sub' || msgId === 'resub' || msgId === 'subgift' || msgId === 'anonsubgift' || msgId === 'submysterygift' || msgId === 'anonsubmysterygift') {
-                const tierRaw = tags['msg-param-sub-plan'] || tags['msg-param-sub_tier'] || '1000';
-                const tier = tierRaw.startsWith('tier_') ? tierRaw.replace('tier_', '') : tierRaw;
-                const cumulativeMonths = parseInt(tags['msg-param-cumulative-months'] || '1', 10) || 1;
-                const isGift = msgId.includes('gift');
-                addActivity('subscription', {
-                    name: actorName,
-                    avatar: null
-                }, {
-                    is_gift: isGift,
-                    tier: tier,
-                    cumulative_months: cumulativeMonths
-                });
-            }
         }
         // Log raw chat event data to server for debugging
         async function logRawChatData(event) {
@@ -4601,20 +4288,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
-            // Add to activity feed for subscriptions
-            if (['sub', 'resub', 'sub_gift'].includes(event.notice_type)) {
-                const isGift = event.notice_type === 'sub_gift';
-                const tier = event.sub_tier ? event.sub_tier.replace('tier_', '') : '1';
-                const months = event.cumulative_months || 1;
-                addActivity('subscription', {
-                    name: event.chatter_user_name || event.chatter_user_login || 'Anonymous',
-                    avatar: null
-                }, {
-                    is_gift: isGift,
-                    tier: tier,
-                    cumulative_months: months
-                });
-            }
         }
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -4623,7 +4296,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         // Fullscreen toggle
         function toggleFullscreen() {
-            const container = document.querySelector('.container');
+            const container = document.querySelector('.yc-wrap');
             const overlay = document.getElementById('chat-overlay');
             const icon = document.getElementById('fullscreen-icon');
             let exitBtn = document.getElementById('fullscreen-exit');
@@ -4631,7 +4304,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (!exitBtn) {
                 exitBtn = document.createElement('button');
                 exitBtn.id = 'fullscreen-exit';
-                exitBtn.className = 'fullscreen-exit-btn';
+                exitBtn.className = 'sp-btn sp-btn-danger fullscreen-exit-btn';
                 exitBtn.onclick = toggleFullscreen;
                 exitBtn.title = 'Exit Fullscreen (ESC)';
                 exitBtn.textContent = '✕';
@@ -4687,7 +4360,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         // ESC key to exit fullscreen
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && document.querySelector('.container').classList.contains('fullscreen-mode')) {
+            if (event.key === 'Escape' && document.querySelector('.yc-wrap') && document.querySelector('.yc-wrap').classList.contains('fullscreen-mode')) {
                 toggleFullscreen();
             }
         });
@@ -4765,15 +4438,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
-            // Add to activity feed
-            const rewardTitle = rewardTypeNames[event.reward.type] || event.reward.type?.replace(/_/g, ' ') || 'Unknown Reward';
-            addActivity('redemption', {
-                name: event.user_name || event.user_login,
-                avatar: null
-            }, {
-                reward_title: rewardTitle,
-                cost: event.reward.cost
-            });
         }
         // Channel Points Custom Reward handling
         function handleCustomReward(event) {
@@ -4845,14 +4509,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
-            // Add to activity feed
-            addActivity('redemption', {
-                name: event.user_name || event.user_login,
-                avatar: null
-            }, {
-                reward_title: event.reward?.title || 'Custom Reward',
-                cost: event.reward?.cost
-            });
         }
         // Raid event handling
         function handleRaidEvent(event) {
@@ -4875,13 +4531,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
-            // Add to activity feed
-            addActivity('raid', {
-                name: event.from_broadcaster_user_name,
-                avatar: null
-            }, {
-                viewers: event.viewers
-            });
         }
         // Bits event handling
         function handleBitsEvent(event) {
@@ -4936,15 +4585,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
-            // Add to activity feed
-            const message = (event.type === 'cheer' && event.message && event.message.text) ? event.message.text : '';
-            addActivity('cheer', {
-                name: event.user_name,
-                avatar: null
-            }, {
-                bits: event.bits,
-                message: message || null
-            });
         }
         // Send chat message function
         async function sendChatMessage() {
@@ -5168,7 +4808,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     connectIRCWebSocket();
                     connectEventSubWebSocket();
                     await Promise.allSettled([
-                        loadActivityFeed(),
                         validateToken(),
                         fetchBadges()
                     ]);
@@ -5216,7 +4855,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             });
         })();
     </script>
-    <footer class="page-footer">
+    <footer class="yc-footer">
         <p>&copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
             (ABN 20 447 022 747).</p>
