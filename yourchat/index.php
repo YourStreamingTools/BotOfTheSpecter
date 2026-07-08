@@ -518,6 +518,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="stylesheet" href="style.css?v=<?php echo $cssVersion; ?>">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <!-- Theme bootstrap: apply saved/OS theme before first paint -->
@@ -568,7 +569,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         </div>
                     </div>
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="clearChatHistory()" title="Clear Chat History" aria-label="Clear chat history">🗑️</button>
-                    <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="toggleFullscreen()" title="Toggle Fullscreen" aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
+                    <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm yc-icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen" aria-label="Toggle fullscreen"><i class="fas fa-expand" id="fullscreen-icon" aria-hidden="true"></i></button>
                     <button type="button" class="sp-theme-toggle" id="spThemeToggle" title="Toggle light or dark theme" aria-label="Toggle theme">🌙</button>
                     <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" onclick="logoutUser()" title="Logout" aria-label="Logout">Logout</button>
                 </div>
@@ -735,9 +736,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             </div>
         <div class="chat-overlay-wrapper">
             <div class="chat-overlay" id="chat-overlay">
-                <button type="button" class="sp-btn sp-btn-danger fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()"
-                    title="Exit Fullscreen (ESC)">
-                    ✕
+                <button type="button" class="sp-btn sp-btn-danger fullscreen-exit-btn yc-icon-btn" id="fullscreen-exit" onclick="toggleFullscreen()"
+                    title="Exit Fullscreen (ESC)" aria-label="Exit fullscreen">
+                    <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
                 <p class="chat-placeholder">Connecting to chat...</p>
                 <button id="scroll-to-bottom-btn" class="scroll-to-bottom-btn" onclick="scrollToBottomForced()" style="display:none;">↓ New messages</button>
@@ -4294,20 +4295,26 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             div.textContent = text;
             return div.innerHTML;
         }
+        function setFullscreenIcon(isFullscreen) {
+            const icon = document.getElementById('fullscreen-icon');
+            if (!icon) return;
+            icon.classList.remove('fa-expand', 'fa-compress');
+            icon.classList.add(isFullscreen ? 'fa-compress' : 'fa-expand');
+        }
         // Fullscreen toggle
         function toggleFullscreen() {
             const container = document.querySelector('.yc-wrap');
             const overlay = document.getElementById('chat-overlay');
-            const icon = document.getElementById('fullscreen-icon');
             let exitBtn = document.getElementById('fullscreen-exit');
             // If the exit button doesn't exist (was removed by history restore), create it
             if (!exitBtn) {
                 exitBtn = document.createElement('button');
                 exitBtn.id = 'fullscreen-exit';
-                exitBtn.className = 'sp-btn sp-btn-danger fullscreen-exit-btn';
+                exitBtn.className = 'sp-btn sp-btn-danger fullscreen-exit-btn yc-icon-btn';
                 exitBtn.onclick = toggleFullscreen;
                 exitBtn.title = 'Exit Fullscreen (ESC)';
-                exitBtn.textContent = '✕';
+                exitBtn.setAttribute('aria-label', 'Exit fullscreen');
+                exitBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
                 // Append to overlay so CSS positioning applies
                 overlay.appendChild(exitBtn);
             }
@@ -4332,7 +4339,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // remove global fullscreen lock
                 try { document.documentElement.classList.remove('overlay-fullscreen'); } catch (e) { }
                 exitBtn.style.display = 'none';
-                icon.textContent = '⛶';
+                setFullscreenIcon(false);
             } else {
                 // Enter fullscreen
                 container.classList.add('fullscreen-mode');
@@ -4351,7 +4358,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 exitBtn.style.display = 'flex';
                 exitBtn.style.visibility = 'visible';
                 exitBtn.style.zIndex = 10000;
-                icon.textContent = '⛶';
+                setFullscreenIcon(true);
                 // Scroll to bottom when entering fullscreen
                 setTimeout(() => {
                     overlay.scrollTop = overlay.scrollHeight;

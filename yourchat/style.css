@@ -4868,6 +4868,18 @@ label.checkbox input[type="checkbox"] {
     flex-shrink: 0;
 }
 
+.yc-icon-btn {
+    min-width: 2rem;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+}
+
+.yc-icon-btn i {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
 .yc-status-group {
     display: flex;
     flex-wrap: wrap;
@@ -5108,7 +5120,7 @@ label.checkbox input[type="checkbox"] {
 
 .yc-inline-fields .sp-input { flex: 1 1 140px; }
 
-/* ----- Chat overlay (stays dark for readability) ----- */
+/* ----- Chat overlay (theme-aware via local tokens) ----- */
 .chat-overlay-wrapper {
     position: relative;
     width: 100%;
@@ -5117,7 +5129,23 @@ label.checkbox input[type="checkbox"] {
 }
 
 .chat-overlay {
-    background: rgba(0, 0, 0, 0.82);
+    --yc-chat-surface: rgba(0, 0, 0, 0.82);
+    --yc-chat-fg: #fff;
+    --yc-chat-fg-muted: #999;
+    --yc-chat-fg-soft: #ddd;
+    --yc-chat-fg-dim: #ccc;
+    --yc-chat-fg-faint: #aaa;
+    --yc-chat-bubble: rgba(255, 255, 255, 0.05);
+    --yc-chat-bubble-subtle: rgba(255, 255, 255, 0.03);
+    --yc-chat-bubble-muted: rgba(255, 255, 255, 0.06);
+    --yc-chat-reply-bg: rgba(255, 255, 255, 0.08);
+    --yc-chat-reply-fg: #bbb;
+    --yc-chat-badge-ph: rgba(255, 255, 255, 0.06);
+    --yc-chat-notif-neutral-bg: rgba(255, 255, 255, 0.06);
+    --yc-chat-notif-neutral-border: rgba(255, 255, 255, 0.4);
+    --yc-chat-cheermote-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    background: var(--yc-chat-surface);
+    color: var(--yc-chat-fg);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 1rem 1.25rem 1.25rem;
@@ -5130,6 +5158,24 @@ label.checkbox input[type="checkbox"] {
     align-items: stretch;
     width: 100%;
     box-sizing: border-box;
+}
+
+[data-theme="light"] .chat-overlay {
+    --yc-chat-surface: var(--bg-card);
+    --yc-chat-fg: var(--text-primary);
+    --yc-chat-fg-muted: var(--text-muted);
+    --yc-chat-fg-soft: var(--text-secondary);
+    --yc-chat-fg-dim: var(--text-secondary);
+    --yc-chat-fg-faint: var(--text-muted);
+    --yc-chat-bubble: var(--bg-surface);
+    --yc-chat-bubble-subtle: var(--bg-surface);
+    --yc-chat-bubble-muted: var(--bg-card-hover);
+    --yc-chat-reply-bg: var(--accent-light);
+    --yc-chat-reply-fg: var(--text-secondary);
+    --yc-chat-badge-ph: var(--bg-surface);
+    --yc-chat-notif-neutral-bg: var(--bg-surface);
+    --yc-chat-notif-neutral-border: var(--border-hover);
+    --yc-chat-cheermote-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .chat-overlay::-webkit-scrollbar { width: 8px; }
@@ -5168,8 +5214,8 @@ label.checkbox input[type="checkbox"] {
     margin-bottom: 0.75rem;
     padding: 0.4rem 0.75rem 0.5rem;
     border-radius: var(--radius);
-    background: rgba(255, 255, 255, 0.03);
-    color: #fff;
+    background: var(--yc-chat-bubble-subtle);
+    color: var(--yc-chat-fg);
     font-style: italic;
     opacity: 0.95;
 }
@@ -5200,15 +5246,15 @@ label.checkbox input[type="checkbox"] {
     margin-top: 0.35rem;
     padding-left: 1.25rem;
     font-style: italic;
-    color: #ddd;
+    color: var(--yc-chat-fg-soft);
 }
 
 .chat-notification {
     margin-bottom: 0.75rem;
     padding: 0.4rem 0.75rem 0.5rem;
     border-radius: var(--radius);
-    color: #fff;
-    background: rgba(255, 255, 255, 0.03);
+    color: var(--yc-chat-fg);
+    background: var(--yc-chat-bubble-subtle);
     border-left: 4px solid rgba(145, 71, 255, 0.8);
     line-height: 1.45;
     word-wrap: break-word;
@@ -5224,16 +5270,16 @@ label.checkbox input[type="checkbox"] {
     border-left-color: #ff6b6b;
 }
 .chat-notification-notification {
-    background: rgba(255, 255, 255, 0.06);
-    border-left-color: rgba(255, 255, 255, 0.4);
+    background: var(--yc-chat-notif-neutral-bg);
+    border-left-color: var(--yc-chat-notif-neutral-border);
 }
-.chat-notification em { color: #ddd; }
+.chat-notification em { color: var(--yc-chat-fg-soft); }
 
 .chat-message {
     margin-bottom: 0.75rem;
     padding: 0.4rem 0.75rem 0.5rem;
     border-radius: var(--radius);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--yc-chat-bubble);
     animation: yc-slide-in 0.3s ease-out;
 }
 
@@ -5243,7 +5289,7 @@ label.checkbox input[type="checkbox"] {
 }
 .chat-message.deleted .chat-text {
     text-decoration: line-through;
-    color: #999;
+    color: var(--yc-chat-fg-muted);
 }
 
 .chat-message.first-time-chatter {
@@ -5263,7 +5309,7 @@ label.checkbox input[type="checkbox"] {
 }
 
 .chat-message.action-message {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--yc-chat-bubble-muted);
     border-left: 3px solid var(--border-hover);
 }
 .action-text, .action-text em { font-style: italic; }
@@ -5303,11 +5349,11 @@ label.checkbox input[type="checkbox"] {
     gap: 0.35rem;
     padding: 0.35rem 0.55rem;
     margin-bottom: 0.35rem;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--yc-chat-reply-bg);
     border-left: 3px solid var(--accent);
     border-radius: var(--radius-sm);
     font-size: 0.78rem;
-    color: #bbb;
+    color: var(--yc-chat-reply-fg);
 }
 
 .reply-text {
@@ -5333,7 +5379,7 @@ label.checkbox input[type="checkbox"] {
     padding: 0.1rem 0.25rem;
     border-radius: var(--radius-sm);
     font-weight: 700;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    text-shadow: var(--yc-chat-cheermote-shadow);
 }
 
 .chat-overlay .system-message,
@@ -5357,19 +5403,19 @@ label.checkbox input[type="checkbox"] {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--yc-chat-badge-ph);
     border: 1px solid var(--border);
 }
 
 .chat-username { font-weight: 700; margin-right: 0.35rem; }
 .chat-timestamp {
-    color: #999;
+    color: var(--yc-chat-fg-muted);
     font-size: 0.68rem;
     margin-bottom: 0.2rem;
     opacity: 0.8;
     display: block;
 }
-.chat-text { color: #fff; word-wrap: break-word; }
+.chat-text { color: var(--yc-chat-fg); word-wrap: break-word; }
 .shared-chat-indicator { color: var(--amber); font-size: 0.68rem; margin-left: 0.35rem; }
 
 .reward-message {
@@ -5389,19 +5435,19 @@ label.checkbox input[type="checkbox"] {
 
 .reward-header { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .reward-user { font-weight: 700; color: var(--amber); }
-.reward-text { color: #ccc; }
-.reward-name { font-weight: 700; color: #fff; }
+.reward-text { color: var(--yc-chat-fg-dim); }
+.reward-name { font-weight: 700; color: var(--yc-chat-fg); }
 .reward-cost { color: var(--amber); font-size: 0.78rem; }
 .reward-message-text {
     margin-top: 0.5rem;
     padding-left: 1.25rem;
-    color: #fff;
+    color: var(--yc-chat-fg);
     font-style: italic;
 }
 .reward-prompt {
     margin-top: 0.35rem;
     padding-left: 1.25rem;
-    color: #aaa;
+    color: var(--yc-chat-fg-faint);
     font-size: 0.82rem;
     font-style: italic;
 }
