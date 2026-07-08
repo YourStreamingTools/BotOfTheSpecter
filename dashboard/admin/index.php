@@ -2655,8 +2655,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
         fetch(`service_status.php?service=${service}`)
-            .then(response => response.json())
-            .then(data => {
+            .then(response => response.text())
+            .then(text => {
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    console.error(`Raw response text for ${service}:`, text);
+                    throw parseError;
+                }
                 const statusElement = document.getElementById(statusElementId);
                 const pidElement = document.getElementById(pidElementId);
                 const buttonsElement = document.getElementById(buttonsElementId);
