@@ -723,10 +723,25 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                 onkeypress="handleNarratorUsernameFilterInput(event)">
                             <div class="filter-list" id="narrator-user-filter-list"></div>
                             <label class="ding-volume-label" for="narrator-filter-input">Skip phrases (shown in chat, not spoken)</label>
-                            <input type="text" id="narrator-filter-input" class="filter-input"
-                                placeholder="Enter phrase to skip narrating (press Enter to add)"
-                                onkeypress="handleNarratorFilterInput(event)">
+                            <div class="narrator-phrase-add">
+                                <input type="text" id="narrator-filter-input" class="filter-input"
+                                    placeholder="Enter words to skip (press Enter to add)"
+                                    onkeypress="handleNarratorFilterInput(event)">
+                                <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                    <input type="checkbox" id="narrator-filter-regex">&nbsp;Flexible pattern matching
+                                </label>
+                            </div>
                             <div class="filter-list" id="narrator-filter-list"></div>
+                            <label class="ding-volume-label" for="narrator-allow-input">Allow phrases (spoken even when sender is skipped)</label>
+                            <div class="narrator-phrase-add">
+                                <input type="text" id="narrator-allow-input" class="filter-input"
+                                    placeholder="e.g. ad break is coming up (press Enter to add)"
+                                    onkeypress="handleNarratorAllowInput(event)">
+                                <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                    <input type="checkbox" id="narrator-allow-regex">&nbsp;Flexible pattern matching
+                                </label>
+                            </div>
+                            <div class="filter-list" id="narrator-allow-list"></div>
                         </div>
                     </div>
                 </div>
@@ -1470,7 +1485,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 narrator_pitch: 1,
                 narrator_speak_name: true,
                 narrator_filters_usernames: [],
-                narrator_filters_messages: []
+                narrator_filters_messages: [],
+                narrator_allow_messages: []
             };
             async function loadSettingsFromServer() {
                 try {
@@ -1499,6 +1515,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         if (userSettings.narrator_speak_name === undefined) userSettings.narrator_speak_name = true;
                         if (!Array.isArray(userSettings.narrator_filters_usernames)) userSettings.narrator_filters_usernames = [];
                         if (!Array.isArray(userSettings.narrator_filters_messages)) userSettings.narrator_filters_messages = [];
+                        if (!Array.isArray(userSettings.narrator_allow_messages)) userSettings.narrator_allow_messages = [];
                         return true;
                     }
                     return false;
@@ -3760,6 +3777,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             userSettings.narrator_filters_usernames = list;
             saveSettingsToServer();
         }
+        // Allow-list overrides username skip only (e.g. skip the bot, but still speak ad warnings).
+        function loadNarratorAllowMessages() {
+            if (!Array.isArray(userSettings.narrator_allow_messages)) userSettings.narrator_allow_messages = [];
+            return userSettings.narrator_allow_messages;
+        }
+        function saveNarratorAllowMessages(list) {
+            userSettings.narrator_allow_messages = list;
+            saveSettingsToServer();
+        }
         function populateNarratorVoices() {
             if (!narratorSupported()) return;
             narratorVoices = window.speechSynthesis.getVoices() || [];
@@ -3826,9 +3852,72 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             narratorSpeaking = false;
             try { if (narratorSupported()) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
         }
+        const NARRATOR_REGEX_PREFIX = 'regex:';
+        // Plain entries: case-insensitive substring. Regex entries: prefix "regex:" or "/pattern/flags".
+        function narratorPhraseIsRegex(phrase) {
+            const s = String(phrase || '');
+            if (s.toLowerCase().startsWith('regex:')) return true;
+            if (!s.startsWith('/') || s.length < 3) return false;
+            return s.lastIndexOf('/') > 0;
+        }
+        function narratorParseRegex(phrase) {
+            const s = String(phrase || '');
+            if (s.toLowerCase().startsWith('regex:')) {
+                return { pattern: s.slice(6), flags: 'i' };
+            }
+            const lastSlash = s.lastIndexOf('/');
+            if (s.startsWith('/') && lastSlash > 0) {
+                return { pattern: s.slice(1, lastSlash), flags: s.slice(lastSlash + 1) || 'i' };
+            }
+            return null;
+        }
+        function narratorPhraseDisplayLabel(phrase) {
+            const parsed = narratorParseRegex(phrase);
+            return parsed ? parsed.pattern : String(phrase || '');
+        }
+        function narratorPhraseToStored(value, useRegex) {
+            const trimmed = String(value || '').trim();
+            if (!trimmed) return '';
+            if (!useRegex) {
+                if (trimmed.toLowerCase().startsWith(NARRATOR_REGEX_PREFIX)) {
+                    return trimmed.slice(NARRATOR_REGEX_PREFIX.length);
+                }
+                return trimmed;
+            }
+            if (narratorPhraseIsRegex(trimmed)) return trimmed;
+            return NARRATOR_REGEX_PREFIX + trimmed;
+        }
+        function validateNarratorPhrase(phrase) {
+            const value = String(phrase || '').trim();
+            if (!value) return { ok: false, reason: 'Phrase cannot be empty' };
+            const parsed = narratorParseRegex(value);
+            if (!parsed) return { ok: true };
+            try {
+                new RegExp(parsed.pattern, parsed.flags);
+                return { ok: true };
+            } catch (e) {
+                return { ok: false, reason: 'Invalid regex: ' + (e && e.message ? e.message : 'syntax error') };
+            }
+        }
+        function narratorPhraseMatched(text, phrase) {
+            if (!phrase) return false;
+            const haystack = String(text || '');
+            const parsed = narratorParseRegex(phrase);
+            if (parsed) {
+                try {
+                    return new RegExp(parsed.pattern, parsed.flags).test(haystack);
+                } catch (e) {
+                    console.warn('Invalid narrator regex skipped:', phrase, e);
+                    return false;
+                }
+            }
+            return haystack.toLowerCase().includes(String(phrase).toLowerCase());
+        }
+        function narratorListMatched(text, list) {
+            return (list || []).some(f => narratorPhraseMatched(text, f));
+        }
         function narratorSkipMatched(text) {
-            const lower = text.toLowerCase();
-            return loadNarratorFilters().some(f => f && lower.includes(String(f).toLowerCase()));
+            return narratorListMatched(text, loadNarratorFilters());
         }
         // Exact username match (login or display name), mirroring the main hide-filter.
         // Nicknames are intentionally NOT matched here, only the real Twitch identity.
@@ -3839,6 +3928,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const fl = String(f).toLowerCase();
                 return fl === username || fl === displayName;
             });
+        }
+        function narratorAllowMatched(text) {
+            return narratorListMatched(text, loadNarratorAllowMessages());
         }
         function buildNarrationText(event) {
             const raw = (event.message && event.message.text ? String(event.message.text) : '').trim();
@@ -3880,10 +3972,35 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         function narrateMessage(event) {
             if (!narratorEnabled || !narratorSupported()) return;
-            if (narratorUsernameSkipMatched(event)) return;
+            const raw = (event.message && event.message.text ? String(event.message.text) : '').trim();
+            if (narratorUsernameSkipMatched(event) && !narratorAllowMatched(raw)) return;
             const text = buildNarrationText(event);
             if (!text) return;
             enqueueNarration(text);
+        }
+        function buildNarratorPhraseTag(phrase, removeTitle, onRemove) {
+            const tag = document.createElement('div');
+            const isRegex = narratorPhraseIsRegex(phrase);
+            tag.className = 'filter-tag' + (isRegex ? ' filter-tag--regex' : '');
+            const label = document.createElement('span');
+            label.textContent = narratorPhraseDisplayLabel(phrase);
+            if (isRegex) label.title = 'Flexible pattern matching';
+            const btn = document.createElement('button');
+            btn.textContent = '✕';
+            btn.title = removeTitle;
+            btn.addEventListener('click', () => onRemove(phrase));
+            tag.appendChild(label);
+            tag.appendChild(btn);
+            return tag;
+        }
+        function notifyNarratorPhraseError(reason) {
+            Toastify({
+                text: reason || 'Invalid phrase',
+                duration: 4000,
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
+            }).showToast();
         }
         // ----- Skip-phrase list UI (mirrors the message-filter tag list) -----
         function renderNarratorFilters() {
@@ -3891,32 +4008,68 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (!list) return;
             list.innerHTML = '';
             loadNarratorFilters().forEach(phrase => {
-                const tag = document.createElement('div');
-                tag.className = 'filter-tag';
-                const label = document.createElement('span');
-                label.textContent = phrase;
-                const btn = document.createElement('button');
-                btn.textContent = '✕';
-                btn.title = 'Remove skip phrase';
-                btn.addEventListener('click', () => removeNarratorFilter(phrase));
-                tag.appendChild(label);
-                tag.appendChild(btn);
+                const tag = buildNarratorPhraseTag(phrase, 'Remove skip phrase', removeNarratorFilter);
                 list.appendChild(tag);
+            });
+        }
+        function addNarratorPhraseFromInput(inputId, toggleId, loadList, saveList, renderList) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const value = input.value.trim();
+            if (!value) return;
+            const toggle = document.getElementById(toggleId);
+            const stored = narratorPhraseToStored(value, !!(toggle && toggle.checked));
+            const valid = validateNarratorPhrase(stored);
+            if (!valid.ok) {
+                notifyNarratorPhraseError(valid.reason);
+                return;
+            }
+            const list = loadList();
+            if (!list.includes(stored)) {
+                list.push(stored);
+                saveList(list);
+            }
+            input.value = '';
+            if (toggle) toggle.checked = false;
+            updateNarratorPhraseInputPlaceholder(inputId, toggleId);
+            renderList();
+        }
+        function updateNarratorPhraseInputPlaceholder(inputId, toggleId) {
+            const input = document.getElementById(inputId);
+            const toggle = document.getElementById(toggleId);
+            if (!input) return;
+            const useRegex = !!(toggle && toggle.checked);
+            if (inputId === 'narrator-filter-input') {
+                input.placeholder = useRegex
+                    ? 'e.g. spam|bot ads (press Enter to add)'
+                    : 'Enter words to skip (press Enter to add)';
+            } else if (inputId === 'narrator-allow-input') {
+                input.placeholder = useRegex
+                    ? 'e.g. (another )?ad break is coming up in \\d+ minutes?'
+                    : 'e.g. ad break is coming up (press Enter to add)';
+            }
+        }
+        function initNarratorPhraseInputs() {
+            const pairs = [
+                ['narrator-filter-input', 'narrator-filter-regex'],
+                ['narrator-allow-input', 'narrator-allow-regex']
+            ];
+            pairs.forEach(([inputId, toggleId]) => {
+                const toggle = document.getElementById(toggleId);
+                if (!toggle) return;
+                toggle.addEventListener('change', () => updateNarratorPhraseInputPlaceholder(inputId, toggleId));
+                updateNarratorPhraseInputPlaceholder(inputId, toggleId);
             });
         }
         function handleNarratorFilterInput(event) {
             if (event.key !== 'Enter') return;
-            const input = document.getElementById('narrator-filter-input');
-            if (!input) return;
-            const value = input.value.trim();
-            if (!value) return;
-            const filters = loadNarratorFilters();
-            if (!filters.includes(value)) {
-                filters.push(value);
-                saveNarratorFilters(filters);
-            }
-            input.value = '';
-            renderNarratorFilters();
+            addNarratorPhraseFromInput(
+                'narrator-filter-input',
+                'narrator-filter-regex',
+                loadNarratorFilters,
+                saveNarratorFilters,
+                renderNarratorFilters
+            );
         }
         function removeNarratorFilter(phrase) {
             const filters = loadNarratorFilters().filter(f => f !== phrase);
@@ -3961,6 +4114,30 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             saveNarratorUsernameFilters(filters);
             renderNarratorUsernameFilters();
         }
+        // ----- Allow-phrase list UI (overrides username skip; plain text or regex) -----
+        function renderNarratorAllowMessages() {
+            const list = document.getElementById('narrator-allow-list');
+            if (!list) return;
+            list.innerHTML = '';
+            loadNarratorAllowMessages().forEach(phrase => {
+                list.appendChild(buildNarratorPhraseTag(phrase, 'Remove allow phrase', removeNarratorAllowMessage));
+            });
+        }
+        function handleNarratorAllowInput(event) {
+            if (event.key !== 'Enter') return;
+            addNarratorPhraseFromInput(
+                'narrator-allow-input',
+                'narrator-allow-regex',
+                loadNarratorAllowMessages,
+                saveNarratorAllowMessages,
+                renderNarratorAllowMessages
+            );
+        }
+        function removeNarratorAllowMessage(phrase) {
+            const allows = loadNarratorAllowMessages().filter(f => f !== phrase);
+            saveNarratorAllowMessages(allows);
+            renderNarratorAllowMessages();
+        }
         // Reflect current narrator state into the controls (called on init and again
         // after the server settings finish loading, so cross-device prefs apply).
         function refreshNarratorUI() {
@@ -3985,6 +4162,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             populateNarratorVoices();
             renderNarratorUsernameFilters();
             renderNarratorFilters();
+            renderNarratorAllowMessages();
         }
         function initNarrator() {
             try {
@@ -4079,6 +4257,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch (err) { /* ignore */ }
                     });
                 }
+                initNarratorPhraseInputs();
                 refreshNarratorUI();
             } catch (e) {
                 console.error('Error initializing narrator', e);
