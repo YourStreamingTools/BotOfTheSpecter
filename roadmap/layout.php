@@ -469,6 +469,14 @@ function renderDetailsTags(button) {
     tagsEl.innerHTML = html.join('');
     tagsEl.style.display = html.length?'flex':'none';
 }
+function loadActivity(itemId) {
+    const sec = document.getElementById('commentsSection');
+    if (!sec) return;
+    fetch('../get-activity.php?item_id='+encodeURIComponent(itemId))
+        .then(r=>r.text())
+        .then(html=>{ sec.innerHTML=html; })
+        .catch(()=>{ sec.innerHTML='<p style="color:var(--red);font-size:0.875rem;">Error loading activity</p>'; });
+}
 function loadAttachments(itemId) {
     const sec = document.getElementById('attachmentsSection');
     if (!sec) return;
@@ -642,9 +650,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if(meta){ let t=createdAt?'Created '+formatDateSydney(createdAt):''; if(updatedAt&&updatedAt!==createdAt) t+=' \u2022 Updated '+formatDateSydney(updatedAt); meta.textContent=t; }
             if(typeof hljs!=='undefined') content.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
             loadAttachments(currentItemId);
-            fetch('../get-activity.php?item_id='+encodeURIComponent(currentItemId))
-                .then(r=>r.text()).then(html=>{ const cs=document.getElementById('commentsSection'); if(cs) cs.innerHTML=html; })
-                .catch(()=>{ const cs=document.getElementById('commentsSection'); if(cs) cs.innerHTML='<p style="color:var(--red);font-size:0.875rem;">Error loading activity</p>'; });
+            loadActivity(currentItemId);
             openModal(detailsModal);
         });
     });
@@ -677,8 +683,25 @@ document.addEventListener('DOMContentLoaded', function() {
         addCommentForm.addEventListener('submit',function(e){
             e.preventDefault();
             fetch(window.location.href,{method:'POST',body:new FormData(addCommentForm)})
-                .then(()=>{ closeModal(addCommentModal); addCommentForm.reset(); fetch('../get-activity.php?item_id='+encodeURIComponent(currentItemId)).then(r=>r.text()).then(html=>{ const cs=document.getElementById('commentsSection'); if(cs) cs.innerHTML=html; }); })
+                .then(()=>{ closeModal(addCommentModal); addCommentForm.reset(); loadActivity(currentItemId); })
                 .catch(()=>alert('Error adding comment.'));
+        });
+    }
+    const commentsSection=document.getElementById('commentsSection');
+    if(commentsSection) {
+        commentsSection.addEventListener('click',function(e){
+            const btn=e.target.closest('.delete-comment-btn');
+            if(!btn) return;
+            e.preventDefault();
+            if(!confirm('Delete this comment?')) return;
+            const fd=new FormData();
+            fd.append('comment_id',btn.dataset.commentId||'');
+            const csrfEl=document.querySelector('meta[name="csrf-token"]');
+            fd.append('csrf_token',csrfEl?csrfEl.getAttribute('content'):'');
+            fetch('../admin/delete-comment.php',{method:'POST',body:fd})
+                .then(r=>r.json())
+                .then(d=>{ if(d.success) loadActivity(currentItemId); else alert('Error: '+(d.message||'Could not delete comment')); })
+                .catch(()=>alert('Network error'));
         });
     }
 

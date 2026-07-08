@@ -8,7 +8,8 @@ require_once "/var/www/roadmap/admin/database.php";
 require_once __DIR__ . '/includes/session.php';
 roadmap_session_start();
 
-$item_id = $_GET['item_id'] ?? 0;
+$canDeleteComments = roadmap_is_admin();
+$item_id = (int)($_GET['item_id'] ?? 0);
 
 if ($item_id <= 0) {
     echo '';
@@ -24,7 +25,7 @@ if ($users_conn->connect_error) {
 }
 
 // Get all comments for this item
-$query = "SELECT username, comment, created_at FROM roadmap_comments WHERE item_id = ? ORDER BY created_at ASC";
+$query = "SELECT id, username, comment, created_at FROM roadmap_comments WHERE item_id = ? ORDER BY created_at ASC";
 $stmt = $conn->prepare($query);
 if (!$stmt) {
     echo '';
@@ -77,23 +78,28 @@ while ($row = $result->fetch_assoc()) {
     $hash = crc32($row['username']) % 360;
     $avatarHue = $hash;
     ?>
-    <div style="border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 6px; padding: 0.75rem; background-color: rgba(102, 126, 234, 0.08);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; gap: 0.5rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+    <div class="rm-comment" data-comment-id="<?php echo (int)$row['id']; ?>">
+        <div class="rm-comment-header">
+            <div class="rm-comment-author">
                 <?php if ($profileImage): ?>
-                    <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
+                    <img src="<?php echo htmlspecialchars($profileImage); ?>" alt="<?php echo htmlspecialchars($row['username']); ?>" class="rm-comment-avatar">
                 <?php else: ?>
-                    <div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: hsl(<?php echo $avatarHue; ?>, 70%, 50%); color: white; font-weight: bold; font-size: 0.85rem; flex-shrink: 0;">
+                    <div class="rm-comment-avatar rm-comment-avatar-fallback" style="background: hsl(<?php echo $avatarHue; ?>, 70%, 50%);">
                         <?php echo $userInitials; ?>
                     </div>
                 <?php endif; ?>
-                <strong style="color: #667eea; font-size: 0.9rem; white-space: nowrap;"><?php echo htmlspecialchars($row['username']); ?></strong>
+                <span class="rm-comment-username"><?php echo htmlspecialchars($row['username']); ?></span>
             </div>
-            <small style="color: #888; white-space: nowrap; flex-shrink: 0;"><?php echo htmlspecialchars($formattedDate); ?></small>
+            <div class="rm-comment-actions">
+                <span class="rm-comment-time"><?php echo htmlspecialchars($formattedDate); ?></span>
+                <?php if ($canDeleteComments): ?>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-xs sp-btn-icon delete-comment-btn" data-comment-id="<?php echo (int)$row['id']; ?>" title="Delete comment" aria-label="Delete comment">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                <?php endif; ?>
+            </div>
         </div>
-        <div style="color: #c0c0c0; line-height: 1.5; font-size: 0.9rem; word-wrap: break-word; white-space: pre-wrap; margin: 0;">
-            <?php echo htmlspecialchars($row['comment']); ?>
-        </div>
+        <div class="rm-comment-text"><?php echo htmlspecialchars($row['comment']); ?></div>
     </div>
     <?php
 }
