@@ -8,12 +8,8 @@ require_once '/var/www/lib/require_auth.php';
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
-include "includes/mod_access.php";
 include 'includes/user_db.php';
-include 'includes/storage_used.php';
 session_write_close();
 
 $pageTitle = t('closed_captions_page_title');

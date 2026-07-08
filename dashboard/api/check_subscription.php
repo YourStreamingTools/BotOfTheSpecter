@@ -38,6 +38,11 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['twitchUserId'])) {
 }
 $userTwitchId = $_SESSION['twitchUserId'];
 $broadcasterId = '140296994'; // Your Twitch ID
+
+// Release the shared session lock before the Twitch API round-trip. Other tabs
+// (login, SSO handoff, dashboard) share this session via GET_LOCK in web_session.php.
+session_write_close();
+
 // Get the broadcaster's access token from twitch_bot_access database
 $stmt = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?");
 if (!$stmt) {
@@ -77,7 +82,9 @@ $data = json_decode($response, true);
 if (isset($data['data']) && count($data['data']) > 0) {
     $subscription = $data['data'][0];
     $tier = $subscription['tier'] ?? 'None';
+    session_start();
     $_SESSION['tier'] = $tier;
+    session_write_close();
     cs_json_response(200, [
         'subscribed' => true,
         'tier' => $tier,
@@ -85,7 +92,9 @@ if (isset($data['data']) && count($data['data']) > 0) {
         'is_gift' => $subscription['is_gift'] ?? false
     ]);
 } else {
+    session_start();
     $_SESSION['tier'] = 'None';
+    session_write_close();
     cs_json_response(200, [
         'subscribed' => false,
         'tier' => 'None'
