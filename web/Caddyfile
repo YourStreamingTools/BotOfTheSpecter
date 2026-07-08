@@ -1,6 +1,6 @@
 # BotOfTheSpecter — Caddy config for the web server.
 #
-# Covers all 13 surfaces (10 PHP frontends + 3 static asset hosts).
+# Covers all 14 surfaces (11 PHP frontends + 3 static asset hosts).
 # Caddy auto-issues + auto-renews Let's Encrypt certs.
 #
 # Wildcards (*.specterbot.app, *.yourlinks.click) use Cloudflare DNS-01;
@@ -12,8 +12,9 @@
 {
     email admin@botofthespecter.com
 
-    # All four zones (botofthespecter.com, botspecter.com, yourlinks.click,
-    # specterbot.app) are on Cloudflare, so use DNS-01 globally. Works for
+    # All five zones (botofthespecter.com, botspecter.com, yourlinks.click,
+    # specterbot.app, yourstreamingtools.com) are on Cloudflare, so use DNS-01
+    # globally. Works for
     # wildcards AND apex domains, and survives Cloudflare proxy being on.
     acme_dns cloudflare {env.CF_API_TOKEN}
 }
@@ -221,6 +222,14 @@ www.yourlinks.click {
     import php_app
     log {
         output file /var/log/caddy/yourlinks.log
+    }
+}
+
+yourstreamingtools.com, www.yourstreamingtools.com {
+    root * /var/www/YourStreamingTools
+    import php_app
+    log {
+        output file /var/log/caddy/yourstreamingtools.log
     }
 }
 
