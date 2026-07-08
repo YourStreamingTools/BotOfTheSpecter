@@ -524,9 +524,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     <!-- Theme bootstrap: apply saved/OS theme before first paint -->
     <script>
         (function () {
-            var t = localStorage.getItem('sp-theme');
-            if (!t) { t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
-            document.documentElement.setAttribute('data-theme', t);
+            function osTheme() {
+                return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            }
+            function resolveTheme(pref) {
+                if (pref === 'light' || pref === 'dark') { return pref; }
+                return osTheme();
+            }
+            var pref = null;
+            try { pref = localStorage.getItem('sp-theme'); } catch (e) {}
+            document.documentElement.setAttribute('data-theme', resolveTheme(pref));
         })();
     </script>
 </head>
@@ -4926,17 +4933,41 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         (function () {
             var btn = document.getElementById('spThemeToggle');
             if (!btn) { return; }
-            function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
-            function apply(theme, persist) {
+            function osTheme() {
+                return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+            }
+            function getPreference() {
+                try { return localStorage.getItem('sp-theme'); } catch (e) { return null; }
+            }
+            function isSystemMode() {
+                var pref = getPreference();
+                return pref !== 'light' && pref !== 'dark';
+            }
+            function resolveTheme(pref) {
+                if (pref === 'light' || pref === 'dark') { return pref; }
+                return osTheme();
+            }
+            function applyResolved(theme) {
                 document.documentElement.setAttribute('data-theme', theme);
                 btn.textContent = theme === 'light' ? '☀️' : '🌙';
-                if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
             }
-            apply(current(), false);
-            btn.addEventListener('click', function () { apply(current() === 'dark' ? 'light' : 'dark', true); });
-            window.addEventListener('storage', function (e) {
-                if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+            function refresh() {
+                applyResolved(resolveTheme(getPreference()));
+            }
+            refresh();
+            btn.addEventListener('click', function () {
+                var next = resolveTheme(getPreference()) === 'dark' ? 'light' : 'dark';
+                applyResolved(next);
+                try { localStorage.setItem('sp-theme', next); } catch (e) {}
             });
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'sp-theme') { refresh(); }
+            });
+            if (window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+                    if (isSystemMode()) { refresh(); }
+                });
+            }
         })();
     </script>
     <footer class="yc-footer">
