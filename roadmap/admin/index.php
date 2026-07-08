@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $primary_website_type = !empty($selected_website_types) ? $selected_website_types[0] : null;
             $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
             if ($stmt) {
-                $stmt->bind_param("sssssss", $title, $description, $category, $primary_subcategory, $priority, $website_type, $_SESSION['username']);
+                $stmt->bind_param("sssssss", $title, $description, $category, $primary_subcategory, $priority, $primary_website_type, $_SESSION['username']);
                 if ($stmt->execute()) {
                     $newItemId = $conn->insert_id;
                     // store all selected subcategories in the junction table
@@ -423,9 +423,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Get all categories and items
 $categories = array('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED');
 
+// Global counts for the admin overview (unaffected by active filters)
+$statsCounts = array_fill_keys($categories, 0);
+$statsRes = $conn->query("SELECT category, COUNT(*) AS cnt FROM roadmap_items GROUP BY category");
+if ($statsRes) {
+    while ($statsRow = $statsRes->fetch_assoc()) {
+        $catKey = $statsRow['category'] ?? '';
+        if (isset($statsCounts[$catKey])) {
+            $statsCounts[$catKey] = (int)$statsRow['cnt'];
+        }
+    }
+    $statsRes->free();
+}
+$statsTotal = array_sum($statsCounts);
+
 // Get search and filter parameters
 $searchQuery = $_GET['search'] ?? '';
 $selectedCategory = $_GET['category'] ?? '';
+$selectedPriority = $_GET['priority'] ?? '';
+$allowedPriorities = array('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 
 // Get all items
 $allItems = [];
@@ -439,6 +455,11 @@ if (!empty($searchQuery)) {
 // Add category filter
 if (!empty($selectedCategory) && in_array($selectedCategory, $categories)) {
     $query .= " AND category = '" . $conn->real_escape_string($selectedCategory) . "'";
+}
+
+// Add priority filter
+if (!empty($selectedPriority) && in_array($selectedPriority, $allowedPriorities, true)) {
+    $query .= " AND priority = '" . $conn->real_escape_string($selectedPriority) . "'";
 }
 
 $query .= " ORDER BY updated_at DESC, created_at DESC, priority DESC";
@@ -503,257 +524,6 @@ foreach ($allItems as $item) {
     $itemsByCategory[$item['category']][] = $item;
 }
 
-// Build page content
-ob_start();
-?>
-<script>
-window.__ROADMAP_SUBCATEGORIES = <?php echo json_encode(array_values($subcategories)); ?>;
-window.__ROADMAP_SUBCAT_COLORS = <?php echo json_encode($subcatColorMap); ?>;
-</script>
-<!-- Page header -->
-<div class="sp-page-header">
-    <div>
-        <h1 class="sp-page-title">Roadmap Administration</h1>
-        <p class="sp-page-subtitle">Manage roadmap items and track development progress</p>
-    </div>
-    <a href="../index.php" class="sp-btn sp-btn-secondary sp-btn-sm"><i class="fa-solid fa-arrow-left"></i> View Roadmap</a>
-</div>
-<?php if ($message): ?>
-    <div class="sp-alert sp-alert-<?php echo htmlspecialchars($message_type); ?>" style="margin-bottom:1rem;">
-        <i class="fa-solid fa-<?php echo $message_type==='success'?'circle-check':($message_type==='danger'?'triangle-exclamation':'circle-info'); ?>"></i>
-        <strong><?php echo ucfirst($message_type); ?>:</strong> <?php echo htmlspecialchars($message); ?>
-    </div>
-<?php endif; ?>
-<!-- Search / Filter -->
-<div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="sp-card-body">
-    <form method="GET" action="">
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
-            <div style="flex:2;min-width:200px;">
-                <label class="sp-label">Search</label>
-                <div style="display:flex;">
-                    <input class="sp-input" style="border-radius:var(--radius) 0 0 var(--radius);" type="text" name="search" placeholder="Search roadmap items..." value="<?php echo htmlspecialchars($searchQuery); ?>">
-                    <button type="submit" class="sp-btn sp-btn-info" style="border-radius:0 var(--radius) var(--radius) 0;white-space:nowrap;"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
-                </div>
-            </div>
-            <div style="flex:1;min-width:160px;">
-                <label class="sp-label">Category</label>
-                <select class="sp-select" name="category" onchange="this.form.submit()">
-                    <option value="">All Categories</option>
-                    <?php foreach ($categories as $cat): ?>
-                        <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory===$cat?'selected':''; ?>><?php echo htmlspecialchars($cat); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <?php if (!empty($searchQuery)||!empty($selectedCategory)): ?>
-                <div><a href="index.php" class="sp-btn sp-btn-ghost sp-btn-sm" style="margin-top:1.5rem;"><i class="fa-solid fa-xmark"></i> Clear</a></div>
-            <?php endif; ?>
-        </div>
-    </form>
-    </div>
-</div>
-<!-- Add New Item -->
-<div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="sp-card-body">
-    <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;"><i class="fa-solid fa-plus" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Add New Roadmap Item</h2>
-    <form method="POST" action="" id="addItemForm" enctype="multipart/form-data">
-        <input type="hidden" name="action" value="add">
-        <div class="rm-form-cols">
-            <div style="display:flex;flex-direction:column;gap:0.75rem;">
-                <div class="sp-form-group">
-                    <label class="sp-label">Title</label>
-                    <input class="sp-input" type="text" name="title" placeholder="Item title" required>
-                </div>
-                <div class="sp-form-group">
-                    <label class="sp-label">Description</label>
-                    <textarea class="sp-textarea sp-textarea-mono" name="description" placeholder="Item description (optional, supports markdown)" rows="7"></textarea>
-                </div>
-                <div class="sp-form-group">
-                    <label class="sp-label">Attachments (Optional)</label>
-                    <label class="rm-upload-zone" id="dragDropZone">
-                        <input type="file" name="initial_attachments[]" id="initialAttachments" multiple
-                            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
-                            style="position:absolute;opacity:0;width:0;height:0;">
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span class="rm-upload-label">Click to choose or drag &amp; drop</span>
-                        <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT &mdash; max 10MB each</span>
-                        <span class="rm-upload-filename" id="initialAttachmentFileName"></span>
-                    </label>
-                </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:0.75rem;">
-                <div class="sp-form-group">
-                    <label class="sp-label">Category</label>
-                    <select class="sp-select" name="category" id="category-select" required>
-                        <option value="REQUESTS">Requests</option>
-                        <option value="IN PROGRESS">In Progress</option>
-                        <option value="BETA TESTING">Beta Testing</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="REJECTED">Rejected</option>
-                    </select>
-                </div>
-                <div class="sp-form-group">
-                    <label class="sp-label">Subcategory</label>
-                    <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-allowed='<?php echo htmlspecialchars(json_encode(array_values($subcategories)), ENT_QUOTES, "UTF-8"); ?>' data-initial='<?php echo htmlspecialchars(json_encode([!empty($subcategories) ? $subcategories[0] : "OTHER"]), ENT_QUOTES, "UTF-8"); ?>'></div>
-                    <div class="sp-field-hint">Only predefined tags allowed.</div>
-                </div>
-                <div class="sp-form-group" id="website-type-field" style="display:none;">
-                    <label class="sp-label">Website Type</label>
-                    <div class="tag-multiselect" id="addItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
-                </div>
-                <div class="sp-form-group">
-                    <label class="sp-label">Priority</label>
-                    <select class="sp-select" name="priority" id="priority-select">
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM" selected>Medium</option>
-                        <option value="HIGH">High</option>
-                        <option value="CRITICAL">Critical</option>
-                    </select>
-                </div>
-                <div style="display:flex;justify-content:flex-end;margin-top:auto;">
-                    <button type="submit" class="sp-btn sp-btn-primary"><i class="fa-solid fa-floppy-disk"></i> ADD ITEM</button>
-                </div>
-            </div>
-        </div>
-    </form>
-    </div>
-</div>
-<!-- Manage Subcategories -->
-<div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="sp-card-body">
-    <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;"><i class="fa-solid fa-tags" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Manage Subcategories</h2>
-    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
-        <?php foreach ($subcatRows as $sc): ?>
-            <div style="display:inline-flex;align-items:center;gap:0.4rem;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius);padding:0.35rem 0.6rem;">
-                <span class="rm-tag rm-tag-<?php echo htmlspecialchars($sc['color']); ?>" style="margin:0;"><?php echo htmlspecialchars($sc['name']); ?></span>
-                <form method="POST" style="display:inline;margin:0;">
-                    <input type="hidden" name="action" value="remove_subcategory">
-                    <input type="hidden" name="subcategory_name" value="<?php echo htmlspecialchars($sc['name']); ?>">
-                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm sp-btn-icon" style="padding:0.15rem 0.35rem;font-size:0.7rem;min-width:auto;" onclick="return confirm('Remove subcategory &quot;<?php echo htmlspecialchars($sc['name'], ENT_QUOTES); ?>&quot;? This will also remove it from all items.')" title="Remove <?php echo htmlspecialchars($sc['name']); ?>"><i class="fa-solid fa-xmark"></i></button>
-                </form>
-            </div>
-        <?php endforeach; ?>
-        <?php if (empty($subcatRows)): ?>
-            <div class="sp-alert sp-alert-warning" style="margin:0;"><i class="fa-solid fa-triangle-exclamation"></i> No subcategories defined.</div>
-        <?php endif; ?>
-    </div>
-    <form method="POST" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
-        <input type="hidden" name="action" value="add_subcategory">
-        <div class="sp-form-group" style="flex:1;min-width:160px;margin:0;">
-            <label class="sp-label">New Subcategory</label>
-            <input class="sp-input" type="text" name="subcategory_name" placeholder="e.g. MOBILE APP" required style="text-transform:uppercase;">
-        </div>
-        <div class="sp-form-group" style="min-width:120px;margin:0;">
-            <label class="sp-label">Color</label>
-            <select class="sp-select" name="subcategory_color">
-                <option value="primary">Primary (Purple)</option>
-                <option value="info">Info (Blue)</option>
-                <option value="success">Success (Green)</option>
-                <option value="warning">Warning (Yellow)</option>
-                <option value="danger">Danger (Red)</option>
-                <option value="light" selected>Light (Gray)</option>
-            </select>
-        </div>
-        <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><i class="fa-solid fa-plus"></i> Add</button>
-    </form>
-    </div>
-</div>
-<?php
-function renderAdminCard($item): string {
-    $pri    = strtolower($item['priority']);
-    $b64    = htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8');
-    $subArr = (!empty($item['subcategories'])&&is_array($item['subcategories']))?$item['subcategories']:(!empty($item['subcategory'])?[$item['subcategory']]:[]);
-    $webArr = (!empty($item['website_types'])&&is_array($item['website_types']))?$item['website_types']:(!empty($item['website_type'])?[$item['website_type']]:[]);
-    $subJson = htmlspecialchars(json_encode($subArr), ENT_QUOTES, 'UTF-8');
-    $webJson = htmlspecialchars(json_encode($webArr), ENT_QUOTES, 'UTF-8');
-    $dtc = new DateTime($item['created_at']??'now');
-    $out = '<div class="rm-card rm-card-'.$pri.'">';
-    $out .= '<div class="rm-card-title">'.htmlspecialchars($item['title']).'</div>';
-    $out .= '<div class="rm-card-meta">'.htmlspecialchars($dtc->format('M j, Y')).'</div>';
-    $out .= '<div class="rm-card-tags">';
-    foreach ($subArr as $sub) $out .= '<span class="rm-tag rm-tag-'.getSubcategoryColor($sub).'">'.htmlspecialchars($sub).'</span>';
-    foreach ($webArr as $wt) $out .= '<span class="rm-tag rm-tag-info website-type-tag">'.htmlspecialchars($wt).'</span>';
-    $out .= '<span class="rm-tag rm-tag-'.getCategoryColor($item['category']).'">'.htmlspecialchars($item['category']).'</span>';
-    $out .= '<span class="rm-tag rm-tag-'.getPriorityColor($item['priority']).'">'.htmlspecialchars($item['priority']).'</span>';
-    $out .= '</div>';
-    $out .= '<button class="sp-btn sp-btn-secondary sp-btn-sm sp-btn-full details-btn" style="margin-bottom:0.4rem;"'
-        .' data-item-id="'.$item['id'].'" data-description="'.$b64.'"'
-        .' data-title="'.htmlspecialchars($item['title']).'"'
-        .' data-created-at="'.htmlspecialchars($item['created_at']??'').'"'
-        .' data-updated-at="'.htmlspecialchars($item['updated_at']??'').'"'
-        .' data-category="'.htmlspecialchars($item['category']).'"'
-        .' data-priority="'.htmlspecialchars($item['priority']).'"'
-        .' data-subcategories="'.$subJson.'" data-website-types="'.$webJson.'">'
-        .'<i class="fa-solid fa-circle-info"></i> Details</button>';
-    $out .= '<button type="button" class="sp-btn sp-btn-warning sp-btn-sm sp-btn-full edit-item-btn" style="margin-bottom:0.4rem;"'
-        .' data-item-id="'.$item['id'].'" data-title="'.htmlspecialchars($item['title']).'"'
-        .' data-description="'.$b64.'" data-category="'.htmlspecialchars($item['category']).'"'
-        .' data-subcategory="'.$subJson.'" data-priority="'.htmlspecialchars($item['priority']).'"'
-        .' data-website-type="'.htmlspecialchars($item['website_type']??'').'">'
-        .'<i class="fa-solid fa-pen"></i> Edit</button>';
-    $cat = $item['category']??'';
-    $out .= '<div style="display:flex;gap:0.3rem;margin-top:0.2rem;">';
-    if ($cat==='REQUESTS')
-        $out .= '<form method="POST" style="flex:1;"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$item['id'].'"><input type="hidden" name="category" value="IN PROGRESS"><button type="submit" class="sp-btn sp-btn-info sp-btn-sm sp-btn-icon sp-btn-full" title="Move to In Progress"><i class="fa-solid fa-play"></i></button></form>';
-    elseif ($cat==='IN PROGRESS')
-        $out .= '<form method="POST" style="flex:1;"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$item['id'].'"><input type="hidden" name="category" value="BETA TESTING"><button type="submit" class="sp-btn sp-btn-primary sp-btn-sm sp-btn-icon sp-btn-full" title="Move to Beta Testing"><i class="fa-solid fa-flask"></i></button></form>';
-    elseif ($cat==='BETA TESTING')
-        $out .= '<form method="POST" style="flex:1;"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$item['id'].'"><input type="hidden" name="status" value="completed"><button type="submit" class="sp-btn sp-btn-success sp-btn-sm sp-btn-icon sp-btn-full" title="Mark Completed"><i class="fa-solid fa-check"></i></button></form>';
-    $out .= '<form method="POST"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'.$item['id'].'"><button type="submit" class="sp-btn sp-btn-danger sp-btn-sm sp-btn-icon" onclick="return confirm(\'Are you sure?\')" title="Delete"><i class="fa-solid fa-trash-can"></i></button></form>';
-    $out .= '</div></div>';
-    return $out;
-}
-if (!empty($searchQuery) || !empty($selectedCategory)): ?>
-<!-- Filtered Results -->
-<div class="sp-card">
-    <div class="sp-card-body">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
-        <h2 style="font-size:1rem;font-weight:600;">
-            <i class="fa-solid fa-filter" style="color:var(--accent-hover);margin-right:0.4rem;"></i>
-            Search Results
-            <?php if (!empty($searchQuery)): ?>for &ldquo;<?php echo htmlspecialchars($searchQuery); ?>&rdquo;<?php endif; ?>
-            <?php if (!empty($selectedCategory)): ?>in <?php echo htmlspecialchars($selectedCategory); ?><?php endif; ?>
-        </h2>
-        <span style="font-size:0.875rem;color:var(--text-muted);">
-            <strong style="color:var(--text-primary);"><?php echo count($allItems); ?></strong>
-            result<?php echo count($allItems)!==1?'s':''; ?> found
-        </span>
-    </div>
-    <?php if (empty($allItems)): ?>
-        <div class="sp-alert sp-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> No roadmap items found matching your search criteria.</div>
-    <?php else: ?>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.75rem;">
-            <?php foreach ($allItems as $item): echo renderAdminCard($item); endforeach; ?>
-        </div>
-    <?php endif; ?>
-    </div>
-</div>
-<?php else: ?>
-<!-- Kanban Board -->
-<div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">
-    <button id="toggleRejectedBtn" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="toggleRejected()">
-        <i class="fa-solid fa-eye"></i> Show Rejected
-    </button>
-</div>
-<div class="rm-board">
-    <?php foreach ($categories as $category): ?>
-        <div class="rm-column" data-category="<?php echo htmlspecialchars($category); ?>"<?php echo $category==='REJECTED'?' style="display:none;"':''; ?>>
-            <div class="rm-column-head">
-                <span><i class="fa-solid fa-<?php echo getCategoryIcon($category); ?>" style="margin-right:0.4rem;"></i><?php echo htmlspecialchars($category); ?></span>
-                <span class="sp-badge"><?php echo count($itemsByCategory[$category]); ?></span>
-            </div>
-            <div class="rm-column-body">
-                <?php if (empty($itemsByCategory[$category])): ?>
-                    <div class="rm-empty-state">No items</div>
-                <?php else: ?>
-                    <?php foreach ($itemsByCategory[$category] as $item): echo renderAdminCard($item); endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </div>
-    <?php endforeach; ?>
-</div>
-<?php endif; ?>
-<?php
 function getCategoryIcon($category) {
     $icons = [
         'REQUESTS' => 'lightbulb',
@@ -800,10 +570,403 @@ function getSubcategoryColor($subcategory) {
     return $colors[$subcategory] ?? 'light';
 }
 
+function renderAdminNextAction($item): string {
+    $cat = $item['category'] ?? '';
+    $id = (int)$item['id'];
+    $actions = array(
+        'REQUESTS' => array('label' => 'Start Work', 'icon' => 'play', 'btn' => 'sp-btn-info', 'category' => 'IN PROGRESS'),
+        'IN PROGRESS' => array('label' => 'Send to Beta', 'icon' => 'flask', 'btn' => 'sp-btn-primary', 'category' => 'BETA TESTING'),
+        'BETA TESTING' => array('label' => 'Complete', 'icon' => 'check', 'btn' => 'sp-btn-success', 'category' => '', 'status' => 'completed'),
+        'REJECTED' => array('label' => 'Restore', 'icon' => 'rotate-left', 'btn' => 'sp-btn-warning', 'category' => 'REQUESTS'),
+    );
+    if (!isset($actions[$cat])) {
+        return '';
+    }
+    $act = $actions[$cat];
+    $out = '<form method="POST" class="rm-admin-action-form">';
+    $out .= '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="' . $id . '">';
+    if (!empty($act['status']) && $act['status'] === 'completed') {
+        $out .= '<input type="hidden" name="status" value="completed">';
+    } else {
+        $out .= '<input type="hidden" name="category" value="' . htmlspecialchars($act['category']) . '">';
+    }
+    $out .= '<button type="submit" class="sp-btn ' . $act['btn'] . ' sp-btn-sm sp-btn-full">';
+    $out .= '<i class="fa-solid fa-' . $act['icon'] . '"></i> ' . htmlspecialchars($act['label']);
+    $out .= '</button></form>';
+    return $out;
+}
+
+function renderAdminCard($item, array $categories): string {
+    $pri    = strtolower($item['priority']);
+    $b64    = htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8');
+    $subArr = (!empty($item['subcategories'])&&is_array($item['subcategories']))?$item['subcategories']:(!empty($item['subcategory'])?[$item['subcategory']]:[]);
+    $webArr = (!empty($item['website_types'])&&is_array($item['website_types']))?$item['website_types']:(!empty($item['website_type'])?[$item['website_type']]:[]);
+    $subJson = htmlspecialchars(json_encode($subArr), ENT_QUOTES, 'UTF-8');
+    $webJson = htmlspecialchars(json_encode($webArr), ENT_QUOTES, 'UTF-8');
+    $created = new DateTime($item['created_at'] ?? 'now');
+    $updated = !empty($item['updated_at']) ? new DateTime($item['updated_at']) : null;
+    $cat = $item['category'] ?? '';
+    $out = '<div class="rm-card rm-admin-card rm-card-'.$pri.'">';
+    $out .= '<div class="rm-card-title">'.htmlspecialchars($item['title']).'</div>';
+    $out .= '<div class="rm-card-meta">';
+    $out .= 'Created ' . htmlspecialchars($created->format('M j, Y'));
+    if ($updated) {
+        $out .= ' &middot; Updated ' . htmlspecialchars($updated->format('M j, Y'));
+    }
+    $out .= '</div>';
+    $out .= '<div class="rm-card-tags">';
+    foreach ($subArr as $sub) $out .= '<span class="rm-tag rm-tag-'.getSubcategoryColor($sub).'">'.htmlspecialchars($sub).'</span>';
+    foreach ($webArr as $wt) $out .= '<span class="rm-tag rm-tag-info website-type-tag">'.htmlspecialchars($wt).'</span>';
+    $out .= '<span class="rm-tag rm-tag-'.getPriorityColor($item['priority']).'">'.htmlspecialchars($item['priority']).'</span>';
+    $out .= '</div>';
+
+    $nextAction = renderAdminNextAction($item);
+    if ($nextAction !== '') {
+        $out .= '<div class="rm-admin-primary-action">' . $nextAction . '</div>';
+    }
+
+    $out .= '<div class="rm-admin-card-actions">';
+    $out .= '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm edit-item-btn"'
+        .' data-item-id="'.$item['id'].'" data-title="'.htmlspecialchars($item['title']).'"'
+        .' data-description="'.$b64.'" data-category="'.htmlspecialchars($item['category']).'"'
+        .' data-subcategory="'.$subJson.'" data-priority="'.htmlspecialchars($item['priority']).'"'
+        .' data-website-type="'.htmlspecialchars($item['website_type']??'').'">'
+        .'<i class="fa-solid fa-pen"></i> Edit</button>';
+    $out .= '<button type="button" class="sp-btn sp-btn-ghost sp-btn-sm details-btn"'
+        .' data-item-id="'.$item['id'].'" data-description="'.$b64.'"'
+        .' data-title="'.htmlspecialchars($item['title']).'"'
+        .' data-created-at="'.htmlspecialchars($item['created_at']??'').'"'
+        .' data-updated-at="'.htmlspecialchars($item['updated_at']??'').'"'
+        .' data-category="'.htmlspecialchars($item['category']).'"'
+        .' data-priority="'.htmlspecialchars($item['priority']).'"'
+        .' data-subcategories="'.$subJson.'" data-website-types="'.$webJson.'">'
+        .'<i class="fa-solid fa-circle-info"></i> Details</button>';
+    $out .= '</div>';
+
+    $out .= '<form method="POST" class="rm-admin-move-form">';
+    $out .= '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.(int)$item['id'].'">';
+    $out .= '<label class="sp-label rm-admin-move-label">Move to</label>';
+    $out .= '<select class="sp-select sp-select-sm rm-admin-move-select" onchange="rmAdminMoveItem(this)">';
+    $out .= '<option value="">Choose stage&hellip;</option>';
+    foreach ($categories as $moveCat) {
+        if ($moveCat === $cat) continue;
+        $out .= '<option value="'.htmlspecialchars($moveCat).'">'.htmlspecialchars($moveCat).'</option>';
+    }
+    if ($cat !== 'COMPLETED') {
+        $out .= '<option value="__completed__">Mark completed</option>';
+    }
+    $out .= '</select></form>';
+
+    $out .= '<div class="rm-admin-card-footer">';
+    if ($cat !== 'REJECTED' && $cat !== 'COMPLETED') {
+        $out .= '<form method="POST" class="rm-admin-action-form">';
+        $out .= '<input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.(int)$item['id'].'">';
+        $out .= '<input type="hidden" name="category" value="REJECTED">';
+        $out .= '<button type="submit" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="return confirm(\'Reject this item?\')">';
+        $out .= '<i class="fa-solid fa-ban"></i> Reject</button></form>';
+    }
+    $out .= '<form method="POST" class="rm-admin-action-form rm-admin-delete-form">';
+    $out .= '<input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'.(int)$item['id'].'">';
+    $out .= '<button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" onclick="return confirm(\'Permanently delete this item?\')">';
+    $out .= '<i class="fa-solid fa-trash-can"></i> Delete</button></form>';
+    $out .= '</div></div>';
+    return $out;
+}
+
+$openAddItemPanel = ($message_type === 'success' && stripos($message, 'added') !== false);
+$openSubcatPanel = ($message_type === 'success' && stripos($message, 'subcategory') !== false);
+
+// Build page content
+ob_start();
+?>
+<script>
+window.__ROADMAP_SUBCATEGORIES = <?php echo json_encode(array_values($subcategories)); ?>;
+window.__ROADMAP_SUBCAT_COLORS = <?php echo json_encode($subcatColorMap); ?>;
+</script>
+<!-- Page header -->
+<div class="sp-page-header">
+    <div>
+        <h1 class="sp-page-title">Roadmap Administration</h1>
+        <p class="sp-page-subtitle">Manage items, move work through stages, and keep the public roadmap up to date</p>
+    </div>
+    <div class="rm-admin-header-actions">
+        <a href="#rm-admin-board" class="sp-btn sp-btn-ghost sp-btn-sm"><i class="fa-solid fa-table-columns"></i> Board</a>
+        <a href="#rm-admin-add-item" class="sp-btn sp-btn-primary sp-btn-sm"><i class="fa-solid fa-plus"></i> Add Item</a>
+        <a href="../index.php" class="sp-btn sp-btn-secondary sp-btn-sm"><i class="fa-solid fa-arrow-left"></i> View Roadmap</a>
+    </div>
+</div>
+<?php if ($message): ?>
+    <div class="sp-alert sp-alert-<?php echo htmlspecialchars($message_type); ?>" id="rm-admin-flash">
+        <i class="fa-solid fa-<?php echo $message_type==='success'?'circle-check':($message_type==='danger'?'triangle-exclamation':'circle-info'); ?>"></i>
+        <strong><?php echo ucfirst($message_type); ?>:</strong> <?php echo htmlspecialchars($message); ?>
+    </div>
+<?php endif; ?>
+
+<!-- Overview stats -->
+<div class="rm-admin-stats">
+    <div class="rm-admin-stat rm-admin-stat-total">
+        <span class="rm-admin-stat-value"><?php echo (int)$statsTotal; ?></span>
+        <span class="rm-admin-stat-label">Total Items</span>
+    </div>
+    <?php
+    $statIcons = array('REQUESTS'=>'lightbulb','IN PROGRESS'=>'spinner','BETA TESTING'=>'flask','COMPLETED'=>'circle-check','REJECTED'=>'circle-xmark');
+    foreach ($categories as $cat):
+        $statClass = 'rm-admin-stat-' . strtolower(str_replace(' ', '-', $cat));
+    ?>
+    <div class="rm-admin-stat <?php echo htmlspecialchars($statClass); ?>">
+        <span class="rm-admin-stat-value"><?php echo (int)($statsCounts[$cat] ?? 0); ?></span>
+        <span class="rm-admin-stat-label"><i class="fa-solid fa-<?php echo $statIcons[$cat] ?? 'folder'; ?>"></i> <?php echo htmlspecialchars($cat); ?></span>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<!-- Search / Filter toolbar -->
+<div class="rm-admin-toolbar sp-card">
+    <div class="sp-card-body">
+    <form method="GET" action="" class="rm-admin-filter-form">
+        <div class="rm-admin-filter-row">
+            <div class="rm-admin-filter-search">
+                <label class="sp-label" for="admin-search">Search</label>
+                <div class="sp-input-group">
+                    <input class="sp-input" id="admin-search" type="text" name="search" placeholder="Search by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
+                    <button type="submit" class="sp-btn sp-btn-primary"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+                </div>
+            </div>
+            <div class="rm-admin-filter-field">
+                <label class="sp-label" for="admin-category">Category</label>
+                <select class="sp-select" id="admin-category" name="category" onchange="this.form.submit()">
+                    <option value="">All Categories</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory===$cat?'selected':''; ?>><?php echo htmlspecialchars($cat); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="rm-admin-filter-field">
+                <label class="sp-label" for="admin-priority">Priority</label>
+                <select class="sp-select" id="admin-priority" name="priority" onchange="this.form.submit()">
+                    <option value="">All Priorities</option>
+                    <?php foreach ($allowedPriorities as $pri): ?>
+                        <option value="<?php echo htmlspecialchars($pri); ?>" <?php echo $selectedPriority===$pri?'selected':''; ?>><?php echo htmlspecialchars($pri); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php if (!empty($searchQuery) || !empty($selectedCategory) || !empty($selectedPriority)): ?>
+                <div class="rm-admin-filter-actions">
+                    <a href="index.php" class="sp-btn sp-btn-ghost sp-btn-sm"><i class="fa-solid fa-xmark"></i> Clear filters</a>
+                </div>
+            <?php endif; ?>
+        </div>
+    </form>
+    </div>
+</div>
+
+<div id="rm-admin-board" class="rm-admin-board-section">
+<?php
+$hasActiveFilters = !empty($searchQuery) || !empty($selectedCategory) || !empty($selectedPriority);
+if (!$hasActiveFilters): ?>
+<div class="rm-admin-board-toolbar">
+    <p class="rm-admin-board-hint"><i class="fa-solid fa-hand-pointer"></i> Drag-free kanban — use the action buttons or &ldquo;Move to&rdquo; menu on each card to advance work.</p>
+    <button id="toggleRejectedBtn" type="button" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="toggleRejected()">
+        <i class="fa-solid fa-eye"></i> Show Rejected
+    </button>
+</div>
+<?php endif; ?>
+
+<?php if ($hasActiveFilters): ?>
+<!-- Filtered Results -->
+<div class="sp-card">
+    <div class="sp-card-body">
+    <div class="rm-admin-results-head">
+        <h2 class="rm-admin-results-title">
+            <i class="fa-solid fa-filter"></i>
+            Search Results
+            <?php if (!empty($searchQuery)): ?>for &ldquo;<?php echo htmlspecialchars($searchQuery); ?>&rdquo;<?php endif; ?>
+            <?php if (!empty($selectedCategory)): ?>in <?php echo htmlspecialchars($selectedCategory); ?><?php endif; ?>
+            <?php if (!empty($selectedPriority)): ?>at <?php echo htmlspecialchars($selectedPriority); ?> priority<?php endif; ?>
+        </h2>
+        <span class="rm-admin-results-count">
+            <strong><?php echo count($allItems); ?></strong>
+            result<?php echo count($allItems)!==1?'s':''; ?> found
+        </span>
+    </div>
+    <?php if (empty($allItems)): ?>
+        <div class="sp-alert sp-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> No roadmap items found matching your search criteria.</div>
+    <?php else: ?>
+        <div class="rm-results-grid">
+            <?php foreach ($allItems as $item): echo renderAdminCard($item, $categories); endforeach; ?>
+        </div>
+    <?php endif; ?>
+    </div>
+</div>
+<?php else: ?>
+<div class="rm-board">
+    <?php foreach ($categories as $category): ?>
+        <div class="rm-column" data-category="<?php echo htmlspecialchars($category); ?>"<?php echo $category==='REJECTED'?' style="display:none;"':''; ?>>
+            <div class="rm-column-head">
+                <span><i class="fa-solid fa-<?php echo getCategoryIcon($category); ?>" style="margin-right:0.4rem;"></i><?php echo htmlspecialchars($category); ?></span>
+                <span class="sp-badge"><?php echo count($itemsByCategory[$category]); ?></span>
+            </div>
+            <div class="rm-column-body">
+                <?php if (empty($itemsByCategory[$category])): ?>
+                    <div class="rm-empty-state">No items</div>
+                <?php else: ?>
+                    <?php foreach ($itemsByCategory[$category] as $item): echo renderAdminCard($item, $categories); endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+</div>
+
+<!-- Add new item (collapsed by default; opens after successful add) -->
+<details class="rm-admin-panel" id="rm-admin-add-item"<?php echo $openAddItemPanel ? ' open' : ''; ?>>
+    <summary class="rm-admin-panel-summary">
+        <span><i class="fa-solid fa-plus"></i> Add New Roadmap Item</span>
+        <span class="rm-admin-panel-hint">Create a request, bug report, or feature entry</span>
+    </summary>
+    <div class="sp-card rm-admin-panel-body">
+        <div class="sp-card-body">
+        <form method="POST" action="" id="addItemForm" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="add">
+            <div class="rm-form-cols">
+                <div class="rm-admin-form-col">
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="add-item-title">Title</label>
+                        <input class="sp-input" id="add-item-title" type="text" name="title" placeholder="Item title" required>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="add-item-description">Description</label>
+                        <textarea class="sp-textarea sp-textarea-mono" id="add-item-description" name="description" placeholder="Optional — supports markdown" rows="7"></textarea>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Attachments (optional)</label>
+                        <label class="rm-upload-zone" id="dragDropZone">
+                            <input type="file" name="initial_attachments[]" id="initialAttachments" multiple
+                                accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
+                                style="position:absolute;opacity:0;width:0;height:0;">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span class="rm-upload-label">Click to choose or drag &amp; drop</span>
+                            <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT — max 10MB each</span>
+                            <span class="rm-upload-filename" id="initialAttachmentFileName"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="rm-admin-form-col">
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="category-select">Category</label>
+                        <select class="sp-select" name="category" id="category-select" required>
+                            <option value="REQUESTS">Requests</option>
+                            <option value="IN PROGRESS">In Progress</option>
+                            <option value="BETA TESTING">Beta Testing</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="REJECTED">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Subcategory</label>
+                        <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-allowed='<?php echo htmlspecialchars(json_encode(array_values($subcategories)), ENT_QUOTES, "UTF-8"); ?>' data-initial='<?php echo htmlspecialchars(json_encode([!empty($subcategories) ? $subcategories[0] : "OTHER"]), ENT_QUOTES, "UTF-8"); ?>'></div>
+                        <div class="sp-field-hint">Only predefined tags allowed.</div>
+                    </div>
+                    <div class="sp-form-group" id="website-type-field" style="display:none;">
+                        <label class="sp-label">Website Type</label>
+                        <div class="tag-multiselect" id="addItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="priority-select">Priority</label>
+                        <select class="sp-select" name="priority" id="priority-select">
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM" selected>Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="CRITICAL">Critical</option>
+                        </select>
+                    </div>
+                    <div class="rm-form-actions">
+                        <button type="submit" class="sp-btn sp-btn-primary"><i class="fa-solid fa-floppy-disk"></i> Add Item</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+        </div>
+    </div>
+</details>
+
+<!-- Manage subcategories -->
+<details class="rm-admin-panel" id="rm-admin-subcategories"<?php echo $openSubcatPanel ? ' open' : ''; ?>>
+    <summary class="rm-admin-panel-summary">
+        <span><i class="fa-solid fa-tags"></i> Manage Subcategories</span>
+        <span class="rm-admin-panel-hint">Add or remove tags used on roadmap cards</span>
+    </summary>
+    <div class="sp-card rm-admin-panel-body">
+        <div class="sp-card-body">
+        <div class="rm-admin-subcat-list">
+            <?php foreach ($subcatRows as $sc): ?>
+                <div class="rm-admin-subcat-chip">
+                    <span class="rm-tag rm-tag-<?php echo htmlspecialchars($sc['color']); ?>"><?php echo htmlspecialchars($sc['name']); ?></span>
+                    <form method="POST" class="rm-admin-inline-form">
+                        <input type="hidden" name="action" value="remove_subcategory">
+                        <input type="hidden" name="subcategory_name" value="<?php echo htmlspecialchars($sc['name']); ?>">
+                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm sp-btn-icon" onclick="return confirm('Remove subcategory &quot;<?php echo htmlspecialchars($sc['name'], ENT_QUOTES); ?>&quot;? This will also remove it from all items.')" title="Remove <?php echo htmlspecialchars($sc['name']); ?>"><i class="fa-solid fa-xmark"></i></button>
+                    </form>
+                </div>
+            <?php endforeach; ?>
+            <?php if (empty($subcatRows)): ?>
+                <div class="sp-alert sp-alert-warning rm-admin-subcat-empty"><i class="fa-solid fa-triangle-exclamation"></i> No subcategories defined.</div>
+            <?php endif; ?>
+        </div>
+        <form method="POST" class="rm-admin-subcat-add-form">
+            <input type="hidden" name="action" value="add_subcategory">
+            <div class="sp-form-group rm-admin-subcat-field">
+                <label class="sp-label" for="subcategory-name">New Subcategory</label>
+                <input class="sp-input rm-admin-subcat-input" id="subcategory-name" type="text" name="subcategory_name" placeholder="e.g. MOBILE APP" required>
+            </div>
+            <div class="sp-form-group rm-admin-subcat-field rm-admin-subcat-field-color">
+                <label class="sp-label" for="subcategory-color">Color</label>
+                <select class="sp-select" id="subcategory-color" name="subcategory_color">
+                    <option value="primary">Primary (Purple)</option>
+                    <option value="info">Info (Blue)</option>
+                    <option value="success">Success (Green)</option>
+                    <option value="warning">Warning (Yellow)</option>
+                    <option value="danger">Danger (Red)</option>
+                    <option value="light" selected>Light (Gray)</option>
+                </select>
+            </div>
+            <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><i class="fa-solid fa-plus"></i> Add</button>
+        </form>
+        </div>
+    </div>
+</details>
+
+<?php
 $pageContent = ob_get_clean();
 require_once '../layout.php';
 ?>
 <script>
+function rmAdminMoveItem(select) {
+    var val = select.value;
+    if (!val) return;
+    var form = select.closest('form');
+    if (!form) return;
+    var label = (val === '__completed__')
+        ? 'Mark this item as completed?'
+        : 'Move this item to ' + val + '?';
+    if (!confirm(label)) {
+        select.value = '';
+        return;
+    }
+    form.querySelectorAll('input[name="category"], input[name="status"]').forEach(function(el) { el.remove(); });
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    if (val === '__completed__') {
+        inp.name = 'status';
+        inp.value = 'completed';
+    } else {
+        inp.name = 'category';
+        inp.value = val;
+    }
+    form.appendChild(inp);
+    form.submit();
+}
 function toggleRejected() {
     var col = document.querySelector('.rm-column[data-category="REJECTED"]');
     var btn = document.getElementById('toggleRejectedBtn');
@@ -815,6 +978,10 @@ function toggleRejected() {
         : '<i class="fa-solid fa-eye-slash"></i> Hide Rejected';
 }
 document.addEventListener('DOMContentLoaded', function() {
+    var flash = document.getElementById('rm-admin-flash');
+    if (flash) {
+        flash.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
     const categorySelect         = document.getElementById('category-select');
     const prioritySelect         = document.getElementById('priority-select');
     const addTagEl               = document.getElementById('addItemSubcategory');
