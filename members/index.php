@@ -164,13 +164,12 @@ if ($username) {
         if ($checkDb->connect_error) {
             throw new Exception("Connection failed: " . $checkDb->connect_error);
         }
+        // SHOW DATABASES does not support prepared-statement placeholders on MySQL.
         $escapedUsername = $checkDb->real_escape_string($username);
-        $stmt = $checkDb->prepare("SHOW DATABASES LIKE ?");
-        $stmt->bind_param('s', $escapedUsername);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $result = $checkDb->query("SHOW DATABASES LIKE '" . $escapedUsername . "'");
+        $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $checkDb->close();
-        if (!$result) {
+        if (!$rows) {
             $notFound = true;
             throw new Exception("Database does not exist", 1049);
         }
