@@ -159,8 +159,8 @@ if (isset($_GET['download_log'])) {
   $currentUser = $_SESSION['username'];
   // Build file path with rotation
   if ($logType === 'crash') {
-    $log = "/home/botofthespecter/logs/{$currentUser}_crash.log";
-    $downloadFileName = "{$currentUser}_crash.log";
+    $log = "/home/botofthespecter/logs/crash/{$currentUser}.log";
+    $downloadFileName = "{$currentUser}.log";
   } elseif ($rotation === 0) {
     $log = "$logPath/$logType/$currentUser.txt";
     $downloadFileName = "{$currentUser}_{$logType}_current.txt";
@@ -208,7 +208,7 @@ if (isset($_GET['log'])) {
   $currentUser = $_SESSION['username'];
   // Build file path with rotation
   if ($logType === 'crash') {
-    $log = "/home/botofthespecter/logs/{$currentUser}_crash.log";
+    $log = "/home/botofthespecter/logs/crash/{$currentUser}.log";
   } elseif ($rotation === 0) {
     $log = "$logPath/$logType/$currentUser.txt";
   } else {
@@ -245,7 +245,7 @@ if (isset($_GET['logType'])) {
   $logType = $_GET['logType'];
   $currentUser = $_SESSION['username'];
   $log = ($logType === 'crash')
-    ? "/home/botofthespecter/logs/{$currentUser}_crash.log"
+    ? "/home/botofthespecter/logs/crash/{$currentUser}.log"
     : "$logPath/$logType/$currentUser.txt";
   // Read the log file via SSH
   $result = read_log_file($log);
