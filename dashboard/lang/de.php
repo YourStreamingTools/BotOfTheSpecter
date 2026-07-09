@@ -707,7 +707,7 @@ return [
     'discordbot_label_live_status_channel' => 'Live-Status-Kanal',
     'discordbot_help_live_status_channel' => 'Der Sprachkanal, der mit dem Live-Status aktualisiert wird',
     'discordbot_label_time_now_channel' => 'Aktuelle-Uhrzeit-Kanal',
-    'discordbot_help_time_now_channel' => 'Optionaler Sprachkanal, der jede Minute mit der aktuellen Uhrzeit in deiner Profil-Zeitzone umbenannt wird (z. B. 🕐 12:34 PM AEST)',
+    'discordbot_help_time_now_channel' => 'Optionaler Sprachkanal, der alle 10 Minuten mit der aktuellen Uhrzeit in deiner Profil-Zeitzone umbenannt wird (z. B. 🕐 12:30 PM AEST). Discord begrenzt Umbenennungen auf 2 pro 10 Minuten.',
     'discordbot_label_online_text' => 'Online-Text',
     'discordbot_help_online_text' => 'Text zur Aktualisierung des Status-Sprachkanals, wenn dein Kanal online ist',
     'discordbot_label_offline_text' => 'Offline-Text',
