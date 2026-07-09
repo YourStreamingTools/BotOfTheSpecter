@@ -317,7 +317,9 @@ function performBotAction($action, $botType, $params) {
                     if ($useSelf && $botType === 'beta') {
                         $botArgs .= " -self";
                     }
-                    $crashLog = "/home/botofthespecter/logs/" . $username . "_crash.log";
+                    $crashLog = "/home/botofthespecter/logs/crash/" . $username . ".log";
+                    // Ensure crash log directory exists before tee append
+                    SSHConnectionManager::executeCommand($connection, "mkdir -p " . escapeshellarg(dirname($crashLog)));
                     // Use tee so output is visible in the screen terminal (for screen -r / web console)
                     // AND simultaneously appended to the crash log for persistence.
                     $wrappedArgs = "bash -c " . escapeshellarg($botArgs . " 2>&1 | tee -a " . $crashLog);

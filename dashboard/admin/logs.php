@@ -461,7 +461,7 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     $selectedUser = $_GET['admin_log_user'];
     $logType = $_GET['admin_log_type'];
     $logPath = ($logType === 'crash')
-        ? "/home/botofthespecter/logs/{$selectedUser}_crash.log"
+        ? "/home/botofthespecter/logs/crash/{$selectedUser}.log"
         : "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
     $result = read_bot_log_over_ssh($logPath);
     if (isset($result['error'])) {

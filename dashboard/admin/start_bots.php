@@ -2218,9 +2218,9 @@ ob_start();
     }
     window.attachConsole = function(username) {
         // The bot is launched with stdout/stderr redirected to the crash log:
-        //   screen -dmS specter_USERNAME bash -c "python ... >> /logs/USERNAME_crash.log 2>&1"
+        //   screen -dmS specter_USERNAME bash -c "python ... >> /logs/crash/USERNAME.log 2>&1"
         // Screen's own terminal stays empty; we must tail the crash log directly.
-        const logFile = '/home/botofthespecter/logs/' + username + '_crash.log';
+        const logFile = '/home/botofthespecter/logs/crash/' + username + '.log';
         const modal = document.getElementById('console-modal');
         document.getElementById('console-modal-title').textContent = sbFormat(SB_I18N.consoleTitlePrefix, username);
         document.getElementById('console-modal-output').textContent = '';

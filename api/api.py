@@ -6303,7 +6303,7 @@ async def start_bot(
         raise HTTPException(status_code=500, detail="Bot host SSH credentials are not configured")
     bot_script = BOT_SCRIPT_PATHS[bot_type]
     version_file = BOT_VERSION_FILE_TEMPLATES[bot_type].format(username=username)
-    crash_log = f"/home/botofthespecter/logs/{username}_crash.log"
+    crash_log = f"/home/botofthespecter/logs/crash/{username}.log"
     screen_session = "specter_" + re.sub(r'[^a-zA-Z0-9_]', '_', username)
     if bot_type == "beta":
         if custom:
@@ -6381,6 +6381,10 @@ async def start_bot(
             if bot_type == "beta" and beta_params["use_self"]:
                 args.append("-self")
             bot_invocation = " ".join(args)
+            await asyncio.wait_for(
+                conn.run(f"mkdir -p {shlex.quote(os.path.dirname(crash_log))}"),
+                timeout=command_timeout,
+            )
             wrapped = f"bash -c {shlex.quote(bot_invocation + ' 2>&1 | tee -a ' + crash_log)}"
             start_cmd = f"screen -dmS {shlex.quote(screen_session)} {wrapped}"
             await asyncio.wait_for(conn.run(start_cmd), timeout=command_timeout)
