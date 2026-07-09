@@ -369,14 +369,12 @@ if ($websiteConn->connect_error) {
     die('Database unavailable.');
 }
 
-$chk = $websiteConn->prepare('SHOW DATABASES LIKE ?');
-$chk->bind_param('s', $channel);
-$chk->execute();
-$chkRes = $chk->get_result();
+// SHOW DATABASES does not support prepared-statement placeholders on MySQL.
+// $channel is already restricted to [a-z0-9_]{1,64} by store_sanitize_username().
+$chkRes = $websiteConn->query("SHOW DATABASES LIKE '" . $websiteConn->real_escape_string($channel) . "'");
 if (!$chkRes || $chkRes->num_rows === 0) {
     $notFound = true;
 }
-$chk->close();
 
 if (!$notFound) {
     $ustmt = $websiteConn->prepare('SELECT is_deceased, profile_image, twitch_display_name, api_key, new_media FROM users WHERE username = ? LIMIT 1');
