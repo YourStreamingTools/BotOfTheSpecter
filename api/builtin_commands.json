@@ -180,6 +180,10 @@
 			"description": "Shows the current bot point balance for yourself or a mentioned user.",
 			"syntax": ["!points", "!points @botofthespecter"]
 		},
+		"store": {
+			"description": "Lists Point Store items you can buy with bot points, or buys an item by name, slug, or id.",
+			"syntax": ["!store", "!store airhorn", "!store 12"]
+		},
 		"slots": {
 			"description": "Pulls the slot machine lever and displays a randomised result in chat.",
 			"syntax": "!slots"

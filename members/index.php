@@ -1,6 +1,16 @@
 <?php
 require_once '/var/www/lib/session_bootstrap.php';
 
+// /{channel}/store → members store shopfront (see store.php)
+$_storePath = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+$_storeParts = $_storePath === '' ? [] : explode('/', $_storePath);
+if (count($_storeParts) >= 2 && strtolower($_storeParts[1]) === 'store') {
+    $_GET['user'] = $_storeParts[0];
+    require __DIR__ . '/store.php';
+    exit();
+}
+unset($_storePath, $_storeParts);
+
 // Initialize all variables as empty arrays or values
 $commands = [];
 $builtinCommands = [];
@@ -560,8 +570,11 @@ ob_start();
                     <a href="/" class="sp-btn sp-btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back to Search</a>
                 </div>
                 <?php else: ?>
-                    <div class="sp-alert sp-alert-info">
-                        <?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?>
+                    <div class="sp-alert sp-alert-info" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.75rem;">
+                        <span><?php echo "Welcome " . htmlspecialchars($_SESSION['display_name'] ?? '', ENT_QUOTES, 'UTF-8') . ". You're viewing information for: " . htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span>
+                        <a href="/<?php echo rawurlencode($username); ?>/store" class="sp-btn sp-btn-primary sp-btn-sm">
+                            <i class="fa-solid fa-store"></i> Point Store
+                        </a>
                     </div>
                     <div class="ms-tabs-container">
                         <div class="ms-tabs-wrap">

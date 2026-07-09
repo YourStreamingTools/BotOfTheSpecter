@@ -146,7 +146,7 @@ SSH_HOSTS = {
 }
 builtin_commands = {
     "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer",
-    "checktimer", "version", "convert", "subathon", "todo", "todolist", "kill", "points", "slots", "timer", "game", "joke", "ping",
+    "checktimer", "version", "convert", "subathon", "todo", "todolist", "kill", "points", "store", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
@@ -2490,6 +2490,39 @@ async def RAFFLE_WINNER(data):
             websocket_logger.error(f"[RAFFLE WINNER] Failed to send raffle winner chat message: {e}")
     except Exception as e:
         websocket_logger.error(f"[RAFFLE WINNER] Failed to process RAFFLE_WINNER event: {e}")
+
+@specterSocket.event
+async def STORE(data):
+    """Point Store purchase from members (or other clients). Chat buys use source=chat and already announced."""
+    websocket_logger.info(f"[STORE] STORE event received: {data}")
+    try:
+        source = (data.get("source") or "").lower()
+        if source == "chat":
+            # Bot already posted the success line for !store <item>
+            return
+        username = data.get("username") or data.get("user_name") or data.get("user") or "someone"
+        display = data.get("display_name") or username
+        item_title = data.get("item_title") or data.get("title") or "an item"
+        cost = data.get("cost") or "0"
+        point_name = data.get("point_name") or "points"
+        balance_after = data.get("balance_after")
+        item_type = (data.get("item_type") or "").lower()
+        text = data.get("text")
+        try:
+            msg = f"@{display} redeemed {item_title} for {cost} {point_name}!"
+            if balance_after is not None and str(balance_after) != "":
+                msg += f" (balance: {balance_after})"
+            await send_chat_message(msg)
+        except Exception as e:
+            websocket_logger.error(f"[STORE] Failed to announce purchase: {e}")
+        # Optional chat_message fulfillment text (members path may not fire a separate event)
+        if item_type == "chat_message" and text:
+            try:
+                await send_chat_message(str(text))
+            except Exception as e:
+                websocket_logger.error(f"[STORE] Failed to send chat_message fulfillment: {e}")
+    except Exception as e:
+        websocket_logger.error(f"[STORE] Failed to process STORE event: {e}")
 
 @specterSocket.event
 async def SYSTEM_UPDATE(data):
@@ -5037,6 +5070,163 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"[POINTS] An error occurred during the execution of the points command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='store')
+    async def store_command(self, ctx, *, item_query: str = None):
+        """List the Point Store catalog, or buy an item: !store / !store <name|id>"""
+        global bot_owner
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name.lower()
+        display_name = getattr(ctx.author, "display_name", None) or ctx.author.name
+        connection = None
+        try:
+            connection = await mysql_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s",
+                    ("store",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate = result.get("cooldown_rate")
+                cooldown_time = result.get("cooldown_time")
+                cooldown_bucket = result.get("cooldown_bucket")
+                if status == "Disabled" and ctx.author.name != bot_owner:
+                    return
+                bucket_key = (
+                    "global"
+                    if cooldown_bucket == "default"
+                    else (
+                        "mod"
+                        if cooldown_bucket == "mods" and await command_permissions("mod", ctx.author)
+                        else str(ctx.author.id)
+                    )
+                )
+                if not await check_cooldown("store", bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+
+                # Tables may not exist until dashboard has provisioned the channel
+                await cursor.execute("SHOW TABLES LIKE 'point_store_settings'")
+                if not await cursor.fetchone():
+                    await send_chat_message("Point Store is not set up for this channel yet.")
+                    return
+
+                settings = await point_store_load_settings(cursor)
+                point_name = "points"
+                try:
+                    ps = await get_point_settings()
+                    if ps and ps.get("point_name"):
+                        point_name = ps["point_name"]
+                except Exception:
+                    pass
+
+                query = (item_query or "").strip()
+                if not query:
+                    items = await point_store_list_enabled_items(cursor)
+                    if not settings.get("enabled"):
+                        await send_chat_message(f"The {point_name} store is currently closed.")
+                        add_usage("store", bucket_key, cooldown_bucket)
+                        return
+                    if settings.get("paused"):
+                        await send_chat_message(f"The {point_name} store is temporarily paused.")
+                        add_usage("store", bucket_key, cooldown_bucket)
+                        return
+                    if not items:
+                        await send_chat_message(f"No items in the {point_name} store yet.")
+                        add_usage("store", bucket_key, cooldown_bucket)
+                        return
+                    # Compact list: Title (cost) — fit chat length
+                    parts = []
+                    for it in items[:20]:
+                        slug = it.get("slug") or str(it["id"])
+                        parts.append(f"{it['title']} [{slug}] ({it['cost']})")
+                    listing = " · ".join(parts)
+                    more = f" (+{len(items) - 20} more)" if len(items) > 20 else ""
+                    msg = f"{point_name} store: {listing}{more}. Buy: !store <name>"
+                    if len(msg) > MAX_CHAT_MESSAGE_LENGTH:
+                        msg = msg[: MAX_CHAT_MESSAGE_LENGTH - 3] + "..."
+                    await send_chat_message(msg)
+                    add_usage("store", bucket_key, cooldown_bucket)
+                    return
+
+                # Purchase path
+                if not settings.get("enabled"):
+                    await send_chat_message(f"The {point_name} store is currently closed.")
+                    return
+                if settings.get("paused"):
+                    await send_chat_message(f"The {point_name} store is temporarily paused.")
+                    return
+                if settings.get("stream_online_only") and not await point_store_is_stream_online(cursor):
+                    await send_chat_message("Store purchases are only allowed while the stream is live.")
+                    return
+
+                item = await point_store_find_item(cursor, query)
+                if not item:
+                    await send_chat_message(f"Item not found. Use !store to list available rewards.")
+                    return
+
+                try:
+                    purchase = await point_store_checkout(
+                        connection,
+                        cursor,
+                        settings=settings,
+                        item=item,
+                        user_id=user_id,
+                        user_name=user_name,
+                        point_name=point_name,
+                        source="chat",
+                    )
+                except RuntimeError as e:
+                    await send_chat_message(str(e))
+                    return
+
+                cost = purchase["cost"]
+                balance_after = purchase["balance_after"]
+                item_title = item["title"]
+                await send_chat_message(
+                    f"@{display_name} spent {cost} {point_name} on {item_title}! (balance: {balance_after})"
+                )
+                add_usage("store", bucket_key, cooldown_bucket)
+
+                # Fan-out STORE (source=chat so listener does not double-announce) + media
+                payload = purchase.get("payload") or {}
+                store_data = {
+                    "username": user_name,
+                    "display_name": display_name,
+                    "user_id": user_id,
+                    "item_id": str(item["id"]),
+                    "item_title": item_title,
+                    "item_type": item.get("item_type") or "",
+                    "cost": str(cost),
+                    "point_name": point_name,
+                    "balance_after": str(balance_after),
+                    "source": "chat",
+                }
+                if payload.get("sound"):
+                    store_data["sound"] = payload["sound"]
+                if payload.get("video"):
+                    store_data["video"] = payload["video"]
+                if payload.get("text"):
+                    store_data["text"] = payload["text"]
+                safe_create_task(websocket_notice(event="STORE", additional_data=store_data))
+                await point_store_fulfill_media(item, payload)
+                if (item.get("item_type") or "").lower() == "chat_message" and payload.get("text"):
+                    await send_chat_message(str(payload["text"]))
+        except Exception as e:
+            chat_logger.error(f"[STORE] store command error: {e}", exc_info=True)
+            try:
+                await send_chat_message("An unexpected error occurred with the store. Please try again later.")
+            except Exception:
+                pass
         finally:
             if connection:
                 await connection.close()
@@ -15354,6 +15544,12 @@ async def websocket_notice(
                     params['channel'] = CHANNEL_NAME
                     params['raffle_name'] = additional_data.get('raffle_name')
                     params['winner'] = additional_data.get('winner')
+                elif event == "STORE" and additional_data:
+                    # Point Store purchase fan-out (bot !store or rebroadcast). Flat params for /notify.
+                    for _sk, _sv in additional_data.items():
+                        if _sv is None:
+                            continue
+                        params[_sk] = json.dumps(_sv) if isinstance(_sv, (dict, list)) else _sv
                 elif event == "SOUND_ALERT" and sound:
                     if MEDIA_MIGRATED:
                         params['sound'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{sound}"
@@ -16590,6 +16786,213 @@ async def get_point_settings():
     finally:
         if connection:
             await connection.close()
+
+async def point_store_load_settings(cursor):
+    await cursor.execute("SELECT * FROM point_store_settings WHERE id = 1 LIMIT 1")
+    row = await cursor.fetchone()
+    if not row:
+        return {
+            "enabled": 0,
+            "paused": 0,
+            "stream_online_only": 0,
+            "global_cooldown_seconds": 0,
+            "max_purchases_per_user_per_stream": None,
+        }
+    return row
+
+async def point_store_is_stream_online(cursor):
+    try:
+        await cursor.execute("SHOW TABLES LIKE 'stream_status'")
+        if not await cursor.fetchone():
+            return False
+        await cursor.execute("SELECT status FROM stream_status LIMIT 1")
+        row = await cursor.fetchone()
+        return bool(row and str(row.get("status", "")).lower() == "true")
+    except Exception:
+        return False
+
+async def point_store_list_enabled_items(cursor):
+    await cursor.execute(
+        "SELECT id, title, slug, cost, item_type FROM point_store_items "
+        "WHERE enabled = 1 ORDER BY sort_order ASC, cost ASC, title ASC"
+    )
+    return await cursor.fetchall() or []
+
+async def point_store_find_item(cursor, query: str):
+    q = (query or "").strip()
+    if not q:
+        return None
+    if q.isdigit():
+        await cursor.execute(
+            "SELECT * FROM point_store_items WHERE id = %s AND enabled = 1 LIMIT 1",
+            (int(q),),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row
+    await cursor.execute(
+        "SELECT * FROM point_store_items WHERE enabled = 1 AND (LOWER(slug) = LOWER(%s) OR LOWER(title) = LOWER(%s)) LIMIT 1",
+        (q, q),
+    )
+    row = await cursor.fetchone()
+    if row:
+        return row
+    # Partial title match as last resort
+    like = f"%{q}%"
+    await cursor.execute(
+        "SELECT * FROM point_store_items WHERE enabled = 1 AND LOWER(title) LIKE LOWER(%s) ORDER BY cost ASC LIMIT 1",
+        (like,),
+    )
+    return await cursor.fetchone()
+
+async def point_store_checkout(connection, cursor, *, settings, item, user_id, user_name, point_name, source="chat"):
+    """Atomic debit + stock + purchase log. Raises RuntimeError on failure."""
+    import time as _time
+    now = int(_time.time())
+    item_id = int(item["id"])
+    cost = int(item["cost"])
+    if cost < 1:
+        raise RuntimeError("Invalid item price.")
+
+    payload = {}
+    if item.get("payload"):
+        try:
+            if isinstance(item["payload"], dict):
+                payload = item["payload"]
+            elif isinstance(item["payload"], str):
+                decoded = json.loads(item["payload"])
+                if isinstance(decoded, dict):
+                    payload = decoded
+        except Exception:
+            payload = {}
+
+    # Cooldowns / caps (read-only; before transaction)
+    await cursor.execute("SHOW TABLES LIKE 'point_store_purchases'")
+    has_purchases = bool(await cursor.fetchone())
+    if has_purchases:
+        global_cd = max(0, int(settings.get("global_cooldown_seconds") or 0))
+        if global_cd > 0:
+            await cursor.execute(
+                "SELECT created_at FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
+                (user_id, user_name),
+            )
+            last = await cursor.fetchone()
+            if last and last.get("created_at"):
+                created = last["created_at"]
+                if hasattr(created, "timestamp"):
+                    ts = int(created.timestamp())
+                else:
+                    ts = now
+                elapsed = now - ts
+                if elapsed < global_cd:
+                    raise RuntimeError(f"Store cooldown: try again in {max(1, global_cd - elapsed)}s.")
+        item_cd = max(0, int(item.get("cooldown_seconds") or 0))
+        if item_cd > 0:
+            await cursor.execute(
+                "SELECT created_at FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
+                (item_id, user_id, user_name),
+            )
+            last = await cursor.fetchone()
+            if last and last.get("created_at"):
+                created = last["created_at"]
+                ts = int(created.timestamp()) if hasattr(created, "timestamp") else now
+                elapsed = now - ts
+                if elapsed < item_cd:
+                    raise RuntimeError(f"Item cooldown: try again in {max(1, item_cd - elapsed)}s.")
+        max_global = settings.get("max_purchases_per_user_per_stream")
+        if max_global is not None and str(max_global) != "":
+            max_g = int(max_global)
+            if max_g > 0:
+                await cursor.execute(
+                    "SELECT COUNT(*) AS c FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                    (user_id, user_name),
+                )
+                row = await cursor.fetchone()
+                if row and int(row.get("c") or 0) >= max_g:
+                    raise RuntimeError("You have reached the max store purchases for this stream.")
+        if item.get("max_per_stream") is not None and str(item.get("max_per_stream")) != "":
+            max_i = int(item["max_per_stream"])
+            if max_i > 0:
+                await cursor.execute(
+                    "SELECT COUNT(*) AS c FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                    (item_id, user_id, user_name),
+                )
+                row = await cursor.fetchone()
+                if row and int(row.get("c") or 0) >= max_i:
+                    raise RuntimeError("You have reached the max purchases of this item for this stream.")
+
+    await cursor.execute("START TRANSACTION")
+    try:
+        # Stock
+        if item.get("stock") is not None and str(item.get("stock")) != "":
+            await cursor.execute(
+                "UPDATE point_store_items SET stock = stock - 1 WHERE id = %s AND stock IS NOT NULL AND stock > 0",
+                (item_id,),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("This item is out of stock.")
+
+        # Atomic debit (must have enough points)
+        await cursor.execute(
+            "UPDATE bot_points SET points = points - %s, user_name = %s WHERE user_id = %s AND points >= %s",
+            (cost, user_name, user_id, cost),
+        )
+        if cursor.rowcount != 1:
+            await cursor.execute(
+                "UPDATE bot_points SET points = points - %s WHERE user_name = %s AND points >= %s",
+                (cost, user_name, cost),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"Not enough {point_name}.")
+            await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s LIMIT 1", (user_name,))
+        else:
+            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
+        bal_row = await cursor.fetchone()
+        balance_after = int(bal_row["points"]) if bal_row else 0
+
+        if has_purchases:
+            await cursor.execute(
+                "INSERT INTO point_store_purchases "
+                "(item_id, item_title, item_type, cost, user_id, user_name, balance_after, source, status) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    item_id,
+                    item.get("title") or "",
+                    item.get("item_type") or "",
+                    cost,
+                    user_id,
+                    user_name,
+                    balance_after,
+                    source,
+                    "completed",
+                ),
+            )
+        await connection.commit()
+        return {
+            "cost": cost,
+            "balance_after": balance_after,
+            "payload": payload,
+            "point_name": point_name,
+        }
+    except Exception:
+        try:
+            await connection.rollback()
+        except Exception:
+            pass
+        raise
+
+async def point_store_fulfill_media(item, payload):
+    """Fire SOUND_ALERT / VIDEO_ALERT / TTS for a purchased item."""
+    item_type = (item.get("item_type") or "").lower()
+    try:
+        if item_type == "sound_alert" and payload.get("sound"):
+            safe_create_task(websocket_notice(event="SOUND_ALERT", sound=payload["sound"]))
+        elif item_type == "video_alert" and payload.get("video"):
+            safe_create_task(websocket_notice(event="VIDEO_ALERT", video=payload["video"]))
+        elif item_type == "tts" and payload.get("text"):
+            safe_create_task(websocket_notice(event="TTS", text=str(payload["text"])))
+    except Exception as e:
+        bot_logger.error(f"[STORE] fulfill media error: {e}")
 
 async def known_users():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID

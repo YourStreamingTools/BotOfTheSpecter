@@ -348,6 +348,53 @@ try {
                 subscriber_multiplier VARCHAR(50),
                 excluded_users TEXT
             ) ENGINE=InnoDB",
+        'point_store_settings' => "
+            CREATE TABLE IF NOT EXISTS point_store_settings (
+                id INT PRIMARY KEY,
+                enabled TINYINT(1) NOT NULL DEFAULT 0,
+                paused TINYINT(1) NOT NULL DEFAULT 0,
+                stream_online_only TINYINT(1) NOT NULL DEFAULT 0,
+                global_cooldown_seconds INT NOT NULL DEFAULT 0,
+                max_purchases_per_user_per_stream INT DEFAULT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'point_store_items' => "
+            CREATE TABLE IF NOT EXISTS point_store_items (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                title VARCHAR(150) NOT NULL,
+                slug VARCHAR(160) DEFAULT NULL,
+                description TEXT DEFAULT NULL,
+                cost INT NOT NULL DEFAULT 100,
+                item_type VARCHAR(40) NOT NULL DEFAULT 'sound_alert',
+                payload JSON DEFAULT NULL,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                cooldown_seconds INT NOT NULL DEFAULT 0,
+                max_per_stream INT DEFAULT NULL,
+                stock INT DEFAULT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_point_store_slug (slug),
+                INDEX idx_point_store_enabled (enabled),
+                INDEX idx_point_store_sort (sort_order, cost, title)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'point_store_purchases' => "
+            CREATE TABLE IF NOT EXISTS point_store_purchases (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                item_id INT DEFAULT NULL,
+                item_title VARCHAR(150) NOT NULL,
+                item_type VARCHAR(40) NOT NULL,
+                cost INT NOT NULL,
+                user_id VARCHAR(50) DEFAULT NULL,
+                user_name VARCHAR(50) NOT NULL,
+                balance_after INT DEFAULT NULL,
+                source VARCHAR(20) NOT NULL DEFAULT 'members',
+                status VARCHAR(30) NOT NULL DEFAULT 'completed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_point_store_purchases_user (user_name),
+                INDEX idx_point_store_purchases_item (item_id),
+                INDEX idx_point_store_purchases_created (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'channel_point_rewards' => "
             CREATE TABLE IF NOT EXISTS channel_point_rewards (
                 reward_id VARCHAR(255),
@@ -1261,6 +1308,10 @@ try {
     // Ensure default options for bot_settings exist
     if ($usrDBconn->query("INSERT INTO bot_settings (point_name, point_amount_chat, point_amount_follower, point_amount_subscriber, point_amount_cheer, point_amount_raid, subscriber_multiplier, excluded_users) SELECT 'Points', '10', '300', '500', '350', '50', '2', CONCAT('botofthespecter,', '$dbname') WHERE NOT EXISTS (SELECT 1 FROM bot_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default bot_settings options ensured.');
+    }
+    // Ensure default options for point_store_settings exist
+    if ($usrDBconn->query("INSERT INTO point_store_settings (id, enabled, paused, stream_online_only, global_cooldown_seconds) SELECT 1, 0, 0, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM point_store_settings WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default point_store_settings options ensured.');
     }
     // Ensure default options for subathon_settings exist
     if ($usrDBconn->query("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) SELECT 60, 5, 10, 20, 30 WHERE NOT EXISTS (SELECT 1 FROM subathon_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
