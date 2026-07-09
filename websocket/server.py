@@ -193,6 +193,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("TTS", self.tts),
             ("SOUND_ALERT", self.event_handler.handle_sound_alert),
             ("VIDEO_ALERT", self.event_handler.handle_video_alert),
+            ("STORE", self.event_handler.handle_store),
             ("CUSTOM_COMMAND", self.event_handler.handle_custom_command),
             ("STREAM_ONLINE", self.event_handler.handle_stream_online),
             ("STREAM_OFFLINE", self.event_handler.handle_stream_offline),
@@ -1262,9 +1263,10 @@ class BotOfTheSpecter_WebsocketServer:
             "TANNGLE_COMPLETE",
             "STREAM_BINGO_STARTED", "STREAM_BINGO_ENDED", "STREAM_BINGO_EVENT_CALLED",
             "STREAM_BINGO_WINNER", "STREAM_BINGO_EXTRA_CARD",
-            "STREAM_BINGO_VOTE_STARTED", "STREAM_BINGO_VOTE_ENDED", "STREAM_BINGO_ALL_CALLED"
+            "STREAM_BINGO_VOTE_STARTED", "STREAM_BINGO_VOTE_ENDED", "STREAM_BINGO_ALL_CALLED",
+            "STORE",
         ]:
-            # Handle Tanngle puzzle and Stream Bingo events
+            # Tanngle / Stream Bingo / Point Store purchases
             count = await self.broadcast_event_with_globals(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
         elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM", "PROJECT_UPDATE"]:

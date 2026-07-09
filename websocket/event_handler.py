@@ -98,6 +98,12 @@ class EventHandler:
         # Broadcast video alert to clients and global listeners
         await self.broadcast_with_globals("VIDEO_ALERT", data, code)
 
+    async def handle_store(self, sid, data):
+        self.logger.info(f"STORE event from SID [{sid}]: {data}")
+        code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
+        payload = {**(data or {}), "channel_code": code or "unknown"}
+        await self.broadcast_with_globals("STORE", payload, code)
+
     async def handle_custom_command(self, sid, data):
         self.logger.info(f"Custom command event from SID [{sid}]: {data}")
         # Get the channel code for this SID

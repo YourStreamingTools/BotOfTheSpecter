@@ -17,6 +17,7 @@ function getMenuItems($role = 'default') {
         [ 'label' => t('menu_settings'), 'icon' => 'fas fa-cogs', 'submenu' => [
             [ 'label' => t('navbar_timed_messages'), 'icon' => 'fas fa-clock', 'href' => 'timed_messages.php' ],
             [ 'label' => t('navbar_points_system'), 'icon' => 'fas fa-coins', 'href' => 'bot_points.php' ],
+            [ 'label' => t('navbar_point_store'), 'icon' => 'fas fa-store', 'href' => 'point_store.php' ],
             [ 'label' => t('navbar_subathon'), 'icon' => 'fas fa-hourglass-half', 'href' => 'subathon.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_welcome_messages'), 'icon' => 'fas fa-users', 'href' => 'known_users.php' ],
