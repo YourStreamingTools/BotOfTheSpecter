@@ -707,7 +707,7 @@ return [
     'discordbot_label_live_status_channel' => 'Canal de statut en direct',
     'discordbot_help_live_status_channel' => 'Le canal vocal à mettre à jour avec le statut en direct',
     'discordbot_label_time_now_channel' => 'Canal Heure actuelle',
-    'discordbot_help_time_now_channel' => 'Canal vocal optionnel renommé chaque minute avec l\'heure actuelle dans le fuseau horaire de votre profil (ex. 🕐 12:34 PM AEST)',
+    'discordbot_help_time_now_channel' => 'Canal vocal optionnel renommé toutes les 10 minutes avec l\'heure actuelle dans le fuseau horaire de votre profil (ex. 🕐 12:30 PM AEST). Discord limite les renommages à 2 toutes les 10 minutes.',
     'discordbot_label_online_text' => 'Texte en ligne',
     'discordbot_help_online_text' => 'Texte pour mettre à jour le canal vocal de statut lorsque votre chaîne est en ligne',
     'discordbot_label_offline_text' => 'Texte hors ligne',

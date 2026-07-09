@@ -2107,8 +2107,10 @@ class TimeNowChannelManager:
     def _format_time_now_name(self, timezone_name: str) -> str:
         tz = self._resolve_timezone(timezone_name)
         now = datetime.now(tz)
-        tz_abbr = now.strftime('%Z')
-        return f"🕐 {now.strftime('%I:%M %p')} {tz_abbr}"
+        # Floor to 10-minute boundary — Discord allows only 2 channel renames per 10 minutes
+        floored = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
+        tz_abbr = floored.strftime('%Z')
+        return f"🕐 {floored.strftime('%I:%M %p')} {tz_abbr}"
 
     async def refresh_configs(self):
         try:
@@ -2177,14 +2179,16 @@ class TimeNowChannelManager:
                 try:
                     await self._update_all_channels()
                     now_utc = datetime.now(pytz.UTC)
-                    seconds_in_current_minute = now_utc.second + (now_utc.microsecond / 1_000_000)
-                    sleep_time = 60 - seconds_in_current_minute + 0.1
+                    # Sleep until next 10-minute boundary (Discord: 2 renames / 10 min)
+                    minutes_into_window = now_utc.minute % 10
+                    seconds_into_window = (minutes_into_window * 60) + now_utc.second + (now_utc.microsecond / 1_000_000)
+                    sleep_time = (10 * 60) - seconds_into_window + 0.1
                     await asyncio.sleep(max(1, sleep_time))
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
                     self.logger.error(f"Error in Time Now update loop: {e}")
-                    await asyncio.sleep(60)
+                    await asyncio.sleep(600)
         except asyncio.CancelledError:
             self.logger.debug("Time Now update task cancelled")
 
