@@ -16,9 +16,14 @@ if (!defined('BOTS_SESSION_LIFETIME')) {
 }
 
 /**
- * Delete web_sessions rows that are no longer valid.
- * A row is stale when last_seen_at is older than $lifetime, when
- * last_seen_at is NULL, or when twitch_expires_at is in the past.
+ * Delete web_sessions rows that are no longer valid by idle lifetime only.
+ *
+ * A row is stale when last_seen_at is older than $lifetime, or when
+ * last_seen_at is NULL. Token validity is NOT decided here — Twitch
+ * id.twitch.tv/oauth2/validate (in session_bootstrap) is the only
+ * authority that may destroy an authenticated session. The denormalized
+ * twitch_expires_at column is a display / "when to re-validate" hint.
+ *
  * Pass $twitchUserId to scope the sweep to one user (profile/login).
  *
  * @return int rows deleted
@@ -30,8 +35,7 @@ function bots_purge_stale_web_sessions(mysqli $db, ?string $twitchUserId = null,
             "DELETE FROM web_sessions
              WHERE twitch_user_id = ?
                AND (last_seen_at IS NULL
-                    OR last_seen_at <= NOW() - INTERVAL ? SECOND
-                    OR (twitch_expires_at IS NOT NULL AND twitch_expires_at < NOW()))"
+                    OR last_seen_at <= NOW() - INTERVAL ? SECOND)"
         );
         if (!$stmt) return 0;
         $stmt->bind_param('si', $twitchUserId, $lifetime);
@@ -39,8 +43,7 @@ function bots_purge_stale_web_sessions(mysqli $db, ?string $twitchUserId = null,
         $stmt = $db->prepare(
             "DELETE FROM web_sessions
              WHERE last_seen_at IS NULL
-                OR last_seen_at <= NOW() - INTERVAL ? SECOND
-                OR (twitch_expires_at IS NOT NULL AND twitch_expires_at < NOW())"
+                OR last_seen_at <= NOW() - INTERVAL ? SECOND"
         );
         if (!$stmt) return 0;
         $stmt->bind_param('i', $lifetime);
@@ -139,11 +142,14 @@ class WebSessionHandler implements SessionHandlerInterface
         $is_admin      = (int)   ($decoded['is_admin']      ?? 0);
         $access_token  = (string)($decoded['access_token']  ?? '');
         $refresh_token = (string)($decoded['refresh_token'] ?? '');
+        // Store in the same clock MySQL NOW()/CURRENT_TIMESTAMP use
+        // (PHP default timezone). gmdate(UTC) vs NOW()(local) previously
+        // made brand-new sessions look expired on AU servers.
         $expires_at = null;
         if (!empty($decoded['twitch_expires_at'])) {
             $ts = (int)$decoded['twitch_expires_at'];
             if ($ts > 0) {
-                $expires_at = gmdate('Y-m-d H:i:s', $ts);
+                $expires_at = date('Y-m-d H:i:s', $ts);
             }
         }
         $ip = $_SERVER['REMOTE_ADDR']     ?? null;
@@ -223,6 +229,65 @@ class WebSessionHandler implements SessionHandlerInterface
 }
 
 // ----------------------------------------------------------------
+// Twitch OAuth client credentials (for token refresh).
+// Prefers bot_chat_token in the website DB (same source as config/twitch.php),
+// then falls back to /var/www/config/twitch.php if present.
+// ----------------------------------------------------------------
+function bots_twitch_oauth_client_creds(?mysqli $db = null): array
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $clientId = '';
+    $clientSecret = '';
+    if ($db instanceof mysqli && !$db->connect_error) {
+        $res = @$db->query('SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1');
+        if ($res && ($row = $res->fetch_assoc()) && is_array($row)) {
+            foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
+                if (!empty($row[$k])) {
+                    $clientId = trim((string)$row[$k]);
+                    break;
+                }
+            }
+            foreach (['twitch_client_secret', 'client_secret', 'clientSecret'] as $k) {
+                if (!empty($row[$k])) {
+                    $clientSecret = trim((string)$row[$k]);
+                    break;
+                }
+            }
+        }
+    }
+    if ($clientId === '' || $clientSecret === '') {
+        $cfgPath = '/var/www/config/twitch.php';
+        if (is_readable($cfgPath)) {
+            // Isolate include so local $clientID/$clientSecret cannot clobber
+            // the caller's scope. twitch.php may open its own DB connection
+            // to apply bot_chat_token overrides — acceptable as a fallback.
+            $loader = static function () use ($cfgPath) {
+                $clientID = '';
+                $clientSecret = '';
+                include $cfgPath;
+                return [trim((string)$clientID), trim((string)$clientSecret)];
+            };
+            [$cfgId, $cfgSecret] = $loader();
+            if ($clientId === '' && $cfgId !== '') {
+                $clientId = $cfgId;
+            }
+            if ($clientSecret === '' && $cfgSecret !== '') {
+                $clientSecret = $cfgSecret;
+            }
+        }
+    }
+    // Only cache successful lookups so a transient empty miss cannot
+    // poison later requests in a long-lived PHP-FPM worker.
+    if ($clientId !== '' && $clientSecret !== '') {
+        $cached = [$clientId, $clientSecret];
+    }
+    return [$clientId, $clientSecret];
+}
+
+// ----------------------------------------------------------------
 // Twitch token validation against id.twitch.tv/oauth2/validate.
 // Returns:
 //   ['ok' => true,  'payload' => array]            -> 200, valid token
@@ -230,9 +295,10 @@ class WebSessionHandler implements SessionHandlerInterface
 //   ['ok' => false, 'reason' => 'transient',
 //                   'http' => int, 'err' => string]-> network error / 5xx / weird response
 //
-// Callers should only sign the user out on reason='invalid'. Transient
-// failures must NOT destroy the session — a flaky id.twitch.tv response
-// or a 30-second egress hiccup should not log every active user out.
+// Callers should only sign the user out on reason='invalid' AFTER an
+// optional refresh attempt fails. Transient failures must NOT destroy
+// the session — a flaky id.twitch.tv response or a 30-second egress
+// hiccup should not log every active user out.
 // ----------------------------------------------------------------
 function bots_twitch_validate(string $access_token): array
 {
@@ -246,7 +312,7 @@ function bots_twitch_validate(string $access_token): array
     $resp     = curl_exec($ch);
     $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_err = curl_error($ch);
-if ($http === 200 && is_string($resp) && $resp !== '') {
+    if ($http === 200 && is_string($resp) && $resp !== '') {
         $j = json_decode($resp, true);
         if (is_array($j) && !empty($j['user_id'])) {
             return ['ok' => true, 'payload' => $j];
@@ -256,6 +322,54 @@ if ($http === 200 && is_string($resp) && $resp !== '') {
     }
     if ($http === 401) {
         return ['ok' => false, 'reason' => 'invalid'];
+    }
+    return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => (string)$curl_err];
+}
+
+// ----------------------------------------------------------------
+// Refresh a Twitch user access token via the refresh_token grant.
+// Returns:
+//   ['ok' => true,  'access_token' => ..., 'refresh_token' => ..., 'expires_in' => int]
+//   ['ok' => false, 'reason' => 'invalid'|'transient', ...]
+// ----------------------------------------------------------------
+function bots_twitch_refresh_token(string $refresh_token, ?mysqli $db = null): array
+{
+    if ($refresh_token === '') {
+        return ['ok' => false, 'reason' => 'invalid', 'err' => 'no refresh_token'];
+    }
+    [$clientId, $clientSecret] = bots_twitch_oauth_client_creds($db);
+    if ($clientId === '' || $clientSecret === '') {
+        // Missing creds is operational, not "user revoked" — keep session.
+        return ['ok' => false, 'reason' => 'transient', 'err' => 'missing Twitch client credentials'];
+    }
+    $ch = curl_init('https://id.twitch.tv/oauth2/token');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'client_id'     => $clientId,
+        'client_secret' => $clientSecret,
+        'grant_type'    => 'refresh_token',
+        'refresh_token' => $refresh_token,
+    ]));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $resp     = curl_exec($ch);
+    $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_err = curl_error($ch);
+    if ($http === 200 && is_string($resp) && $resp !== '') {
+        $j = json_decode($resp, true);
+        if (is_array($j) && !empty($j['access_token'])) {
+            return [
+                'ok'            => true,
+                'access_token'  => (string)$j['access_token'],
+                'refresh_token' => (string)($j['refresh_token'] ?? $refresh_token),
+                'expires_in'    => (int)($j['expires_in'] ?? 14400),
+            ];
+        }
+        return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => 'malformed refresh response'];
+    }
+    // Twitch returns 400 for invalid/expired refresh tokens.
+    if ($http === 400 || $http === 401) {
+        return ['ok' => false, 'reason' => 'invalid', 'http' => $http, 'err' => is_string($resp) ? substr($resp, 0, 200) : ''];
     }
     return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => (string)$curl_err];
 }
