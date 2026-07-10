@@ -272,6 +272,8 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             return list.filter(song => isSongEnabled(song, isUser));
         }
         function updateActivePlaylist() {
+            const previousPlaylist = playlist;
+            const currentKey = previousPlaylist[currentIndex] ? getSongKey(previousPlaylist[currentIndex]) : null;
             if (musicSource === 'both') {
                 playlist = [
                     ...filterPlaylistByCheckboxes(userPlaylist, true),
@@ -285,7 +287,28 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 playlist = filterPlaylistByCheckboxes(systemPlaylist, false);
                 console.log('[Overlay] using system playlist', playlist.length, 'active tracks');
             }
-            if (playlist.length > 0 && currentIndex >= playlist.length) {
+            if (playlist.length === 0) {
+                currentIndex = 0;
+                return;
+            }
+            if (currentKey !== null) {
+                const sameIndex = playlist.findIndex(song => getSongKey(song) === currentKey);
+                if (sameIndex >= 0) {
+                    // Still-playing song just moved slots — re-anchor so playNextSong() advances correctly.
+                    currentIndex = sameIndex;
+                    return;
+                }
+                // Playing song was filtered out — resume from whichever track would have followed it.
+                for (let i = 1; i <= previousPlaylist.length; i++) {
+                    const nextKey = getSongKey(previousPlaylist[(currentIndex + i) % previousPlaylist.length]);
+                    const nextIndex = playlist.findIndex(song => getSongKey(song) === nextKey);
+                    if (nextIndex >= 0) {
+                        currentIndex = (nextIndex - 1 + playlist.length) % playlist.length;
+                        return;
+                    }
+                }
+            }
+            if (currentIndex >= playlist.length) {
                 currentIndex = 0;
             }
         }
