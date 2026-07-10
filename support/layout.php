@@ -95,6 +95,7 @@ $v = uuidv4();
                 <a href="/index.php#features" class="sp-nav-link"><i class="fa-solid fa-star"></i> Main Features</a>
                 <a href="/index.php#spotify" class="sp-nav-link"><i class="fa-brands fa-spotify"></i> Spotify Setup</a>
                 <a href="/index.php#tts" class="sp-nav-link"><i class="fa-solid fa-microphone"></i> Text-to-Speech</a>
+                <a href="/index.php#variables" class="sp-nav-link"><i class="fa-solid fa-code"></i> Custom Variables</a>
                 <a href="/index.php#commands" class="sp-nav-link"><i class="fa-solid fa-terminal"></i> Command Reference</a>
                 <a href="/index.php#faq" class="sp-nav-link"><i class="fa-solid fa-circle-question"></i> FAQ</a>
                 <a href="/index.php#troubleshooting" class="sp-nav-link"><i class="fa-solid fa-wrench"></i> Troubleshooting</a>
