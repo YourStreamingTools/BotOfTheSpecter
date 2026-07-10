@@ -2384,20 +2384,25 @@ sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
     <hr class="sp-divider">
 
     <h2>Step 2: Configure Database Server (Server 4 Only)</h2>
-    <p>Server 4 does not require any files from the repository — it only needs MySQL installed and configured.</p>
-    <h3>Required Databases</h3>
+    <p>Server 4 does not require application files from the repository — it only needs MySQL installed and configured. Specter uses <strong>two database scopes</strong>:</p>
+    <ol>
+        <li><strong>Central / system databases</strong> — you create these once by hand (<code>website</code>, <code>spam_pattern</code>, optional <code>roadmap</code> / <code>specterdiscordbot</code>).</li>
+        <li><strong>Per-user databases</strong> — one MySQL database <strong>per Twitch username</strong> (DB name = username). These are <strong>never</strong> created by hand; the dashboard creates them on first login.</li>
+    </ol>
+
+    <h3>Central databases (create manually)</h3>
     <ul>
-        <li><strong>spam_patterns</strong> — For the bot to auto-ban users matching spam patterns</li>
-        <li><strong>website</strong> — For the main website</li>
-        <li><strong>specterdiscordbot</strong> — If running the Discord bot <em>(optional)</em></li>
-        <li><strong>roadmap</strong> — If running the roadmap site <em>(optional)</em></li>
+        <li><strong>spam_pattern</strong> — global spam phrases for auto-ban (table: <code>spam_patterns</code>)</li>
+        <li><strong>website</strong> — accounts, OAuth tokens, API keys, admin keys, system tables</li>
+        <li><strong>specterdiscordbot</strong> — Discord bot state <em>(optional)</em></li>
+        <li><strong>roadmap</strong> — roadmap site <em>(optional)</em></li>
     </ul>
-    <p>Run the following SQL to create the core databases and tables:</p>
+    <p>Minimal bootstrap SQL for the core DBs (expand as needed; full <code>website</code> tables also grow via <code>migrations/website/</code>):</p>
     <details style="margin-top:1rem;">
-        <summary style="cursor:pointer;padding:0.75rem 1rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);font-weight:600;">View core database schema (click to expand)</summary>
+        <summary style="cursor:pointer;padding:0.75rem 1rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);font-weight:600;">View central database bootstrap SQL (click to expand)</summary>
         <pre style="background:var(--bg-surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>sudo mysql -u root -p
 
--- spam_pattern
+-- spam_pattern (DB name) + spam_patterns (table)
 CREATE DATABASE IF NOT EXISTS spam_pattern;
 USE spam_pattern;
 CREATE TABLE IF NOT EXISTS spam_patterns (
@@ -2406,7 +2411,7 @@ CREATE TABLE IF NOT EXISTS spam_patterns (
     PRIMARY KEY (id)
 );
 
--- roadmap
+-- roadmap (optional)
 CREATE DATABASE IF NOT EXISTS roadmap;
 USE roadmap;
 CREATE TABLE IF NOT EXISTS roadmap_items (
@@ -2433,12 +2438,10 @@ CREATE TABLE IF NOT EXISTS roadmap_comments (
     CONSTRAINT roadmap_comments_ibfk_1 FOREIGN KEY (item_id) REFERENCES roadmap_items (id) ON DELETE CASCADE
 );
 
--- specterdiscordbot (tables abbreviated — see GitHub for full schema)
+-- specterdiscordbot (optional — full schema in repo)
 CREATE DATABASE IF NOT EXISTS specterdiscordbot;
-USE specterdiscordbot;
--- (see full schema in run_yourself docs on GitHub)
 
--- website
+-- website (accounts + system tables; users row is the minimum for login)
 CREATE DATABASE IF NOT EXISTS website;
 USE website;
 CREATE TABLE IF NOT EXISTS users (
@@ -2464,17 +2467,127 @@ CREATE TABLE IF NOT EXISTS users (
     KEY idx_twitch_user_id (twitch_user_id)
 );</code></pre>
     </details>
-    <p style="margin-top:1rem;">Then create your database user:</p>
+
+    <p style="margin-top:1rem;">Then create your MySQL application user (must be able to create databases — per-user DBs need <code>CREATE</code>):</p>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%';
+GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;</code></pre>
+
     <div class="sp-alert sp-alert-danger" style="margin-top:1rem;">
         <i class="fa-solid fa-triangle-exclamation"></i>
         <div>
-            <strong>DO NOT manually create user databases!</strong>
-            <p style="margin-top:0.5rem;margin-bottom:0;">The system automatically creates a dedicated database for each user on their first login. It creates the database, sets up all tables, and configures default settings automatically.</p>
+            <strong>DO NOT manually create per-user databases or their tables.</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">On first dashboard login for a channel, <code>dashboard/includes/usr_database.php</code> creates a MySQL database named after the Twitch username (e.g. <code>gfaundead</code>), creates ~100 tables if missing, migrates columns, and seeds default settings. Manual creation will drift from the live schema.</p>
         </div>
     </div>
+
+    <h3 style="margin-top:1.5rem;">Per-user databases (auto-created)</h3>
+    <p>Source of truth: <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/blob/main/dashboard/includes/usr_database.php" target="_blank" rel="noopener"><code>dashboard/includes/usr_database.php</code></a>.</p>
+    <ul>
+        <li><strong>Database name</strong> = Twitch login / session username (letters, numbers, underscore only; max 64 chars).</li>
+        <li><strong>When</strong> — first successful dashboard session for that user (and again on later loads to create any missing tables / columns).</li>
+        <li><strong>What runs</strong> — <code>CREATE DATABASE</code> if the schema does not exist, then <code>CREATE TABLE IF NOT EXISTS</code> for every table below, then column checks, then default seed rows.</li>
+    </ul>
+
+    <h4>Tables created in each user database</h4>
+    <p>Grouped for readability (names match the code):</p>
+    <div class="sp-table-wrap" style="margin-top:0.75rem;">
+        <table class="sp-table">
+            <thead>
+                <tr><th style="width:28%;">Area</th><th>Tables</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Commands</strong></td>
+                    <td><code>custom_commands</code>, <code>custom_user_commands</code>, <code>builtin_commands</code>, <code>command_options</code>, <code>custom_command_random_pick_options</code>, <code>timed_messages</code>, <code>custom_counts</code>, <code>user_counts</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Points &amp; store</strong></td>
+                    <td><code>bot_points</code>, <code>bot_settings</code>, <code>point_store_settings</code>, <code>point_store_items</code>, <code>point_store_purchases</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Channel points / rewards</strong></td>
+                    <td><code>channel_point_rewards</code>, <code>reward_counts</code>, <code>reward_streaks</code>, <code>stored_redeems</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Social counters</strong></td>
+                    <td><code>user_typos</code>, <code>lurk_times</code>, <code>hug_counts</code>, <code>highfive_counts</code>, <code>kiss_counts</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Deaths</strong></td>
+                    <td><code>total_deaths</code>, <code>per_stream_deaths</code>, <code>game_deaths</code>, <code>game_deaths_settings</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Events / analytics</strong></td>
+                    <td><code>bits_data</code>, <code>subscription_data</code>, <code>followers_data</code>, <code>raid_data</code>, <code>analytic_raids</code>, <code>analytic_stream_watch_streak</code>, <code>message_counts</code>, <code>watch_time</code>, <code>watch_time_excluded_users</code>, <code>shoutout_history</code>, <code>stream_session_stats</code>, <code>song_request_analytics</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Chat &amp; presence</strong></td>
+                    <td><code>chat_history</code>, <code>seen_users</code>, <code>seen_today</code>, <code>everyone</code>, <code>groups</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Protection</strong></td>
+                    <td><code>protection</code>, <code>link_whitelist</code>, <code>link_blacklisting</code>, <code>blocked_terms</code>, <code>word_replace_ignored_users</code>, <code>word_replace_ignored_words</code>, <code>joke_settings</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Alerts &amp; media</strong></td>
+                    <td><code>twitch_alerts</code>, <code>twitch_alert_category_settings</code>, <code>twitch_chat_alerts</code>, <code>sound_alerts</code>, <code>twitch_sound_alerts</code>, <code>video_alerts</code>, <code>walkons</code>, <code>tts_settings</code>, <code>stream_credits</code>, <code>credits_overlay_settings</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Overlays / prefs</strong></td>
+                    <td><code>profile</code>, <code>streamer_preferences</code>, <code>streaming_settings</code>, <code>ad_notice_settings</code>, <code>closed_captions_settings</code>, <code>closed_captions_corrections</code>, <code>avatar_settings</code>, <code>working_study_overlay_settings</code>, <code>maker_overlay_settings</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Raffles / lotto / VIP</strong></td>
+                    <td><code>raffles</code>, <code>raffle_entries</code>, <code>raffle_winners</code>, <code>stream_lotto</code>, <code>stream_lotto_winning_numbers</code>, <code>vip_today</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Subathon / stream</strong></td>
+                    <td><code>subathon_settings</code>, <code>subathon</code>, <code>stream_status</code>, <code>active_timers</code>, <code>poll_results</code>, <code>auto_record_settings</code>, <code>stream_forward_settings</code>, <code>eventsub_sessions</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Quotes / tips / categories</strong></td>
+                    <td><code>quotes</code>, <code>quote_category</code>, <code>tipping_settings</code>, <code>tipping</code>, <code>categories</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Tasks / pomodoro / makers</strong></td>
+                    <td><code>todos</code>, <code>showobs</code>, <code>streamer_tasks</code>, <code>user_tasks</code>, <code>task_reward_log</code>, <code>task_settings</code>, <code>user_active_project</code>, <code>user_projects</code>, <code>user_pomos</code>, <code>maker_projects</code>, <code>maker_project_images</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Bingo / Tanggle</strong></td>
+                    <td><code>bingo_games</code>, <code>bingo_winners</code>, <code>bingo_players</code>, <code>tanggle_room_completions</code>, <code>tanggle_puzzle_stats</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Media queue</strong></td>
+                    <td><code>media_queue</code>, <code>media_request_settings</code>, <code>media_banlist</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Other</strong></td>
+                    <td><code>member_streams</code>, <code>automated_shoutout_settings</code>, <code>automated_shoutout_tracking</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h4 style="margin-top:1.25rem;">Default seed data (first creation)</h4>
+    <p><code>usr_database.php</code> also inserts defaults when tables are empty, including:</p>
+    <ul>
+        <li><strong>groups</strong> — Moderators, VIPs, Subscribers, Bots</li>
+        <li><strong>categories</strong> — Default</li>
+        <li><strong>bot_settings</strong> — point name <code>Points</code>, chat/follow/sub/cheer/raid amounts, 2× sub multiplier, excluded users include <code>botofthespecter</code> and the channel username</li>
+        <li><strong>point_store_settings</strong>, <strong>subathon_settings</strong>, <strong>protection</strong>, <strong>joke_settings</strong>, <strong>watch_time_excluded_users</strong>, <strong>stream_status</strong></li>
+        <li><strong>ad_notice_settings</strong> — default ad start/end/upcoming messages with variables like <code>(duration)</code> / <code>(minutes)</code></li>
+        <li><strong>streamer_preferences</strong> — welcome message defaults, music source</li>
+        <li><strong>twitch_chat_alerts</strong> — gift/prime upgrade, pay-it-forward, watch streak templates</li>
+        <li><strong>task_settings</strong>, <strong>credits_overlay_settings</strong>, <strong>closed_captions_settings</strong>, <strong>avatar_settings</strong>, <strong>working_study_overlay_settings</strong>, <strong>automated_shoutout_settings</strong>, <strong>tanggle_puzzle_stats</strong>, <strong>showobs</strong></li>
+    </ul>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            Column definitions change over time. On each dashboard load, <code>usr_database.php</code> compares live columns to the CREATE TABLE definitions and <code>ALTER TABLE … ADD COLUMN</code> for missing ones. Always deploy the latest <code>usr_database.php</code> with the dashboard — do not copy an old SQL dump as the permanent user schema.
+        </div>
+    </div>
+
     <p style="margin-top:1rem;">Finally, configure MySQL to accept connections from other servers by editing <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code>:</p>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>bind-address = 0.0.0.0</code></pre>
 
