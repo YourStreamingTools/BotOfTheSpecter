@@ -46,6 +46,20 @@ $platformInfo = [
     'instagram' => ['icon' => 'instagram', 'color' => '#E4405F'],
     'tiktok'    => ['icon' => 'tiktok', 'color' => '#000000'],
     'discord'   => ['icon' => 'discord', 'color' => '#5865F2'],
+    'facebook'  => ['icon' => 'facebook', 'color' => '#1877F2'],
+    'reddit'    => ['icon' => 'reddit', 'color' => '#FF4500'],
+    'linkedin'  => ['icon' => 'linkedin', 'color' => '#0A66C2'],
+    'snapchat'  => ['icon' => 'snapchat', 'color' => '#FFFC00'],
+    'pinterest' => ['icon' => 'pinterest', 'color' => '#BD081C'],
+    'threads'   => ['icon' => 'threads', 'color' => '#000000'],
+    'bluesky'   => ['icon' => 'bluesky', 'color' => '#0285FF'],
+    'mastodon'  => ['icon' => 'mastodon', 'color' => '#6364FF'],
+    'kick'      => ['icon' => 'kick', 'color' => '#53FC18'],
+    'github'    => ['icon' => 'github', 'color' => '#181717'],
+    'spotify'   => ['icon' => 'spotify', 'color' => '#1DB954'],
+    'steam'     => ['icon' => 'steam', 'color' => '#000000'],
+    'patreon'   => ['icon' => 'patreon', 'color' => '#FF424D'],
+    'kofi'      => ['icon' => 'kofi', 'color' => '#FF5E5B'],
 ];
 ?>
 <!DOCTYPE html>
@@ -54,6 +68,7 @@ $platformInfo = [
     <meta charset="UTF-8">
     <title>Social Overlay Roller</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
+    <script src="https://cdn.jsdelivr.net/npm/@iconfu/svg-inject@1.2.3/dist/svg-inject.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const items = document.querySelectorAll('.social-roller-item');

@@ -15,7 +15,11 @@ include 'includes/userdata.php';
 include 'includes/user_db.php';
 session_write_close();
 
-$platforms = ['twitch', 'twitter', 'youtube', 'instagram', 'tiktok', 'discord'];
+$platforms = [
+    'twitch', 'twitter', 'youtube', 'instagram', 'tiktok', 'discord',
+    'facebook', 'reddit', 'linkedin', 'snapchat', 'pinterest', 'threads',
+    'bluesky', 'mastodon', 'kick', 'github', 'spotify', 'steam', 'patreon', 'kofi'
+];
 
 // Handle saving
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_socials'])) {
@@ -60,19 +64,33 @@ if ($result) {
     }
 }
 
+// API key for the overlay link (falls back to the session value).
+$socialApiKey = isset($api_key) && $api_key ? $api_key : ($_SESSION['api_key'] ?? '');
+$overlayUrlBase = 'https://overlay.botofthespecter.com/social-roller.php?code=';
+$overlayUrl = $overlayUrlBase . urlencode($socialApiKey);
+// Masked version for default (visible) display so the API key is never shown on screen.
+$overlayKeyEncoded = urlencode($socialApiKey);
+$overlayUrlMasked = $overlayUrlBase . str_repeat('•', max(12, min(strlen($overlayKeyEncoded), 32)));
+
 // Start output buffering for layout content
 ob_start();
 ?>
 
 <div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
     <span style="font-size:1.75rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-info-circle"></i></span>
-    <div>
+    <div style="flex-grow:1; min-width:0;">
         <p style="font-weight:700; margin-bottom:0.4rem;">Social Overlay Roller</p>
         <p style="margin-bottom:0.4rem;">Add this link as a Browser Source in OBS to use your Social Roller:</p>
-        <div class="info-box" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0; font-family:monospace;">
-            <code id="overlayLink" style="word-break:break-all;">https://overlay.botofthespecter.com/social-roller.php?code=<?= htmlspecialchars($profileData['api_key'] ?? 'YOUR_API_KEY') ?></code>
-            <button class="sp-btn sp-btn-secondary sp-btn-sm" onclick="copyOverlayLink()"><i class="fas fa-copy"></i> Copy</button>
+        <div id="socialOverlayUrlBox" data-full-url="<?= htmlspecialchars($overlayUrl) ?>" data-masked-url="<?= htmlspecialchars($overlayUrlMasked) ?>" data-revealed="false" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.4rem;">
+            <code id="socialOverlayUrlText" class="info-box" style="font-family:monospace; margin-bottom:0; flex:1 1 auto; overflow:auto; white-space:nowrap;"><?= htmlspecialchars($overlayUrlMasked) ?></code>
+            <button type="button" id="socialCopyUrlBtn" class="sp-btn sp-btn-secondary" title="Copy URL" style="flex:0 0 auto; width:2.5rem; height:2.5rem; padding:0;">
+                <i class="fas fa-copy" id="socialCopyUrlIcon"></i>
+            </button>
+            <button type="button" id="socialRevealUrlBtn" class="sp-btn sp-btn-secondary" title="Show URL" data-show-label="Show URL" data-hide-label="Hide URL" style="flex:0 0 auto; width:2.5rem; height:2.5rem; padding:0;">
+                <i class="fas fa-eye" id="socialRevealUrlIcon"></i>
+            </button>
         </div>
+        <p style="font-size:0.85rem; color:var(--text-muted, #888); margin:0;"><i class="fas fa-shield-alt" style="margin-right:0.4rem;"></i>Keep your API key secret! Never show this URL on stream.</p>
     </div>
 </div>
 
@@ -91,6 +109,9 @@ ob_start();
                         $platformLabel = ucfirst($platform);
                         if ($platform === 'youtube') $platformLabel = 'YouTube';
                         if ($platform === 'tiktok') $platformLabel = 'TikTok';
+                        if ($platform === 'linkedin') $platformLabel = 'LinkedIn';
+                        if ($platform === 'github') $platformLabel = 'GitHub';
+                        if ($platform === 'kofi') $platformLabel = 'Ko-fi';
                         $data = $currentSocials[$platform] ?? ['handle' => '', 'is_active' => 0];
                     ?>
                     <div class="info-box" style="margin-bottom:0; display:flex; flex-direction:column; gap:0.75rem;">
@@ -158,14 +179,77 @@ document.getElementById('socialsForm').addEventListener('submit', function(e) {
     });
 });
 
-function copyOverlayLink() {
-    const link = document.getElementById('overlayLink').textContent;
-    navigator.clipboard.writeText(link).then(() => {
-        alert('Overlay link copied to clipboard!');
-    }).catch(err => {
-        alert('Failed to copy link. Please select and copy manually.');
-    });
-}
+document.addEventListener('DOMContentLoaded', function () {
+    // Overlay URL: masked display with copy + reveal (keeps the API key off-screen by default)
+    var overlayUrlBox = document.getElementById('socialOverlayUrlBox');
+    if (overlayUrlBox) {
+        var overlayUrlText = document.getElementById('socialOverlayUrlText');
+        var copyUrlBtn = document.getElementById('socialCopyUrlBtn');
+        var copyUrlIcon = document.getElementById('socialCopyUrlIcon');
+        var revealUrlBtn = document.getElementById('socialRevealUrlBtn');
+        var revealUrlIcon = document.getElementById('socialRevealUrlIcon');
+        var fullUrl = overlayUrlBox.dataset.fullUrl || '';
+        var maskedUrl = overlayUrlBox.dataset.maskedUrl || '';
+
+        if (revealUrlBtn) {
+            revealUrlBtn.addEventListener('click', function () {
+                var revealed = overlayUrlBox.dataset.revealed === 'true';
+                if (revealed) {
+                    overlayUrlText.textContent = maskedUrl;
+                    overlayUrlBox.dataset.revealed = 'false';
+                    revealUrlIcon.classList.remove('fa-eye-slash');
+                    revealUrlIcon.classList.add('fa-eye');
+                    revealUrlBtn.title = revealUrlBtn.dataset.showLabel || '';
+                } else {
+                    overlayUrlText.textContent = fullUrl;
+                    overlayUrlBox.dataset.revealed = 'true';
+                    revealUrlIcon.classList.remove('fa-eye');
+                    revealUrlIcon.classList.add('fa-eye-slash');
+                    revealUrlBtn.title = revealUrlBtn.dataset.hideLabel || '';
+                }
+            });
+        }
+
+        if (copyUrlBtn) {
+            copyUrlBtn.addEventListener('click', function () {
+                function showCopied() {
+                    copyUrlIcon.classList.remove('fa-copy');
+                    copyUrlIcon.classList.add('fa-check');
+                    copyUrlBtn.classList.add('sp-btn-success');
+                    var prevTitle = copyUrlBtn.title;
+                    copyUrlBtn.title = 'URL copied!';
+                    setTimeout(function () {
+                        copyUrlIcon.classList.remove('fa-check');
+                        copyUrlIcon.classList.add('fa-copy');
+                        copyUrlBtn.classList.remove('sp-btn-success');
+                        copyUrlBtn.title = prevTitle;
+                    }, 2000);
+                }
+                function fallbackCopy() {
+                    var ta = document.createElement('textarea');
+                    ta.value = fullUrl;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-999999px';
+                    ta.style.top = '-999999px';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try { document.execCommand('copy'); showCopied(); }
+                    catch (err) { console.error('Fallback copy failed: ', err); }
+                    document.body.removeChild(ta);
+                }
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(fullUrl).then(showCopied).catch(function (err) {
+                        console.error('Failed to copy: ', err);
+                        fallbackCopy();
+                    });
+                } else {
+                    fallbackCopy();
+                }
+            });
+        }
+    }
+});
 </script>
 
 <?php
