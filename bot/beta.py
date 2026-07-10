@@ -14,6 +14,7 @@ from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 from pathlib import Path
+from collections import defaultdict
 
 # Third-party imports
 import pytz as set_timezone
@@ -298,6 +299,7 @@ pending_outgoing_raid = None                                                    
 outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
 _channel_modules: list = []                                                             # Active custom channel module instances, populated on event_ready
+_store_purchase_locks = defaultdict(asyncio.Lock)                                       # Locks for store purchases to prevent race conditions per user
 
 def safe_create_task(coro):
     task = create_task(coro)
@@ -16866,120 +16868,125 @@ async def point_store_checkout(connection, cursor, *, settings, item, user_id, u
         except Exception:
             payload = {}
 
-    # Cooldowns / caps (read-only; before transaction)
-    await cursor.execute("SHOW TABLES LIKE 'point_store_purchases'")
-    has_purchases = bool(await cursor.fetchone())
-    if has_purchases:
-        global_cd = max(0, int(settings.get("global_cooldown_seconds") or 0))
-        if global_cd > 0:
-            await cursor.execute(
-                "SELECT created_at FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
-                (user_id, user_name),
-            )
-            last = await cursor.fetchone()
-            if last and last.get("created_at"):
-                created = last["created_at"]
-                if hasattr(created, "timestamp"):
-                    ts = int(created.timestamp())
-                else:
-                    ts = now
-                elapsed = now - ts
-                if elapsed < global_cd:
-                    raise RuntimeError(f"Store cooldown: try again in {max(1, global_cd - elapsed)}s.")
-        item_cd = max(0, int(item.get("cooldown_seconds") or 0))
-        if item_cd > 0:
-            await cursor.execute(
-                "SELECT created_at FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
-                (item_id, user_id, user_name),
-            )
-            last = await cursor.fetchone()
-            if last and last.get("created_at"):
-                created = last["created_at"]
-                ts = int(created.timestamp()) if hasattr(created, "timestamp") else now
-                elapsed = now - ts
-                if elapsed < item_cd:
-                    raise RuntimeError(f"Item cooldown: try again in {max(1, item_cd - elapsed)}s.")
-        max_global = settings.get("max_purchases_per_user_per_stream")
-        if max_global is not None and str(max_global) != "":
-            max_g = int(max_global)
-            if max_g > 0:
+    # Serialize the check-through-commit critical section per user to close a
+    # TOCTOU window: two rapid !store messages from the same user each run on
+    # their own MySQL connection, so lock-free cooldown/cap checks could both
+    # pass before either purchase commits.
+    async with _store_purchase_locks[str(user_id)]:
+        # Cooldowns / caps (read-only; before transaction)
+        await cursor.execute("SHOW TABLES LIKE 'point_store_purchases'")
+        has_purchases = bool(await cursor.fetchone())
+        if has_purchases:
+            global_cd = max(0, int(settings.get("global_cooldown_seconds") or 0))
+            if global_cd > 0:
                 await cursor.execute(
-                    "SELECT COUNT(*) AS c FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                    "SELECT created_at FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
                     (user_id, user_name),
                 )
-                row = await cursor.fetchone()
-                if row and int(row.get("c") or 0) >= max_g:
-                    raise RuntimeError("You have reached the max store purchases for this stream.")
-        if item.get("max_per_stream") is not None and str(item.get("max_per_stream")) != "":
-            max_i = int(item["max_per_stream"])
-            if max_i > 0:
+                last = await cursor.fetchone()
+                if last and last.get("created_at"):
+                    created = last["created_at"]
+                    if hasattr(created, "timestamp"):
+                        ts = int(created.timestamp())
+                    else:
+                        ts = now
+                    elapsed = now - ts
+                    if elapsed < global_cd:
+                        raise RuntimeError(f"Store cooldown: try again in {max(1, global_cd - elapsed)}s.")
+            item_cd = max(0, int(item.get("cooldown_seconds") or 0))
+            if item_cd > 0:
                 await cursor.execute(
-                    "SELECT COUNT(*) AS c FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                    "SELECT created_at FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
                     (item_id, user_id, user_name),
                 )
-                row = await cursor.fetchone()
-                if row and int(row.get("c") or 0) >= max_i:
-                    raise RuntimeError("You have reached the max purchases of this item for this stream.")
+                last = await cursor.fetchone()
+                if last and last.get("created_at"):
+                    created = last["created_at"]
+                    ts = int(created.timestamp()) if hasattr(created, "timestamp") else now
+                    elapsed = now - ts
+                    if elapsed < item_cd:
+                        raise RuntimeError(f"Item cooldown: try again in {max(1, item_cd - elapsed)}s.")
+            max_global = settings.get("max_purchases_per_user_per_stream")
+            if max_global is not None and str(max_global) != "":
+                max_g = int(max_global)
+                if max_g > 0:
+                    await cursor.execute(
+                        "SELECT COUNT(*) AS c FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                        (user_id, user_name),
+                    )
+                    row = await cursor.fetchone()
+                    if row and int(row.get("c") or 0) >= max_g:
+                        raise RuntimeError("You have reached the max store purchases for this stream.")
+            if item.get("max_per_stream") is not None and str(item.get("max_per_stream")) != "":
+                max_i = int(item["max_per_stream"])
+                if max_i > 0:
+                    await cursor.execute(
+                        "SELECT COUNT(*) AS c FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                        (item_id, user_id, user_name),
+                    )
+                    row = await cursor.fetchone()
+                    if row and int(row.get("c") or 0) >= max_i:
+                        raise RuntimeError("You have reached the max purchases of this item for this stream.")
 
-    await cursor.execute("START TRANSACTION")
-    try:
-        # Stock
-        if item.get("stock") is not None and str(item.get("stock")) != "":
-            await cursor.execute(
-                "UPDATE point_store_items SET stock = stock - 1 WHERE id = %s AND stock IS NOT NULL AND stock > 0",
-                (item_id,),
-            )
-            if cursor.rowcount != 1:
-                raise RuntimeError("This item is out of stock.")
-
-        # Atomic debit (must have enough points)
-        await cursor.execute(
-            "UPDATE bot_points SET points = points - %s, user_name = %s WHERE user_id = %s AND points >= %s",
-            (cost, user_name, user_id, cost),
-        )
-        if cursor.rowcount != 1:
-            await cursor.execute(
-                "UPDATE bot_points SET points = points - %s WHERE user_name = %s AND points >= %s",
-                (cost, user_name, cost),
-            )
-            if cursor.rowcount != 1:
-                raise RuntimeError(f"Not enough {point_name}.")
-            await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s LIMIT 1", (user_name,))
-        else:
-            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
-        bal_row = await cursor.fetchone()
-        balance_after = int(bal_row["points"]) if bal_row else 0
-
-        if has_purchases:
-            await cursor.execute(
-                "INSERT INTO point_store_purchases "
-                "(item_id, item_title, item_type, cost, user_id, user_name, balance_after, source, status) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (
-                    item_id,
-                    item.get("title") or "",
-                    item.get("item_type") or "",
-                    cost,
-                    user_id,
-                    user_name,
-                    balance_after,
-                    source,
-                    "completed",
-                ),
-            )
-        await connection.commit()
-        return {
-            "cost": cost,
-            "balance_after": balance_after,
-            "payload": payload,
-            "point_name": point_name,
-        }
-    except Exception:
+        await cursor.execute("START TRANSACTION")
         try:
-            await connection.rollback()
+            # Stock
+            if item.get("stock") is not None and str(item.get("stock")) != "":
+                await cursor.execute(
+                    "UPDATE point_store_items SET stock = stock - 1 WHERE id = %s AND stock IS NOT NULL AND stock > 0",
+                    (item_id,),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("This item is out of stock.")
+
+            # Atomic debit (must have enough points)
+            await cursor.execute(
+                "UPDATE bot_points SET points = points - %s, user_name = %s WHERE user_id = %s AND points >= %s",
+                (cost, user_name, user_id, cost),
+            )
+            if cursor.rowcount != 1:
+                await cursor.execute(
+                    "UPDATE bot_points SET points = points - %s WHERE user_name = %s AND points >= %s",
+                    (cost, user_name, cost),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError(f"Not enough {point_name}.")
+                await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s LIMIT 1", (user_name,))
+            else:
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
+            bal_row = await cursor.fetchone()
+            balance_after = int(bal_row["points"]) if bal_row else 0
+
+            if has_purchases:
+                await cursor.execute(
+                    "INSERT INTO point_store_purchases "
+                    "(item_id, item_title, item_type, cost, user_id, user_name, balance_after, source, status) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        item_id,
+                        item.get("title") or "",
+                        item.get("item_type") or "",
+                        cost,
+                        user_id,
+                        user_name,
+                        balance_after,
+                        source,
+                        "completed",
+                    ),
+                )
+            await connection.commit()
+            return {
+                "cost": cost,
+                "balance_after": balance_after,
+                "payload": payload,
+                "point_name": point_name,
+            }
         except Exception:
-            pass
-        raise
+            try:
+                await connection.rollback()
+            except Exception:
+                pass
+            raise
 
 async def point_store_fulfill_media(item, payload):
     """Fire SOUND_ALERT / VIDEO_ALERT / TTS for a purchased item."""
