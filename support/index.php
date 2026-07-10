@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Spotify, TTS, Variables, Channel Points, Custom API, Commands, FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, Variables, Module Variables, Channel Points, Custom API, Commands, FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -80,6 +80,11 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-solid fa-code"></i></div>
         <div class="sp-doc-card-title">Custom Variables</div>
         <div class="sp-doc-card-desc">Dynamic tokens for commands, timers, and rewards.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="module-variables">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-puzzle-piece"></i></div>
+        <div class="sp-doc-card-title">Module Variables</div>
+        <div class="sp-doc-card-desc">Event tokens for welcomes, ads, and chat alerts.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="twitch-channel-points">
         <div class="sp-doc-card-icon"><i class="fa-brands fa-twitch"></i></div>
@@ -1328,6 +1333,229 @@ $ttsVoices = [
     </div>
 </div>
 <!-- ===================================================================
+     TAB: MODULE VARIABLES
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="module-variables">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Module Variables</h1>
+            <p style="margin:0;color:var(--text-secondary);">Event-specific tokens for welcome messages, ad notices, and Twitch chat alerts.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="module-variables" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>Overview &amp; General Variables</h2>
+    <p>These variables are event-specific and are available for use in <strong>Welcome Messages</strong>, <strong>Ad Notices</strong>, and <strong>Twitch Chat Alerts</strong>. They are separate from the custom command/timed message variables.</p>
+    <p>In addition to the event-specific variables listed here, <strong>all shared variables from the <a href="#" data-goto="variables">Custom Variables Reference</a> page</strong> also work in these alerts — including <code>(count)</code>, <code>(random.*)</code>, <code>(math.*)</code>, <code>(game)</code>, <code>(customapi.*)</code>, <code>(json.*)</code>, <code>(if.*)</code>, <code>(daysuntil.*)</code>, <code>(timeuntil.*)</code>, <code>(command.*)</code>, and <code>(call.*)</code>. This is because all alert messages go through the same variable processing system as custom commands.</p>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Note:</strong> You're not limited to only the variables listed on this page! Any variable that works in a custom command will also work in your alert messages. See the <a href="#" data-goto="variables">Custom Variables Reference</a> for the full list of shared variables.
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
+        <i class="fa-solid fa-lightbulb"></i>
+        <div>
+            <strong>Pro Tip:</strong> You can combine multiple variables in a single message for more dynamic alerts!<br>
+            <strong>Example:</strong> <code>Thank you (user) for (bits) bits! You've given a total of (total-bits) bits to the channel!</code><br>
+            <strong>In chat:</strong> <code>Thank you BotOfTheSpecter for 100 bits! You've given a total of 5,000 bits to the channel!</code>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">General Variables <span style="font-weight:400;font-size:0.875rem;color:var(--text-secondary);">(available across multiple modules)</span></h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-top:0.75rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
+            <div class="sp-card-body">
+                <p>The username of the person who triggered the event (follower, subscriber, raider, etc.).</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Thank you (user) for following!</code></p>
+                <p><strong>In chat:</strong> <code>Thank you BotOfTheSpecter for following!</code></p>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(shoutout)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <p>Triggers a shoutout for the user. The shoutout info is sent as a separate message after your alert.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Welcome (user)! (shoutout)</code></p>
+                <p><strong>In chat:</strong><br>
+                    <code>Welcome BotOfTheSpecter!</code><br>
+                    <code>Check out their channel at twitch.tv/BotOfTheSpecter - They were last playing Software and Game Development!</code>
+                </p>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(pronouns)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <p>The pronouns of the user who triggered the event, fetched from <a href="https://pronouns.alejo.io" target="_blank" rel="noopener">pronouns.alejo.io</a>. Falls back to <code>they/them</code> if the user has not set their pronouns.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Their pronouns are (pronouns).</code></p>
+                <p><strong>In chat:</strong> <code>Their pronouns are she/her.</code></p>
+                <p style="margin-top:0.5rem;">You can also use <code style="color:#c813e0;">(pronouns.they)</code> for just the subject (e.g. <code>she</code>, <code>he</code>, <code>they</code>) and <code style="color:#c813e0;">(pronouns.them)</code> for just the object (e.g. <code>her</code>, <code>him</code>, <code>them</code>).</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>We hope (pronouns.they) enjoys the channel! Give (pronouns.them) a warm welcome!</code></p>
+                <p><strong>In chat:</strong> <code>We hope she enjoys the channel! Give her a warm welcome!</code></p>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(arg)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <p>The argument typed by the user after the command name. Empty string if no argument was provided.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>You said: (arg)</code></p>
+                <p><strong>In chat:</strong> <code>You said: hello</code></p>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(if.CONDITION|TRUE|FALSE)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <p>Evaluates a condition and returns one of two values. All other variables are resolved first. Supported operators: <code>=</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code> <code>contains</code> <code>startswith</code> <code>endswith</code></p>
+                <p style="margin-top:0.5rem;"><strong>Examples:</strong></p>
+                <p><code>(customapi.json.https://your-api.com/data)(if.(json.username) = (user)|You're authorised|You're not authorised)</code></p>
+                <p><code>(if.(arg) = start|The timer has started!|Say start to begin)</code></p>
+                <p><code>(if.(user) = gfaundead|Welcome boss!|Hello (user)!)</code></p>
+            </div>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-hand-wave"></i> Welcome Messages</div>
+            <div class="sp-card-body">
+                <p style="color:var(--text-secondary);font-size:0.875rem;">No unique variables — all <strong>General Variables</strong> above (including <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, <code style="color:#c813e0;">(pronouns.them)</code>) are available in welcome messages.</p>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-rectangle-ad"></i> Ad Notices</div>
+            <div class="sp-card-body">
+                <div style="margin-bottom:0.75rem;">
+                    <div class="sp-card-header" style="padding-left:0;"><code style="color:#3273dc;">(minutes)</code></div>
+                    <p style="margin-top:0.35rem;">Shows how many minutes until an upcoming ad break starts. Used in the upcoming ad notification message.</p>
+                    <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Heads up! An ad break is coming up in (minutes) minutes!</code></p>
+                    <p><strong>In chat:</strong> <code>Heads up! An ad break is coming up in 5 minutes!</code></p>
+                </div>
+                <div>
+                    <div class="sp-card-header" style="padding-left:0;"><code style="color:#3273dc;">(duration)</code></div>
+                    <p style="margin-top:0.35rem;">Shows the length of the ad break, formatted as a human-readable string.</p>
+                    <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Ad break will last (duration).</code></p>
+                    <p><strong>In chat:</strong> <code>Ad break will last 1 minute 30 seconds.</code></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h3>Follower Alert</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
+            <div class="sp-card-body">The username of the new follower.<br><strong>Example:</strong> <code>Thank you (user) for following!</code></div>
+        </div>
+        <div class="sp-card" style="border-color:#c813e0;">
+            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Bits &amp; Cheers</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
+            <div class="sp-card-body">The username of the person who cheered bits.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(bits)</code></div>
+            <div class="sp-card-body">The number of bits cheered in this event.<br><strong>Example:</strong> <code>Thank you for (bits) bits!</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(total-bits)</code></div>
+            <div class="sp-card-body">The total bits this user has given to the channel.<br><strong>Example:</strong> <code>You've given (total-bits) bits total!</code></div>
+        </div>
+        <div class="sp-card" style="border-color:#c813e0;">
+            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Raid</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
+            <div class="sp-card-body">The username of the raider.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(viewers)</code></div>
+            <div class="sp-card-body">The number of viewers who joined with the raid.<br><strong>Example:</strong> <code>(user) raided with (viewers) viewers!</code></div>
+        </div>
+        <div class="sp-card" style="border-color:#c813e0;">
+            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Hype Train</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(level)</code></div>
+            <div class="sp-card-body">The current or final level of the hype train.<br><strong>Example:</strong> <code>Hype train is at level (level)!</code></div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Standard Subscriptions</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
+            <div class="sp-card-body">The username of the subscriber.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(tier)</code></div>
+            <div class="sp-card-body">The subscription tier (Tier 1, Tier 2, Tier 3, or Prime).<br><strong>Example:</strong> <code>You are now a (tier) subscriber!</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(months)</code></div>
+            <div class="sp-card-body">The cumulative number of months the user has been subscribed.<br><strong>Example:</strong> <code>Subscribed for (months) months!</code></div>
+        </div>
+        <div class="sp-card" style="border-color:#c813e0;">
+            <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Gift Subscriptions</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
+            <div class="sp-card-body">The username of the gifter.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(count)</code></div>
+            <div class="sp-card-body">The number of gift subscriptions given in this event.<br><strong>Example:</strong> <code>Gifted (count) subscriptions!</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(total-gifted)</code></div>
+            <div class="sp-card-body">The total gift subscriptions this user has given to the channel.<br><strong>Example:</strong> <code>You've gifted (total-gifted) subs total!</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(gifter)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">The username of the original gifter (for pay-it-forward events).<br><strong>Example:</strong> <code>Thank you (user) for paying it forward! They received a gift from (gifter).</code></div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Subscription Upgrade <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(user)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">The username of the person who upgraded their subscription.<br><strong>Example:</strong> <code>Thank you (user) for upgrading to a paid subscription!</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(tier)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">The tier they upgraded to (Tier 1, Tier 2, or Tier 3).<br><strong>Example:</strong> <code>Thank you for upgrading to a (tier) subscription!</code></div>
+        </div>
+    </div>
+</div>
+<!-- ===================================================================
      TAB: TWITCH CHANNEL POINTS
 =================================================================== -->
 <div class="sp-tab-panel sp-doc-content" data-panel="twitch-channel-points">
@@ -1922,6 +2150,10 @@ System.out.println(resp.body());</code></pre>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I use custom variables in commands?</div>
         <div class="sp-faq-a">Custom commands, timed messages, and channel point rewards support dynamic variables like <code>(user)</code>, <code>(count)</code>, and <code>(customapi.URL)</code>. See the full list in the <a href="#" data-goto="variables">Custom Variables</a> guide.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">What variables work in welcome messages and event alerts?</div>
+        <div class="sp-faq-a">Event alerts use module-specific tokens (bits, raids, subs, ad notices, etc.) plus the shared custom-variable system. See <a href="#" data-goto="module-variables">Module Variables</a>.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do Twitch Channel Points work with the bot?</div>
