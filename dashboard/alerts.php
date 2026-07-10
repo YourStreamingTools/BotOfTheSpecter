@@ -33,6 +33,10 @@ if ($db->connect_error) {
 // meaningfully split it, so 1 is the only sane number.
 $variantLimits = [
     'follow'       => 1,
+    'discord_join' => 1,
+    'kofi'         => 1,
+    'patreon'      => 1,
+    'fourthwall'   => 1,
     'stream_bingo' => 4,   // one per bingo sub-event (Started / Event / Winner / Ended)
     // Enable/disable-only categories: they render through their own overlay theme
     // (ported into overlay/index.php), so a single on/off variant is all that fits.
@@ -69,16 +73,9 @@ $defaultAlerts = [
     ['channel_points', 'Channel point reward', 0, null, "{username}\nredeemed a reward!"],
     // BotOfTheSpecter integrations — what makes this page ours
     ['discord_join', 'New Discord member', 0, null, "{username}\nhopped into the Discord!"],
-    ['kofi', 'Donation',     0, "kofi_type = 'Donation'",     "{username}\ndonated {amount}!"],
-    ['kofi', 'Subscription', 1, "kofi_type = 'Subscription'", "{username}\nsubscribed via Ko-fi!"],
-    ['kofi', 'Shop Order',   2, "kofi_type = 'Shop Order'",   "{username}\nordered from the shop!"],
-    ['patreon', 'New patron',      0, "patreon_type = 'pledge'",    "{username}\nbecame a patron!"],
-    ['patreon', 'Pledge updated',   1, "patreon_type = 'update'",    "{username}\nupdated their pledge"],
-    ['patreon', 'Patron left',      2, "patreon_type = 'cancelled'", "{username}\nended their support."],
-    ['fourthwall', 'Order placed',  0, "fourthwall_type = 'ORDER_PLACED'",          "{username}\nbought {item} from the shop!"],
-    ['fourthwall', 'Donation',      1, "fourthwall_type = 'DONATION'",              "{username}\ndonated {amount}!"],
-    ['fourthwall', 'Giveaway',      2, "fourthwall_type = 'GIVEAWAY_PURCHASED'",    "{username}\npurchased a giveaway!"],
-    ['fourthwall', 'Subscription',  3, "fourthwall_type = 'SUBSCRIPTION_PURCHASED'","{username}\nsubscribed via Fourthwall!"],
+    ['kofi', 'Ko-fi Support', 0, null, "{username}\nsupported on Ko-fi!"],
+    ['patreon', 'Patreon Support', 0, null, "{username}\nbecame a patron!"],
+    ['fourthwall', 'Fourthwall Support', 0, null, "{username}\nsupported on Fourthwall!"],
     ['subathon', 'Subathon time added', 0, null, "{added_minutes} minutes added to the subathon!"],
     ['stream_bingo', 'Game Started', 0, "bingo_event = 'STREAM_BINGO_STARTED'",      "Stream Bingo is starting!"],
     ['stream_bingo', 'Game Event',   1, "bingo_event = 'STREAM_BINGO_EVENT_CALLED'", "Event called:\n{bingo_event_name}"],
@@ -1410,6 +1407,11 @@ $(document).ready(function() {
             $('#variant-reward-group').hide();
             $('#variant-bingo-group').show();
             $('#set-bingo-event').val(extractBingoEvent(condition) || '');
+        } else if (['follow', 'discord_join', 'kofi', 'patreon', 'fourthwall'].indexOf(category) !== -1) {
+            $('#variant-name-group').show();
+            $('#variant-condition-group').hide();
+            $('#variant-reward-group').hide();
+            $('#variant-bingo-group').hide();
         } else {
             $('#variant-name-group').show();
             $('#variant-condition-group').show();
@@ -1752,6 +1754,10 @@ $(document).ready(function() {
     $('#alerts-save-btn').on('click', function() {
         if (!currentAlertId || !isDirty) return;
         var data = collectFormData();
+        var $btn = $(this);
+        var originalHtml = $btn.html();
+        $btn.html('<i class="fas fa-spinner fa-spin"></i> ' + (typeof i18n !== 'undefined' && i18n.saving ? i18n.saving : 'Saving...'));
+        $btn.prop('disabled', true);
         $.ajax({
             url: '', type: 'POST', data: data,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }, dataType: 'json',
@@ -1766,7 +1772,15 @@ $(document).ready(function() {
                     Swal.fire({ icon: 'error', title: i18n.errorTitle, text: resp.message });
                 }
             },
-            error: function() { Swal.fire({ icon: 'error', title: i18n.errorTitle, text: i18n.saveFailed }); }
+            error: function() { Swal.fire({ icon: 'error', title: i18n.errorTitle, text: i18n.saveFailed }); },
+            complete: function() {
+                $btn.html(originalHtml);
+                if (!isDirty) {
+                    $btn.prop('disabled', true);
+                } else {
+                    $btn.prop('disabled', false);
+                }
+            }
         });
     });
     $('#alerts-discard-btn').on('click', function() {
