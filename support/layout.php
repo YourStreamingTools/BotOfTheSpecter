@@ -95,6 +95,7 @@ $v = uuidv4();
                 <a href="/index.php#features" class="sp-nav-link"><i class="fa-solid fa-star"></i> Main Features</a>
                 <a href="/index.php#spotify" class="sp-nav-link"><i class="fa-brands fa-spotify"></i> Spotify Setup</a>
                 <a href="/index.php#tts" class="sp-nav-link"><i class="fa-solid fa-microphone"></i> Text-to-Speech</a>
+                <a href="/index.php#obs-audio" class="sp-nav-link"><i class="fa-solid fa-headphones"></i> OBS Audio Monitoring</a>
                 <a href="/index.php#variables" class="sp-nav-link"><i class="fa-solid fa-code"></i> Custom Variables</a>
                 <a href="/index.php#module-variables" class="sp-nav-link"><i class="fa-solid fa-puzzle-piece"></i> Module Variables</a>
                 <a href="/index.php#twitch-channel-points" class="sp-nav-link"><i class="fa-brands fa-twitch"></i> Channel Points</a>

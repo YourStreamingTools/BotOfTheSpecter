@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Spotify, TTS, Variables, Module Variables, Channel Points, Custom API, Commands, FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, OBS Audio, Variables, Module Variables, Channel Points, Custom API, Commands, FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -75,6 +75,11 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-solid fa-microphone"></i></div>
         <div class="sp-doc-card-title">Text-to-Speech</div>
         <div class="sp-doc-card-desc">Voices, Channel Points TTS, and setup tips.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="obs-audio">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-headphones"></i></div>
+        <div class="sp-doc-card-title">OBS Audio Monitoring</div>
+        <div class="sp-doc-card-desc">Hear overlay alerts, TTS, and walk-ons in OBS.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="variables">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-code"></i></div>
@@ -920,7 +925,7 @@ $ttsVoices = [
     <ol>
         <li>Navigate to the <strong>TTS Settings</strong> section in the BotOfTheSpecter dashboard.</li>
         <li>Choose your preferred voice from the available options (see the Available Voices section below).</li>
-        <li>Set up your audio overlay to hear TTS output — see the <a href="#" data-goto="troubleshooting">Troubleshooting</a> guide for OBS audio tips.</li>
+        <li>Set up your audio overlay to hear TTS output — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li>Test your setup with a sample message.</li>
     </ol>
 
@@ -963,7 +968,7 @@ $ttsVoices = [
 
     <h2>Troubleshooting TTS</h2>
     <ul>
-        <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="troubleshooting">Troubleshooting</a> tab for overlay and monitoring tips.</li>
+        <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li><strong>Wrong voice playing:</strong> Check that you've saved the correct voice in TTS settings on the dashboard.</li>
         <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the audio overlay source in OBS.</li>
         <li><strong>TTS not responding:</strong> Ensure the TTS module is enabled on the dashboard and the bot has proper channel permissions.</li>
@@ -1010,6 +1015,140 @@ $ttsVoices = [
     });
 })();
 </script>
+<!-- ===================================================================
+     TAB: OBS AUDIO MONITORING
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="obs-audio">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">OBS Audio Monitoring Setup</h1>
+            <p style="margin:0;color:var(--text-secondary);">Hear overlay alerts, TTS, and walk-ons through OBS during your stream.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="obs-audio" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>Why Audio Monitoring?</h2>
+    <p>Audio monitoring lets you hear audio from your overlays — sound alerts, TTS, and walk-ons — directly through OBS, ensuring they play correctly during your stream.</p>
+    <div class="sp-alert sp-alert-info" style="margin:1rem 0;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Before you begin:</strong> Have your overlay URL ready from your Specter Profile page. The format is:<br>
+            <code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code>
+        </div>
+    </div>
+
+    <h2>Part 1: Configure OBS Audio Settings</h2>
+    <div class="sp-step">
+        <div class="sp-step-num">1</div>
+        <div class="sp-step-body">
+            <h4>Open OBS Studio</h4>
+            <p>Launch OBS on your computer.</p>
+        </div>
+    </div>
+    <div class="sp-step">
+        <div class="sp-step-num">2</div>
+        <div class="sp-step-body">
+            <h4>Go to Settings</h4>
+            <p>Click the <strong>Settings</strong> button in the bottom-right corner of the OBS window.</p>
+            <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring/Settings_Button.png" alt="OBS Settings Button" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+        </div>
+    </div>
+    <div class="sp-step">
+        <div class="sp-step-num">3</div>
+        <div class="sp-step-body">
+            <h4>Select the Audio Tab</h4>
+            <p>In the Settings window, click the <strong>Audio</strong> tab.</p>
+            <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring/Access_Audio_Settings.png" alt="Access Audio Settings in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+        </div>
+    </div>
+    <div class="sp-step">
+        <div class="sp-step-num">4</div>
+        <div class="sp-step-body">
+            <h4>Configure Monitoring Device</h4>
+            <p>Under <strong>Monitoring Device</strong>, select your desired audio output (e.g., headphones or speakers). Choose <em>Default</em> or your primary device.</p>
+            <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring/Configure_Monitoring_Device.png" alt="Configure Monitoring Device in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Part 2: Add the Overlay Browser Source</h2>
+    <div class="sp-step">
+        <div class="sp-step-num">5</div>
+        <div class="sp-step-body">
+            <h4>Add a Browser Source</h4>
+            <ol style="margin-top:0.75rem;padding-left:1.25rem;">
+                <li>In the <strong>Sources</strong> panel, click <strong>+</strong> and select <strong>Browser</strong>.<br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source.png" alt="Add New Source in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;"><br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source_Browser.png" alt="Select Browser Source in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+                </li>
+                <li style="margin-top:0.75rem;">Select <strong>Create new</strong> and give it a name (e.g., <em>Specter Overlay</em>). Ensure <strong>Make source visible</strong> is checked and click <strong>OK</strong>.<br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source_Browser_Name_Setting.png" alt="Create New Browser Source in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+                </li>
+                <li style="margin-top:0.75rem;">In the Properties window, paste your overlay URL into the <strong>URL</strong> field:<br>
+                    <code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code><br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Add_New_Source_Broswer_Properties_Window.png" alt="Browser Source Properties Window in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+                </li>
+                <li style="margin-top:0.75rem;">Check <strong>Control audio via OBS</strong>, clear any text in <strong>Custom CSS</strong>, then click <strong>OK</strong>.</li>
+            </ol>
+        </div>
+    </div>
+    <div class="sp-step">
+        <div class="sp-step-num">6</div>
+        <div class="sp-step-body">
+            <h4>Configure Audio Monitoring for the Browser Source</h4>
+            <ol style="margin-top:0.75rem;padding-left:1.25rem;">
+                <li>The browser source will appear in the <strong>Audio Mixer</strong> at the bottom of OBS.<br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Broswer_Source_Audio_Mixer.png" alt="Browser Source in OBS Audio Mixer" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+                </li>
+                <li style="margin-top:0.75rem;">Click the <strong>⋯</strong> (three dots) next to the speaker icon for the browser source.<br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Broswer_Source_Audio_Mixer_Advanced_Audio_Properties.png" alt="Advanced Audio Properties Menu in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+                </li>
+                <li style="margin-top:0.75rem;">Click <strong>Advanced Audio Properties</strong>.</li>
+                <li style="margin-top:0.75rem;">Set the <strong>Audio Monitoring</strong> dropdown to <strong>Monitor and Output</strong>.<br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Advanced_Audio_Properties_Window.png" alt="Advanced Audio Properties Window in OBS" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;"><br>
+                    <img src="https://cdn.botofthespecter.com/help/OBS_Audio_Monitoring_and_Output/Advanced_Audio_Properties_Window_Saved.png" alt="Monitor and Output Selected" style="max-width:100%;height:auto;margin-top:0.5rem;border-radius:4px;">
+                </li>
+                <li style="margin-top:0.75rem;">Click <strong>Close</strong>. Your overlay audio is now configured.</li>
+            </ol>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting</h2>
+    <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Hearing an echo on sound alerts?</strong> Set Audio Monitoring to <strong>Monitor Only (mute output)</strong> instead of "Monitor and Output". Everyone's audio/sound setup is different — try this first before anything else.
+        </div>
+    </div>
+    <div style="display:grid;gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header">No audio heard at all</div>
+            <div class="sp-card-body">Check that your monitoring device is correctly selected in OBS <strong>Settings → Audio → Monitoring Device</strong>.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header">Echo on stream or sound alerts</div>
+            <div class="sp-card-body">In Advanced Audio Properties for the browser source, change <strong>Audio Monitoring</strong> to <strong>Monitor Only (mute output)</strong>.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header">Overlay URL not working</div>
+            <div class="sp-card-body">Make sure the URL contains the correct API key from your Specter Profile page:<br><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header">Browser source not monitoring audio</div>
+            <div class="sp-card-body">Confirm that <strong>Control audio via OBS</strong> is checked in the browser source Properties, and that Advanced Audio Properties is set to Monitor and Output.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header">Source appears muted</div>
+            <div class="sp-card-body">Check the OBS Audio Mixer for the browser source and confirm the speaker icon is not muted.</div>
+        </div>
+    </div>
+</div>
 <!-- ===================================================================
      TAB: CUSTOM VARIABLES
 =================================================================== -->
@@ -2141,7 +2280,7 @@ System.out.println(resp.body());</code></pre>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I set up audio monitoring in OBS?</div>
-        <div class="sp-faq-a">Go to <strong>OBS → Settings → Audio → Monitoring Device</strong> and select your headset or speakers. Add your overlay as a Browser Source, enable <em>Control audio via OBS</em>, then set Audio Monitoring to <strong>Monitor and Output</strong> in Advanced Audio Properties.</div>
+        <div class="sp-faq-a">Follow the step-by-step <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide: set your monitoring device, add the Specter overlay browser source with <em>Control audio via OBS</em>, then set Audio Monitoring to <strong>Monitor and Output</strong>.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">I'm having trouble with the bot. What should I do?</div>
@@ -2207,7 +2346,7 @@ System.out.println(resp.body());</code></pre>
     <p><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
     <ul>
         <li>Check audio device settings in OBS.</li>
-        <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="faq">audio monitoring is configured correctly</a>.</li>
+        <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="obs-audio">audio monitoring is configured correctly</a>.</li>
         <li>If you hear an echo, set Audio Monitoring to <strong>Monitor Only (mute output)</strong> and test again — everyone's audio setup differs.</li>
         <li>Confirm you've entered the correct API key, found on your <strong>Specter Profile</strong> page in the dashboard.</li>
     </ul>
