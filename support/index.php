@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Commands (API), FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Commands (API), FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -60,6 +60,11 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-solid fa-rocket"></i></div>
         <div class="sp-doc-card-title">First Time Setup</div>
         <div class="sp-doc-card-desc">Get the bot running on your channel.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="features">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-star"></i></div>
+        <div class="sp-doc-card-title">Main Features</div>
+        <div class="sp-doc-card-desc">Commands, games, events, tracking, and integrations.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="commands">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-terminal"></i></div>
@@ -477,6 +482,260 @@ ob_start();
     </div>
 </div>
 <!-- ===================================================================
+     TAB: MAIN FEATURES
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="features">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Main Features</h1>
+            <p style="margin:0;color:var(--text-secondary);">Chat tools, games, events, tracking, and third-party integrations.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="features" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>Chat Protection &amp; Custom Commands</h2>
+
+    <h3>Link Protection</h3>
+    <p>URL blocking is disabled by default. You must enable it before the bot will remove links posted by non-moderators. Moderators &amp; Broadcasters are always exempt.</p>
+    <ul>
+        <li>When enabled, any viewer who posts a link will have their message deleted.</li>
+        <li>Use <code>!permit @username</code> to give a viewer a 60-second window to post one link.</li>
+        <li>Toggle URL blocking from <strong>Integrations → Specter Modules → Chat Protection</strong> in the dashboard.</li>
+    </ul>
+
+    <h3>Custom Commands</h3>
+    <p>Create unlimited custom commands from the dashboard or directly in chat.</p>
+    <ul>
+        <li><code>!addcommand !name response</code> — creates a new command.</li>
+        <li><code>!editcommand !name new response</code> — updates an existing command.</li>
+        <li><code>!removecommand !name</code> — deletes a command.</li>
+    </ul>
+    <p>Responses support the full <a href="#" data-goto="variables">variables system</a> — including <code>(user)</code>, <code>(count)</code>, <code>(customapi.URL)</code>, math expressions, and more.</p>
+
+    <h3>Timed Messages</h3>
+    <p>Schedule messages to post automatically at a set interval. Manage them under <strong>Commands → Timed Messages</strong>.</p>
+    <ul>
+        <li>Set the interval in minutes and a minimum chat-line threshold so messages only fire when chat is active.</li>
+        <li>Multiple timed messages can run simultaneously.</li>
+        <li>Supports the same dynamic variables as custom commands.</li>
+    </ul>
+
+    <h3>Bot Modes</h3>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Mode</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Standard</strong></td><td>The main BotOfTheSpecter account joins your channel.</td></tr>
+                <tr><td><strong>Custom Bot</strong></td><td>Use your own Twitch bot account — the bot acts with your bot's identity.</td></tr>
+                <tr><td><strong>Self Mode</strong></td><td>The broadcaster's own account is used as the bot.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Games &amp; Fun</h2>
+
+    <h3>Points-Based Games</h3>
+    <p>These games consume or award bot points. The points system must be enabled in <strong>Settings → Bot Points</strong>.</p>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Command</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td><code>!gamble &lt;type&gt; [choice] [amount]</code></td>
+                    <td>Wagers bot points (defaults to 100 if omitted). Types: <code>coinflip</code> (50% to win double), <code>blackjack</code> (random 1-21, only 21 wins double), <code>roulette</code> (choose red/black for double or lose).<br><strong>Examples:</strong> <code>!gamble coinflip 100</code> | <code>!gamble roulette red 100</code></td>
+                </tr>
+                <tr>
+                    <td><code>!slots</code></td>
+                    <td>Spins a slot machine with guaranteed payouts. Symbols have values: =10, =15, =20, =25, =30, =35, ⭐=50. Winning spins pay out triple the symbol values; losing spins deduct the sum of symbol values.</td>
+                </tr>
+                <tr>
+                    <td><code>!roulette</code></td>
+                    <td>Russian roulette — survive or get shot. If shot, deducts 100 points as hospital penalty. No chat timeout applied.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Social &amp; Party Commands</h3>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Command</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>!rps &lt;rock|paper|scissors&gt;</code></td><td>Play rock-paper-scissors against the bot. Announces win/tie/lose with no points exchanged.</td></tr>
+                <tr><td><code>!story &lt;5 words&gt;</code></td><td>AI generates a short story (3-5 sentences) seeded from your five words.<br><strong>Example:</strong> <code>!story dragon castle brave knight magic</code></td></tr>
+                <tr><td><code>!joke</code></td><td>Fetches a random joke with category filtering based on your blacklist settings.</td></tr>
+                <tr><td><code>!kill @user</code></td><td>Playfully "kills" a viewer or yourself with randomized messages from external API templates.</td></tr>
+                <tr><td><code>!hug @user</code></td><td>Sends a virtual hug, increments hug counter, and announces the updated total. Self-targeting blocked.</td></tr>
+                <tr><td><code>!highfive @user</code></td><td>High-fives a viewer, increments counter, and announces the total. Self-targeting blocked.</td></tr>
+                <tr><td><code>!kiss @user</code></td><td>Sends a kiss, increments kiss counter, and announces the total. Self-targeting blocked.</td></tr>
+                <tr><td><code>!puzzles</code></td><td>Reports the number of Tanggle puzzles completed by the channel.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Raffle System</h3>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Command</th><th>Who</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>!createraffle &lt;name&gt; &lt;prize&gt; &lt;winners&gt; [weighted]</code></td><td>Moderator</td><td>Creates a scheduled raffle with specified name, prize, and number of winners. Optional weighted mode applies multipliers based on subscriber tier or VIP status.</td></tr>
+                <tr><td><code>!startraffle [raffle_id]</code></td><td>Moderator</td><td>Starts a scheduled raffle. If no ID specified, starts the oldest scheduled raffle.</td></tr>
+                <tr><td><code>!joinraffle</code></td><td>Viewer</td><td>Enters the active raffle. Respects settings for subscriber-only, follower-only, and moderator exclusions. Weighted raffles apply multipliers automatically.</td></tr>
+                <tr><td><code>!leaveraffle</code></td><td>Viewer</td><td>Removes the viewer from the current raffle.</td></tr>
+                <tr><td><code>!stopraffle</code></td><td>Moderator</td><td>Ends the running raffle without drawing winners.</td></tr>
+                <tr><td><code>!drawraffle [raffle_id]</code></td><td>Moderator</td><td>Performs weighted random selection to pick winners, announces results in chat, and triggers overlay alerts.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Lotto System</h3>
+    <p>A Channel Points-based lotto system where viewers redeem Channel Point rewards to get their lotto numbers. Winning numbers are automatically generated when the stream goes live, and moderators draw prizes across multiple divisions.</p>
+    <h4>Setup</h4>
+    <ol>
+        <li>Create a Channel Point reward on Twitch for lotto entry.</li>
+        <li>In the Specter dashboard, sync your Channel Point rewards.</li>
+        <li>Edit the lotto reward and add <code>(lotto)</code> to the custom message — this generates the viewer's lotto numbers.</li>
+        <li>Viewers redeem the reward to receive their numbers and enter the draw.</li>
+    </ol>
+    <h4>Commands</h4>
+    <ul>
+        <li><code>!drawlotto</code> (Moderator) — compares entries to winning numbers and awards points by division: Division 1 (100,000), Division 2 (50,000), Division 3 (10,000), Division 4 (5,000), Division 5 (1,000), Division 6 (500).</li>
+    </ul>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Note:</strong> Winning lotto numbers are automatically generated when your stream goes online. The <code>(lotto)</code> variable in Channel Point reward messages automatically generates and displays the viewer's lotto numbers when they redeem the reward.
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Events &amp; Alerts</h2>
+    <p>BotOfTheSpecter reacts to Twitch events automatically. All response messages are customisable from <strong>Settings → Alerts</strong> in the dashboard and support the <a href="#" data-goto="variables">variables system</a>.</p>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Event</th><th>What happens</th></tr></thead>
+            <tbody>
+                <tr><td><strong>New Follow</strong></td><td>Posts a customisable thank-you message and triggers an overlay alert.</td></tr>
+                <tr><td><strong>Subscription</strong></td><td>Posts a sub message. Supports <code>(tier)</code> and <code>(months)</code> variables.</td></tr>
+                <tr><td><strong>Re-subscription</strong></td><td>Handles resub messages with streak and total month data.</td></tr>
+                <tr><td><strong>Gift Subscriptions</strong></td><td>Single and bulk gifts supported. Supports <code>(count)</code>, <code>(total-gifted)</code>, and <code>(gifter)</code>.</td></tr>
+                <tr><td><strong>Bits / Cheer</strong></td><td>Thanks the viewer. Supports <code>(bits)</code> and <code>(total-bits)</code>.</td></tr>
+                <tr><td><strong>Raid</strong></td><td>Welcomes the raider, triggers an automatic Twitch shoutout. Supports <code>(viewers)</code>.</td></tr>
+                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward — supports TTS, raffle, fortune, VIP grants, and API calls.</td></tr>
+                <tr><td><strong>Hype Train</strong></td><td>Announces start, level-ups, and completion. Supports <code>(level)</code>.</td></tr>
+                <tr><td><strong>Ad Break</strong></td><td>Sends an upcoming ad warning, activates an AI chat companion during the break, then resumes normal mode.</td></tr>
+                <tr><td><strong>Poll / Prediction</strong></td><td>Announces progress, results, and outcomes in chat.</td></tr>
+                <tr><td><strong>Shoutout Received</strong></td><td>Announces when another streamer gives the channel a Twitch shoutout.</td></tr>
+                <tr><td><strong>Stream Online / Offline</strong></td><td>Starts/stops timed messages, watch-time tracking, and logs stream session data.</td></tr>
+                <tr><td><strong>Chat Join / Welcome</strong></td><td>Welcomes returning and new viewers by name (bots are ignored automatically).</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Overlay Alerts</h3>
+    <p>Events are forwarded to the WebSocket server and displayed through OBS browser source overlays at:<br><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Alert Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Sound Alerts</strong></td><td>Custom audio clips triggered by chat commands or Channel Points.</td></tr>
+                <tr><td><strong>Walk-ons</strong></td><td>Personalised audio/video that plays when a specific viewer joins chat.</td></tr>
+                <tr><td><strong>Text-to-Speech (TTS)</strong></td><td>AI voice reads viewer messages aloud through the OBS browser source.</td></tr>
+                <tr><td><strong>Video Alerts</strong></td><td>Custom video clips triggered by events or commands.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Tracking &amp; Stats</h2>
+
+    <h3>Bot Points</h3>
+    <p>A built-in loyalty point system earned by watching and participating in the stream. Configure the name, earn rate, and icon under <strong>Settings → Bot Points</strong>.</p>
+    <ul>
+        <li><code>!points</code> — check your balance.</li>
+        <li><code>!addpoints</code> / <code>!removepoints</code> — moderator manual adjustment.</li>
+        <li>Spent playing <code>!gamble</code>, <code>!slots</code>, and <code>!roulette</code>.</li>
+    </ul>
+
+    <h3>Watch Time</h3>
+    <p>Tracks total viewing time per viewer across all streams. Viewers check their own with <code>!watchtime</code>.</p>
+
+    <h3>Lurk Tracking</h3>
+    <ul>
+        <li><code>!lurk</code> — starts tracking and announces the viewer is lurking.</li>
+        <li><code>!unlurk</code> — ends tracking and announces the viewer is back.</li>
+        <li><code>!lurking</code> — shows how long the user has been lurking this session.</li>
+        <li><code>!lurklead</code> — shows who has the most accumulated all-time lurk time.</li>
+        <li><code>!userslurking</code> — shows how many viewers are currently lurking.</li>
+    </ul>
+
+    <h3>Death Counter</h3>
+    <p>Tracks in-game deaths for the current session.</p>
+    <ul>
+        <li><code>!deaths</code> — shows the count (anyone).</li>
+        <li><code>!deathadd</code> / <code>!death+</code> — adds to the counter (moderator).</li>
+        <li><code>!deathremove</code> / <code>!death-</code> — removes from the counter (moderator).</li>
+    </ul>
+
+    <h3>Typo Counter</h3>
+    <ul>
+        <li><code>!typo @user</code> — records a typo for a user (moderator).</li>
+        <li><code>!typos [@user]</code> — shows the typo count.</li>
+        <li><code>!edittypos @user &lt;n&gt;</code> — sets the count to a specific number (moderator).</li>
+        <li><code>!removetypos @user</code> — decrements or resets (moderator).</li>
+    </ul>
+
+    <h3>Quotes</h3>
+    <ul>
+        <li><code>!quote [number]</code> — shows a random quote or one by number.</li>
+        <li><code>!quoteadd &lt;text&gt;</code> — saves a new quote (moderator).</li>
+        <li><code>!removequote &lt;number&gt;</code> — deletes a quote (moderator).</li>
+    </ul>
+
+    <h3>Bits Tracking</h3>
+    <ul>
+        <li><code>!mybits</code> — shows the user's total all-time bits cheered in the channel.</li>
+        <li><code>!cheerleader</code> — shows the all-time top bit cheerer.</li>
+    </ul>
+
+    <h3>Follow Age</h3>
+    <p><code>!followage [@user]</code> queries the Twitch API to show exactly how long a viewer has been following the channel.</p>
+
+    <h3>Subathon Timer</h3>
+    <p>A countdown timer that extends with subs, bits, and Channel Points redemptions to drive engagement during subathon events. Check remaining time with <code>!subathon</code>. Configure time additions per sub tier from the dashboard.</p>
+
+    <hr class="sp-divider">
+
+    <h2>Integrations</h2>
+    <p>BotOfTheSpecter connects to a wide range of third-party services to enhance your stream. All integrations are configured from <strong>Integrations</strong> in the dashboard.</p>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Service</th><th>What the bot does</th></tr></thead>
+            <tbody>
+                <tr><td><strong><i class="fa-brands fa-spotify" style="color:#1DB954;"></i> Spotify</strong></td><td>Displays the current track (<code>!song</code>), accepts viewer song requests (<code>!sr</code>), skips tracks (<code>!skipsong</code>), and shows the queue (<code>!songqueue</code>).</td></tr>
+                <tr><td><strong><i class="fa-brands fa-steam"></i> Steam</strong></td><td>Looks up Steam games by name via the Steam API — shows store descriptions, prices, and app IDs (<code>!steam</code>).</td></tr>
+                <tr><td><strong><i class="fa-solid fa-video"></i> OBS WebSocket</strong></td><td>Controls OBS scenes and sources directly from chat via the <code>!obs</code> moderator command.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-heart-pulse" style="color:#e74c3c;"></i> HypeRate</strong></td><td>Connects via WebSocket to show the streamer's live BPM in chat with <code>!heartrate</code>.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-bolt" style="color:#f5a623;"></i> StreamElements</strong></td><td>Receives tip and merch alert events in real time via Socket.IO and forwards them to overlays.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-circle-dollar-to-slot" style="color:#31c3a2;"></i> StreamLabs</strong></td><td>Receives donation and alert events and broadcasts them to the WebSocket overlay server.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-robot" style="color:#3ecf8e;"></i> OpenAI (GPT)</strong></td><td>Powers AI responses in the home channel, generates AI stories (<code>!story</code>), and runs an AI chat companion during ad breaks with persistent chat history.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-cloud-sun" style="color:#4aa3f0;"></i> OpenWeatherMap</strong></td><td>Fetches live weather for any location via <code>!weather &lt;city&gt;</code>.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-user-tag"></i> Pronouns (alejo.io)</strong></td><td>Looks up and caches viewer-set pronouns, using them naturally when the bot mentions a viewer by name.</td></tr>
+                <tr><td><strong><i class="fa-brands fa-discord" style="color:#5865F2;"></i> Discord</strong></td><td>A companion Discord bot handles stream announcements, reaction roles, support tickets, voice music playback, and Twitch account linking.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Converts viewer messages to speech using AI voices (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer, Verse) through an OBS browser source overlay.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit Conversion</strong></td><td>Powered by the Pint unit library — <code>!convert</code> handles length, weight, temperature, volume, speed, and more.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+<!-- ===================================================================
      TAB: COMMANDS (from API)
 =================================================================== -->
 <div class="sp-tab-panel sp-doc-content" data-panel="commands">
@@ -567,6 +826,10 @@ ob_start();
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I set up the bot for the first time?</div>
         <div class="sp-faq-a">Follow the <a href="#" data-goto="setup">First Time Setup</a> guide — connect Twitch, mod the bot, start it from the dashboard, then configure points and custom commands.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">What main features does the bot include?</div>
+        <div class="sp-faq-a">See the <a href="#" data-goto="features">Main Features</a> guide for chat protection, custom commands, games, events, tracking, and integrations.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">What built-in commands are there for the bot?</div>
