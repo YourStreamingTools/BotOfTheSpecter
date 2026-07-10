@@ -214,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_save'])) {
         exit;
     }
     $saveStmt->bind_param(
-        'isiiididiiiiii',
+        'isiididiiiiiii',
         $enabled,
         $position,
         $posX,
