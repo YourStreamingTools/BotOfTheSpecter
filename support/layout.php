@@ -91,6 +91,7 @@ $v = uuidv4();
             <div class="sp-nav-section">
                 <div class="sp-nav-label">Documentation</div>
                 <a href="/index.php" class="sp-nav-link"><i class="fa-solid fa-house"></i> Home</a>
+                <a href="/index.php#setup" class="sp-nav-link"><i class="fa-solid fa-rocket"></i> First Time Setup</a>
                 <a href="/index.php#commands" class="sp-nav-link"><i class="fa-solid fa-terminal"></i> Command Reference</a>
                 <a href="/index.php#faq" class="sp-nav-link"><i class="fa-solid fa-circle-question"></i> FAQ</a>
                 <a href="/index.php#troubleshooting" class="sp-nav-link"><i class="fa-solid fa-wrench"></i> Troubleshooting</a>
