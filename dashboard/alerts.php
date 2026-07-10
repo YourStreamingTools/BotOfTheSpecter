@@ -380,16 +380,33 @@ $simpleCategorySeeds = [
     'fourthwall'   => 'Fourthwall'
 ];
 foreach ($simpleCategorySeeds as $simpleCat => $simpleLabel) {
-    $chk = $db->prepare("SELECT COUNT(*) AS cnt FROM twitch_alerts WHERE alert_category = ?");
+    $chk = $db->prepare("SELECT id FROM twitch_alerts WHERE alert_category = ? ORDER BY id ASC");
     $chk->bind_param('s', $simpleCat);
     $chk->execute();
-    $chkExists = (int)$chk->get_result()->fetch_assoc()['cnt'];
+    $res = $chk->get_result();
+    $existingIds = [];
+    while ($row = $res->fetch_assoc()) {
+        $existingIds[] = $row['id'];
+    }
     $chk->close();
-    if ($chkExists === 0) {
+    
+    if (count($existingIds) === 0) {
         $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
         $ins->bind_param('ss', $simpleCat, $simpleLabel);
         $ins->execute();
         $ins->close();
+    } else {
+        $primaryId = $existingIds[0];
+        $up = $db->prepare("UPDATE twitch_alerts SET variant_name = ? WHERE id = ?");
+        $up->bind_param('si', $simpleLabel, $primaryId);
+        $up->execute();
+        $up->close();
+        
+        if (count($existingIds) > 1) {
+            array_shift($existingIds);
+            $inClause = implode(',', array_map('intval', $existingIds));
+            $db->query("DELETE FROM twitch_alerts WHERE id IN ($inClause)");
+        }
     }
 }
 
