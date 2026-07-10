@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Spotify, TTS, Variables, Commands (API), FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, Variables, Channel Points, Commands (API), FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -80,6 +80,11 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-solid fa-code"></i></div>
         <div class="sp-doc-card-title">Custom Variables</div>
         <div class="sp-doc-card-desc">Dynamic tokens for commands, timers, and rewards.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="twitch-channel-points">
+        <div class="sp-doc-card-icon"><i class="fa-brands fa-twitch"></i></div>
+        <div class="sp-doc-card-title">Channel Points</div>
+        <div class="sp-doc-card-desc">Sync rewards and automate redemption responses.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="commands">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-terminal"></i></div>
@@ -1318,6 +1323,209 @@ $ttsVoices = [
     </div>
 </div>
 <!-- ===================================================================
+     TAB: TWITCH CHANNEL POINTS
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="twitch-channel-points">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Twitch Channel Points</h1>
+            <p style="margin:0;color:var(--text-secondary);">Sync rewards and automate redemption responses with BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="twitch-channel-points" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>What are Twitch Channel Points?</h2>
+    <p>Twitch Channel Points are a loyalty system that allows streamers to reward their viewers for watching, following, subscribing, and participating in the stream. Viewers earn points over time and can redeem them for various rewards that you create.</p>
+    <p>BotOfTheSpecter integrates seamlessly with Twitch's Channel Points system, allowing you to automate responses and create custom experiences when viewers redeem rewards.</p>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            Channel Points are managed through Twitch's dashboard and are available for <strong>Affiliate/Partner</strong> channels. BotOfTheSpecter enhances this system by syncing your rewards and automating responses when redemptions happen.
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Setting Up &amp; Syncing Rewards</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-gear"></i> Setting Up Channel Points on Twitch</div>
+            <div class="sp-card-body">
+                <ol style="margin:0;padding-left:1.25rem;">
+                    <li>Go to your <a href="https://dashboard.twitch.tv/" target="_blank" rel="noopener">Twitch Dashboard</a>.</li>
+                    <li>Navigate to the <strong>Channel Points</strong> section.</li>
+                    <li>Create custom rewards with titles, costs, and descriptions.</li>
+                    <li>Enable the rewards you want to use (Affiliate/Partner required).</li>
+                    <li>Use BotOfTheSpecter to sync and customize responses.</li>
+                </ol>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-arrows-rotate"></i> Syncing Rewards in Specter</div>
+            <div class="sp-card-body">
+                <p>To use Channel Points with BotOfTheSpecter, sync your rewards from Twitch. This updates reward IDs, titles, and costs so the bot can recognise redemptions and trigger your configured actions.</p>
+                <ol style="margin:0.75rem 0 0;padding-left:1.25rem;">
+                    <li>Log into your BotOfTheSpecter dashboard.</li>
+                    <li>Go to the <strong>Channel Rewards</strong> page.</li>
+                    <li>Click the <strong>Sync Rewards</strong> button.</li>
+                    <li>Wait for the sync to complete.</li>
+                    <li>Your rewards will appear in the table.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>Sync your rewards whenever you add, modify, or remove rewards on Twitch to keep everything up to date.</div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Customizing Reward Responses</h2>
+    <p>Once your rewards are synced, you can customize the bot's response for each redemption. This allows you to create personalized experiences for your viewers.</p>
+    <h3>How to Customize</h3>
+    <ol>
+        <li>Find the reward in the Channel Rewards table.</li>
+        <li>Click the <strong>Edit</strong> button next to the reward.</li>
+        <li>Enter your custom message in the text area (up to 255 characters).</li>
+        <li>Click <strong>Save</strong> to apply the changes.</li>
+    </ol>
+    <h3>Message Variables</h3>
+    <p>You can use the following variables in your custom reward messages. For the full shared-variable list, see the <a href="#" data-goto="variables">Custom Variables</a> guide.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.75rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(user)</code></div>
+            <div class="sp-card-body">Tags the user who redeemed the reward.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(usercount)</code></div>
+            <div class="sp-card-body">Shows how many times the user has redeemed the reward.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(userstreak)</code></div>
+            <div class="sp-card-body">Shows how many times <em>in a row</em> the user has redeemed the reward.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(track)</code></div>
+            <div class="sp-card-body">Increments internal reward usage tracking. Does <strong>not</strong> post any text to chat.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(tts)</code></div>
+            <div class="sp-card-body">Sends the redemption user input to TTS (if present). See also the <a href="#" data-goto="tts">TTS guide</a>.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(tts.message)</code></div>
+            <div class="sp-card-body">Sends your final custom message to both chat and TTS.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(lotto)</code></div>
+            <div class="sp-card-body">Generates the user's lotto numbers.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(fortune)</code></div>
+            <div class="sp-card-body">Inserts a random fortune response.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(vip)</code></div>
+            <div class="sp-card-body">Attempts to grant the redeemer VIP status via Twitch.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(vip.today)</code></div>
+            <div class="sp-card-body">Grants temporary VIP intended for current stream use.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(customapi.URL)</code></div>
+            <div class="sp-card-body">Fetches data from a custom API endpoint and prints the raw response.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code>(customapi.json.URL)</code> + <code>(json.*)</code></div>
+            <div class="sp-card-body">Fetches JSON silently and inserts a specific field from the response.</div>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <code>(fortune)</code>, <code>(lotto)</code>, and <code>(tts)</code> are variable-based triggers. You can place them in <strong>any</strong> reward message instead of relying on a specific reward title.
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Best Practices</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-star"></i> Reward Design</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Set appropriate point costs based on value</li>
+                    <li>Use clear, descriptive titles</li>
+                    <li>Include cooldowns for high-value rewards</li>
+                    <li>Limit redemptions per stream/user if needed</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-users"></i> Engagement Tips</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Announce rewards during stream</li>
+                    <li>Create themed reward sets</li>
+                    <li>Rotate rewards to keep things fresh</li>
+                    <li>Monitor redemption patterns</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-robot"></i> Bot Integration</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Keep custom messages fun and engaging</li>
+                    <li>Use variables to personalise responses</li>
+                    <li>Use the Manage option to convert rewards to Specter-managed when needed</li>
+                    <li>Map rewards to sounds/videos for overlay alerts if needed</li>
+                    <li>Test rewards before going live</li>
+                    <li>Regularly sync rewards from Twitch</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-triangle-exclamation"></i> Rewards not appearing after sync</div>
+            <div class="sp-card-body">Make sure the rewards are <strong>enabled</strong> on Twitch and try syncing again from the dashboard.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-comment-slash"></i> Custom messages not working</div>
+            <div class="sp-card-body">
+                <p>Ensure you've saved the custom message and that the bot has mod permissions on your channel.</p>
+                <p style="margin-top:0.5rem;">If you use <code>(customapi.json...)</code>, make sure your <code>(json.path.to.value)</code> matches the API response structure.</p>
+                <p style="margin-top:0.5rem;">Check the bot's logs for errors and report them on GitHub or Discord.</p>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-robot"></i> Redemptions not triggering responses</div>
+            <div class="sp-card-body">Verify that the reward is synced, your channel is Affiliate/Partner, and the bot is running. Make sure the correct reward was redeemed and your response is configured for that reward ID in Specter.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-clock-rotate-left"></i> Redemption history is empty</div>
+            <div class="sp-card-body">Recent redemption history only loads for <strong>Specter-managed</strong> rewards. If a reward is Twitch-only, convert it using the <strong>Manage</strong> button in Channel Rewards first.</div>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Need more help?</strong> Check the <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/issues" target="_blank" rel="noopener">GitHub Issues</a> or join our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord Server</a> for support.
+        </div>
+    </div>
+</div>
+<!-- ===================================================================
      TAB: COMMANDS (from API)
 =================================================================== -->
 <div class="sp-tab-panel sp-doc-content" data-panel="commands">
@@ -1439,7 +1647,7 @@ $ttsVoices = [
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do Twitch Channel Points work with the bot?</div>
-        <div class="sp-faq-a">BotOfTheSpecter integrates with Twitch Channel Points. Set up and customise channel point rewards and responses from the <strong>Channel Points</strong> section in your dashboard.</div>
+        <div class="sp-faq-a">Sync rewards from the dashboard Channel Rewards page, then set custom redemption messages with variables. Full walkthrough: <a href="#" data-goto="twitch-channel-points">Channel Points</a>.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">Can I request a new built-in command?</div>
