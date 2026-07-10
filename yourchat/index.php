@@ -3659,10 +3659,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (!parsed) return { ok: true };
             try {
                 new RegExp(parsed.pattern, parsed.flags);
-                return { ok: true };
             } catch (e) {
                 return { ok: false, reason: 'Invalid regex: ' + (e && e.message ? e.message : 'syntax error') };
             }
+            // Guard against footguns: the pattern is author-supplied but runs synchronously
+            // against every incoming chat message, so a catastrophic-backtracking pattern
+            // can freeze the tab even though it's syntactically valid.
+            if (parsed.pattern.length > 200) {
+                return { ok: false, reason: 'Pattern is too long (max 200 characters)' };
+            }
+            if (/\([^)]*[+*][^)]*\)[+*]/.test(parsed.pattern)) {
+                return { ok: false, reason: 'Pattern may be too slow (nested quantifier)' };
+            }
+            return { ok: true };
         }
         function narratorPhraseMatched(text, phrase) {
             if (!phrase) return false;
