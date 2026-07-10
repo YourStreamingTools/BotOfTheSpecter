@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // Database
 include '/var/www/config/database.php';
 $dbname = $_SESSION['username'] ?? '';
@@ -841,6 +841,16 @@ try {
                 theme VARCHAR(50) DEFAULT 'dark',
                 list_view_mode ENUM('split','unified') DEFAULT 'split',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'user_socials' => "
+            CREATE TABLE IF NOT EXISTS user_socials (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                platform VARCHAR(50) NOT NULL,
+                handle VARCHAR(255) NOT NULL,
+                is_active TINYINT(1) DEFAULT 1,
+                display_order INT DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_platform (platform)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'automated_shoutout_settings' => "
             CREATE TABLE IF NOT EXISTS automated_shoutout_settings (

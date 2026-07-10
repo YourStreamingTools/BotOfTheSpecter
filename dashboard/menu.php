@@ -48,6 +48,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_overlays'), 'icon' => 'fas fa-layer-group', 'href' => 'overlays.php' ],
             [ 'label' => t('navbar_closed_captions'), 'icon' => 'fas fa-closed-captioning', 'href' => 'closed-captions.php' ],
             [ 'label' => t('navbar_avatar'), 'icon' => 'fas fa-user-astronaut', 'href' => 'avatar.php' ],
+            [ 'label' => 'Social Roller', 'icon' => 'fas fa-share-alt', 'href' => 'socials.php' ],
             [ 'label' => t('navbar_makers_crafting'), 'icon' => 'fas fa-palette', 'href' => 'makers.php' ],
             [ 'label' => t('navbar_working_study'), 'icon' => 'fas fa-user-clock', 'href' => 'working-or-study.php' ],
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
