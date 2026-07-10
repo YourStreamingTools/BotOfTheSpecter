@@ -2225,7 +2225,7 @@ System.out.println(resp.body());</code></pre>
                     <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
                     <li><strong>CPU:</strong> 1+ core</li>
                     <li><strong>RAM:</strong> 1 GB minimum</li>
-                    <li><strong>Service:</strong> PHP / Apache2 Dashboard</li>
+                    <li><strong>Service:</strong> PHP / Caddy Dashboard</li>
                 </ul>
             </div>
         </div>
@@ -2288,7 +2288,7 @@ System.out.println(resp.body());</code></pre>
         <li><strong>OS:</strong> Linux (Ubuntu 24.04 LTS or newer)</li>
         <li><strong>Python:</strong> 3.8+ (Bot, API, and WebSocket servers)</li>
         <li><strong>PHP:</strong> 8.0+ (Web/Dashboard server)</li>
-        <li><strong>Apache2</strong> (Web/Dashboard server)</li>
+        <li><strong>Caddy</strong> (Web/Dashboard server)</li>
         <li><strong>MySQL</strong> (Database server)</li>
         <li><strong>Git:</strong> For version control</li>
     </ul>
@@ -2336,8 +2336,8 @@ sudo usermod -aG sudo botofthespecter
 # For Servers 1, 2, 3, 5 - Install Python and pip
 sudo apt install -y python3 python3-pip python3-venv
 
-# For Server 1 Only - Install PHP and Apache2
-sudo apt install -y php php-cli php-fpm php-curl php-json php-mysql php-ssh2 apache2 libapache2-mod-php
+# For Server 1 Only - Install PHP and Caddy
+sudo apt install -y php php-cli php-fpm php-curl php-json php-mysql php-ssh2 caddy
 
 # For Server 4 Only - Install MySQL
 sudo apt install -y mysql-server</code></pre>
@@ -2713,14 +2713,17 @@ source /home/botofthespecter/botofthespecter/bin/activate
     <hr class="sp-divider">
 
     <h2>Step 6: Set Up Web Server (Server 1)</h2>
-    <p>Configure Apache2 to serve the PHP dashboard:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>sudo apt install -y apache2 libapache2-mod-php
-# Enable Apache2 modules
-sudo a2enmod rewrite
-sudo a2enmod php8.1
-# Create Apache2 configuration
-sudo nano /etc/apache2/sites-available/botofthespecter.conf</code></pre>
-    <p style="margin-top:1rem;">Configure Apache however you prefer. You must serve the dashboard and related assets under your domain. Recommended subdomains to configure:</p>
+    <p>Configure Caddy to serve the PHP dashboard and static assets. Caddy auto-issues and auto-renews Let's Encrypt certificates, so you do not need a separate ACME client:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>sudo apt install -y caddy
+# Install the Caddyfile from the repo (the repo ships a ready-made one under web/Caddyfile)
+sudo cp /home/botofthespecter/web/Caddyfile /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile</code></pre>
+    <p style="margin-top:1rem;">The shipped <code>web/Caddyfile</code> expects each surface on its own docroot under <code>/var/www/</code> and talks to PHP over the FPM socket. Update the hostnames in <code>/etc/caddy/Caddyfile</code> to your own domain, then add a Cloudflare DNS API token to <code>/etc/caddy/caddy.env</code> if you need wildcard certificates:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code># /etc/caddy/caddy.env  (systemd drop-in; Caddy reads it via {env.X})
+CF_API_TOKEN=your_cloudflare_dns_api_token
+STORAGE_HOST=your-object-storage-host
+STORAGE_PREFIX=your-bucket-prefix</code></pre>
+    <p style="margin-top:1rem;">You must serve the dashboard and related assets under your domain. Recommended subdomains to configure:</p>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>example.com
 dashboard.example.com
 overlay.example.com
@@ -2729,7 +2732,7 @@ soundalert.example.com
 tts.example.com</code></pre>
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
-        <div>Ensure each subdomain points to the correct server (Server 1 for the dashboard/static sites) and that TLS is enabled. Let's Encrypt is recommended.</div>
+        <div>Caddy auto-issues Let's Encrypt certificates via HTTP-01 (apex + standard subdomains) and via Cloudflare DNS-01 (wildcards). Ensure port 80 and 443 are reachable from the public internet so issuance succeeds.</div>
     </div>
 
     <hr class="sp-divider">
@@ -2737,9 +2740,12 @@ tts.example.com</code></pre>
     <h2>Running the Services</h2>
 
     <h3>Server 1: Start the Web/Dashboard Server</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>sudo systemctl enable apache2
-sudo systemctl start apache2
-sudo systemctl status apache2</code></pre>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>sudo systemctl enable caddy
+sudo systemctl start caddy
+sudo systemctl status caddy
+# After editing /etc/caddy/caddy.env you must restart (env is read once at process start);
+# a plain reload will not pick up the new CF_API_TOKEN.
+sudo systemctl restart caddy</code></pre>
 
     <h3 style="margin-top:1rem;">Server 2: Start the API Server</h3>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>cd /home/botofthespecter
