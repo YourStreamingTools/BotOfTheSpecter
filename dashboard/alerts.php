@@ -37,6 +37,7 @@ $variantLimits = [
     'kofi'         => 1,
     'patreon'      => 1,
     'fourthwall'   => 1,
+    'watch_streak' => 1,
     'stream_bingo' => 4,   // one per bingo sub-event (Started / Event / Winner / Ended)
     // Enable/disable-only categories: they render through their own overlay theme
     // (ported into overlay/index.php), so a single on/off variant is all that fits.
