@@ -99,8 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ----------------------------------------------------------------
-// Load active sessions only. Purge stale rows first so weeks-old
+// Load active sessions only. Purge idle/stale rows first so weeks-old
 // cookies that read() already ignores don't show up as "signed in".
+// Active = last_seen within the session lifetime. Token validity is
+// enforced by Twitch validate in session_bootstrap, not this list.
 // ----------------------------------------------------------------
 bots_purge_stale_web_sessions($bots_session_db, $twitchUserId, BOTS_SESSION_LIFETIME);
 
@@ -110,7 +112,6 @@ $stmt = $bots_session_db->prepare(
      FROM web_sessions
      WHERE twitch_user_id = ?
        AND last_seen_at > NOW() - INTERVAL ? SECOND
-       AND (twitch_expires_at IS NULL OR twitch_expires_at >= NOW())
      ORDER BY (session_id = ?) DESC, last_seen_at DESC"
 );
 if ($stmt) {
@@ -184,8 +185,10 @@ function bots_format_when($datetime): string
 {
     if (!$datetime) return '—';
     try {
-        $dt = new DateTime($datetime, new DateTimeZone('UTC'));
-        return $dt->format('M j, Y g:ia') . ' UTC';
+        // created_at / last_seen_at / twitch_expires_at are written in the
+        // server's local MySQL clock (CURRENT_TIMESTAMP / date()), not UTC.
+        $dt = new DateTime((string)$datetime);
+        return $dt->format('M j, Y g:ia T');
     } catch (Exception $e) {
         return htmlspecialchars((string)$datetime);
     }

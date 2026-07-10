@@ -163,10 +163,14 @@ foreach ($BOTS_SESSION_ALIASES as $primary => $alias) {
 // Calls id.twitch.tv/oauth2/validate at most every 5 minutes per session
 // (or sooner if our stored expires_at says we're already past).
 //   ok          -> refresh twitch_expires_at + last_validated_at
-//   invalid 401 -> destroy session so next page bounces to SSO
+//   invalid 401 -> try refresh_token; only destroy if refresh fails hard
 //   transient   -> log + push validation forward 60s, KEEP the session.
 //                  A flaky id.twitch.tv or egress blip must not log
 //                  every active user out across all four apps.
+//
+// Twitch validate is the sole authority for "is this login still real?".
+// The denormalized twitch_expires_at column is only a hint for when to
+// re-check — it must never destroy a session on its own.
 // ----------------------------------------------------------------
 if (!empty($_SESSION['access_token'])) {
     $now           = time();
@@ -182,21 +186,74 @@ if (!empty($_SESSION['access_token'])) {
             $_SESSION['twitch_expires_at']  = $now + (int)($payload['expires_in'] ?? 0);
             $_SESSION['last_validated_at']  = $now;
         } elseif (($result['reason'] ?? '') === 'invalid') {
-            // Twitch returned 401 — token revoked or expired. Wipe the
-            // shared session row so every *.botofthespecter.com app sees
-            // no auth and bounces to SSO.
-            error_log('[session_bootstrap] twitch validate 401, destroying session for sid='
-                . session_id());
-            $_SESSION = [];
-            if (ini_get('session.use_cookies')) {
-                $params = session_get_cookie_params();
-                setcookie(
-                    session_name(), '', time() - 42000,
-                    $params['path'], $params['domain'],
-                    $params['secure'], $params['httponly']
-                );
+            // Twitch says access token is dead. Try refresh before logout.
+            $kept = false;
+            $rt   = (string)($_SESSION['refresh_token'] ?? '');
+            if ($rt !== '') {
+                $refresh = bots_twitch_refresh_token($rt, $bots_session_db);
+                if (!empty($refresh['ok'])) {
+                    $_SESSION['access_token']      = $refresh['access_token'];
+                    $_SESSION['refresh_token']     = $refresh['refresh_token'];
+                    $_SESSION['twitch_expires_at'] = $now + (int)$refresh['expires_in'];
+                    $_SESSION['last_validated_at'] = $now;
+                    // Keep users.access_token in step so bot/API and
+                    // legacy lookups don't see a stale global token.
+                    $twuid = (string)($_SESSION['twitchUserId']
+                        ?? $_SESSION['twitch_user_id']
+                        ?? '');
+                    if ($twuid !== '' && $bots_session_db instanceof mysqli) {
+                        $u = $bots_session_db->prepare(
+                            'UPDATE users SET access_token = ?, refresh_token = ? WHERE twitch_user_id = ?'
+                        );
+                        if ($u) {
+                            $newAccess  = $_SESSION['access_token'];
+                            $newRefresh = $_SESSION['refresh_token'];
+                            $u->bind_param('sss', $newAccess, $newRefresh, $twuid);
+                            if (!$u->execute()) {
+                                error_log('[session_bootstrap] users token sync after refresh failed: '
+                                    . $u->error);
+                            }
+                            $u->close();
+                        }
+                    }
+                    $kept = true;
+                    error_log('[session_bootstrap] twitch validate 401, refreshed access token for sid='
+                        . session_id());
+                } elseif (($refresh['reason'] ?? '') === 'transient') {
+                    // Refresh failed for operational reasons — keep session,
+                    // retry soon. Do not bounce the user to SSO.
+                    error_log('[session_bootstrap] token refresh transient http='
+                        . ($refresh['http'] ?? '?')
+                        . ' err=' . ($refresh['err'] ?? '')
+                        . ' — keeping session');
+                    $_SESSION['last_validated_at'] = $now - 240;
+                    $kept = true;
+                } else {
+                    error_log('[session_bootstrap] token refresh invalid for sid='
+                        . session_id()
+                        . ' err=' . ($refresh['err'] ?? ''));
+                }
+            } else {
+                error_log('[session_bootstrap] twitch validate 401, no refresh_token for sid='
+                    . session_id());
             }
-            session_destroy();
+            if (!$kept) {
+                // Access token invalid AND refresh unavailable/rejected.
+                // Wipe the shared session so every *.botofthespecter.com
+                // app bounces to SSO.
+                error_log('[session_bootstrap] destroying session after failed validate+refresh sid='
+                    . session_id());
+                $_SESSION = [];
+                if (ini_get('session.use_cookies')) {
+                    $params = session_get_cookie_params();
+                    setcookie(
+                        session_name(), '', time() - 42000,
+                        $params['path'], $params['domain'],
+                        $params['secure'], $params['httponly']
+                    );
+                }
+                session_destroy();
+            }
         } else {
             // Transient — keep the session, retry in ~60s.
             error_log('[session_bootstrap] twitch validate transient failure http='

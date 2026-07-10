@@ -41,12 +41,34 @@ if ($isActAs && $targetUserId > 0) {
 
 if (!$userSTMT) {
     $isActAs = false;
-    $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
-    $userSTMT->bind_param("s", $actorAccessToken);
+    // Resolve by stable identity, not the single global users.access_token.
+    // That column is shared across devices and is rewritten on login/refresh;
+    // looking up by it signed people out when another device or the API
+    // rotated the token while this browser still held a valid session.
+    $sessionTwitchUserId = (string)($_SESSION['twitchUserId'] ?? $_SESSION['twitch_user_id'] ?? '');
+    $sessionUserId = (int)($_SESSION['user_id'] ?? 0);
+    if ($sessionTwitchUserId !== '') {
+        $userSTMT = $conn->prepare("SELECT * FROM users WHERE twitch_user_id = ? LIMIT 1");
+        if ($userSTMT) {
+            $userSTMT->bind_param("s", $sessionTwitchUserId);
+        }
+    } elseif ($sessionUserId > 0) {
+        $userSTMT = $conn->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
+        if ($userSTMT) {
+            $userSTMT->bind_param("i", $sessionUserId);
+        }
+    }
+    if (!$userSTMT) {
+        // Last resort for legacy sessions that only stored the token.
+        $userSTMT = $conn->prepare("SELECT * FROM users WHERE access_token = ? LIMIT 1");
+        if ($userSTMT) {
+            $userSTMT->bind_param("s", $actorAccessToken);
+        }
+    }
 }
 
-if (!$userSTMT->execute()) {
-    error_log("Database query failed: " . $userSTMT->error);
+if (!$userSTMT || !$userSTMT->execute()) {
+    error_log("Database query failed: " . ($userSTMT ? $userSTMT->error : 'prepare failed'));
     die(t('userdata_db_query_error'));
 }
 $userResult = $userSTMT->get_result();
@@ -62,9 +84,21 @@ if ($userResult->num_rows === 0) {
             $_SESSION['admin_act_as_target_username'],
             $_SESSION['admin_act_as_target_display_name']
         );
-        $fallbackStmt = $conn->prepare("SELECT * FROM users WHERE access_token = ?");
-        $fallbackStmt->bind_param("s", $actorAccessToken);
-        if ($fallbackStmt->execute()) {
+        $fallbackTwitchId = (string)($_SESSION['twitchUserId'] ?? $_SESSION['twitch_user_id'] ?? '');
+        $fallbackStmt = null;
+        if ($fallbackTwitchId !== '') {
+            $fallbackStmt = $conn->prepare("SELECT * FROM users WHERE twitch_user_id = ? LIMIT 1");
+            if ($fallbackStmt) {
+                $fallbackStmt->bind_param("s", $fallbackTwitchId);
+            }
+        }
+        if (!$fallbackStmt) {
+            $fallbackStmt = $conn->prepare("SELECT * FROM users WHERE access_token = ? LIMIT 1");
+            if ($fallbackStmt) {
+                $fallbackStmt->bind_param("s", $actorAccessToken);
+            }
+        }
+        if ($fallbackStmt && $fallbackStmt->execute()) {
             $fallbackResult = $fallbackStmt->get_result();
             if ($fallbackResult->num_rows > 0) {
                 $user = $fallbackResult->fetch_assoc();
@@ -72,9 +106,13 @@ if ($userResult->num_rows === 0) {
                 goto user_loaded;
             }
         }
-        $fallbackStmt->close();
+        if ($fallbackStmt) {
+            $fallbackStmt->close();
+        }
     }
-    error_log("User not found with access token: " . $actorAccessToken);
+    error_log("User not found for session (twitchUserId="
+        . ($_SESSION['twitchUserId'] ?? $_SESSION['twitch_user_id'] ?? '')
+        . ", user_id=" . ($_SESSION['user_id'] ?? '') . ")");
     header("Location: login.php");
     exit();
 }
@@ -94,9 +132,30 @@ $refreshToken = $user['refresh_token'];
 $api_key = $user['api_key'];
 $timezone = 'Australia/Sydney';
 $broadcasterID = $twitchUserId;
-$authToken = $user['access_token'] ?? '';
 $use_custom = $user['use_custom'];
 $use_self = $user['use_self'];
+
+// Session tokens are authoritative for this browser (validated / refreshed
+// by session_bootstrap). users.access_token is a single global column and
+// must not overwrite a still-valid per-session token from another device
+// or a just-refreshed session value.
+if ($isActAs) {
+    $authToken = $actorAccessToken;
+    $refreshToken = $originalContext['refresh_token'] ?? ($_SESSION['refresh_token'] ?? $refreshToken);
+    $_SESSION['access_token'] = $actorAccessToken;
+    $_SESSION['refresh_token'] = $refreshToken;
+} else {
+    $authToken = $sessionAccessToken ?: ($user['access_token'] ?? '');
+    if (!empty($_SESSION['refresh_token'])) {
+        $refreshToken = $_SESSION['refresh_token'];
+    }
+    if (empty($_SESSION['access_token']) && $authToken !== '') {
+        $_SESSION['access_token'] = $authToken;
+    }
+    if (empty($_SESSION['refresh_token']) && !empty($refreshToken)) {
+        $_SESSION['refresh_token'] = $refreshToken;
+    }
+}
 
 $_SESSION['user_id'] = $user_id;
 $_SESSION['username'] = $username;
@@ -108,12 +167,4 @@ $_SESSION['beta_access'] = $betaAccess;
 $_SESSION['beta_programs'] = $betaPrograms;
 $_SESSION['use_custom'] = $use_custom;
 $_SESSION['use_self'] = $use_self;
-
-if ($isActAs) {
-    $_SESSION['access_token'] = $actorAccessToken;
-    $_SESSION['refresh_token'] = $originalContext['refresh_token'] ?? ($_SESSION['refresh_token'] ?? null);
-} else {
-    $_SESSION['access_token'] = $authToken;
-    $_SESSION['refresh_token'] = $refreshToken;
-}
 ?>

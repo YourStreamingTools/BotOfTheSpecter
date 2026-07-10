@@ -344,18 +344,44 @@ if (!isset($_SESSION['access_token']) || empty($_SESSION['access_token'])) {
     exit;
 }
 
-$access_token = $_SESSION['access_token'];
-$adminStmt = $conn->prepare("SELECT id, username, is_admin FROM users WHERE access_token = ? LIMIT 1");
+// Resolve admin by stable identity (twitch user id / user id), not the
+// mutable users.access_token column (rewritten on every login/refresh).
+$adminRow = null;
+$sessionTwitchUserId = (string)($_SESSION['twitchUserId'] ?? $_SESSION['twitch_user_id'] ?? '');
+$sessionUserId = (int)($_SESSION['user_id'] ?? 0);
 
-if (!$adminStmt) {
-    admin_access_deny(t('admin_access_deny_validate'));
+if ($sessionTwitchUserId !== '') {
+    $adminStmt = $conn->prepare("SELECT id, username, is_admin FROM users WHERE twitch_user_id = ? LIMIT 1");
+    if ($adminStmt) {
+        $adminStmt->bind_param('s', $sessionTwitchUserId);
+        $adminStmt->execute();
+        $adminResult = $adminStmt->get_result();
+        $adminRow = $adminResult ? $adminResult->fetch_assoc() : null;
+        $adminStmt->close();
+    }
 }
-
-$adminStmt->bind_param('s', $access_token);
-$adminStmt->execute();
-$adminResult = $adminStmt->get_result();
-$adminRow = $adminResult ? $adminResult->fetch_assoc() : null;
-$adminStmt->close();
+if (!$adminRow && $sessionUserId > 0) {
+    $adminStmt = $conn->prepare("SELECT id, username, is_admin FROM users WHERE id = ? LIMIT 1");
+    if ($adminStmt) {
+        $adminStmt->bind_param('i', $sessionUserId);
+        $adminStmt->execute();
+        $adminResult = $adminStmt->get_result();
+        $adminRow = $adminResult ? $adminResult->fetch_assoc() : null;
+        $adminStmt->close();
+    }
+}
+if (!$adminRow) {
+    $access_token = $_SESSION['access_token'];
+    $adminStmt = $conn->prepare("SELECT id, username, is_admin FROM users WHERE access_token = ? LIMIT 1");
+    if (!$adminStmt) {
+        admin_access_deny(t('admin_access_deny_validate'));
+    }
+    $adminStmt->bind_param('s', $access_token);
+    $adminStmt->execute();
+    $adminResult = $adminStmt->get_result();
+    $adminRow = $adminResult ? $adminResult->fetch_assoc() : null;
+    $adminStmt->close();
+}
 
 if (!$adminRow) {
     header('Location: ../login.php');
