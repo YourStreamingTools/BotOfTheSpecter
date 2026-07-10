@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Commands (API), FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, Commands (API), FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -65,6 +65,16 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-solid fa-star"></i></div>
         <div class="sp-doc-card-title">Main Features</div>
         <div class="sp-doc-card-desc">Commands, games, events, tracking, and integrations.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="spotify">
+        <div class="sp-doc-card-icon"><i class="fa-brands fa-spotify"></i></div>
+        <div class="sp-doc-card-title">Spotify Setup</div>
+        <div class="sp-doc-card-desc">Create your own Spotify app and link it.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="tts">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-microphone"></i></div>
+        <div class="sp-doc-card-title">Text-to-Speech</div>
+        <div class="sp-doc-card-desc">Voices, Channel Points TTS, and setup tips.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="commands">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-terminal"></i></div>
@@ -736,6 +746,251 @@ ob_start();
     </div>
 </div>
 <!-- ===================================================================
+     TAB: SPOTIFY SETUP
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="spotify">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Setting Up Your Own Spotify Application</h1>
+            <p style="margin:0;color:var(--text-secondary);">Create a personal Spotify Developer app and link it to BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="spotify" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Important: Spotify Integration Changes (Effective March 9, 2026)</strong><br>
+            We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users — Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration — it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">1</div>
+        <div class="sp-step-body">
+            <h4>Create a Spotify Developer Account</h4>
+            <ol>
+                <li>Go to the <a href="https://developer.spotify.com/" target="_blank" rel="noopener">Spotify Developer Dashboard</a>.</li>
+                <li>Log in with your Spotify account (or create one if you don't have it).</li>
+                <li>Accept the terms and conditions.</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">2</div>
+        <div class="sp-step-body">
+            <h4>Create Your Spotify Application</h4>
+            <ol>
+                <li>Click on <strong>Create app</strong>.</li>
+                <li>Fill in the application details:
+                    <ul>
+                        <li><strong>App name:</strong> <code>Specter-[Your Username]</code> (e.g., <code>Specter-JohnDoe</code>)</li>
+                        <li><strong>App description:</strong> Twitch bot integration for Spotify</li>
+                        <li><strong>Website:</strong> <code>https://dashboard.botofthespecter.com</code></li>
+                        <li><strong>Redirect URI:</strong> <code>https://dashboard.botofthespecter.com/spotifylink.php</code></li>
+                    </ul>
+                </li>
+                <li>Check the box for <strong>Web API</strong> under "Which API/SDKs are you planning to use?"</li>
+                <li>Check the agreement boxes and click <strong>Save</strong>.</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">3</div>
+        <div class="sp-step-body">
+            <h4>Get Your App Credentials</h4>
+            <ol>
+                <li>In your app dashboard, you'll see your <strong>Client ID</strong> displayed.</li>
+                <li>Copy the <strong>Client ID</strong> (a 32-character string).</li>
+                <li>Click <strong>View client secret</strong> to reveal and copy the <strong>Client Secret</strong>.</li>
+            </ol>
+            <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>Keep your Client Secret secure</strong> — never share it publicly or commit it to version control.
+                </div>
+            </div>
+            <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
+                <i class="fa-solid fa-shield-halved"></i>
+                <div>
+                    <strong>Security Note:</strong> Your credentials are stored securely in our encrypted database and are only used for your bot's Spotify integration.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">4</div>
+        <div class="sp-step-body">
+            <h4>Configure BotOfTheSpecter</h4>
+            <ol>
+                <li>Go to your <a href="https://dashboard.botofthespecter.com/spotifylink.php" target="_blank" rel="noopener">Spotify Link page</a>.</li>
+                <li>Check the <strong>Enable Own Client</strong> box.</li>
+                <li>Enter your <strong>Client ID</strong> and <strong>Client Secret</strong> in the fields that appear.</li>
+                <li>Click <strong>Save Credentials</strong>.</li>
+                <li>Click the <strong>Link Spotify Account</strong> button to authorize with your new app.</li>
+            </ol>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting Common Issues</h2>
+    <ul>
+        <li>
+            <strong>Redirect URI mismatch:</strong> Ensure the Redirect URI in your Spotify app matches exactly:<br>
+            <code>https://dashboard.botofthespecter.com/spotifylink.php</code>
+        </li>
+        <li>
+            <strong>Permissions:</strong> The required scopes (<code>user-read-playback-state</code>, <code>user-modify-playback-state</code>, <code>user-read-currently-playing</code>) are automatically requested during authorization.
+        </li>
+        <li>
+            <strong>Rate limits:</strong> Spotify has rate limits — if you exceed them, wait a moment before trying again.
+        </li>
+        <li>
+            <strong>Authorization fails:</strong> Double-check that your Client ID and Client Secret are correct and that the Redirect URI matches exactly.
+        </li>
+    </ul>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            Using your own Spotify app gives you more control and potentially higher rate limits, but requires you to manage the app yourself.
+        </div>
+    </div>
+</div>
+<!-- ===================================================================
+     TAB: TEXT-TO-SPEECH (TTS)
+=================================================================== -->
+<?php
+$ttsVoices = [
+    'alloy'   => 'Clear, crisp, and professional',
+    'ash'     => 'Warm and friendly',
+    'ballad'  => 'Melodic and expressive',
+    'coral'   => 'Energetic and bright',
+    'echo'    => 'Deep and resonant',
+    'fable'   => 'Storyteller voice',
+    'nova'    => 'Fast-paced and dynamic',
+    'onyx'    => 'Smooth and sophisticated',
+    'sage'    => 'Thoughtful and calm',
+    'shimmer' => 'Gentle and uplifting',
+    'verse'   => 'Rhythmic and poetic',
+];
+?>
+<div class="sp-tab-panel sp-doc-content" data-panel="tts">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Text-to-Speech (TTS) Module</h1>
+            <p style="margin:0;color:var(--text-secondary);">Read chat and Channel Point messages aloud through your OBS overlay.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="tts" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>What is TTS &amp; How to Set It Up</h2>
+    <p>The Text-to-Speech (TTS) module allows BotOfTheSpecter to read messages aloud in your stream. You can customize which voice is used, and the TTS will play through your audio overlay. This is perfect for announcements, alerts, and enhancing viewer engagement.</p>
+
+    <h3>Setting Up TTS</h3>
+    <ol>
+        <li>Navigate to the <strong>TTS Settings</strong> section in the BotOfTheSpecter dashboard.</li>
+        <li>Choose your preferred voice from the available options (see the Available Voices section below).</li>
+        <li>Set up your audio overlay to hear TTS output — see the <a href="#" data-goto="troubleshooting">Troubleshooting</a> guide for OBS audio tips.</li>
+        <li>Test your setup with a sample message.</li>
+    </ol>
+
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            All TTS audio is played through your configured audio overlay. Make sure you have the correct overlay URL in your OBS browser source and audio monitoring enabled.
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Using TTS with Channel Points</h3>
+    <p>TTS is triggered through Twitch Channel Points redemptions. Viewers can redeem a Channel Point reward to have a message read aloud using the voice you've selected in TTS settings.</p>
+
+    <hr class="sp-divider">
+
+    <h2>Available Voices</h2>
+    <p>Click the play button next to each voice to hear a sample:</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1rem;">
+        <?php foreach ($ttsVoices as $voiceKey => $voiceDesc):
+            $voiceLabel = ucfirst($voiceKey);
+        ?>
+        <div class="sp-card">
+            <div class="sp-card-header"><?php echo htmlspecialchars($voiceLabel); ?></div>
+            <div class="sp-card-body">
+                <p style="color:var(--text-secondary);font-size:0.9rem;"><?php echo htmlspecialchars($voiceDesc); ?></p>
+                <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm voice-play-button" style="margin-top:0.75rem;"
+                        data-voice="<?php echo htmlspecialchars($voiceKey); ?>">
+                    <i class="fa-solid fa-play"></i> Play Sample
+                </button>
+                <audio id="audio-<?php echo htmlspecialchars($voiceKey); ?>" preload="none" style="display:none;">
+                    <source src="https://cdn.botofthespecter.com/help/tts/<?php echo htmlspecialchars($voiceKey); ?>_sample.mp3" type="audio/mpeg">
+                    <source src="https://cdn.botofthespecter.com/help/tts/<?php echo htmlspecialchars($voiceKey); ?>_sample.wav" type="audio/wav">
+                </audio>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting TTS</h2>
+    <ul>
+        <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="troubleshooting">Troubleshooting</a> tab for overlay and monitoring tips.</li>
+        <li><strong>Wrong voice playing:</strong> Check that you've saved the correct voice in TTS settings on the dashboard.</li>
+        <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the audio overlay source in OBS.</li>
+        <li><strong>TTS not responding:</strong> Ensure the TTS module is enabled on the dashboard and the bot has proper channel permissions.</li>
+    </ul>
+</div>
+<script>
+(function () {
+    var currentVoice = null;
+    var panel = document.querySelector('.sp-tab-panel[data-panel="tts"]');
+    if (!panel) return;
+
+    panel.querySelectorAll('.voice-play-button[data-voice]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var voiceName = btn.getAttribute('data-voice');
+            var audio = document.getElementById('audio-' + voiceName);
+            if (!audio) return;
+
+            if (currentVoice === voiceName && !audio.paused) {
+                audio.pause();
+                audio.currentTime = 0;
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> Play Sample';
+                currentVoice = null;
+                return;
+            }
+
+            panel.querySelectorAll('audio').forEach(function (a) {
+                a.pause();
+                a.currentTime = 0;
+            });
+            panel.querySelectorAll('.voice-play-button').forEach(function (b) {
+                b.innerHTML = '<i class="fa-solid fa-play"></i> Play Sample';
+            });
+
+            audio.play().catch(function () {
+                alert('Could not play audio sample. The file may not be available.');
+            });
+            btn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop';
+            currentVoice = voiceName;
+            audio.onended = function () {
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> Play Sample';
+                currentVoice = null;
+            };
+        });
+    });
+})();
+</script>
+<!-- ===================================================================
      TAB: COMMANDS (from API)
 =================================================================== -->
 <div class="sp-tab-panel sp-doc-content" data-panel="commands">
@@ -830,6 +1085,14 @@ ob_start();
     <div class="sp-faq-item">
         <div class="sp-faq-q">What main features does the bot include?</div>
         <div class="sp-faq-a">See the <a href="#" data-goto="features">Main Features</a> guide for chat protection, custom commands, games, events, tracking, and integrations.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up Spotify with the bot?</div>
+        <div class="sp-faq-a">New users need their own Spotify Developer app (platform client is capped). Follow the <a href="#" data-goto="spotify">Spotify Setup</a> guide to create an app, enter credentials, and link your account.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up Text-to-Speech (TTS)?</div>
+        <div class="sp-faq-a">Pick a voice in dashboard TTS settings, add your audio overlay in OBS with monitoring enabled, and trigger TTS via Channel Points. Full voice samples and tips are in the <a href="#" data-goto="tts">Text-to-Speech</a> guide.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">What built-in commands are there for the bot?</div>
