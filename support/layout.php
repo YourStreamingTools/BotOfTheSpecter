@@ -97,6 +97,7 @@ $v = uuidv4();
                 <a href="/index.php#tts" class="sp-nav-link"><i class="fa-solid fa-microphone"></i> Text-to-Speech</a>
                 <a href="/index.php#variables" class="sp-nav-link"><i class="fa-solid fa-code"></i> Custom Variables</a>
                 <a href="/index.php#twitch-channel-points" class="sp-nav-link"><i class="fa-brands fa-twitch"></i> Channel Points</a>
+                <a href="/index.php#api" class="sp-nav-link"><i class="fa-solid fa-satellite-dish"></i> Custom API</a>
                 <a href="/index.php#commands" class="sp-nav-link"><i class="fa-solid fa-terminal"></i> Command Reference</a>
                 <a href="/index.php#faq" class="sp-nav-link"><i class="fa-solid fa-circle-question"></i> FAQ</a>
                 <a href="/index.php#troubleshooting" class="sp-nav-link"><i class="fa-solid fa-wrench"></i> Troubleshooting</a>

@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Spotify, TTS, Variables, Channel Points, Commands (API), FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, Variables, Channel Points, Custom API, Commands, FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -85,6 +85,11 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-brands fa-twitch"></i></div>
         <div class="sp-doc-card-title">Channel Points</div>
         <div class="sp-doc-card-desc">Sync rewards and automate redemption responses.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="api">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+        <div class="sp-doc-card-title">Custom API</div>
+        <div class="sp-doc-card-desc">Auth, endpoints, and code samples for integrations.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="commands">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-terminal"></i></div>
@@ -1526,6 +1531,279 @@ $ttsVoices = [
     </div>
 </div>
 <!-- ===================================================================
+     TAB: CUSTOM API
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="api">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Custom API Documentation</h1>
+            <p style="margin:0;color:var(--text-secondary);">Programmatic access for integrations, overlays, and external tools.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="api" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>API Overview &amp; Authentication</h2>
+    <p>The BotOfTheSpecter API enables programmatic access to various bot features, allowing developers to build custom integrations, extensions, and applications that interact with the bot's functionality.</p>
+    <p>All authenticated API requests require your unique API key. This key is essential for BotOfTheSpecter integrations, including API access, WebSocket server connections, and third-party platform integrations.</p>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>v2 Authentication Update:</strong> Authenticated <code>/v2/</code> endpoints support sending your key in the <code>X-API-KEY</code> request header. This is the recommended approach for better security. Legacy endpoints still support <code>?api_key=YOUR_API_KEY</code> where applicable.<br>
+            Full v2 docs: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">https://api.botofthespecter.com/v2/docs</a>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Obtaining Your API Key</h3>
+    <ol>
+        <li>Log in to the <a href="https://dashboard.botofthespecter.com/" target="_blank" rel="noopener">BotOfTheSpecter Dashboard</a>.</li>
+        <li>Navigate to <strong>Dashboard → Profile</strong>.</li>
+        <li>Locate your API key in the <strong>API Access</strong> section of the Profile page.</li>
+    </ol>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Keep your API key secure.</strong> Do not share it publicly or include it in client-side code. Your API key provides full access to your BotOfTheSpecter account.
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">API Key Regeneration</h3>
+    <p>If you believe your API key has been compromised:</p>
+    <ol>
+        <li>Go to <strong>Dashboard → Profile</strong>.</li>
+        <li>Click the regenerate button in the API Key section.</li>
+        <li><strong>Important:</strong> Regenerating your key requires a full restart of all BotOfTheSpecter components (Twitch Chat Bot &amp; Overlays). Restart them via the dashboard after regenerating.</li>
+    </ol>
+
+    <hr class="sp-divider">
+
+    <h2>Endpoint Quick Reference</h2>
+    <p>BotOfTheSpecter's API provides several endpoint groups. Some are public; others require a user API key or admin key. For <code>/v2/</code> endpoints, prefer the <code>X-API-KEY</code> header.</p>
+    <div class="sp-card" style="margin-top:1rem;">
+        <div class="sp-card-header">Authenticated Endpoint Highlights (v2)</div>
+        <div class="sp-card-body">
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/account</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/bot/status</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/checkkey</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/streamonline</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/quotes</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/fortune</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/kill</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/joke</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/weather</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/sound-alerts</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/custom-commands</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/user-points</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">POST /v2/user-points/credit</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">POST /v2/user-points/debit</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">GET /v2/user-commands/get</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">POST /v2/user-commands/add</span>
+                <span class="sp-badge" style="background:#6610f2;color:white;">POST /v2/user-commands/remove</span>
+                <span style="width:100%;margin:16px 0 8px 0;font-size:0.95rem;color:#0d6efd;font-weight:700;">
+                    EVENTS &amp; WebSocket Triggers
+                </span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/tts</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/walkon</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/deaths</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/sound_alert</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/custom_command</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/stream_online</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/stream_offline</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">GET /v2/websocket/raffle_winner</span>
+                <span class="sp-badge" style="background:#0d6efd;color:white;">POST /v2/SEND_OBS_EVENT</span>
+                <span style="width:100%;margin:16px 0 8px 0;font-size:0.95rem;color:#888;font-weight:700;">
+                    Webhooks
+                </span>
+                <span class="sp-badge" style="background:#6c757d;color:white;">POST /patreon</span>
+                <span class="sp-badge" style="background:#6c757d;color:white;">POST /kofi</span>
+                <span class="sp-badge" style="background:#6c757d;color:white;">POST /fourthwall</span>
+                <span style="width:100%;margin:16px 0 8px 0;font-size:0.95rem;color:#5a3e00;font-weight:700;">
+                    Admin Only
+                </span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /freestuff</span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /github</span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">GET /v2/authorizedusers</span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">GET /v2/discord/linked</span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">GET /v2/discord/twitch-link</span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /v2/discord/twitch-link/request</span>
+                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /v2/discord/twitch-link/unlink</span>
+            </div>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Endpoint Reference: Public &amp; Commands</h2>
+
+    <h3>Public (no authentication required)</h3>
+    <ul>
+        <li><code>GET /freestuff/games</code> — Get recent free games</li>
+        <li><code>GET /freestuff/latest</code> — Get the most recent free game</li>
+        <li><code>GET /versions</code> — Get the current bot versions</li>
+        <li><code>GET /commands/info</code> — Get builtin commands information</li>
+        <li><code>GET /heartbeat/websocket</code> — Get the heartbeat status of the websocket server</li>
+        <li><code>GET /heartbeat/api</code> — Get the heartbeat status of the API server</li>
+        <li><code>GET /heartbeat/database</code> — Get the heartbeat status of the database server</li>
+        <li><code>GET /system/uptime</code> — Get API process uptime</li>
+        <li><code>GET /chat-instructions</code> — Get AI chat instructions</li>
+        <li><code>GET /api/song</code> — Get the remaining song requests</li>
+        <li><code>GET /api/exchangerate</code> — Get the remaining exchangerate requests</li>
+        <li><code>GET /api/weather</code> — Get the remaining weather API requests</li>
+        <li><code>GET /api/steamapplist</code> — Get Steam app list mapping</li>
+    </ul>
+
+    <h3>Webhooks (require API key)</h3>
+    <ul>
+        <li><code>POST /fourthwall</code> — Receive and process FOURTHWALL Webhook Requests</li>
+        <li><code>POST /kofi</code> — Receive and process KOFI Webhook Requests</li>
+        <li><code>POST /patreon</code> — Receive and process Patreon Webhook Requests</li>
+    </ul>
+
+    <h3>Commands (requires user API key)</h3>
+    <p>Admins can query any user's data with the <code>channel</code> parameter.</p>
+    <ul>
+        <li><code>GET /v2/quotes</code> — Get a random quote</li>
+        <li><code>GET /v2/fortune</code> — Get a random fortune</li>
+        <li><code>GET /v2/kill</code> — Retrieve the Kill Command Responses</li>
+        <li><code>GET /v2/joke</code> — Get a random joke</li>
+        <li><code>GET /v2/sound-alerts</code> — Get list of sound alerts for user</li>
+        <li><code>GET /v2/custom-commands</code> — Get list of custom commands for your account</li>
+        <li><code>GET /v2/user-commands/get</code> — Get list of user managed commands</li>
+        <li><code>POST /v2/user-commands/add</code> — Add a user managed command</li>
+        <li><code>POST /v2/user-commands/remove</code> — Remove a user managed command</li>
+        <li><code>GET /v2/weather</code> — Get weather data and trigger WebSocket weather event</li>
+        <li><code>GET /v2/user-points</code> — Get user points</li>
+        <li><code>POST /v2/user-points/credit</code> — Credit points to a user</li>
+        <li><code>POST /v2/user-points/debit</code> — Debit points from a user</li>
+    </ul>
+
+    <h3>User Account (requires user API key)</h3>
+    <p>Admins can query any user's data with the <code>channel</code> parameter.</p>
+    <ul>
+        <li><code>GET /v2/account</code> — Get account information</li>
+        <li><code>GET /v2/checkkey</code> — Check if the API key is valid</li>
+        <li><code>GET /v2/streamonline</code> — Check if the stream is online</li>
+        <li><code>POST /v2/discord/twitch-link/confirm</code> — Confirm Discord to Twitch link using one-time token</li>
+        <li><code>GET /v2/bot/status</code> — Get chat bot status</li>
+    </ul>
+
+    <h3>WebSocket Triggers (requires user API key)</h3>
+    <p>Endpoints that trigger real-time events via WebSocket to the bot and overlays.</p>
+    <ul>
+        <li><code>GET /v2/websocket/tts</code> — Trigger TTS via API</li>
+        <li><code>GET /v2/websocket/walkon</code> — Trigger Walkon via API</li>
+        <li><code>GET /v2/websocket/deaths</code> — Trigger Deaths via API</li>
+        <li><code>GET /v2/websocket/sound_alert</code> — Trigger Sound Alert via API</li>
+        <li><code>GET /v2/websocket/custom_command</code> — Trigger Custom Command via API</li>
+        <li><code>GET /v2/websocket/stream_online</code> — Trigger Stream Online via API</li>
+        <li><code>GET /v2/websocket/raffle_winner</code> — Trigger Raffle Winner via API</li>
+        <li><code>GET /v2/websocket/stream_offline</code> — Trigger Stream Offline via API</li>
+        <li><code>POST /v2/SEND_OBS_EVENT</code> — Pass OBS events to the websocket server</li>
+    </ul>
+
+    <h3>Admin Only (requires admin API key)</h3>
+    <p>Administrative endpoints that require admin API key. Service-specific admin keys are restricted to their designated service.</p>
+    <ul>
+        <li><code>POST /freestuff</code> — Receive and process FreeStuff Webhook Requests</li>
+        <li><code>POST /github</code> — Receive and process GitHub Webhook Requests</li>
+        <li><code>GET /v2/authorizedusers</code> — Get a list of authorized users for full beta access to the entire Specter Ecosystem</li>
+        <li><code>GET /v2/discord/linked</code> — Check if Discord user is linked</li>
+        <li><code>GET /v2/discord/twitch-link</code> — Get Discord to Twitch link</li>
+        <li><code>POST /v2/discord/twitch-link/request</code> — Create one-time Twitch link token for a Discord user</li>
+        <li><code>POST /v2/discord/twitch-link/unlink</code> — Unlink Discord user from Twitch account</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Using the API</h2>
+    <p>For <code>/v2/</code> endpoints, send your API key in the <code>X-API-KEY</code> header. Legacy endpoints can still use a URL query parameter where supported.</p>
+    <p>Do not expose the key in public client-side code — treat it like a secret and rotate it if you suspect compromise.</p>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Recommended for /v2/:</strong> <code>X-API-KEY: YOUR_API_KEY</code>
+        </div>
+    </div>
+
+    <div class="sp-card" style="margin-top:1rem;" id="api-code-examples">
+        <div class="sp-card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <span>Code Examples</span>
+            <label style="font-weight:normal;font-size:0.875rem;display:flex;align-items:center;gap:0.4rem;">
+                Language:
+                <select id="apiExampleLang" class="sp-select" style="min-width:10rem;">
+                    <option value="curl">curl</option>
+                    <option value="javascript">JavaScript (fetch)</option>
+                    <option value="python">Python (requests)</option>
+                    <option value="php">PHP (curl)</option>
+                    <option value="java">Java (HttpClient)</option>
+                </select>
+            </label>
+        </div>
+        <div class="sp-card-body">
+            <pre class="api-sample" data-lang="curl" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>curl -H "X-API-KEY: YOUR_API_KEY" "https://api.botofthespecter.com/v2/account"</code></pre>
+            <pre class="api-sample" data-lang="javascript" style="display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>fetch('https://api.botofthespecter.com/v2/account', {
+  headers: {
+    'X-API-KEY': 'YOUR_API_KEY'
+  }
+})
+.then(r =&gt; r.json())
+.then(console.log);</code></pre>
+            <pre class="api-sample" data-lang="python" style="display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>import requests
+
+resp = requests.get(
+    'https://api.botofthespecter.com/v2/account',
+    headers={'X-API-KEY': 'YOUR_API_KEY'}
+)
+print(resp.json())</code></pre>
+            <pre class="api-sample" data-lang="php" style="display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, 'https://api.botofthespecter.com/v2/account');
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: YOUR_API_KEY']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$response = curl_exec($ch);
+curl_close($ch);
+echo $response;</code></pre>
+            <pre class="api-sample" data-lang="java" style="display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>// Java 11+ HttpClient
+HttpClient client = HttpClient.newHttpClient();
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create("https://api.botofthespecter.com/v2/account"))
+    .header("X-API-KEY", "YOUR_API_KEY")
+    .GET()
+    .build();
+HttpResponse&lt;String&gt; resp = client.send(request, HttpResponse.BodyHandlers.ofString());
+System.out.println(resp.body());</code></pre>
+            <p style="margin-top:0.75rem;font-size:0.9rem;margin-bottom:0;">Replace <code>YOUR_API_KEY</code> with the key from your dashboard. For <code>/v2/</code> routes, always send it via the <code>X-API-KEY</code> header and avoid passing keys in URLs.</p>
+        </div>
+    </div>
+
+    <div class="sp-alert sp-alert-info" style="margin-top:1.25rem;">
+        <i class="fa-solid fa-book"></i>
+        <div>
+            Interactive OpenAPI docs:
+            <a href="https://api.botofthespecter.com/docs" target="_blank" rel="noopener">api.botofthespecter.com/docs</a>
+            ·
+            <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">v2 docs</a>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var sel = document.getElementById('apiExampleLang');
+    if (!sel) return;
+    var root = document.getElementById('api-code-examples') || document;
+    var blocks = Array.prototype.slice.call(root.querySelectorAll('.api-sample'));
+    function show(v) {
+        blocks.forEach(function (b) {
+            b.style.display = b.dataset.lang === v ? 'block' : 'none';
+        });
+    }
+    sel.addEventListener('change', function (e) { show(e.target.value); });
+    show(sel.value);
+})();
+</script>
+<!-- ===================================================================
      TAB: COMMANDS (from API)
 =================================================================== -->
 <div class="sp-tab-panel sp-doc-content" data-panel="commands">
@@ -1648,6 +1926,10 @@ $ttsVoices = [
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do Twitch Channel Points work with the bot?</div>
         <div class="sp-faq-a">Sync rewards from the dashboard Channel Rewards page, then set custom redemption messages with variables. Full walkthrough: <a href="#" data-goto="twitch-channel-points">Channel Points</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I use the BotOfTheSpecter API?</div>
+        <div class="sp-faq-a">Get your API key from Dashboard → Profile, send it as <code>X-API-KEY</code> on <code>/v2/</code> routes, and see the <a href="#" data-goto="api">Custom API</a> guide for endpoints and code samples. Full OpenAPI: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">api.botofthespecter.com/v2/docs</a>.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">Can I request a new built-in command?</div>
