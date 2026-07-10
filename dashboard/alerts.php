@@ -368,7 +368,16 @@ if ($db->connect_error) {
 // Enable/disable-only categories (weather, deaths, walk-ons) render through their own
 // overlay theme. Users seeded before these categories existed won't have rows, so make
 // sure a single on/off variant exists for each.
-$simpleCategorySeeds = ['weather' => 'Weather', 'deaths' => 'Death counter', 'walkons' => 'Walk-ons'];
+$simpleCategorySeeds = [
+    'weather'      => 'Weather',
+    'deaths'       => 'Death counter',
+    'walkons'      => 'Walk-ons',
+    'watch_streak' => 'Watch streak',
+    'discord_join' => 'Discord joins',
+    'kofi'         => 'Ko-fi tips',
+    'patreon'      => 'Patreon',
+    'fourthwall'   => 'Fourthwall'
+];
 foreach ($simpleCategorySeeds as $simpleCat => $simpleLabel) {
     $chk = $db->prepare("SELECT COUNT(*) AS cnt FROM twitch_alerts WHERE alert_category = ?");
     $chk->bind_param('s', $simpleCat);
@@ -1085,7 +1094,7 @@ $(document).ready(function() {
     };
     // Enable/disable-only categories — selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
-    const simpleCategories = ['weather', 'deaths', 'walkons'];
+    const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall'];
     // ---- Drag-to-place position editor -------------------------------------
     // A NULL screen_position (no saved x/y) falls back to the per-category default.
     const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
@@ -1099,7 +1108,7 @@ $(document).ready(function() {
         var a = alertsData[currentAlertId];
         if (!a) return null;
         if (a.alert_category === 'walkons') return document.getElementById('preview-walkon-sample');
-        if (a.alert_category === 'weather' || a.alert_category === 'deaths') return document.getElementById('preview-legacy');
+        if (simpleCategories.indexOf(a.alert_category) !== -1 && a.alert_category !== 'walkons') return document.getElementById('preview-legacy');
         return document.getElementById('preview-box');
     }
     // True-to-scale: a box on a smaller OBS canvas is relatively larger, so scale the
@@ -1195,6 +1204,16 @@ $(document).ready(function() {
                  + '<div class="apd-game">Elden Ring</div>'
                  + '<div class="apd-count">42</div>'
                  + '</div>';
+        } else {
+            var genericLabels = {
+                'watch_streak': 'Watch Streak Alert',
+                'discord_join': 'Discord Join Alert',
+                'kofi': 'Ko-fi Support Alert',
+                'patreon': 'Patreon Support Alert',
+                'fourthwall': 'Fourthwall Support Alert'
+            };
+            var lbl = genericLabels[category] || category + ' Alert';
+            html = '<div style="background:var(--sp-dark-grey);color:#fff;padding:12px 24px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);font-weight:600;font-size:18px;">' + lbl + '</div>';
         }
         $('#preview-legacy').html(html);
     }
@@ -1407,7 +1426,7 @@ $(document).ready(function() {
             $('#variant-reward-group').hide();
             $('#variant-bingo-group').show();
             $('#set-bingo-event').val(extractBingoEvent(condition) || '');
-        } else if (['follow', 'discord_join', 'kofi', 'patreon', 'fourthwall'].indexOf(category) !== -1) {
+        } else if (['follow'].indexOf(category) !== -1) {
             $('#variant-name-group').show();
             $('#variant-condition-group').hide();
             $('#variant-reward-group').hide();
