@@ -10,7 +10,7 @@ require_once __DIR__ . '/includes/session.php';
 roadmap_session_start();
 
 if (roadmap_is_logged_in()) {
-    $redirect = $_SESSION['redirect_url'] ?? '/index.php';
+    $redirect = roadmap_safe_redirect($_SESSION['redirect_url'] ?? '/index.php');
     unset($_SESSION['redirect_url']);
     header('Location: ' . $redirect);
     exit;
@@ -57,11 +57,8 @@ if (!empty($_GET['handoff'])) {
                 $_SESSION['twitch_expires_at'] = time() + 14400;
                 roadmap_sync_auth();
                 roadmap_init_admin_db();
-                $redirect = $_GET['return'] ?? ($_SESSION['redirect_url'] ?? '/index.php');
+                $redirect = roadmap_safe_redirect($_GET['return'] ?? ($_SESSION['redirect_url'] ?? '/index.php'));
                 unset($_SESSION['redirect_url']);
-                if (strncmp((string)$redirect, '/', 1) !== 0 || strncmp((string)$redirect, '//', 2) === 0) {
-                    $redirect = '/index.php';
-                }
                 header('Location: ' . $redirect);
                 exit;
             }
@@ -153,7 +150,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $_SESSION['last_validated_at'] = time();
             roadmap_sync_auth();
             roadmap_init_admin_db();
-            $redirect = $_SESSION['redirect_url'] ?? '/index.php';
+            $redirect = roadmap_safe_redirect($_SESSION['redirect_url'] ?? '/index.php');
             unset($_SESSION['redirect_url']);
             header('Location: ' . $redirect);
             exit;
