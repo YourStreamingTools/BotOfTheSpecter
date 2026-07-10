@@ -460,6 +460,16 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     ob_clean();
     $selectedUser = $_GET['admin_log_user'];
     $logType = $_GET['admin_log_type'];
+    // Validate before the path is built: $selectedUser must be a bare Twitch
+    // username (no '/' or '.') and $logType must be one of the types this
+    // page actually offers in the "user" log dropdown (see the
+    // #admin-log-type-select options below). Without this, either value
+    // could walk the SSH `cat` call out of /home/botofthespecter/logs/.
+    $allowedUserLogTypes = ['bot', 'chat', 'twitch', 'api', 'chat_history', 'event_log', 'websocket', 'system', 'integrations', 'crash'];
+    if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $selectedUser) || !in_array($logType, $allowedUserLogTypes, true)) {
+        echo json_encode(['error' => 'invalid_log_type']);
+        exit();
+    }
     $logPath = ($logType === 'crash')
         ? "/home/botofthespecter/logs/crash/{$selectedUser}.log"
         : "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
@@ -568,7 +578,13 @@ if (isset($_GET['admin_system_log_type'])) {
             $result = read_recorder_log_over_ssh($logPath);
             break;
         default:
-            // Other system logs in custom directory (use SSH)
+            // Other system logs in custom directory (use SSH). read_log_over_ssh()
+            // is currently an unimplemented stub, but validate $logType anyway
+            // (defense-in-depth) since it's interpolated straight into the path.
+            if (!preg_match('/^[A-Za-z0-9_-]+$/', $logType)) {
+                echo json_encode(['error' => 'invalid_log_type']);
+                exit();
+            }
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
             $result = read_log_over_ssh($logPath);
             break;
