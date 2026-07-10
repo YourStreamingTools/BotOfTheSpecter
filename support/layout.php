@@ -100,6 +100,7 @@ $v = uuidv4();
                 <a href="/index.php#module-variables" class="sp-nav-link"><i class="fa-solid fa-puzzle-piece"></i> Module Variables</a>
                 <a href="/index.php#twitch-channel-points" class="sp-nav-link"><i class="fa-brands fa-twitch"></i> Channel Points</a>
                 <a href="/index.php#api" class="sp-nav-link"><i class="fa-solid fa-satellite-dish"></i> Custom API</a>
+                <a href="/index.php#run-yourself" class="sp-nav-link"><i class="fa-solid fa-server"></i> Run Yourself</a>
                 <a href="/index.php#commands" class="sp-nav-link"><i class="fa-solid fa-terminal"></i> Command Reference</a>
                 <a href="/index.php#faq" class="sp-nav-link"><i class="fa-solid fa-circle-question"></i> FAQ</a>
                 <a href="/index.php#troubleshooting" class="sp-nav-link"><i class="fa-solid fa-wrench"></i> Troubleshooting</a>

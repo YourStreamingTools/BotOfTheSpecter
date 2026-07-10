@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Spotify, TTS, OBS Audio, Variables, Module Variables, Channel Points, Custom API, Commands, FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, OBS Audio, Variables, Module Variables, Channel Points, Custom API, Run Yourself, Commands, FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -100,6 +100,11 @@ ob_start();
         <div class="sp-doc-card-icon"><i class="fa-solid fa-satellite-dish"></i></div>
         <div class="sp-doc-card-title">Custom API</div>
         <div class="sp-doc-card-desc">Auth, endpoints, and code samples for integrations.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="run-yourself">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-server"></i></div>
+        <div class="sp-doc-card-title">Run Yourself</div>
+        <div class="sp-doc-card-desc">Self-host Specter on your own servers.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="commands">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-terminal"></i></div>
@@ -2171,6 +2176,624 @@ System.out.println(resp.body());</code></pre>
 })();
 </script>
 <!-- ===================================================================
+     TAB: RUN YOURSELF (self-hosting)
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="run-yourself">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Run BotOfTheSpecter Yourself</h1>
+            <p style="margin:0;color:var(--text-secondary);">Self-host SpecterSystems on your own Linux servers.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="run-yourself" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>What is Self-Hosting?</h2>
+    <div class="sp-alert sp-alert-info">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Complete Freedom &amp; Control</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">To run the source code of BotOfTheSpecter on your own set of servers and not use our hosted system, you'll have complete freedom to host it yourself with more control over your data. BotOfTheSpecter runs on a full headless Linux server architecture.</p>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Advanced Setup Required</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">Running SpecterSystems yourself requires technical knowledge of server administration, Python, PHP, and Linux. This is recommended for experienced developers and system administrators only.</p>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Self-Hosting Note</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">If you're interested in running BotOfTheSpecter on your own servers, please be aware that the self-hosting documentation may not always reflect the latest changes. Self-hosting is recommended for experienced developers who are comfortable troubleshooting issues independently. While we're happy to help with our hosted service, our support team focuses primarily on the cloud-hosted version and may not be able to assist with self-hosting setup or issues.</p>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Server Architecture</h2>
+    <p>The minimum setup required to run SpecterSystems consists of <strong>4 servers</strong> running on a headless Linux architecture. A 5-server setup is recommended for production deployments.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #3273dc;">Server 1: Web / Dashboard</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 1+ core</li>
+                    <li><strong>RAM:</strong> 1 GB minimum</li>
+                    <li><strong>Service:</strong> PHP / Apache2 Dashboard</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #48c774;">Server 2: API</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 1+ core</li>
+                    <li><strong>RAM:</strong> 1 GB minimum</li>
+                    <li><strong>Service:</strong> FastAPI server</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #ffdd57;">Server 3: WebSocket</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 1+ core</li>
+                    <li><strong>RAM:</strong> 1 GB minimum</li>
+                    <li><strong>Service:</strong> Python SocketIO server</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #f14668;">Server 4: Database</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 2+ cores</li>
+                    <li><strong>RAM:</strong> 4 GB minimum</li>
+                    <li><strong>Service:</strong> MySQL</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="sp-card" style="margin-top:1rem;">
+        <div class="sp-card-header" style="border-left:4px solid #b56edb;">
+            Server 5: Bot <span class="sp-badge" style="background:#b56edb;color:#fff;margin-left:0.5rem;">Recommended</span>
+        </div>
+        <div class="sp-card-body">
+            <p>For production with improved reliability and scalability. This is how SpecterSystems currently runs.</p>
+            <ul style="margin:0.5rem 0 0;padding-left:1.25rem;">
+                <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                <li><strong>CPU:</strong> 2+ cores</li>
+                <li><strong>RAM:</strong> 4 GB minimum</li>
+                <li><strong>Service:</strong> Python bot process</li>
+            </ul>
+            <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;font-size:0.9rem;">
+                <i class="fa-solid fa-circle-info"></i>
+                <div>
+                    The 2+ cores / 4 GB RAM spec is for running many bots for multiple users. If you're only running a <strong>single bot</strong> for personal use, 1 core and 1 GB RAM is sufficient.
+                </div>
+            </div>
+        </div>
+    </div>
+    <h3 style="margin-top:1.25rem;">Common Software Requirements (All Servers)</h3>
+    <ul>
+        <li><strong>OS:</strong> Linux (Ubuntu 24.04 LTS or newer)</li>
+        <li><strong>Python:</strong> 3.8+ (Bot, API, and WebSocket servers)</li>
+        <li><strong>PHP:</strong> 8.0+ (Web/Dashboard server)</li>
+        <li><strong>Apache2</strong> (Web/Dashboard server)</li>
+        <li><strong>MySQL</strong> (Database server)</li>
+        <li><strong>Git:</strong> For version control</li>
+    </ul>
+    <h3>Network &amp; Services</h3>
+    <ul>
+        <li>Twitch API credentials (OAuth tokens)</li>
+        <li>Discord bot token <em>(optional)</em></li>
+        <li>Spotify API credentials <em>(optional)</em></li>
+        <li>OpenWeatherMap API key <em>(optional)</em></li>
+        <li>SSL/TLS certificates for secure communication</li>
+        <li>Firewall configured for internal communication</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Recommended Hosting: Linode</h2>
+    <div class="sp-alert sp-alert-info">
+        <i class="fa-solid fa-cloud"></i>
+        <div>
+            <strong>We recommend running SpecterSystems on Linode.</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">Our systems have been fully tested and optimized to work seamlessly on Linode's infrastructure.</p>
+        </div>
+    </div>
+    <p style="margin-top:1rem;"><strong>Get $100 in free credit:</strong> Use our referral link to receive <strong>$100 of Linode credit</strong> to use within 60 days once you've entered a valid payment method to your Linode account.</p>
+    <p style="margin-top:1rem;">
+        <a href="https://www.linode.com/lp/refer/?r=210010495bf7dc151d31289c7bc399f8933f79e3" target="_blank" rel="noopener" class="sp-btn sp-btn-primary">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Get $100 Linode Credit
+        </a>
+    </p>
+
+    <hr class="sp-divider">
+
+    <h2>Prerequisites (All Servers)</h2>
+    <p>Before deploying to individual servers, ensure each Linux server has the following installed:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code># Update system packages (All Servers)
+sudo apt update &amp;&amp; sudo apt upgrade -y
+
+# Install common dependencies (All Servers)
+sudo apt install -y curl wget git build-essential openssl ssl-cert
+
+# Create botofthespecter user (All Servers)
+sudo useradd -m -s /bin/bash botofthespecter
+sudo usermod -aG sudo botofthespecter
+
+# For Servers 1, 2, 3, 5 - Install Python and pip
+sudo apt install -y python3 python3-pip python3-venv
+
+# For Server 1 Only - Install PHP and Apache2
+sudo apt install -y php php-cli php-fpm php-curl php-json php-mysql php-ssh2 apache2 libapache2-mod-php
+
+# For Server 4 Only - Install MySQL
+sudo apt install -y mysql-server</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Step 1: Clone the Repository (Servers 1, 2, 3, 5)</h2>
+    <p>Clone the BotOfTheSpecter repository to a temporary directory on each server (except Server 4 — Database):</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>cd /tmp
+git clone https://github.com/YourStreamingTools/BotOfTheSpecter.git botofthespecter-temp
+cd botofthespecter-temp</code></pre>
+    <p style="margin-top:1rem;">Then move the appropriate files to their destinations based on your server type:</p>
+
+    <h3>For Server 1 (Web/Dashboard):</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo rm -rf /var/www/html
+sudo cp -r /tmp/botofthespecter-temp/dashboard /var/www/
+sudo cp -r /tmp/botofthespecter-temp/home /var/www/
+sudo cp -r /tmp/botofthespecter-temp/html /var/www/
+sudo cp -r /tmp/botofthespecter-temp/overlay /var/www/
+sudo cp -r /tmp/botofthespecter-temp/roadmap /var/www/
+sudo cp -r /tmp/botofthespecter-temp/tts /var/www/
+sudo cp -r /tmp/botofthespecter-temp/walkons /var/www/
+sudo cp -r /tmp/botofthespecter-temp/videoalerts /var/www/
+sudo cp -r /tmp/botofthespecter-temp/soundalerts /var/www/
+sudo cp -r /tmp/botofthespecter-temp/config /var/www/
+sudo cp -r /tmp/botofthespecter-temp/cdn /var/www/
+sudo chown -R www-data:www-data /var/www</code></pre>
+
+    <h3 style="margin-top:1rem;">For Server 2 (API):</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo cp -r /tmp/botofthespecter-temp/api /home/botofthespecter/
+sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
+
+    <h3 style="margin-top:1rem;">For Server 3 (WebSocket):</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo cp -r /tmp/botofthespecter-temp/websocket /home/botofthespecter/
+sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
+
+    <h3 style="margin-top:1rem;">For Server 5 (Bot):</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo cp -r /tmp/botofthespecter-temp/bot /home/botofthespecter/
+sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
+
+    <h3 style="margin-top:1rem;">Clean up temporary directory (All Servers):</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>rm -rf /tmp/botofthespecter-temp</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Step 2: Configure Database Server (Server 4 Only)</h2>
+    <p>Server 4 does not require any files from the repository — it only needs MySQL installed and configured.</p>
+    <h3>Required Databases</h3>
+    <ul>
+        <li><strong>spam_patterns</strong> — For the bot to auto-ban users matching spam patterns</li>
+        <li><strong>website</strong> — For the main website</li>
+        <li><strong>specterdiscordbot</strong> — If running the Discord bot <em>(optional)</em></li>
+        <li><strong>roadmap</strong> — If running the roadmap site <em>(optional)</em></li>
+    </ul>
+    <p>Run the following SQL to create the core databases and tables:</p>
+    <details style="margin-top:1rem;">
+        <summary style="cursor:pointer;padding:0.75rem 1rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);font-weight:600;">View core database schema (click to expand)</summary>
+        <pre style="background:var(--bg-surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>sudo mysql -u root -p
+
+-- spam_pattern
+CREATE DATABASE IF NOT EXISTS spam_pattern;
+USE spam_pattern;
+CREATE TABLE IF NOT EXISTS spam_patterns (
+    id INT NOT NULL AUTO_INCREMENT,
+    spam_pattern TEXT NOT NULL,
+    PRIMARY KEY (id)
+);
+
+-- roadmap
+CREATE DATABASE IF NOT EXISTS roadmap;
+USE roadmap;
+CREATE TABLE IF NOT EXISTS roadmap_items (
+    id INT NOT NULL AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    category ENUM('REQUESTS','IN PROGRESS','BETA TESTING','COMPLETED','REJECTED') NOT NULL DEFAULT 'REQUESTS',
+    subcategory ENUM('TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER') NOT NULL,
+    priority ENUM('LOW','MEDIUM','HIGH','CRITICAL') NOT NULL DEFAULT 'MEDIUM',
+    website_type ENUM('DASHBOARD','OVERLAYS') DEFAULT NULL,
+    completed_date DATE DEFAULT NULL,
+    created_by VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+);
+CREATE TABLE IF NOT EXISTS roadmap_comments (
+    id INT NOT NULL AUTO_INCREMENT,
+    item_id INT NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    comment TEXT NOT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT roadmap_comments_ibfk_1 FOREIGN KEY (item_id) REFERENCES roadmap_items (id) ON DELETE CASCADE
+);
+
+-- specterdiscordbot (tables abbreviated — see GitHub for full schema)
+CREATE DATABASE IF NOT EXISTS specterdiscordbot;
+USE specterdiscordbot;
+-- (see full schema in run_yourself docs on GitHub)
+
+-- website
+CREATE DATABASE IF NOT EXISTS website;
+USE website;
+CREATE TABLE IF NOT EXISTS users (
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL,
+    twitch_display_name VARCHAR(50) DEFAULT NULL,
+    twitch_user_id VARCHAR(255) NOT NULL,
+    access_token VARCHAR(255) DEFAULT NULL,
+    refresh_token VARCHAR(255) DEFAULT NULL,
+    api_key VARCHAR(32) NOT NULL,
+    is_admin TINYINT(1) NOT NULL DEFAULT 0,
+    beta_access TINYINT(1) NOT NULL DEFAULT 0,
+    is_technical TINYINT(1) NOT NULL DEFAULT 0,
+    signup_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    profile_image VARCHAR(255) NOT NULL DEFAULT 'https://cdn.botofthespecter.com/noimage.png',
+    email VARCHAR(255) DEFAULT NULL,
+    app_password VARCHAR(50) DEFAULT NULL,
+    language VARCHAR(5) NOT NULL DEFAULT 'EN',
+    PRIMARY KEY (id),
+    UNIQUE KEY username (username),
+    UNIQUE KEY api_key (api_key),
+    KEY idx_twitch_user_id (twitch_user_id)
+);</code></pre>
+    </details>
+    <p style="margin-top:1rem;">Then create your database user:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%';
+FLUSH PRIVILEGES;</code></pre>
+    <div class="sp-alert sp-alert-danger" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>DO NOT manually create user databases!</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">The system automatically creates a dedicated database for each user on their first login. It creates the database, sets up all tables, and configures default settings automatically.</p>
+        </div>
+    </div>
+    <p style="margin-top:1rem;">Finally, configure MySQL to accept connections from other servers by editing <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code>:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>bind-address = 0.0.0.0</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Step 3: Set Up Python Environment (Servers 2, 3 &amp; 5)</h2>
+    <p>All application servers share the same repository path: <code>/home/botofthespecter</code>. Create the virtual environment in that directory and use the venv's pip/python directly so commands are deterministic and work the same on every server.</p>
+    <p><strong>Recommended venv location:</strong> <code>/home/botofthespecter/botofthespecter</code></p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code># create the venv (run as the botofthespecter user)
+python3 -m venv botofthespecter
+# install all required packages
+/home/botofthespecter/botofthespecter/bin/pip install -r /home/botofthespecter/requirements.txt</code></pre>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Production notes:</strong>
+            <ul style="margin:0.5rem 0 0;padding-left:1.25rem;">
+                <li>Reference the virtualenv executables directly in systemd unit files. Example: <code>ExecStart=/home/botofthespecter/botofthespecter/bin/python /home/botofthespecter/api/api.py</code></li>
+                <li>Always run the venv creation and package installs as the <code>botofthespecter</code> user to ensure correct file ownership.</li>
+            </ul>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Step 4: Configure Environment Variables (All Servers)</h2>
+    <p>Create a <code>.env</code> file in <code>/home/botofthespecter</code> with your configuration. Replace the placeholders with your actual values:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code># SQL Data
+SQL_HOST=
+SQL_USER=
+SQL_PASSWORD=
+SQL_PORT=
+# API STUFF
+SHAZAM_API=
+WEATHER_API=
+STEAM_API=
+OPENAI_KEY=
+OPENAI_VECTOR_ID=
+STREAMELEMENTS_CLIENT_ID=
+STREAMELEMENTS_SECRET_KEY=
+HYPERATE_API_KEY=
+# Twitch Bot
+OAUTH_TOKEN=oauth:
+TWITCH_OAUTH_API_TOKEN=
+TWITCH_OAUTH_API_CLIENT_ID=
+CLIENT_ID=
+CLIENT_SECRET=
+TWITCH_GQL=
+TIMEZONE_API=
+EXCHANGE_RATE_API=
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
+BOT_ID=
+# Discord Bot
+DISCORD_TOKEN=
+DISCORD_PUBLIC_KEY=
+API_KEY=
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+# Guided Bot
+GUIDED_BOT_USER_ID=
+GUIDED_BOT_TOKEN=
+# ADMINS
+ADMIN_KEY=
+# BACKUP SYSTEM
+USE_BACKUP_SYSTEM=False
+BACKUP_CLIENT_ID=
+BACKUP_SECRET_KEY=
+# SSH Settings
+SSH_USERNAME=
+SSH_PASSWORD=
+API-HOST=
+WEBSOCKET-HOST=
+BOT-SRV-HOST=
+SQL-HOST=
+WEB-HOST=
+BILLING-HOST=
+STREAM-AU-EAST-1-HOST=
+STREAM-US-EAST-1-HOST=
+STREAM-US-WEST-1-HOST=
+# SMTP Email Settings
+SMTP_HOST=
+SMTP_PORT=465
+SMTP_FROM_NAME=
+SMTP_USERNAME=
+SMTP_PASSWORD=
+# S3 Bucket Settings for Exports Only
+S3_ENDPOINT_HOSTNAME=
+S3_CUSTOM_DOMAIN=
+S3_BUCKET_NAME=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_ALWAYS_UPLOAD=True</code></pre>
+    <h3 style="margin-top:1rem;">Required Variables</h3>
+    <ul>
+        <li><strong>SQL_*</strong> — Database connection details (must match Server 4 config)</li>
+        <li><strong>CLIENT_ID &amp; CLIENT_SECRET</strong> — Your Twitch application credentials</li>
+        <li><strong>OAUTH_TOKEN</strong> — Bot account OAuth token</li>
+        <li><strong>API_KEY</strong> — Generate a secure random key for internal service authentication</li>
+    </ul>
+    <h3>Optional Variables</h3>
+    <ul>
+        <li><strong>WEATHER_API</strong> — For weather commands (OpenWeatherMap)</li>
+        <li><strong>SPOTIFY_*</strong> — For Spotify integration</li>
+        <li><strong>DISCORD_*</strong> — For Discord bot functionality</li>
+        <li><strong>OPENAI_KEY</strong> — For AI features</li>
+        <li><strong>S3_*</strong> — For user data exports to object storage</li>
+        <li><strong>SMTP_*</strong> — For email notifications</li>
+    </ul>
+    <h3>Server Host Variables</h3>
+    <ul>
+        <li><strong>API-HOST, WEBSOCKET-HOST, etc.</strong> — Set these to the IP addresses or hostnames of your respective servers for inter-server communication</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Step 5: Verify WebSocket Dependencies (Server 3)</h2>
+    <p>Install Python dependencies for the WebSocket server:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>cd /home/botofthespecter
+source /home/botofthespecter/botofthespecter/bin/activate
+/home/botofthespecter/botofthespecter/bin/pip install -r /home/botofthespecter/requirements.txt</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Step 6: Set Up Web Server (Server 1)</h2>
+    <p>Configure Apache2 to serve the PHP dashboard:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>sudo apt install -y apache2 libapache2-mod-php
+# Enable Apache2 modules
+sudo a2enmod rewrite
+sudo a2enmod php8.1
+# Create Apache2 configuration
+sudo nano /etc/apache2/sites-available/botofthespecter.conf</code></pre>
+    <p style="margin-top:1rem;">Configure Apache however you prefer. You must serve the dashboard and related assets under your domain. Recommended subdomains to configure:</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>example.com
+dashboard.example.com
+overlay.example.com
+videoalert.example.com
+soundalert.example.com
+tts.example.com</code></pre>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>Ensure each subdomain points to the correct server (Server 1 for the dashboard/static sites) and that TLS is enabled. Let's Encrypt is recommended.</div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Running the Services</h2>
+
+    <h3>Server 1: Start the Web/Dashboard Server</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>sudo systemctl enable apache2
+sudo systemctl start apache2
+sudo systemctl status apache2</code></pre>
+
+    <h3 style="margin-top:1rem;">Server 2: Start the API Server</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>cd /home/botofthespecter
+source /home/botofthespecter/botofthespecter/bin/activate
+# Run with TLS (replace cert paths with your domain)
+python -m uvicorn api.api:app --host 0.0.0.0 --port 443 \
+  --ssl-keyfile=/etc/letsencrypt/live/api.example.com/privkey.pem \
+  --ssl-certfile=/etc/letsencrypt/live/api.example.com/fullchain.pem</code></pre>
+    <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>TLS is required for the API server. For production, create a systemd service unit so the API starts automatically on boot.</div>
+    </div>
+
+    <h3 style="margin-top:1rem;">Server 3: Start the WebSocket Server</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>cd /home/botofthespecter
+source /home/botofthespecter/botofthespecter/bin/activate
+python /home/botofthespecter/server.py</code></pre>
+
+    <h3 style="margin-top:1rem;">Server 4: Start the Database</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>sudo systemctl enable mysql
+sudo systemctl start mysql
+sudo systemctl status mysql</code></pre>
+
+    <h3 style="margin-top:1rem;">Server 5: Bot Service</h3>
+    <p>The bot is controlled and started from the dashboard (Server 1). No manual startup is required on Server 5 — it is ready once the Python environment and <code>.env</code> configuration are complete.</p>
+
+    <hr class="sp-divider">
+
+    <h2>Inter-Server Networking</h2>
+    <ul>
+        <li><strong>Internal Network:</strong> Use private IP addresses for inter-server communication</li>
+        <li><strong>DNS/Hostnames:</strong> Set up DNS or <code>/etc/hosts</code> entries for server-to-server connections</li>
+        <li><strong>Firewall Rules:</strong> Only allow necessary ports between servers</li>
+        <li><strong>SSL/TLS:</strong> Encrypt communication between services</li>
+    </ul>
+    <h3>Firewall Configuration Example</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code># Server 1 (Web) - Allow HTTP/HTTPS and communication with other services
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow from 10.10.10.2:8001  # API Server
+sudo ufw allow from 10.10.10.3:8000  # WebSocket Server
+sudo ufw allow from 10.10.10.4:3306  # Database Server
+
+# Server 2 (API) - Allow inbound from Web and Bot servers
+sudo ufw allow from 10.10.10.1:any   # Web Server
+sudo ufw allow from 10.10.10.5:any   # Bot Server
+
+# Server 3 (WebSocket) - Allow inbound from Web and Bot servers
+sudo ufw allow from 10.10.10.1:any   # Web Server
+sudo ufw allow from 10.10.10.5:any   # Bot Server
+
+# Server 4 (Database) - Allow inbound from all services
+sudo ufw allow from 10.10.10.1:any   # Web Server
+sudo ufw allow from 10.10.10.2:any   # API Server
+sudo ufw allow from 10.10.10.5:any   # Bot Server
+
+# Server 5 (Bot) - Allow outbound to API, WebSocket, and Database
+sudo ufw allow to 10.10.10.2:8001    # API Server
+sudo ufw allow to 10.10.10.3:8000    # WebSocket Server
+sudo ufw allow to 10.10.10.4:3306    # Database Server</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Security Considerations</h2>
+    <ul>
+        <li><strong>HTTPS/SSL:</strong> Always use SSL certificates for all services — Let's Encrypt is free</li>
+        <li><strong>Firewall:</strong> Restrict database access to only the servers that need it</li>
+        <li><strong>Environment Variables:</strong> Never commit <code>.env</code> files to version control</li>
+        <li><strong>Database Backups:</strong> Set up automated daily backups</li>
+        <li><strong>Updates:</strong> Keep dependencies updated to patch security vulnerabilities</li>
+        <li><strong>Monitoring:</strong> Monitor system resources and bot logs for issues</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-brands fa-twitch"></i> Bot Not Connecting to Twitch</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify your OAuth token is valid and not expired</li>
+                    <li>Check that your Twitch Client ID and Secret are correct</li>
+                    <li>Ensure the bot account has the proper channel permissions</li>
+                    <li>Review logs in <code>bot/logs/</code> for error messages</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-database"></i> Database Connection Errors</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify MySQL is running on Server 4</li>
+                    <li>Check credentials in your <code>.env</code> file</li>
+                    <li>Ensure the user has proper database permissions</li>
+                    <li>Test: <code>mysql -u botuser -p -h &lt;db-host&gt;</code></li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-server"></i> API Server Not Responding</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify FastAPI/Uvicorn is running</li>
+                    <li>Check that port 443 is not in use by another service</li>
+                    <li>Review API logs for startup errors</li>
+                    <li>Ensure all Python dependencies are installed</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-plug"></i> WebSocket Connection Issues</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify WebSocket server is running on port 8000</li>
+                    <li>Check firewall rules allow WebSocket connections</li>
+                    <li>Ensure the WebSocket URL is correctly configured in clients</li>
+                    <li>Review WebSocket server logs for errors</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Maintenance</h2>
+    <h3>Regular Tasks</h3>
+    <ul>
+        <li><strong>Daily:</strong> Check logs for errors and unusual activity</li>
+        <li><strong>Weekly:</strong> Verify all services are running and responsive</li>
+        <li><strong>Monthly:</strong> Update dependencies and apply security patches</li>
+        <li><strong>Quarterly:</strong> Review and optimize database performance</li>
+    </ul>
+    <h3>Updating BotOfTheSpecter</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>git pull origin main
+pip install -r bot/requirements.txt --upgrade
+pip install -r api/requirements.txt --upgrade</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Need Help?</h2>
+    <p>If you encounter issues while self-hosting BotOfTheSpecter:</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-brands fa-github"></i> GitHub Issues</div>
+            <div class="sp-card-body">
+                <p>Report bugs or browse existing issues on GitHub.</p>
+                <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/issues" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary sp-btn-sm">Open GitHub Issues</a>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-brands fa-discord"></i> Discord Community</div>
+            <div class="sp-card-body">
+                <p>Join our community for help and discussion.</p>
+                <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary sp-btn-sm">Join Discord</a>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-ticket"></i> Support Ticket</div>
+            <div class="sp-card-body">
+                <p>Open a ticket if you need direct assistance.</p>
+                <a href="/tickets.php?action=new" class="sp-btn sp-btn-primary sp-btn-sm">Open a Ticket</a>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ===================================================================
      TAB: COMMANDS (from API)
 =================================================================== -->
 <div class="sp-tab-panel sp-doc-content" data-panel="commands">
@@ -2301,6 +2924,10 @@ System.out.println(resp.body());</code></pre>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I use the BotOfTheSpecter API?</div>
         <div class="sp-faq-a">Get your API key from Dashboard → Profile, send it as <code>X-API-KEY</code> on <code>/v2/</code> routes, and see the <a href="#" data-goto="api">Custom API</a> guide for endpoints and code samples. Full OpenAPI: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">api.botofthespecter.com/v2/docs</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">Can I self-host BotOfTheSpecter?</div>
+        <div class="sp-faq-a">Yes — advanced users can run Specter on their own Linux servers. See the <a href="#" data-goto="run-yourself">Run Yourself</a> guide. Support focuses on the hosted service; self-hosting requires independent troubleshooting.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">Can I request a new built-in command?</div>
