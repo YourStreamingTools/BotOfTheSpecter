@@ -496,7 +496,7 @@ ob_start();
             <p style="margin-bottom:0.5rem;"><?= t('modules_variables_notice_intro') ?></p>
             <p style="margin-bottom:0.5rem;"><?= t('modules_variables_notice_what') ?></p>
             <p style="margin-bottom:0.5rem;"><?= t('modules_variables_notice_available') ?></p>
-            <a href="https://help.botofthespecter.com/specter_module_variables.php" target="_blank"
+            <a href="https://support.botofthespecter.com/index.php#variables" target="_blank" rel="noopener"
                 class="sp-btn sp-btn-primary sp-btn-sm">
                 <i class="fas fa-code"></i>
                 <span><?= t('modules_view_all_variables_btn') ?></span>
