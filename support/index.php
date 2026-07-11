@@ -629,7 +629,7 @@ ob_start();
     </div>
 
     <h3>Lotto System</h3>
-    <p>A Channel Points-based lotto system where viewers redeem Channel Point rewards to get their lotto numbers. Winning numbers are automatically generated when the stream goes live, and moderators draw prizes across multiple divisions.</p>
+    <p>A Channel Points-based lotto system where viewers redeem Channel Point rewards to get their lotto numbers. Winning numbers are automatically generated when the stream goes live, and moderators draw prizes across multiple divisions, awarding <strong>Bot Points</strong> to the winners.</p>
     <h4>Setup</h4>
     <ol>
         <li>Create a Channel Point reward on Twitch for lotto entry.</li>
@@ -639,7 +639,8 @@ ob_start();
     </ol>
     <h4>Commands</h4>
     <ul>
-        <li><code>!drawlotto</code> (Moderator) — compares entries to winning numbers and awards points by division: Division 1 (100,000), Division 2 (50,000), Division 3 (10,000), Division 4 (5,000), Division 5 (1,000), Division 6 (500).</li>
+        <li><code>!startlotto</code> (Moderator) — manually generates the winning numbers (they are also generated automatically when the stream goes live).</li>
+        <li><code>!drawlotto</code> (Moderator) — compares entries to winning numbers and awards <strong>Bot Points</strong> by division: Division 1 (100,000), Division 2 (50,000), Division 3 (10,000), Division 4 (5,000), Division 5 (1,000), Division 6 (500).</li>
     </ul>
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
