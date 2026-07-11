@@ -261,7 +261,7 @@ ob_start();
                         <!-- Add more variables here as needed -->
                     </ul>
                     <div style="margin-top:0.75rem;">
-                        <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
+                        <a href="https://support.botofthespecter.com/index.php#variables" target="_blank" rel="noopener" class="sp-btn sp-btn-primary sp-btn-sm">
                             <span class="icon"><i class="fas fa-code"></i></span>
                             <span><?php echo t('custom_commands_view_variables') ?: 'View Custom Variables'; ?></span>
                         </a>
