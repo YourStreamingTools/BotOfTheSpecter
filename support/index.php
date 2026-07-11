@@ -1315,6 +1315,7 @@ $ttsVoices = [
                 <p style="margin-top:0.5rem;">Calls and executes a built-in bot command by name.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(call.shoutout)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> Output from the built-in <code>shoutout</code> command</p>
+                <p style="margin-top:0.5rem;"><span style="color:#c813e0;font-weight:600;">Beta:</span> pass an argument with <code style="color:#c813e0;">(call.commandname.argument)</code> to forward input to the called command.</p>
             </div>
         </div>
 
@@ -1370,6 +1371,55 @@ $ttsVoices = [
             </div>
         </div>
 
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(count.name)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge">All message types</span>
+                <p style="margin-top:0.5rem;">A named counter shared across commands. Increments by 1 each time it's used (user input never changes the amount), and the same name can be referenced from any command.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>We've died (count.deaths) times!</code></p>
+                <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>We've died 7 times!</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(clearcount.name)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge">All message types</span>
+                <p style="margin-top:0.5rem;">Resets a named counter (see <code style="color:#c813e0;">(count.name)</code>) back to 0. Outputs nothing itself.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Deaths reset! (clearcount.deaths)</code></p>
+                <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Deaths reset!</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(shoutout.username)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge">All message types</span>
+                <p style="margin-top:0.5rem;">Triggers a shoutout for a <em>specific named user</em> (not whoever ran the command). The shoutout is sent as a separate follow-up message. Unlike the event-only <code style="color:#c813e0;">(shoutout)</code>, this works in any message type.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Go check out (shoutout.someone)!</code></p>
+                <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Go check out!</code> <em>(followed by the shoutout for someone)</em></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(json.path.to.value)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge">All message types</span>
+                <p style="margin-top:0.5rem;">Pulls a value out of the JSON fetched by <code>(customapi.json.URL)</code>, using a dot path. Fetch the JSON first (it's silent), then reference fields with <code style="color:#c813e0;">(json.key)</code> or <code style="color:#c813e0;">(json.nested.key)</code>.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(customapi.json.https://api.example.com/user)(user)'s title is (json.data.title)</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(todo.add.category.[description])</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge">All message types</span>
+                <p style="margin-top:0.5rem;">Silently adds an item to your to-do list under a category. Outputs nothing in chat. Format: <code>(todo.add.CATEGORY.[the item text])</code>.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Noted! (todo.add.bugs.[fix the overlay flicker])</code></p>
+                <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Noted!</code></p>
+            </div>
+        </div>
+
     </div>
 
     <hr class="sp-divider">
@@ -1395,7 +1445,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(usercount)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(usercount)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Displays how many times this specific user has redeemed <em>this reward</em>. Uses a separate counter from the command version of <code>(usercount)</code>.</p>
@@ -1405,7 +1455,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(userstreak)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(userstreak)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">The current consecutive redemption streak for this user. Resets to 1 when a different user redeems the reward.</p>
@@ -1415,7 +1465,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(track)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(track)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Silently increments the reward's usage counter. Does not display anything in chat.</p>
@@ -1425,7 +1475,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(tts)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(tts)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Triggers text-to-speech using the user's input text. Does not display anything in chat itself.</p>
@@ -1435,7 +1485,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(tts.message)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(tts.message)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">After all variables are processed, sends the final composed message to both chat <em>and</em> text-to-speech simultaneously.</p>
@@ -1445,7 +1495,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(lotto)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(lotto)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Generates a set of lottery numbers for the redeeming user.</p>
@@ -1455,7 +1505,7 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(fortune)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-header"><code style="color:#3273dc;">(fortune)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
                 <p style="margin-top:0.5rem;">Tells the redeeming user's fortune. The user's name is automatically prepended if not already present in the message.</p>
@@ -1481,6 +1531,78 @@ $ttsVoices = [
                 <p style="margin-top:0.5rem;">Same as <code style="color:#c813e0;">(vip)</code>, but also records the user so that VIP status is automatically removed when the stream ends.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) is VIP for today's stream! (vip.today)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername is VIP for today's stream!</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.input)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The text the viewer typed when redeeming the reward (the same value as <code style="color:#c813e0;">(message)</code>).</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) requested: (redeem.input)</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.title)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The title of the redeemed reward.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) redeemed &quot;(redeem.title)&quot;!</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.cost)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The channel-point cost of the redeemed reward.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>That cost you (redeem.cost) points!</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.prompt)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The reward's prompt / description text.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Reward info: (redeem.prompt)</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.id)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The unique ID of this redemption. Handy for logging or custom API calls.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(customapi.https://yourapi.com/log?id=(redeem.id))</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.status)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The redemption's status (e.g. <code>fulfilled</code>, <code>unfulfilled</code>).</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Status: (redeem.status)</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(redeem.redeemed_at)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">The timestamp when the reward was redeemed.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Redeemed at (redeem.redeemed_at)</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(storeredeem)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
+                <p style="margin-top:0.5rem;">Records this redemption into your stored redeems list — used for <strong>Point Store</strong> fulfillment tracking. Outputs nothing in chat.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Order received! (storeredeem)</code></p>
             </div>
         </div>
 
