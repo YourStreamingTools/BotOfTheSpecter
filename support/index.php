@@ -2,7 +2,7 @@
 // support/index.php
 // ----------------------------------------------------------------
 // Public documentation landing page.
-// Static tabs: Setup, Features, Spotify, TTS, OBS Audio, Variables, Module Variables, Channel Points, Custom API, Run Yourself, Commands, FAQ, Troubleshooting.
+// Static tabs: Setup, Features, Spotify, TTS, OBS Audio, Variables, Channel Points, Custom API, Run Yourself, Commands, FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
 // ----------------------------------------------------------------
 
@@ -83,13 +83,8 @@ ob_start();
     </a>
     <a href="#" class="sp-doc-card" data-goto="variables">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-code"></i></div>
-        <div class="sp-doc-card-title">Custom Variables</div>
-        <div class="sp-doc-card-desc">Dynamic tokens for commands, timers, and rewards.</div>
-    </a>
-    <a href="#" class="sp-doc-card" data-goto="module-variables">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-puzzle-piece"></i></div>
-        <div class="sp-doc-card-title">Module Variables</div>
-        <div class="sp-doc-card-desc">Event tokens for welcomes, ads, and chat alerts.</div>
+        <div class="sp-doc-card-title">Variables</div>
+        <div class="sp-doc-card-desc">Dynamic tokens for commands, timers, rewards, and event alerts.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="twitch-channel-points">
         <div class="sp-doc-card-icon"><i class="fa-brands fa-twitch"></i></div>
@@ -1160,8 +1155,8 @@ $ttsVoices = [
 <div class="sp-tab-panel sp-doc-content" data-panel="variables">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
-            <h1 style="margin:0 0 0.25rem;">Custom Variables</h1>
-            <p style="margin:0;color:var(--text-secondary);">Dynamic tokens for custom commands, timed messages, and channel point rewards.</p>
+            <h1 style="margin:0 0 0.25rem;">Variables</h1>
+            <p style="margin:0;color:var(--text-secondary);">Dynamic tokens for custom commands, timed messages, channel point rewards, and event alerts.</p>
         </div>
         <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
                 data-copy-id="variables" title="Copy link to this section">
@@ -1169,22 +1164,26 @@ $ttsVoices = [
         </button>
     </div>
 
-    <h2>Custom Variables Reference</h2>
     <div class="sp-alert sp-alert-info">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            This is the central reference for variables used in <strong>custom commands, timed messages, and channel point rewards</strong>.
-            Most variables work across all three systems unless noted otherwise.
+            This is the central reference for <strong>every message variable</strong> in BotOfTheSpecter. The same variable-processing engine powers
+            <strong>custom commands</strong>, <strong>timed messages</strong>, <strong>channel point rewards</strong>, and <strong>event alerts</strong>
+            (welcomes, follows, subs, raids, bits, and ad notices) — so the <strong>Universal Variables</strong> below work in all of them.
+            Reward-only and event-only tokens are listed in their own sections further down.
             Variables marked <span style="color:#c813e0;font-weight:600;">purple</span> are beta-only and currently in testing.
         </div>
     </div>
+
+    <h2>Universal Variables</h2>
+    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type — custom commands, timed messages, channel point rewards, and event alerts.</p>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.25rem;">
 
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(count)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Increments and displays the number of times this command has been used.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>This command has been used (count) times!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>This command has been used 42 times!</code></p>
@@ -1194,7 +1193,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(usercount)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Displays how many times <em>this specific user</em> has used this command.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) has used this command (usercount) times!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername has used this command 15 times!</code></p>
@@ -1204,7 +1203,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(user)</code> / <code style="color:#3273dc;">(author)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;"><code>(user)</code> displays the username of the person who triggered the command, or the @mentioned user if one was provided. <code>(author)</code> always refers to the person who typed the command, regardless of any @mention.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Hey (user), welcome to the stream! (author) says hi!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Hey @someone, welcome to the stream! streamername says hi!</code></p>
@@ -1214,7 +1213,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(game)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Displays the current game/category being streamed.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>We're currently playing (game)!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>We're currently playing Just Chatting!</code></p>
@@ -1224,7 +1223,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(daysuntil.DATE)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Calculates the number of days until a specific date. Format: <code>YYYY-MM-DD</code>. Automatically rolls over to the next year if the date has already passed.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Only (daysuntil.2026-12-25) days until Christmas!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Only 42 days until Christmas!</code></p>
@@ -1234,7 +1233,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(timeuntil.DATE)</code> / <code style="color:#3273dc;">(timeuntil.DATE-HH-MM)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Calculates the time remaining until a specific date or date and time. Use <code>YYYY-MM-DD</code> for date-only, or <code>YYYY-MM-DD-HH-MM</code> to include a specific time.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>(timeuntil.2026-12-25)</code><br>
@@ -1246,7 +1245,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(math.expression)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Evaluates a math expression. Supports <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, and parentheses.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>2 + 2 = (math.2+2)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>2 + 2 = 4</code></p>
@@ -1256,7 +1255,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(random.percent)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Generates a random percentage between 0% and 100%. Use <code>(random.percent.X-Y)</code> for a custom range.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>(user) is (random.percent) cool today!</code><br>
@@ -1268,7 +1267,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(random.number)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Generates a random number between 0 and 100. Use <code>(random.number.X-Y)</code> for a custom range.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>Your roll: (random.number)</code><br>
@@ -1280,7 +1279,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(random.pick.item1.item2.item3)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Randomly selects one option from a dot-separated inline list.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) should play (random.pick.Minecraft.Fortnite.Valorant) next!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername should play Minecraft next!</code></p>
@@ -1290,7 +1289,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(command.name)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">References another custom command and sends its response as an additional message.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Here's some info: (command.socials)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> Response from the <code>socials</code> command</p>
@@ -1300,7 +1299,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(customapi.URL)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Fetches a URL and inserts the plain text response. Use <code>(customapi.json.URL)</code> to fetch JSON into temporary context (silent — does not print to chat) for use with <code>(json.*)</code> variables.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>(customapi.https://api.example.com/joke)</code> — raw response<br>
@@ -1312,7 +1311,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(call.commandname)</code></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Calls and executes a built-in bot command by name.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(call.shoutout)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> Output from the built-in <code>shoutout</code> command</p>
@@ -1320,9 +1319,20 @@ $ttsVoices = [
         </div>
 
         <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(if.CONDITION|TRUE|FALSE)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">
+                <span class="sp-badge">All message types</span>
+                <p style="margin-top:0.5rem;">Evaluates a condition and returns one of two values. All other variables are resolved first. Supported operators: <code>=</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code> <code>contains</code> <code>startswith</code> <code>endswith</code></p>
+                <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
+                    <code>(if.(arg) = start|The timer has started!|Say start to begin)</code><br>
+                    <code>(if.(user) = gfaundead|Welcome boss!|Hello (user)!)</code></p>
+            </div>
+        </div>
+
+        <div class="sp-card">
             <div class="sp-card-header"><code style="color:#c813e0;">(arg)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">The argument the user passed after the command name. Empty string if no argument was given.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(author) gives (arg) a big hug!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat</strong> (user types <code>!hug @someone</code>): <code>streamername gives @someone a big hug!</code></p>
@@ -1332,7 +1342,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#c813e0;">(pronouns)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Displays the user's full pronoun set, fetched from <a href="https://pronouns.alejo.io" target="_blank" rel="noopener">pronouns.alejo.io</a>. Defaults to <code>they/them</code> if not set.</p>
                 <p style="margin-top:0.5rem;">Use <code style="color:#c813e0;">(pronouns.they)</code> for just the subject pronoun (e.g. <code>she</code>, <code>he</code>, <code>they</code>) and <code style="color:#c813e0;">(pronouns.them)</code> for just the object pronoun (e.g. <code>her</code>, <code>him</code>, <code>them</code>).</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user) and (pronouns) are here! We hope (pronouns.they) enjoy the stream! Give (pronouns.them) a warm welcome!</code></p>
@@ -1343,7 +1353,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#c813e0;">(random.pick)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Picks a random item from the pre-configured options list stored in the database for that command. No inline items needed.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Today's winner is (random.pick)!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Today's winner is Option2!</code></p>
@@ -1353,7 +1363,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#c813e0;">(random.pick.list.commandname)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
-                <span class="sp-badge">Custom Commands, Timed Messages &amp; Channel Points</span>
+                <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Picks a random item from the options list stored for a <em>different</em> named command. Useful for sharing a single list across multiple commands or rewards.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>The chosen game is (random.pick.list.gamelist)!</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>The chosen game is Minecraft!</code></p>
@@ -1475,31 +1485,11 @@ $ttsVoices = [
         </div>
 
     </div>
-</div>
-<!-- ===================================================================
-     TAB: MODULE VARIABLES
-=================================================================== -->
-<div class="sp-tab-panel sp-doc-content" data-panel="module-variables">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
-        <div>
-            <h1 style="margin:0 0 0.25rem;">Module Variables</h1>
-            <p style="margin:0;color:var(--text-secondary);">Event-specific tokens for welcome messages, ad notices, and Twitch chat alerts.</p>
-        </div>
-        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
-                data-copy-id="module-variables" title="Copy link to this section">
-            <i class="fa-solid fa-link"></i> Copy link
-        </button>
-    </div>
 
-    <h2>Overview &amp; General Variables</h2>
-    <p>These variables are event-specific and are available for use in <strong>Welcome Messages</strong>, <strong>Ad Notices</strong>, and <strong>Twitch Chat Alerts</strong>. They are separate from the custom command/timed message variables.</p>
-    <p>In addition to the event-specific variables listed here, <strong>all shared variables from the <a href="#" data-goto="variables">Custom Variables Reference</a> page</strong> also work in these alerts — including <code>(count)</code>, <code>(random.*)</code>, <code>(math.*)</code>, <code>(game)</code>, <code>(customapi.*)</code>, <code>(json.*)</code>, <code>(if.*)</code>, <code>(daysuntil.*)</code>, <code>(timeuntil.*)</code>, <code>(command.*)</code>, and <code>(call.*)</code>. This is because all alert messages go through the same variable processing system as custom commands.</p>
-    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
-        <i class="fa-solid fa-circle-info"></i>
-        <div>
-            <strong>Note:</strong> You're not limited to only the variables listed on this page! Any variable that works in a custom command will also work in your alert messages. See the <a href="#" data-goto="variables">Custom Variables Reference</a> for the full list of shared variables.
-        </div>
-    </div>
+    <hr class="sp-divider">
+
+    <h2>Event Alert Variables</h2>
+    <p>Event-specific tokens for <strong>welcome messages</strong>, <strong>ad notices</strong>, and <strong>Twitch chat alerts</strong> (followers, subs, raids, bits, hype trains). Every <strong>Universal Variable</strong> above also works here — the event-specific tokens below are available <em>in addition</em> to them, because all alert messages run through the same variable-processing engine as custom commands.</p>
     <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
         <i class="fa-solid fa-lightbulb"></i>
         <div>
@@ -1509,12 +1499,12 @@ $ttsVoices = [
         </div>
     </div>
 
-    <h3 style="margin-top:1.25rem;">General Variables <span style="font-weight:400;font-size:0.875rem;color:var(--text-secondary);">(available across multiple modules)</span></h3>
+    <h3 style="margin-top:1.25rem;">General Variables <span style="font-weight:400;font-size:0.875rem;color:var(--text-secondary);">(available across multiple event modules)</span></h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-top:0.75rem;">
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
             <div class="sp-card-body">
-                <p>The username of the person who triggered the event (follower, subscriber, raider, etc.).</p>
+                <p>In an alert, <code>(user)</code> resolves to whoever triggered the event — the follower, subscriber, raider, gifter, or cheerer.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Thank you (user) for following!</code></p>
                 <p><strong>In chat:</strong> <code>Thank you BotOfTheSpecter for following!</code></p>
             </div>
@@ -1530,34 +1520,11 @@ $ttsVoices = [
                 </p>
             </div>
         </div>
-        <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(pronouns)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body">
-                <p>The pronouns of the user who triggered the event, fetched from <a href="https://pronouns.alejo.io" target="_blank" rel="noopener">pronouns.alejo.io</a>. Falls back to <code>they/them</code> if the user has not set their pronouns.</p>
-                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Their pronouns are (pronouns).</code></p>
-                <p><strong>In chat:</strong> <code>Their pronouns are she/her.</code></p>
-                <p style="margin-top:0.5rem;">You can also use <code style="color:#c813e0;">(pronouns.they)</code> for just the subject (e.g. <code>she</code>, <code>he</code>, <code>they</code>) and <code style="color:#c813e0;">(pronouns.them)</code> for just the object (e.g. <code>her</code>, <code>him</code>, <code>them</code>).</p>
-                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>We hope (pronouns.they) enjoys the channel! Give (pronouns.them) a warm welcome!</code></p>
-                <p><strong>In chat:</strong> <code>We hope she enjoys the channel! Give her a warm welcome!</code></p>
-            </div>
-        </div>
-        <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(arg)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body">
-                <p>The argument typed by the user after the command name. Empty string if no argument was provided.</p>
-                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>You said: (arg)</code></p>
-                <p><strong>In chat:</strong> <code>You said: hello</code></p>
-            </div>
-        </div>
-        <div class="sp-card">
-            <div class="sp-card-header"><code style="color:#c813e0;">(if.CONDITION|TRUE|FALSE)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body">
-                <p>Evaluates a condition and returns one of two values. All other variables are resolved first. Supported operators: <code>=</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code> <code>contains</code> <code>startswith</code> <code>endswith</code></p>
-                <p style="margin-top:0.5rem;"><strong>Examples:</strong></p>
-                <p><code>(customapi.json.https://your-api.com/data)(if.(json.username) = (user)|You're authorised|You're not authorised)</code></p>
-                <p><code>(if.(arg) = start|The timer has started!|Say start to begin)</code></p>
-                <p><code>(if.(user) = gfaundead|Welcome boss!|Hello (user)!)</code></p>
-            </div>
+    </div>
+    <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <code style="color:#c813e0;">(pronouns)</code> (plus <code style="color:#c813e0;">(pronouns.they)</code> / <code style="color:#c813e0;">(pronouns.them)</code>), <code style="color:#c813e0;">(arg)</code>, and <code style="color:#c813e0;">(if.*)</code> also work in alerts — they're documented once under <strong>Universal Variables</strong> above.
         </div>
     </div>
 
@@ -1771,7 +1738,7 @@ $ttsVoices = [
         <li>Click <strong>Save</strong> to apply the changes.</li>
     </ol>
     <h3>Message Variables</h3>
-    <p>You can use the following variables in your custom reward messages. For the full shared-variable list, see the <a href="#" data-goto="variables">Custom Variables</a> guide.</p>
+    <p>You can use the following variables in your custom reward messages. For the full shared-variable list, see the <a href="#" data-goto="variables">Variables</a> guide.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.75rem;">
         <div class="sp-card">
             <div class="sp-card-header"><code>(user)</code></div>
@@ -2785,8 +2752,8 @@ sudo systemctl status mysql</code></pre>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code># Server 1 (Web) - Allow HTTP/HTTPS and communication with other services
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw allow from 10.10.10.2:8001  # API Server
-sudo ufw allow from 10.10.10.3:8000  # WebSocket Server
+sudo ufw allow from 10.10.10.2:443   # API Server
+sudo ufw allow from 10.10.10.3:443   # WebSocket Server
 sudo ufw allow from 10.10.10.4:3306  # Database Server
 
 # Server 2 (API) - Allow inbound from Web and Bot servers
@@ -2803,8 +2770,8 @@ sudo ufw allow from 10.10.10.2:any   # API Server
 sudo ufw allow from 10.10.10.5:any   # Bot Server
 
 # Server 5 (Bot) - Allow outbound to API, WebSocket, and Database
-sudo ufw allow to 10.10.10.2:8001    # API Server
-sudo ufw allow to 10.10.10.3:8000    # WebSocket Server
+sudo ufw allow to 10.10.10.2:443     # API Server
+sudo ufw allow to 10.10.10.3:443     # WebSocket Server
 sudo ufw allow to 10.10.10.4:3306    # Database Server</code></pre>
 
     <hr class="sp-divider">
@@ -2860,7 +2827,7 @@ sudo ufw allow to 10.10.10.4:3306    # Database Server</code></pre>
             <div class="sp-card-header"><i class="fa-solid fa-plug"></i> WebSocket Connection Issues</div>
             <div class="sp-card-body">
                 <ul style="margin:0;padding-left:1.25rem;">
-                    <li>Verify WebSocket server is running on port 8000</li>
+                    <li>Verify WebSocket server is running on port 443</li>
                     <li>Check firewall rules allow WebSocket connections</li>
                     <li>Ensure the WebSocket URL is correctly configured in clients</li>
                     <li>Review WebSocket server logs for errors</li>
@@ -3030,11 +2997,11 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I use custom variables in commands?</div>
-        <div class="sp-faq-a">Custom commands, timed messages, and channel point rewards support dynamic variables like <code>(user)</code>, <code>(count)</code>, and <code>(customapi.URL)</code>. See the full list in the <a href="#" data-goto="variables">Custom Variables</a> guide.</div>
+        <div class="sp-faq-a">Custom commands, timed messages, and channel point rewards support dynamic variables like <code>(user)</code>, <code>(count)</code>, and <code>(customapi.URL)</code>. See the full list in the <a href="#" data-goto="variables">Variables</a> guide.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">What variables work in welcome messages and event alerts?</div>
-        <div class="sp-faq-a">Event alerts use module-specific tokens (bits, raids, subs, ad notices, etc.) plus the shared custom-variable system. See <a href="#" data-goto="module-variables">Module Variables</a>.</div>
+        <div class="sp-faq-a">Event alerts use event-specific tokens (bits, raids, subs, ad notices, etc.) plus every universal variable. See the <strong>Event Alert Variables</strong> section of the <a href="#" data-goto="variables">Variables</a> guide.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do Twitch Channel Points work with the bot?</div>
