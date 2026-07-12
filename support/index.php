@@ -537,9 +537,13 @@ ob_start();
     <p>URL blocking is disabled by default. You must enable it before the bot will remove links posted by non-moderators. Moderators &amp; Broadcasters are always exempt.</p>
     <ul>
         <li>When enabled, any viewer who posts a link will have their message deleted.</li>
-        <li>Use <code>!permit @username</code> to give a viewer a 60-second window to post one link.</li>
+        <li>Use <code>!permit @username</code> to give a viewer a 30-second window to post one link.</li>
         <li>Toggle URL blocking from <strong>Integrations → Specter Modules → Chat Protection</strong> in the dashboard.</li>
+        <li>Add trusted domains to the <strong>Link Whitelist</strong> so they always bypass URL blocking, without needing a permit.</li>
     </ul>
+
+    <h3>Blocked Terms <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <p>Separately from link blocking, you can keep a list of forbidden words. Any message containing a blocked term is deleted automatically. Configure it under <strong>Integrations → Specter Modules → Chat Protection</strong> in the dashboard.</p>
 
     <h3>Custom Commands</h3>
     <p>Create unlimited custom commands from the dashboard or directly in chat.</p>
@@ -547,8 +551,10 @@ ob_start();
         <li><code>!addcommand !name response</code> — creates a new command.</li>
         <li><code>!editcommand !name new response</code> — updates an existing command.</li>
         <li><code>!removecommand !name</code> — deletes a command.</li>
+        <li>Give a command a permission level by quoting the response: <code>!addcommand !name "response text" mod</code> (levels: everyone, mod, vip, subscribers, broadcaster). <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
     </ul>
     <p>Responses support the full <a href="#" data-goto="variables">variables system</a> — including <code>(user)</code>, <code>(count)</code>, <code>(customapi.URL)</code>, math expressions, and more.</p>
+    <p>Commands can also have aliases — extra trigger words that redirect to the same command and share its cooldown. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></p>
 
     <h3>Timed Messages</h3>
     <p>Schedule messages to post automatically at a set interval. Manage them under <strong>Commands → Timed Messages</strong>.</p>
@@ -582,11 +588,11 @@ ob_start();
             <tbody>
                 <tr>
                     <td><code>!gamble &lt;type&gt; [choice] [amount]</code></td>
-                    <td>Wagers bot points (defaults to 100 if omitted). Types: <code>coinflip</code> (50% to win double), <code>blackjack</code> (random 1-21, only 21 wins double), <code>roulette</code> (choose red/black for double or lose).<br><strong>Examples:</strong> <code>!gamble coinflip 100</code> | <code>!gamble roulette red 100</code></td>
+                    <td>Wagers bot points (defaults to 100 if omitted). Types: <code>coinflip</code> (50% to win double), <code>blackjack</code> (random 1-21, only 21 wins double), <code>roulette</code> (choose red/black for double or lose).<br><strong>Examples:</strong> <code>!gamble coinflip 100</code> | <code>!gamble roulette red 100</code><br><span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span> On the beta bot, the broadcaster can wager any amount without needing enough points first.</td>
                 </tr>
                 <tr>
                     <td><code>!slots</code></td>
-                    <td>Spins a slot machine with guaranteed payouts. Symbols have values: =10, =15, =20, =25, =30, =35, ⭐=50. Winning spins pay out triple the symbol values; losing spins deduct the sum of symbol values.</td>
+                    <td>Spins a slot machine with a 70% chance to win. Symbols have values: 🍒=10, 🍋=15, 🍊=20, 🍉=25, 🍇=30, 🍓=35, ⭐=50. Winning spins pay out triple the matched symbol's value; losing spins (the other 30%) deduct the combined value of the three symbols shown (points never drop below zero).</td>
                 </tr>
                 <tr>
                     <td><code>!roulette</code></td>
@@ -605,7 +611,7 @@ ob_start();
                 <tr><td><code>!story &lt;5 words&gt;</code></td><td>AI generates a short story (3-5 sentences) seeded from your five words.<br><strong>Example:</strong> <code>!story dragon castle brave knight magic</code></td></tr>
                 <tr><td><code>!joke</code></td><td>Fetches a random joke with category filtering based on your blacklist settings.</td></tr>
                 <tr><td><code>!kill @user</code></td><td>Playfully "kills" a viewer or yourself with randomized messages from external API templates.</td></tr>
-                <tr><td><code>!hug @user</code></td><td>Sends a virtual hug, increments hug counter, and announces the updated total. Self-targeting blocked.</td></tr>
+                <tr><td><code>!hug @user</code></td><td>Sends a virtual hug, increments hug counter, and announces the updated total. Self-targeting blocked; hugging the bot returns the hug to you.</td></tr>
                 <tr><td><code>!highfive @user</code></td><td>High-fives a viewer, increments counter, and announces the total. Self-targeting blocked.</td></tr>
                 <tr><td><code>!kiss @user</code></td><td>Sends a kiss, increments kiss counter, and announces the total. Self-targeting blocked.</td></tr>
                 <tr><td><code>!puzzles</code></td><td>Reports the number of Tanggle puzzles completed by the channel.</td></tr>
@@ -613,7 +619,7 @@ ob_start();
         </table>
     </div>
 
-    <h3>Raffle System</h3>
+    <h3>Raffle System <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
     <div class="sp-table-wrap">
         <table class="sp-table">
             <thead><tr><th>Command</th><th>Who</th><th>Description</th></tr></thead>
@@ -660,13 +666,16 @@ ob_start();
                 <tr><td><strong>New Follow</strong></td><td>Posts a customisable thank-you message and triggers an overlay alert.</td></tr>
                 <tr><td><strong>Subscription</strong></td><td>Posts a sub message. Supports <code>(tier)</code> and <code>(months)</code> variables.</td></tr>
                 <tr><td><strong>Re-subscription</strong></td><td>Handles resub messages with streak and total month data.</td></tr>
-                <tr><td><strong>Gift Subscriptions</strong></td><td>Single and bulk gifts supported. Supports <code>(count)</code>, <code>(total-gifted)</code>, and <code>(gifter)</code>.</td></tr>
+                <tr><td><strong>Gift Subscriptions</strong></td><td>Single and bulk gifts supported. Supports <code>(count)</code> and <code>(total-gifted)</code>. Pay-it-forward gifts also support <code>(gifter)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span>.</td></tr>
+                <tr><td><strong>Sub Gift Pay-It-Forward &amp; Upgrades <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></strong></td><td>Extra chat alerts when a viewer pays a gifted sub forward, or upgrades a gifted or Prime sub to a paid subscription.</td></tr>
                 <tr><td><strong>Bits / Cheer</strong></td><td>Thanks the viewer. Supports <code>(bits)</code> and <code>(total-bits)</code>.</td></tr>
+                <tr><td><strong>Charity Donation</strong></td><td>Thanks the donor in chat for a donation to the channel's active Twitch charity campaign.</td></tr>
                 <tr><td><strong>Raid</strong></td><td>Welcomes the raider, triggers an automatic Twitch shoutout. Supports <code>(viewers)</code>.</td></tr>
-                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward — supports TTS, raffle, fortune, VIP grants, and API calls.</td></tr>
-                <tr><td><strong>Hype Train</strong></td><td>Announces start, level-ups, and completion. Supports <code>(level)</code>.</td></tr>
+                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward — supports TTS, lotto, fortune, and API calls. VIP grants are also supported <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span>.</td></tr>
+                <tr><td><strong>Hype Train</strong></td><td>Announces the start and end of the Hype Train. Supports <code>(level)</code>.</td></tr>
+                <tr><td><strong>Channel Goal <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></strong></td><td>Broadcasts overlay updates when a channel goal begins, progresses, and ends.</td></tr>
                 <tr><td><strong>Ad Break</strong></td><td>Sends an upcoming ad warning, activates an AI chat companion during the break, then resumes normal mode.</td></tr>
-                <tr><td><strong>Poll / Prediction</strong></td><td>Announces progress, results, and outcomes in chat.</td></tr>
+                <tr><td><strong>Poll</strong></td><td>Announces when a poll starts (with a countdown) and posts a message when it ends.</td></tr>
                 <tr><td><strong>Shoutout Received</strong></td><td>Announces when another streamer gives the channel a Twitch shoutout.</td></tr>
                 <tr><td><strong>Stream Online / Offline</strong></td><td>Starts/stops timed messages, watch-time tracking, and logs stream session data.</td></tr>
                 <tr><td><strong>Chat Join / Welcome</strong></td><td>Welcomes returning and new viewers by name (bots are ignored automatically).</td></tr>
@@ -693,11 +702,12 @@ ob_start();
     <h2>Tracking &amp; Stats</h2>
 
     <h3>Bot Points</h3>
-    <p>A built-in loyalty point system earned by watching and participating in the stream. Configure the name, earn rate, and icon under <strong>Settings → Bot Points</strong>.</p>
+    <p>A built-in loyalty point system earned by chatting and participating in the stream, with bonus points for new follows, subscriptions, cheers, and raids. Configure the name, earn rate, and icon under <strong>Settings → Bot Points</strong>.</p>
     <ul>
         <li><code>!points</code> — check your balance.</li>
         <li><code>!addpoints</code> / <code>!removepoints</code> — moderator manual adjustment.</li>
         <li>Spent playing <code>!gamble</code>, <code>!slots</code>, and <code>!roulette</code>.</li>
+        <li><code>!store</code> / <code>!store &lt;item&gt;</code> — browse or redeem rewards from the point store. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
     </ul>
 
     <h3>Watch Time</h3>
@@ -745,7 +755,7 @@ ob_start();
     <p><code>!followage [@user]</code> queries the Twitch API to show exactly how long a viewer has been following the channel.</p>
 
     <h3>Subathon Timer</h3>
-    <p>A countdown timer that extends with subs, bits, and Channel Points redemptions to drive engagement during subathon events. Check remaining time with <code>!subathon</code>. Configure time additions per sub tier from the dashboard.</p>
+    <p>A countdown timer that extends with subs and bits (cheers) to drive engagement during subathon events. Check remaining time with <code>!subathon status</code>. Configure time additions per sub tier from the dashboard.</p>
 
     <hr class="sp-divider">
 
@@ -755,18 +765,22 @@ ob_start();
         <table class="sp-table">
             <thead><tr><th>Service</th><th>What the bot does</th></tr></thead>
             <tbody>
-                <tr><td><strong><i class="fa-brands fa-spotify" style="color:#1DB954;"></i> Spotify</strong></td><td>Displays the current track (<code>!song</code>), accepts viewer song requests (<code>!sr</code>), skips tracks (<code>!skipsong</code>), and shows the queue (<code>!songqueue</code>).</td></tr>
+                <tr><td><strong><i class="fa-brands fa-spotify" style="color:#1DB954;"></i> Spotify</strong></td><td>Displays the current track (<code>!song</code>), accepts viewer song requests via Spotify links, search terms, or YouTube links auto-matched to Spotify (<code>!sr</code>), skips tracks (<code>!skipsong</code>), and shows the queue (<code>!songqueue</code>).</td></tr>
+                <tr><td><strong><i class="fa-solid fa-fingerprint" style="color:#0088FF;"></i> Shazam</strong></td><td>Identifies the currently playing song by audio fingerprinting when Spotify has no track data — a premium failover for <code>!song</code> (monthly request limit resets on the 23rd).</td></tr>
                 <tr><td><strong><i class="fa-brands fa-steam"></i> Steam</strong></td><td>Looks up Steam games by name via the Steam API — shows store descriptions, prices, and app IDs (<code>!steam</code>).</td></tr>
                 <tr><td><strong><i class="fa-solid fa-video"></i> OBS WebSocket</strong></td><td>Controls OBS scenes and sources directly from chat via the <code>!obs</code> moderator command.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-heart-pulse" style="color:#e74c3c;"></i> HypeRate</strong></td><td>Connects via WebSocket to show the streamer's live BPM in chat with <code>!heartrate</code>.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-bolt" style="color:#f5a623;"></i> StreamElements</strong></td><td>Receives tip and merch alert events in real time via Socket.IO and forwards them to overlays.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-circle-dollar-to-slot" style="color:#31c3a2;"></i> StreamLabs</strong></td><td>Receives donation and alert events and broadcasts them to the WebSocket overlay server.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-mug-hot" style="color:#ff5e5b;"></i> Ko-fi</strong></td><td>Receives donation, subscription, and shop-order webhooks, announces them in chat, and forwards them to overlays.</td></tr>
+                <tr><td><strong><i class="fa-brands fa-patreon" style="color:#ff424d;"></i> Patreon</strong></td><td>Receives new-pledge and membership webhooks, announces them in chat, and forwards them to overlays.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-shirt" style="color:#9b59b6;"></i> Fourthwall</strong></td><td>Receives order, donation, giveaway, and subscription webhooks, announces them in chat, and forwards them to overlays.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-robot" style="color:#3ecf8e;"></i> OpenAI (GPT)</strong></td><td>Powers AI responses in the home channel, generates AI stories (<code>!story</code>), and runs an AI chat companion during ad breaks with persistent chat history.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-cloud-sun" style="color:#4aa3f0;"></i> OpenWeatherMap</strong></td><td>Fetches live weather for any location via <code>!weather &lt;city&gt;</code>.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-user-tag"></i> Pronouns (alejo.io)</strong></td><td>Looks up and caches viewer-set pronouns, using them naturally when the bot mentions a viewer by name.</td></tr>
                 <tr><td><strong><i class="fa-brands fa-discord" style="color:#5865F2;"></i> Discord</strong></td><td>A companion Discord bot handles stream announcements, reaction roles, support tickets, voice music playback, and Twitch account linking.</td></tr>
-                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Converts viewer messages to speech using AI voices (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer, Verse) through an OBS browser source overlay.</td></tr>
-                <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit Conversion</strong></td><td>Powered by the Pint unit library — <code>!convert</code> handles length, weight, temperature, volume, speed, and more.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Converts viewer messages to speech using AI voices (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer) through an OBS browser source overlay.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit &amp; Currency Conversion</strong></td><td>Powered by the Pint unit library for length, weight, temperature, volume, speed, and more — plus live currency exchange rates via the ExchangeRate API — all through <code>!convert</code> (e.g. <code>!convert 10 km mi</code> or <code>!convert $10 USD AUD</code>).</td></tr>
             </tbody>
         </table>
     </div>
@@ -791,6 +805,14 @@ ob_start();
         <div>
             <strong>Important: Spotify Integration Changes (Effective March 9, 2026)</strong><br>
             We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users — Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration — it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
+        </div>
+    </div>
+
+    <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Don't want to set up Spotify?</strong> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span><br>
+            On the beta bot, <code>!song</code>, <code>!songrequest</code> (<code>!sr</code>), and <code>!skipsong</code> (<code>!skip</code>) fall back to the built-in YouTube media queue when no Spotify account is linked, so song requests still work without completing this setup. Linking Spotify (via the platform app or your own, below) upgrades these commands to search and control real Spotify playback.
         </div>
     </div>
 
@@ -904,7 +926,6 @@ $ttsVoices = [
     'onyx'    => 'Smooth and sophisticated',
     'sage'    => 'Thoughtful and calm',
     'shimmer' => 'Gentle and uplifting',
-    'verse'   => 'Rhythmic and poetic',
 ];
 ?>
 <div class="sp-tab-panel sp-doc-content" data-panel="tts">
@@ -939,6 +960,9 @@ $ttsVoices = [
 
     <h3 style="margin-top:1.25rem;">Using TTS with Channel Points</h3>
     <p>TTS is triggered through Twitch Channel Points redemptions. Viewers can redeem a Channel Point reward to have a message read aloud using the voice you've selected in TTS settings.</p>
+
+    <h3 style="margin-top:1.25rem;">Using TTS with the Point Store <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <p>On the beta bot, viewers can also trigger TTS by buying a TTS item from your <strong>Point Store</strong>, spending their bot loyalty points instead of Twitch Channel Points. Their message is read aloud with the same voice configured in your TTS settings.</p>
 
     <hr class="sp-divider">
 
@@ -1177,7 +1201,7 @@ $ttsVoices = [
     </div>
 
     <h2>Universal Variables</h2>
-    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type — custom commands, timed messages, channel point rewards, and event alerts.</p>
+    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type — custom commands, channel point rewards, and event alerts. <strong>Timed messages</strong> are the exception: on the live bot only <code>(game)</code> is currently replaced in timed messages; full variable support in timed messages is a <span style="color:#c813e0;font-weight:600;">Beta</span> feature.</p>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.25rem;">
 
@@ -1239,7 +1263,7 @@ $ttsVoices = [
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>(timeuntil.2026-12-25)</code><br>
                     <code>(timeuntil.2026-06-15-18-00)</code></p>
-                <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>The event starts in 42 days, 12 hours, 30 minutes!</code></p>
+                <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>The event starts in 42 days, 12 hours, and 30 minutes!</code></p>
             </div>
         </div>
 
@@ -1247,7 +1271,7 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#3273dc;">(math.expression)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Evaluates a math expression. Supports <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, and parentheses.</p>
+                <p style="margin-top:0.5rem;">Evaluates a simple math expression left-to-right. Supports <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> — operators apply strictly in the order they appear (no standard order of operations), and parentheses are <strong>not</strong> supported.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>2 + 2 = (math.2+2)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>2 + 2 = 4</code></p>
             </div>
@@ -1301,10 +1325,10 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#3273dc;">(customapi.URL)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Fetches a URL and inserts the plain text response. Use <code>(customapi.json.URL)</code> to fetch JSON into temporary context (silent — does not print to chat) for use with <code>(json.*)</code> variables.</p>
+                <p style="margin-top:0.5rem;">Fetches a URL and inserts the plain text response. On the live bot, <code>(customapi.json.URL)</code> fetches JSON and inserts it as raw text just like a normal request. <span style="color:#c813e0;font-weight:600;">Beta:</span> <code style="color:#c813e0;">(customapi.json.URL)</code> instead runs silently (nothing is printed) and stores the JSON in temporary context for use with the Beta <code style="color:#c813e0;">(json.*)</code> variable.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
                     <code>(customapi.https://api.example.com/joke)</code> — raw response<br>
-                    <code>(customapi.json.https://api.example.com/data)</code> — JSON context<br>
+                    <code>(customapi.json.https://api.example.com/data)</code> — raw JSON text on the live bot; silent Beta context on beta<br>
                     <code>(customapi.https://yourapi.com/user.php?user=(user))</code> — with variable in URL</p>
             </div>
         </div>
@@ -1415,8 +1439,8 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#c813e0;">(todo.add.category.[description])</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Silently adds an item to your to-do list under a category. Outputs nothing in chat. Format: <code>(todo.add.CATEGORY.[the item text])</code>.</p>
-                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Noted! (todo.add.bugs.[fix the overlay flicker])</code></p>
+                <p style="margin-top:0.5rem;">Silently adds an item to your to-do list under a category. Outputs nothing in chat. <code>CATEGORY</code> must be the numeric ID of one of your to-do categories (from the To-Do List page) — a non-numeric value silently falls back to your first category. Format: <code>(todo.add.CATEGORY.[the item text])</code>.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Noted! (todo.add.2.[fix the overlay flicker])</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Noted!</code></p>
             </div>
         </div>
@@ -1509,8 +1533,8 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#3273dc;">(fortune)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
-                <p style="margin-top:0.5rem;">Tells the redeeming user's fortune. The user's name is automatically prepended if not already present in the message.</p>
-                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(fortune)</code></p>
+                <p style="margin-top:0.5rem;">Fetches a random fortune for the redeeming user. It does not include their name automatically — combine it with <code>(user)</code> if you want the fortune addressed to them.</p>
+                <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user), (fortune)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername, you will find great success today</code></p>
             </div>
         </div>
@@ -1745,7 +1769,7 @@ $ttsVoices = [
         </div>
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(tier)</code></div>
-            <div class="sp-card-body">The subscription tier (Tier 1, Tier 2, Tier 3, or Prime).<br><strong>Example:</strong> <code>You are now a (tier) subscriber!</code></div>
+            <div class="sp-card-body">The subscription tier (Tier 1, Tier 2, or Tier 3). A Prime sub reports as Tier 1.<br><strong>Example:</strong> <code>You are now a (tier) subscriber!</code></div>
         </div>
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(months)</code></div>
@@ -1761,7 +1785,11 @@ $ttsVoices = [
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
-            <div class="sp-card-body">The username of the gifter.</div>
+            <div class="sp-card-body">The username of the gifter. Resolves to <code>Anonymous</code> if the gift was sent anonymously.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#3273dc;">(tier)</code></div>
+            <div class="sp-card-body">The subscription tier being gifted (Tier 1, Tier 2, or Tier 3).<br><strong>Example:</strong> <code>Thank you (user) for gifting a (tier) subscription!</code></div>
         </div>
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(count)</code></div>
@@ -1786,6 +1814,22 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#c813e0;">(tier)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">The tier they upgraded to (Tier 1, Tier 2, or Tier 3).<br><strong>Example:</strong> <code>Thank you for upgrading to a (tier) subscription!</code></div>
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Watch Streak <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem;margin-top:0.5rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(user)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">The display name of the viewer whose watch streak updated.<br><strong>Example:</strong> <code>Congrats (user) on watching (value) consecutive streams!</code></div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(value)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">The viewer's current consecutive-stream watch streak.</div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><code style="color:#c813e0;">(total)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
+            <div class="sp-card-body">The viewer's cumulative total streams watched. Only included when it's higher than the current streak.<br><strong>Example:</strong> <code>They've watched a total of (total) streams.</code></div>
         </div>
     </div>
 </div>
@@ -1896,11 +1940,11 @@ $ttsVoices = [
             <div class="sp-card-body">Inserts a random fortune response.</div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code>(vip)</code></div>
+            <div class="sp-card-header"><code style="color:#c813e0;">(vip)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">Attempts to grant the redeemer VIP status via Twitch.</div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code>(vip.today)</code></div>
+            <div class="sp-card-header"><code style="color:#c813e0;">(vip.today)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">Grants temporary VIP intended for current stream use.</div>
         </div>
         <div class="sp-card">
@@ -1908,7 +1952,7 @@ $ttsVoices = [
             <div class="sp-card-body">Fetches data from a custom API endpoint and prints the raw response.</div>
         </div>
         <div class="sp-card">
-            <div class="sp-card-header"><code>(customapi.json.URL)</code> + <code>(json.*)</code></div>
+            <div class="sp-card-header"><code style="color:#c813e0;">(customapi.json.URL)</code> + <code style="color:#c813e0;">(json.*)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">Fetches JSON silently and inserts a specific field from the response.</div>
         </div>
     </div>
