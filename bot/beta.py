@@ -1,4 +1,4 @@
-﻿# Standard library imports
+# Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect, uuid
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
@@ -728,6 +728,7 @@ class EventSubReconnect(Exception):
 
 _seen_eventsub_message_ids: dict = {}  # message_id -> received_timestamp
 _EVENTSUB_DEDUP_TTL = 60  # seconds to remember a seen message_id
+_seen_chat_message_ids: dict = {}  # chat message_id -> received_timestamp
 
 # Setup Twitch EventSub
 async def twitch_eventsub():
@@ -1269,7 +1270,7 @@ async def process_twitch_eventsub_message(message):
             except Exception as e:
                 event_logger.error(f"[EVENTSUB] Error logging chat for ad break: {e}")
             if not is_bot_message:
-                safe_create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
+                safe_create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text, event_data))
             return
         if not event_type:
             return
@@ -3515,6 +3516,18 @@ class TwitchBot(commands.Bot):
             # We only accept messages from users in the running bot channel
             if source_room_id and source_room_id != str(CHANNEL_ID):
                 return
+            # Deduplicate across IRC and EventSub
+            message_id = message.tags.get('id')
+            if message_id:
+                now = time.time()
+                if message_id in _seen_chat_message_ids:
+                    return
+                _seen_chat_message_ids[message_id] = now
+                # Clean up old IDs occasionally
+                if len(_seen_chat_message_ids) > 1000:
+                    expired = [k for k, v in _seen_chat_message_ids.items() if now - v > 60]
+                    for k in expired:
+                        del _seen_chat_message_ids[k]
         author_name_for_log = message.author.name if getattr(message, 'author', None) else "unknown"
         log_content = str(message.content) if message.content else ""
         if log_content.startswith("\x01ACTION ") and log_content.endswith("\x01"):
@@ -18360,7 +18373,24 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
             "error": str(e)
         }
 
-async def process_chat_message_event(user_id: str, user_name: str, message: str = ""):
+class MockChannel:
+    def __init__(self, name):
+        self.name = name
+
+class MockAuthor:
+    def __init__(self, name, id):
+        self.name = name
+        self.id = id
+
+class MockMessage:
+    def __init__(self, author, content, tags=None):
+        self.author = author
+        self.content = content
+        self.tags = tags or {}
+        self.echo = False
+        self.channel = MockChannel(CHANNEL_NAME)
+
+async def process_chat_message_event(user_id: str, user_name: str, message: str = "", event_data: dict = None):
     try:
         get_function_from = BOTS_TWITCH_BOT
         if get_function_from is None:
@@ -18370,6 +18400,22 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
         # message_counting_and_welcome_messages already calls user_points in its finally block;
         # do NOT call user_points again here to avoid awarding points twice per EventSub message.
         await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
+        if event_data:
+            msg_id = event_data.get("message_id", "")
+            tags = {
+                'id': msg_id,
+                'source-room-id': CHANNEL_ID,
+                'display-name': event_data.get('chatter_user_name', user_name),
+                'color': event_data.get('color', ''),
+            }
+            badges_list = event_data.get('badges', [])
+            if badges_list:
+                badge_strs = [f"{b.get('set_id', '')}/{b.get('id', '')}" for b in badges_list]
+                tags['badges'] = ','.join(badge_strs)
+            
+            author = MockAuthor(user_name, user_id)
+            mock_message = MockMessage(author, message, tags)
+            await get_function_from.event_message(mock_message)
     except Exception as e:
         event_logger.error(f"[EVENT MESSAGE] Error processing chat message event for {user_name}: {e}", exc_info=True)
 
