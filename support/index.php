@@ -754,6 +754,19 @@ ob_start();
     <h3>Follow Age</h3>
     <p><code>!followage [@user]</code> queries the Twitch API to show exactly how long a viewer has been following the channel.</p>
 
+    <h3>Working &amp; Study</h3>
+    <p>A productivity overlay for co-working streams.</p>
+    <ul>
+        <li><code>!task &lt;name&gt;</code> — sets your active task on the overlay.</li>
+        <li><code>!done [n]</code> — finishes your active task (or multiple backlog items like <code>!done 2; 4; 5</code>) and awards points.</li>
+        <li><code>!later &lt;name&gt;</code> / <code>!soon &lt;name&gt;</code> — queues tasks into your backlog.</li>
+        <li><code>!backlog</code> — views your pending tasks.</li>
+        <li><code>!personaltimer &lt;minutes&gt; &lt;label&gt;</code> — starts a personal focus timer (also supports cycles like <code>50/10/4</code>).</li>
+        <li><code>!project &lt;name&gt;</code> — organises your tasks into specific projects.</li>
+        <li><code>!studytimer</code> — broadcaster/mod controls for the main overlay timer (e.g. <code>!studytimer auto on</code>).</li>
+        <li><code>!studyhelp</code> — outputs a summary of these commands in chat.</li>
+    </ul>
+
     <h3>Subathon Timer</h3>
     <p>A countdown timer that extends with subs and bits (cheers) to drive engagement during subathon events. Check remaining time with <code>!subathon status</code>. Configure time additions per sub tier from the dashboard.</p>
 
