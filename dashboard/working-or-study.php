@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     };
     if ($action === 'get_settings') {
         // Load timer settings from database
-        $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, cycle_count, show_cycle_badge, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
+        $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, cycle_count, show_cycle_badge, auto_cycle_enabled, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
@@ -157,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 'reward_points_per_task' => 10,
                 'cycle_count' => 4,
                 'show_cycle_badge' => 0,
+                'auto_cycle_enabled' => 0,
                 'theme' => 'dark',
                 'list_view_mode' => 'split'
             ];
@@ -172,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $recharge = intval($_POST['recharge_break_minutes'] ?? 30);
         $cycleCount = max(1, intval($_POST['cycle_count'] ?? 4));
         $showCycleBadge = !empty($_POST['show_cycle_badge']) ? 1 : 0;
+        $autoCycleEnabled = !empty($_POST['auto_cycle_enabled']) ? 1 : 0;
         // Overlay theme (Phase 5) — whitelist guard, falls back to dark.
         $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight', 'pride'];
         $theme = $_POST['theme'] ?? 'dark';
@@ -184,12 +186,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (!in_array($listViewMode, $allowedListViewModes, true)) {
             $listViewMode = 'split';
         }
-        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ?, cycle_count = ?, show_cycle_badge = ?, theme = ?, list_view_mode = ? WHERE id = 1");
+        $stmt = $db->prepare("UPDATE working_study_overlay_settings SET focus_minutes = ?, micro_break_minutes = ?, recharge_break_minutes = ?, cycle_count = ?, show_cycle_badge = ?, auto_cycle_enabled = ?, theme = ?, list_view_mode = ? WHERE id = 1");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
             exit;
         }
-        $stmt->bind_param("iiiiiss", $focus, $micro, $recharge, $cycleCount, $showCycleBadge, $theme, $listViewMode);
+        $stmt->bind_param("iiiiiiss", $focus, $micro, $recharge, $cycleCount, $showCycleBadge, $autoCycleEnabled, $theme, $listViewMode);
         $success = $stmt->execute();
         $stmt->close();
         echo json_encode(['success' => $success]);
@@ -397,9 +399,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Load initial settings for page initialization
-$initialSettings = ['focus_minutes' => 60, 'micro_break_minutes' => 5, 'recharge_break_minutes' => 30, 'reward_enabled' => 0, 'reward_points_per_task' => 10, 'cycle_count' => 4, 'show_cycle_badge' => 0, 'theme' => 'dark', 'list_view_mode' => 'split'];
+$initialSettings = ['focus_minutes' => 60, 'micro_break_minutes' => 5, 'recharge_break_minutes' => 30, 'reward_enabled' => 0, 'reward_points_per_task' => 10, 'cycle_count' => 4, 'show_cycle_badge' => 0, 'auto_cycle_enabled' => 0, 'theme' => 'dark', 'list_view_mode' => 'split'];
 if ($db) {
-    $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, cycle_count, show_cycle_badge, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
+    $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, cycle_count, show_cycle_badge, auto_cycle_enabled, theme, list_view_mode FROM working_study_overlay_settings LIMIT 1");
     if ($stmt) {
         $stmt->execute();
         $result = $stmt->get_result();
@@ -563,6 +565,15 @@ ob_start();
                             </label>
                         </div>
                         <p class="help"><?= t('working_or_study_show_cycle_badge_help') ?></p>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <label class="checkbox">
+                                <input type="checkbox" id="autoCycleEnabledInput"
+                                    <?php echo !empty($initialSettings['auto_cycle_enabled']) ? 'checked' : ''; ?>>
+                                <?= t('working_or_study_auto_cycle_label') ?>
+                            </label>
+                        </div>
                     </div>
                     <div class="field">
                         <div class="control">
@@ -1131,6 +1142,10 @@ ob_start();
                     if (showCycleBadgeInput) {
                         showCycleBadgeInput.checked = Number(initialSettings.show_cycle_badge) === 1;
                     }
+                    const autoCycleEnabledInput = document.getElementById('autoCycleEnabledInput');
+                    if (autoCycleEnabledInput) {
+                        autoCycleEnabledInput.checked = Number(initialSettings.auto_cycle_enabled) === 1;
+                    }
                     if (overlayThemeSelect && initialSettings.theme) {
                         overlayThemeSelect.value = initialSettings.theme;
                     }
@@ -1151,6 +1166,8 @@ ob_start();
                 const recharge = safeNumberValue(breakLengthInput, 30);
                 const cycleCount = cycleCountInput ? safeNumberValue(cycleCountInput, 4) : 4;
                 const showCycleBadge = (showCycleBadgeInput && showCycleBadgeInput.checked) ? 1 : 0;
+                const autoCycleEnabledInput = document.getElementById('autoCycleEnabledInput');
+                const autoCycleEnabled = (autoCycleEnabledInput && autoCycleEnabledInput.checked) ? 1 : 0;
                 const theme = (overlayThemeSelect && overlayThemeSelect.value) ? overlayThemeSelect.value : 'dark';
                 const listViewMode = (overlayListViewSelect && overlayListViewSelect.value) ? overlayListViewSelect.value : 'split';
                 const formData = new FormData();
@@ -1160,6 +1177,7 @@ ob_start();
                 formData.append('recharge_break_minutes', String(recharge));
                 formData.append('cycle_count', String(cycleCount));
                 formData.append('show_cycle_badge', String(showCycleBadge));
+                formData.append('auto_cycle_enabled', String(autoCycleEnabled));
                 formData.append('theme', theme);
                 formData.append('list_view_mode', listViewMode);
                 const response = await fetch(window.location.href, {
@@ -1181,6 +1199,7 @@ ob_start();
                         recharge_break_minutes: recharge,
                         cycle_count: cycleCount,
                         show_cycle_badge: showCycleBadge,
+                        auto_cycle_enabled: autoCycleEnabled,
                         theme: theme,
                         list_view_mode: listViewMode
                     });

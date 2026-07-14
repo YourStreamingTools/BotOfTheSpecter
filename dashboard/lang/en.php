@@ -1457,6 +1457,7 @@ return [
     'working_or_study_cycle_count_help' => 'How many focus sprints make up one planned session.',
     'working_or_study_show_cycle_badge_label' => 'Show cycle badge on overlay',
     'working_or_study_show_cycle_badge_help' => 'Displays an "N / M" badge next to the timer phase, advancing each time a focus sprint completes.',
+    'working_or_study_auto_cycle_label' => 'Auto-Pilot (Auto phase transition)',
     'working_or_study_reset_cycle' => 'Reset Cycle Counter',
     'working_or_study_cycle_reset_toast' => 'Cycle counter reset',
     'working_or_study_theme_label' => 'Overlay Theme',

@@ -838,6 +838,7 @@ try {
                 reward_points_per_task INT DEFAULT 10,
                 cycle_count INT DEFAULT 4,
                 show_cycle_badge TINYINT(1) DEFAULT 0,
+                auto_cycle_enabled TINYINT(1) DEFAULT 0,
                 theme VARCHAR(50) DEFAULT 'dark',
                 list_view_mode ENUM('split','unified') DEFAULT 'split',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -1370,7 +1371,7 @@ try {
         async_log('Default automated_shoutout_settings options ensured.');
     }
     // Ensure default options for working_study_overlay_settings
-    if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task) SELECT 60, 5, 30, 0, 10 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task, auto_cycle_enabled) SELECT 60, 5, 30, 0, 10, 0 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default working_study_overlay_settings options ensured.');
     }
     // Ensure default options for task_settings exist

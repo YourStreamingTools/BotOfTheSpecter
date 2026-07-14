@@ -1400,6 +1400,7 @@ return [
     'working_or_study_cycle_count_label' => 'Fokus-Zyklen pro Sitzung',
     'working_or_study_cycle_count_placeholder' => 'Anzahl der Fokus-Zyklen',
     'working_or_study_cycle_count_help' => 'Wie viele Fokus-Sprints eine geplante Sitzung umfasst.',
+    'working_or_study_auto_cycle_label' => 'Autopilot (Automatische Phasenübergänge)',
     'working_or_study_show_cycle_badge_label' => 'Zyklus-Abzeichen im Overlay anzeigen',
     'working_or_study_show_cycle_badge_help' => 'Zeigt ein „N / M“-Abzeichen neben der Timer-Phase an, das bei jedem abgeschlossenen Fokus-Sprint weiterzählt.',
     'working_or_study_reset_cycle' => 'Zyklus-Zähler zurücksetzen',
