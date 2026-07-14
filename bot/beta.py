@@ -1,4 +1,4 @@
-# Standard library imports
+﻿# Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect, uuid
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
@@ -43,6 +43,12 @@ from pint import UnitRegistry as ureg
 import asyncio
 import asyncssh
 from openai import AsyncOpenAI
+
+# 
+try:
+    import pyphen
+except ImportError:
+    pyphen = None
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -11579,11 +11585,6 @@ class TwitchBot(commands.Bot):
 # table plus the word_replace_ignored_users / word_replace_ignored_words tables.
 # Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
 # ---------------------------------------------------------------------------
-try:
-    import pyphen
-except ImportError:
-    pyphen = None
-
 WORD_REPLACE_CACHE_TTL = 60
 EXPECTED_PROBABILITY = 0.95
 MAX_ATTEMPTS_CAP = 1000
@@ -11607,7 +11608,6 @@ _word_replace_cache = None
 _word_replace_cache_time = 0.0
 _last_word_replace_echo = 0.0
 
-
 def _get_hyphenator():
     global _hyphenator
     if pyphen is None:
@@ -11616,14 +11616,9 @@ def _get_hyphenator():
         _hyphenator = pyphen.Pyphen(lang="en_US")
     return _hyphenator
 
-
 def _syllablize(word):
     dic = _get_hyphenator()
     if dic is not None:
-        # Pyphen.inserted() returns the word with hyphens at every break point
-        # (e.g. "remember" -> "re-mem-ber"). Words here are pure [A-Za-z], so
-        # splitting on '-' is safe. (Pyphen.iterate() yields (head, tail) tuples,
-        # NOT syllable chunks — don't use it.)
         parts = [part for part in dic.inserted(word).split("-") if part]
         if len(parts) > 1:
             return parts
@@ -11632,12 +11627,10 @@ def _syllablize(word):
         return clusters
     return [word] if word else []
 
-
 def _chance(n, rng=random.random):
     if n <= 1:
         return True
     return rng() < (1.0 / n)
-
 
 def _attempts(rate, syllables):
     if rate <= 1 or syllables <= 0:
@@ -11646,20 +11639,16 @@ def _attempts(rate, syllables):
         math.log(1 - EXPECTED_PROBABILITY) / (syllables * math.log((rate - 1) / rate))
     ))
 
-
 def _normalize_compare(text):
     return re.sub(r"\s+", "", text).lower()
 
-
 def word_replace_is_transformable(content):
     return bool(content and re.search(r"[a-zA-Z]", content))
-
 
 def should_random_trigger(frequency, rng=random.random):
     if frequency <= 1:
         return True
     return _chance(frequency, rng)
-
 
 def is_word_replace_eligible(author, *, is_echo, channel_name, bot_username):
     # Random echo only targets normal viewers — never the bot's own messages
@@ -11675,7 +11664,6 @@ def is_word_replace_eligible(author, *, is_echo, channel_name, bot_username):
     if name in skip:
         return False
     return True
-
 
 class _WordReplaceItem:
     def __init__(self, parent, chars, rng):
@@ -11736,7 +11724,6 @@ class _WordReplaceItem:
     def __str__(self):
         return self._current if self.word and self._current is not None else self.chars
 
-
 class _WordReplaceContent:
     def __init__(self, original, word, rate, ignore_words, rng):
         self.original = original
@@ -11779,7 +11766,6 @@ class _WordReplaceContent:
             text = text[:-1]
         return text.lower() == self.word.lower()
 
-
 def word_replace_transform(content, word="fun", rate=10, ignore_words=None, max_length=500, rng=None):
     if not word_replace_is_transformable(content):
         return None
@@ -11802,7 +11788,6 @@ def word_replace_transform(content, word="fun", rate=10, ignore_words=None, max_
         ):
             return output
     return None
-
 
 async def load_word_replace_settings(force=False):
     global _word_replace_cache, _word_replace_cache_time
@@ -11861,7 +11846,6 @@ async def load_word_replace_settings(force=False):
     _word_replace_cache_time = now
     return settings
 
-
 def patch_word_replace_ignored_user(username, ignored):
     global _word_replace_cache
     name = (username or "").strip().lower()
@@ -11874,7 +11858,6 @@ def patch_word_replace_ignored_user(username, ignored):
         users.add(name)
     else:
         users.discard(name)
-
 
 async def word_replace_user_opt_out(username, opt_out, source="chat"):
     name = (username or "").strip().lower()
@@ -11904,16 +11887,13 @@ async def word_replace_user_opt_out(username, opt_out, source="chat"):
         patch_word_replace_ignored_user(name, opt_out)
     return changed
 
-
 def word_replace_cooldown_ready(settings):
     cooldown = max(10, int(settings.get("cooldown") or 30))
     return (time.monotonic() - _last_word_replace_echo) >= cooldown
 
-
 def word_replace_mark_echo():
     global _last_word_replace_echo
     _last_word_replace_echo = time.monotonic()
-
 
 async def word_replace_send_echo(content, settings):
     transformed = word_replace_transform(
@@ -11928,7 +11908,6 @@ async def word_replace_send_echo(content, settings):
     await send_chat_message(transformed[:MAX_CHAT_MESSAGE_LENGTH])
     word_replace_mark_echo()
     return True
-
 
 async def word_replace_maybe_echo(author, content, is_echo=False):
     if not is_word_replace_eligible(
@@ -11949,7 +11928,6 @@ async def word_replace_maybe_echo(author, content, is_echo=False):
         return
     if await word_replace_send_echo(content, settings):
         chat_logger.info(f"[WORD_REPLACE] Echoed for {author}: {content[:80]}")
-
 
 # Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the
 # per-channel exclusion lists for watch-time, points, and welcome/shoutout.
@@ -11993,14 +11971,6 @@ async def resolve_active_project(cursor, user_id):
 
 # Function to validate a project name (returns cleaned name or None when invalid)
 def validate_project_name(raw, allow_reserved=False):
-    # §8.5: trim, then require letters/numbers/space/dash, 1-24 chars after trim.
-    # 'clear' is a reserved keyword handled by the caller, not a project name.
-    # Subcommand words (move/rename/delete) are reserved as a FIRST word so the
-    # !project parser can never confuse a name with a subcommand — but callers
-    # that IDENTIFY an existing project (rename's old name, delete's target) pass
-    # allow_reserved=True so legacy names created before the reservation can
-    # still be renamed away or deleted.
-    # Returns the cleaned name on success, or None when invalid.
     name = (raw or '').strip()
     if not name:
         return None
