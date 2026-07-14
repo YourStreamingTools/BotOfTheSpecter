@@ -401,7 +401,8 @@ ob_end_clean();
             };
             const cycleConfig = {
                 count: 4,
-                showBadge: false
+                showBadge: false,
+                autoCycleEnabled: false
             };
             const clampCurrentCycle = () => {
                 const max = Math.max(1, Math.round(Number(cycleConfig.count) || 1));
@@ -439,6 +440,9 @@ ob_end_clean();
                 }
                 if (payload.show_cycle_badge !== undefined && payload.show_cycle_badge !== null) {
                     cycleConfig.showBadge = Number(payload.show_cycle_badge) === 1 || payload.show_cycle_badge === true;
+                }
+                if (payload.auto_cycle_enabled !== undefined && payload.auto_cycle_enabled !== null) {
+                    cycleConfig.autoCycleEnabled = Number(payload.auto_cycle_enabled) === 1 || payload.auto_cycle_enabled === true;
                 }
                 if (payload.reset_cycle !== undefined && payload.reset_cycle !== null
                     && (Number(payload.reset_cycle) === 1 || payload.reset_cycle === true)) {
@@ -755,11 +759,28 @@ ob_end_clean();
                     startCountdown();
                     return;
                 }
+                const finishedPhase = timerState.currentPhase;
                 timerState.timerRunning = false;
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = 0;
                 clearInterruptedFocus();
-                recordCompletedPhase(timerState.currentPhase, timerState.totalDuration);
+                recordCompletedPhase(finishedPhase, timerState.totalDuration);
+                
+                if (cycleConfig.autoCycleEnabled) {
+                    if (finishedPhase === 'focus') {
+                        const max = Math.max(1, Math.round(Number(cycleConfig.count) || 1));
+                        if (timerState.phaseCounts.focus % max === 0) {
+                            setPhase('recharge', { autoStart: true });
+                        } else {
+                            setPhase('micro', { autoStart: true });
+                        }
+                        return;
+                    } else if (finishedPhase === 'micro') {
+                        setPhase('focus', { autoStart: true });
+                        return;
+                    }
+                }
+
                 clearSavedTimerState();
                 emitTimerState('stopped');
                 updateDisplay();

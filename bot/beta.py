@@ -6442,15 +6442,15 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
-    @commands.command(name='timer')
-    async def timer_command(self, ctx):
-        global bot_owner, active_timer_routines
+
+    @commands.command(name='studyhelp')
+    async def studyhelp_command(self, ctx):
+        global bot_owner
         connection = None
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                # Fetch the status and permissions for the timer command
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("timer",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("studyhelp",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
@@ -6458,63 +6458,135 @@ class TwitchBot(commands.Bot):
                     cooldown_rate = result.get("cooldown_rate")
                     cooldown_time = result.get("cooldown_time")
                     cooldown_bucket = result.get("cooldown_bucket")
-                    # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                # Verify user permissions
-                if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
-                # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not await check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                # Check if the user already has an active timer
-                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                active_timer = await cursor.fetchone()
-                if active_timer:
-                    await send_chat_message(f"@{ctx.author.name}, you already have an active timer.")
-                    return
-                content = ctx.message.content.strip()
-                try:
-                    _, minutes = content.split(' ')
-                    minutes = int(minutes)
-                except ValueError:
-                    # Default to 5 minutes if the user didn't provide a valid value
-                    minutes = 5
-                end_time = time_right_now(timezone.utc) + timedelta(minutes=minutes)
-                await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
-                await connection.commit()
-                # Record usage
-                add_usage('timer', bucket_key, cooldown_bucket)
-            # Cursor and DB work done; now schedule the end-of-timer notification via a routine
-            await send_chat_message(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-            user_id = ctx.author.id
-            user_name = ctx.author.name
-            duration_seconds = minutes * 60
-            @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
-            async def timer_end_routine():
-                conn = None
-                try:
-                    conn = await mysql_connection()
-                    async with conn.cursor(DictCursor) as cur:
-                        await cur.execute("SELECT user_id FROM active_timers WHERE user_id=%s", (user_id,))
-                        still_active = await cur.fetchone()
-                        if still_active:
-                            await cur.execute("DELETE FROM active_timers WHERE user_id=%s", (user_id,))
-                            await conn.commit()
-                            await send_chat_message(f"The {minutes} minute timer has ended @{user_name}!")
-                except Exception as e:
-                    chat_logger.error(f"[TIMER] Error in timer end routine for {user_name}: {e}")
-                finally:
-                    if conn:
-                        await conn.close()
-                    active_timer_routines.pop(user_id, None)
-            active_timer_routines[user_id] = timer_end_routine
-            timer_end_routine.start()
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('studyhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    await send_chat_message("Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !personaltimer <minutes> <label> for a personal focus timer! Projects: !project <name>.")
+                    add_usage('studyhelp', bucket_key, cooldown_bucket)
         except Exception as e:
-            chat_logger.error(f"[TIMER] An error occurred during the execution of the timer command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
+            chat_logger.error(f"[STUDYHELP] Error in studyhelp_command: {e}")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='studytimer', aliases=['stimer'])
+    async def studytimer_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("studytimer",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('studytimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    if len(parts) < 2:
+                        await send_chat_message("Usage: !studytimer <start|stop|pause|resume> | !studytimer auto <on|off> | !studytimer set <focus/break/cycles> | !studytimer <minutes> <focus|break|recharge>")
+                        return
+                    
+                    args_str = parts[1].strip()
+                    action = args_str.split(' ')[0].lower()
+                    rest = args_str[len(action):].strip().lower()
+                    
+                    if action in ['start', 'stop', 'pause', 'resume']:
+                        safe_create_task(websocket_notice(event="SPECTER_TIMER_CONTROL", additional_data={
+                            "channel_code": API_TOKEN,
+                            "command": action
+                        }))
+                        await send_chat_message(f"@{ctx.author.name} overlay timer {action}ed.")
+                        
+                    elif action == 'auto':
+                        enabled = 1 if 'on' in rest else 0
+                        await cursor.execute(
+                            "UPDATE working_study_overlay_settings SET auto_cycle_enabled = %s",
+                            (enabled,)
+                        )
+                        await connection.commit()
+                        await cursor.execute("SELECT * FROM working_study_overlay_settings LIMIT 1")
+                        row = await cursor.fetchone()
+                        if row:
+                            safe_create_task(websocket_notice(event="SPECTER_SETTINGS_UPDATE", additional_data={
+                                "channel_code": API_TOKEN,
+                                "focus_duration": row.get('focus_duration'),
+                                "micro_break_duration": row.get('micro_break_duration'),
+                                "recharge_break_duration": row.get('recharge_break_duration'),
+                                "cycle_count": row.get('cycle_count'),
+                                "show_cycle_badge": row.get('show_cycle_badge'),
+                                "auto_cycle_enabled": row.get('auto_cycle_enabled'),
+                                "theme": row.get('theme'),
+                                "list_view_mode": row.get('list_view_mode')
+                            }))
+                        status_str = "enabled" if enabled else "disabled"
+                        await send_chat_message(f"@{ctx.author.name} timer auto-pilot {status_str}.")
+                        
+                    elif action == 'set':
+                        # Expecting focus/break/cycles
+                        parsed = parse_pomo_spec(rest)
+                        if not parsed:
+                            await send_chat_message(f"@{ctx.author.name} format: !studytimer set <focus>/<break>/<cycles> (e.g. 50/10/4)")
+                            return
+                        focus, break_time, cycles = parsed
+                        await cursor.execute(
+                            "UPDATE working_study_overlay_settings SET focus_duration = %s, micro_break_duration = %s, recharge_break_duration = %s, cycle_count = %s",
+                            (focus, break_time, break_time * 2, cycles)
+                        )
+                        await connection.commit()
+                        await cursor.execute("SELECT * FROM working_study_overlay_settings LIMIT 1")
+                        row = await cursor.fetchone()
+                        if row:
+                            safe_create_task(websocket_notice(event="SPECTER_SETTINGS_UPDATE", additional_data={
+                                "channel_code": API_TOKEN,
+                                "focus_duration": row.get('focus_duration'),
+                                "micro_break_duration": row.get('micro_break_duration'),
+                                "recharge_break_duration": row.get('recharge_break_duration'),
+                                "cycle_count": row.get('cycle_count'),
+                                "show_cycle_badge": row.get('show_cycle_badge'),
+                                "auto_cycle_enabled": row.get('auto_cycle_enabled'),
+                                "theme": row.get('theme'),
+                                "list_view_mode": row.get('list_view_mode')
+                            }))
+                        await send_chat_message(f"@{ctx.author.name} overlay lengths set to {focus}m work, {break_time}m break, {cycles} cycles.")
+                        
+                    elif action.isdigit():
+                        mins = int(action)
+                        phase = rest if rest in ['focus', 'micro', 'recharge', 'break'] else 'focus'
+                        if phase == 'break':
+                            phase = 'micro'
+                        safe_create_task(websocket_notice(event="SPECTER_TIMER_CONTROL", additional_data={
+                            "channel_code": API_TOKEN,
+                            "command": "start",
+                            "phase": phase,
+                            "duration_override": mins * 60
+                        }))
+                        await send_chat_message(f"@{ctx.author.name} forcing {mins}m {phase} phase.")
+                        
+                    else:
+                        await send_chat_message("Usage: !studytimer <start|stop|pause|resume> | !studytimer auto <on|off> | !studytimer set <focus/break/cycles> | !studytimer <minutes> <focus|break|recharge>")
+                        return
+
+                    add_usage('studytimer', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[STUDYTIMER] Error in studytimer_command: {e}")
         finally:
             if connection:
                 await connection.close()
@@ -8279,21 +8351,40 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    # !done <n> — complete a specific backlog item (does not touch the active task).
-                    if arg and arg.isdigit():
-                        n = int(arg)
-                        project = await resolve_active_project(cursor, user_id)
-                        await cursor.execute(
-                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
-                            (user_id, n, project)
-                        )
-                        target = await cursor.fetchone()
-                        if not target:
-                            await send_chat_message(f"@{user_name} no backlog item #{n}. Use !backlog to see your list.")
+                    # !done <n> or !done <n>; <m> — complete specific backlog item(s) (does not touch the active task).
+                    if arg and all(p.strip().isdigit() for p in arg.split(';') if p.strip()):
+                        raw_parts = [p.strip() for p in arg.split(';') if p.strip()]
+                        indices = sorted(list(set(int(p) for p in raw_parts)), reverse=True)
+                        if not indices:
                             return
-                        target_id = target.get('id')
-                        target_title = target.get('title')
-                        award_points, new_total, pending = await complete_task_with_reward(cursor, target, user_id, user_name)
+                        project = await resolve_active_project(cursor, user_id)
+                        completed_titles = []
+                        total_awarded = 0
+                        total_new = None
+                        any_pending = False
+                        for n in indices:
+                            await cursor.execute(
+                                "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+                                (user_id, n, project)
+                            )
+                            target = await cursor.fetchone()
+                            if not target:
+                                continue
+                            target_id = target.get('id')
+                            target_title = target.get('title')
+                            award_points, new_total, pending = await complete_task_with_reward(cursor, target, user_id, user_name)
+                            completed_titles.append(target_title)
+                            total_awarded += award_points
+                            total_new = new_total
+                            if pending:
+                                any_pending = True
+                            safe_create_task(websocket_notice(event="TASK_REMOVED", additional_data={
+                                "channel_code": API_TOKEN,
+                                "id": target_id
+                            }))
+                        if not completed_titles:
+                            await send_chat_message(f"@{user_name} no backlog items matched. Use !backlog to see your list.")
+                            return
                         # Renumber the remaining backlog contiguously (within this project).
                         await cursor.execute(
                             "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
@@ -8305,7 +8396,13 @@ class TwitchBot(commands.Bot):
                                 "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
                                 (new_pos, row.get('id'))
                             )
-                        msg = emit_completion_messages_and_events(user_id, user_name, target_id, target_title, award_points, new_total, pending, project)
+                        # Processed backwards, so reverse for display
+                        titles_str = ", ".join(f'"{t}"' for t in reversed(completed_titles))
+                        msg = f"Completed {len(completed_titles)} task(s): {titles_str}."
+                        if total_awarded > 0:
+                            msg += f" +{total_awarded} pts! (Total: {total_new})"
+                        if any_pending:
+                            msg += f" (Some rewards pending approval)"
                         await send_chat_message(f"@{user_name} {msg}")
                         add_usage('done', bucket_key, cooldown_bucket)
                         return
@@ -8942,6 +9039,16 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f"@{user_name} you are in the default project (no project). Use !project <name> to switch.")
                         add_usage('project', bucket_key, cooldown_bucket)
                         return
+                    # !project help
+                    if arg.lower() == 'help':
+                        await send_chat_message(f"@{user_name} Use !project <name> to start/switch projects, !project clear to exit, !projects to list them, and !project move/rename/delete to manage them. Use !project tutorial for more details.")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
+                    # !project tutorial
+                    if arg.lower() == 'tutorial':
+                        await send_chat_message(f"@{user_name} Projects organize your tasks. Type !project <name> to enter a project, then use normal commands like !task or !later. All tasks will save to that project. Use !project clear to return to your main default list.")
+                        add_usage('project', bucket_key, cooldown_bucket)
+                        return
                     # !project clear — reset to the default (NULL) context. 'clear' is reserved.
                     if arg.lower() == 'clear':
                         await cursor.execute(
@@ -9057,14 +9164,14 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
-    @commands.command(name='pomo')
-    async def pomo_command(self, ctx):
+    @commands.command(name='personaltimer', aliases=['timer', 'pomo', 'ptimer', 'mytimer', 'focus'])
+    async def personaltimer_command(self, ctx):
         global bot_owner
         connection = None
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("pomo",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("personaltimer",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
@@ -9079,7 +9186,7 @@ class TwitchBot(commands.Bot):
                         return
                     # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('pomo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('personaltimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
                     parts = content.split(' ', 1)
@@ -9097,8 +9204,8 @@ class TwitchBot(commands.Bot):
                         )
                         row = await cursor.fetchone()
                         if not row:
-                            await send_chat_message(f"@{user_name} you have no active pomo. Start one with !pomo <minutes> <label>.")
-                            add_usage('pomo', bucket_key, cooldown_bucket)
+                            await send_chat_message(f"@{user_name} you have no active timer. Start one with !personaltimer <minutes> <label>.")
+                            add_usage('personaltimer', bucket_key, cooldown_bucket)
                             return
                         remaining = int(row.get('remaining_seconds') or 0)
                         if remaining < 0:
@@ -9112,9 +9219,9 @@ class TwitchBot(commands.Bot):
                         cycle_part = f" cycle {cur_cycle}/{total_cycles}" if total_cycles > 1 else ""
                         label_part = f" [{label}]" if label else ""
                         await send_chat_message(
-                            f"@{user_name} pomo{label_part}: {phase_label}{cycle_part}, {mins}m {secs}s remaining."
+                            f"@{user_name} timer{label_part}: {phase_label}{cycle_part}, {mins}m {secs}s remaining."
                         )
-                        add_usage('pomo', bucket_key, cooldown_bucket)
+                        add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
                     # !pomo cancel — ask the server to cancel the chatter's active pomo.
                     if arg.lower() == 'cancel':
@@ -9123,8 +9230,8 @@ class TwitchBot(commands.Bot):
                             "user_id": user_id,
                             "user_name": user_name,
                         }))
-                        await send_chat_message(f"@{user_name} cancelling your pomo.")
-                        add_usage('pomo', bucket_key, cooldown_bucket)
+                        await send_chat_message(f"@{user_name} cancelling your timer.")
+                        add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
                     # !pomo <spec> <label> — start (or replace) a pomo.
                     spec_parts = arg.split(' ', 1)
@@ -9134,7 +9241,7 @@ class TwitchBot(commands.Bot):
                     parsed = parse_pomo_spec(spec_token)
                     if not parsed:
                         await send_chat_message(
-                            "Usage: !pomo <minutes> <label> | !pomo <work>/<break>/<cycles> <label> | !pomo | !pomo cancel"
+                            "Usage: !personaltimer <minutes> <label> | !personaltimer <work>/<break>/<cycles> <label> | !personaltimer | !personaltimer cancel"
                         )
                         return
                     work_minutes, break_minutes, total_cycles = parsed
@@ -9160,14 +9267,14 @@ class TwitchBot(commands.Bot):
                     label_part = f" [{label}]" if label else ""
                     if total_cycles > 1:
                         await send_chat_message(
-                            f"@{user_name} pomo started{label_part}: {total_cycles} cycles of {work_minutes}m work / {break_minutes}m break."
+                            f"@{user_name} timer started{label_part}: {total_cycles} cycles of {work_minutes}m work / {break_minutes}m break."
                         )
                     else:
-                        await send_chat_message(f"@{user_name} pomo started{label_part}: {work_minutes}m focus.")
-                    add_usage('pomo', bucket_key, cooldown_bucket)
+                        await send_chat_message(f"@{user_name} timer started{label_part}: {work_minutes}m focus.")
+                    add_usage('personaltimer', bucket_key, cooldown_bucket)
         except Exception as e:
-            chat_logger.error(f"[POMO] Error in pomo_command: {e}")
-            await send_chat_message("An error occurred while handling your pomo.")
+            chat_logger.error(f"[POMO] Error in personaltimer_command: {e}")
+            await send_chat_message("An error occurred while handling your timer.")
         finally:
             if connection:
                 await connection.close()

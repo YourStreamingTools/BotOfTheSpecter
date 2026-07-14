@@ -129,8 +129,8 @@
 			"syntax": "!task Finish the chapter notes"
 		},
 		"done": {
-			"description": "Marks a task complete. !done finishes your active task, !done <n> finishes backlog item #n, and !done next finishes the active task then promotes backlog #1. If the streamer has rewards enabled, you earn points (held for approval first when approval is required).",
-			"syntax": ["!done", "!done 2", "!done next"]
+			"description": "Marks a task complete. !done finishes your active task, !done <n> finishes backlog item #n, and !done next finishes the active task then promotes backlog #1. You can finish multiple backlog items by separating them with a semicolon. If the streamer has rewards enabled, you earn points (held for approval first when approval is required).",
+			"syntax": ["!done", "!done 2", "!done 2; 4; 5", "!done next"]
 		},
 		"rename": {
 			"description": "Renames your current active task on the Working & Study overlay.",
@@ -161,16 +161,26 @@
 			"syntax": "!backlog"
 		},
 		"project": {
-			"description": "Manages your Working & Study projects. !project shows your current project, !project <name> switches to it (created on first use), and !project clear returns to the default. !project move <n|now> <name> attaches backlog item #n (or your active task) to another project, !project rename <old> | <new> renames one, and !project delete <name> removes one — its tasks return to your default project. Names allow letters, numbers, spaces and dashes, up to 24 characters; they can't start with clear, move, rename or delete.",
-			"syntax": ["!project", "!project Studying", "!project clear", "!project move 2 Studying", "!project move now Studying", "!project rename Studying | Uni Work", "!project delete Uni Work"]
+			"description": "Manages your Working & Study projects. !project shows your current project, !project <name> switches to it (created on first use), and !project clear returns to the default. !project move <n|now> <name> attaches backlog item #n (or your active task) to another project, !project rename <old> | <new> renames one, and !project delete <name> removes one — its tasks return to your default project. !project help and !project tutorial provide additional guidance. Names allow letters, numbers, spaces and dashes, up to 24 characters; they can't start with clear, move, rename or delete.",
+			"syntax": ["!project", "!project Studying", "!project clear", "!project move 2 Studying", "!project move now Studying", "!project rename Studying | Uni Work", "!project delete Uni Work", "!project help", "!project tutorial"]
 		},
 		"projects": {
 			"description": "Lists your Working & Study projects with how many open tasks each one has, marking the project you're currently in.",
 			"syntax": "!projects"
 		},
-		"pomo": {
-			"description": "Starts a personal focus (pomodoro) timer shown next to your task on the Working & Study overlay. !pomo <minutes> <label> runs a single work session, !pomo <work>/<break>/<cycles> <label> runs a multi-cycle session, !pomo shows your remaining time, and !pomo cancel stops it. Starting a new pomo replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
-			"syntax": ["!pomo 30 Study", "!pomo 30/10/3 Study session", "!pomo", "!pomo cancel"]
+		"personaltimer": {
+			"description": "Starts a personal focus timer that pings you in chat. !personaltimer <minutes> <label> runs a single work session, !personaltimer <work>/<break>/<cycles> <label> runs a multi-cycle session, !personaltimer shows your remaining time, and !personaltimer cancel stops it. Starting a new timer replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
+			"syntax": ["!personaltimer 30 puzzle", "!personaltimer 30/10/3 Study session", "!personaltimer", "!personaltimer cancel"],
+			"aliases": ["timer", "pomo", "ptimer", "mytimer", "focus"]
+		},
+		"studytimer": {
+			"description": "Controls the streamer's Working & Study overlay timer. Broadcaster/moderator only. You can use start/stop/pause/resume to control playback, use 'auto on|off' for auto-pilot transitions, use 'set <focus>/<break>/<cycles>' to configure lengths, or use '<minutes> <focus|break|recharge>' to force start a specific phase.",
+			"syntax": ["!studytimer start", "!studytimer stop", "!studytimer auto on", "!studytimer set 50/10/4", "!studytimer 30 focus"],
+			"aliases": ["stimer"]
+		},
+		"studyhelp": {
+			"description": "Outputs a short help message with the most useful Working & Study commands.",
+			"syntax": "!studyhelp"
 		},
 		"kill": {
 			"description": "Simulates a fun in-chat kill action targeting a mentioned user.",
@@ -189,8 +199,8 @@
 			"syntax": "!slots"
 		},
 		"timer": {
-			"description": "Starts a personal countdown timer. Defaults to 5 minutes if no duration is given. Specter will ping you in chat when time is up.",
-			"syntax": ["!timer", "!timer 10"]
+			"description": "This command has been replaced. Please see !personaltimer.",
+			"syntax": ["!timer"]
 		},
 		"game": {
 			"description": "Shows the game or category the channel is currently streaming.",

@@ -1402,6 +1402,7 @@ return [
     'working_or_study_cycle_count_help' => 'Combien de sprints de concentration composent une session planifiée.',
     'working_or_study_show_cycle_badge_label' => 'Afficher le badge de cycle sur l\'overlay',
     'working_or_study_show_cycle_badge_help' => 'Affiche un badge « N / M » à côté de la phase du minuteur, qui avance à chaque sprint de concentration terminé.',
+    'working_or_study_auto_cycle_label' => 'Pilote automatique (Transition de phase auto)',
     'working_or_study_reset_cycle' => 'Réinitialiser le compteur de cycles',
     'working_or_study_cycle_reset_toast' => 'Compteur de cycles réinitialisé',
     'working_or_study_theme_label' => 'Thème de l\'overlay',
