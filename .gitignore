@@ -129,3 +129,6 @@ app/__pycache__/
 *.pyd
 *.pyw
 *.pyz
+/.codex
+/.agents
+AGENTS.md

@@ -7280,35 +7280,37 @@ class TwitchBot(commands.AutoBot):
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
                     await cursor.execute(
-                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     demoted = await cursor.fetchone()
+                    await cursor.execute(
+                        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
+                        (user_id,)
+                    )
+                    max_row = await cursor.fetchone()
+                    pos = int(max_row.get('max_pos') or 0) + 1
                     if demoted:
                         await cursor.execute(
-                            "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
-                            (user_id, project)
-                        )
-                        await cursor.execute(
-                            "UPDATE user_tasks SET status = 'pending', backlog_position = 1 WHERE id = %s",
+                            "UPDATE user_tasks SET status = 'pending' WHERE id = %s",
                             (demoted.get('id'),)
                         )
                     await cursor.execute(
                         "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
-                        "VALUES (%s, %s, %s, 'active', 'auto', %s, NULL, %s)",
-                        (user_id, user_name, title, reward_points, project)
+                        "VALUES (%s, %s, %s, 'active', 'auto', %s, %s, %s)",
+                        (user_id, user_name, title, reward_points, pos, project)
                     )
                     new_id = cursor.lastrowid
                     if demoted:
                         emit_task_update({"id": demoted.get('id'), "user_id": user_id, "user_name": user_name,
                                           "title": demoted.get('title'), "status": "pending", "project": project, "owner": owner}, owner=owner)
-                        await send_chat_message(f"@{user_name} now working on \"{title}\". Your previous task \"{demoted.get('title')}\" moved to your backlog at #1.")
+                        await send_chat_message(f"@{user_name} now working on task #{pos}: \"{title}\". Your previous task \"{demoted.get('title')}\" moved to your backlog.")
                     else:
-                        await send_chat_message(f"@{user_name} task set: \"{title}\". Use !done when finished.")
+                        await send_chat_message(f"@{user_name} task #{pos} set: \"{title}\". Use !done when finished.")
                     add_usage('task', bucket_key, cooldown_bucket)
                     emit_task_create({"id": new_id, "user_id": user_id, "user_name": user_name,
                                       "title": title, "status": "active", "approval_status": "auto",
-                                      "reward_points": reward_points, "backlog_position": None,
+                                      "reward_points": reward_points, "backlog_position": pos,
                                       "project": project, "owner": owner}, owner=owner)
         except Exception as e:
             chat_logger.error(f"[TASK] Error in task_command: {e}")
@@ -7358,7 +7360,7 @@ class TwitchBot(commands.AutoBot):
                         any_pending = False
                         for n in indices:
                             await cursor.execute(
-                                "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+                                "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND backlog_position = %s AND project <=> %s LIMIT 1",
                                 (user_id, n, project)
                             )
                             target = await cursor.fetchone()
@@ -7379,16 +7381,6 @@ class TwitchBot(commands.AutoBot):
                         if not completed_titles:
                             await send_chat_message(f"@{user_name} no backlog items matched. Use !backlog to see your list.")
                             return
-                        await cursor.execute(
-                            "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
-                            (user_id, project)
-                        )
-                        rows = await cursor.fetchall()
-                        for new_pos, row in enumerate(rows, start=1):
-                            await cursor.execute(
-                                "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
-                                (new_pos, row.get('id'))
-                            )
                         titles_str = ", ".join(f'"{t}"' for t in reversed(completed_titles))
                         msg = f"Completed {len(completed_titles)} task(s): {titles_str}."
                         if total_awarded > 0:
@@ -7401,7 +7393,7 @@ class TwitchBot(commands.AutoBot):
                     if arg.lower() == 'next':
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
-                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                             (user_id, project)
                         )
                         active = await cursor.fetchone()
@@ -7415,16 +7407,16 @@ class TwitchBot(commands.AutoBot):
                         msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project, owner=owner)
                         if promoted:
                             emit_task_update({"id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
-                                              "title": promoted.get('title'), "status": "active", "backlog_position": None,
+                                              "title": promoted.get('title'), "status": "active", "backlog_position": promoted.get('backlog_position'),
                                               "project": project, "owner": owner}, owner=owner)
-                            await send_chat_message(f"@{user_name} {msg} Now active: \"{promoted.get('title')}\".")
+                            await send_chat_message(f"@{user_name} {msg} Now active task #{promoted.get('backlog_position')}: \"{promoted.get('title')}\".")
                         else:
                             await send_chat_message(f"@{user_name} {msg} Backlog is now empty.")
                         add_usage('done', bucket_key, cooldown_bucket)
                         return
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
@@ -7478,7 +7470,7 @@ class TwitchBot(commands.AutoBot):
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
@@ -7529,7 +7521,7 @@ class TwitchBot(commands.AutoBot):
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
@@ -7652,7 +7644,7 @@ class TwitchBot(commands.AutoBot):
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
-                        "SELECT title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        "SELECT title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
@@ -7710,7 +7702,7 @@ class TwitchBot(commands.AutoBot):
                     if arg.lower() == 'skip':
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
-                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                            "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                             (user_id, project)
                         )
                         active = await cursor.fetchone()
@@ -7724,9 +7716,9 @@ class TwitchBot(commands.AutoBot):
                         done_msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project, owner=owner)
                         if promoted:
                             emit_task_update({"id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
-                                              "title": promoted.get('title'), "status": "active", "backlog_position": None,
+                                              "title": promoted.get('title'), "status": "active",
                                               "project": project, "owner": owner}, owner=owner)
-                            await send_chat_message(f"@{user_name} {done_msg} Now active: \"{promoted.get('title')}\".")
+                            await send_chat_message(f"@{user_name} {done_msg} Now active task #{promoted.get('backlog_position')}: \"{promoted.get('title')}\".")
                         else:
                             await send_chat_message(f"@{user_name} {done_msg} Backlog is now empty.")
                         add_usage('now', bucket_key, cooldown_bucket)
@@ -7745,40 +7737,26 @@ class TwitchBot(commands.AutoBot):
                         target_id = target.get('id')
                         target_title = target.get('title')
                         await cursor.execute(
-                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                             (user_id, project)
                         )
                         active = await cursor.fetchone()
                         if active:
                             await cursor.execute(
-                                "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
-                                (user_id, project)
-                            )
-                            await cursor.execute(
-                                "UPDATE user_tasks SET status = 'pending', backlog_position = 1 WHERE id = %s",
+                                "UPDATE user_tasks SET status = 'pending' WHERE id = %s",
                                 (active.get('id'),)
                             )
                         await cursor.execute(
-                            "UPDATE user_tasks SET status = 'active', backlog_position = NULL WHERE id = %s",
+                            "UPDATE user_tasks SET status = 'active' WHERE id = %s",
                             (target_id,)
                         )
-                        await cursor.execute(
-                            "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
-                            (user_id, project)
-                        )
-                        rows = await cursor.fetchall()
-                        for new_pos, row in enumerate(rows, start=1):
-                            await cursor.execute(
-                                "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
-                                (new_pos, row.get('id'))
-                            )
                         emit_task_update({"id": target_id, "user_id": user_id, "user_name": user_name,
-                                          "title": target_title, "status": "active", "backlog_position": None,
+                                          "title": target_title, "status": "active",
                                           "project": project, "owner": owner}, owner=owner)
                         if active:
                             emit_task_update({"id": active.get('id'), "user_id": user_id, "user_name": user_name,
                                               "title": active.get('title'), "status": "pending", "project": project, "owner": owner}, owner=owner)
-                        await send_chat_message(f"@{user_name} now active: \"{target_title}\".")
+                        await send_chat_message(f"@{user_name} now active task #{n}: \"{target_title}\".")
                         add_usage('now', bucket_key, cooldown_bucket)
                         return
                     titles = split_task_titles(arg)
@@ -7789,33 +7767,35 @@ class TwitchBot(commands.AutoBot):
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
                     await cursor.execute(
-                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+                        "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     active = await cursor.fetchone()
                     demoted = None
                     if active:
                         await cursor.execute(
-                            "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
-                            (user_id, project)
-                        )
-                        await cursor.execute(
-                            "UPDATE user_tasks SET status = 'pending', backlog_position = 1 WHERE id = %s",
+                            "UPDATE user_tasks SET status = 'pending' WHERE id = %s",
                             (active.get('id'),)
                         )
                         demoted = active
                     first_title = titles[0]
                     await cursor.execute(
+                        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
+                        (user_id,)
+                    )
+                    max_row = await cursor.fetchone()
+                    pos = int(max_row.get('max_pos') or 0) + 1
+                    await cursor.execute(
                         "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
-                        "VALUES (%s, %s, %s, 'active', 'auto', %s, NULL, %s)",
-                        (user_id, user_name, first_title, reward_points, project)
+                        "VALUES (%s, %s, %s, 'active', 'auto', %s, %s, %s)",
+                        (user_id, user_name, first_title, reward_points, pos, project)
                     )
                     active_id = cursor.lastrowid
                     created.append((active_id, first_title, 'active', None))
                     for extra in titles[1:]:
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
-                            (user_id, project)
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
+                            (user_id,)
                         )
                         max_row = await cursor.fetchone()
                         pos = int(max_row.get('max_pos') or 0) + 1
@@ -7834,9 +7814,9 @@ class TwitchBot(commands.AutoBot):
                                           "reward_points": reward_points, "backlog_position": cpos,
                                           "project": project, "owner": owner}, owner=owner)
                     if len(created) > 1:
-                        await send_chat_message(f"@{user_name} now active: \"{first_title}\" (+{len(created) - 1} queued).")
+                        await send_chat_message(f"@{user_name} now active task #{created[0][3]}: \"{first_title}\" (+{len(created) - 1} queued).")
                     else:
-                        await send_chat_message(f"@{user_name} now active: \"{first_title}\".")
+                        await send_chat_message(f"@{user_name} now active task #{created[0][3]}: \"{first_title}\".")
                     add_usage('now', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[NOW] Error in now_command: {e}")
@@ -7883,7 +7863,7 @@ class TwitchBot(commands.AutoBot):
                     reward_points = await task_default_reward(cursor)
                     for title in titles:
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status IN ('pending', 'active') AND project <=> %s",
                             (user_id, project)
                         )
                         max_row = await cursor.fetchone()
@@ -7950,13 +7930,15 @@ class TwitchBot(commands.AutoBot):
                     reward_points = await task_default_reward(cursor)
                     for title in reversed(titles):
                         await cursor.execute(
-                            "UPDATE user_tasks SET backlog_position = backlog_position + 1 WHERE user_id = %s AND status = 'pending' AND project <=> %s",
-                            (user_id, project)
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
+                            (user_id,)
                         )
+                        max_row = await cursor.fetchone()
+                        pos = int(max_row.get('max_pos') or 0) + 1
                         await cursor.execute(
                             "INSERT INTO user_tasks (user_id, user_name, title, status, approval_status, reward_points, backlog_position, project) "
-                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, 1, %s)",
-                            (user_id, user_name, title, reward_points, project)
+                            "VALUES (%s, %s, %s, 'pending', 'auto', %s, %s, %s)",
+                            (user_id, user_name, title, reward_points, pos, project)
                         )
                         created.append((cursor.lastrowid, title))
                     for cid, ctitle in created:
@@ -7997,6 +7979,13 @@ class TwitchBot(commands.AutoBot):
                         return
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('backlog', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    content = ctx.message.content.strip()
+                    parts = content.split(' ', 1)
+                    if len(parts) > 1 and parts[1].strip():
+                        # Forward !backlog <title> to !later <title>
+                        ctx.message.content = f"!later {parts[1].strip()}"
+                        await self.later_command(ctx)
                         return
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
@@ -11002,40 +10991,31 @@ async def user_project_exists(cursor, user_id, name):
 # Function to file a task into a target project: active slot if free, else backlog end
 async def file_task_into_project(cursor, user_id, task_id, target_project):
     await cursor.execute(
-        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
         (user_id, target_project)
     )
     target_active = await cursor.fetchone()
+
+    await cursor.execute("SELECT backlog_position FROM user_tasks WHERE id = %s", (task_id,))
+    task = await cursor.fetchone()
+    pos = task.get('backlog_position') if task else None
+
     if target_active:
         await cursor.execute(
-            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
-            (user_id, target_project)
-        )
-        row = await cursor.fetchone()
-        pos = int((row.get('max_pos') if row else 0) or 0) + 1
-        await cursor.execute(
-            "UPDATE user_tasks SET project = %s, status = 'pending', backlog_position = %s WHERE id = %s",
-            (target_project, pos, task_id)
+            "UPDATE user_tasks SET project = %s, status = 'pending' WHERE id = %s",
+            (target_project, task_id)
         )
         return ('pending', pos)
+    
     await cursor.execute(
-        "UPDATE user_tasks SET project = %s, status = 'active', backlog_position = NULL WHERE id = %s",
+        "UPDATE user_tasks SET project = %s, status = 'active' WHERE id = %s",
         (target_project, task_id)
     )
-    return ('active', None)
+    return ('active', pos)
 
 # Function to renumber a project's pending backlog contiguously (1..n)
 async def renumber_project_backlog(cursor, user_id, project):
-    await cursor.execute(
-        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
-        (user_id, project)
-    )
-    rows = await cursor.fetchall()
-    for new_pos, row in enumerate(rows, start=1):
-        await cursor.execute(
-            "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
-            (new_pos, row.get('id'))
-        )
+    pass
 
 # Function to emit the PROJECT_UPDATE websocket event
 def emit_project_update(user_id, user_name, change, name=None, old_name=None, task_id=None):
@@ -11066,7 +11046,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         return f"that task is already in \"{target}\"."
     if selector == 'now':
         await cursor.execute(
-            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project <=> %s LIMIT 1",
+            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
             (user_id, source_project)
         )
         task = await cursor.fetchone()
@@ -11089,7 +11069,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
     if selector.isdigit():
         n = int(selector)
         await cursor.execute(
-            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+            "SELECT id, title FROM user_tasks WHERE user_id = %s AND backlog_position = %s AND project <=> %s LIMIT 1",
             (user_id, n, source_project)
         )
         task = await cursor.fetchone()
@@ -11103,7 +11083,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
         emit_task_update({"id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
                           "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner}, owner=task_owner)
-        placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
+        placed = f"is now active task #{new_pos} in \"{target}\"" if new_status == 'active' else f"queued as task #{new_pos} in \"{target}\""
         return f"moved \"{title}\" — it {placed}."
     return "usage: !project move <n|now> <project name>"
 
@@ -11147,7 +11127,7 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
     if not await user_project_exists(cursor, user_id, name):
         return f"you have no project named \"{name}\"."
     await cursor.execute(
-        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND backlog_position IS NULL AND project IS NULL LIMIT 1",
+        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'active' AND project IS NULL LIMIT 1",
         (user_id,)
     )
     default_has_active = bool(await cursor.fetchone())
@@ -11158,7 +11138,7 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
     )
     open_tasks = await cursor.fetchall()
     await cursor.execute(
-        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project IS NULL",
+        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status IN ('pending', 'active') AND project IS NULL",
         (user_id,)
     )
     row = await cursor.fetchone()
@@ -11195,10 +11175,10 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
         return f"project \"{name}\" deleted — {moved} open task(s) moved to your default project."
     return f"project \"{name}\" deleted."
 
-# Function to promote the lowest-positioned pending backlog row to active and renumber the rest
+# Function to promote the lowest-positioned pending backlog row to active
 async def promote_backlog_head(cursor, user_id, project=None):
     await cursor.execute(
-        "SELECT id, user_name, title, reward_points FROM user_tasks "
+        "SELECT id, user_name, title, reward_points, backlog_position FROM user_tasks "
         "WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC LIMIT 1",
         (user_id, project)
     )
@@ -11207,19 +11187,9 @@ async def promote_backlog_head(cursor, user_id, project=None):
         return None
     promoted_id = head.get('id')
     await cursor.execute(
-        "UPDATE user_tasks SET status = 'active', backlog_position = NULL WHERE id = %s",
+        "UPDATE user_tasks SET status = 'active' WHERE id = %s",
         (promoted_id,)
     )
-    await cursor.execute(
-        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
-        (user_id, project)
-    )
-    rows = await cursor.fetchall()
-    for new_pos, row in enumerate(rows, start=1):
-        await cursor.execute(
-            "UPDATE user_tasks SET backlog_position = %s WHERE id = %s",
-            (new_pos, row.get('id'))
-        )
     return head
 
 # Function shared completion + reward path; returns (award_points, new_total, pending)
