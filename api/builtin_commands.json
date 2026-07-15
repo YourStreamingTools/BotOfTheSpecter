@@ -169,7 +169,7 @@
 		"tasktimer": {
 			"description": "Controls the streamer's Working & Study overlay timer. Broadcaster/moderator only. You can use start/stop/pause/resume to control playback, use 'auto on|off' for auto-pilot transitions, use 'set <focus>/<break>/<cycles>' to configure lengths, or use '<minutes> <focus|break|recharge>' to force start a specific phase.",
 			"syntax": ["!tasktimer start", "!tasktimer stop", "!tasktimer auto on", "!tasktimer set 50/10/4", "!tasktimer 30 focus"],
-			"aliases": ["stimer"]
+			"aliases": ["ttimer", "stimer"]
 		},
 		"taskhelp": {
 			"description": "Outputs a short help message with the most useful Working & Study commands.",
