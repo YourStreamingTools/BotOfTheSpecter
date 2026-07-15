@@ -904,6 +904,7 @@ try {
                 user_id VARCHAR(50) DEFAULT NULL,
                 user_name VARCHAR(100) DEFAULT NULL,
                 completed_at TIMESTAMP NULL DEFAULT NULL,
+                task_type ENUM('task','timer') DEFAULT 'task',
                 INDEX idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'user_tasks' => "
@@ -921,6 +922,7 @@ try {
                 backlog_position INT DEFAULT NULL,
                 project VARCHAR(100) DEFAULT NULL,
                 completed_at TIMESTAMP NULL DEFAULT NULL,
+                task_type ENUM('task','timer') DEFAULT 'task',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_user_id (user_id),
@@ -980,6 +982,7 @@ try {
                 phase_started_at DATETIME NOT NULL,
                 phase_ends_at DATETIME NOT NULL,
                 status ENUM('active','completed','cancelled') DEFAULT 'active',
+                task_id INT DEFAULT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_user_id (user_id),
                 INDEX idx_status (status)
@@ -1421,6 +1424,41 @@ try {
                 } else {
                     async_log('Error altering streamer_tasks status ENUM: ' . $usrDBconn->error);
                 }
+            }
+        }
+    }
+    // Migration: add task_type to streamer_tasks if not exists
+    if ($streamer_tasks_exists) {
+        $stTypeCol = $usrDBconn->query("SHOW COLUMNS FROM streamer_tasks LIKE 'task_type'");
+        if ($stTypeCol && $stTypeCol->num_rows === 0) {
+            if ($usrDBconn->query("ALTER TABLE streamer_tasks ADD task_type ENUM('task','timer') DEFAULT 'task'") === TRUE) {
+                async_log('streamer_tasks: added task_type column.');
+            } else {
+                async_log('Error adding task_type column to streamer_tasks: ' . $usrDBconn->error);
+            }
+        }
+    }
+    // Migration: add task_type to user_tasks if not exists
+    $user_tasks_exists = $usrDBconn->query("SHOW TABLES LIKE 'user_tasks'")->num_rows > 0;
+    if ($user_tasks_exists) {
+        $utTypeCol = $usrDBconn->query("SHOW COLUMNS FROM user_tasks LIKE 'task_type'");
+        if ($utTypeCol && $utTypeCol->num_rows === 0) {
+            if ($usrDBconn->query("ALTER TABLE user_tasks ADD task_type ENUM('task','timer') DEFAULT 'task'") === TRUE) {
+                async_log('user_tasks: added task_type column.');
+            } else {
+                async_log('Error adding task_type column to user_tasks: ' . $usrDBconn->error);
+            }
+        }
+    }
+    // Migration: add task_id to user_pomos if not exists
+    $user_pomos_exists = $usrDBconn->query("SHOW TABLES LIKE 'user_pomos'")->num_rows > 0;
+    if ($user_pomos_exists) {
+        $upTaskIdCol = $usrDBconn->query("SHOW COLUMNS FROM user_pomos LIKE 'task_id'");
+        if ($upTaskIdCol && $upTaskIdCol->num_rows === 0) {
+            if ($usrDBconn->query("ALTER TABLE user_pomos ADD task_id INT DEFAULT NULL AFTER status") === TRUE) {
+                async_log('user_pomos: added task_id column.');
+            } else {
+                async_log('Error adding task_id column to user_pomos: ' . $usrDBconn->error);
             }
         }
     }
