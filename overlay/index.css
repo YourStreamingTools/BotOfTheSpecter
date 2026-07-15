@@ -1338,6 +1338,20 @@ html, body {
     max-width: 420px;
 }
 
+.study-overlay-page-task-sys-user-header {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--task-text);
+    padding: 10px 12px 2px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+}
+.study-overlay-page-task-sys-user-header:first-child {
+    padding-top: 0;
+}
+
 /* Muted backlog rows (only rendered when UNIFIED_OMIT_BACKLOG is flipped off).
    Theme-aware via the shared task vars so it dims consistently per palette. */
 .study-overlay-page-task-sys-item.is-backlog {
