@@ -1,4 +1,4 @@
-﻿# Standard library imports
+# Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect, uuid
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
@@ -8183,6 +8183,7 @@ class TwitchBot(commands.Bot):
                     title = title[:255]
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
+                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
                     # A new !task is always the thing you're working on NOW. If you already have an
@@ -8212,8 +8213,8 @@ class TwitchBot(commands.Bot):
                     if demoted:
                         emit_task_update({
                             "id": demoted.get('id'), "user_id": user_id, "user_name": user_name,
-                            "title": demoted.get('title'), "status": "pending", "project": project, "owner": "user"
-                        })
+                            "title": demoted.get('title'), "status": "pending", "project": project, "owner": owner
+                        }, owner=owner)
                         await send_chat_message(f"@{user_name} now working on \"{title}\". Your previous task \"{demoted.get('title')}\" moved to your backlog at #1.")
                     else:
                         await send_chat_message(f"@{user_name} task set: \"{title}\". Use !done when finished.")
@@ -8222,8 +8223,8 @@ class TwitchBot(commands.Bot):
                         "id": new_id, "user_id": user_id, "user_name": user_name,
                         "title": title, "status": "active", "approval_status": "auto",
                         "reward_points": reward_points, "backlog_position": None,
-                        "project": project, "owner": "user"
-                    })
+                        "project": project, "owner": owner
+                    }, owner=owner)
         except Exception as e:
             chat_logger.error(f"[TASK] Error in task_command: {e}")
             await send_chat_message("An error occurred while setting your task.")
@@ -8330,13 +8331,13 @@ class TwitchBot(commands.Bot):
                         active_title = active.get('title')
                         award_points, new_total, pending = await complete_task_with_reward(cursor, active, user_id, user_name)
                         promoted = await promote_backlog_head(cursor, user_id, project)
-                        msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project)
+                        msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project, owner=owner)
                         if promoted:
                             emit_task_update({
                                 "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
                                 "title": promoted.get('title'), "status": "active", "backlog_position": None,
-                                "project": project, "owner": "user"
-                            })
+                                "project": project, "owner": owner
+                            }, owner=owner)
                             await send_chat_message(f"@{user_name} {msg} Now active: \"{promoted.get('title')}\".")
                         else:
                             await send_chat_message(f"@{user_name} {msg} Backlog is now empty.")
@@ -8355,7 +8356,7 @@ class TwitchBot(commands.Bot):
                     task_id = task.get('id')
                     task_title = task.get('title')
                     award_points, new_total, pending = await complete_task_with_reward(cursor, task, user_id, user_name)
-                    msg = emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project)
+                    msg = emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project, owner=owner)
                     await send_chat_message(f"@{user_name} {msg}")
                     add_usage('done', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -8633,6 +8634,7 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
+                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
                     if not arg:
                         await send_chat_message("Usage: !now <title> | !now <n> | !now skip")
                         return
@@ -8651,13 +8653,13 @@ class TwitchBot(commands.Bot):
                         active_title = active.get('title')
                         award_points, new_total, pending = await complete_task_with_reward(cursor, active, user_id, user_name)
                         promoted = await promote_backlog_head(cursor, user_id, project)
-                        done_msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project)
+                        done_msg = emit_completion_messages_and_events(user_id, user_name, active_id, active_title, award_points, new_total, pending, project, owner=owner)
                         if promoted:
                             emit_task_update({
                                 "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
                                 "title": promoted.get('title'), "status": "active", "backlog_position": None,
-                                "project": project, "owner": "user"
-                            })
+                                "project": project, "owner": owner
+                            }, owner=owner)
                             await send_chat_message(f"@{user_name} {done_msg} Now active: \"{promoted.get('title')}\".")
                         else:
                             await send_chat_message(f"@{user_name} {done_msg} Backlog is now empty.")
@@ -8711,13 +8713,13 @@ class TwitchBot(commands.Bot):
                         emit_task_update({
                             "id": target_id, "user_id": user_id, "user_name": user_name,
                             "title": target_title, "status": "active", "backlog_position": None,
-                            "project": project, "owner": "user"
-                        })
+                            "project": project, "owner": owner
+                        }, owner=owner)
                         if active:
                             emit_task_update({
                                 "id": active.get('id'), "user_id": user_id, "user_name": user_name,
-                                "title": active.get('title'), "status": "pending", "project": project, "owner": "user"
-                            })
+                                "title": active.get('title'), "status": "pending", "project": project, "owner": owner
+                            }, owner=owner)
                         await send_chat_message(f"@{user_name} now active: \"{target_title}\".")
                         add_usage('now', bucket_key, cooldown_bucket)
                         return
@@ -8771,15 +8773,15 @@ class TwitchBot(commands.Bot):
                     if demoted:
                         emit_task_update({
                             "id": demoted.get('id'), "user_id": user_id, "user_name": user_name,
-                            "title": demoted.get('title'), "status": "pending", "project": project, "owner": "user"
-                        })
+                            "title": demoted.get('title'), "status": "pending", "project": project, "owner": owner
+                        }, owner=owner)
                     for cid, ctitle, cstatus, cpos in created:
                         emit_task_create({
                             "id": cid, "user_id": user_id, "user_name": user_name,
                             "title": ctitle, "status": cstatus, "approval_status": "auto",
                             "reward_points": reward_points, "backlog_position": cpos,
-                            "project": project, "owner": "user"
-                        })
+                            "project": project, "owner": owner
+                        }, owner=owner)
                     if len(created) > 1:
                         await send_chat_message(f"@{user_name} now active: \"{first_title}\" (+{len(created) - 1} queued).")
                     else:
@@ -8825,6 +8827,7 @@ class TwitchBot(commands.Bot):
                         return
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
+                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
                     created = []
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
@@ -8847,8 +8850,8 @@ class TwitchBot(commands.Bot):
                             "id": cid, "user_id": user_id, "user_name": user_name,
                             "title": ctitle, "status": "pending", "approval_status": "auto",
                             "reward_points": reward_points, "backlog_position": cpos,
-                            "project": project, "owner": "user"
-                        })
+                            "project": project, "owner": owner
+                        }, owner=owner)
                     if len(created) == 1:
                         await send_chat_message(f"@{user_name} queued \"{created[0][1]}\" at #{created[0][2]}.")
                     else:
@@ -8895,6 +8898,7 @@ class TwitchBot(commands.Bot):
                         return
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
+                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
                     created = []
                     project = await resolve_active_project(cursor, user_id)
                     reward_points = await task_default_reward(cursor)
@@ -8916,8 +8920,8 @@ class TwitchBot(commands.Bot):
                         emit_task_create({
                             "id": cid, "user_id": user_id, "user_name": user_name,
                             "title": ctitle, "status": "pending", "approval_status": "auto",
-                            "reward_points": reward_points, "project": project, "owner": "user"
-                        })
+                            "reward_points": reward_points, "project": project, "owner": owner
+                        }, owner=owner)
                     if len(titles) == 1:
                         await send_chat_message(f"@{user_name} queued \"{titles[0]}\" next at #1.")
                     else:
@@ -11968,21 +11972,21 @@ async def task_default_reward(cursor):
     return int(settings_row.get('default_reward_points') or 0) if settings_row else 0
 
 # Function to emit the TASK_CREATE websocket event
-def emit_task_create(task):
+def emit_task_create(task, owner="user"):
     safe_create_task(websocket_notice(event="TASK_CREATE", additional_data={
-        "channel_code": API_TOKEN, "owner": "user", "task": task
+        "channel_code": API_TOKEN, "owner": owner, "task": task
     }))
 
 # Function to emit the TASK_UPDATE websocket event
-def emit_task_update(task):
+def emit_task_update(task, owner="user"):
     safe_create_task(websocket_notice(event="TASK_UPDATE", additional_data={
-        "channel_code": API_TOKEN, "owner": "user", "task": task
+        "channel_code": API_TOKEN, "owner": owner, "task": task
     }))
 
 # Function to emit the TASK_COMPLETE websocket event
-def emit_task_complete(task_id, user_id, user_name, title, project=None):
+def emit_task_complete(task_id, user_id, user_name, title, project=None, owner="user"):
     safe_create_task(websocket_notice(event="TASK_COMPLETE", additional_data={
-        "channel_code": API_TOKEN, "owner": "user",
+        "channel_code": API_TOKEN, "owner": owner,
         "task_id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
         "project": project,
     }))
@@ -12099,15 +12103,16 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
         promoted = await promote_backlog_head(cursor, user_id, source_project)
         emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
+        task_owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
         emit_task_update({
             "id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
-            "status": new_status, "backlog_position": new_pos, "project": target, "owner": "user",
-        })
+            "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner,
+        }, owner=task_owner)
         if promoted:
             emit_task_update({
                 "id": promoted.get('id'), "user_id": user_id, "user_name": user_name,
-                "title": promoted.get('title'), "status": "active", "project": source_project, "owner": "user",
-            })
+                "title": promoted.get('title'), "status": "active", "project": source_project, "owner": task_owner,
+            }, owner=task_owner)
         placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
         follow_up = f" Now working on \"{promoted.get('title')}\"." if promoted else ""
         return f"moved \"{title}\" — it {placed}.{follow_up}"
@@ -12121,14 +12126,15 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         if not task:
             return f"no backlog item #{n} in your current project."
         task_id, title = task.get('id'), task.get('title')
+        task_owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
         await register_user_project(cursor, user_id, user_name, target)
         new_status, new_pos = await file_task_into_project(cursor, user_id, task_id, target)
         await renumber_project_backlog(cursor, user_id, source_project)
         emit_project_update(user_id, user_name, 'move', name=target, task_id=task_id)
         emit_task_update({
             "id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
-            "status": new_status, "backlog_position": new_pos, "project": target, "owner": "user",
-        })
+            "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner,
+        }, owner=task_owner)
         placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
         return f"moved \"{title}\" — it {placed}."
     return "usage: !project move <n|now> <project name>"
@@ -12296,9 +12302,9 @@ async def complete_task_with_reward(cursor, task, user_id, user_name):
     return (award_points, new_total, pending)
 
 # Function to build the completion chat reply and fire the matching websocket events
-def emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project=None):
+def emit_completion_messages_and_events(user_id, user_name, task_id, task_title, award_points, new_total, pending, project=None, owner="user"):
     # Build the chat reply for a completion and fire the matching websocket events.
-    emit_task_complete(task_id, user_id, user_name, task_title, project)
+    emit_task_complete(task_id, user_id, user_name, task_title, project, owner=owner)
     if award_points > 0:
         safe_create_task(websocket_notice(event="TASK_REWARD_CONFIRM", additional_data={
             "channel_code": API_TOKEN, "task_id": task_id, "user_id": user_id,
