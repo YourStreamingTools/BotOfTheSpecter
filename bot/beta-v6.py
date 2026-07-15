@@ -327,6 +327,8 @@ def start_looped_task(name, coro_factory):
 # Custom cooldown functions
 async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_message=True):
     global command_usage
+    if rate <= 0 or time_window <= 0:
+        return True
     current_time = time.time()
     # Create key based on bucket type to properly separate cooldowns
     key = (command, bucket_type, user_id)
@@ -340,7 +342,7 @@ async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_
     else:
         # Calculate remaining cooldown time
         if send_message:
-            oldest_usage = min(command_usage[key])
+            oldest_usage = min(command_usage[key]) if command_usage[key] else current_time
             remaining_time = int(time_window - (current_time - oldest_usage))
             await send_chat_message(f"{command} is on cooldown. Please wait {remaining_time} seconds.")
         return False  # Command on cooldown
