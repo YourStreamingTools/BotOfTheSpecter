@@ -57,14 +57,7 @@
 			"description": "Shows how long you have been watching the current stream session.",
 			"syntax": "!watchtime"
 		},
-		"stoptimer": {
-			"description": "Stops your currently active countdown timer before it ends.",
-			"syntax": "!stoptimer"
-		},
-		"checktimer": {
-			"description": "Shows how much time is remaining on your active countdown timer.",
-			"syntax": "!checktimer"
-		},
+
 		"version": {
 			"description": "Displays the current running version of BotOfTheSpecter.",
 			"syntax": "!version"
@@ -169,18 +162,18 @@
 			"syntax": "!projects"
 		},
 		"personaltimer": {
-			"description": "Starts a personal focus timer that pings you in chat. !personaltimer <minutes> <label> runs a single work session, !personaltimer <work>/<break>/<cycles> <label> runs a multi-cycle session, !personaltimer shows your remaining time, and !personaltimer cancel stops it. Starting a new timer replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
-			"syntax": ["!personaltimer 30 puzzle", "!personaltimer 30/10/3 Study session", "!personaltimer", "!personaltimer cancel"],
+			"description": "Starts a personal focus timer that pings you in chat. !personaltimer <minutes> <label> runs a single work session, !personaltimer <work>/<break>/<cycles> <label> runs a multi-cycle session, !personaltimer shows your remaining time, and !personaltimer cancel (or stop) stops it. Starting a new timer replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
+			"syntax": ["!personaltimer 30 puzzle", "!personaltimer 30/10/3 Study session", "!personaltimer", "!personaltimer cancel", "!personaltimer stop"],
 			"aliases": ["timer", "pomo", "ptimer", "mytimer", "focus"]
 		},
-		"studytimer": {
+		"tasktimer": {
 			"description": "Controls the streamer's Working & Study overlay timer. Broadcaster/moderator only. You can use start/stop/pause/resume to control playback, use 'auto on|off' for auto-pilot transitions, use 'set <focus>/<break>/<cycles>' to configure lengths, or use '<minutes> <focus|break|recharge>' to force start a specific phase.",
-			"syntax": ["!studytimer start", "!studytimer stop", "!studytimer auto on", "!studytimer set 50/10/4", "!studytimer 30 focus"],
+			"syntax": ["!tasktimer start", "!tasktimer stop", "!tasktimer auto on", "!tasktimer set 50/10/4", "!tasktimer 30 focus"],
 			"aliases": ["stimer"]
 		},
-		"studyhelp": {
+		"taskhelp": {
 			"description": "Outputs a short help message with the most useful Working & Study commands.",
-			"syntax": "!studyhelp"
+			"syntax": "!taskhelp"
 		},
 		"kill": {
 			"description": "Simulates a fun in-chat kill action targeting a mentioned user.",

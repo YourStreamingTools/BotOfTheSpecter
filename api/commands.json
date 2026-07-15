@@ -11,7 +11,6 @@
 		"songqueue":	"Displays the current Spotify song request queue. Requires Spotify to be linked in the dashboard.",
 		"skipsong":		"Skips the currently playing song in the Spotify request queue.",
 		"watchtime":	"Shows how long you have been watching the current stream session.",
-		"stoptimer":	"Stops your currently active countdown timer before it ends.",
 		"checktimer":	"Shows how much time is remaining on your active countdown timer.",
 		"version":		"Displays the current running version of BotOfTheSpecter.",
 		"convert":		"Converts between currencies using live exchange rates, or between physical units such as length, weight, temperature, speed, and volume.",
