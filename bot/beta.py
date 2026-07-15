@@ -8524,9 +8524,8 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{user_name} you don't have any completed tasks to clear.")
                         return
                         
-                    # Soft-delete by setting status to archived
                     await cursor.execute(
-                        "UPDATE user_tasks SET status = 'archived' WHERE user_id = %s AND status = 'completed' AND project <=> %s",
+                        "DELETE FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
                         (user_id, project)
                     )
                     await connection.commit()
