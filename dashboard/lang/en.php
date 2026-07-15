@@ -1545,7 +1545,9 @@ return [
     'working_or_study_cmd_backlog' => 'show your queued backlog',
     'working_or_study_cmd_project' => 'switch your active project (scopes your tasks to it)',
     'working_or_study_cmd_projects' => 'list your projects',
-    'working_or_study_cmd_pomo' => 'start a personal focus (pomo) timer shown next to your task',
+    'working_or_study_cmd_personaltimer' => 'start a personal focus timer shown next to your task (aliases: !pomo, !timer, !focus)',
+    'working_or_study_cmd_studytimer' => 'control the main group timer status, auto-pilot, and durations (streamer/mod only)',
+    'working_or_study_cmd_studyhelp' => 'show the quick-start guide for working & study commands',
     // working-or-study.php (JavaScript runtime strings)
     'working_or_study_js_copied' => 'Copied!',
     'working_or_study_js_settings_saved' => 'Timer settings saved',

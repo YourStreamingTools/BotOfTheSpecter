@@ -368,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo json_encode(['success' => $ok]);
         exit;
     }
-    $taskCommands = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'pomo'];
+    $taskCommands = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'personaltimer', 'studytimer', 'studyhelp'];
     if ($action === 'wcmd_get_command_status') {
         $statuses = [];
         foreach ($taskCommands as $cmd) { $statuses[$cmd] = 'Enabled'; }
@@ -432,7 +432,7 @@ if ($db) {
     }
 }
 
-$taskCommandList = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'pomo'];
+$taskCommandList = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'personaltimer', 'studytimer', 'studyhelp'];
 $taskCommandStatuses = array_fill_keys($taskCommandList, 'Enabled');
 if ($db) {
     $placeholders = implode(',', array_fill(0, count($taskCommandList), '?'));
@@ -912,18 +912,20 @@ ob_start();
                     <div class="columns is-multiline">
                         <?php
                         $wcmdMeta = [
-                            'task'    => 'working_or_study_cmd_task',
-                            'done'    => 'working_or_study_cmd_done',
-                            'rename'  => 'working_or_study_cmd_rename',
-                            'remove'  => 'working_or_study_cmd_remove',
-                            'mytasks' => 'working_or_study_cmd_mytasks',
-                            'now'     => 'working_or_study_cmd_now',
-                            'later'   => 'working_or_study_cmd_later',
-                            'soon'    => 'working_or_study_cmd_soon',
-                            'backlog' => 'working_or_study_cmd_backlog',
-                            'project' => 'working_or_study_cmd_project',
-                            'projects' => 'working_or_study_cmd_projects',
-                            'pomo'    => 'working_or_study_cmd_pomo',
+                            'task'          => 'working_or_study_cmd_task',
+                            'done'          => 'working_or_study_cmd_done',
+                            'rename'        => 'working_or_study_cmd_rename',
+                            'remove'        => 'working_or_study_cmd_remove',
+                            'mytasks'       => 'working_or_study_cmd_mytasks',
+                            'now'           => 'working_or_study_cmd_now',
+                            'later'         => 'working_or_study_cmd_later',
+                            'soon'          => 'working_or_study_cmd_soon',
+                            'backlog'       => 'working_or_study_cmd_backlog',
+                            'project'       => 'working_or_study_cmd_project',
+                            'projects'      => 'working_or_study_cmd_projects',
+                            'personaltimer' => 'working_or_study_cmd_personaltimer',
+                            'studytimer'    => 'working_or_study_cmd_studytimer',
+                            'studyhelp'     => 'working_or_study_cmd_studyhelp',
                         ];
                         foreach ($wcmdMeta as $wcmd => $wcmdKey):
                             $wcmdEnabled = ($taskCommandStatuses[$wcmd] ?? 'Enabled') === 'Enabled';
