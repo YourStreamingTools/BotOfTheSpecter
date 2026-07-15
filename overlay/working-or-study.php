@@ -1313,7 +1313,7 @@ ob_end_clean();
                 } else {
                     delete li.dataset.userId;
                 }
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${getBadgeText(task)}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${getBadgeText(task)}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
                 if (typeof attachPomoBadgeToRow === 'function') {
                     attachPomoBadgeToRow(taskUserId);
                 }
