@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             }
         }
         if ($ut_exists) {
-            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project, backlog_position FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
             if ($u && $u->execute()) {
                 $user_tasks_arr = $u->get_result()->fetch_all(MYSQLI_ASSOC);
                 $u->close();
