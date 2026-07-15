@@ -8837,8 +8837,8 @@ class TwitchBot(commands.Bot):
                     # Append each to the END of the backlog.
                     for title in titles:
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
-                            (user_id,)
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status IN ('pending', 'active') AND project <=> %s",
+                            (user_id, project)
                         )
                         max_row = await cursor.fetchone()
                         pos = int(max_row.get('max_pos') or 0) + 1
