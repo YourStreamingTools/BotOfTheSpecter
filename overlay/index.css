@@ -1364,7 +1364,8 @@ html, body {
 }
 
 .study-overlay-page-task-sys-item.is-backlog .study-overlay-page-task-sys-item-check {
-    border-color: var(--task-text-muted);
+    border-color: #f5a623;
+    color: #f5a623;
 }
 
 /* Project chip under a viewer task row — shows which !project the task lives in.
