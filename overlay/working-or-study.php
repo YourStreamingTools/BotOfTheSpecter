@@ -1288,8 +1288,9 @@ ob_end_clean();
                 if (!list) return;
                 let li = document.getElementById('new-streamer-task-' + task.id);
                 if (!li) { li = document.createElement('li'); li.id = 'new-streamer-task-' + task.id; list.appendChild(li); }
-                const done = task.status === 'completed';
-                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
+                const done = isCompletedTask(task);
+                const backlog = isBacklogTask(task);
+                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '') + (backlog ? ' is-backlog' : '');
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
                 li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${getBadgeText(task)}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
@@ -1299,8 +1300,9 @@ ob_end_clean();
                 if (!list) return;
                 let li = document.getElementById('new-viewer-task-' + task.id);
                 if (!li) { li = document.createElement('li'); li.id = 'new-viewer-task-' + task.id; list.appendChild(li); }
-                const done = task.status === 'completed';
-                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
+                const done = isCompletedTask(task);
+                const backlog = isBacklogTask(task);
+                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '') + (backlog ? ' is-backlog' : '');
                 const userName = String(task?.user_name || '').trim() || 'Unknown';
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
                 const taskUserId = task?.user_id !== undefined && task?.user_id !== null
