@@ -157,7 +157,7 @@ builtin_commands = {
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
-    "task", "done", "rename", "remove", "mytasks",
+    "task", "done", "rename", "remove", "taskclear", "mytasks",
     "now", "later", "soon", "backlog",
     "project", "projects", "personaltimer", "tasktimer", "taskhelp",
     "wordreplaceoff", "wordreplaceon"
