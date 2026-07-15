@@ -93,6 +93,20 @@ elif SELF_MODE:
 else:
     BOT_USERNAME = "botofthespecter"
 IGNORED_WELCOME_USERNAMES = {"botofthespecter", BOT_USERNAME.lower()}
+# TaskCursorWrapper to transparently route streamer's task queries to streamer_tasks table
+class TaskCursorWrapper:
+    def __init__(self, cursor, owner):
+        self.cursor = cursor
+        self.owner = owner
+
+    def __getattr__(self, name):
+        return getattr(self.cursor, name)
+
+    async def execute(self, query, params=None):
+        if self.owner == "streamer":
+            query = query.replace("user_tasks", "streamer_tasks")
+        return await self.cursor.execute(query, params)
+
 VERSION = "5.8"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
@@ -8156,7 +8170,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("task",))
                 result = await cursor.fetchone()
                 if result:
@@ -8239,7 +8255,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("done",))
                 result = await cursor.fetchone()
                 if result:
@@ -8483,7 +8501,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("taskclear",))
                 result = await cursor.fetchone()
                 if result:
@@ -8550,7 +8570,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("mytasks",))
                 result = await cursor.fetchone()
                 if result:
@@ -8602,7 +8624,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("now",))
                 result = await cursor.fetchone()
                 if result:
@@ -8775,7 +8799,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("later",))
                 result = await cursor.fetchone()
                 if result:
@@ -8846,7 +8872,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("soon",))
                 result = await cursor.fetchone()
                 if result:
@@ -8915,7 +8943,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("backlog",))
                 result = await cursor.fetchone()
                 if result:
@@ -8969,7 +8999,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("project",))
                 result = await cursor.fetchone()
                 if result:
@@ -9071,7 +9103,9 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
-            async with connection.cursor(DictCursor) as cursor:
+            owner = "streamer" if ctx.author.name.lower() == bot_owner.lower() else "user"
+            async with connection.cursor(DictCursor) as raw_cursor:
+                cursor = TaskCursorWrapper(raw_cursor, owner)
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("projects",))
                 result = await cursor.fetchone()
                 if result:

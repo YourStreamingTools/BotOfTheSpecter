@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $st_exists = $user_db->query("SHOW TABLES LIKE 'streamer_tasks'")->num_rows > 0;
         $ut_exists = $user_db->query("SHOW TABLES LIKE 'user_tasks'")->num_rows > 0;
         if ($st_exists) {
-            $s = $user_db->prepare("SELECT id, title, description, category, status, reward_points FROM streamer_tasks WHERE status != 'hidden' ORDER BY created_at DESC");
+            $s = $user_db->prepare("SELECT id, title, description, category, status, reward_points, project, backlog_position, user_id, user_name FROM streamer_tasks WHERE status != 'hidden' ORDER BY created_at DESC");
             if ($s && $s->execute()) {
                 $streamer_tasks_arr = $s->get_result()->fetch_all(MYSQLI_ASSOC);
                 $s->close();

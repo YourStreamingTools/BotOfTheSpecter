@@ -894,10 +894,16 @@ try {
                 title VARCHAR(255) NOT NULL,
                 description TEXT DEFAULT NULL,
                 category VARCHAR(100) DEFAULT 'General',
-                status ENUM('active','completed','hidden') DEFAULT 'active',
+                status ENUM('pending','active','completed','rejected','hidden') DEFAULT 'active',
+                approval_status ENUM('auto','pending_approval','approved','rejected') DEFAULT 'auto',
                 reward_points INT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                project VARCHAR(100) DEFAULT NULL,
+                backlog_position INT DEFAULT NULL,
+                user_id VARCHAR(50) DEFAULT NULL,
+                user_name VARCHAR(100) DEFAULT NULL,
+                completed_at TIMESTAMP NULL DEFAULT NULL,
                 INDEX idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'user_tasks' => "
