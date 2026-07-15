@@ -1410,6 +1410,20 @@ try {
     if ($streamer_tasks_exists) {
         $usrDBconn->query("UPDATE streamer_tasks SET backlog_position = id WHERE backlog_position IS NULL");
     }
+    // Migration: streamer_tasks - ensure 'pending' is included in the status ENUM (added after initial table creation)
+    if ($streamer_tasks_exists) {
+        $stStatusCol = $usrDBconn->query("SHOW COLUMNS FROM streamer_tasks LIKE 'status'");
+        if ($stStatusCol && $stStatusCol->num_rows > 0) {
+            $stStatusRow = $stStatusCol->fetch_assoc();
+            if (strpos($stStatusRow['Type'], "'pending'") === false) {
+                if ($usrDBconn->query("ALTER TABLE streamer_tasks MODIFY COLUMN status ENUM('pending','active','completed','rejected','hidden') DEFAULT 'active'") === TRUE) {
+                    async_log('streamer_tasks: added pending to status ENUM.');
+                } else {
+                    async_log('Error altering streamer_tasks status ENUM: ' . $usrDBconn->error);
+                }
+            }
+        }
+    }
     // Ensure default options for credits_overlay_settings exist
     if ($usrDBconn->query("INSERT INTO credits_overlay_settings (scroll_speed, text_color, font_family, looping) SELECT 50, '#FFFFFF', 'Arial', 1 WHERE NOT EXISTS (SELECT 1 FROM credits_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default credits_overlay_settings options ensured.');
