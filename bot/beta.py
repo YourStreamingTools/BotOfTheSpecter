@@ -178,7 +178,7 @@ mod_commands = {
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle", "ttimer", "ptimer", "mytimer", "timer", "pomo", "focus"
+    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "pomo", "focus"
 }
 
 # Logs
@@ -6480,7 +6480,7 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
-    @commands.command(name='tasktimer', aliases=['ttimer'])
+    @commands.command(name='tasktimer', aliases=['ttimer', 'stimer'])
     async def tasktimer_command(self, ctx):
         global bot_owner
         connection = None
