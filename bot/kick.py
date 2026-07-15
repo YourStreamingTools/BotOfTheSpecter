@@ -82,7 +82,7 @@ HYPERATE_API_KEY      = os.getenv('HYPERATE_API_KEY')
 # Built-in command registry (used for DB seeding)
 builtin_commands = {
     "commands", "bot", "roadmap", "quote", "rps", "story", "roulette",
-    "songrequest", "songqueue", "watchtime", "stoptimer", "checktimer",
+    "songrequest", "songqueue", "watchtime",
     "version", "convert", "todo", "todolist", "kill", "points", "slots",
     "timer", "game", "joke", "ping", "weather", "time", "song", "translate",
     "lurk", "unlurk", "lurking", "lurklead", "userslurking", "uptime",
@@ -828,8 +828,6 @@ async def _run_command(cmd: str, ctx: _Ctx):
         "deathremove":    cmd_deathremove,
         "kill":           cmd_kill,
         "timer":          cmd_timer,
-        "stoptimer":      cmd_stoptimer,
-        "checktimer":     cmd_checktimer,
         "watchtime":      cmd_watchtime,
         "followage":      cmd_followage,
         "shoutout":       cmd_shoutout,
@@ -1273,22 +1271,7 @@ async def cmd_timer(ctx: _Ctx):
         active_timer_routines.pop(key, None)
     active_timer_routines[key] = safe_create_task(_run())
 
-async def cmd_stoptimer(ctx: _Ctx):
-    key  = f"timer_{ctx.user_id}"
-    task = active_timer_routines.pop(key, None)
-    if task and not task.done():
-        task.cancel()
-        await send_chat_message(f"@{ctx.user_name}, your timer has been stopped.")
-    else:
-        await send_chat_message(f"@{ctx.user_name}, you don't have an active timer.")
 
-async def cmd_checktimer(ctx: _Ctx):
-    key  = f"timer_{ctx.user_id}"
-    task = active_timer_routines.get(key)
-    if task and not task.done():
-        await send_chat_message(f"@{ctx.user_name}, your timer is still running.")
-    else:
-        await send_chat_message(f"@{ctx.user_name}, you don't have an active timer.")
 
 async def cmd_watchtime(ctx: _Ctx):
     target = ctx.args[0].lstrip("@").lower() if ctx.args else ctx.user_name

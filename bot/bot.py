@@ -106,8 +106,8 @@ SSH_HOSTS = {
     'BILLING': os.getenv('BILLING-HOST')
 }
 builtin_commands = {
-    "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer",
-    "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
+    "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime",
+    "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
     "deaths", "heartrate", "gamble"
@@ -4073,93 +4073,7 @@ class TwitchBot(commands.Bot):
         finally:
             await connection.ensure_closed()
 
-    @commands.command(name='stoptimer')
-    async def stoptimer_command(self, ctx):
-        global bot_owner
-        connection = await mysql_connection()
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                # Fetch the status and permissions for the stoptimer command
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("stoptimer",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
-                    # If the command is disabled, stop execution
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                # Verify user permissions
-                if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
-                # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not await check_cooldown('stoptimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                active_timer = await cursor.fetchone()
-                if not active_timer:
-                    await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
-                    return
-                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                await connection.commit()
-                await send_chat_message(f"Your timer has been stopped @{ctx.author.name}.")
-                # Record usage
-                add_usage('stoptimer', bucket_key, cooldown_bucket)
-        except Exception as e:
-            chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            await connection.ensure_closed()
 
-    @commands.command(name='checktimer')
-    async def checktimer_command(self, ctx):
-        global bot_owner
-        connection = await mysql_connection()
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                # Fetch the status and permissions for the checktimer command
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("checktimer",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
-                    # If the command is disabled, stop execution
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                # Verify user permissions
-                if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
-                # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not await check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                active_timer = await cursor.fetchone()
-                if not active_timer:
-                    await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
-                    return
-                end_time = active_timer["end_time"]
-                if end_time.tzinfo is None:
-                    end_time = end_time.replace(tzinfo=timezone.utc)
-                remaining_time = end_time - time_right_now(timezone.utc)
-                minutes_left = remaining_time.total_seconds() // 60
-                seconds_left = remaining_time.total_seconds() % 60
-                await send_chat_message(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
-                # Record usage
-                add_usage('checktimer', bucket_key, cooldown_bucket)
-        except Exception as e:
-            chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            await connection.ensure_closed()
 
     @commands.command(name='hug')
     async def hug_command(self, ctx, mentioned_username: str = None):

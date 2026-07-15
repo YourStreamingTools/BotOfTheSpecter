@@ -1,4 +1,4 @@
-﻿# Standard library imports
+# Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect, uuid
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
@@ -152,23 +152,23 @@ SSH_HOSTS = {
     'BILLING': os.getenv('BILLING-HOST')
 }
 builtin_commands = {
-    "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer",
-    "checktimer", "version", "convert", "subathon", "todo", "todolist", "kill", "points", "store", "slots", "timer", "game", "joke", "ping",
+    "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime",
+    "version", "convert", "subathon", "todo", "todolist", "kill", "points", "store", "slots", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
     "task", "done", "rename", "remove", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "pomo",
+    "project", "projects", "personaltimer", "tasktimer", "taskhelp",
     "wordreplaceoff", "wordreplaceon"
 }
-# Working & Study commands act on each chatter's OWN task/pomo, so they seed with a
+# Working & Study commands act on each chatter's OWN task/personaltimer, so they seed with a
 # per-user cooldown bucket (not the global 'default') — a global cooldown would let one
 # viewer's !done lock the command for every other viewer for the whole cooldown window.
 per_user_cooldown_commands = {
     "task", "done", "rename", "remove", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "pomo"
+    "project", "projects", "personaltimer"
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -178,7 +178,7 @@ mod_commands = {
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle"
+    "rafflejoin", "raffle", "ttimer", "ptimer", "mytimer", "timer", "pomo", "focus"
 }
 
 # Logs
@@ -6449,14 +6449,14 @@ class TwitchBot(commands.Bot):
                 await connection.close()
 
 
-    @commands.command(name='studyhelp')
-    async def studyhelp_command(self, ctx):
+    @commands.command(name='taskhelp')
+    async def taskhelp_command(self, ctx):
         global bot_owner
         connection = None
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("studyhelp",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("taskhelp",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
@@ -6470,24 +6470,24 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('studyhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('taskhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     await send_chat_message("Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !personaltimer <minutes> <label> for a personal focus timer! Projects: !project <name>.")
-                    add_usage('studyhelp', bucket_key, cooldown_bucket)
+                    add_usage('taskhelp', bucket_key, cooldown_bucket)
         except Exception as e:
-            chat_logger.error(f"[STUDYHELP] Error in studyhelp_command: {e}")
+            chat_logger.error(f"[TASKHELP] Error in taskhelp_command: {e}")
         finally:
             if connection:
                 await connection.close()
 
-    @commands.command(name='studytimer', aliases=['stimer'])
-    async def studytimer_command(self, ctx):
+    @commands.command(name='tasktimer', aliases=['ttimer'])
+    async def tasktimer_command(self, ctx):
         global bot_owner
         connection = None
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("studytimer",))
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("tasktimer",))
                 result = await cursor.fetchone()
                 if result:
                     status = result.get("status")
@@ -6501,13 +6501,13 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('studytimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    if not await check_cooldown('tasktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     
                     content = ctx.message.content.strip()
                     parts = content.split(' ', 1)
                     if len(parts) < 2:
-                        await send_chat_message("Usage: !studytimer <start|stop|pause|resume> | !studytimer auto <on|off> | !studytimer set <focus/break/cycles> | !studytimer <minutes> <focus|break|recharge>")
+                        await send_chat_message("Usage: !tasktimer <start|stop|pause|resume> | !tasktimer auto <on|off> | !tasktimer set <focus/break/cycles> | !tasktimer <minutes> <focus|break|recharge>")
                         return
                     
                     args_str = parts[1].strip()
@@ -6533,9 +6533,9 @@ class TwitchBot(commands.Bot):
                         if row:
                             safe_create_task(websocket_notice(event="SPECTER_SETTINGS_UPDATE", additional_data={
                                 "channel_code": API_TOKEN,
-                                "focus_duration": row.get('focus_duration'),
-                                "micro_break_duration": row.get('micro_break_duration'),
-                                "recharge_break_duration": row.get('recharge_break_duration'),
+                                "focus_duration": row.get('focus_minutes'),
+                                "micro_break_duration": row.get('micro_break_minutes'),
+                                "recharge_break_duration": row.get('recharge_break_minutes'),
                                 "cycle_count": row.get('cycle_count'),
                                 "show_cycle_badge": row.get('show_cycle_badge'),
                                 "auto_cycle_enabled": row.get('auto_cycle_enabled'),
@@ -6549,11 +6549,11 @@ class TwitchBot(commands.Bot):
                         # Expecting focus/break/cycles
                         parsed = parse_pomo_spec(rest)
                         if not parsed:
-                            await send_chat_message(f"@{ctx.author.name} format: !studytimer set <focus>/<break>/<cycles> (e.g. 50/10/4)")
+                            await send_chat_message(f"@{ctx.author.name} format: !tasktimer set <focus>/<break>/<cycles> (e.g. 50/10/4)")
                             return
                         focus, break_time, cycles = parsed
                         await cursor.execute(
-                            "UPDATE working_study_overlay_settings SET focus_duration = %s, micro_break_duration = %s, recharge_break_duration = %s, cycle_count = %s",
+                            "UPDATE working_study_overlay_settings SET focus_minutes = %s, micro_break_minutes = %s, recharge_break_minutes = %s, cycle_count = %s",
                             (focus, break_time, break_time * 2, cycles)
                         )
                         await connection.commit()
@@ -6562,9 +6562,9 @@ class TwitchBot(commands.Bot):
                         if row:
                             safe_create_task(websocket_notice(event="SPECTER_SETTINGS_UPDATE", additional_data={
                                 "channel_code": API_TOKEN,
-                                "focus_duration": row.get('focus_duration'),
-                                "micro_break_duration": row.get('micro_break_duration'),
-                                "recharge_break_duration": row.get('recharge_break_duration'),
+                                "focus_duration": row.get('focus_minutes'),
+                                "micro_break_duration": row.get('micro_break_minutes'),
+                                "recharge_break_duration": row.get('recharge_break_minutes'),
                                 "cycle_count": row.get('cycle_count'),
                                 "show_cycle_badge": row.get('show_cycle_badge'),
                                 "auto_cycle_enabled": row.get('auto_cycle_enabled'),
@@ -6587,114 +6587,17 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{ctx.author.name} forcing {mins}m {phase} phase.")
                         
                     else:
-                        await send_chat_message("Usage: !studytimer <start|stop|pause|resume> | !studytimer auto <on|off> | !studytimer set <focus/break/cycles> | !studytimer <minutes> <focus|break|recharge>")
+                        await send_chat_message("Usage: !tasktimer <start|stop|pause|resume> | !tasktimer auto <on|off> | !tasktimer set <focus/break/cycles> | !tasktimer <minutes> <focus|break|recharge>")
                         return
 
-                    add_usage('studytimer', bucket_key, cooldown_bucket)
+                    add_usage('tasktimer', bucket_key, cooldown_bucket)
         except Exception as e:
-            chat_logger.error(f"[STUDYTIMER] Error in studytimer_command: {e}")
+            chat_logger.error(f"[TASKTIMER] Error in tasktimer_command: {e}")
         finally:
             if connection:
                 await connection.close()
 
-    @commands.command(name='stoptimer')
-    async def stoptimer_command(self, ctx):
-        global bot_owner
-        connection = None
-        connection = await mysql_connection()
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                # Fetch the status and permissions for the stoptimer command
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("stoptimer",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
-                    # If the command is disabled, stop execution
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                # Verify user permissions
-                if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
-                # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not await check_cooldown('stoptimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                active_timer = await cursor.fetchone()
-                if not active_timer:
-                    await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
-                    return
-                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                await connection.commit()
-                # Cancel the running timer routine if present
-                if ctx.author.id in active_timer_routines:
-                    try:
-                        active_timer_routines[ctx.author.id].cancel()
-                    except Exception:
-                        pass
-                    active_timer_routines.pop(ctx.author.id, None)
-                await send_chat_message(f"Your timer has been stopped @{ctx.author.name}.")
-                # Record usage
-                add_usage('stoptimer', bucket_key, cooldown_bucket)
-        except Exception as e:
-            chat_logger.error(f"[STOP TIMER] An error occurred during the execution of the stoptimer command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            if connection:
-                await connection.close()
 
-    @commands.command(name='checktimer')
-    async def checktimer_command(self, ctx):
-        global bot_owner
-        connection = None
-        connection = await mysql_connection()
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                # Fetch the status and permissions for the checktimer command
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("checktimer",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
-                    # If the command is disabled, stop execution
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                # Verify user permissions
-                if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
-                # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                if not await check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                active_timer = await cursor.fetchone()
-                if not active_timer:
-                    await send_chat_message(f"@{ctx.author.name}, you don't have an active timer.")
-                    return
-                end_time = active_timer["end_time"]
-                if end_time.tzinfo is None:
-                    end_time = end_time.replace(tzinfo=timezone.utc)
-                remaining_time = end_time - time_right_now(timezone.utc)
-                minutes_left = remaining_time.total_seconds() // 60
-                seconds_left = remaining_time.total_seconds() % 60
-                await send_chat_message(f"@{ctx.author.name}, your timer has {int(minutes_left)} minute(s) and {int(seconds_left)} second(s) left.")
-                # Record usage
-                add_usage('checktimer', bucket_key, cooldown_bucket)
-        except Exception as e:
-            chat_logger.error(f"[CHECK TIMER] An error occurred during the execution of the checktimer command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
-        finally:
-            if connection:
-                await connection.close()
 
     @commands.command(name='hug')
     async def hug_command(self, ctx, mentioned_username: str = None):
@@ -9199,7 +9102,7 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    # !pomo (no args) — read-only: report remaining time on the chatter's active pomo.
+                    # !personaltimer (no args) — read-only: report remaining time on the chatter's active timer.
                     if not arg:
                         await cursor.execute(
                             "SELECT label, current_phase, current_cycle, total_cycles, "
@@ -9229,8 +9132,8 @@ class TwitchBot(commands.Bot):
                         )
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    # !pomo cancel — ask the server to cancel the chatter's active pomo.
-                    if arg.lower() == 'cancel':
+                    # !personaltimer cancel/stop — ask the server to cancel the chatter's active timer.
+                    if arg.lower() in ('cancel', 'stop'):
                         safe_create_task(websocket_notice(event="USER_POMO_CANCEL", additional_data={
                             "channel_code": API_TOKEN,
                             "user_id": user_id,
@@ -9239,7 +9142,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{user_name} cancelling your timer.")
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    # !pomo <spec> <label> — start (or replace) a pomo.
+                    # !personaltimer <spec> <label> — start (or replace) a timer.
                     spec_parts = arg.split(' ', 1)
                     spec_token = spec_parts[0].strip()
                     label = spec_parts[1].strip() if len(spec_parts) > 1 else ''
@@ -9247,7 +9150,7 @@ class TwitchBot(commands.Bot):
                     parsed = parse_pomo_spec(spec_token)
                     if not parsed:
                         await send_chat_message(
-                            "Usage: !personaltimer <minutes> <label> | !personaltimer <work>/<break>/<cycles> <label> | !personaltimer | !personaltimer cancel"
+                            "Usage: !personaltimer <minutes> <label> | !personaltimer <work>/<break>/<cycles> <label> | !personaltimer | !personaltimer stop"
                         )
                         return
                     work_minutes, break_minutes, total_cycles = parsed
@@ -12341,7 +12244,7 @@ def emit_completion_messages_and_events(user_id, user_name, task_id, task_title,
     else:
         return f"task \"{task_title}\" done! Nice work."
 
-# Function to parse the timing token of a !pomo command
+# Function to parse the timing token of a !personaltimer command
 def parse_pomo_spec(spec):
     spec = (spec or '').strip()
     if not spec:

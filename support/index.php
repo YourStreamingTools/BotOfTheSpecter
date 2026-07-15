@@ -763,8 +763,8 @@ ob_start();
         <li><code>!backlog</code> — views your pending tasks.</li>
         <li><code>!personaltimer &lt;minutes&gt; &lt;label&gt;</code> — starts a personal focus timer (also supports cycles like <code>50/10/4</code>).</li>
         <li><code>!project &lt;name&gt;</code> — organises your tasks into specific projects.</li>
-        <li><code>!studytimer</code> — broadcaster/mod controls for the main overlay timer (e.g. <code>!studytimer auto on</code>).</li>
-        <li><code>!studyhelp</code> — outputs a summary of these commands in chat.</li>
+        <li><code>!tasktimer</code> — broadcaster/mod controls for the main overlay timer (e.g. <code>!tasktimer auto on</code>).</li>
+        <li><code>!taskhelp</code> — outputs a summary of these commands in chat.</li>
     </ul>
 
     <h3>Subathon Timer</h3>
