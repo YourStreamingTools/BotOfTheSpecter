@@ -968,8 +968,8 @@ try {
                 UNIQUE KEY uniq_user_project (user_id, name),
                 INDEX idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        'user_pomos' => "
-            CREATE TABLE IF NOT EXISTS user_pomos (
+        'user_timers' => "
+            CREATE TABLE IF NOT EXISTS user_timers (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 user_id VARCHAR(50) NOT NULL,
                 user_name VARCHAR(100) NOT NULL,
@@ -1450,15 +1450,25 @@ try {
             }
         }
     }
-    // Migration: add task_id to user_pomos if not exists
+    // Migration: rename user_pomos → user_timers (covers general + focus/break timers)
     $user_pomos_exists = $usrDBconn->query("SHOW TABLES LIKE 'user_pomos'")->num_rows > 0;
-    if ($user_pomos_exists) {
-        $upTaskIdCol = $usrDBconn->query("SHOW COLUMNS FROM user_pomos LIKE 'task_id'");
+    $user_timers_exists = $usrDBconn->query("SHOW TABLES LIKE 'user_timers'")->num_rows > 0;
+    if ($user_pomos_exists && !$user_timers_exists) {
+        if ($usrDBconn->query("RENAME TABLE user_pomos TO user_timers") === TRUE) {
+            async_log('Renamed user_pomos to user_timers.');
+            $user_timers_exists = true;
+        } else {
+            async_log('Error renaming user_pomos to user_timers: ' . $usrDBconn->error);
+        }
+    }
+    // Migration: add task_id to user_timers if not exists
+    if ($user_timers_exists || $usrDBconn->query("SHOW TABLES LIKE 'user_timers'")->num_rows > 0) {
+        $upTaskIdCol = $usrDBconn->query("SHOW COLUMNS FROM user_timers LIKE 'task_id'");
         if ($upTaskIdCol && $upTaskIdCol->num_rows === 0) {
-            if ($usrDBconn->query("ALTER TABLE user_pomos ADD task_id INT DEFAULT NULL AFTER status") === TRUE) {
-                async_log('user_pomos: added task_id column.');
+            if ($usrDBconn->query("ALTER TABLE user_timers ADD task_id INT DEFAULT NULL AFTER status") === TRUE) {
+                async_log('user_timers: added task_id column.');
             } else {
-                async_log('Error adding task_id column to user_pomos: ' . $usrDBconn->error);
+                async_log('Error adding task_id column to user_timers: ' . $usrDBconn->error);
             }
         }
     }

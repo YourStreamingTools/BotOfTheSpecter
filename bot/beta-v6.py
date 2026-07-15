@@ -8229,7 +8229,7 @@ class TwitchBot(commands.AutoBot):
                         await cursor.execute(
                             "SELECT label, current_phase, current_cycle, total_cycles, "
                             "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds "
-                            "FROM user_pomos WHERE user_id = %s AND status = 'active' "
+                            "FROM user_timers WHERE user_id = %s AND status = 'active' "
                             "ORDER BY id DESC LIMIT 1",
                             (user_id,)
                         )

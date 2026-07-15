@@ -2698,7 +2698,7 @@ FLUSH PRIVILEGES;</code></pre>
                 </tr>
                 <tr>
                     <td><strong>Tasks / pomodoro / makers</strong></td>
-                    <td><code>todos</code>, <code>showobs</code>, <code>streamer_tasks</code>, <code>user_tasks</code>, <code>task_reward_log</code>, <code>task_settings</code>, <code>user_active_project</code>, <code>user_projects</code>, <code>user_pomos</code>, <code>maker_projects</code>, <code>maker_project_images</code></td>
+                    <td><code>todos</code>, <code>showobs</code>, <code>streamer_tasks</code>, <code>user_tasks</code>, <code>task_reward_log</code>, <code>task_settings</code>, <code>user_active_project</code>, <code>user_projects</code>, <code>user_timers</code>, <code>maker_projects</code>, <code>maker_project_images</code></td>
                 </tr>
                 <tr>
                     <td><strong>Bingo / Tanggle</strong></td>
