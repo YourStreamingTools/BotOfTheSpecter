@@ -1110,17 +1110,18 @@ ob_end_clean();
                 const visibleRows = UNIFIED_OMIT_BACKLOG ? rows.filter(r => !isBacklogTask(r.task)) : rows;
                 const rank = r => (isActiveTask(r.task) ? 0 : 1);
                 visibleRows.sort((a, b) => {
-                    const rankDiff = rank(a) - rank(b);
-                    if (rankDiff !== 0) return rankDiff;
                     if (a.owner === 'streamer' && b.owner !== 'streamer') return -1;
                     if (a.owner !== 'streamer' && b.owner === 'streamer') return 1;
                     const nameA = String(a.userName).toLowerCase();
                     const nameB = String(b.userName).toLowerCase();
                     if (nameA < nameB) return -1;
                     if (nameA > nameB) return 1;
+                    const rankDiff = rank(a) - rank(b);
+                    if (rankDiff !== 0) return rankDiff;
                     return b.task.id - a.task.id;
                 });
                 list.innerHTML = '';
+                let lastUserName = null;
                 visibleRows.forEach(r => {
                     const t = r.task;
                     const li = document.createElement('li');
@@ -1133,8 +1134,16 @@ ob_end_clean();
                     if (r.userId) {
                         li.dataset.userId = r.userId;
                     }
+                    const nameLower = String(r.userName).toLowerCase();
+                    if (lastUserName !== nameLower) {
+                        lastUserName = nameLower;
+                        const headerLi = document.createElement('li');
+                        headerLi.className = 'study-overlay-page-task-sys-user-header';
+                        headerLi.innerHTML = escapeHtml(r.userName);
+                        list.appendChild(headerLi);
+                    }
                     const taskDescription = getTaskDescription(t) || 'Untitled task';
-                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${t.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(r.userName)}: ${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
+                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${t.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
                     list.appendChild(li);
                 });
                 // Re-attach any live pomo badges to their viewer rows (rows rebuilt).
@@ -1267,7 +1276,19 @@ ob_end_clean();
                     if (rankA !== rankB) return rankA - rankB;
                     return b.id - a.id;
                 });
-                sortedTasks.forEach(t => newViewerUpsert(t));
+                let lastUserName = null;
+                sortedTasks.forEach(t => {
+                    const userName = String(t.user_name || '').trim() || 'Unknown';
+                    const nameLower = userName.toLowerCase();
+                    if (lastUserName !== nameLower) {
+                        lastUserName = nameLower;
+                        const headerLi = document.createElement('li');
+                        headerLi.className = 'study-overlay-page-task-sys-user-header';
+                        headerLi.innerHTML = escapeHtml(userName);
+                        list.appendChild(headerLi);
+                    }
+                    newViewerUpsert(t);
+                });
                 refreshTaskListAutoScroll();
             };
             const getTaskDescription = (task) => {
@@ -1315,7 +1336,7 @@ ob_end_clean();
                 } else {
                     delete li.dataset.userId;
                 }
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${task.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${task.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
                 if (typeof attachPomoBadgeToRow === 'function') {
                     attachPomoBadgeToRow(taskUserId);
                 }
