@@ -231,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $st_exists_res = $db->query("SHOW TABLES LIKE 'streamer_tasks'");
             $ut_exists_res = $db->query("SHOW TABLES LIKE 'user_tasks'");
             if ($st_exists_res && $st_exists_res->num_rows > 0) {
-                $st = $db->prepare("SELECT id, title, description, category, status, reward_points, created_at FROM streamer_tasks ORDER BY created_at DESC");
+                $st = $db->prepare("SELECT id, title, description, category, status, reward_points, project, backlog_position, user_id, user_name, created_at FROM streamer_tasks ORDER BY created_at DESC");
                 if ($st && $st->execute()) {
                     $res = $st->get_result();
                     if ($res) { $streamer_tasks = $res->fetch_all(MYSQLI_ASSOC); }
@@ -257,10 +257,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $desc     = trim($_POST['description'] ?? '');
         $category = trim($_POST['category'] ?? 'General');
         $points   = max(0, intval($_POST['reward_points'] ?? 0));
+        $project  = trim($_POST['project'] ?? '');
         if (!$title) { echo json_encode(['success' => false, 'error' => 'Title required']); exit; }
-        $stmt = $db->prepare("INSERT INTO streamer_tasks (title, description, category, reward_points) VALUES (?, ?, ?, ?)");
+        $stmt = $db->prepare("INSERT INTO streamer_tasks (title, description, category, reward_points, project) VALUES (?, ?, ?, ?, ?)");
         if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
-        $stmt->bind_param("sssi", $title, $desc, $category, $points);
+        $stmt->bind_param("sssis", $title, $desc, $category, $points, $project);
         $ok = $stmt->execute(); $id = $db->insert_id; $stmt->close();
         echo json_encode(['success' => $ok, 'id' => $id]);
         exit;
@@ -271,11 +272,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $desc   = trim($_POST['description'] ?? '');
         $cat    = trim($_POST['category'] ?? 'General');
         $pts    = max(0, intval($_POST['reward_points'] ?? 0));
+        $project = trim($_POST['project'] ?? '');
         $status = in_array($_POST['status'] ?? '', ['active','completed','hidden']) ? $_POST['status'] : 'active';
         if (!$id || !$title) { echo json_encode(['success' => false, 'error' => 'Invalid data']); exit; }
-        $stmt = $db->prepare("UPDATE streamer_tasks SET title=?, description=?, category=?, reward_points=?, status=? WHERE id=?");
+        $stmt = $db->prepare("UPDATE streamer_tasks SET title=?, description=?, category=?, reward_points=?, status=?, project=? WHERE id=?");
         if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
-        $stmt->bind_param("sssisi", $title, $desc, $cat, $pts, $status, $id);
+        $stmt->bind_param("sssissi", $title, $desc, $cat, $pts, $status, $project, $id);
         $ok = $stmt->execute(); $stmt->close();
         echo json_encode(['success' => $ok]);
         exit;
@@ -355,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($action === 'ch_complete_streamer_task') {
         $id = intval($_POST['id'] ?? 0);
         if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
-        $stmt = $db->prepare("UPDATE streamer_tasks SET status='completed' WHERE id=?");
+        $stmt = $db->prepare("UPDATE streamer_tasks SET status='completed', completed_at=CURRENT_TIMESTAMP WHERE id=?");
         $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
         echo json_encode(['success' => $ok]);
         exit;
@@ -953,11 +955,11 @@ ob_start();
                     <div class="table-container">
                         <table class="table is-fullwidth is-striped is-hoverable is-narrow">
                             <thead>
-                                <tr><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
+                                <tr><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_project') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
                             </thead>
                             <tbody id="chStreamerTaskBody">
                                 <tr id="chStreamerEmpty">
-                                    <td colspan="4" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_tasks_yet') ?></td>
+                                    <td colspan="5" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_tasks_yet') ?></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1013,6 +1015,12 @@ ob_start();
                     <label class="label"><?= t('working_or_study_description_label') ?></label>
                     <div class="control">
                         <textarea class="textarea" id="chStreamerTaskDesc" rows="2" placeholder="<?= htmlspecialchars(t('working_or_study_description_placeholder')) ?>"></textarea>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label"><?= t('working_or_study_th_project') ?></label>
+                    <div class="control">
+                        <input class="input" type="text" id="chStreamerTaskProject" placeholder="e.g. Coding, Gaming">
                     </div>
                 </div>
                 <div class="columns">
@@ -1767,7 +1775,7 @@ ob_start();
         if (!tbody) return;
         tbody.innerHTML = '';
         if (!tasks.length) {
-            tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="4" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noTasksYet) + '</td></tr>';
+            tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="5" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noTasksYet) + '</td></tr>';
             return;
         }
         tasks.forEach(t => chAppendStreamerRow(t, false));
@@ -1791,8 +1799,30 @@ ob_start();
         if (!tbody) return;
         let row = document.getElementById('ch-st-' + task.id) || document.createElement('tr');
         row.id = 'ch-st-' + task.id;
+        row.setAttribute('data-title', task.title || '');
+        row.setAttribute('data-desc', task.description || '');
+        row.setAttribute('data-category', task.category || 'General');
+        row.setAttribute('data-points', task.reward_points ?? 0);
+        row.setAttribute('data-project', task.project || '');
+        
+        const projectKey = (task.project === null || task.project === undefined || task.project === '') ? '__default' : String(task.project);
+        row.setAttribute('data-project-key', projectKey);
+        
+        const projectCell = projectKey === '__default'
+            ? '<span class="has-text-grey">&mdash;</span>'
+            : `<span class="tag is-light">${chEsc(task.project)}</span>`;
+
+        // Render title with backlog ID if available
+        let titleHtml = chEsc(task.title);
+        if (task.backlog_position) {
+            titleHtml = `<span class="has-text-grey">#${task.backlog_position}</span> <strong>${chEsc(task.title)}</strong>`;
+        } else {
+            titleHtml = `<strong>${chEsc(task.title)}</strong>`;
+        }
+
         row.innerHTML = `
-            <td><strong>${chEsc(task.title)}</strong><br><small class="has-text-grey">${chEsc(task.category || '')}</small></td>
+            <td>${titleHtml}<br><small class="has-text-grey">${chEsc(task.category || '')}</small></td>
+            <td>${projectCell}</td>
             <td>${chStatusTag(task.status)}</td>
             <td>${task.reward_points ?? 0}</td>
             <td>
@@ -1804,6 +1834,7 @@ ob_start();
             </td>`;
         if (!document.getElementById('ch-st-' + task.id)) tbody.appendChild(row);
         if (emit) chSocket.emit('TASK_UPDATE', { channel_code: chApiKey, owner: 'streamer', task: { ...task, owner: 'streamer' } });
+        chRefreshProjectFilter();
     }
     function chAppendUserRow(task, emit = true) {
         if (!task) return;
@@ -1840,7 +1871,7 @@ ob_start();
         if (!sel) return;
         const current = sel.value || '__all';
         const counts = new Map();
-        document.querySelectorAll('#chUserTaskBody tr[data-project-key]').forEach((row) => {
+        document.querySelectorAll('tr[data-project-key]').forEach((row) => {
             const key = row.getAttribute('data-project-key');
             counts.set(key, (counts.get(key) || 0) + 1);
         });
@@ -1856,7 +1887,7 @@ ob_start();
     }
     function chApplyProjectFilter() {
         const filter = document.getElementById('chProjectFilter')?.value || '__all';
-        document.querySelectorAll('#chUserTaskBody tr[data-project-key]').forEach((row) => {
+        document.querySelectorAll('tr[data-project-key]').forEach((row) => {
             row.style.display = (filter === '__all' || row.getAttribute('data-project-key') === filter) ? '' : 'none';
         });
     }
@@ -1873,7 +1904,7 @@ ob_start();
         const row = document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`);
         if (!row) return;
         // User rows: User, Task, Project, Status — the Project column shifts Status to td 4.
-        const statusCellIndex = owner === 'streamer' ? 2 : 4;
+        const statusCellIndex = owner === 'streamer' ? 3 : 4;
         const cell = row.querySelector(`td:nth-child(${statusCellIndex})`);
         if (cell) cell.innerHTML = chStatusTag(status);
     }
@@ -1890,12 +1921,12 @@ ob_start();
     window.chOpenEditTask = function (id) {
         const row = document.getElementById('ch-st-' + id);
         if (!row) return;
-        const cells = row.querySelectorAll('td');
         document.getElementById('chEditStreamerTaskId').value = id;
-        document.getElementById('chStreamerTaskTitle').value    = cells[0].querySelector('strong')?.textContent || '';
-        document.getElementById('chStreamerTaskDesc').value     = '';
-        document.getElementById('chStreamerTaskCategory').value = cells[0].querySelector('small')?.textContent || 'General';
-        document.getElementById('chStreamerTaskPoints').value   = cells[2].textContent.trim();
+        document.getElementById('chStreamerTaskTitle').value    = row.getAttribute('data-title') || '';
+        document.getElementById('chStreamerTaskDesc').value     = row.getAttribute('data-desc') || '';
+        document.getElementById('chStreamerTaskCategory').value = row.getAttribute('data-category') || 'General';
+        document.getElementById('chStreamerTaskPoints').value   = row.getAttribute('data-points') || '50';
+        document.getElementById('chStreamerTaskProject').value  = row.getAttribute('data-project') || '';
         document.getElementById('chStreamerTaskModalTitle').textContent = wsLang.modalTitleEditTask;
         document.getElementById('chStreamerTaskModal').classList.add('is-active');
     };
@@ -2030,6 +2061,7 @@ ob_start();
         document.getElementById('chStreamerTaskTitle').value  = '';
         document.getElementById('chStreamerTaskDesc').value   = '';
         document.getElementById('chStreamerTaskCategory').value = 'General';
+        document.getElementById('chStreamerTaskProject').value  = '';
         document.getElementById('chStreamerTaskPoints').value = document.getElementById('chDefaultRewardPoints')?.value || 50;
         document.getElementById('chStreamerTaskModalTitle').textContent = wsLang.modalTitleAddTask;
         document.getElementById('chStreamerTaskModal').classList.add('is-active');
@@ -2044,15 +2076,16 @@ ob_start();
         const title    = document.getElementById('chStreamerTaskTitle').value.trim();
         const desc     = document.getElementById('chStreamerTaskDesc').value.trim();
         const category = document.getElementById('chStreamerTaskCategory').value.trim() || 'General';
+        const project  = document.getElementById('chStreamerTaskProject').value.trim();
         const points   = parseInt(document.getElementById('chStreamerTaskPoints').value) || 0;
         if (!title) { chShowToast(wsLang.titleRequired, 'is-warning'); return; }
         const isEdit = !!id;
         const payload = isEdit
-            ? { action: 'ch_update_streamer_task', id, title, description: desc, category, reward_points: points, status: 'active' }
-            : { action: 'ch_create_streamer_task', title, description: desc, category, reward_points: points };
+            ? { action: 'ch_update_streamer_task', id, title, description: desc, category, reward_points: points, project, status: 'active' }
+            : { action: 'ch_create_streamer_task', title, description: desc, category, reward_points: points, project };
         chPost(payload, (res) => {
             if (res.success) {
-                const taskObj = { id: res.id || parseInt(id), title, description: desc, category, reward_points: points, status: 'active', owner: 'streamer' };
+                const taskObj = { id: res.id || parseInt(id), title, description: desc, category, reward_points: points, project, status: 'active', owner: 'streamer' };
                 // emit=false: the explicit emit below is the single wire event for this save.
                 chAppendStreamerRow(taskObj, false);
                 chSocket.emit(isEdit ? 'TASK_UPDATE' : 'TASK_CREATE', { channel_code: chApiKey, owner: 'streamer', task: taskObj });
