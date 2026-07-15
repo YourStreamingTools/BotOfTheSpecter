@@ -1490,7 +1490,8 @@ return [
     'working_or_study_cmd_backlog' => 'afficher votre liste d\'attente',
     'working_or_study_cmd_project' => 'changer votre projet actif (limite vos tâches à celui-ci)',
     'working_or_study_cmd_projects' => 'lister vos projets',
-    'working_or_study_cmd_personaltimer' => 'démarrer un minuteur de concentration personnel affiché à côté de votre tâche (alias : !pomo, !timer, !focus)',
+    'working_or_study_cmd_personaltimer' => 'minuteur général : !timer <minutes> <titre> ; focus/pause pomo : !timer <travail>/<pause>/<cycles> (alias : !pomo, !focus)',
+    'working_or_study_cmd_checktimer' => 'vérifier le temps restant sur votre minuteur général ou focus/pause (alias : !ctimer)',
     'working_or_study_cmd_studytimer' => 'contrôler le statut du minuteur de groupe principal, l\'autopilote et les durées (streamer/mod uniquement)',
     'working_or_study_cmd_studyhelp' => 'afficher le guide de démarrage rapide des commandes de travail et d\'étude',
     // working-or-study.php (JavaScript runtime strings)

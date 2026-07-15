@@ -173,7 +173,7 @@ builtin_commands = {
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
     "task", "done", "rename", "remove", "taskclear", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "personaltimer", "tasktimer", "taskhelp",
+    "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp",
     "wordreplaceoff", "wordreplaceon"
 }
 # Working & Study commands act on each chatter's OWN task/personaltimer, so they seed with a
@@ -182,7 +182,7 @@ builtin_commands = {
 per_user_cooldown_commands = {
     "task", "done", "rename", "remove", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "personaltimer"
+    "project", "projects", "personaltimer", "checktimer"
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -192,7 +192,7 @@ mod_commands = {
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "pomo", "focus"
+    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "pomo", "focus", "ctimer"
 }
 
 # Logs
@@ -6490,7 +6490,7 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('taskhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    await send_chat_message("Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !personaltimer <minutes> <label> for a personal focus timer! Projects: !project <name>.")
+                    await send_chat_message("Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !timer <minutes> <title> for a general timer, or !timer <work>/<break>/<cycles> for a focus/break timer. !checktimer for time left. Projects: !project <name>.")
                     add_usage('taskhelp', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[TASKHELP] Error in taskhelp_command: {e}")
@@ -9191,6 +9191,9 @@ class TwitchBot(commands.Bot):
 
     @commands.command(name='personaltimer', aliases=['timer', 'pomo', 'ptimer', 'mytimer', 'focus'])
     async def personaltimer_command(self, ctx):
+        # Two modes:
+        #   General: !timer 60 read the book  — plain countdown, no task-list link
+        #   Pomo:    !timer 60/10/4 [label]   — focus/break cycles, task list + working/study overlay
         global bot_owner
         connection = None
         connection = await mysql_connection()
@@ -9209,7 +9212,6 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    # Check cooldown
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('personaltimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
@@ -9218,46 +9220,20 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    # !personaltimer (no args) — read-only: report remaining time on the chatter's active timer.
+                    # No args → same as !checktimer
                     if not arg:
-                        await cursor.execute(
-                            "SELECT label, current_phase, current_cycle, total_cycles, "
-                            "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds "
-                            "FROM user_pomos WHERE user_id = %s AND status = 'active' "
-                            "ORDER BY id DESC LIMIT 1",
-                            (user_id,)
-                        )
-                        row = await cursor.fetchone()
-                        if not row:
-                            await send_chat_message(f"@{user_name} you have no active timer. Start one with !personaltimer <minutes> <label>.")
-                            add_usage('personaltimer', bucket_key, cooldown_bucket)
-                            return
-                        remaining = int(row.get('remaining_seconds') or 0)
-                        if remaining < 0:
-                            remaining = 0
-                        mins, secs = divmod(remaining, 60)
-                        phase = row.get('current_phase') or 'work'
-                        phase_label = 'break' if phase == 'break' else 'work'
-                        label = row.get('label')
-                        cur_cycle = int(row.get('current_cycle') or 1)
-                        total_cycles = int(row.get('total_cycles') or 1)
-                        cycle_part = f" cycle {cur_cycle}/{total_cycles}" if total_cycles > 1 else ""
-                        label_part = f" [{label}]" if label else ""
-                        await send_chat_message(
-                            f"@{user_name} timer{label_part}: {phase_label}{cycle_part}, {mins}m {secs}s remaining."
-                        )
+                        msg = await build_checktimer_message(user_id, user_name)
+                        await send_chat_message(msg)
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    # !personaltimer cancel/stop — bot owns user_pomos; cancel routine + DB + overlay notify.
                     if arg.lower() in ('cancel', 'stop'):
                         cancelled = await cancel_user_pomo(user_id, user_name)
                         if cancelled:
-                            await send_chat_message(f"@{user_name} your timer has been cancelled.")
+                            await send_chat_message(f"@{user_name}, your timer has been cancelled.")
                         else:
-                            await send_chat_message(f"@{user_name} you have no active timer to cancel.")
+                            await send_chat_message(f"@{user_name}, you have no active timer to cancel.")
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    # !personaltimer <spec> <label> — start (or replace) a timer. Bot writes DB + schedules finish.
                     spec_parts = arg.split(' ', 1)
                     spec_token = spec_parts[0].strip()
                     label = spec_parts[1].strip() if len(spec_parts) > 1 else ''
@@ -9265,32 +9241,90 @@ class TwitchBot(commands.Bot):
                     parsed = parse_pomo_spec(spec_token)
                     if not parsed:
                         await send_chat_message(
-                            "Usage: !personaltimer <minutes> <label> | !personaltimer <work>/<break>/<cycles> <label> | !personaltimer | !personaltimer stop"
+                            "Usage: !timer <minutes> <title> | !timer <work>/<break>/<cycles> [label] | !timer stop | !checktimer"
                         )
                         return
                     work_minutes, break_minutes, total_cycles = parsed
-                    # Sane guardrails to prevent abuse (one active pomo per viewer).
+                    # Slash form = pomo (task list + overlay). Plain minutes = general timer only.
+                    is_pomo = '/' in spec_token
+                    if not is_pomo:
+                        break_minutes = 0
+                        total_cycles = 1
                     if not (1 <= work_minutes <= 600):
-                        await send_chat_message(f"@{user_name} work minutes must be 1-600.")
+                        await send_chat_message(f"@{user_name}, minutes must be 1-600.")
                         return
-                    if not (0 <= break_minutes <= 120):
-                        await send_chat_message(f"@{user_name} break minutes must be 0-120.")
-                        return
-                    if not (1 <= total_cycles <= 24):
-                        await send_chat_message(f"@{user_name} cycles must be 1-24.")
-                        return
-                    await start_user_pomo(user_id, user_name, label, work_minutes, break_minutes, total_cycles)
-                    label_part = f" [{label}]" if label else ""
-                    if total_cycles > 1:
+                    if is_pomo:
+                        if not (0 <= break_minutes <= 120):
+                            await send_chat_message(f"@{user_name}, break minutes must be 0-120.")
+                            return
+                        if not (1 <= total_cycles <= 24):
+                            await send_chat_message(f"@{user_name}, cycles must be 1-24.")
+                            return
+                    await start_user_pomo(
+                        user_id, user_name, label, work_minutes, break_minutes, total_cycles,
+                        link_task=is_pomo,
+                    )
+                    if is_pomo:
+                        label_part = f" [{label}]" if label else ""
                         await send_chat_message(
-                            f"@{user_name} timer started{label_part}: {total_cycles} cycles of {work_minutes}m work / {break_minutes}m break."
+                            f"@{user_name}, focus timer started{label_part}: "
+                            f"{total_cycles} cycles of {work_minutes}m work / {break_minutes}m break."
                         )
                     else:
-                        await send_chat_message(f"@{user_name} timer started{label_part}: {work_minutes}m focus.")
+                        if label:
+                            await send_chat_message(
+                                f'@{user_name}, timer started for "{label}" ({work_minutes}m).'
+                            )
+                        else:
+                            await send_chat_message(
+                                f"@{user_name}, timer started ({work_minutes}m)."
+                            )
                     add_usage('personaltimer', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[POMO] Error in personaltimer_command: {e}")
             await send_chat_message("An error occurred while handling your timer.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='checktimer', aliases=['ctimer'])
+    async def checktimer_command(self, ctx):
+        # Report remaining time on the chatter's general or pomo timer.
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("checktimer",)
+                )
+                result = await cursor.fetchone()
+                status = result.get("status") if result else "Enabled"
+                permissions = result.get("permission") if result else "everyone"
+                cooldown_rate = result.get("cooldown_rate") if result else 1
+                cooldown_time = result.get("cooldown_time") if result else 5
+                cooldown_bucket = result.get("cooldown_bucket") if result else "default"
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = 'global' if cooldown_bucket == 'default' else (
+                    'mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author)
+                    else str(ctx.author.id)
+                )
+                if not await check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                user_id = str(ctx.author.id)
+                user_name = ctx.author.name
+                msg = await build_checktimer_message(user_id, user_name)
+                await send_chat_message(msg)
+                add_usage('checktimer', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[POMO] Error in checktimer_command: {e}")
+            await send_chat_message("An error occurred while checking your timer.")
         finally:
             if connection:
                 await connection.close()
@@ -12410,7 +12444,7 @@ async def fetch_active_pomo(user_id):
                 "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                 "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                 "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                "FROM user_pomos WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
+                "FROM user_timers WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
                 (str(user_id),)
             )
             return await cursor.fetchone()
@@ -12432,7 +12466,7 @@ async def fetch_pomo_by_id(pomo_id):
                 "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                 "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                 "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                "FROM user_pomos WHERE id = %s LIMIT 1",
+                "FROM user_timers WHERE id = %s LIMIT 1",
                 (pomo_id,)
             )
             return await cursor.fetchone()
@@ -12443,8 +12477,58 @@ async def fetch_pomo_by_id(pomo_id):
         if connection:
             await connection.close()
 
-async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes, total_cycles):
-    # Single-active / replace-on-new: cancel any existing routine + row, insert fresh, schedule.
+def is_pomo_row(row):
+    # Pomo = focus/break/cycles form. General timer is plain minutes (break=0, cycles=1).
+    if not row:
+        return False
+    return int(row.get('break_minutes') or 0) > 0 or int(row.get('total_cycles') or 1) > 1
+
+def format_remaining_mins_words(seconds):
+    seconds = max(0, int(seconds or 0))
+    if seconds <= 0:
+        return "0 mins"
+    # Ceil so "under a minute" still reads as "1 min" for focus/break check lines.
+    mins = max(1, (seconds + 59) // 60)
+    return "1 min" if mins == 1 else f"{mins} mins"
+
+def format_remaining_hm(seconds):
+    seconds = max(0, int(seconds or 0))
+    mins, secs = divmod(seconds, 60)
+    if seconds <= 0:
+        return "0s"
+    if mins == 0:
+        return f"{secs}s"
+    if secs == 0:
+        return f"{mins}m"
+    return f"{mins}m {secs}s"
+
+async def build_checktimer_message(user_id, user_name):
+    row = await fetch_active_pomo(user_id)
+    if not row:
+        return f"@{user_name}, you have no active timer. Start one with !timer <minutes> <title>."
+    remaining = max(0, int(row.get('remaining_seconds') or 0))
+    label = (row.get('label') or '').strip()
+    work_minutes = int(row.get('work_minutes') or 0)
+    phase = row.get('current_phase') or 'work'
+    current_cycle = int(row.get('current_cycle') or 1)
+    total_cycles = int(row.get('total_cycles') or 1)
+    break_minutes = int(row.get('break_minutes') or 0)
+    if not is_pomo_row(row):
+        title_part = f' for "{label}"' if label else ""
+        return f"@{user_name}, your timer{title_part} has {format_remaining_hm(remaining)} remaining."
+    left = format_remaining_mins_words(remaining)
+    if phase == 'break':
+        return (
+            f"@{user_name}, your break is finishing in {left} "
+            f"before another {work_minutes} mins focus time"
+        )
+    will_break = break_minutes > 0 and current_cycle < total_cycles
+    if will_break:
+        return f"@{user_name}, your focus has {left} left before break"
+    return f"@{user_name}, your focus has {left} left"
+
+async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes, total_cycles, link_task=False):
+    # Single-active / replace-on-new. link_task=True only for pomo (task list + overlay task row).
     user_id = str(user_id)
     cancel_pomo_routine(user_id)
     connection = None
@@ -12456,7 +12540,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
             task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
             task_owner = 'streamer' if is_streamer else 'user'
             await cursor.execute(
-                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                "SELECT task_id FROM user_timers WHERE user_id = %s AND status = 'active'",
                 (user_id,)
             )
             old_pomos = await cursor.fetchall()
@@ -12472,7 +12556,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                         "user_id": user_id, "user_name": user_name,
                     }))
             await cursor.execute(
-                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "UPDATE user_timers SET status = 'cancelled', current_phase = 'cancelled' "
                 "WHERE user_id = %s AND status = 'active'",
                 (user_id,)
             )
@@ -12481,28 +12565,33 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                     "channel_code": API_TOKEN, "user_id": user_id, "user_name": user_name,
                     "reason": "replaced",
                 })
-            task_title = label if label else f"Timer ({work_minutes}m)"
-            task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
-            if is_streamer:
-                await cursor.execute(
-                    f"INSERT INTO {task_table} (title, description, category, status, approval_status, "
-                    "reward_points, project, backlog_position, user_id, user_name, task_type) "
-                    "VALUES (%s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, %s, %s, 'timer')",
-                    (task_title, task_desc, user_id, user_name)
-                )
+            task_id = None
+            if link_task:
+                task_title = label if label else f"Timer ({work_minutes}m)"
+                task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
+                if is_streamer:
+                    await cursor.execute(
+                        f"INSERT INTO {task_table} (title, description, category, status, approval_status, "
+                        "reward_points, project, backlog_position, user_id, user_name, task_type) "
+                        "VALUES (%s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, %s, %s, 'timer')",
+                        (task_title, task_desc, user_id, user_name)
+                    )
+                else:
+                    await cursor.execute(
+                        f"INSERT INTO {task_table} (user_id, user_name, title, description, category, status, "
+                        "approval_status, reward_points, backlog_position, project, task_type) "
+                        "VALUES (%s, %s, %s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, 'timer')",
+                        (user_id, user_name, task_title, task_desc)
+                    )
+                await cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
+                res_id = await cursor.fetchone()
+                task_id = res_id.get('last_id') if res_id else None
             else:
-                await cursor.execute(
-                    f"INSERT INTO {task_table} (user_id, user_name, title, description, category, status, "
-                    "approval_status, reward_points, backlog_position, project, task_type) "
-                    "VALUES (%s, %s, %s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, 'timer')",
-                    (user_id, user_name, task_title, task_desc)
-                )
-            await cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
-            res_id = await cursor.fetchone()
-            task_id = res_id.get('last_id') if res_id else None
+                task_title = None
+                task_desc = None
             label_val = label if label else None
             await cursor.execute(
-                "INSERT INTO user_pomos "
+                "INSERT INTO user_timers "
                 "(user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
                 " current_cycle, current_phase, phase_started_at, phase_ends_at, status, task_id) "
                 "VALUES (%s, %s, %s, %s, %s, %s, 1, 'work', NOW(), "
@@ -12515,7 +12604,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                 "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                 "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                 "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                "FROM user_pomos WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
+                "FROM user_timers WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
                 (user_id,)
             )
             row = await cursor.fetchone()
@@ -12523,7 +12612,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                 bot_logger.error(f"[POMO] start_user_pomo: row missing after insert for {user_name}")
                 return None
             emit_pomo_event("USER_POMO_START", pomo_row_to_payload(row))
-            if task_id:
+            if link_task and task_id:
                 emit_task_create({
                     "id": task_id,
                     "user_id": user_id,
@@ -12539,7 +12628,11 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                     "task_type": "timer",
                     "owner": task_owner,
                 }, owner=task_owner)
-            bot_logger.info(f"[POMO] started pomo {row.get('id')} for {user_name} ({work_minutes}m x{total_cycles})")
+            mode = "pomo" if link_task else "general"
+            bot_logger.info(
+                f"[POMO] started {mode} timer {row.get('id')} for {user_name} "
+                f"({work_minutes}m x{total_cycles}, link_task={link_task})"
+            )
     except Exception as e:
         bot_logger.error(f"[POMO] start_user_pomo error: {e}", exc_info=True)
         return None
@@ -12560,14 +12653,14 @@ async def cancel_user_pomo(user_id, user_name):
             task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
             task_owner = 'streamer' if is_streamer else 'user'
             await cursor.execute(
-                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                "SELECT task_id FROM user_timers WHERE user_id = %s AND status = 'active'",
                 (user_id,)
             )
             old_pomos = await cursor.fetchall()
             if not old_pomos:
                 return False
             await cursor.execute(
-                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "UPDATE user_timers SET status = 'cancelled', current_phase = 'cancelled' "
                 "WHERE user_id = %s AND status = 'active'",
                 (user_id,)
             )
@@ -12613,7 +12706,7 @@ async def advance_pomo_phase(row):
             if current_phase == 'work':
                 if current_cycle >= total_cycles:
                     await cursor.execute(
-                        "UPDATE user_pomos SET status = 'completed', current_phase = 'completed' WHERE id = %s",
+                        "UPDATE user_timers SET status = 'completed', current_phase = 'completed' WHERE id = %s",
                         (pomo_id,)
                     )
                     done = await fetch_pomo_by_id(pomo_id)
@@ -12631,13 +12724,13 @@ async def advance_pomo_phase(row):
                     return 'completed'
                 elif break_minutes > 0:
                     await cursor.execute(
-                        "UPDATE user_pomos SET current_phase = 'break', phase_started_at = phase_ends_at, "
+                        "UPDATE user_timers SET current_phase = 'break', phase_started_at = phase_ends_at, "
                         "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
                         (break_minutes, pomo_id)
                     )
                 else:
                     await cursor.execute(
-                        "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                        "UPDATE user_timers SET current_cycle = current_cycle + 1, current_phase = 'work', "
                         "phase_started_at = phase_ends_at, "
                         "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
                         (work_minutes, pomo_id)
@@ -12645,7 +12738,7 @@ async def advance_pomo_phase(row):
             else:
                 # break ending -> next work cycle
                 await cursor.execute(
-                    "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                    "UPDATE user_timers SET current_cycle = current_cycle + 1, current_phase = 'work', "
                     "phase_started_at = phase_ends_at, "
                     "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
                     (work_minutes, pomo_id)
@@ -12664,15 +12757,18 @@ async def advance_pomo_phase(row):
 async def announce_pomo_complete(row):
     user_name = row.get('user_name') or 'unknown'
     label = (row.get('label') or '').strip()
-    label_part = f" [{label}]" if label else ""
     total_cycles = int(row.get('total_cycles') or 1)
-    work_minutes = int(row.get('work_minutes') or 0)
-    if total_cycles > 1:
-        msg = f"@{user_name} timer{label_part} is done! All {total_cycles} cycles finished."
-    elif work_minutes > 0:
-        msg = f"@{user_name} timer{label_part} is done! ({work_minutes}m focus complete)"
+    if is_pomo_row(row):
+        label_part = f" [{label}]" if label else ""
+        if total_cycles > 1:
+            msg = f"@{user_name}, focus timer{label_part} is done! All {total_cycles} cycles finished."
+        else:
+            msg = f"@{user_name}, focus timer{label_part} is done!"
     else:
-        msg = f"@{user_name} timer{label_part} is done!"
+        if label:
+            msg = f'@{user_name}, your timer for "{label}" has ended.'
+        else:
+            msg = f"@{user_name}, your timer has ended."
     try:
         await send_chat_message(msg)
         bot_logger.info(f"[POMO] chat announced complete for {user_name}")
@@ -12725,7 +12821,7 @@ async def resume_active_pomos():
         connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute(
-                "SELECT DISTINCT user_id FROM user_pomos WHERE status = 'active'"
+                "SELECT DISTINCT user_id FROM user_timers WHERE status = 'active'"
             )
             rows = await cursor.fetchall()
         count = 0
@@ -16175,7 +16271,7 @@ async def builtin_commands_creation():
                 for command in new_commands:
                     bot_logger.info(f"[BOT READY] Command '{command}' added to database successfully.")
             # Force task-related commands to have 0 cooldown
-            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "tasktimer", "taskhelp"]
+            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp"]
             task_placeholders = ', '.join(['%s'] * len(task_cmds))
             await cursor.execute(f"UPDATE builtin_commands SET cooldown_rate = 0, cooldown_time = 0 WHERE command IN ({task_placeholders})", tuple(task_cmds))
             await connection.commit()

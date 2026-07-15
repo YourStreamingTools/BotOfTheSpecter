@@ -515,7 +515,7 @@ class BotOfTheSpecter_WebsocketServer:
         return n
 
     async def handle_user_pomo_start(self, sid, data):
-        # Bot owns user_pomos writes + timer schedule. WS only fans out for overlays.
+        # Bot owns user_timers writes + timer schedule. WS only fans out for overlays.
         payload = data if isinstance(data, dict) else {}
         code = self.get_code_by_sid(sid) or payload.get('code') or payload.get('channel_code')
         self.logger.info(f"USER_POMO_START broadcast from [{sid}] (code: {code})")
@@ -578,7 +578,7 @@ class BotOfTheSpecter_WebsocketServer:
             task_owner = 'streamer' if is_streamer else 'user'
 
             old_pomos = await self.execute_query(
-                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                "SELECT task_id FROM user_timers WHERE user_id = %s AND status = 'active'",
                 (str(user_id),), database_name=db_name
             )
             old_task_id = old_pomos[0].get('task_id') if old_pomos else None
@@ -613,7 +613,7 @@ class BotOfTheSpecter_WebsocketServer:
             task_id = res_id[0].get('last_id') if res_id else None
 
             replaced = await self.execute_query(
-                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "UPDATE user_timers SET status = 'cancelled', current_phase = 'cancelled' "
                 "WHERE user_id = %s AND status = 'active'",
                 (str(user_id),), database_name=db_name
             )
@@ -626,7 +626,7 @@ class BotOfTheSpecter_WebsocketServer:
                 }, source_sid=source_sid)
             # Insert the new pomo: phase_started_at = NOW(), phase_ends_at = NOW() + work.
             await self.execute_query(
-                "INSERT INTO user_pomos "
+                "INSERT INTO user_timers "
                 "(user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
                 " current_cycle, current_phase, phase_started_at, phase_ends_at, status, task_id) "
                 "VALUES (%s, %s, %s, %s, %s, %s, 1, 'work', NOW(), "
@@ -645,7 +645,7 @@ class BotOfTheSpecter_WebsocketServer:
                 "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                 "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                 "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                "FROM user_pomos WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
+                "FROM user_timers WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
                 (str(user_id),), database_name=db_name
             )
             row = rows[0] if rows else None
@@ -698,13 +698,13 @@ class BotOfTheSpecter_WebsocketServer:
             task_owner = 'streamer' if is_streamer else 'user'
 
             old_pomos = await self.execute_query(
-                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                "SELECT task_id FROM user_timers WHERE user_id = %s AND status = 'active'",
                 (str(user_id),), database_name=db_name
             )
             old_task_id = old_pomos[0].get('task_id') if old_pomos else None
 
             await self.execute_query(
-                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "UPDATE user_timers SET status = 'cancelled', current_phase = 'cancelled' "
                 "WHERE user_id = %s AND status = 'active'",
                 (str(user_id),), database_name=db_name
             )
@@ -732,7 +732,7 @@ class BotOfTheSpecter_WebsocketServer:
             return 0
 
     def _pomo_row_to_payload(self, row, code):
-        # Normalise a user_pomos row dict into the wire payload consumed by the overlay.
+        # Normalise a user_timers row dict into the wire payload consumed by the overlay.
         remaining = row.get('remaining_seconds')
         try:
             remaining = max(0, int(remaining)) if remaining is not None else 0
@@ -775,7 +775,7 @@ class BotOfTheSpecter_WebsocketServer:
                 if not username or not api_key:
                     continue
                 active = await self.execute_query(
-                    "SELECT COUNT(*) AS cnt FROM user_pomos WHERE status = 'active'",
+                    "SELECT COUNT(*) AS cnt FROM user_timers WHERE status = 'active'",
                     database_name=username
                 )
                 if active and int(active[0].get('cnt') or 0) > 0:
@@ -798,7 +798,7 @@ class BotOfTheSpecter_WebsocketServer:
             if current_phase == 'work':
                 if current_cycle >= total_cycles:
                     await self.execute_query(
-                        "UPDATE user_pomos SET status = 'completed', current_phase = 'completed' "
+                        "UPDATE user_timers SET status = 'completed', current_phase = 'completed' "
                         "WHERE id = %s",
                         (pomo_id,), database_name=db_name
                     )
@@ -807,7 +807,7 @@ class BotOfTheSpecter_WebsocketServer:
                 elif break_minutes > 0:
                     current_phase = 'break'
                     await self.execute_query(
-                        "UPDATE user_pomos SET current_phase = 'break', phase_started_at = phase_ends_at, "
+                        "UPDATE user_timers SET current_phase = 'break', phase_started_at = phase_ends_at, "
                         "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
                         (break_minutes, pomo_id), database_name=db_name
                     )
@@ -815,7 +815,7 @@ class BotOfTheSpecter_WebsocketServer:
                     current_cycle += 1
                     current_phase = 'work'
                     await self.execute_query(
-                        "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                        "UPDATE user_timers SET current_cycle = current_cycle + 1, current_phase = 'work', "
                         "phase_started_at = phase_ends_at, "
                         "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
                         (work_minutes, pomo_id), database_name=db_name
@@ -825,7 +825,7 @@ class BotOfTheSpecter_WebsocketServer:
                 current_cycle += 1
                 current_phase = 'work'
                 await self.execute_query(
-                    "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                    "UPDATE user_timers SET current_cycle = current_cycle + 1, current_phase = 'work', "
                     "phase_started_at = phase_ends_at, "
                     "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
                     (work_minutes, pomo_id), database_name=db_name
@@ -833,7 +833,7 @@ class BotOfTheSpecter_WebsocketServer:
                 await self._emit_pomo_event("USER_POMO_PHASE", db_name, code, pomo_id)
             # Re-check: is the (now advanced) phase still expired? If so, loop (catch-up).
             check = await self.execute_query(
-                "SELECT (phase_ends_at <= NOW()) AS expired FROM user_pomos WHERE id = %s",
+                "SELECT (phase_ends_at <= NOW()) AS expired FROM user_timers WHERE id = %s",
                 (pomo_id,), database_name=db_name
             )
             if not check or not check[0].get('expired'):
@@ -847,7 +847,7 @@ class BotOfTheSpecter_WebsocketServer:
                 "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                 "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                 "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                "FROM user_pomos WHERE id = %s LIMIT 1",
+                "FROM user_timers WHERE id = %s LIMIT 1",
                 (pomo_id,), database_name=db_name
             )
             if not rows:
@@ -890,14 +890,14 @@ class BotOfTheSpecter_WebsocketServer:
             "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
             "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, "
             "(phase_ends_at <= NOW()) AS expired, status "
-            "FROM user_pomos WHERE status = 'active'",
+            "FROM user_timers WHERE status = 'active'",
             (), database_name=db_name
         )
         if actives is None:
             # Query FAILED (transient MySQL outage, DB restart) — keep the DB tracked
             # and just skip this tick, otherwise a one-second blip would freeze every
             # running pomo until its owner manually restarts it. A DB with a missing
-            # user_pomos table can never enter the set (USER_POMO_START and the
+            # user_timers table can never enter the set (USER_POMO_START and the
             # startup scan both require the table), so this can't reintroduce the
             # per-second error spam.
             return True
@@ -916,7 +916,7 @@ class BotOfTheSpecter_WebsocketServer:
                     "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                     "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                     "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
-                    "FROM user_pomos WHERE status = 'active'",
+                    "FROM user_timers WHERE status = 'active'",
                     (), database_name=db_name
                 )
             for row in (fresh or []):
