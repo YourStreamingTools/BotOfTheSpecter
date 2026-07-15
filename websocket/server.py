@@ -565,7 +565,46 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.warning(f"USER_POMO_START: could not resolve DB for code, ignoring")
                 return 0
             # Single-active / replace-on-new (locked decision §8.4): cancel any existing
-            # active pomo for this user_id, then insert the new one.
+            # active pomo for this user_id, and mark its task as rejected.
+            is_streamer = user_name.lower() == db_name.lower()
+            task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
+            task_owner = 'streamer' if is_streamer else 'user'
+
+            old_pomos = await self.execute_query(
+                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                (str(user_id),), database_name=db_name
+            )
+            old_task_id = old_pomos[0].get('task_id') if old_pomos else None
+            if old_task_id:
+                await self.execute_query(
+                    f"UPDATE {task_table} SET status = 'rejected' WHERE id = %s",
+                    (old_task_id,), database_name=db_name
+                )
+                await self.broadcast_to_task_clients_only("TASK_DELETE", {
+                    "channel_code": code, "id": old_task_id, "owner": task_owner
+                }, source_sid=source_sid)
+
+            # Insert the new timer task
+            task_title = label if label else f"Timer ({work_minutes}m)"
+            task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
+            if is_streamer:
+                await self.execute_query(
+                    f"INSERT INTO {task_table} (title, description, category, status, approval_status, reward_points, project, backlog_position, user_id, user_name, task_type) "
+                    "VALUES (%s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, %s, %s, 'timer')",
+                    (task_title, task_desc, str(user_id), user_name),
+                    database_name=db_name
+                )
+            else:
+                await self.execute_query(
+                    f"INSERT INTO {task_table} (user_id, user_name, title, description, category, status, approval_status, reward_points, backlog_position, project, task_type) "
+                    "VALUES (%s, %s, %s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, 'timer')",
+                    (str(user_id), user_name, task_title, task_desc),
+                    database_name=db_name
+                )
+            
+            res_id = await self.execute_query("SELECT LAST_INSERT_ID() as last_id", database_name=db_name)
+            task_id = res_id[0].get('last_id') if res_id else None
+
             replaced = await self.execute_query(
                 "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
                 "WHERE user_id = %s AND status = 'active'",
@@ -582,10 +621,10 @@ class BotOfTheSpecter_WebsocketServer:
             await self.execute_query(
                 "INSERT INTO user_pomos "
                 "(user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
-                " current_cycle, current_phase, phase_started_at, phase_ends_at, status) "
+                " current_cycle, current_phase, phase_started_at, phase_ends_at, status, task_id) "
                 "VALUES (%s, %s, %s, %s, %s, %s, 1, 'work', NOW(), "
-                " DATE_ADD(NOW(), INTERVAL %s MINUTE), 'active')",
-                (str(user_id), user_name, label, work_minutes, break_minutes, total_cycles, work_minutes),
+                " DATE_ADD(NOW(), INTERVAL %s MINUTE), 'active', %s)",
+                (str(user_id), user_name, label, work_minutes, break_minutes, total_cycles, work_minutes, task_id),
                 database_name=db_name
             )
             # Event-driven tracking: track BEFORE the read-back so a failed read can't
@@ -608,6 +647,26 @@ class BotOfTheSpecter_WebsocketServer:
                 return 0
             event_payload = self._pomo_row_to_payload(row, code)
             count = await self.broadcast_to_task_clients_only("USER_POMO_START", event_payload, source_sid=source_sid)
+            if task_id:
+                await self.broadcast_to_task_clients_only("TASK_CREATE", {
+                    "channel_code": code,
+                    "owner": task_owner,
+                    "task": {
+                        "id": task_id,
+                        "user_id": str(user_id),
+                        "user_name": user_name,
+                        "title": task_title,
+                        "description": task_desc,
+                        "category": "Timer",
+                        "status": "active",
+                        "approval_status": "auto",
+                        "reward_points": 0,
+                        "backlog_position": None,
+                        "project": None,
+                        "task_type": "timer",
+                        "owner": task_owner
+                    }
+                }, source_sid=source_sid)
             self.logger.info(f"USER_POMO_START: created pomo {row.get('id')} for user {user_name} in DB {db_name}")
             return count
         except Exception as e:
@@ -626,11 +685,35 @@ class BotOfTheSpecter_WebsocketServer:
             if not db_name:
                 self.logger.warning("USER_POMO_CANCEL: could not resolve DB for code, ignoring")
                 return 0
+
+            is_streamer = user_name.lower() == db_name.lower()
+            task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
+            task_owner = 'streamer' if is_streamer else 'user'
+
+            old_pomos = await self.execute_query(
+                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                (str(user_id),), database_name=db_name
+            )
+            old_task_id = old_pomos[0].get('task_id') if old_pomos else None
+
             await self.execute_query(
                 "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
                 "WHERE user_id = %s AND status = 'active'",
                 (str(user_id),), database_name=db_name
             )
+            if old_task_id:
+                await self.execute_query(
+                    f"UPDATE {task_table} SET status = 'rejected' WHERE id = %s",
+                    (old_task_id,), database_name=db_name
+                )
+                await self.broadcast_to_task_clients_only("TASK_DELETE", {
+                    "channel_code": code,
+                    "id": old_task_id,
+                    "user_id": str(user_id),
+                    "user_name": user_name,
+                    "owner": task_owner
+                }, source_sid=source_sid)
+
             count = await self.broadcast_to_task_clients_only("USER_POMO_CANCEL", {
                 "channel_code": code, "user_id": str(user_id), "user_name": user_name,
                 "reason": "cancelled",
@@ -753,7 +836,7 @@ class BotOfTheSpecter_WebsocketServer:
         try:
             rows = await self.execute_query(
                 "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
-                "current_cycle, current_phase, "
+                "current_cycle, current_phase, task_id, "
                 "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
                 "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
                 "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
@@ -762,8 +845,31 @@ class BotOfTheSpecter_WebsocketServer:
             )
             if not rows:
                 return
-            payload = self._pomo_row_to_payload(rows[0], code)
+            pomo_row = rows[0]
+            payload = self._pomo_row_to_payload(pomo_row, code)
             await self.broadcast_to_task_clients_only(event_name, payload)
+
+            if event_name == "USER_POMO_COMPLETE":
+                task_id = pomo_row.get('task_id')
+                user_id = pomo_row.get('user_id')
+                user_name = pomo_row.get('user_name') or 'unknown'
+                if task_id:
+                    is_streamer = user_name.lower() == db_name.lower()
+                    task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
+                    task_owner = 'streamer' if is_streamer else 'user'
+                    await self.execute_query(
+                        f"UPDATE {task_table} SET status = 'completed', completed_at = NOW() WHERE id = %s",
+                        (task_id,), database_name=db_name
+                    )
+                    await self.broadcast_to_task_clients_only("TASK_COMPLETE", {
+                        "channel_code": code,
+                        "id": task_id,
+                        "user_id": str(user_id),
+                        "user_name": user_name,
+                        "status": "completed",
+                        "project": None,
+                        "owner": task_owner
+                    })
         except Exception as e:
             self.logger.error(f"_emit_pomo_event({event_name}) error for pomo {pomo_id} in {db_name}: {e}")
 

@@ -169,14 +169,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $st_exists = $user_db->query("SHOW TABLES LIKE 'streamer_tasks'")->num_rows > 0;
         $ut_exists = $user_db->query("SHOW TABLES LIKE 'user_tasks'")->num_rows > 0;
         if ($st_exists) {
-            $s = $user_db->prepare("SELECT id, title, description, category, status, reward_points, project, backlog_position, user_id, user_name FROM streamer_tasks WHERE status != 'hidden' ORDER BY created_at DESC");
+            $s = $user_db->prepare("SELECT id, title, description, category, status, reward_points, project, backlog_position, user_id, user_name, task_type FROM streamer_tasks WHERE status != 'hidden' ORDER BY created_at DESC");
             if ($s && $s->execute()) {
                 $streamer_tasks_arr = $s->get_result()->fetch_all(MYSQLI_ASSOC);
                 $s->close();
             }
         }
         if ($ut_exists) {
-            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project, backlog_position FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project, backlog_position, task_type FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
             if ($u && $u->execute()) {
                 $user_tasks_arr = $u->get_result()->fetch_all(MYSQLI_ASSOC);
                 $u->close();
@@ -1086,6 +1086,7 @@ ob_end_clean();
             };
             const isActiveTask = (task) => String(task?.status || '').toLowerCase() === 'active';
             const isCompletedTask = (task) => String(task?.status || '').toLowerCase() === 'completed';
+            const isTimerTask = (task) => String(task?.task_type || '').toLowerCase() === 'timer';
             const renderUnifiedList = () => {
                 const list = document.getElementById('newUnifiedTaskList');
                 if (!list) return;
@@ -1107,9 +1108,11 @@ ob_end_clean();
                     const li = document.createElement('li');
                     const done = isCompletedTask(t);
                     const backlog = isBacklogTask(t);
+                    const timer = isTimerTask(t);
                     li.className = 'study-overlay-page-task-sys-item'
                         + (done ? ' is-done' : '')
-                        + (backlog ? ' is-backlog' : '');
+                        + (backlog ? ' is-backlog' : '')
+                        + (timer ? ' is-timer' : '');
                     li.id = 'unified-task-' + r.owner + '-' + t.id;
                     if (r.userId) {
                         li.dataset.userId = r.userId;
@@ -1278,6 +1281,7 @@ ob_end_clean();
                 return String(task?.title || '').trim();
             };
             const getBadgeText = (task) => {
+                if (isTimerTask(task)) return '⏱';
                 return task.id ?? '';
             };
             // /notify transport JSON-encodes the nested task dict — decode if needed.
@@ -1299,7 +1303,8 @@ ob_end_clean();
                 if (!li) { li = document.createElement('li'); li.id = 'new-streamer-task-' + task.id; list.appendChild(li); }
                 const done = isCompletedTask(task);
                 const backlog = isBacklogTask(task);
-                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '') + (backlog ? ' is-backlog' : '');
+                const timer = isTimerTask(task);
+                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '') + (backlog ? ' is-backlog' : '') + (timer ? ' is-timer' : '');
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
                 li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${getBadgeText(task)}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
@@ -1311,7 +1316,8 @@ ob_end_clean();
                 if (!li) { li = document.createElement('li'); li.id = 'new-viewer-task-' + task.id; list.appendChild(li); }
                 const done = isCompletedTask(task);
                 const backlog = isBacklogTask(task);
-                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '') + (backlog ? ' is-backlog' : '');
+                const timer = isTimerTask(task);
+                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '') + (backlog ? ' is-backlog' : '') + (timer ? ' is-timer' : '');
                 const userName = String(task?.user_name || '').trim() || 'Unknown';
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
                 const taskUserId = task?.user_id !== undefined && task?.user_id !== null

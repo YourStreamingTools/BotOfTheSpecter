@@ -1296,6 +1296,11 @@ html, body {
     position: relative;
 }
 
+.study-overlay-page-task-sys-item.is-timer .study-overlay-page-task-sys-item-check {
+    border-color: #9b51e0;
+    color: #9b51e0;
+}
+
 .study-overlay-page-task-sys-item-body {
     flex: 1;
     min-width: 0;
