@@ -7592,6 +7592,13 @@ class TwitchBot(commands.AutoBot):
                     if count == 0:
                         await send_chat_message(f"@{user_name} you don't have any completed tasks to clear.")
                         return
+                    # Fetch IDs before deleting so we can tell the overlay to remove each one
+                    await cursor.execute(
+                        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
+                        (user_id, project)
+                    )
+                    completed_rows = await cursor.fetchall()
+                    completed_ids = [r.get('id') for r in completed_rows if r.get('id')]
                     await cursor.execute(
                         "DELETE FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
                         (user_id, project)
@@ -7599,13 +7606,16 @@ class TwitchBot(commands.AutoBot):
                     await connection.commit()
                     await send_chat_message(f"@{user_name} cleared {count} completed task(s) from your done list.")
                     add_usage('taskclear', bucket_key, cooldown_bucket)
-                    create_task(websocket_notice(event="SPECTER_TASKLIST_UPDATE", additional_data={
-                        "channel_code": API_TOKEN,
-                        "owner": "user",
-                        "user_id": user_id,
-                        "user_name": user_name,
-                        "project": project,
-                    }))
+                    # Emit TASK_DELETE for each cleared task so the overlay removes them
+                    for tid in completed_ids:
+                        create_task(websocket_notice(event="TASK_DELETE", additional_data={
+                            "channel_code": API_TOKEN,
+                            "owner": "user",
+                            "task_id": tid,
+                            "user_id": user_id,
+                            "user_name": user_name,
+                            "project": project,
+                        }))
         except Exception as e:
             chat_logger.error(f"[TASKCLEAR] Error in taskclear_command: {e}")
             await send_chat_message("An error occurred while clearing your completed tasks.")
