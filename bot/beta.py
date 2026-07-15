@@ -8485,6 +8485,70 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='taskclear')
+    async def taskclear_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("taskclear",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('taskclear', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    
+                    user_id = str(ctx.author.id)
+                    user_name = ctx.author.name
+                    project = await resolve_active_project(cursor, user_id)
+                    
+                    await cursor.execute(
+                        "SELECT COUNT(*) as count FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
+                        (user_id, project)
+                    )
+                    count_res = await cursor.fetchone()
+                    count = count_res['count'] if count_res else 0
+                    
+                    if count == 0:
+                        await send_chat_message(f"@{user_name} you don't have any completed tasks to clear.")
+                        return
+                        
+                    # Soft-delete by setting status to archived
+                    await cursor.execute(
+                        "UPDATE user_tasks SET status = 'archived' WHERE user_id = %s AND status = 'completed' AND project <=> %s",
+                        (user_id, project)
+                    )
+                    await connection.commit()
+                    
+                    await send_chat_message(f"@{user_name} cleared {count} completed task(s) from your done list.")
+                    add_usage('taskclear', bucket_key, cooldown_bucket)
+                    
+                    # Update overlay if they are connected
+                    safe_create_task(websocket_notice(event="SPECTER_TASKLIST_UPDATE", additional_data={
+                        "channel_code": API_TOKEN,
+                        "owner": "user",
+                        "user_id": user_id,
+                        "user_name": user_name,
+                        "project": project,
+                    }))
+        except Exception as e:
+            chat_logger.error(f"[TASKCLEAR] Error in taskclear_command: {e}")
+            await send_chat_message("An error occurred while clearing your completed tasks.")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='mytasks')
     async def mytasks_command(self, ctx):
         global bot_owner

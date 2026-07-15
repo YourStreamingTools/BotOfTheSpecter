@@ -175,6 +175,10 @@
 			"description": "Outputs a short help message with the most useful Working & Study commands.",
 			"syntax": "!taskhelp"
 		},
+		"taskclear": {
+			"description": "Clears all completed tasks from your Working & Study done list for the current project.",
+			"syntax": "!taskclear"
+		},
 		"kill": {
 			"description": "Simulates a fun in-chat kill action targeting a mentioned user.",
 			"syntax": "!kill @botofthespecter"
