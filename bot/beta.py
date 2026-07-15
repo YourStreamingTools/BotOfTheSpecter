@@ -8261,6 +8261,7 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
+                    owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
                     # !done <n> or !done <n>; <m> — complete specific backlog item(s) (does not touch the active task).
                     if arg and all(p.strip().isdigit() for p in arg.split(';') if p.strip()):
                         raw_parts = [p.strip() for p in arg.split(';') if p.strip()]
