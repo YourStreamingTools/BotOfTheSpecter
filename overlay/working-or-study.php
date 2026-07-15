@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             }
         }
         if ($ut_exists) {
-            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project, backlog_position FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
             if ($u && $u->execute()) {
                 $all_user_tasks = $u->get_result()->fetch_all(MYSQLI_ASSOC);
                 $u->close();
@@ -1143,7 +1143,12 @@ ob_end_clean();
                         list.appendChild(headerLi);
                     }
                     const taskDescription = getTaskDescription(t) || 'Untitled task';
-                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${t.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
+                    let badgeText = '';
+                    if (done) badgeText = '✓';
+                    else if (isActiveTask(t)) badgeText = '►';
+                    else if (t.backlog_position) badgeText = t.backlog_position;
+                    else badgeText = '—';
+                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${badgeText}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
                     list.appendChild(li);
                 });
                 // Re-attach any live pomo badges to their viewer rows (rows rebuilt).
@@ -1316,7 +1321,12 @@ ob_end_clean();
                 const done = task.status === 'completed';
                 li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${task.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
+                let badgeText = '';
+                if (done) badgeText = '✓';
+                else if (String(task?.status || '').toLowerCase() === 'active') badgeText = '►';
+                else if (task.backlog_position) badgeText = task.backlog_position;
+                else badgeText = '—';
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${badgeText}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
             };
             const newViewerUpsert = (task) => {
@@ -1336,7 +1346,12 @@ ob_end_clean();
                 } else {
                     delete li.dataset.userId;
                 }
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${task.id}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
+                let badgeText = '';
+                if (done) badgeText = '✓';
+                else if (String(task?.status || '').toLowerCase() === 'active') badgeText = '►';
+                else if (task.backlog_position) badgeText = task.backlog_position;
+                else badgeText = '—';
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${badgeText}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
                 if (typeof attachPomoBadgeToRow === 'function') {
                     attachPomoBadgeToRow(taskUserId);
                 }
