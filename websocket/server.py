@@ -515,18 +515,25 @@ class BotOfTheSpecter_WebsocketServer:
         return n
 
     async def handle_user_pomo_start(self, sid, data):
+        # Bot owns user_pomos writes + timer schedule. WS only fans out for overlays.
         payload = data if isinstance(data, dict) else {}
         code = self.get_code_by_sid(sid) or payload.get('code') or payload.get('channel_code')
-        self.logger.info(f"USER_POMO_START from [{sid}] (code: {code}): {payload}")
-        await self.handle_user_pomo_start_http(code, payload, source_sid=sid)
+        self.logger.info(f"USER_POMO_START broadcast from [{sid}] (code: {code})")
+        if code and isinstance(payload, dict) and not payload.get('channel_code'):
+            payload = {**payload, "channel_code": code}
+        await self.broadcast_to_task_clients_only("USER_POMO_START", payload, source_sid=sid)
 
     async def handle_user_pomo_cancel(self, sid, data):
+        # Bot owns cancel. WS only fans out for overlays.
         payload = data if isinstance(data, dict) else {}
         code = self.get_code_by_sid(sid) or payload.get('code') or payload.get('channel_code')
-        self.logger.info(f"USER_POMO_CANCEL from [{sid}] (code: {code}): {payload}")
-        await self.handle_user_pomo_cancel_http(code, payload, source_sid=sid)
+        self.logger.info(f"USER_POMO_CANCEL broadcast from [{sid}] (code: {code})")
+        if code and isinstance(payload, dict) and not payload.get('channel_code'):
+            payload = {**payload, "channel_code": code}
+        await self.broadcast_to_task_clients_only("USER_POMO_CANCEL", payload, source_sid=sid)
 
     async def handle_user_pomo_outbound(self, sid, data):
+        # UPDATE / PHASE / COMPLETE are bot→overlay only (via /notify). Ignore client emits.
         self.logger.debug(f"Ignoring inbound outbound-only pomo event from [{sid}]")
 
     async def _resolve_pomo_db(self, code):
@@ -1383,10 +1390,12 @@ class BotOfTheSpecter_WebsocketServer:
                 except (ValueError, TypeError):
                     pass
             count = await self.broadcast_to_task_clients_only(event, data)
-        elif event == "USER_POMO_START":
-            count = await self.handle_user_pomo_start_http(code, data)
-        elif event == "USER_POMO_CANCEL":
-            count = await self.handle_user_pomo_cancel_http(code, data)
+        elif event in [
+            "USER_POMO_START", "USER_POMO_CANCEL", "USER_POMO_UPDATE",
+            "USER_POMO_PHASE", "USER_POMO_COMPLETE",
+        ]:
+            # Personal timers are bot-owned (DB + schedule). /notify only fans out to overlays.
+            count = await self.broadcast_to_task_clients_only(event, data)
         elif is_service_admin:
             # Service-scoped admin key (global custom webhook): deliver the custom
             # event to global listeners only, tagged with the service name. Strip the
@@ -1691,8 +1700,8 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info("Starting application startup tasks...")
         # Start the SSH cleanup task
         await self.start_ssh_cleanup_task()
-        # Start the personal-pomo ticker (Phase 3 — drives all USER_POMO_* transitions)
-        await self.start_pomo_ticker_task()
+        # Personal pomos are bot-owned (DB phase_ends_at + chat tag). Do not run a WS ticker.
+        self.logger.info("Pomo ticker disabled — bot owns personal timer lifecycle")
         # Start the TTS processing task
         await self.tts_handler.start_processing()
         # Write (or touch) an uptime marker file so external services can read websocket start time via SSH

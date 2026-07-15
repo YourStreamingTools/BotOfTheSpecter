@@ -275,7 +275,7 @@ song_requests = {}                                                              
 looped_tasks = {}                                                                       # Set for looped tasks
 active_timed_messages = {}                                                              # Dictionary to track active timed message IDs and their details
 message_tasks = {}                                                                      # Dictionary to track individual message tasks by ID
-active_timer_routines = {}                                                              # Dictionary to track active user timer routines by user_id
+active_timer_routines = {}                                                              # Dictionary to track active personal-timer routines by user_id (key: pomo_{user_id})
 gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
 _tanggle_no_creds_logged = False                                                        # Tracks whether the "no credentials" message has been logged for Tanggle
@@ -3493,6 +3493,8 @@ class TwitchBot(commands.Bot):
                 irc_presence=twitch_irc_presence,
                 get_stream_started_at=lambda: stream_session_started_at,
             ))
+        # Resume any personal timers that survived a bot restart (phase_ends_at in DB).
+        safe_create_task(resume_active_pomos())
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -9246,17 +9248,16 @@ class TwitchBot(commands.Bot):
                         )
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    # !personaltimer cancel/stop — ask the server to cancel the chatter's active timer.
+                    # !personaltimer cancel/stop — bot owns user_pomos; cancel routine + DB + overlay notify.
                     if arg.lower() in ('cancel', 'stop'):
-                        safe_create_task(websocket_notice(event="USER_POMO_CANCEL", additional_data={
-                            "channel_code": API_TOKEN,
-                            "user_id": user_id,
-                            "user_name": user_name,
-                        }))
-                        await send_chat_message(f"@{user_name} cancelling your timer.")
+                        cancelled = await cancel_user_pomo(user_id, user_name)
+                        if cancelled:
+                            await send_chat_message(f"@{user_name} your timer has been cancelled.")
+                        else:
+                            await send_chat_message(f"@{user_name} you have no active timer to cancel.")
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    # !personaltimer <spec> <label> — start (or replace) a timer.
+                    # !personaltimer <spec> <label> — start (or replace) a timer. Bot writes DB + schedules finish.
                     spec_parts = arg.split(' ', 1)
                     spec_token = spec_parts[0].strip()
                     label = spec_parts[1].strip() if len(spec_parts) > 1 else ''
@@ -9268,7 +9269,7 @@ class TwitchBot(commands.Bot):
                         )
                         return
                     work_minutes, break_minutes, total_cycles = parsed
-                    # Sane guardrails to prevent abuse (locked decision §8.4 keeps one pomo per viewer).
+                    # Sane guardrails to prevent abuse (one active pomo per viewer).
                     if not (1 <= work_minutes <= 600):
                         await send_chat_message(f"@{user_name} work minutes must be 1-600.")
                         return
@@ -9278,15 +9279,7 @@ class TwitchBot(commands.Bot):
                     if not (1 <= total_cycles <= 24):
                         await send_chat_message(f"@{user_name} cycles must be 1-24.")
                         return
-                    safe_create_task(websocket_notice(event="USER_POMO_START", additional_data={
-                        "channel_code": API_TOKEN,
-                        "user_id": user_id,
-                        "user_name": user_name,
-                        "label": label,
-                        "work_minutes": work_minutes,
-                        "break_minutes": break_minutes,
-                        "total_cycles": total_cycles,
-                    }))
+                    await start_user_pomo(user_id, user_name, label, work_minutes, break_minutes, total_cycles)
                     label_part = f" [{label}]" if label else ""
                     if total_cycles > 1:
                         await send_chat_message(
@@ -12363,6 +12356,391 @@ def parse_pomo_spec(spec):
     except ValueError:
         return None
     return (work, 0, 1)
+
+def _pomo_routine_key(user_id):
+    return f"pomo_{user_id}"
+
+def cancel_pomo_routine(user_id):
+    key = _pomo_routine_key(user_id)
+    task = active_timer_routines.pop(key, None)
+    if task and not task.done():
+        task.cancel()
+        return True
+    return False
+
+def schedule_pomo_routine(user_id):
+    cancel_pomo_routine(user_id)
+    key = _pomo_routine_key(user_id)
+    active_timer_routines[key] = safe_create_task(run_pomo_until_done(str(user_id)))
+
+def emit_pomo_event(event, payload):
+    safe_create_task(websocket_notice(event=event, additional_data=payload))
+
+def pomo_row_to_payload(row):
+    remaining = row.get('remaining_seconds')
+    try:
+        remaining = max(0, int(remaining)) if remaining is not None else 0
+    except (TypeError, ValueError):
+        remaining = 0
+    return {
+        "channel_code": API_TOKEN,
+        "id": row.get('id'),
+        "user_id": str(row.get('user_id')) if row.get('user_id') is not None else None,
+        "user_name": row.get('user_name'),
+        "label": row.get('label'),
+        "work_minutes": int(row.get('work_minutes') or 0),
+        "break_minutes": int(row.get('break_minutes') or 0),
+        "total_cycles": int(row.get('total_cycles') or 1),
+        "current_cycle": int(row.get('current_cycle') or 1),
+        "current_phase": row.get('current_phase') or 'work',
+        "phase_started_at": row.get('phase_started_at'),
+        "phase_ends_at": row.get('phase_ends_at'),
+        "remaining_seconds": remaining,
+        "status": row.get('status') or 'active',
+    }
+
+async def fetch_active_pomo(user_id):
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                "current_cycle, current_phase, task_id, "
+                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                "FROM user_pomos WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
+                (str(user_id),)
+            )
+            return await cursor.fetchone()
+    except Exception as e:
+        bot_logger.error(f"[POMO] fetch_active_pomo({user_id}) error: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.close()
+
+async def fetch_pomo_by_id(pomo_id):
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                "current_cycle, current_phase, task_id, "
+                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                "FROM user_pomos WHERE id = %s LIMIT 1",
+                (pomo_id,)
+            )
+            return await cursor.fetchone()
+    except Exception as e:
+        bot_logger.error(f"[POMO] fetch_pomo_by_id({pomo_id}) error: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.close()
+
+async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes, total_cycles):
+    # Single-active / replace-on-new: cancel any existing routine + row, insert fresh, schedule.
+    user_id = str(user_id)
+    cancel_pomo_routine(user_id)
+    connection = None
+    row = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            is_streamer = (user_name or '').lower() == (CHANNEL_NAME or '').lower()
+            task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
+            task_owner = 'streamer' if is_streamer else 'user'
+            await cursor.execute(
+                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                (user_id,)
+            )
+            old_pomos = await cursor.fetchall()
+            for old in (old_pomos or []):
+                old_task_id = old.get('task_id')
+                if old_task_id:
+                    await cursor.execute(
+                        f"UPDATE {task_table} SET status = 'rejected' WHERE id = %s",
+                        (old_task_id,)
+                    )
+                    safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
+                        "channel_code": API_TOKEN, "id": old_task_id, "owner": task_owner,
+                        "user_id": user_id, "user_name": user_name,
+                    }))
+            await cursor.execute(
+                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "WHERE user_id = %s AND status = 'active'",
+                (user_id,)
+            )
+            if old_pomos:
+                emit_pomo_event("USER_POMO_CANCEL", {
+                    "channel_code": API_TOKEN, "user_id": user_id, "user_name": user_name,
+                    "reason": "replaced",
+                })
+            task_title = label if label else f"Timer ({work_minutes}m)"
+            task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
+            if is_streamer:
+                await cursor.execute(
+                    f"INSERT INTO {task_table} (title, description, category, status, approval_status, "
+                    "reward_points, project, backlog_position, user_id, user_name, task_type) "
+                    "VALUES (%s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, %s, %s, 'timer')",
+                    (task_title, task_desc, user_id, user_name)
+                )
+            else:
+                await cursor.execute(
+                    f"INSERT INTO {task_table} (user_id, user_name, title, description, category, status, "
+                    "approval_status, reward_points, backlog_position, project, task_type) "
+                    "VALUES (%s, %s, %s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, 'timer')",
+                    (user_id, user_name, task_title, task_desc)
+                )
+            await cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
+            res_id = await cursor.fetchone()
+            task_id = res_id.get('last_id') if res_id else None
+            label_val = label if label else None
+            await cursor.execute(
+                "INSERT INTO user_pomos "
+                "(user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                " current_cycle, current_phase, phase_started_at, phase_ends_at, status, task_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, 1, 'work', NOW(), "
+                " DATE_ADD(NOW(), INTERVAL %s MINUTE), 'active', %s)",
+                (user_id, user_name, label_val, work_minutes, break_minutes, total_cycles, work_minutes, task_id)
+            )
+            await cursor.execute(
+                "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
+                "current_cycle, current_phase, task_id, "
+                "DATE_FORMAT(phase_started_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_started_at, "
+                "DATE_FORMAT(phase_ends_at, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS phase_ends_at, "
+                "TIMESTAMPDIFF(SECOND, NOW(), phase_ends_at) AS remaining_seconds, status "
+                "FROM user_pomos WHERE user_id = %s AND status = 'active' ORDER BY id DESC LIMIT 1",
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+            if not row:
+                bot_logger.error(f"[POMO] start_user_pomo: row missing after insert for {user_name}")
+                return None
+            emit_pomo_event("USER_POMO_START", pomo_row_to_payload(row))
+            if task_id:
+                emit_task_create({
+                    "id": task_id,
+                    "user_id": user_id,
+                    "user_name": user_name,
+                    "title": task_title,
+                    "description": task_desc,
+                    "category": "Timer",
+                    "status": "active",
+                    "approval_status": "auto",
+                    "reward_points": 0,
+                    "backlog_position": None,
+                    "project": None,
+                    "task_type": "timer",
+                    "owner": task_owner,
+                }, owner=task_owner)
+            bot_logger.info(f"[POMO] started pomo {row.get('id')} for {user_name} ({work_minutes}m x{total_cycles})")
+    except Exception as e:
+        bot_logger.error(f"[POMO] start_user_pomo error: {e}", exc_info=True)
+        return None
+    finally:
+        if connection:
+            await connection.close()
+    schedule_pomo_routine(user_id)
+    return row
+
+async def cancel_user_pomo(user_id, user_name):
+    user_id = str(user_id)
+    cancel_pomo_routine(user_id)
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            is_streamer = (user_name or '').lower() == (CHANNEL_NAME or '').lower()
+            task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
+            task_owner = 'streamer' if is_streamer else 'user'
+            await cursor.execute(
+                "SELECT task_id FROM user_pomos WHERE user_id = %s AND status = 'active'",
+                (user_id,)
+            )
+            old_pomos = await cursor.fetchall()
+            if not old_pomos:
+                return False
+            await cursor.execute(
+                "UPDATE user_pomos SET status = 'cancelled', current_phase = 'cancelled' "
+                "WHERE user_id = %s AND status = 'active'",
+                (user_id,)
+            )
+            for old in old_pomos:
+                old_task_id = old.get('task_id')
+                if old_task_id:
+                    await cursor.execute(
+                        f"UPDATE {task_table} SET status = 'rejected' WHERE id = %s",
+                        (old_task_id,)
+                    )
+                    safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
+                        "channel_code": API_TOKEN, "id": old_task_id, "owner": task_owner,
+                        "user_id": user_id, "user_name": user_name,
+                    }))
+            emit_pomo_event("USER_POMO_CANCEL", {
+                "channel_code": API_TOKEN, "user_id": user_id, "user_name": user_name,
+                "reason": "cancelled",
+            })
+            bot_logger.info(f"[POMO] cancelled pomo for {user_name}")
+            return True
+    except Exception as e:
+        bot_logger.error(f"[POMO] cancel_user_pomo error: {e}", exc_info=True)
+        return False
+    finally:
+        if connection:
+            await connection.close()
+
+async def advance_pomo_phase(row):
+    # Advance one expired phase. Returns 'completed' or 'phase'.
+    pomo_id = row.get('id')
+    work_minutes = int(row.get('work_minutes') or 0)
+    break_minutes = int(row.get('break_minutes') or 0)
+    total_cycles = int(row.get('total_cycles') or 1)
+    current_cycle = int(row.get('current_cycle') or 1)
+    current_phase = row.get('current_phase') or 'work'
+    user_id = str(row.get('user_id'))
+    user_name = row.get('user_name') or 'unknown'
+    task_id = row.get('task_id')
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            if current_phase == 'work':
+                if current_cycle >= total_cycles:
+                    await cursor.execute(
+                        "UPDATE user_pomos SET status = 'completed', current_phase = 'completed' WHERE id = %s",
+                        (pomo_id,)
+                    )
+                    done = await fetch_pomo_by_id(pomo_id)
+                    if done:
+                        emit_pomo_event("USER_POMO_COMPLETE", pomo_row_to_payload(done))
+                    if task_id:
+                        is_streamer = user_name.lower() == (CHANNEL_NAME or '').lower()
+                        task_table = 'streamer_tasks' if is_streamer else 'user_tasks'
+                        task_owner = 'streamer' if is_streamer else 'user'
+                        await cursor.execute(
+                            f"UPDATE {task_table} SET status = 'completed', completed_at = NOW() WHERE id = %s",
+                            (task_id,)
+                        )
+                        emit_task_complete(task_id, user_id, user_name, row.get('label') or f"Timer ({work_minutes}m)", owner=task_owner)
+                    return 'completed'
+                elif break_minutes > 0:
+                    await cursor.execute(
+                        "UPDATE user_pomos SET current_phase = 'break', phase_started_at = phase_ends_at, "
+                        "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
+                        (break_minutes, pomo_id)
+                    )
+                else:
+                    await cursor.execute(
+                        "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                        "phase_started_at = phase_ends_at, "
+                        "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
+                        (work_minutes, pomo_id)
+                    )
+            else:
+                # break ending -> next work cycle
+                await cursor.execute(
+                    "UPDATE user_pomos SET current_cycle = current_cycle + 1, current_phase = 'work', "
+                    "phase_started_at = phase_ends_at, "
+                    "phase_ends_at = DATE_ADD(phase_ends_at, INTERVAL %s MINUTE) WHERE id = %s",
+                    (work_minutes, pomo_id)
+                )
+            fresh = await fetch_pomo_by_id(pomo_id)
+            if fresh:
+                emit_pomo_event("USER_POMO_PHASE", pomo_row_to_payload(fresh))
+            return 'phase'
+    except Exception as e:
+        bot_logger.error(f"[POMO] advance_pomo_phase({pomo_id}) error: {e}", exc_info=True)
+        return 'error'
+    finally:
+        if connection:
+            await connection.close()
+
+async def announce_pomo_complete(row):
+    user_name = row.get('user_name') or 'unknown'
+    label = (row.get('label') or '').strip()
+    label_part = f" [{label}]" if label else ""
+    total_cycles = int(row.get('total_cycles') or 1)
+    work_minutes = int(row.get('work_minutes') or 0)
+    if total_cycles > 1:
+        msg = f"@{user_name} timer{label_part} is done! All {total_cycles} cycles finished."
+    elif work_minutes > 0:
+        msg = f"@{user_name} timer{label_part} is done! ({work_minutes}m focus complete)"
+    else:
+        msg = f"@{user_name} timer{label_part} is done!"
+    try:
+        await send_chat_message(msg)
+        bot_logger.info(f"[POMO] chat announced complete for {user_name}")
+    except Exception as e:
+        bot_logger.error(f"[POMO] failed to announce complete for {user_name}: {e}")
+
+async def run_pomo_until_done(user_id):
+    # Sleep until phase_ends_at from the DB, advance phases, tag chat when fully complete.
+    user_id = str(user_id)
+    try:
+        while True:
+            row = await fetch_active_pomo(user_id)
+            if not row:
+                active_timer_routines.pop(_pomo_routine_key(user_id), None)
+                return
+            pomo_id = row.get('id')
+            remaining = max(0, int(row.get('remaining_seconds') or 0))
+            if remaining > 0:
+                bot_logger.info(f"[POMO] waiting {remaining}s for pomo {pomo_id} ({row.get('user_name')})")
+                await sleep(remaining)
+            row = await fetch_active_pomo(user_id)
+            if not row or row.get('id') != pomo_id:
+                active_timer_routines.pop(_pomo_routine_key(user_id), None)
+                return
+            rem2 = max(0, int(row.get('remaining_seconds') or 0))
+            if rem2 > 0:
+                # Not expired yet (clock skew / early wake) — loop and re-wait.
+                continue
+            result = await advance_pomo_phase(row)
+            if result == 'completed':
+                done = await fetch_pomo_by_id(pomo_id)
+                await announce_pomo_complete(done or row)
+                active_timer_routines.pop(_pomo_routine_key(user_id), None)
+                return
+            if result == 'error':
+                active_timer_routines.pop(_pomo_routine_key(user_id), None)
+                return
+            # Phase advanced (work<->break); loop for the next phase_ends_at.
+    except asyncioCancelledError:
+        bot_logger.info(f"[POMO] routine cancelled for user_id={user_id}")
+        raise
+    except Exception as e:
+        bot_logger.error(f"[POMO] run_pomo_until_done({user_id}) error: {e}", exc_info=True)
+        active_timer_routines.pop(_pomo_routine_key(user_id), None)
+
+async def resume_active_pomos():
+    # On bot ready: re-schedule any still-active personal timers from the DB.
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT DISTINCT user_id FROM user_pomos WHERE status = 'active'"
+            )
+            rows = await cursor.fetchall()
+        count = 0
+        for r in (rows or []):
+            uid = r.get('user_id')
+            if not uid:
+                continue
+            schedule_pomo_routine(str(uid))
+            count += 1
+        bot_logger.info(f"[POMO] resumed {count} active personal timer(s) from DB")
+    except Exception as e:
+        bot_logger.error(f"[POMO] resume_active_pomos error: {e}", exc_info=True)
+    finally:
+        if connection:
+            await connection.close()
 
 # Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
@@ -15685,14 +16063,15 @@ async def websocket_notice(
                             if _task_val is None:
                                 continue
                             params[_task_key] = json.dumps(_task_val) if isinstance(_task_val, (dict, list)) else _task_val
-                elif event in ["USER_POMO_START", "USER_POMO_CANCEL"]:
-                    # Phase 3 personal pomo events. The bot does NOT write user_pomos — the
-                    # websocket server is the single writer. These flat params (user_id,
-                    # user_name, label, work_minutes, break_minutes, total_cycles) are read
-                    # by the server's /notify handler, which creates/cancels the row and
-                    # then broadcasts to task-aware overlays.
+                elif event in [
+                    "USER_POMO_START", "USER_POMO_CANCEL", "USER_POMO_UPDATE",
+                    "USER_POMO_PHASE", "USER_POMO_COMPLETE",
+                ]:
+                    # Personal timers are bot-owned (DB + schedule). WS only fans out to overlays.
                     if additional_data:
                         for _pomo_key, _pomo_val in additional_data.items():
+                            if _pomo_val is None:
+                                continue
                             params[_pomo_key] = json.dumps(_pomo_val) if isinstance(_pomo_val, (dict, list)) else _pomo_val
                 else:
                     websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters or is not recognized")
