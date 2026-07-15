@@ -1,4 +1,4 @@
-# Standard library imports
+﻿# Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect, uuid
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
@@ -8508,39 +8508,43 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('taskclear', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
-                    
                     await cursor.execute(
                         "SELECT COUNT(*) as count FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
                         (user_id, project)
                     )
                     count_res = await cursor.fetchone()
                     count = count_res['count'] if count_res else 0
-                    
                     if count == 0:
                         await send_chat_message(f"@{user_name} you don't have any completed tasks to clear.")
                         return
                         
+                    # Fetch IDs before deleting so we can tell the overlay to remove each one
+                    await cursor.execute(
+                        "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
+                        (user_id, project)
+                    )
+                    completed_rows = await cursor.fetchall()
+                    completed_ids = [r.get('id') for r in completed_rows if r.get('id')]
                     await cursor.execute(
                         "DELETE FROM user_tasks WHERE user_id = %s AND status = 'completed' AND project <=> %s",
                         (user_id, project)
                     )
                     await connection.commit()
-                    
                     await send_chat_message(f"@{user_name} cleared {count} completed task(s) from your done list.")
                     add_usage('taskclear', bucket_key, cooldown_bucket)
-                    
-                    # Update overlay if they are connected
-                    safe_create_task(websocket_notice(event="SPECTER_TASKLIST_UPDATE", additional_data={
-                        "channel_code": API_TOKEN,
-                        "owner": "user",
-                        "user_id": user_id,
-                        "user_name": user_name,
-                        "project": project,
-                    }))
+                    # Emit TASK_DELETE for each cleared task so the overlay removes them
+                    for tid in completed_ids:
+                        safe_create_task(websocket_notice(event="TASK_DELETE", additional_data={
+                            "channel_code": API_TOKEN,
+                            "owner": "user",
+                            "task_id": tid,
+                            "user_id": user_id,
+                            "user_name": user_name,
+                            "project": project,
+                        }))
         except Exception as e:
             chat_logger.error(f"[TASKCLEAR] Error in taskclear_command: {e}")
             await send_chat_message("An error occurred while clearing your completed tasks.")
