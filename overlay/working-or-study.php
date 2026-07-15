@@ -1231,7 +1231,16 @@ ob_end_clean();
                 const list = document.getElementById('newStreamerTaskList');
                 if (!list) return;
                 list.innerHTML = '';
-                tasks.forEach(t => newStreamerUpsert(t));
+                const sortedTasks = [...tasks].sort((a, b) => {
+                    const rankA = isActiveTask(a) ? 0 : isBacklogTask(a) ? 1 : 2;
+                    const rankB = isActiveTask(b) ? 0 : isBacklogTask(b) ? 1 : 2;
+                    if (rankA !== rankB) return rankA - rankB;
+                    // Within backlog, sort by position ascending
+                    const posA = a.backlog_position ?? Infinity;
+                    const posB = b.backlog_position ?? Infinity;
+                    return posA - posB;
+                });
+                sortedTasks.forEach(t => newStreamerUpsert(t));
                 refreshTaskListAutoScroll();
             };
             const renderNewViewerList = (tasks) => {
