@@ -259,11 +259,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $points   = max(0, intval($_POST['reward_points'] ?? 0));
         $project  = trim($_POST['project'] ?? '');
         if (!$title) { echo json_encode(['success' => false, 'error' => 'Title required']); exit; }
-        $stmt = $db->prepare("INSERT INTO streamer_tasks (title, description, category, reward_points, project) VALUES (?, ?, ?, ?, ?)");
+        $pos = 1;
+        $pos_res = $db->query("SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM streamer_tasks");
+        if ($pos_res) {
+            $row = $pos_res->fetch_assoc();
+            $pos = intval($row['max_pos'] ?? 0) + 1;
+        }
+        $stmt = $db->prepare("INSERT INTO streamer_tasks (title, description, category, reward_points, project, backlog_position) VALUES (?, ?, ?, ?, ?, ?)");
         if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
-        $stmt->bind_param("sssis", $title, $desc, $category, $points, $project);
+        $stmt->bind_param("sssiis", $title, $desc, $category, $points, $project, $pos);
         $ok = $stmt->execute(); $id = $db->insert_id; $stmt->close();
-        echo json_encode(['success' => $ok, 'id' => $id]);
+        echo json_encode(['success' => $ok, 'id' => $id, 'backlog_position' => $pos]);
         exit;
     }
     if ($action === 'ch_update_streamer_task') {
@@ -1812,10 +1818,11 @@ ob_start();
             ? '<span class="has-text-grey">&mdash;</span>'
             : `<span class="tag is-light">${chEsc(task.project)}</span>`;
 
-        // Render title with backlog ID if available
+        // Render title with backlog ID if available (fallback to database id if backlog_position is not set)
         let titleHtml = chEsc(task.title);
-        if (task.backlog_position) {
-            titleHtml = `<span class="has-text-grey">#${task.backlog_position}</span> <strong>${chEsc(task.title)}</strong>`;
+        const displayId = task.backlog_position || task.id;
+        if (displayId) {
+            titleHtml = `<span class="has-text-grey">#${displayId}</span> <strong>${chEsc(task.title)}</strong>`;
         } else {
             titleHtml = `<strong>${chEsc(task.title)}</strong>`;
         }

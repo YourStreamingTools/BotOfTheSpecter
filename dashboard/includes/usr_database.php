@@ -1405,6 +1405,11 @@ try {
             }
         }
     }
+    // Migration: streamer_tasks - backfill NULL backlog_position values with id
+    $streamer_tasks_exists = $usrDBconn->query("SHOW TABLES LIKE 'streamer_tasks'")->num_rows > 0;
+    if ($streamer_tasks_exists) {
+        $usrDBconn->query("UPDATE streamer_tasks SET backlog_position = id WHERE backlog_position IS NULL");
+    }
     // Ensure default options for credits_overlay_settings exist
     if ($usrDBconn->query("INSERT INTO credits_overlay_settings (scroll_speed, text_color, font_family, looping) SELECT 50, '#FFFFFF', 'Arial', 1 WHERE NOT EXISTS (SELECT 1 FROM credits_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default credits_overlay_settings options ensured.');
