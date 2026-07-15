@@ -14397,6 +14397,11 @@ async def builtin_commands_creation():
                 await connection.commit()
                 for command in new_commands:
                     bot_logger.info(f"Command '{command}' added to database successfully.")
+            # Force task-related commands to have 0 cooldown
+            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "tasktimer", "taskhelp"]
+            task_placeholders = ', '.join(['%s'] * len(task_cmds))
+            await cursor.execute(f"UPDATE builtin_commands SET cooldown_rate = 0, cooldown_time = 0 WHERE command IN ({task_placeholders})", tuple(task_cmds))
+            await connection.commit()
     except MySQLOtherErrors as e:
         bot_logger.error(f"builtin_commands_creation function error: {e}")
     finally:
