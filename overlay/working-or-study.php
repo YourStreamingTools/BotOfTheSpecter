@@ -176,19 +176,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
             }
         }
         if ($ut_exists) {
-            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project, backlog_position FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            $u = $user_db->prepare("SELECT id, user_id, user_name, title, description, status, reward_points, completed_at, project FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
             if ($u && $u->execute()) {
-                $all_user_tasks = $u->get_result()->fetch_all(MYSQLI_ASSOC);
+                $user_tasks_arr = $u->get_result()->fetch_all(MYSQLI_ASSOC);
                 $u->close();
-                foreach ($all_user_tasks as $task) {
-                    if (strcasecmp($task['user_name'], $username) === 0) {
-                        $task['owner'] = 'streamer';
-                        $streamer_tasks_arr[] = $task;
-                    } else {
-                        $task['owner'] = 'user';
-                        $user_tasks_arr[] = $task;
-                    }
-                }
             }
         }
         echo json_encode(['success' => true, 'streamer_tasks' => $streamer_tasks_arr, 'user_tasks' => $user_tasks_arr]);
@@ -1109,19 +1100,8 @@ ob_end_clean();
                 });
                 const visibleRows = UNIFIED_OMIT_BACKLOG ? rows.filter(r => !isBacklogTask(r.task)) : rows;
                 const rank = r => (isActiveTask(r.task) ? 0 : 1);
-                visibleRows.sort((a, b) => {
-                    if (a.owner === 'streamer' && b.owner !== 'streamer') return -1;
-                    if (a.owner !== 'streamer' && b.owner === 'streamer') return 1;
-                    const nameA = String(a.userName).toLowerCase();
-                    const nameB = String(b.userName).toLowerCase();
-                    if (nameA < nameB) return -1;
-                    if (nameA > nameB) return 1;
-                    const rankDiff = rank(a) - rank(b);
-                    if (rankDiff !== 0) return rankDiff;
-                    return b.task.id - a.task.id;
-                });
+                visibleRows.sort((a, b) => rank(a) - rank(b));
                 list.innerHTML = '';
-                let lastUserName = null;
                 visibleRows.forEach(r => {
                     const t = r.task;
                     const li = document.createElement('li');
@@ -1134,21 +1114,8 @@ ob_end_clean();
                     if (r.userId) {
                         li.dataset.userId = r.userId;
                     }
-                    const nameLower = String(r.userName).toLowerCase();
-                    if (lastUserName !== nameLower) {
-                        lastUserName = nameLower;
-                        const headerLi = document.createElement('li');
-                        headerLi.className = 'study-overlay-page-task-sys-user-header';
-                        headerLi.innerHTML = escapeHtml(r.userName);
-                        list.appendChild(headerLi);
-                    }
                     const taskDescription = getTaskDescription(t) || 'Untitled task';
-                    let badgeText = '';
-                    if (done) badgeText = '✓';
-                    else if (isActiveTask(t)) badgeText = '►';
-                    else if (t.backlog_position) badgeText = t.backlog_position;
-                    else badgeText = '—';
-                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${badgeText}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
+                    li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(r.userName)}: ${escapeHtml(taskDescription)}</div>${r.owner === 'viewer' ? projectChipHtml(t) : ''}</div>`;
                     list.appendChild(li);
                 });
                 // Re-attach any live pomo badges to their viewer rows (rows rebuilt).
@@ -1271,29 +1238,7 @@ ob_end_clean();
                 const list = document.getElementById('newViewerTaskList');
                 if (!list) return;
                 list.innerHTML = '';
-                const sortedTasks = [...tasks].sort((a, b) => {
-                    const nameA = String(a.user_name || '').toLowerCase();
-                    const nameB = String(b.user_name || '').toLowerCase();
-                    if (nameA < nameB) return -1;
-                    if (nameA > nameB) return 1;
-                    const rankA = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
-                    const rankB = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
-                    if (rankA !== rankB) return rankA - rankB;
-                    return b.id - a.id;
-                });
-                let lastUserName = null;
-                sortedTasks.forEach(t => {
-                    const userName = String(t.user_name || '').trim() || 'Unknown';
-                    const nameLower = userName.toLowerCase();
-                    if (lastUserName !== nameLower) {
-                        lastUserName = nameLower;
-                        const headerLi = document.createElement('li');
-                        headerLi.className = 'study-overlay-page-task-sys-user-header';
-                        headerLi.innerHTML = escapeHtml(userName);
-                        list.appendChild(headerLi);
-                    }
-                    newViewerUpsert(t);
-                });
+                tasks.forEach(t => newViewerUpsert(t));
                 refreshTaskListAutoScroll();
             };
             const getTaskDescription = (task) => {
@@ -1321,12 +1266,7 @@ ob_end_clean();
                 const done = task.status === 'completed';
                 li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
-                let badgeText = '';
-                if (done) badgeText = '✓';
-                else if (String(task?.status || '').toLowerCase() === 'active') badgeText = '►';
-                else if (task.backlog_position) badgeText = task.backlog_position;
-                else badgeText = '—';
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${badgeText}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
             };
             const newViewerUpsert = (task) => {
@@ -1346,12 +1286,7 @@ ob_end_clean();
                 } else {
                     delete li.dataset.userId;
                 }
-                let badgeText = '';
-                if (done) badgeText = '✓';
-                else if (String(task?.status || '').toLowerCase() === 'active') badgeText = '►';
-                else if (task.backlog_position) badgeText = task.backlog_position;
-                else badgeText = '—';
-                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check">${badgeText}</div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div>${projectChipHtml(task)}</div>`;
                 if (typeof attachPomoBadgeToRow === 'function') {
                     attachPomoBadgeToRow(taskUserId);
                 }
@@ -1702,22 +1637,45 @@ ob_end_clean();
                     loadChannelTasks();
                 });
                 socket.on('TASK_CREATE', (d) => {
-                    loadChannelTasks();
+                    const task = parseTaskPayload(d?.task);
+                    if (!task) return;
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
+                    const owner = String(d?.owner || task?.owner || '').toLowerCase();
+                    if (owner === 'streamer' || (!owner && !task?.user_name)) newStreamerUpsert(task);
+                    else newViewerUpsert(task);
                 });
                 socket.on('TASK_UPDATE', (d) => {
-                    loadChannelTasks();
+                    const task = parseTaskPayload(d?.task);
+                    if (!task) return;
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
+                    const owner = String(d?.owner || task?.owner || '').toLowerCase();
+                    if (owner === 'streamer' || (!owner && !task?.user_name)) newStreamerUpsert(task);
+                    else newViewerUpsert(task);
                 });
                 socket.on('TASK_COMPLETE', (d) => {
-                    loadChannelTasks();
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
+                    newSetDone(d.task_id, d.owner);
                 });
                 socket.on('TASK_APPROVE', (d) => {
                     // Approval means the task is accepted; no visual change here beyond completion
                 });
                 socket.on('TASK_REJECT', (d) => {
-                    loadChannelTasks();
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
+                    const el = document.getElementById('new-viewer-task-' + d.task_id);
+                    if (el) el.style.opacity = '0.2';
                 });
                 socket.on('TASK_DELETE', (d) => {
-                    loadChannelTasks();
+                    if (getListViewMode() === 'unified') { loadChannelTasks(); return; }
+                    const owner = String(d?.owner || '').toLowerCase();
+                    if (owner === 'streamer') {
+                        document.getElementById('new-streamer-task-' + d.task_id)?.remove();
+                    } else if (owner === 'user' || owner === 'viewer') {
+                        document.getElementById('new-viewer-task-' + d.task_id)?.remove();
+                    } else {
+                        document.getElementById('new-streamer-task-' + d.task_id)?.remove();
+                        document.getElementById('new-viewer-task-' + d.task_id)?.remove();
+                    }
+                    refreshTaskListAutoScroll();
                 });
                 socket.on('TASK_REWARD_CONFIRM', (d) => {
                     showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');
