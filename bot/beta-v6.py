@@ -7358,7 +7358,7 @@ class TwitchBot(commands.AutoBot):
                         any_pending = False
                         for n in indices:
                             await cursor.execute(
-                                "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+                                "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'pending' AND id = %s AND project <=> %s LIMIT 1",
                                 (user_id, n, project)
                             )
                             target = await cursor.fetchone()
@@ -7377,7 +7377,7 @@ class TwitchBot(commands.AutoBot):
                                 "id": target_id
                             }))
                         if not completed_titles:
-                            await send_chat_message(f"@{user_name} no backlog items matched. Use !backlog to see your list.")
+                            await send_chat_message(f"@{user_name} no backlog tasks found with those IDs. Use !backlog to see your list.")
                             return
                         await cursor.execute(
                             "SELECT id FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s ORDER BY backlog_position ASC, id ASC",
@@ -7735,12 +7735,12 @@ class TwitchBot(commands.AutoBot):
                         n = int(arg)
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
-                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+                            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND id = %s AND project <=> %s LIMIT 1",
                             (user_id, n, project)
                         )
                         target = await cursor.fetchone()
                         if not target:
-                            await send_chat_message(f"@{user_name} no backlog item #{n}. Use !backlog to see your list.")
+                            await send_chat_message(f"@{user_name} no backlog task with ID #{n}. Use !backlog to see your list.")
                             return
                         target_id = target.get('id')
                         target_title = target.get('title')
@@ -11089,12 +11089,12 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
     if selector.isdigit():
         n = int(selector)
         await cursor.execute(
-            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND backlog_position = %s AND project <=> %s LIMIT 1",
+            "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'pending' AND id = %s AND project <=> %s LIMIT 1",
             (user_id, n, source_project)
         )
         task = await cursor.fetchone()
         if not task:
-            return f"no backlog item #{n} in your current project."
+            return f"no backlog task with ID #{n} in your current project."
         task_id, title = task.get('id'), task.get('title')
         task_owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
         await register_user_project(cursor, user_id, user_name, target)
