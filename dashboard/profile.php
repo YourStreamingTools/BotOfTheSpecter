@@ -580,13 +580,48 @@ $storageMaxFormatted = formatBytes($max_storage_size ?? 0);
 // Always show percentage as a number between 0 and 100 with up to 2 decimals
 $storagePercent = isset($storage_percentage) ? max(0, min(100, round($storage_percentage, 2))) : 0;
 
-// Fetch all supported languages from the languages table
+// Dashboard languages shown in the profile dropdown.
+// Codes are stored uppercase in users.language; lang files live at lang/{lowercase}.php.
+$defaultLanguages = [
+    'EN' => 'English',
+    'FR' => 'French',
+    'DE' => 'German',
+    'ES' => 'Spanish',
+    'ZH' => 'Mandarin',
+];
 $languages = [];
+$seenCodes = [];
 $langQuery = "SELECT name, code FROM languages";
 $langResult = $conn->query($langQuery);
 if ($langResult && $langResult->num_rows > 0) {
     while ($row = $langResult->fetch_assoc()) {
-        $languages[] = $row;
+        $code = strtoupper(trim((string)($row['code'] ?? '')));
+        if ($code === '' || isset($seenCodes[$code])) {
+            continue;
+        }
+        $name = trim((string)($row['name'] ?? ''));
+        if ($name === '' && isset($defaultLanguages[$code])) {
+            $name = $defaultLanguages[$code];
+        }
+        if ($name === '') {
+            $name = $code;
+        }
+        $languages[] = ['name' => $name, 'code' => $code];
+        $seenCodes[$code] = true;
+    }
+}
+// Ensure every shipped language file is selectable even if the languages table is stale.
+foreach ($defaultLanguages as $code => $name) {
+    if (!isset($seenCodes[$code])) {
+        $languages[] = ['name' => $name, 'code' => $code];
+        $seenCodes[$code] = true;
+        // Best-effort seed so admin/other UIs reading the languages table stay in sync.
+        $seedStmt = $conn->prepare("INSERT INTO languages (name, code) SELECT ?, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM languages WHERE code = ?)");
+        if ($seedStmt) {
+            $seedStmt->bind_param('sss', $name, $code, $code);
+            $seedStmt->execute();
+            $seedStmt->close();
+        }
     }
 }
 
