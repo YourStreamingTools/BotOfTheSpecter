@@ -1269,9 +1269,7 @@ ob_end_clean();
                 return String(task?.title || '').trim();
             };
             const getBadgeText = (task) => {
-                if (isCompletedTask(task)) return '✓';
-                if (isActiveTask(task)) return '►';
-                return task.backlog_position || '—';
+                return task.id ?? '';
             };
             // /notify transport JSON-encodes the nested task dict — decode if needed.
             const parseTaskPayload = (raw) => {
