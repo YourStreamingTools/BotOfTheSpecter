@@ -1490,7 +1490,9 @@ return [
     'working_or_study_cmd_backlog' => 'zeige deinen eingereihten Rückstand',
     'working_or_study_cmd_project' => 'wechsle dein aktives Projekt (deine Aufgaben werden darauf beschränkt)',
     'working_or_study_cmd_projects' => 'liste deine Projekte auf',
-    'working_or_study_cmd_pomo' => 'starte einen persönlichen Fokus-Timer (Pomo), der neben deiner Aufgabe angezeigt wird',
+    'working_or_study_cmd_personaltimer' => 'starte einen persönlichen Fokus-Timer, der neben deiner Aufgabe angezeigt wird (Aliase: !pomo, !timer, !focus)',
+    'working_or_study_cmd_studytimer' => 'steuere den Status des Hauptgruppen-Timers, den Autopiloten und die Dauer (nur Streamer/Mod)',
+    'working_or_study_cmd_studyhelp' => 'zeige die Kurzanleitung für Arbeits- und Lernbefehle',
     // working-or-study.php (JavaScript runtime strings)
     'working_or_study_js_copied' => 'Kopiert!',
     'working_or_study_js_settings_saved' => 'Timer-Einstellungen gespeichert',
