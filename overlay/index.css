@@ -613,6 +613,7 @@ html, body {
 .kofi-overlay-page-alert.kofi-overlay-page-donation     { border-left-color: #f39c12; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(243,156,18,0.2); }
 .kofi-overlay-page-alert.kofi-overlay-page-subscription { border-left-color: #29abe0; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(41,171,224,0.2); }
 .kofi-overlay-page-alert.kofi-overlay-page-shop         { border-left-color: #2ecc71; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(46,204,113,0.2); }
+.kofi-overlay-page-alert.kofi-overlay-page-commission   { border-left-color: #9b59b6; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(155,89,182,0.2); }
 
 .kofi-overlay-page-icon {
     font-size: 28px;
@@ -638,6 +639,7 @@ html, body {
 .kofi-overlay-page-alert.kofi-overlay-page-donation     .kofi-overlay-page-label { color: rgba(243, 156, 18, 0.75); }
 .kofi-overlay-page-alert.kofi-overlay-page-subscription .kofi-overlay-page-label { color: rgba(41, 171, 224, 0.75); }
 .kofi-overlay-page-alert.kofi-overlay-page-shop         .kofi-overlay-page-label { color: rgba(46, 204, 113, 0.75); }
+.kofi-overlay-page-alert.kofi-overlay-page-commission   .kofi-overlay-page-label { color: rgba(155, 89, 182, 0.75); }
 
 .kofi-overlay-page-headline {
     font-size: 15px;
@@ -667,6 +669,7 @@ html, body {
 .kofi-overlay-page-alert.kofi-overlay-page-donation     .kofi-overlay-page-amount { color: #f39c12; }
 .kofi-overlay-page-alert.kofi-overlay-page-subscription .kofi-overlay-page-amount { color: #29abe0; }
 .kofi-overlay-page-alert.kofi-overlay-page-shop         .kofi-overlay-page-amount { color: #2ecc71; }
+.kofi-overlay-page-alert.kofi-overlay-page-commission   .kofi-overlay-page-amount { color: #9b59b6; }
 
 /* ===== Patreon Overlay ===== */
 

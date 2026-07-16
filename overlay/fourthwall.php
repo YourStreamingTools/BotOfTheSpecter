@@ -65,13 +65,18 @@
                     icon = '🛒';
                     label = 'New Order';
                     const username = eventPayload.username || 'Someone';
-                    const offer = (eventPayload.offers && eventPayload.offers[0]) || {};
+                    const offers = Array.isArray(eventPayload.offers) ? eventPayload.offers : [];
+                    const offer = offers[0] || {};
                     const itemName = offer.name || 'an item';
                     const qty = (offer.variant && offer.variant.quantity) || 1;
                     const total = eventPayload.amounts && eventPayload.amounts.total;
                     const price = total ? `${total.value} ${total.currency}` : '';
                     headline = `${username} placed an order!`;
-                    detail = qty > 1 ? `${qty}× ${itemName}` : itemName;
+                    const firstLine = qty > 1 ? `${qty}× ${itemName}` : itemName;
+                    const extraCount = Math.max(0, offers.length - 1);
+                    detail = extraCount > 0
+                        ? `${firstLine} and ${extraCount} more`
+                        : firstLine;
                     amount = price;
                 } else if (eventType === 'DONATION') {
                     cssClass = 'fourthwall-overlay-page-donation';

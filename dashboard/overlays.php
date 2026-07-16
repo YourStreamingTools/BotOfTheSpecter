@@ -394,7 +394,6 @@ ob_start();
             <div class="sp-card-title">
                 <i class="fas fa-store"></i> <?= t('overlays_fourthwall') ?>
                 <span class="sp-badge sp-badge-green" style="font-size:0.72rem;"><?= t('overlays_external_service') ?></span>
-                <span class="sp-badge sp-badge-red" style="font-size:0.72rem;"><?= t('overlays_coming_soon') ?></span>
             </div>
         </div>
         <div class="sp-card-body">
@@ -410,7 +409,6 @@ ob_start();
             <div class="sp-card-title">
                 <i class="fas fa-coffee"></i> <?= t('overlays_kofi') ?>
                 <span class="sp-badge sp-badge-green" style="font-size:0.72rem;"><?= t('overlays_external_service') ?></span>
-                <span class="sp-badge sp-badge-red" style="font-size:0.72rem;"><?= t('overlays_coming_soon') ?></span>
             </div>
         </div>
         <div class="sp-card-body">
@@ -426,7 +424,6 @@ ob_start();
             <div class="sp-card-title">
                 <i class="fab fa-patreon"></i> <?= t('overlays_patreon') ?>
                 <span class="sp-badge sp-badge-green" style="font-size:0.72rem;"><?= t('overlays_external_service') ?></span>
-                <span class="sp-badge sp-badge-red" style="font-size:0.72rem;"><?= t('overlays_coming_soon') ?></span>
             </div>
         </div>
         <div class="sp-card-body">
