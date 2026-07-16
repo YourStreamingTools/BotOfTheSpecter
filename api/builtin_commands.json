@@ -175,6 +175,11 @@
 			"description": "Outputs a short help message with the most useful Working & Study commands.",
 			"syntax": "!taskhelp"
 		},
+		"timerhelp": {
+			"description": "Explains every personal timer mode: general countdown, quoted-title focus task, multi-cycle focus/break, check remaining time, and cancel/stop. Also lists common aliases.",
+			"syntax": ["!timerhelp", "!thelp"],
+			"aliases": ["thelp"]
+		},
 		"taskclear": {
 			"description": "Clears all completed tasks from your Working & Study done list for the current project.",
 			"syntax": "!taskclear"

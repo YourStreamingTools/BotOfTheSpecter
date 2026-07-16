@@ -1492,6 +1492,7 @@ return [
     'working_or_study_cmd_projects' => 'lister vos projets',
     'working_or_study_cmd_personaltimer' => 'général : !timer <minutes> <titre> ; tâche focus : !timer <minutes> "titre" focus ; pomo : !timer <travail>/<pause>/<cycles> (alias : !pomo, !focus)',
     'working_or_study_cmd_checktimer' => 'vérifier le temps restant sur votre minuteur général ou focus/pause (alias : !ctimer)',
+    'working_or_study_cmd_timerhelp' => 'afficher tous les modes de minuteur personnel et alias (alias : !thelp)',
     'working_or_study_cmd_studytimer' => 'contrôler le statut du minuteur de groupe principal, l\'autopilote et les durées (streamer/mod uniquement)',
     'working_or_study_cmd_studyhelp' => 'afficher le guide de démarrage rapide des commandes de travail et d\'étude',
     // working-or-study.php (JavaScript runtime strings)

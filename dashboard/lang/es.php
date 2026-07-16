@@ -1547,6 +1547,7 @@ return [
     'working_or_study_cmd_projects' => 'enumera tus proyectos',
     'working_or_study_cmd_personaltimer' => 'general: !timer <minutes> <title>; tarea focus: !timer <minutes> "title" focus; pomo: !timer <work>/<break>/<cycles> (alias: !pomo, !focus)',
     'working_or_study_cmd_checktimer' => 'verifique el tiempo restante en su temporizador general o de enfoque/descanso (alias: !ctimer)',
+    'working_or_study_cmd_timerhelp' => 'mostrar todos los modos de temporizador personal y alias (alias: !thelp)',
     'working_or_study_cmd_studytimer' => 'controlar el estado del temporizador del grupo principal, el piloto automático y las duraciones (solo streamer/mod)',
     'working_or_study_cmd_studyhelp' => 'mostrar la guía de inicio rápido para comandos de trabajo y estudio',
     // working-or-study.php (JavaScript runtime strings)
