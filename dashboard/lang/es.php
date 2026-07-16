@@ -1545,7 +1545,7 @@ return [
     'working_or_study_cmd_backlog' => 'muestra tu trabajo pendiente en cola',
     'working_or_study_cmd_project' => 'cambie su proyecto activo (alcance sus tareas)',
     'working_or_study_cmd_projects' => 'enumera tus proyectos',
-    'working_or_study_cmd_personaltimer' => 'general: !timer <minutes> <title>; tarea focus: !timer <minutes> "title" focus; pomo: !timer <work>/<break>/<cycles> (alias: !pomo, !focus)',
+    'working_or_study_cmd_personaltimer' => 'general: !timer <minutes> <title>; tarea focus: !timer <minutes> "title" focus; ciclos: !timer <work>/<break>/<cycles> (alias: !focus, !ptimer, !mytimer)',
     'working_or_study_cmd_checktimer' => 'verifique el tiempo restante en su temporizador general o de enfoque/descanso (alias: !ctimer)',
     'working_or_study_cmd_timerhelp' => 'mostrar todos los modos de temporizador personal y alias (alias: !thelp)',
     'working_or_study_cmd_studytimer' => 'controlar el estado del temporizador del grupo principal, el piloto automático y las duraciones (solo streamer/mod)',

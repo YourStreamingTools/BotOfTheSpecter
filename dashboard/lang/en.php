@@ -1545,7 +1545,7 @@ return [
     'working_or_study_cmd_backlog' => 'show your queued backlog',
     'working_or_study_cmd_project' => 'switch your active project (scopes your tasks to it)',
     'working_or_study_cmd_projects' => 'list your projects',
-    'working_or_study_cmd_personaltimer' => 'general: !timer <minutes> <title>; focus task: !timer <minutes> "title" focus; pomo: !timer <work>/<break>/<cycles> (aliases: !pomo, !focus)',
+    'working_or_study_cmd_personaltimer' => 'general: !timer <minutes> <title>; focus task: !timer <minutes> "title" focus; cycles: !timer <work>/<break>/<cycles> (aliases: !focus, !ptimer, !mytimer)',
     'working_or_study_cmd_checktimer' => 'check time left on your general or focus/break timer (alias: !ctimer)',
     'working_or_study_cmd_timerhelp' => 'show all personal timer modes and aliases (alias: !thelp)',
     'working_or_study_cmd_studytimer' => 'control the main group timer status, auto-pilot, and durations (streamer/mod only)',
