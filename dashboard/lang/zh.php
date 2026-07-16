@@ -1499,7 +1499,7 @@ return [
     'working_or_study_cmd_done' => '完成您的任务（如果有奖励，则可以赚取积分）',
     'working_or_study_cmd_rename' => '重命名当前任务',
     'working_or_study_cmd_remove' => '删除您当前的任务',
-    'working_or_study_cmd_mytasks' => '显示您的活动任务和待办事项计数',
+    'working_or_study_cmd_mytasks' => '显示当前任务与待办标题（单条聊天消息内）',
     'working_or_study_cmd_now' => '立即设置您的活动任务（或升级待办事项/跳过）',
     'working_or_study_cmd_later' => '将任务排入待办事项的末尾',
     'working_or_study_cmd_soon' => '将任务排在待办事项列表的前面',

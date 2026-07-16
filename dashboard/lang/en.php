@@ -1538,7 +1538,7 @@ return [
     'working_or_study_cmd_done' => 'complete your task (and earn points if rewards are on)',
     'working_or_study_cmd_rename' => 'rename your current task',
     'working_or_study_cmd_remove' => 'remove your current task',
-    'working_or_study_cmd_mytasks' => 'show your active task and backlog count',
+    'working_or_study_cmd_mytasks' => 'show your active task and backlog titles (fits one chat message)',
     'working_or_study_cmd_now' => 'set your active task now (or promote a backlog item / skip)',
     'working_or_study_cmd_later' => 'queue a task at the end of your backlog',
     'working_or_study_cmd_soon' => 'queue a task at the front of your backlog',

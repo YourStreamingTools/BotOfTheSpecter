@@ -1483,7 +1483,7 @@ return [
     'working_or_study_cmd_done' => 'terminer votre tâche (et gagner des points si les récompenses sont activées)',
     'working_or_study_cmd_rename' => 'renommer votre tâche en cours',
     'working_or_study_cmd_remove' => 'supprimer votre tâche en cours',
-    'working_or_study_cmd_mytasks' => 'afficher votre tâche active et le nombre de tâches en attente',
+    'working_or_study_cmd_mytasks' => 'afficher votre tâche active et les titres du backlog (un message chat)',
     'working_or_study_cmd_now' => 'définir votre tâche active maintenant (ou promouvoir une tâche en attente / la passer)',
     'working_or_study_cmd_later' => 'mettre une tâche en file à la fin de votre liste d\'attente',
     'working_or_study_cmd_soon' => 'mettre une tâche en file au début de votre liste d\'attente',

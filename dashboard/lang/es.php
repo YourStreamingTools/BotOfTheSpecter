@@ -1538,7 +1538,7 @@ return [
     'working_or_study_cmd_done' => 'completa tu tarea (y gana puntos si hay recompensas activas)',
     'working_or_study_cmd_rename' => 'cambiar el nombre de su tarea actual',
     'working_or_study_cmd_remove' => 'eliminar tu tarea actual',
-    'working_or_study_cmd_mytasks' => 'muestra tu tarea activa y el recuento de trabajos pendientes',
+    'working_or_study_cmd_mytasks' => 'muestra tu tarea activa y títulos del backlog (un mensaje de chat)',
     'working_or_study_cmd_now' => 'establezca su tarea activa ahora (o promueva un elemento del trabajo pendiente/omita)',
     'working_or_study_cmd_later' => 'poner en cola una tarea al final de su trabajo pendiente',
     'working_or_study_cmd_soon' => 'poner en cola una tarea al frente de su trabajo pendiente',

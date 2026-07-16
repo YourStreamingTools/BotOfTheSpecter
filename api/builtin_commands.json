@@ -134,7 +134,7 @@
 			"syntax": "!remove"
 		},
 		"mytasks": {
-			"description": "Shows your current active task and how many items are in your backlog.",
+			"description": "Shows your current active task and lists backlog titles that fit in one chat message (up to 500 characters), with +N more when the rest are omitted.",
 			"syntax": "!mytasks"
 		},
 		"now": {
