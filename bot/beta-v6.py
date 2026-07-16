@@ -342,6 +342,14 @@ def start_looped_task(name, coro_factory):
 # Custom cooldown functions
 async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_message=True):
     global command_usage
+    try:
+        rate = int(rate) if rate is not None else 0
+    except (TypeError, ValueError):
+        rate = 0
+    try:
+        time_window = int(time_window) if time_window is not None else 0
+    except (TypeError, ValueError):
+        time_window = 0
     if rate <= 0 or time_window <= 0:
         return True
     current_time = time.time()
@@ -358,7 +366,8 @@ async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_
         # Calculate remaining cooldown time
         if send_message:
             oldest_usage = min(command_usage[key]) if command_usage[key] else current_time
-            remaining_time = int(time_window - (current_time - oldest_usage))
+            # Never announce "0 seconds" — if we're still on cooldown, show at least 1.
+            remaining_time = max(1, math.ceil(time_window - (current_time - oldest_usage)))
             await send_chat_message(f"{command} is on cooldown. Please wait {remaining_time} seconds.")
         return False  # Command on cooldown
 
@@ -370,6 +379,53 @@ def add_usage(command, user_id, bucket_type='default'):
     if key not in command_usage:
         command_usage[key] = []
     command_usage[key].append(current_time)
+
+
+def parse_builtin_cooldown_row(result):
+    """Normalize cooldown fields from a builtin_commands DB row (or None)."""
+    row = result or {}
+    try:
+        rate = int(row.get("cooldown_rate")) if row.get("cooldown_rate") is not None else 1
+    except (TypeError, ValueError):
+        rate = 1
+    try:
+        window = int(row.get("cooldown_time")) if row.get("cooldown_time") is not None else 15
+    except (TypeError, ValueError):
+        window = 15
+    bucket = str(row.get("cooldown_bucket") or "default").strip().lower() or "default"
+    if bucket == "mods":
+        bucket = "mod"
+    return rate, window, bucket
+
+async def resolve_cooldown_bucket_key(cooldown_bucket, author):
+    """Map DB cooldown_bucket to the in-memory key used by check_cooldown/add_usage."""
+    bucket = (cooldown_bucket or "default").strip().lower() or "default"
+    if bucket in ("default", ""):
+        return "global"
+    if bucket in ("mod", "mods") and await command_permissions("mod", author):
+        return "mod"
+    # "user" and any other value: per-caller key
+    return str(author.id)
+
+async def load_builtin_command_settings(cursor, command_name):
+    """Always load status/permission/cooldown settings from builtin_commands."""
+    await cursor.execute(
+        "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+        "FROM builtin_commands WHERE command=%s",
+        (command_name,),
+    )
+    result = await cursor.fetchone()
+    rate, window, bucket = parse_builtin_cooldown_row(result)
+    row = result or {}
+    return {
+        "status": row.get("status") or "Enabled",
+        "permission": row.get("permission") or "everyone",
+        "cooldown_rate": rate,
+        "cooldown_time": window,
+        "cooldown_bucket": bucket,
+        "raw": result,
+    }
+
 
 # Function to handle termination signals
 def signal_handler(sig, frame):
@@ -4214,14 +4270,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4262,14 +4316,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('bot', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4301,14 +4353,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('wsstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4354,14 +4404,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('dbstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4414,14 +4462,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('forceonline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4455,14 +4501,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('forceoffline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4498,14 +4542,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('version', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4571,14 +4613,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('roadmap', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4609,9 +4649,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -4620,7 +4658,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message(f"The bot is not connected to the weather data service. @{CHANNEL_NAME} please restart me to reconnect to the service.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4666,14 +4704,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('points', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4730,14 +4766,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('addpoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4776,14 +4810,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('removepoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4822,14 +4854,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('time', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4918,14 +4948,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('joke', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -4977,14 +5005,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('quote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -5028,14 +5054,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('quoteadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -5068,14 +5092,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('removequote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
@@ -5114,14 +5136,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the required permissions
@@ -5157,14 +5177,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('settitle', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the required permissions
@@ -5200,16 +5218,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Verify user permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
-                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                         if not await check_cooldown('setgame', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         if game is None:
@@ -5259,9 +5275,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -5270,7 +5284,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('song', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Get the current song and artist from Spotify
@@ -5347,9 +5361,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Requesting songs is currently disabled.")
@@ -5359,7 +5371,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('songrequest', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
@@ -5536,7 +5548,7 @@ class TwitchBot(commands.AutoBot):
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('removesong', bucket_key, cooldown_bucket, result.get("cooldown_rate"), result.get("cooldown_time")):
                         return
                 else:
@@ -5575,9 +5587,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Skipping songs is currently disabled.")
                         return
@@ -5585,7 +5595,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
@@ -5654,9 +5664,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Sorry, checking the song queue is currently disabled.")
@@ -5666,7 +5674,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('songqueue', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             # Request the queue information from Spotify
@@ -5758,9 +5766,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -5769,7 +5775,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Check if the user already has an active timer
@@ -5816,9 +5822,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -5827,7 +5831,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('hug', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
@@ -5888,9 +5892,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -5899,7 +5901,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('highfive', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
@@ -5960,9 +5962,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -5971,7 +5971,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('kiss', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Remove any '@' symbol from the mentioned username if present
@@ -6032,16 +6032,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
-                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                         if not await check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         # Using asyncio subprocess to run the ping command
@@ -6087,16 +6085,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
-                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                         if not await check_cooldown('translate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         # Get the message content after the command
@@ -6143,16 +6139,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
-                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                         if not await check_cooldown('cheerleader', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         headers = {
@@ -6201,16 +6195,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         # Check cooldown
-                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                         if not await check_cooldown('mybits', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         user_id = ctx.author.id
@@ -6286,9 +6278,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -6296,7 +6286,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('lurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -6361,9 +6351,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -6371,7 +6359,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('lurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -6414,9 +6402,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -6424,7 +6410,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('lurklead', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     try:
@@ -6478,16 +6464,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('unlurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -6548,9 +6532,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
@@ -6558,7 +6540,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('userslurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 await cursor.execute('SELECT COUNT(*) as count FROM lurk_times')
@@ -6592,16 +6574,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('clip', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if not stream_online:
@@ -6655,16 +6635,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('marker', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     if not stream_online:
@@ -6698,16 +6676,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('subscription', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = ctx.author.id
@@ -6767,9 +6743,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -6778,7 +6752,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('uptime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if not stream_online:
@@ -6828,19 +6802,63 @@ class TwitchBot(commands.AutoBot):
 
     @commands.command(name='wordreplaceoff')
     async def word_replace_off_command(self, ctx: commands.Context):
-        username = ctx.author.name.lower()
-        if await word_replace_user_opt_out(username, True):
-            await send_chat_message("Okay — I won't randomly word-replace your messages anymore.")
-        else:
-            await send_chat_message("Word replace is already off for you.")
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                settings = await load_builtin_command_settings(cursor, "wordreplaceoff")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'wordreplaceoff', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
+                username = ctx.author.name.lower()
+                if await word_replace_user_opt_out(username, True):
+                    await send_chat_message("Okay — I won't randomly word-replace your messages anymore.")
+                else:
+                    await send_chat_message("Word replace is already off for you.")
+                add_usage('wordreplaceoff', bucket_key, settings["cooldown_bucket"])
+        except Exception as e:
+            chat_logger.error(f"[WORDREPLACE] Error in wordreplaceoff: {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='wordreplaceon')
     async def word_replace_on_command(self, ctx: commands.Context):
-        username = ctx.author.name.lower()
-        if await word_replace_user_opt_out(username, False):
-            await send_chat_message("Okay — I might randomly word-replace your messages again.")
-        else:
-            await send_chat_message("Word replace is already on for you.")
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                settings = await load_builtin_command_settings(cursor, "wordreplaceon")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'wordreplaceon', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
+                username = ctx.author.name.lower()
+                if await word_replace_user_opt_out(username, False):
+                    await send_chat_message("Okay — I might randomly word-replace your messages again.")
+                else:
+                    await send_chat_message("Word replace is already on for you.")
+                add_usage('wordreplaceon', bucket_key, settings["cooldown_bucket"])
+        except Exception as e:
+            chat_logger.error(f"[WORDREPLACE] Error in wordreplaceon: {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='typo')
     async def typo_command(ctx: commands.Context, mentioned_username: str = None):
@@ -6855,9 +6873,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -6866,7 +6882,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('typo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 chat_logger.info("Typo Command ran.")
@@ -6911,9 +6927,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -6923,7 +6937,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('typos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 chat_logger.info("Typos Command ran.")
@@ -6958,16 +6972,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message(f"You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     chat_logger.info("Edit Typos Command ran.")
@@ -7030,16 +7042,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message(f"You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('removetypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
@@ -7080,16 +7090,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('steam', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
             # File path
@@ -7150,15 +7158,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('taskhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     await send_chat_message(
@@ -7189,18 +7195,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else (
-                        'mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author)
-                        else str(ctx.author.id)
-                    )
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('timerhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     await send_chat_message(
@@ -7230,15 +7231,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('tasktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -7340,15 +7339,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('task', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -7417,15 +7414,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('done', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -7534,15 +7529,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('rename', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -7592,15 +7585,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('remove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -7651,15 +7642,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('taskclear', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -7719,15 +7708,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('mytasks', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -7772,15 +7759,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('now', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -7932,15 +7917,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('later', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -8001,15 +7984,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('soon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -8068,15 +8049,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('backlog', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -8123,15 +8102,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('project', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -8217,15 +8194,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('projects', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     user_id = str(ctx.author.id)
@@ -8283,18 +8258,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else (
-                        'mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author)
-                        else str(ctx.author.id)
-                    )
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('personaltimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     content = ctx.message.content.strip()
@@ -8388,19 +8358,14 @@ class TwitchBot(commands.AutoBot):
                 )
                 result = await cursor.fetchone()
                 status = result.get("status") if result else "Enabled"
-                permissions = result.get("permission") if result else "everyone"
-                cooldown_rate = result.get("cooldown_rate") if result else 1
-                cooldown_time = result.get("cooldown_time") if result else 5
-                cooldown_bucket = result.get("cooldown_bucket") if result else "default"
+                permissions = (result or {}).get("permission") or "everyone"
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                 if status == 'Disabled' and ctx.author.name != bot_owner:
                     return
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
-                bucket_key = 'global' if cooldown_bucket == 'default' else (
-                    'mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author)
-                    else str(ctx.author.id)
-                )
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('checktimer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 msg = await build_checktimer_message(str(ctx.author.id), ctx.author.name)
@@ -8427,9 +8392,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -8438,7 +8401,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('deaths', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is None:
@@ -8486,16 +8449,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('deathadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is None:
@@ -8568,16 +8529,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('deathremove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is None:
@@ -8643,16 +8602,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 if current_game is not None:
@@ -8681,9 +8638,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -8692,7 +8647,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('followage', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
@@ -8777,9 +8732,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -8788,7 +8741,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('schedule', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 await cursor.execute("SELECT timezone FROM profile")
@@ -8882,16 +8835,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('checkupdate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 API_URL = "https://api.botofthespecter.com/versions"
@@ -8939,9 +8890,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
@@ -8949,7 +8898,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('shoutout', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
@@ -8995,9 +8944,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
@@ -9005,7 +8952,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('addcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command and response from the message
@@ -9041,9 +8988,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
@@ -9051,7 +8996,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('editcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command and new response from the message
@@ -9087,9 +9032,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
@@ -9097,7 +9040,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('removecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command from the message
@@ -9133,9 +9076,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
@@ -9143,7 +9084,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('enablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command from the message
@@ -9195,9 +9136,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check if the user has the required permissions for this command
@@ -9205,7 +9144,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('disablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             # Parse the command from the message
@@ -9259,16 +9198,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('slots', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Fetch user's points from the database
@@ -9339,16 +9276,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
             # Check cooldown
-            bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
             if not await check_cooldown('kill', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             async with httpClientSession() as session:
@@ -9410,9 +9345,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9421,7 +9354,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('roulette', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Fetch user's points from the database
@@ -9473,9 +9406,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9484,7 +9415,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('rps', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 choices = ["rock", "paper", "scissors"]
@@ -9527,9 +9458,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9538,7 +9467,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('gamble', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Parse command arguments
@@ -9647,9 +9576,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9658,7 +9585,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('story', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 words = ctx.message.text.split(' ')[1:]
@@ -9696,9 +9623,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9707,7 +9632,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('convert', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 try:
@@ -9789,9 +9714,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9800,7 +9723,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('todo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             if message_content.lower() == '!todo':
@@ -9852,9 +9775,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9863,7 +9784,7 @@ class TwitchBot(commands.AutoBot):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
                 # Check cooldown
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('subathon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             user = ctx.author
@@ -9911,9 +9832,7 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
@@ -9922,7 +9841,7 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('heartrate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if heartrate code exists in database
@@ -9963,15 +9882,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('puzzles', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     total_completed = await get_tanggle_completed_count()
@@ -9997,15 +9914,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('puzzledone', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Manual fallback for when the Tanggle websocket misses a room.complete
@@ -10047,15 +9962,13 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                 if not await command_permissions(permissions, ctx.author):
                     await send_chat_message("You do not have the required permissions to use this command.")
                     return
-                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('todolist', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             await todolist_command_handler(ctx, connection)
@@ -10081,16 +9994,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('watchtime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 # Query watch time for the user
@@ -10151,16 +10062,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('startlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 done = await generate_winning_lotto_numbers()
@@ -10191,16 +10100,14 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('drawlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                 prize_pool = {
@@ -10298,16 +10205,18 @@ class TwitchBot(commands.AutoBot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("createraffle",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                settings = await load_builtin_command_settings(cursor, "createraffle")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'createraffle', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
                 if len(args) < 3:
                     await send_chat_message("Usage: !createraffle <name> <prize> <number_of_winners> [weighted]")
                     return
@@ -10326,6 +10235,7 @@ class TwitchBot(commands.AutoBot):
                 await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'scheduled', 1 if weighted else 0, 2.00, 3.00, 4.00, 1.50, 0, 0, 0))
                 await connection.commit()
                 await send_chat_message(f"Raffle '{name}' created and scheduled! Use !startraffle to start it.")
+                add_usage('createraffle', bucket_key, settings["cooldown_bucket"])
         except Exception as e:
             bot_logger.error(f"Error creating raffle: {e}")
             await send_chat_message("There was an error creating the raffle.")
@@ -10339,16 +10249,18 @@ class TwitchBot(commands.AutoBot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("startraffle",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                settings = await load_builtin_command_settings(cursor, "startraffle")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'startraffle', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
                 if raffle_id:
                     await cursor.execute("SELECT id, name FROM raffles WHERE id=%s AND status='scheduled' LIMIT 1", (raffle_id,))
                 else:
@@ -10365,6 +10277,7 @@ class TwitchBot(commands.AutoBot):
                 await cursor.execute("UPDATE raffles SET status='running' WHERE id=%s", (raffle_id_to_start,))
                 await connection.commit()
                 await send_chat_message(f"Raffle '{raffle_name}' is now running! Use !joinraffle to enter.")
+                add_usage('startraffle', bucket_key, settings["cooldown_bucket"])
         except Exception as e:
             bot_logger.error(f"Error starting raffle: {e}")
             await send_chat_message("There was an error starting the raffle.")
@@ -10378,6 +10291,18 @@ class TwitchBot(commands.AutoBot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
+                settings = await load_builtin_command_settings(cursor, "joinraffle")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'joinraffle', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
                 await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
@@ -10453,6 +10378,18 @@ class TwitchBot(commands.AutoBot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
+                settings = await load_builtin_command_settings(cursor, "leaveraffle")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'leaveraffle', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
                 await cursor.execute("SELECT id FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
@@ -10476,16 +10413,18 @@ class TwitchBot(commands.AutoBot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("stopraffle",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                settings = await load_builtin_command_settings(cursor, "stopraffle")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'stopraffle', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
                 await cursor.execute("SELECT id, name FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
@@ -10509,16 +10448,18 @@ class TwitchBot(commands.AutoBot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("drawraffle",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message("You do not have the required permissions to use this command.")
-                        return
+                settings = await load_builtin_command_settings(cursor, "drawraffle")
+                if settings["status"] == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(settings["permission"], ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(settings["cooldown_bucket"], ctx.author)
+                if not await check_cooldown(
+                    'drawraffle', bucket_key, settings["cooldown_bucket"],
+                    settings["cooldown_rate"], settings["cooldown_time"]
+                ):
+                    return
                 if raffle_id:
                     await cursor.execute("SELECT id, name, prize, number_of_winners, is_weighted FROM raffles WHERE id=%s", (raffle_id,))
                     raffle = await cursor.fetchone()
@@ -10597,14 +10538,12 @@ class TwitchBot(commands.AutoBot):
                 if result:
                     status = result.get("status")
                     permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
                     # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('obs', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Check if the user has the correct permissions
