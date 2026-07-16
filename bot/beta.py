@@ -192,7 +192,7 @@ mod_commands = {
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "pomo", "focus", "ctimer", "thelp"
+    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "focus", "ctimer", "thelp"
 }
 
 # Logs
@@ -6526,7 +6526,7 @@ class TwitchBot(commands.Bot):
                         '!timer <mins> "title" focus = focus task on the list/overlay. '
                         '!timer <work>/<break>/<cycles> [label] = multi-cycle focus/break on the list. '
                         '!timer or !checktimer = time left. !timer stop = cancel. '
-                        'Aliases: !pomo, !focus, !ptimer, !mytimer, !ctimer. '
+                        'Aliases: !focus, !ptimer, !mytimer, !ctimer. '
                         'Limits: work 1-600m, break 0-120m, cycles 1-24.'
                     )
                     add_usage('timerhelp', bucket_key, cooldown_bucket)
@@ -9227,7 +9227,7 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
-    @commands.command(name='personaltimer', aliases=['timer', 'pomo', 'ptimer', 'mytimer', 'focus'])
+    @commands.command(name='personaltimer', aliases=['timer', 'ptimer', 'mytimer', 'focus'])
     async def personaltimer_command(self, ctx):
         # Three modes:
         #   General: !timer 60 read the book           — plain countdown, no task-list link

@@ -164,7 +164,7 @@
 		"personaltimer": {
 			"description": "Starts a personal timer that pings you in chat. !timer <minutes> <title> is a general countdown (not on the task list). !timer <minutes> \"title\" focus starts a single focus block and adds it to the task list/overlay. !timer <work>/<break>/<cycles> [label] runs multi-cycle focus/break sessions on the task list. !timer / !checktimer shows remaining time; !timer stop cancels. Starting a new timer replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
 			"syntax": ["!timer 30 puzzle", "!timer 20 \"my task here\" focus", "!timer 30/10/3 Study session", "!timer", "!timer stop", "!checktimer"],
-			"aliases": ["timer", "pomo", "ptimer", "mytimer", "focus"]
+			"aliases": ["timer", "ptimer", "mytimer", "focus"]
 		},
 		"tasktimer": {
 			"description": "Controls the streamer's Working & Study overlay timer. Broadcaster/moderator only. You can use start/stop/pause/resume to control playback, use 'auto on|off' for auto-pilot transitions, use 'set <focus>/<break>/<cycles>' to configure lengths, or use '<minutes> <focus|break|recharge>' to force start a specific phase.",
