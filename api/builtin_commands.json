@@ -162,8 +162,8 @@
 			"syntax": "!projects"
 		},
 		"personaltimer": {
-			"description": "Starts a personal focus timer that pings you in chat. !personaltimer <minutes> <label> runs a single work session, !personaltimer <work>/<break>/<cycles> <label> runs a multi-cycle session, !personaltimer shows your remaining time, and !personaltimer cancel (or stop) stops it. Starting a new timer replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
-			"syntax": ["!personaltimer 30 puzzle", "!personaltimer 30/10/3 Study session", "!personaltimer", "!personaltimer cancel", "!personaltimer stop"],
+			"description": "Starts a personal timer that pings you in chat. !timer <minutes> <title> is a general countdown (not on the task list). !timer <minutes> \"title\" focus starts a single focus block and adds it to the task list/overlay. !timer <work>/<break>/<cycles> [label] runs multi-cycle focus/break sessions on the task list. !timer / !checktimer shows remaining time; !timer stop cancels. Starting a new timer replaces your current one. Limits: work 1-600 min, break 0-120 min, cycles 1-24.",
+			"syntax": ["!timer 30 puzzle", "!timer 20 \"my task here\" focus", "!timer 30/10/3 Study session", "!timer", "!timer stop", "!checktimer"],
 			"aliases": ["timer", "pomo", "ptimer", "mytimer", "focus"]
 		},
 		"tasktimer": {
