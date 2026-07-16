@@ -1822,11 +1822,11 @@ ob_start();
             ? '<span class="has-text-grey">&mdash;</span>'
             : `<span class="tag is-light">${chEsc(task.project)}</span>`;
 
-        // Render title with backlog ID if available (fallback to database id if backlog_position is not set)
+        // Per-user/streamer sequence number only — never fall back to global DB id.
         let titleHtml = chEsc(task.title);
-        const displayId = task.backlog_position || task.id;
-        if (displayId) {
-            titleHtml = `<span class="has-text-grey">#${displayId}</span> <strong>${chEsc(task.title)}</strong>`;
+        const displayId = task.backlog_position;
+        if (displayId !== undefined && displayId !== null && String(displayId).trim() !== '') {
+            titleHtml = `<span class="has-text-grey">#${chEsc(displayId)}</span> <strong>${chEsc(task.title)}</strong>`;
         } else {
             titleHtml = `<strong>${chEsc(task.title)}</strong>`;
         }
@@ -1860,9 +1860,13 @@ ob_start();
         const projectCell = projectKey === '__default'
             ? '<span class="has-text-grey">&mdash;</span>'
             : `<span class="tag is-light">${chEsc(task.project)}</span>`;
+        const userDisplayId = task.backlog_position;
+        const userTitleHtml = (userDisplayId !== undefined && userDisplayId !== null && String(userDisplayId).trim() !== '')
+            ? `<span class="has-text-grey">#${chEsc(userDisplayId)}</span> <strong>${chEsc(task.title)}</strong>`
+            : `<strong>${chEsc(task.title)}</strong>`;
         row.innerHTML = `
             <td>${chEsc(task.user_name)}</td>
-            <td><strong>${chEsc(task.title)}</strong></td>
+            <td>${userTitleHtml}</td>
             <td>${projectCell}</td>
             <td>${chStatusTag(task.status)}</td>
             <td>${chApprovalTag(task.approval_status)}</td>

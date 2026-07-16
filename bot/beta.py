@@ -8253,7 +8253,8 @@ class TwitchBot(commands.Bot):
                     )
                     demoted = await cursor.fetchone()
                     await cursor.execute(
-                        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND task_type = 'task'",
+                        # Per-user sequence shared with timer rows (do not use global DB id).
+                        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
                         (user_id,)
                     )
                     max_row = await cursor.fetchone()
@@ -8816,7 +8817,7 @@ class TwitchBot(commands.Bot):
                     first_title = titles[0]
                     # We need the next position
                     await cursor.execute(
-                        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND task_type = 'task'",
+                        "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s",
                         (user_id,)
                     )
                     max_row = await cursor.fetchone()
@@ -8903,7 +8904,7 @@ class TwitchBot(commands.Bot):
                     # Append each to the END of the backlog.
                     for title in titles:
                         await cursor.execute(
-                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status IN ('pending', 'active') AND task_type = 'task' AND project <=> %s",
+                            "SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM user_tasks WHERE user_id = %s AND status IN ('pending', 'active') AND project <=> %s",
                             (user_id, project)
                         )
                         max_row = await cursor.fetchone()
@@ -12712,25 +12713,38 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                     "reason": "replaced",
                 })
             task_id = None
+            task_pos = None
             if link_task:
                 task_title = label if label else f"Timer ({work_minutes}m)"
                 if int(break_minutes or 0) == 0 and int(total_cycles or 1) == 1:
                     task_desc = f"Focus timer: {work_minutes}m"
                 else:
                     task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
+                # Per-user (or streamer-global) display number — same sequence as !task / !later.
+                if is_streamer:
+                    await cursor.execute(
+                        f"SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM {task_table}"
+                    )
+                else:
+                    await cursor.execute(
+                        f"SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM {task_table} WHERE user_id = %s",
+                        (user_id,)
+                    )
+                max_row = await cursor.fetchone()
+                task_pos = int((max_row or {}).get('max_pos') or 0) + 1
                 if is_streamer:
                     await cursor.execute(
                         f"INSERT INTO {task_table} (title, description, category, status, approval_status, "
                         "reward_points, project, backlog_position, user_id, user_name, task_type) "
-                        "VALUES (%s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, %s, %s, 'timer')",
-                        (task_title, task_desc, user_id, user_name)
+                        "VALUES (%s, %s, 'Timer', 'active', 'auto', 0, NULL, %s, %s, %s, 'timer')",
+                        (task_title, task_desc, task_pos, user_id, user_name)
                     )
                 else:
                     await cursor.execute(
                         f"INSERT INTO {task_table} (user_id, user_name, title, description, category, status, "
                         "approval_status, reward_points, backlog_position, project, task_type) "
-                        "VALUES (%s, %s, %s, %s, 'Timer', 'active', 'auto', 0, NULL, NULL, 'timer')",
-                        (user_id, user_name, task_title, task_desc)
+                        "VALUES (%s, %s, %s, %s, 'Timer', 'active', 'auto', 0, %s, NULL, 'timer')",
+                        (user_id, user_name, task_title, task_desc, task_pos)
                     )
                 await cursor.execute("SELECT LAST_INSERT_ID() AS last_id")
                 res_id = await cursor.fetchone()
@@ -12772,7 +12786,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                     "status": "active",
                     "approval_status": "auto",
                     "reward_points": 0,
-                    "backlog_position": None,
+                    "backlog_position": task_pos,
                     "project": None,
                     "task_type": "timer",
                     "owner": task_owner,

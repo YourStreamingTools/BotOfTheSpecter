@@ -1258,7 +1258,14 @@ ob_end_clean();
                     const rankA = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
                     const rankB = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
                     if (rankA !== rankB) return rankA - rankB;
-                    return b.id - a.id;
+                    // Per-user display order uses each user's backlog_position sequence.
+                    const posA = Number(a.backlog_position);
+                    const posB = Number(b.backlog_position);
+                    const hasA = Number.isFinite(posA);
+                    const hasB = Number.isFinite(posB);
+                    if (hasA && hasB && posA !== posB) return posA - posB;
+                    if (hasA !== hasB) return hasA ? -1 : 1;
+                    return Number(a.id || 0) - Number(b.id || 0);
                 });
                 let lastUserName = null;
                 sortedTasks.forEach(t => {
@@ -1280,9 +1287,15 @@ ob_end_clean();
                 if (description) return description;
                 return String(task?.title || '').trim();
             };
+            // Badge shows each user's own sequence (backlog_position), never the global DB id.
+            // Timer rows keep is-timer styling; they still show their per-user number when set.
             const getBadgeText = (task) => {
+                const pos = task?.backlog_position;
+                if (pos !== undefined && pos !== null && String(pos).trim() !== '') {
+                    return String(pos);
+                }
                 if (isTimerTask(task)) return '⏱';
-                return task.id ?? '';
+                return '';
             };
             // /notify transport JSON-encodes the nested task dict — decode if needed.
             const parseTaskPayload = (raw) => {
