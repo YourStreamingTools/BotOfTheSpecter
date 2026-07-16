@@ -15,8 +15,25 @@
             const ALERT_DURATION = 7000; // ms each alert stays visible
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
+            }
+
             if (!code) {
-                console.error('No code provided in the URL');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
             // Parse the data field which may arrive as a Python dict string or JSON string
@@ -87,6 +104,17 @@
                     if (items.length > 0) {
                         detail = items.map(i => `${i.quantity}\u00d7 ${i.variation_name}`).join(', ');
                     }
+                } else if (eventType === 'Commission') {
+                    cssClass = 'kofi-overlay-page-commission';
+                    icon = '🎨';
+                    label = 'Ko-fi Commission';
+                    const name = eventData.from_name || 'Someone';
+                    const amt = eventData.amount || '';
+                    const cur = eventData.currency || '';
+                    const msg = eventData.message || '';
+                    headline = `${name} commissioned you!`;
+                    amount = amt && cur ? `${amt} ${cur}` : amt;
+                    detail = msg;
                 } else {
                     // Generic fallback
                     icon = '☕';

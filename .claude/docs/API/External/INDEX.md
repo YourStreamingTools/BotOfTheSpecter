@@ -15,9 +15,9 @@ All third-party API and library references for BotOfTheSpecter. For full descrip
 | [hyperate.md](./hyperate.md) | Phoenix WebSocket heart-rate feed. 6 message types. `HYPERATE_API_KEY` = per-app key; per-user = `users.heartrate_code`. | 422 |
 | [kick.md](./kick.md) | Kick.com REST (10 endpoints) + webhook receiver with RSA-SHA256 verification. OAuth 2.1 PKCE token refresh. | 449 |
 | [github.md](./github.md) | Inbound GitHub webhook payloads (push, release, issues, PR, etc.). No outbound REST calls in repo. | 419 |
-| [patreon.md](./patreon.md) | Patreon Webhooks v2 — JSON:API payload, HMAC-MD5 verification (not yet enforced), overlay wiring. | 562 |
-| [kofi.md](./kofi.md) | Ko-fi webhooks — Donation/Subscription/Commission/Shop Order schemas, `verification_token` check (not yet enforced). | 338 |
-| [fourthwall.md](./fourthwall.md) | Fourthwall webhooks — 11 event types, HMAC-SHA256 verification (not yet enforced). | 647 |
+| [patreon.md](./patreon.md) | Patreon Webhooks v2 — JSON:API payload, HMAC-MD5 verification (not yet enforced), live overlay visual alerts. | 562 |
+| [kofi.md](./kofi.md) | Ko-fi webhooks — Donation/Subscription/Commission/Shop Order schemas, `verification_token` check (not yet enforced), live overlay visual alerts. | 338 |
+| [fourthwall.md](./fourthwall.md) | Fourthwall webhooks — 11 event types, HMAC-SHA256 verification (not yet enforced), live overlay visual alerts. | 647 |
 | [freestuff.md](./freestuff.md) | FreeStuff admin webhook — Standard Webhooks spec, Ed25519 signature (not yet enforced), Discord-only fan-out. | 229 |
 | [cloudflare.md](./cloudflare.md) | Cloudflare R2 — S3-compatible via boto3 (Python) / aws-sdk-php (PHP). Presigned URLs, multipart upload, CORS. | 960 |
 | [hetrixtools.md](./hetrixtools.md) | HetrixTools v3 uptime API — 5 monitors, Bearer auth, 300 s per-IP throttle. v1/v2/v3 compared. | 813 |

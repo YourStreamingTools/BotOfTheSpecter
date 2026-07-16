@@ -264,7 +264,7 @@ async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
     ...
 ```
 
-**Current status in this codebase:** `handle_patreon_webhook` (./api/api.py:1754) does **not**
+**Current status in this codebase:** `handle_patreon_webhook` in `./api/api.py` does **not**
 perform HMAC verification. The webhook `secret` is not stored per-user. This is a known TODO
 (see §11).
 
@@ -531,32 +531,28 @@ def cents_to_display(cents: int, currency: str = "USD") -> str:
 
 | Concern | File | Notes |
 | ------- | ---- | ----- |
-| HTTP ingest route | `./api/api.py:1754` (`handle_patreon_webhook`) | V1 auth (`?api_key=`). Reads `X-Patreon-Event` and raw body are **not** captured — signature verification is missing (TODO). |
+| HTTP ingest route | `./api/api.py` (`handle_patreon_webhook`) | V1 auth (`?api_key=`). Parses JSON body; forwards via `GET /notify` with `"data": json.dumps(webhook_data)`. Does **not** read `X-Patreon-Event` or `X-Patreon-Signature` (TODOs below). |
 | API key validation | `./api/api.py` (`verify_api_key`) | Validates against `users.api_key` in `website` DB. Wrong/missing → HTTP 401. |
-| V2 webhook path list | `./api/api.py:721` (`_V2_WEBHOOK_PATHS`) | `/patreon` listed alongside `/kofi`, `/fourthwall`, `/github`, etc. |
-| WebSocket event router | `./websocket/server.py:825` | `elif event == "PATREON": await self.handle_patreon_event(code, data)` |
-| Server-side dispatcher | `./websocket/server.py:960` (`handle_patreon_event`) | Delegates to `donation_handler`. |
-| Broadcaster | `./websocket/donation_handler.py:40` (`handle_patreon_event`) | Broadcasts `PATREON` event via `broadcast_with_globals()` (per-code clients + global admin listeners). |
-| Overlay | `./overlay/patreon.php` | Socket.io 4.8.3 client. Registers as `{ code, channel: "Overlay", name: "Patreon" }`. Receives `PATREON` event — currently only `console.log`s it. `enqueueAudio` call is commented out. Audio volume hardcoded to `0.8` (80%). |
+| V2 webhook path list | `./api/api.py` (`_V2_WEBHOOK_PATHS`) | `/patreon` listed alongside `/kofi`, `/fourthwall`, `/github`, etc. |
+| WebSocket event router | `./websocket/server.py` | `elif event == "PATREON": await self.handle_patreon_event(code, data)` |
+| Server-side dispatcher | `./websocket/server.py` (`handle_patreon_event`) | Delegates to `donation_handler`. |
+| Broadcaster | `./websocket/donation_handler.py` (`handle_patreon_event`) | Broadcasts `PATREON` event via `broadcast_with_globals()` (per-code clients + global admin listeners). |
+| Overlay (live browser source) | `./overlay/patreon.php` | Socket.io 4.8.3 client. Registers as `{ code, channel: "Overlay", name: "Patreon" }`. On `PATREON`, parses payload and **queues visual alerts** (`alertQueue` / `enqueueAlert()`, 7 s each). `buildAlertElement()` classifies pledge / update / cancelled from member attributes (no `X-Patreon-Event`). `parsePatreonData()` tries JSON first, then a Python-dict-literal fallback for safety. XSS-safe via `escapeHtml()`. |
 
 ### Known issues / TODOs
 
 1. **No HMAC signature verification.** `handle_patreon_webhook` does not read
-   `X-Patreon-Signature` or compare it against the stored secret. Anyone who knows a user's
+   `X-Patreon-Signature` or compare it against a stored secret. Anyone who knows a user's
    API key can spoof Patreon events. Fix: store `patreon_webhook_secret` per-user (e.g. column
    on `users` table or a `patreon_tokens` table), call `verify_patreon_signature()` before
    forwarding.
 
 2. **`X-Patreon-Event` header is not captured or forwarded.** The overlay and WebSocket
-   clients receive a raw Patreon body with no trigger context. Recommendation: wrap the payload
-   as `{"trigger": "<header-value>", "body": <original_json>}` before forwarding to the
-   WebSocket server.
+   clients receive the raw Patreon body with no trigger context. The overlay infers variant
+   from `patron_status` / `last_charge_status` only (best-effort). Recommendation: wrap the
+   payload as `{"trigger": "<header-value>", "body": <original_json>}` before forwarding so
+   pledge create vs update vs delete can be distinguished reliably.
 
-3. **Payload serialisation bug.** `urlencode({"data": webhook_data})` passes the raw Python
-   dict through `str()`, producing Python-literal syntax (single quotes, `True`/`False`/`None`)
-   instead of valid JSON. The overlay's `data` field cannot be parsed with `JSON.parse()`. Fix:
-   `urlencode({"data": json.dumps(webhook_data)})`.
-
-4. **Overlay renders nothing.** `./overlay/patreon.php` logs the event but shows no visual
-   alert and plays no audio. Both the serialisation bug (#3) and the commented-out
-   `enqueueAudio` call need to be resolved before the overlay is functional.
+3. **Payload serialisation is correct on the API path.** Forward uses
+   `"data": json.dumps(webhook_data)` before `urlencode`. Overlay still keeps a Python-literal
+   parse fallback for safety; it is not required for the current API path.

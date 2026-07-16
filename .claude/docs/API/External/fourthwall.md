@@ -232,7 +232,7 @@ Fired when a new order is successfully placed and paid.
 | `data.id` | Order ID, suitable as idempotency key. |
 | `data.username` | Buyer's Fourthwall username; may be empty if guest checkout. |
 | `data.status` | `PAID` at placement. |
-| `data.offers` | Always an array even for single-item orders. Multi-item orders have multiple entries; the overlay currently reads only `offers[0]`. |
+| `data.offers` | Always an array even for single-item orders. Multi-item orders have multiple entries; the overlay shows the first item and `and N more` when length > 1. |
 | `data.offers[].variant.quantity` | Item quantity for this line. |
 | `data.message` | Optional buyer note; may be `null` or absent. |
 | `data.shipping` | Physical address; absent for digital-only orders. |
@@ -610,37 +610,36 @@ These event types are documented in the Fourthwall subscription options but are 
 
 | Concern | File | Location |
 | ------- | ---- | -------- |
-| HTTP route handler | `./api/api.py` | Line 1673 `@app.post("/fourthwall", ...)` |
-| Signature verification | `./api/api.py` | **Not implemented.** `X-Fourthwall-Hmac-SHA256` is not read. |
-| API key validation | `./api/api.py` | Line 1118 `verify_api_key()` against central `website` DB |
-| WebSocket forward | `./api/api.py` | Line 1698 `GET https://websocket.botofthespecter.com/notify?code=...&event=FOURTHWALL&data=...` |
+| HTTP route handler | `./api/api.py` | `handle_fourthwall_webhook` — `POST /fourthwall?api_key=` |
+| Signature verification | `./api/api.py` | **Not implemented.** `X-Fourthwall-Hmac-SHA256` / `X-Fourthwall-Hmac-Apps-SHA256` are not read. |
+| API key validation | `./api/api.py` | `verify_api_key()` against central `website` DB |
+| WebSocket forward | `./api/api.py` | `GET https://websocket.botofthespecter.com/notify?...` with `"data": json.dumps(webhook_data)` |
 
 ### WebSocket routing
 
 | Concern | File | Location |
 | ------- | ---- | -------- |
-| Event registration | `./websocket/server.py` | Line 202 `("FOURTHWALL", self.handle_fourthwall_event)` |
-| HTTP notify router | `./websocket/server.py` | Line 819 `elif event == "FOURTHWALL"` |
-| Server-level handler | `./websocket/server.py` | Line 952 `handle_fourthwall_event(code, data)` — delegates to donation handler |
-| Broadcast | `./websocket/donation_handler.py` | Line 8 `handle_fourthwall_event()` — calls `broadcast_with_globals("FOURTHWALL", data, code)` |
+| Event registration | `./websocket/server.py` | `("FOURTHWALL", self.handle_fourthwall_event)` |
+| HTTP notify router | `./websocket/server.py` | `elif event == "FOURTHWALL"` |
+| Server-level handler | `./websocket/server.py` | `handle_fourthwall_event(code, data)` — delegates to donation handler |
+| Broadcast | `./websocket/donation_handler.py` | `handle_fourthwall_event()` — calls `broadcast_with_globals("FOURTHWALL", data, code)` |
 
-### Overlay
+### Overlay (live browser source)
 
 | Concern | File | Notes |
 | ------- | ---- | ----- |
-| Browser source overlay | `./overlay/fourthwall.php` | Socket.io 4.8.3, registers as `{ code, channel: 'Overlay', name: 'FourthWall' }` |
-| Data parser | `./overlay/fourthwall.php` | `parseFwData()` handles both JSON and Python-dict-literal string shapes |
-| Handled event types | `./overlay/fourthwall.php` | `ORDER_PLACED`, `DONATION`, `GIVEAWAY_PURCHASED`, `SUBSCRIPTION_PURCHASED`; all others fall through to generic alert |
+| Browser source overlay | `./overlay/fourthwall.php` | Socket.io 4.8.3, registers as `{ code, channel: 'Overlay', name: 'FourthWall' }`. On `FOURTHWALL`, **queues visual alerts** via `alertQueue` / `enqueueAlert()`. |
+| Data parser | `./overlay/fourthwall.php` | `parseFwData()` tries JSON first, then a Python-dict-literal fallback for safety (API path already sends `json.dumps`). |
+| Handled event types | `./overlay/fourthwall.php` | Dedicated UI: `ORDER_PLACED`, `DONATION`, `GIVEAWAY_PURCHASED`, `SUBSCRIPTION_PURCHASED`; all others fall through to generic alert |
 | Alert duration | `./overlay/fourthwall.php` | 7 seconds per alert, queued sequentially |
 | Reconnect strategy | `./overlay/fourthwall.php` | Exponential backoff starting at 5 s, capped at 30 s |
 
 ### Known gaps and TODOs
 
 - **HMAC verification is not implemented.** `handle_fourthwall_webhook` reads the body and forwards it without checking `X-Fourthwall-Hmac-SHA256`. To fix: add a `fourthwall_webhook_secret` column to `users`, read the header in the FastAPI handler, verify with `hmac.compare_digest`. Accept both `X-Fourthwall-Hmac-SHA256` and `X-Fourthwall-Hmac-Apps-SHA256` to support both webhook models.
-- **Python-dict serialization bug.** The WebSocket forward uses `urlencode(params)` where `params["data"]` is a Python dict — this produces a Python `repr()` string (`{'key': 'value'}`) not valid JSON. The overlay's `parseFwData()` works around this with a string replacement heuristic. Fix by `json.dumps(webhook_data)` before URL encoding.
-- **`ORDER_UPDATED` unhandled visually.** Falls through to the generic fallback. Consider suppressing it (status-change noise) or adding a dedicated branch.
-- **Multi-item orders.** `offers` is always an array; the overlay reads only `offers[0]`. Multi-item orders silently drop all but the first item.
-- **`TWITCH_CHARITY_DONATION` not in overlay.** Falls through to generic fallback; no dedicated branch exists.
+- **Payload serialisation is correct on the API path.** Forward uses `"data": json.dumps(webhook_data)` before `urlencode`. Overlay `parseFwData()` still keeps a Python-literal fallback for safety; it is not required for the current API path.
+- **Incomplete event-type coverage in the overlay.** `ORDER_UPDATED`, `GIFT_PURCHASE`, `SUBSCRIPTION_CHANGED` / `EXPIRED` / `CANCELLED` / `CHARGE_FAILED`, `TWITCH_CHARITY_DONATION`, and shop-admin events fall through to the generic fallback (or are not specially themed). Consider dedicated branches or intentional suppress for noise (`ORDER_UPDATED`).
+- **Multi-item orders.** `offers` is always an array; the overlay shows the first line item plus `and N more` when there are additional offers (not a full line-item list).
 
 ---
 

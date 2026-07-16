@@ -315,11 +315,11 @@ Ko-fi retries failed deliveries (non-2xx responses) with exponential back-off. T
 | `amount` is a string | Never cast directly to `float` — use `Decimal("5.00")` for financial arithmetic. Guard against `""` and `null` on some shop edge cases before parsing. |
 | `from_name` and `message` are user-controlled | XSS-sanitize before injecting into HTML. The overlay uses `escapeHtml()` — keep it. |
 | `verification_token` is in the body | Any logging of the raw request body exposes this secret. Mask it in all log paths. |
-| Commission alerts use the generic fallback | The overlay's `buildAlertElement` has no `Commission` branch — they fall through to the `☕` icon. Add an `else if (eventType === 'Commission')` block if Commission alerts are wanted. |
+| Commission alerts | Dedicated branch: icon 🎨, label “Ko-fi Commission”, headline from `from_name`, amount + message. |
 | `is_public: false` events are rendered anyway | The overlay currently displays all events regardless of `is_public`. Consider gating on `eventData.is_public !== false` to hide private commissions and quiet donations. |
 | Subscription with no tier | `tier_name` is `null` when the creator has no membership tiers configured, even for a valid subscription payment. |
 | Test event | The Ko-fi "Send Test" button sends a synthetic `Donation` with `amount: "3.00"` and a placeholder `kofi_transaction_id`. Filter it out in prod by checking whether the transaction ID matches the known test UUID or by adding a `is_test` guard. |
-| Python dict serialisation | `urllib.parse.urlencode({"data": kofi_data})` stringifies a Python dict with single quotes and `True`/`False`/`None`. The overlay includes a `parseKofiData()` fallback parser for this. The fix is to `json.dumps(kofi_data)` before encoding. |
+| Payload serialisation | API forwards with `"data": json.dumps(kofi_data)` before `urlencode`, so the WebSocket receives valid JSON. Overlay `parseKofiData()` still accepts a Python-dict-literal fallback for safety if a non-JSON string ever arrives. |
 
 ---
 
@@ -327,12 +327,18 @@ Ko-fi retries failed deliveries (non-2xx responses) with exponential back-off. T
 
 | Concern | File | Detail |
 | ------- | ---- | ------ |
-| HTTP ingest endpoint | `./api/api.py:1718` | `handle_kofi_webhook` — `POST /kofi?api_key=`. Parses `data` form field, forwards to WebSocket server via `GET /notify`. |
+| HTTP ingest endpoint | `./api/api.py` (`handle_kofi_webhook`) | `POST /kofi?api_key=`. Parses `data` form field as JSON, forwards to WebSocket via `GET /notify` with `"data": json.dumps(kofi_data)`. |
 | API key validation | `./api/api.py` (`verify_api_key`) | Validates `api_key` query param against `users.api_key` in central `website` DB. Returns HTTP 401 on failure. |
 | `verification_token` check | **Not currently enforced** | Only the `api_key` query param is checked. The Ko-fi token is not validated. Anyone with a valid user API key can spoof events. |
-| WebSocket routing | `./websocket/server.py:822` | `elif event == "KOFI": await self.handle_kofi_event(code, data)` |
-| WebSocket delegation | `./websocket/server.py:956` | Delegates to `self.donation_handler.handle_kofi_event(code, data)` |
-| Event broadcaster | `./websocket/donation_handler.py:24` | `broadcast_with_globals("KOFI", data, code)` — fans out to all clients registered under the channel code. |
-| Overlay | `./overlay/kofi.php` | Socket.io 4.8.3 client. Registers as `{ code, channel: 'Overlay', name: 'Ko-Fi' }`. Queues alerts via `alertQueue`; displays each for `ALERT_DURATION = 7000 ms`. Includes `parseKofiData()` Python-dict fallback parser. |
-| Alert rendering | `./overlay/kofi.php:buildAlertElement()` | `Donation` (💰), `Subscription` (⭐), `Shop Order` (🛒), everything else including `Commission` → generic ☕ fallback. |
+| WebSocket routing | `./websocket/server.py` | `elif event == "KOFI": await self.handle_kofi_event(code, data)` |
+| WebSocket delegation | `./websocket/server.py` | Delegates to `self.donation_handler.handle_kofi_event(code, data)` |
+| Event broadcaster | `./websocket/donation_handler.py` | `broadcast_with_globals("KOFI", data, code)` — fans out to all clients registered under the channel code. |
+| Overlay (live browser source) | `./overlay/kofi.php` | Socket.io 4.8.3 client. Registers as `{ code, channel: 'Overlay', name: 'Ko-Fi' }`. On `KOFI`, parses payload and **queues visual alerts** via `alertQueue` / `enqueueAlert()`; each alert stays visible for `ALERT_DURATION = 7000 ms`. Includes `parseKofiData()` JSON + Python-dict fallback parser. |
+| Alert rendering | `./overlay/kofi.php:buildAlertElement()` | Dedicated branches: `Donation` (💰), `Subscription` (⭐ first vs renewal), `Shop Order` (🛒 with item list), `Commission` (🎨); unknown types → generic ☕ fallback. XSS-safe via `escapeHtml()`. |
 | Reconnect logic | `./overlay/kofi.php:attemptReconnect()` | Exponential back-off up to 30 s cap (`Math.min(5000 * attempts, 30000)`). |
+
+### Known issues / TODOs
+
+1. **`verification_token` is not enforced.** Handler validates only the user `api_key` query param. Spoofing is possible if that key is known. Fix: store the per-creator Ko-fi token and `hmac.compare_digest` against the body field.
+2. **`is_public: false` events still render.** Overlay does not gate on privacy; private commissions/quiet donations are shown if delivered.
+3. **Unknown future `type` values** fall through to the generic ☕ alert.

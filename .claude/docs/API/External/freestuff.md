@@ -177,7 +177,7 @@ GET https://websocket.botofthespecter.com/notify
     &data=<URL-encoded JSON-stringified body>
 ```
 
-**Note:** uses `json.dumps(webhook_data)` here — unlike Patreon/Ko-fi/Fourthwall which pass the dict directly to `urlencode`. The WebSocket server therefore receives a proper JSON string, not a Python-dict-literal.
+**Note:** uses `json.dumps(webhook_data)` before `urlencode`, same pattern as Ko-fi / Patreon / Fourthwall. The WebSocket server therefore receives a proper JSON string (not a Python-dict-literal).
 
 Server-side (`./websocket/server.py:964-999`):
 - `handle_freestuff_event(code, data)` parses JSON / falls back to `ast.literal_eval`.
