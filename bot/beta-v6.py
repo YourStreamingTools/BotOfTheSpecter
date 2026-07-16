@@ -173,12 +173,19 @@ builtin_commands = {
     "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
     "wordreplaceoff", "wordreplaceon"
 }
-# Working & Study commands act on each chatter's OWN task/personaltimer, so they seed with a
-# per-user cooldown bucket (not the global 'default').
+# Commands that must use a per-user cooldown bucket (not global 'default').
+# A global bucket lets one viewer's use lock the command for every other viewer.
 per_user_cooldown_commands = {
+    # Task list / personal timer
     "task", "done", "rename", "remove", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "personaltimer", "checktimer"
+    "project", "projects", "personaltimer", "checktimer",
+    # Social / self-targeted interactions
+    "hug", "highfive", "kiss",
+    "lurk", "unlurk", "lurking", "lurklead",
+    "points", "mybits", "typo", "typos",
+    "followage", "subscription", "watchtime",
+    "rps", "roulette", "gamble", "slots",
 }
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -15059,9 +15066,11 @@ async def builtin_commands_creation():
                 for command in new_commands:
                     # Determine permission type
                     permission = 'mod' if command in mod_commands else 'everyone'
-                    values.append((command, 'Enabled', permission))
+                    # Per-viewer social/task commands get a per-user cooldown bucket.
+                    cooldown_bucket = 'user' if command in per_user_cooldown_commands else 'default'
+                    values.append((command, 'Enabled', permission, cooldown_bucket))
                 # Insert query with placeholders for each command
-                insert_query = "INSERT INTO builtin_commands (command, status, permission) VALUES (%s, %s, %s)"
+                insert_query = "INSERT INTO builtin_commands (command, status, permission, cooldown_bucket) VALUES (%s, %s, %s, %s)"
                 await cursor.executemany(insert_query, values)  # Use executemany here
                 await connection.commit()
                 for command in new_commands:
@@ -15070,6 +15079,34 @@ async def builtin_commands_creation():
             task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp"]
             task_placeholders = ', '.join(['%s'] * len(task_cmds))
             await cursor.execute(f"UPDATE builtin_commands SET cooldown_rate = 0, cooldown_time = 0 WHERE command IN ({task_placeholders})", tuple(task_cmds))
+            await connection.commit()
+            # Migrate existing rows still stuck on global default for per-user commands
+            # (e.g. !hug must not share one channel-wide cooldown).
+            per_user_list = sorted(per_user_cooldown_commands)
+            if per_user_list:
+                per_user_ph = ', '.join(['%s'] * len(per_user_list))
+                await cursor.execute(
+                    f"UPDATE builtin_commands SET cooldown_bucket = 'user' "
+                    f"WHERE command IN ({per_user_ph}) AND (cooldown_bucket IS NULL OR cooldown_bucket = 'default')",
+                    tuple(per_user_list)
+                )
+                if cursor.rowcount:
+                    bot_logger.info(
+                        f"[BOT READY] Migrated {cursor.rowcount} command(s) to per-user cooldown_bucket."
+                    )
+                await connection.commit()
+            # Channel-wide actions stay on the global default bucket (shared rate limit).
+            global_bucket_cmds = ("clip", "joke", "ping")
+            global_ph = ', '.join(['%s'] * len(global_bucket_cmds))
+            await cursor.execute(
+                f"UPDATE builtin_commands SET cooldown_bucket = 'default' "
+                f"WHERE command IN ({global_ph}) AND cooldown_bucket = 'user'",
+                global_bucket_cmds
+            )
+            if cursor.rowcount:
+                bot_logger.info(
+                    f"[BOT READY] Restored {cursor.rowcount} command(s) to global (default) cooldown_bucket."
+                )
             await connection.commit()
     except MySQLOtherErrors as e:
         bot_logger.error(f"builtin_commands_creation function error: {e}")
