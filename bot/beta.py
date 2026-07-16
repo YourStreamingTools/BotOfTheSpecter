@@ -6490,7 +6490,7 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('taskhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    await send_chat_message("Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !timer <minutes> <title> for a general timer, or !timer <work>/<break>/<cycles> for a focus/break timer. !checktimer for time left. Projects: !project <name>.")
+                    await send_chat_message('Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !timer <minutes> <title> for a general timer, !timer <minutes> "title" focus for a focus task on the list, or !timer <work>/<break>/<cycles> for focus/break cycles. !checktimer for time left. Projects: !project <name>.')
                     add_usage('taskhelp', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[TASKHELP] Error in taskhelp_command: {e}")
@@ -9191,9 +9191,10 @@ class TwitchBot(commands.Bot):
 
     @commands.command(name='personaltimer', aliases=['timer', 'pomo', 'ptimer', 'mytimer', 'focus'])
     async def personaltimer_command(self, ctx):
-        # Two modes:
-        #   General: !timer 60 read the book  — plain countdown, no task-list link
-        #   Pomo:    !timer 60/10/4 [label]   — focus/break cycles, task list + working/study overlay
+        # Three modes:
+        #   General: !timer 60 read the book           — plain countdown, no task-list link
+        #   Focus:   !timer 20 "my task here" focus    — single focus block, task list + overlay
+        #   Pomo:    !timer 60/10/4 [label]             — focus/break cycles, task list + overlay
         global bot_owner
         connection = None
         connection = await mysql_connection()
@@ -9234,42 +9235,48 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f"@{user_name}, you have no active timer to cancel.")
                         add_usage('personaltimer', bucket_key, cooldown_bucket)
                         return
-                    spec_parts = arg.split(' ', 1)
-                    spec_token = spec_parts[0].strip()
-                    label = spec_parts[1].strip() if len(spec_parts) > 1 else ''
-                    label = label[:255]
-                    parsed = parse_pomo_spec(spec_token)
+                    parsed = parse_timer_start_args(arg)
                     if not parsed:
                         await send_chat_message(
-                            "Usage: !timer <minutes> <title> | !timer <work>/<break>/<cycles> [label] | !timer stop | !checktimer"
+                            'Usage: !timer <minutes> <title> | !timer <minutes> "title" focus | '
+                            '!timer <work>/<break>/<cycles> [label] | !timer stop | !checktimer'
                         )
                         return
-                    work_minutes, break_minutes, total_cycles = parsed
-                    # Slash form = pomo (task list + overlay). Plain minutes = general timer only.
-                    is_pomo = '/' in spec_token
-                    if not is_pomo:
-                        break_minutes = 0
-                        total_cycles = 1
+                    mode = parsed['mode']
+                    work_minutes = parsed['work']
+                    break_minutes = parsed['break']
+                    total_cycles = parsed['cycles']
+                    label = parsed['label']
                     if not (1 <= work_minutes <= 600):
                         await send_chat_message(f"@{user_name}, minutes must be 1-600.")
                         return
-                    if is_pomo:
+                    if mode == 'pomo':
                         if not (0 <= break_minutes <= 120):
                             await send_chat_message(f"@{user_name}, break minutes must be 0-120.")
                             return
                         if not (1 <= total_cycles <= 24):
                             await send_chat_message(f"@{user_name}, cycles must be 1-24.")
                             return
+                    link_task = mode in ('focus', 'pomo')
                     await start_user_pomo(
                         user_id, user_name, label, work_minutes, break_minutes, total_cycles,
-                        link_task=is_pomo,
+                        link_task=link_task,
                     )
-                    if is_pomo:
+                    if mode == 'pomo':
                         label_part = f" [{label}]" if label else ""
                         await send_chat_message(
                             f"@{user_name}, focus timer started{label_part}: "
                             f"{total_cycles} cycles of {work_minutes}m work / {break_minutes}m break."
                         )
+                    elif mode == 'focus':
+                        if label:
+                            await send_chat_message(
+                                f'@{user_name}, focus timer started for "{label}" ({work_minutes}m).'
+                            )
+                        else:
+                            await send_chat_message(
+                                f"@{user_name}, focus timer started ({work_minutes}m)."
+                            )
                     else:
                         if label:
                             await send_chat_message(
@@ -12391,6 +12398,62 @@ def parse_pomo_spec(spec):
         return None
     return (work, 0, 1)
 
+def parse_timer_start_args(arg):
+    # Parse !timer start args into mode + timing + label.
+    #   focus:  !timer 20 "my task here" focus  |  !timer 20 focus "title"  |  !timer 20 focus
+    #   pomo:   !timer 25/5/4 [label]
+    #   general:!timer 20 plain title here
+    arg = (arg or '').strip()
+    if not arg:
+        return None
+    focus_patterns = (
+        r'^(\d+)\s+"([^"]*)"\s+focus\s*$',
+        r"^(\d+)\s+'([^']*)'\s+focus\s*$",
+        r'^(\d+)\s+focus\s+"([^"]*)"\s*$',
+        r"^(\d+)\s+focus\s+'([^']*)'\s*$",
+    )
+    for pattern in focus_patterns:
+        m = re.match(pattern, arg, re.IGNORECASE)
+        if m:
+            return {
+                'mode': 'focus',
+                'work': int(m.group(1)),
+                'break': 0,
+                'cycles': 1,
+                'label': (m.group(2) or '').strip()[:255],
+            }
+    m = re.match(r'^(\d+)\s+focus\s*$', arg, re.IGNORECASE)
+    if m:
+        return {
+            'mode': 'focus',
+            'work': int(m.group(1)),
+            'break': 0,
+            'cycles': 1,
+            'label': '',
+        }
+    parts = arg.split(' ', 1)
+    spec_token = parts[0].strip()
+    rest = parts[1].strip() if len(parts) > 1 else ''
+    parsed = parse_pomo_spec(spec_token)
+    if not parsed:
+        return None
+    work, brk, cycles = parsed
+    if '/' in spec_token:
+        return {
+            'mode': 'pomo',
+            'work': work,
+            'break': brk,
+            'cycles': cycles,
+            'label': rest[:255],
+        }
+    return {
+        'mode': 'general',
+        'work': work,
+        'break': 0,
+        'cycles': 1,
+        'label': rest[:255],
+    }
+
 def _pomo_routine_key(user_id):
     return f"pomo_{user_id}"
 
@@ -12478,9 +12541,12 @@ async def fetch_pomo_by_id(pomo_id):
             await connection.close()
 
 def is_pomo_row(row):
-    # Pomo = focus/break/cycles form. General timer is plain minutes (break=0, cycles=1).
+    # Task-linked focus/pomo timers (not plain general countdowns).
+    # Focus-only is break=0/cycles=1 but has task_id; full pomo has break or multi-cycle.
     if not row:
         return False
+    if row.get('task_id'):
+        return True
     return int(row.get('break_minutes') or 0) > 0 or int(row.get('total_cycles') or 1) > 1
 
 def format_remaining_mins_words(seconds):
@@ -12568,7 +12634,10 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
             task_id = None
             if link_task:
                 task_title = label if label else f"Timer ({work_minutes}m)"
-                task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
+                if int(break_minutes or 0) == 0 and int(total_cycles or 1) == 1:
+                    task_desc = f"Focus timer: {work_minutes}m"
+                else:
+                    task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
                 if is_streamer:
                     await cursor.execute(
                         f"INSERT INTO {task_table} (title, description, category, status, approval_status, "
