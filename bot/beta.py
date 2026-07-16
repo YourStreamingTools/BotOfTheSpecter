@@ -173,7 +173,7 @@ builtin_commands = {
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
     "task", "done", "rename", "remove", "taskclear", "mytasks",
     "now", "later", "soon", "backlog",
-    "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp",
+    "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
     "wordreplaceoff", "wordreplaceon"
 }
 # Working & Study commands act on each chatter's OWN task/personaltimer, so they seed with a
@@ -192,7 +192,7 @@ mod_commands = {
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "pomo", "focus", "ctimer"
+    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "pomo", "focus", "ctimer", "thelp"
 }
 
 # Logs
@@ -6490,10 +6490,48 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('taskhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    await send_chat_message('Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !timer <minutes> <title> for a general timer, !timer <minutes> "title" focus for a focus task on the list, or !timer <work>/<break>/<cycles> for focus/break cycles. !checktimer for time left. Projects: !project <name>.')
+                    await send_chat_message('Working & Study: !task <name> to set your active task, !done to finish it, !later <name> to queue it, !backlog to see your queue. Use !timer <minutes> <title> for a general timer, !timer <minutes> "title" focus for a focus task on the list, or !timer <work>/<break>/<cycles> for focus/break cycles. !checktimer for time left. !timerhelp for full timer help. Projects: !project <name>.')
                     add_usage('taskhelp', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[TASKHELP] Error in taskhelp_command: {e}")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='timerhelp', aliases=['thelp'])
+    async def timerhelp_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("timerhelp",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('timerhelp', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    await send_chat_message(
+                        'Timer help: !timer <mins> <title> = general countdown (not on task list). '
+                        '!timer <mins> "title" focus = focus task on the list/overlay. '
+                        '!timer <work>/<break>/<cycles> [label] = multi-cycle focus/break on the list. '
+                        '!timer or !checktimer = time left. !timer stop = cancel. '
+                        'Aliases: !pomo, !focus, !ptimer, !mytimer, !ctimer. '
+                        'Limits: work 1-600m, break 0-120m, cycles 1-24.'
+                    )
+                    add_usage('timerhelp', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[TIMERHELP] Error in timerhelp_command: {e}")
         finally:
             if connection:
                 await connection.close()
@@ -16340,7 +16378,7 @@ async def builtin_commands_creation():
                 for command in new_commands:
                     bot_logger.info(f"[BOT READY] Command '{command}' added to database successfully.")
             # Force task-related commands to have 0 cooldown
-            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp"]
+            task_cmds = ["task", "done", "rename", "remove", "taskclear", "mytasks", "now", "later", "soon", "backlog", "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp"]
             task_placeholders = ', '.join(['%s'] * len(task_cmds))
             await cursor.execute(f"UPDATE builtin_commands SET cooldown_rate = 0, cooldown_time = 0 WHERE command IN ({task_placeholders})", tuple(task_cmds))
             await connection.commit()

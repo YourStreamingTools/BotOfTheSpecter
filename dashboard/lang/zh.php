@@ -1508,6 +1508,7 @@ return [
     'working_or_study_cmd_projects' => '列出您的项目',
     'working_or_study_cmd_personaltimer' => '通用：!timer <minutes> <title>；专注任务：!timer <minutes> "title" focus；pomo：!timer <work>/<break>/<cycles>（别名：!pomo、!focus）',
     'working_or_study_cmd_checktimer' => '检查常规计时器或专注/休息计时器的剩余时间（别名：!ctimer）',
+    'working_or_study_cmd_timerhelp' => '显示所有个人计时器模式和别名（别名：!thelp）',
     'working_or_study_cmd_studytimer' => '控制主组计时器状态、自动驾驶和持续时间（仅限流媒体/模组）',
     'working_or_study_cmd_studyhelp' => '显示工作和学习命令的快速入门指南',
     // working-or-study.php (JavaScript runtime strings)

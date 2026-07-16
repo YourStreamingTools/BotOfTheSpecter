@@ -368,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo json_encode(['success' => $ok]);
         exit;
     }
-    $taskCommands = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'personaltimer', 'checktimer', 'studytimer', 'studyhelp'];
+    $taskCommands = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'personaltimer', 'checktimer', 'timerhelp', 'studytimer', 'studyhelp'];
     if ($action === 'wcmd_get_command_status') {
         $statuses = [];
         foreach ($taskCommands as $cmd) { $statuses[$cmd] = 'Enabled'; }
@@ -432,7 +432,7 @@ if ($db) {
     }
 }
 
-$taskCommandList = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'personaltimer', 'checktimer', 'studytimer', 'studyhelp'];
+$taskCommandList = ['task', 'done', 'rename', 'remove', 'mytasks', 'now', 'later', 'soon', 'backlog', 'project', 'projects', 'personaltimer', 'checktimer', 'timerhelp', 'studytimer', 'studyhelp'];
 $taskCommandStatuses = array_fill_keys($taskCommandList, 'Enabled');
 if ($db) {
     $placeholders = implode(',', array_fill(0, count($taskCommandList), '?'));
@@ -925,6 +925,7 @@ ob_start();
                             'projects'      => 'working_or_study_cmd_projects',
                             'personaltimer' => 'working_or_study_cmd_personaltimer',
                             'checktimer'    => 'working_or_study_cmd_checktimer',
+                            'timerhelp'     => 'working_or_study_cmd_timerhelp',
                             'studytimer'    => 'working_or_study_cmd_studytimer',
                             'studyhelp'     => 'working_or_study_cmd_studyhelp',
                         ];
