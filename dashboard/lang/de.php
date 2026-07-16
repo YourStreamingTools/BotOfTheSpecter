@@ -1483,7 +1483,7 @@ return [
     'working_or_study_cmd_done' => 'schließe deine Aufgabe ab (und verdiene Punkte, wenn Belohnungen aktiv sind)',
     'working_or_study_cmd_rename' => 'benenne deine aktuelle Aufgabe um',
     'working_or_study_cmd_remove' => 'entferne deine aktuelle Aufgabe',
-    'working_or_study_cmd_mytasks' => 'zeige deine aktive Aufgabe und die Anzahl im Rückstand',
+    'working_or_study_cmd_mytasks' => 'zeige deine aktive Aufgabe und Backlog-Titel (eine Chat-Nachricht)',
     'working_or_study_cmd_now' => 'lege jetzt deine aktive Aufgabe fest (oder hole eine Aufgabe aus dem Rückstand vor / überspringe sie)',
     'working_or_study_cmd_later' => 'reihe eine Aufgabe ans Ende deines Rückstands ein',
     'working_or_study_cmd_soon' => 'reihe eine Aufgabe an den Anfang deines Rückstands ein',

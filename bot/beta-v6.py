@@ -7667,22 +7667,23 @@ class TwitchBot(commands.AutoBot):
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
                     project = await resolve_active_project(cursor, user_id)
+                    # Match !task / !done: filter task_type so timer rows are not treated as the active task.
                     await cursor.execute(
-                        "SELECT title FROM user_tasks WHERE user_id = %s AND status = 'active' AND project <=> %s LIMIT 1",
+                        "SELECT title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                         (user_id, project)
                     )
                     task = await cursor.fetchone()
                     await cursor.execute(
-                        "SELECT COUNT(*) AS cnt FROM user_tasks WHERE user_id = %s AND status = 'pending' AND project <=> %s",
+                        "SELECT backlog_position, title FROM user_tasks "
+                        "WHERE user_id = %s AND status = 'pending' AND task_type = 'task' AND project <=> %s "
+                        "ORDER BY backlog_position ASC, id ASC",
                         (user_id, project)
                     )
-                    count_row = await cursor.fetchone()
-                    backlog_count = int(count_row.get('cnt') or 0) if count_row else 0
+                    backlog_rows = await cursor.fetchall() or []
                     scope = f" in {project}" if project else ""
-                    if task:
-                        await send_chat_message(f"@{user_name} active task{scope}: \"{task.get('title')}\" (backlog: {backlog_count}).")
-                    else:
-                        await send_chat_message(f"@{user_name} you have no active task{scope}. Use !task <title> to set one.")
+                    active_title = task.get('title') if task else None
+                    message = format_mytasks_chat_message(user_name, scope, active_title, backlog_rows)
+                    await send_chat_message(message[:MAX_CHAT_MESSAGE_LENGTH])
                     add_usage('mytasks', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[MYTASKS] Error in mytasks_command: {e}")
@@ -11210,6 +11211,47 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
     if moved:
         return f"project \"{name}\" deleted — {moved} open task(s) moved to your default project."
     return f"project \"{name}\" deleted."
+
+# Function to format !mytasks for Twitch's 500-char limit: active task + packed backlog titles
+def format_mytasks_chat_message(user_name, scope, active_title, backlog_rows, max_length=MAX_CHAT_MESSAGE_LENGTH):
+    scope = scope or ""
+    if active_title:
+        head = f'@{user_name} active{scope}: "{active_title}"'
+    else:
+        head = f'@{user_name} no active task{scope}'
+    rows = backlog_rows or []
+    total = len(rows)
+    if total == 0:
+        if active_title:
+            return f"{head}. No backlog."
+        return f"{head}. Use !task <title> to set one, or !later <title> to queue."
+    intro = f"{head} | backlog: "
+    pieces = []
+    for i, row in enumerate(rows):
+        pos = int(row.get('backlog_position') or (i + 1))
+        title = str(row.get('title') or '?')
+        piece = f"#{pos} {title}"
+        trial = pieces + [piece]
+        rest = total - len(trial)
+        suffix = f" + {rest} more" if rest > 0 else ""
+        if len(intro + ", ".join(trial) + suffix) <= max_length:
+            pieces.append(piece)
+        else:
+            break
+    if not pieces:
+        pos = int(rows[0].get('backlog_position') or 1)
+        title = str(rows[0].get('title') or '?')
+        rest = total - 1
+        suffix = f" + {rest} more" if rest > 0 else ""
+        label = f"#{pos} "
+        room = max(1, max_length - len(intro) - len(suffix) - len(label))
+        trunc = title[:room]
+        if len(title) > room:
+            trunc = (trunc[:-1] if room > 1 else trunc) + "…"
+        return (intro + label + trunc + suffix)[:max_length]
+    rest = total - len(pieces)
+    suffix = f" + {rest} more" if rest > 0 else ""
+    return intro + ", ".join(pieces) + suffix
 
 # Function to promote the lowest-positioned pending backlog row to active
 async def promote_backlog_head(cursor, user_id, project=None):
