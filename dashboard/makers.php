@@ -52,13 +52,11 @@ function maker_json($payload) {
     exit();
 }
 
-// ---------------------------------------------------------------------------
 // POST action handlers (each returns JSON and exits)
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
     $action = $_POST['maker_action'];
 
-    // --- Save overlay settings ---
+    // Save overlay settings
     if ($action === 'save_settings') {
         $validLayouts = ['positioned', 'stacked-left', 'stacked-right'];
         $boxLayout = in_array($_POST['box_layout'] ?? '', $validLayouts, true) ? $_POST['box_layout'] : 'positioned';
@@ -121,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok, 'error' => $ok ? null : $err]);
     }
 
-    // --- Create a project ---
+    // Create a project
     if ($action === 'create_project') {
         $title = trim($_POST['title'] ?? '');
         $validStatus = ['current', 'finished', 'upcoming'];
@@ -141,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok, 'id' => $newId, 'error' => $ok ? null : $err]);
     }
 
-    // --- Update a project ---
+    // Update a project
     if ($action === 'update_project') {
         $id = intval($_POST['id'] ?? 0);
         $title = mb_substr(trim($_POST['title'] ?? ''), 0, 255);
@@ -165,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok, 'error' => $ok ? null : $err]);
     }
 
-    // --- Delete a project (+ its images) ---
+    // Delete a project (+ its images)
     if ($action === 'delete_project') {
         $id = intval($_POST['id'] ?? 0);
         if ($id <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
@@ -187,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok]);
     }
 
-    // --- Feature a project as the current one (auto-track: promote + touch) ---
+    // Feature a project as the current one (auto-track: promote + touch)
     if ($action === 'set_current') {
         $id = intval($_POST['id'] ?? 0);
         if ($id <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
@@ -212,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok]);
     }
 
-    // --- Upload image file(s) and attach them to a project ---
+    // Upload image file(s) and attach them to a project
     if ($action === 'upload_image') {
         $projectId = intval($_POST['project_id'] ?? 0);
         if ($projectId <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
@@ -267,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => !empty($added), 'added' => $added, 'errors' => $errors]);
     }
 
-    // --- Attach an already-uploaded media file by name ---
+    // Attach an already-uploaded media file by name
     if ($action === 'attach_image') {
         $projectId = intval($_POST['project_id'] ?? 0);
         $file = preg_replace('/[^A-Za-z0-9._-]/', '', $_POST['media_file'] ?? '');
@@ -288,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         maker_json(['success' => $ok]);
     }
 
-    // --- Remove an image row (file stays in the library) ---
+    // Remove an image row (file stays in the library)
     if ($action === 'delete_image') {
         $imgId = intval($_POST['image_id'] ?? 0);
         if ($imgId <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_image')]); }
@@ -303,9 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
     maker_json(['success' => false, 'error' => t('makers_err_unknown_action')]);
 }
 
-// ---------------------------------------------------------------------------
 // Load data for rendering
-// ---------------------------------------------------------------------------
 $settings = [
     'display_mode' => 'current', 'current_project_id' => null, 'visible' => 1,
     'carousel_seconds' => 6, 'project_rotate_seconds' => 15, 'accent_color' => '#9146FF',
@@ -377,9 +373,7 @@ $overlayUrlMasked = $overlayUrlBase . str_repeat('•', max(12, min(strlen($over
 $fontOptions = ['Arial', 'Verdana', 'Georgia', 'Tahoma', 'Trebuchet MS', 'Times New Roman', 'Courier New', 'Inter'];
 $statusLabels = ['current' => t('makers_status_current'), 'upcoming' => t('makers_status_upcoming'), 'finished' => t('makers_status_finished')];
 
-// ---------------------------------------------------------------------------
 // Page content
-// ---------------------------------------------------------------------------
 ob_start();
 ?>
 <div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
@@ -807,7 +801,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var dragging = null, grabX = 0, grabY = 0;
         function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-        // --- Smart snapping ---------------------------------------------------------------
+        // Smart snapping
         // While dragging, align the chip's near edge / center / far edge to other chips and
         // to the canvas edges, center and thirds. A guide line flags an active snap. Hold Alt
         // to bypass and place freely.

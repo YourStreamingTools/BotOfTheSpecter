@@ -81,19 +81,19 @@ if (!function_exists('cdnfm_key_in_store')) {
     }
 }
 
-// ---- AJAX action handlers ----
+// AJAX action handlers
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     ob_clean();
     header('Content-Type: application/json');
     $action = (string) $_POST['action'];
-    // -- Validate store for every action before touching S3 --
+    // Validate store for every action before touching S3
     $store = trim((string) ($_POST['store'] ?? ''));
     if (!in_array($store, $validStores, true)) {
         http_response_code(400);
         echo json_encode(['ok' => false, 'error' => t('cdn_files_err_invalid_store')]);
         exit;
     }
-    // -- list: read-only, any admin --
+    // list: read-only, any admin
     if ($action === 'list') {
         $folder = trim((string) ($_POST['folder'] ?? ''));
         $result = megas4_list($store, $folder);
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         ]);
         exit;
     }
-    // -- Write actions: super admin only (server-side enforcement, not just UI) --
+    // Write actions: super admin only (server-side enforcement, not just UI)
     $writeActions = ['upload', 'delete', 'rename', 'mkdir'];
     if (in_array($action, $writeActions, true)) {
         if (!$isSuperAdmin) {

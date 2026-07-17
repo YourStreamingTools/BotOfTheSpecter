@@ -44,7 +44,7 @@ function format_date($datetime) {
 }
 ?>
 <?php
-// --- Layout variables for layout.php ---
+// Layout variables for layout.php
 $pageTitle     = $title;
 $activeNav     = 'freegames';
 $topbarActions = '<a href="/" class="sp-btn sp-btn-secondary sp-btn-sm"><i class="fa-solid fa-arrow-left"></i> Back to Search</a>';

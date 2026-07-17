@@ -1613,7 +1613,7 @@ return [
     'dashboard_quotes_saved' => '报价已保存',
     'dashboard_moderator_channels' => '主持人频道',
     'dashboard_quick_links' => '快速链接',
-    // --- Dashboard home rebuild (2026): zone labels + JS (dashboard_js_*) strings ---
+    // Dashboard home rebuild (2026): zone labels + JS (dashboard_js_*) strings
     'dashboard_live_checking' => '检查…',
     'dashboard_chat_per_min' => '聊天/分钟',
     'dashboard_active_chatters' => '活跃的聊天者',

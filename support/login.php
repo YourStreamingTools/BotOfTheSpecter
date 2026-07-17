@@ -1,10 +1,8 @@
 <?php
 // support/login.php
-// ----------------------------------------------------------------
 // Two auth paths:
 //   A) Handoff token from dashboard (no re-auth required)
 //   B) StreamersConnect → Twitch OAuth (identical to dashboard flow)
-// ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
 support_session_start();
@@ -20,9 +18,7 @@ if (!empty($_SESSION['access_token'])) {
 $info     = 'Please wait while we connect you…';
 $hasError = false;
 
-// ----------------------------------------------------------------
 // PATH A - Handoff token from dashboard
-// ----------------------------------------------------------------
 if (!empty($_GET['handoff'])) {
     $token = preg_replace('/[^a-f0-9]/i', '', (string)$_GET['handoff']);
     if (strlen($token) === 64) {
@@ -74,9 +70,7 @@ if (!empty($_GET['handoff'])) {
     }
 }
 
-// ----------------------------------------------------------------
 // PATH B - StreamersConnect OAuth response
-// ----------------------------------------------------------------
 $cfg    = include '/var/www/config/main.php';
 $apiKey = $cfg['streamersconnect_api_key'] ?? '';
 
@@ -167,13 +161,11 @@ if ($resp && $http === 200) {
     }
 }
 
-// ----------------------------------------------------------------
 // No auth data yet - render the login page with both SSO and the
 // existing Twitch fallback. The SSO button is the primary path: if
 // the user is already signed in to home, support gets a handoff
 // token and they're in without re-OAuthing. Twitch stays as a
 // fallback if home/sso is down or for users who prefer it.
-// ----------------------------------------------------------------
 $scheme   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host     = $_SERVER['HTTP_HOST'] ?? 'support.botofthespecter.com';
 $selfUrl  = $scheme . '://' . $host . ($_SERVER['REQUEST_URI'] ?? '/login.php');

@@ -1,6 +1,5 @@
 // Dashboard JavaScript functionality
 
-// ----------------------------------------------------------------
 // Global session-expiry handler.
 // Wraps window.fetch so that any same-origin response with status 401
 // (the standard reply from /var/www/lib/require_auth_ajax.php when the
@@ -13,7 +12,6 @@
 // dashboard (vanilla fetch, fetchWithTimeout helpers, jQuery $.ajax
 // when it falls back to fetch) goes through window.fetch, so a single
 // patch fixes every call site without per-file edits.
-// ----------------------------------------------------------------
 (function () {
     if (window.__BOTS_FETCH_AUTH_PATCHED) return;
     window.__BOTS_FETCH_AUTH_PATCHED = true;

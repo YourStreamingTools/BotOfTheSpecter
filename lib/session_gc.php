@@ -1,6 +1,5 @@
 <?php
 // /var/www/lib/session_gc.php
-// ----------------------------------------------------------------
 // Garbage-collects stale rows from website.web_sessions and
 // website.handoff_tokens. Designed to be run from cron, e.g.:
 //
@@ -37,7 +36,6 @@
 //                    the grace window. Use for one-off cleanup of test
 //                    debris when you don't want to wait for the grace
 //                    period to expire.
-// ----------------------------------------------------------------
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(403);
@@ -66,11 +64,9 @@ $conn->set_charset('utf8mb4');
 
 $started = microtime(true);
 
-// ----------------------------------------------------------------
 // Pre-flight: count what we'd hit. Useful when the script reports 0
 // deletions and you want to know whether that's because there really
 // is nothing to clean, or because the predicates miss real rows.
-// ----------------------------------------------------------------
 $totalSessions = (int)$conn->query("SELECT COUNT(*) FROM web_sessions")->fetch_row()[0];
 $nullLastSeen  = (int)$conn->query("SELECT COUNT(*) FROM web_sessions WHERE last_seen_at IS NULL")->fetch_row()[0];
 $emptyToken    = (int)$conn->query("SELECT COUNT(*) FROM web_sessions WHERE access_token IS NULL OR access_token = ''")->fetch_row()[0];
@@ -82,20 +78,16 @@ printf(
     $purgeEmpty ? ' [--purge-empty]' : ''
 );
 
-// ----------------------------------------------------------------
 // Sweep 1 - stale by lifetime.
 // NULL last_seen_at is treated as ancient.
-// ----------------------------------------------------------------
 $sql1 = "DELETE FROM web_sessions
           WHERE last_seen_at IS NULL
              OR last_seen_at < NOW() - INTERVAL ? HOUR";
 
-// ----------------------------------------------------------------
 // Sweep 2 - never-finished-auth rows. access_token blank AND row is
 // older than the SC grace window (or has no last_seen_at at all).
 // With --purge-empty the age guard is dropped entirely - every
 // empty-token row goes, regardless of how recently it was touched.
-// ----------------------------------------------------------------
 if ($purgeEmpty) {
     $sql2 = "DELETE FROM web_sessions
               WHERE access_token IS NULL OR access_token = ''";
@@ -106,9 +98,7 @@ if ($purgeEmpty) {
                      OR last_seen_at < NOW() - INTERVAL ? MINUTE)";
 }
 
-// ----------------------------------------------------------------
 // Sweep 3 - old handoff_tokens.
-// ----------------------------------------------------------------
 $sql3 = "DELETE FROM handoff_tokens
           WHERE expires_at < NOW() - INTERVAL ? DAY";
 

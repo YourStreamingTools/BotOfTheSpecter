@@ -1598,7 +1598,7 @@ return [
     'dashboard_moderator_channels' => 'Chaînes de modérateur',
     'dashboard_quick_links' => 'Liens rapides',
     'dashboard_js_beta_note' => '5.8 bêta',
-    // --- Reconstruction de l\'accueil du tableau de bord (2026) : libellés de zones + chaînes JS (dashboard_js_*) ---
+    // Reconstruction de l\'accueil du tableau de bord (2026) : libellés de zones + chaînes JS (dashboard_js_*)
     'dashboard_live_checking' => 'Vérification…',
     'dashboard_chat_per_min' => 'Chat / min',
     'dashboard_active_chatters' => 'Chatteurs actifs',

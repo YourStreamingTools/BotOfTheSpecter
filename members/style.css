@@ -1,12 +1,12 @@
-/* ============================================================
+/*
    BotOfTheSpecter Members Portal - style.css
    Custom dark theme, no external CSS framework
    Follows the support portal design language
-   ============================================================ */
+ */
 
-/* ----------------------------------------------------------
-   1. Reset & Base
-   ---------------------------------------------------------- */
+
+/* 1. Reset & Base */
+
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -53,10 +53,11 @@
     color-scheme: dark;
 }
 
-/* ----------------------------------------------------------
+/*
    Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
-   ---------------------------------------------------------- */
+ */
+
 [data-theme="light"] {
     color-scheme: light;
     --bg-base:        #f4f4f7;
@@ -156,9 +157,8 @@ hr {
 }
 
 
-/* ----------------------------------------------------------
-   2. Layout - Sidebar + Main
-   ---------------------------------------------------------- */
+/* 2. Layout - Sidebar + Main */
+
 .sp-layout {
     display: flex;
     min-height: 100vh;
@@ -418,9 +418,8 @@ hr {
 .sp-footer a:hover { color: var(--text-secondary); }
 
 
-/* ----------------------------------------------------------
-   3. Cards
-   ---------------------------------------------------------- */
+/* 3. Cards */
+
 .sp-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -512,9 +511,8 @@ hr {
 }
 
 
-/* ----------------------------------------------------------
-   4. Buttons
-   ---------------------------------------------------------- */
+/* 4. Buttons */
+
 .sp-btn {
     display: inline-flex;
     align-items: center;
@@ -586,9 +584,8 @@ hr {
 }
 
 
-/* ----------------------------------------------------------
-   5. Forms
-   ---------------------------------------------------------- */
+/* 5. Forms */
+
 .sp-form-group {
     margin-bottom: 1.25rem;
 }
@@ -634,9 +631,8 @@ hr {
 }
 
 
-/* ----------------------------------------------------------
-   6. Badges
-   ---------------------------------------------------------- */
+/* 6. Badges */
+
 .sp-badge {
     display: inline-flex;
     align-items: center;
@@ -656,9 +652,8 @@ hr {
 .sp-badge-accent   { background: var(--accent-light); color: var(--accent-hover); border: 1px solid rgba(124,92,191,0.3); }
 
 
-/* ----------------------------------------------------------
-   7. Table
-   ---------------------------------------------------------- */
+/* 7. Table */
+
 .sp-table-wrap {
     overflow-x: auto;
     border-radius: var(--radius-lg);
@@ -739,9 +734,8 @@ hr {
 .sp-table tbody tr:nth-child(10) { animation-delay: 300ms; }
 
 
-/* ----------------------------------------------------------
-   8. Alerts
-   ---------------------------------------------------------- */
+/* 8. Alerts */
+
 .sp-alert {
     display: block;
     padding: 0.9rem 1.1rem;
@@ -764,9 +758,8 @@ hr {
 .sp-alert-danger i  { color: var(--red); }
 
 
-/* ----------------------------------------------------------
-   9. Page header
-   ---------------------------------------------------------- */
+/* 9. Page header */
+
 .sp-page-header {
     margin-bottom: 1.75rem;
 }
@@ -791,9 +784,8 @@ hr {
 }
 
 
-/* ----------------------------------------------------------
-   10. Hero (login / logout pages)
-   ---------------------------------------------------------- */
+/* 10. Hero (login / logout pages) */
+
 .sp-hero {
     display: flex;
     flex-direction: column;
@@ -864,9 +856,8 @@ body.sp-hero-page .sp-hero {
 @keyframes sp-spin { to { transform: rotate(360deg); } }
 
 
-/* ----------------------------------------------------------
-   11. Empty state
-   ---------------------------------------------------------- */
+/* 11. Empty state */
+
 .sp-empty {
     display: flex;
     flex-direction: column;
@@ -883,9 +874,8 @@ body.sp-hero-page .sp-hero {
 .sp-empty p  { font-size: 0.85rem; max-width: 320px; }
 
 
-/* ----------------------------------------------------------
-   12. Utilities
-   ---------------------------------------------------------- */
+/* 12. Utilities */
+
 .sp-hidden { display: none !important; }
 .sp-text-muted  { color: var(--text-muted); }
 .sp-text-small  { font-size: 0.8rem; }
@@ -918,9 +908,8 @@ body.sp-hero-page .sp-hero {
 }
 
 
-/* ----------------------------------------------------------
-   13. Members: Search card
-   ---------------------------------------------------------- */
+/* 13. Members: Search card */
+
 .ms-search-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -945,9 +934,8 @@ body.sp-hero-page .sp-hero {
 }
 
 
-/* ----------------------------------------------------------
-   14. Members: Data tab navigation
-   ---------------------------------------------------------- */
+/* 14. Members: Data tab navigation */
+
 .ms-tabs-container {
     margin-bottom: 0.5rem;
 }
@@ -1014,9 +1002,8 @@ body.sp-hero-page .sp-hero {
 }
 
 
-/* ----------------------------------------------------------
-   15. Members: Autocomplete dropdown
-   ---------------------------------------------------------- */
+/* 15. Members: Autocomplete dropdown */
+
 .ac-wrapper {
     position: relative;
     flex: 1;
@@ -1090,9 +1077,8 @@ body.sp-hero-page .sp-hero {
 }
 
 
-/* ----------------------------------------------------------
-   16. Members: Free games
-   ---------------------------------------------------------- */
+/* 16. Members: Free games */
+
 /* Featured banner */
 .ms-game-featured {
     display: flex;
@@ -1274,9 +1260,8 @@ body.sp-hero-page .sp-hero {
 }
 
 
-/* ----------------------------------------------------------
-   17. Members: Reward filter buttons
-   ---------------------------------------------------------- */
+/* 17. Members: Reward filter buttons */
+
 .reward-filters {
     display: flex;
     gap: 0.5rem;
@@ -1338,9 +1323,8 @@ body.sp-hero-page .sp-hero {
     --shadow-lg:      0 8px 32px rgba(0,0,0,0.6);
 }
 
-/* ----------------------------------------------------------
-   18. Memorial / In Memoriam page
-   ---------------------------------------------------------- */
+/* 18. Memorial / In Memoriam page */
+
 .memorial-page {
     min-height: 60vh;
     display: flex;
@@ -1853,9 +1837,8 @@ body.sp-hero-page .sp-hero {
 .memorial-local-number  { font-size: 1.5rem;  font-weight: 700; color: #c39bd3; letter-spacing: 0.04em; }
 
 
-/* ----------------------------------------------------------
-   19. Responsive
-   ---------------------------------------------------------- */
+/* 19. Responsive */
+
 @media (max-width: 900px) {
     :root { --sidebar-width: 0px; }
 

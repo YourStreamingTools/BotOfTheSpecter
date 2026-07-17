@@ -1,11 +1,11 @@
-/* ============================================================
+/*
    BotOfTheSpecter Roadmap - style.css
    Custom dark theme (sp-* base system + roadmap-specific)
-   ============================================================ */
+ */
 
-/* ----------------------------------------------------------
-   1. Reset & Base
-   ---------------------------------------------------------- */
+
+/* 1. Reset & Base */
+
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -58,10 +58,11 @@
     color-scheme: dark;
 }
 
-/* ----------------------------------------------------------
+/*
    Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
-   ---------------------------------------------------------- */
+ */
+
 [data-theme="light"] {
     color-scheme: light;
     --bg-base:        #f4f4f7;
@@ -181,9 +182,8 @@ hr {
     margin: 1.25rem 0;
 }
 
-/* ----------------------------------------------------------
-   2. Layout - Sidebar + Main
-   ---------------------------------------------------------- */
+/* 2. Layout - Sidebar + Main */
+
 .sp-layout {
     display: flex;
     min-height: 100vh;
@@ -457,9 +457,8 @@ hr {
 .sp-footer a { color: var(--text-muted); }
 .sp-footer a:hover { color: var(--text-secondary); }
 
-/* ----------------------------------------------------------
-   3. Buttons
-   ---------------------------------------------------------- */
+/* 3. Buttons */
+
 .sp-btn {
     display: inline-flex;
     align-items: center;
@@ -572,9 +571,8 @@ hr {
 
 .sp-btn-full { width: 100%; justify-content: center; }
 
-/* ----------------------------------------------------------
-   4. Forms
-   ---------------------------------------------------------- */
+/* 4. Forms */
+
 .sp-form-group { margin-bottom: 1.25rem; }
 
 .sp-label {
@@ -674,9 +672,8 @@ hr {
     flex-shrink: 0;
 }
 
-/* ----------------------------------------------------------
-   5. Cards
-   ---------------------------------------------------------- */
+/* 5. Cards */
+
 .sp-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -703,9 +700,8 @@ hr {
 
 .sp-card-body { padding: 1.25rem; }
 
-/* ----------------------------------------------------------
-   6. Alerts / Notifications
-   ---------------------------------------------------------- */
+/* 6. Alerts / Notifications */
+
 .sp-alert {
     display: flex;
     align-items: flex-start;
@@ -730,9 +726,8 @@ hr {
 .sp-alert-warning i { color: var(--amber); }
 .sp-alert-danger i  { color: var(--red); }
 
-/* ----------------------------------------------------------
-   7. Page header
-   ---------------------------------------------------------- */
+/* 7. Page header */
+
 .sp-page-header {
     display: flex;
     align-items: flex-start;
@@ -757,9 +752,8 @@ hr {
 }
 
 
-/* ----------------------------------------------------------
-   8. Badges / Status pills
-   ---------------------------------------------------------- */
+/* 8. Badges / Status pills */
+
 .sp-badge {
     display: inline-flex;
     align-items: center;
@@ -775,9 +769,8 @@ hr {
 
 .sp-badge-accent { background: var(--accent-light); color: var(--accent-hover); }
 
-/* ----------------------------------------------------------
-   9. Roadmap Tags (rm-tag)
-   ---------------------------------------------------------- */
+/* 9. Roadmap Tags (rm-tag) */
+
 .rm-tag {
     display: inline-flex;
     align-items: center;
@@ -814,9 +807,8 @@ hr {
     white-space: nowrap;
 }
 
-/* ----------------------------------------------------------
-   10. Roadmap Board (Kanban)
-   ---------------------------------------------------------- */
+/* 10. Roadmap Board (Kanban) */
+
 .rm-board {
     display: flex;
     gap: 1rem;
@@ -958,9 +950,8 @@ hr {
     background: var(--bg-card);
 }
 
-/* ----------------------------------------------------------
-   11. Timeline
-   ---------------------------------------------------------- */
+/* 11. Timeline */
+
 .rm-timeline {
     position: relative;
     padding: 1rem 0;
@@ -1077,9 +1068,8 @@ hr {
     opacity: 0.4;
 }
 
-/* ----------------------------------------------------------
-   12. Modals
-   ---------------------------------------------------------- */
+/* 12. Modals */
+
 .rm-modal {
     display: none;
     position: fixed;
@@ -1201,9 +1191,8 @@ hr {
 .rm-modal-panel { display: none; }
 .rm-modal-panel.active { display: block; }
 
-/* ----------------------------------------------------------
-   13. Activity / Comments
-   ---------------------------------------------------------- */
+/* 13. Activity / Comments */
+
 .rm-comment {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -1273,9 +1262,8 @@ hr {
     white-space: pre-wrap;
 }
 
-/* ----------------------------------------------------------
-   14. Legend
-   ---------------------------------------------------------- */
+/* 14. Legend */
+
 .rm-legend-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1296,9 +1284,8 @@ hr {
     gap: 0.4rem;
 }
 
-/* ----------------------------------------------------------
-   15. Attachment items
-   ---------------------------------------------------------- */
+/* 15. Attachment items */
+
 .rm-attachment {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -1340,9 +1327,8 @@ hr {
 
 .rm-attachment-img:hover { opacity: 1; }
 
-/* ----------------------------------------------------------
-   16. File upload drag-drop zone
-   ---------------------------------------------------------- */
+/* 16. File upload drag-drop zone */
+
 .rm-upload-zone {
     border: 2px dashed var(--border);
     border-radius: var(--radius);
@@ -1413,9 +1399,8 @@ hr {
     margin-top: 0.25rem;
 }
 
-/* ----------------------------------------------------------
-   17. Tag multiselect (TMS)
-   ---------------------------------------------------------- */
+/* 17. Tag multiselect (TMS) */
+
 .tag-multiselect.tms-container {
     display: flex;
     align-items: center;
@@ -1546,9 +1531,8 @@ hr {
 .rm-modal .tag-multiselect { overflow: visible !important; }
 .rm-modal .tag-multiselect .tms-suggestions { z-index: 1100; }
 
-/* ----------------------------------------------------------
-   18. Login page
-   ---------------------------------------------------------- */
+/* 18. Login page */
+
 .rm-login-wrap {
     min-height: 100vh;
     display: flex;
@@ -1591,9 +1575,8 @@ hr {
     margin-bottom: 1.75rem;
 }
 
-/* ----------------------------------------------------------
-   19. Admin two-column form layout
-   ---------------------------------------------------------- */
+/* 19. Admin two-column form layout */
+
 .rm-form-cols {
     display: grid;
     grid-template-columns: 1fr 340px;
@@ -1612,9 +1595,8 @@ hr {
     margin-top: 1rem;
 }
 
-/* ----------------------------------------------------------
-   19b. Roadmap admin panel UX
-   ---------------------------------------------------------- */
+/* 19b. Roadmap admin panel UX */
+
 .rm-admin-header-actions {
     display: flex;
     flex-wrap: wrap;
@@ -1865,9 +1847,8 @@ hr {
 
 #rm-admin-flash { margin-bottom: 1rem; }
 
-/* ----------------------------------------------------------
-   20. Mobile responsive
-   ---------------------------------------------------------- */
+/* 20. Mobile responsive */
+
 @media (max-width: 768px) {
     .sp-hamburger { display: flex; }
     .sp-sidebar {
@@ -1922,9 +1903,8 @@ hr {
     .rm-admin-stats { grid-template-columns: 1fr; }
 }
 
-/* ----------------------------------------------------------
-   21. Markdown rendered content (in details modal)
-   ---------------------------------------------------------- */
+/* 21. Markdown rendered content (in details modal) */
+
 .rm-doc-content h1 { font-size: 1.4rem; margin-bottom: 0.75rem; }
 .rm-doc-content h2 { font-size: 1.15rem; margin: 1.25rem 0 0.5rem; }
 .rm-doc-content h3 { font-size: 1rem; margin: 1rem 0 0.4rem; color: var(--text-secondary); }

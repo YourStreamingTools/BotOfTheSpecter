@@ -1119,7 +1119,7 @@ $(document).ready(function() {
     // Enable/disable-only categories - selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
     const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall'];
-    // ---- Drag-to-place position editor -------------------------------------
+    // Drag-to-place position editor
     // A NULL screen_position (no saved x/y) falls back to the per-category default.
     const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
     function defaultPositionFor(cat) { return positionDefaults[cat] || 'center-center'; }

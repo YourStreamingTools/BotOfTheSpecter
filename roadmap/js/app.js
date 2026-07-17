@@ -1,13 +1,13 @@
-/* ============================================================
+/*
    BotOfTheSpecter Roadmap - app.js
    Sidebar toggle only (modal and roadmap logic is inline in layout.php)
-   ============================================================ */
+ */
+
 
 (function () {
     'use strict';
-    /* ----------------------------------------------------------
-       Sidebar toggle (mobile)
-    ---------------------------------------------------------- */
+    /* Sidebar toggle (mobile) */
+
     function initSidebar() {
         var hamburger = document.getElementById('sp-hamburger');
         var sidebar   = document.getElementById('sp-sidebar');
@@ -37,9 +37,8 @@
             if (e.key === 'Escape') closeSidebar();
         });
     }
-    /* ----------------------------------------------------------
-       Active nav link highlighting
-    ---------------------------------------------------------- */
+    /* Active nav link highlighting */
+
     function initActiveNav() {
         var path = window.location.pathname;
         var links = document.querySelectorAll('.sp-nav-link[href]');
@@ -53,9 +52,8 @@
             }
         });
     }
-    /* ----------------------------------------------------------
-       Init
-    ---------------------------------------------------------- */
+    /* Init */
+
     document.addEventListener('DOMContentLoaded', function () {
         initSidebar();
         initActiveNav();

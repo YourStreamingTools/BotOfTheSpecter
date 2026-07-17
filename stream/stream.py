@@ -60,13 +60,11 @@ DEFAULT_WEB_PORT = 8080
 # Where twitch-recorder.py writes its per-user recordings (matches its STREAM_ROOT_PATH default)
 DEFAULT_RECORDER_STORAGE_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
 
-# ---------------------------------------------------------------------------
 # Cross-eTLD SSO (.com authority -> .video consumer)
 # Browsers can't share a cookie across .botofthespecter.com and .video, so
 # the user is bounced to home/sso.php which mints a single-use handoff token
 # in website.handoff_tokens. We verify the token on /sso/login and create
 # a Quart session cookie scoped to .botofthespecter.video.
-# ---------------------------------------------------------------------------
 SSO_AUTHORITY_URL = "https://botofthespecter.com/sso.php"
 SSO_TARGET_BY_REGION = {
     "sydney":     "rtmp-sydney",
@@ -928,11 +926,9 @@ def _session_to_json(s: dict, now: datetime.datetime) -> dict:
 def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
-    # ------------------------------------------------------------------
     # Quart session config - signed cookie scoped to .botofthespecter.video
     # so a single login covers every regional RTMP UI (provided every region
     # uses the SAME WEB_SECRET_KEY).
-    # ------------------------------------------------------------------
     if WEB_SECRET_KEY:
         app.config["SECRET_KEY"] = WEB_SECRET_KEY
     else:
@@ -1138,10 +1134,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "generated_at": now.isoformat(),
         })
 
-    # ------------------------------------------------------------------
     # SSO consumer: verify a handoff token minted by home/sso.php and
     # create the Quart session cookie on .botofthespecter.video.
-    # ------------------------------------------------------------------
     @app.get("/sso/login")
     async def sso_login():
         token = request.args.get("handoff", "")

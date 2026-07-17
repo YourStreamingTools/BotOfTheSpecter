@@ -594,7 +594,7 @@ class RecordChecker:
                 self.logger.warning(f"Could not determine stream status for {username}")
                 return
             if is_live:
-                # --- Recording ---
+                # Recording
                 if username not in self.active_recordings:
                     should_record = await self.mysql_manager.should_auto_record(username)
                     if should_record:
@@ -602,7 +602,7 @@ class RecordChecker:
                         await self.start_recording_for_user(username, stream_info)
                 else:
                     self.logger.debug(f"Already recording {username}")
-                # --- Forwarding ---
+                # Forwarding
                 forward_settings = await self.mysql_manager.get_forwarding_settings(username)
                 enabled_services = {fwd['service'] for fwd in forward_settings}
                 # Stop services that have been disabled since last check

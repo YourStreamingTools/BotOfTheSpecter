@@ -408,7 +408,7 @@ $v = uuidv4();
 <script src="/js/app.js?v=<?php echo $v; ?>" defer></script>
 <script>
 window.__ROADMAP_ADMIN_PAGE = <?php echo $roadmapAdminPage ? 'true' : 'false'; ?>;
-// ---- Utilities ----
+// Utilities
 function linkifyText(text) {
     return text.replace(/(https?:\/\/[^\s]+)/g, function(url) {
         return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-hover);text-decoration:underline;">' + url + '</a>';

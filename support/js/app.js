@@ -1,13 +1,13 @@
-/* ============================================================
+/*
    BotOfTheSpecter Support Portal - app.js
    Vanilla JS only, no dependencies
-   ============================================================ */
+ */
+
 
 (function () {
     'use strict';
-    /* ----------------------------------------------------------
-       Sidebar toggle (mobile)
-    ---------------------------------------------------------- */
+    /* Sidebar toggle (mobile) */
+
     function initSidebar() {
         var hamburger = document.getElementById('sp-hamburger');
         var sidebar   = document.getElementById('sp-sidebar');
@@ -38,9 +38,8 @@
             if (e.key === 'Escape') closeSidebar();
         });
     }
-    /* ----------------------------------------------------------
-       Tabs (doc sections on index.php)
-    ---------------------------------------------------------- */
+    /* Tabs (doc sections on index.php) */
+
     function initTabs() {
         var tabs   = document.querySelectorAll('.sp-tab[data-tab]');
         var panels = document.querySelectorAll('.sp-tab-panel[data-panel]');
@@ -68,9 +67,8 @@
         var initial = hash || stored || (tabs[0] && tabs[0].dataset.tab);
         if (initial) activate(initial);
     }
-    /* ----------------------------------------------------------
-       FAQ accordion
-    ---------------------------------------------------------- */
+    /* FAQ accordion */
+
     function initFaq() {
         document.querySelectorAll('.sp-faq-q').forEach(function (q) {
             q.addEventListener('click', function () {
@@ -86,9 +84,8 @@
             });
         });
     }
-    /* ----------------------------------------------------------
-       Inline search (searches visible tab-panel text)
-    ---------------------------------------------------------- */
+    /* Inline search (searches visible tab-panel text) */
+
     var SEARCH_INDEX = [];
     function buildSearchIndex() {
         var panels = document.querySelectorAll('.sp-tab-panel[data-panel]');
@@ -180,9 +177,8 @@
             }
         });
     }
-    /* ----------------------------------------------------------
-       Character counter for textareas
-    ---------------------------------------------------------- */
+    /* Character counter for textareas */
+
     function initCharCounters() {
         document.querySelectorAll('textarea[data-min-chars]').forEach(function (ta) {
             var min     = parseInt(ta.dataset.minChars || '0', 10);
@@ -199,9 +195,8 @@
             update();
         });
     }
-    /* ----------------------------------------------------------
-       Form CSRF submit once (prevent double submit)
-    ---------------------------------------------------------- */
+    /* Form CSRF submit once (prevent double submit) */
+
     function initForms() {
         document.querySelectorAll('form[data-once]').forEach(function (form) {
             form.addEventListener('submit', function () {
@@ -212,9 +207,8 @@
             });
         });
     }
-    /* ----------------------------------------------------------
-       Auto-dismiss alert messages
-    ---------------------------------------------------------- */
+    /* Auto-dismiss alert messages */
+
     function initAlerts() {
         document.querySelectorAll('.sp-alert[data-dismiss]').forEach(function (alert) {
             var delay = parseInt(alert.dataset.dismiss || '4000', 10);
@@ -225,9 +219,8 @@
             }, delay);
         });
     }
-    /* ----------------------------------------------------------
-       Active nav link highlight
-    ---------------------------------------------------------- */
+    /* Active nav link highlight */
+
     function initActiveNav() {
         var path = window.location.pathname;
         document.querySelectorAll('.sp-nav-link[href]').forEach(function (link) {
@@ -241,9 +234,8 @@
             }
         });
     }
-    /* ----------------------------------------------------------
-       Helper: escape HTML
-    ---------------------------------------------------------- */
+    /* Helper: escape HTML */
+
     function escHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;')
@@ -251,9 +243,8 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
     }
-    /* ----------------------------------------------------------
-       Copy share link buttons (doc blocks on index.php)
-    ---------------------------------------------------------- */
+    /* Copy share link buttons (doc blocks on index.php) */
+
     function fallbackCopy(text, cb) {
         var ta = document.createElement('textarea');
         ta.value = text;
@@ -290,9 +281,8 @@
             });
         });
     }
-    /* ----------------------------------------------------------
-       Boot
-    ---------------------------------------------------------- */
+    /* Boot */
+
     document.addEventListener('DOMContentLoaded', function () {
         initSidebar();
         initTabs();

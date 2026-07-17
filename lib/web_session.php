@@ -1,6 +1,5 @@
 <?php
 // /var/www/lib/web_session.php
-// ----------------------------------------------------------------
 // Custom PHP SessionHandlerInterface backed by the website.web_sessions
 // table. Allows all *.botofthespecter.com subdomains to share one logical
 // session by reading/writing a single MySQL row keyed by the session id
@@ -9,7 +8,6 @@
 // Loaded by /var/www/lib/session_bootstrap.php (do not include directly;
 // the bootstrap handles cookie config, handler registration, and
 // session_start() in the right order).
-// ----------------------------------------------------------------
 
 if (!defined('BOTS_SESSION_LIFETIME')) {
     define('BOTS_SESSION_LIFETIME', 14400);
@@ -228,11 +226,9 @@ class WebSessionHandler implements SessionHandlerInterface
     }
 }
 
-// ----------------------------------------------------------------
 // Twitch OAuth client credentials (for token refresh).
 // Prefers bot_chat_token in the website DB (same source as config/twitch.php),
 // then falls back to /var/www/config/twitch.php if present.
-// ----------------------------------------------------------------
 function bots_twitch_oauth_client_creds(?mysqli $db = null): array
 {
     static $cached = null;
@@ -287,7 +283,6 @@ function bots_twitch_oauth_client_creds(?mysqli $db = null): array
     return [$clientId, $clientSecret];
 }
 
-// ----------------------------------------------------------------
 // Twitch token validation against id.twitch.tv/oauth2/validate.
 // Returns:
 //   ['ok' => true,  'payload' => array]            -> 200, valid token
@@ -299,7 +294,6 @@ function bots_twitch_oauth_client_creds(?mysqli $db = null): array
 // optional refresh attempt fails. Transient failures must NOT destroy
 // the session - a flaky id.twitch.tv response or a 30-second egress
 // hiccup should not log every active user out.
-// ----------------------------------------------------------------
 function bots_twitch_validate(string $access_token): array
 {
     if ($access_token === '') {
@@ -326,12 +320,10 @@ function bots_twitch_validate(string $access_token): array
     return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => (string)$curl_err];
 }
 
-// ----------------------------------------------------------------
 // Refresh a Twitch user access token via the refresh_token grant.
 // Returns:
 //   ['ok' => true,  'access_token' => ..., 'refresh_token' => ..., 'expires_in' => int]
 //   ['ok' => false, 'reason' => 'invalid'|'transient', ...]
-// ----------------------------------------------------------------
 function bots_twitch_refresh_token(string $refresh_token, ?mysqli $db = null): array
 {
     if ($refresh_token === '') {

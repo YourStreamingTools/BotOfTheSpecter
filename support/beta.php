@@ -1,6 +1,5 @@
 <?php
 // support/beta.php
-// ----------------------------------------------------------------
 // Beta Programs listing and management.
 //
 // Users:   view active programs, see enrolment status, request access.
@@ -11,7 +10,6 @@
 //   save_program    - staff: create (edit_id=0) or update a program
 //   toggle_program  - staff: flip is_active
 //   delete_program  - staff: delete (blocked if pending requests exist)
-// ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
 support_session_start();
@@ -22,9 +20,7 @@ $wdb   = website_db();
 $flash = [];
 $errors = [];
 
-// ----------------------------------------------------------------
 // POST handlers (staff only)
-// ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!is_staff()) {
         $flash[] = ['type' => 'danger', 'msg' => 'Insufficient permissions.'];
@@ -89,9 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ----------------------------------------------------------------
 // Fetch data
-// ----------------------------------------------------------------
 
 // Programs list (staff sees all, users see only active) - website DB
 $allPrograms = [];
@@ -134,9 +128,7 @@ if (is_staff()) {
     if ($qres) $pendingRequests = $qres->fetch_all(MYSQLI_ASSOC);
 }
 
-// ----------------------------------------------------------------
 // Build page
-// ----------------------------------------------------------------
 $pageTitle   = 'Beta Programs';
 $topbarTitle = 'Beta Programs';
 ob_start();
@@ -160,9 +152,7 @@ ob_start();
     </div>
 </div>
 
-<!-- ============================================================ -->
 <!-- Program cards                                                -->
-<!-- ============================================================ -->
 <?php if (empty($allPrograms)): ?>
 <div class="sp-empty-state">
     <div class="sp-empty-icon"><i class="fa-solid fa-flask"></i></div>
@@ -235,9 +225,7 @@ ob_start();
 <?php endif; ?>
 
 <?php if (is_staff()): ?>
-<!-- ============================================================ -->
 <!-- Staff: Create / Edit program                                 -->
-<!-- ============================================================ -->
 <div class="sp-card sp-mt-3" style="max-width:560px;" id="program-card">
     <div class="sp-card-header"><i class="fa-solid fa-plus"></i> <span id="program-form-title">Create Beta Program</span></div>
     <div class="sp-card-body">
@@ -275,9 +263,7 @@ ob_start();
     </div>
 </div>
 
-<!-- ============================================================ -->
 <!-- Staff: Pending requests queue                                -->
-<!-- ============================================================ -->
 <?php if (!empty($pendingRequests)): ?>
 <div class="sp-card sp-mt-3">
     <div class="sp-card-header">

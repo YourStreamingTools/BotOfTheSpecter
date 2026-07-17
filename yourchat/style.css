@@ -1,11 +1,10 @@
-/* ==========================================================
+/*
    BotOfTheSpecter - Dashboard CSS
    Based on the sp-* dark theme system.
-   ========================================================== */
+ */
 
-/* ----------------------------------------------------------
-   0. CSS Variables
-   ---------------------------------------------------------- */
+/* 0. CSS Variables */
+
 :root {
     /* Backgrounds */
     --bg-base:        #0d0d0f;
@@ -49,14 +48,15 @@
     color-scheme: dark;
 }
 
-/* ----------------------------------------------------------
+/*
    0a. Light theme token overrides
    Applied when <html data-theme="light">. Every component that
    reads the colour tokens above follows automatically - only
    hardcoded colours (outside :root) need separate attention.
    Non-colour tokens (radii, sizes, transition) are NOT redefined
    here; they stay shared with the dark default.
-   ---------------------------------------------------------- */
+ */
+
 [data-theme="light"] {
     color-scheme: light;
     /* Backgrounds */
@@ -90,9 +90,8 @@
     --grey-bg:        rgba(108, 108, 132, 0.10);
 }
 
-/* ----------------------------------------------------------
-   1. Reset / Base
-   ---------------------------------------------------------- */
+/* 1. Reset / Base */
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
@@ -111,17 +110,15 @@ a:hover { color: var(--text-primary); }
 
 ul { list-style: none; margin: 0; padding: 0; }
 
-/* ----------------------------------------------------------
-   2. Layout Shell
-   ---------------------------------------------------------- */
+/* 2. Layout Shell */
+
 .sp-layout {
     display: flex;
     min-height: 100vh;
 }
 
-/* ----------------------------------------------------------
-   3. Sidebar
-   ---------------------------------------------------------- */
+/* 3. Sidebar */
+
 .sp-sidebar {
     position: fixed;
     top: 0;
@@ -313,9 +310,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     padding: 0.35rem 1.1rem 0.5rem;
 }
 
-/* ----------------------------------------------------------
-   4. Main area
-   ---------------------------------------------------------- */
+/* 4. Main area */
+
 .sp-main {
     margin-left: var(--sidebar-width);
     flex: 1;
@@ -482,9 +478,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     text-align: center;
 }
 
-/* ----------------------------------------------------------
-   5. Overlay (mobile sidebar backdrop)
-   ---------------------------------------------------------- */
+/* 5. Overlay (mobile sidebar backdrop) */
+
 .sp-overlay {
     display: none;
     position: fixed;
@@ -496,13 +491,10 @@ ul { list-style: none; margin: 0; padding: 0; }
 
 .sp-overlay.active { display: block; }
 
-/* ----------------------------------------------------------
-   6. Banners (legacy - now rendered as topbar pills via sp-topbar-tag)
-   ---------------------------------------------------------- */
+/* 6. Banners (legacy - now rendered as topbar pills via sp-topbar-tag) */
 
-/* ----------------------------------------------------------
-   7. Maintenance Modal
-   ---------------------------------------------------------- */
+/* 7. Maintenance Modal */
+
 .db-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -580,9 +572,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     background: var(--bg-surface);
 }
 
-/* ----------------------------------------------------------
-   8. Cookie Consent Box
-   ---------------------------------------------------------- */
+/* 8. Cookie Consent Box */
+
 .db-cookie-box {
     display: none;
     position: fixed;
@@ -612,9 +603,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     margin-top: 1rem;
 }
 
-/* ----------------------------------------------------------
-   9. Buttons
-   ---------------------------------------------------------- */
+/* 9. Buttons */
+
 .sp-btn {
     display: inline-flex;
     align-items: center;
@@ -735,9 +725,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 @keyframes sp-spin { to { transform: rotate(360deg); } }
 
-/* ----------------------------------------------------------
-   10. Cards
-   ---------------------------------------------------------- */
+/* 10. Cards */
+
 .sp-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -815,9 +804,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-stat.offline .sp-stat-value { color: var(--red); }
 .sp-stat.warn    .sp-stat-value { color: var(--amber); }
 
-/* ----------------------------------------------------------
-   11. Forms
-   ---------------------------------------------------------- */
+/* 11. Forms */
+
 .sp-form-group { margin-bottom: 1.25rem; }
 
 .sp-label {
@@ -871,9 +859,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     resize: vertical;
 }
 
-/* ----------------------------------------------------------
-   12. Badges
-   ---------------------------------------------------------- */
+/* 12. Badges */
+
 .sp-badge {
     display: inline-flex;
     align-items: center;
@@ -894,9 +881,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-badge-grey   { background: var(--grey-bg);   color: var(--grey); }
 .sp-badge-accent { background: var(--accent-light); color: var(--accent-hover); }
 
-/* ----------------------------------------------------------
-   13. Table
-   ---------------------------------------------------------- */
+/* 13. Table */
+
 .sp-table-wrap {
     overflow-x: auto;
     border-radius: var(--radius-lg);
@@ -936,12 +922,13 @@ ul { list-style: none; margin: 0; padding: 0; }
 
 .sp-table tbody tr:hover { background: var(--bg-card-hover); }
 
-/* ----------------------------------------------------------
+/*
    Start Bots admin table - simplified view on smaller screens / tablets
    The compact view (username + RUNNING + basic action buttons only) activates at <=1600px (COMPACT_BREAKPOINT in JS).
    Full detailed table stays only on wider screens.
    All JS-updated elements remain in DOM; we just hide columns + secondary buttons.
-   ---------------------------------------------------------- */
+ */
+
 @media (max-width: 1600px) {
     table.start-bots-table th.col-twitch-id,
     table.start-bots-table th.col-type,
@@ -1043,9 +1030,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     }
 }
 
-/* ----------------------------------------------------------
-   14. Alerts
-   ---------------------------------------------------------- */
+/* 14. Alerts */
+
 .sp-alert {
     display: block;
     padding: 0.9rem 1.1rem;
@@ -1082,11 +1068,12 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-alert-warning i { color: var(--amber); }
 .sp-alert-danger i  { color: var(--red); }
 
-/* ----------------------------------------------------------
+/*
    15. menu.php output compatibility
    (renderMenu outputs sidebar-menu-* classes; we map them
-    to the same visual style as sp-nav-link)
-   ---------------------------------------------------------- */
+   to the same visual style as sp-nav-link)
+ */
+
 .sidebar-menu { padding: 0; margin: 0; }
 
 .sidebar-menu-item { position: relative; }
@@ -1234,9 +1221,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     padding: 0.35rem 1.1rem 0.5rem;
 }
 
-/* ----------------------------------------------------------
-   16. Toast / notification area
-   ---------------------------------------------------------- */
+/* 16. Toast / notification area */
+
 .toast-area {
     position: fixed;
     top: 1rem;
@@ -1299,9 +1285,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 #sp-toast-container .sp-alert.sp-alert-warning { border-left-color: var(--amber); }
 #sp-toast-container .sp-alert.sp-alert-danger  { border-left-color: var(--red);   }
 
-/* ----------------------------------------------------------
-   17. Status indicator (bot status pill)
-   ---------------------------------------------------------- */
+/* 17. Status indicator (bot status pill) */
+
 .status-indicator {
     display: inline-flex;
     align-items: center;
@@ -1324,9 +1309,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 .status-indicator.offline::before { background: var(--red); }
 .status-indicator.warn::before    { background: var(--amber); }
 
-/* ----------------------------------------------------------
-   18. Dashboard-specific misc
-   ---------------------------------------------------------- */
+/* 18. Dashboard-specific misc */
+
 .beating {
     animation: heartbeat 1.5s infinite;
     display: inline-block;
@@ -1473,9 +1457,8 @@ input[type="range"].modern-volume:hover::-moz-range-thumb { background: var(--ac
     text-align: center;
 }
 
-/* ----------------------------------------------------------
-   19. Dashboard page-specific helpers
-   ---------------------------------------------------------- */
+/* 19. Dashboard page-specific helpers */
+
 /* Welcome header block */
 .sp-page-header {
     margin-bottom: 1.75rem;
@@ -1564,9 +1547,7 @@ input[type="range"].modern-volume:hover::-moz-range-thumb { background: var(--ac
     flex: 1;
 }
 
-/* ----------------------------------------------------------
-   19. Bot Management page
-   ---------------------------------------------------------- */
+/* 19. Bot Management page */
 
 /* Two-column layout: left sidebar | main content */
 .bot-page-cols {
@@ -1665,9 +1646,8 @@ input[type="checkbox"].switch:disabled + label {
 .progress-warning::-webkit-progress-value { background: var(--amber) !important; }
 .progress-warning::-moz-progress-bar      { background: var(--amber) !important; }
 
-/* ----------------------------------------------------------
-   EventSub Notifications page
-   ---------------------------------------------------------- */
+/* EventSub Notifications page */
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1900,9 +1880,8 @@ input[type="checkbox"].switch:disabled + label {
     .service-grid { grid-template-columns: 1fr; }
 }
 
-/* ----------------------------------------------------------
-   20. Landing page (logged-out)
-   ---------------------------------------------------------- */
+/* 20. Landing page (logged-out) */
+
 .db-topnav {
     position: sticky;
     top: 0;
@@ -2132,9 +2111,8 @@ input[type="checkbox"].switch:disabled + label {
     line-height: 1.7;
 }
 
-/* ----------------------------------------------------------
-   21. Custom Commands page
-   ---------------------------------------------------------- */
+/* 21. Custom Commands page */
+
 .cc-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2330,9 +2308,8 @@ input[type="checkbox"].switch:disabled + label {
     .cc-form-grid { grid-template-columns: 1fr; }
 }
 
-/* ----------------------------------------------------------
-   22. Responsive / Mobile
-   ---------------------------------------------------------- */
+/* 22. Responsive / Mobile */
+
 @media (max-width: 900px) {
     .db-two-col { grid-template-columns: 1fr; }
 }
@@ -2367,9 +2344,8 @@ input[type="checkbox"].switch:disabled + label {
     }
 }
 
-/* ----------------------------------------------------------
-   23. Tabs Component
-   ---------------------------------------------------------- */
+/* 23. Tabs Component */
+
 .sp-tabs-nav {
     display: flex;
     flex-wrap: wrap;
@@ -2416,9 +2392,8 @@ input[type="checkbox"].switch:disabled + label {
     font-weight: 600;
 }
 
-/* ----------------------------------------------------------
-   24. Page utility helpers
-   ---------------------------------------------------------- */
+/* 24. Page utility helpers */
+
 .sp-btn-group {
     display: flex;
     flex-wrap: wrap;
@@ -2440,9 +2415,8 @@ input[type="checkbox"].switch:disabled + label {
 .sp-text-info    { color: var(--blue); }
 .sp-text-warning { color: var(--amber); }
 
-/* ----------------------------------------------------------
-   25. Schedule page
-   ---------------------------------------------------------- */
+/* 25. Schedule page */
+
 .sp-field-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .sp-field-row .sp-input,
 .sp-field-row .sp-select { width: auto; }
@@ -2466,9 +2440,8 @@ input[type="checkbox"].switch:disabled + label {
 .schedule-card-tags { display: flex; gap: 0.35rem; align-items: center; padding-right: 0.5rem; flex-shrink: 0; }
 .schedule-duration-display { margin: 0.35rem 0; }
 
-/* ----------------------------------------------------------
-   26. Videos page
-   ---------------------------------------------------------- */
+/* 26. Videos page */
+
 .media-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
 @media (max-width: 1023px) { .media-cards-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px)  { .media-cards-grid { grid-template-columns: 1fr; } }
@@ -2479,9 +2452,8 @@ input[type="checkbox"].switch:disabled + label {
 .media-card-meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
 .media-card-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
 
-/* ----------------------------------------------------------
-   27. Followers page
-   ---------------------------------------------------------- */
+/* 27. Followers page */
+
 .followers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 @media (max-width: 1023px) { .followers-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 767px)  { .followers-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -2496,9 +2468,8 @@ input[type="checkbox"].switch:disabled + label {
 .follower-box { opacity: 0; transition: opacity 0.3s ease; }
 .follower-box.visible { opacity: 1; }
 
-/* ----------------------------------------------------------
-   28. Subscribers page
-   ---------------------------------------------------------- */
+/* 28. Subscribers page */
+
 .subscribers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
 @media (max-width: 1023px) { .subscribers-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 767px)  { .subscribers-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -2509,9 +2480,8 @@ input[type="checkbox"].switch:disabled + label {
 .sp-pagination-link:hover { border-color: var(--accent); background: var(--accent-light); }
 .sp-pagination-link.is-current { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; cursor: default; }
 
-/* ----------------------------------------------------------
-   29. General-purpose Modal (sp-modal)
-   ---------------------------------------------------------- */
+/* 29. General-purpose Modal (sp-modal) */
+
 .sp-modal-backdrop {
     display: none;
     position: fixed;
@@ -2575,9 +2545,8 @@ input[type="checkbox"].switch:disabled + label {
     color: var(--text-secondary);
 }
 
-/* ----------------------------------------------------------
-   30. Raids page
-   ---------------------------------------------------------- */
+/* 30. Raids page */
+
 .raids-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start; }
 @media (max-width: 900px) { .raids-layout { grid-template-columns: 1fr; } }
 .raids-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; }
@@ -2618,9 +2587,8 @@ input[type="checkbox"].switch:disabled + label {
 .bot-channel { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); word-break: break-word; overflow-wrap: break-word; margin: 0; }
 .ml-2 { margin-left: 0.5rem; }
 
-/* ----------------------------------------------------------
-   32. Discord page - generic modal (.modal / .is-active)
-   ---------------------------------------------------------- */
+/* 32. Discord page - generic modal (.modal / .is-active) */
+
 .modal {
     display: none;
     position: fixed;
@@ -2677,9 +2645,8 @@ input[type="checkbox"].switch:disabled + label {
 .modal-close::before { transform: rotate(45deg); }
 .modal-close::after  { transform: rotate(-45deg); }
 
-/* ----------------------------------------------------------
-   33. Discord page - label-wrapping toggle switch
-   ---------------------------------------------------------- */
+/* 33. Discord page - label-wrapping toggle switch */
+
 label.switch {
     display: inline-flex;
     align-items: center;
@@ -2723,9 +2690,8 @@ label.switch input[type=checkbox]:checked::after {
 label.switch input[type=checkbox]:disabled { opacity: 0.45; cursor: not-allowed; }
 label.switch .check { display: none; }
 
-/* ----------------------------------------------------------
-   34. Discord page - server-management toggles grid
-   ---------------------------------------------------------- */
+/* 34. Discord page - server-management toggles grid */
+
 .server-management-toggles {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -2750,9 +2716,8 @@ label.switch .check { display: none; }
     margin-top: 0.35rem;
 }
 
-/* ----------------------------------------------------------
-   35. Premium page - subscription plan cards
-   ---------------------------------------------------------- */
+/* 35. Premium page - subscription plan cards */
+
 .sp-plan-header {
     text-align: center;
     margin-bottom: 2.5rem;
@@ -3322,9 +3287,8 @@ label.switch .check { display: none; }
     font-size: 0.8rem;
 }
 
-/* ----------------------------------------------------------
-   SweetAlert2 Dark Theme Overrides
-   ---------------------------------------------------------- */
+/* SweetAlert2 Dark Theme Overrides */
+
 .swal2-popup {
     background: var(--bg-card) !important;
     color: var(--text-primary) !important;
@@ -3997,13 +3961,14 @@ label.checkbox input[type="checkbox"] {
 .ml-4 { margin-left: 1rem; }
 .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
 
-/* ----------------------------------------------------------
+/*
    Mobile table safety net
    Many pages place bare <table> inside .sp-card-body or .sp-content
    without wrapping in .sp-table-wrap / .table-container. On narrow
    viewports an unwrapped table forces horizontal overflow on the
    whole page. This gives the parent its own scroll instead.
-   ---------------------------------------------------------- */
+ */
+
 @media (max-width: 768px) {
     .sp-card-body > table,
     .sp-content > table,
@@ -4559,9 +4524,8 @@ label.checkbox input[type="checkbox"] {
 }
 .maker-pos-canvas.is-expanded .maker-pos-expand-close { display: flex; }
 
-/* ----------------------------------------------------------
-   Built-in commands page - command name + alias pills
-   ---------------------------------------------------------- */
+/* Built-in commands page - command name + alias pills */
+
 .bc-command-name { font-weight: 600; color: var(--blue); }
 .bc-aliases {
     display: flex;
@@ -4793,10 +4757,11 @@ label.checkbox input[type="checkbox"] {
     .cdnfm-toolbar-actions { margin-left: 0; }
 }
 
-/* ==========================================================
+/*
    YourChat surface â€” dashboard sp-* theme + chat-specific UI
    Appended to forked dashboard.css (see style.css)
-   ========================================================== */
+ */
+
 
 /* ----- Layout ----- */
 .yc-wrap {

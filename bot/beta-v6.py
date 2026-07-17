@@ -10579,13 +10579,11 @@ class TwitchBot(commands.AutoBot):
             if connection:
                 await connection.release()
 
-# ---------------------------------------------------------------------------
 # Word Replacer (random syllable swap)
 # Occasionally re-posts a viewer's chat line with random syllables swapped for a
 # streamer-set word (default "fun"). Configured per channel via the `protection`
 # table plus the word_replace_ignored_users / word_replace_ignored_words tables.
 # Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
-# ---------------------------------------------------------------------------
 try:
     import pyphen
 except ImportError:
@@ -12496,7 +12494,7 @@ async def process_dynamic_variables(
                 # Handle (arg) - the argument passed to the command
                 if '(arg)' in response:
                     response = response.replace('(arg)', arg if arg is not None else '')
-                # --- Channel-point-specific variables (only when channel_point_data is provided) ---
+                # Channel-point-specific variables (only when channel_point_data is provided)
                 if channel_point_data:
                     cp_reward_id = channel_point_data.get("reward_id")
                     cp_user_id = channel_point_data.get("user_id")
@@ -13894,7 +13892,7 @@ async def send_timed_message(message_id, message, delay):
     else:
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
-# --- Media-player song request helpers (non-Spotify fallback) ---
+# Media-player song request helpers (non-Spotify fallback)
 # The per-user media tables (media_queue / media_request_settings / media_banlist) are
 # created centrally by dashboard/usr_database.php, like every other per-user table.
 async def get_media_settings(connection):

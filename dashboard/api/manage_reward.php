@@ -36,9 +36,7 @@ function twitchApiCall($method, $url, $token, $clientID, $body = null)
 return ['code' => $httpCode, 'response' => $response];
 }
 
-// ---------------------------------------------------------
 // STEP 2: COMPLETE MANUAL DELETE FLOW
-// ---------------------------------------------------------
 if (isset($_POST['action']) && $_POST['action'] === 'complete_manual') {
     if (!isset($_POST['reward_id'])) {
         echo json_encode(['success' => false, 'error' => 'Missing reward_id']);
@@ -146,9 +144,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'complete_manual') {
     exit();
 }
 
-// ---------------------------------------------------------
 // STEP 1: INITIAL REQUEST (Fetch -> Try Delete -> Pause if 403)
-// ---------------------------------------------------------
 
 if (!isset($_POST['reward_id'])) {
     http_response_code(400);

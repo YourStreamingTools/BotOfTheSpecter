@@ -11,7 +11,7 @@ require_once __DIR__ . '/../includes/caddy_admin.php';
 include "../includes/userdata.php";
 session_write_close();
 
-// ---- Determine super-admin (controls write access) ----
+// Determine super-admin (controls write access)
 $isSuperAdmin = false;
 if (isset($conn) && ($uid = (int) ($_SESSION['user_id'] ?? 0)) > 0) {
     $stmt = $conn->prepare("SELECT super_admin FROM users WHERE id = ? LIMIT 1");
@@ -26,13 +26,13 @@ if (isset($conn) && ($uid = (int) ($_SESSION['user_id'] ?? 0)) > 0) {
     }
 }
 
-// ---- AJAX action handlers ----
+// AJAX action handlers
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     ob_clean();
     header('Content-Type: application/json');
     $action = (string) $_POST['action'];
 
-    // -- Reads: available to any admin --
+    // Reads: available to any admin
     if ($action === 'caddy_version') {
         if (empty($web_ssh_host)) {
             echo json_encode(['ok' => false, 'error' => t('caddy_err_ssh_not_configured')]);
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
 
-    // -- Writes: super admin only (server-side enforcement, not just UI) --
+    // Writes: super admin only (server-side enforcement, not just UI)
     $writeActions = ['api_call', 'adapt_config', 'load_config', 'reload_caddy', 'restart_caddy'];
     if (in_array($action, $writeActions, true)) {
         if (!$isSuperAdmin) {
@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-// ---- Read-only data for the page render ----
+// Read-only data for the page render
 $cfgRes = caddy_admin_request('GET', '/config/');
 $caddyUp = $cfgRes['ok'];
 $config = is_array($cfgRes['body']) ? $cfgRes['body'] : [];

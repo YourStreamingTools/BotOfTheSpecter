@@ -30,13 +30,11 @@ if (isset($_SESSION['access_token'])) {
     exit;
 }
 
-// ----------------------------------------------------------------
 // PATH A - Handoff token from home/sso.php (target='members')
 // Members has its own session-key convention (snake_case + user_email)
 // so we translate the handoff_tokens columns into members' shape and
 // look up email from website.users (the handoff_tokens row doesn't
 // carry it).
-// ----------------------------------------------------------------
 if (!empty($_GET['handoff'])) {
     $handoffToken = preg_replace('/[^a-f0-9]/i', '', (string)$_GET['handoff']);
     if (strlen($handoffToken) === 64) {

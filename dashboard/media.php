@@ -746,9 +746,7 @@ $(document).ready(function () {
         var tpl = (n === 1 ? I18N[singularKey] : I18N[pluralKey]) || '%s';
         return tpl.replace('%s', n);
     }
-    // ------------------------------------------------------------------
     // Modal rendering
-    // ------------------------------------------------------------------
     var modal     = document.getElementById('media-modal-backdrop');
     var modalBody = document.getElementById('media-modal-body');
     var modalTitle= document.getElementById('media-modal-title');

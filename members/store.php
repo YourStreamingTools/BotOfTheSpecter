@@ -319,7 +319,7 @@ function store_checkout(mysqli $db, array $settings, $itemId, $viewerId, $viewer
     }
 }
 
-// --- Identity ---
+// Identity
 $channel = store_resolve_channel();
 $viewerLogin = strtolower((string) ($_SESSION['twitch_username'] ?? ''));
 $viewerId = (string) ($_SESSION['twitch_user_id'] ?? '');
@@ -404,7 +404,7 @@ if (!$notFound) {
 }
 $websiteConn->close();
 
-// --- BUY ---
+// BUY
 if ($isBuy) {
     if ($notFound || $isRestricted || $isDeceased) {
         store_json(['success' => false, 'message' => 'This channel store is unavailable.'], 403);
@@ -536,7 +536,7 @@ if ($isBuy) {
     ]);
 }
 
-// --- PAGE RENDER ---
+// PAGE RENDER
 session_write_close();
 
 $pageTitle = store_esc($memberDisplayName) . ' - Point Store';

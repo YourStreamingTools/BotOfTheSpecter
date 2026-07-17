@@ -28,7 +28,7 @@ if ($isLoggedIn) {
 
     $pageTitle = t('dashboard_page_title_management');
 
-    // ---- Page body (skeletons; JS fills them in) ----
+    // Page body (skeletons; JS fills them in)
     ob_start();
     ?>
     <div class="sp-page-header">
@@ -173,7 +173,7 @@ if ($isLoggedIn) {
     <?php
     $content = ob_get_clean();
 
-    // ---- Page scripts: Socket.io client + dashboard data logic ----
+    // Page scripts: Socket.io client + dashboard data logic
     ob_start();
     ?>
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
@@ -288,7 +288,7 @@ if ($isLoggedIn) {
         var currentWindow = '7d';
         var trendsSeries = {};
 
-        // ---- Zone 1: live state ----
+        // Zone 1: live state
         function loadLive() {
             apiGet('/dashboard/live').then(renderLive).catch(function () {});
         }
@@ -313,7 +313,7 @@ if ($isLoggedIn) {
             }
         }
 
-        // ---- Zone 2 + 3: summary ----
+        // Zone 2 + 3: summary
         function summaryParams() {
             var p = { window: currentWindow };
             if (sessionSince) p.since = sessionSince;
@@ -411,7 +411,7 @@ if ($isLoggedIn) {
             ].join('');
         }
 
-        // ---- Zone 4: leaderboards ----
+        // Zone 4: leaderboards
         function loadBoards() {
             apiGet('/dashboard/leaderboards', { limit: 8 }).then(renderBoards).catch(function () { $('dbBoards').innerHTML = errRow(); });
         }
@@ -447,7 +447,7 @@ if ($isLoggedIn) {
             ].join('');
         }
 
-        // ---- Zone 1: WebSocket live ticker + chat pulse ----
+        // Zone 1: WebSocket live ticker + chat pulse
         var TICKER_MAX = 12;
         var chatTimes = [];
         var chatters = {};

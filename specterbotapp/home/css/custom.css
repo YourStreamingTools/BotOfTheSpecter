@@ -1,11 +1,10 @@
-﻿/* ================================================================
-   SpecterBotApp Home — Custom CSS
+﻿/*
+   SpecterBotApp Home - Custom CSS
    Dark theme based on the BotOfTheSpecter sp-* design system.
-   ================================================================ */
+ */
 
-/* ----------------------------------------------------------------
-   0. CSS Variables
-   ---------------------------------------------------------------- */
+/* 0. CSS Variables */
+
 :root {
     --bg-base:        #0d0d0f;
     --bg-surface:     #141418;
@@ -39,10 +38,11 @@
     color-scheme: dark;
 }
 
-/* ----------------------------------------------------------------
-   Light theme token overrides — applied when <html data-theme="light">.
+/*
+   Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
-   ---------------------------------------------------------------- */
+ */
+
 [data-theme="light"] {
     color-scheme: light;
     --bg-base:        #f4f4f7;
@@ -92,9 +92,8 @@
     border-color: var(--border-hover);
 }
 
-/* ----------------------------------------------------------------
-   1. Reset / Base
-   ---------------------------------------------------------------- */
+/* 1. Reset / Base */
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
@@ -146,9 +145,8 @@ li { margin-bottom: 0.4rem; color: var(--text-secondary); }
 
 strong { color: var(--text-primary); }
 
-/* ----------------------------------------------------------------
-   2. Navbar
-   ---------------------------------------------------------------- */
+/* 2. Navbar */
+
 .navbar {
     position: fixed;
     top: 0;
@@ -216,9 +214,8 @@ strong { color: var(--text-primary); }
     transition: all var(--transition);
 }
 
-/* ----------------------------------------------------------------
-   3. Typography helpers (Bulma .title / .subtitle)
-   ---------------------------------------------------------------- */
+/* 3. Typography helpers (Bulma .title / .subtitle) */
+
 .title {
     color: var(--text-primary);
     font-weight: 700;
@@ -237,9 +234,8 @@ strong { color: var(--text-primary); }
     font-size: 1rem;
 }
 
-/* ----------------------------------------------------------------
-   4. Section / Container
-   ---------------------------------------------------------------- */
+/* 4. Section / Container */
+
 .section {
     flex: 1 0 auto;
     display: flex;
@@ -256,9 +252,8 @@ strong { color: var(--text-primary); }
     box-sizing: border-box;
 }
 
-/* ----------------------------------------------------------------
-   5. Box (content card)
-   ---------------------------------------------------------------- */
+/* 5. Box (content card) */
+
 .box {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -270,9 +265,8 @@ strong { color: var(--text-primary); }
     color: var(--text-primary);
 }
 
-/* ----------------------------------------------------------------
-   6. Columns grid (replaces Bulma .columns / .column)
-   ---------------------------------------------------------------- */
+/* 6. Columns grid (replaces Bulma .columns / .column) */
+
 .columns {
     display: flex;
     flex-wrap: wrap;
@@ -288,9 +282,8 @@ strong { color: var(--text-primary); }
 .column.is-7 { flex: 0 0 calc(58.333% - 1.5rem); max-width: calc(58.333% - 1.5rem); }
 .column.is-full { flex: 0 0 100%; max-width: 100%; }
 
-/* ----------------------------------------------------------------
-   7. Buttons
-   ---------------------------------------------------------------- */
+/* 7. Buttons */
+
 .button, button.button {
     display: inline-flex;
     align-items: center;
@@ -347,9 +340,8 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
 /* Wraps multiple buttons */
 .buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
-/* ----------------------------------------------------------------
-   8. Table
-   ---------------------------------------------------------------- */
+/* 8. Table */
+
 .table {
     width: 100%;
     border-collapse: collapse;
@@ -380,9 +372,8 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
 .table.is-striped tbody tr:nth-child(even) { background: var(--bg-surface); }
 .table tbody tr:hover { background: var(--bg-card-hover); }
 
-/* ----------------------------------------------------------------
-   9. Footer
-   ---------------------------------------------------------------- */
+/* 9. Footer */
+
 .footer {
     position: fixed;
     bottom: 0;
@@ -402,25 +393,22 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
 .footer .content { margin: 0; }
 .footer p { margin: 0; }
 
-/* ----------------------------------------------------------------
-   10. Content utility
-   ---------------------------------------------------------------- */
+/* 10. Content utility */
+
 .content { color: var(--text-secondary); }
 .content p { margin-bottom: 0.75rem; }
 .content a { color: var(--accent-hover); }
 
-/* ----------------------------------------------------------------
-   11. Text helpers (Bulma has-text-* / is-hidden)
-   ---------------------------------------------------------------- */
+/* 11. Text helpers (Bulma has-text-* / is-hidden) */
+
 .has-text-centered { text-align: center; }
 .has-text-danger  { color: var(--red) !important; font-size: 0.9rem; margin: 0.25rem 0; display: block; }
 .has-text-success { color: var(--green) !important; font-size: 0.9rem; margin: 0.25rem 0; display: block; }
 .has-text-warning { color: var(--amber) !important; font-size: 0.9rem; margin: 0.25rem 0; display: block; }
 .is-hidden { display: none !important; }
 
-/* ----------------------------------------------------------------
-   12. Drag & Drop Upload
-   ---------------------------------------------------------------- */
+/* 12. Drag & Drop Upload */
+
 .drag-area {
     border: 2px dashed var(--border-hover);
     border-radius: var(--radius);
@@ -460,9 +448,8 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
 
 #file-list div { padding: 0.2rem 0; }
 
-/* ----------------------------------------------------------------
-   13. Responsive
-   ---------------------------------------------------------------- */
+/* 13. Responsive */
+
 @media (max-width: 768px) {
     .navbar-menu {
         display: none;
@@ -484,9 +471,8 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
     .column.is-3, .column.is-7 { flex: 0 0 100%; max-width: 100%; }
 }
 
-/* ----------------------------------------------------------------
-   14. Modal
-   ---------------------------------------------------------------- */
+/* 14. Modal */
+
 .modal {
     display: none;
     position: fixed;
@@ -577,9 +563,8 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
     .modal-card { width: 95% !important; max-width: 95% !important; }
 }
 
-/* ----------------------------------------------------------------
-   15. File Upload Layout
-   ---------------------------------------------------------------- */
+/* 15. File Upload Layout */
+
 .file-uploads-layout {
     display: flex;
     align-items: flex-start;
@@ -653,9 +638,8 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
     .files-panel { width: 100%; }
 }
 
-/* ----------------------------------------------------------------
-   16. File Editor
-   ---------------------------------------------------------------- */
+/* 16. File Editor */
+
 .editor-filename-row {
     display: flex;
     align-items: center;

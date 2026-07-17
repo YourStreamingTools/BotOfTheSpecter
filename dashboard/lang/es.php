@@ -1652,7 +1652,7 @@ return [
     'dashboard_quotes_saved' => 'Cotizaciones guardadas',
     'dashboard_moderator_channels' => 'Canales moderadores',
     'dashboard_quick_links' => 'Enlaces rápidos',
-    // --- Dashboard home rebuild (2026): zone labels + JS (dashboard_js_*) strings ---
+    // Dashboard home rebuild (2026): zone labels + JS (dashboard_js_*) strings
     'dashboard_live_checking' => 'De cheques…',
     'dashboard_chat_per_min' => 'Chat por minuto',
     'dashboard_active_chatters' => 'Charladores activos',

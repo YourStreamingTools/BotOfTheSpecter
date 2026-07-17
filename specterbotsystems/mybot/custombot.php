@@ -32,7 +32,7 @@ function verifyBot($conn, $twitchUserId, $twitchLogin, $access_token, $refresh_t
         if ($stmt) { $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId); }
     }
     if ($stmt) { $stmt->execute(); $customBotsUpdated = $stmt->affected_rows > 0; $stmt->close(); }
-    // --- custom_module_bots (always has refresh_token; update ALL rows for this bot across all channels) ---
+    // custom_module_bots (always has refresh_token; update ALL rows for this bot across all channels)
     $moduleBotsUpdated = false;
     $modStmt = $conn->prepare('UPDATE custom_module_bots SET is_verified = 1, access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ?');
     if ($modStmt) {

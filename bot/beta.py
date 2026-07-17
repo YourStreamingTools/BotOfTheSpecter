@@ -439,7 +439,6 @@ def add_usage(command, user_id, bucket_type='default'):
         command_usage[key] = []
     command_usage[key].append(current_time)
 
-
 def parse_builtin_cooldown_row(result):
     """Normalize cooldown fields from a builtin_commands DB row (or None)."""
     row = result or {}
@@ -484,7 +483,6 @@ async def load_builtin_command_settings(cursor, command_name):
         "cooldown_bucket": bucket,
         "raw": result,
     }
-
 
 # Function to handle termination signals
 def signal_handler(sig, frame):
@@ -1003,7 +1001,6 @@ async def connect_to_integrations():
     await sleep(2)
     # Then start tipping services (StreamElements and StreamLabs)
     looped_tasks["connect_to_tipping_services"] = create_task(connect_to_tipping_services())
-
 
 async def connect_to_tipping_services():
     global CHANNEL_ID, streamelements_token, streamlabs_token
@@ -6470,7 +6467,6 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
-
     @commands.command(name='taskhelp')
     async def taskhelp_command(self, ctx):
         global bot_owner
@@ -6650,8 +6646,6 @@ class TwitchBot(commands.Bot):
         finally:
             if connection:
                 await connection.close()
-
-
 
     @commands.command(name='hug')
     async def hug_command(self, ctx, mentioned_username: str = None):
@@ -11600,13 +11594,11 @@ class TwitchBot(commands.Bot):
 ##
 # Functions for all the commands
 ##
-# ---------------------------------------------------------------------------
 # Word Replacer (random syllable swap)
 # Occasionally re-posts a viewer's chat line with random syllables swapped for a
 # streamer-set word (default "fun"). Configured per channel via the `protection`
 # table plus the word_replace_ignored_users / word_replace_ignored_words tables.
 # Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
-# ---------------------------------------------------------------------------
 WORD_REPLACE_CACHE_TTL = 60
 EXPECTED_PROBABILITY = 0.95
 MAX_ATTEMPTS_CAP = 1000
@@ -13605,7 +13597,7 @@ async def process_dynamic_variables(
                 # Handle (arg) - the argument passed to the command
                 if '(arg)' in response:
                     response = response.replace('(arg)', arg if arg is not None else '')
-                # --- Channel-point-specific variables (only when channel_point_data is provided) ---
+                # Channel-point-specific variables (only when channel_point_data is provided)
                 if channel_point_data:
                     cp_reward_id = channel_point_data.get("reward_id")
                     cp_user_id = channel_point_data.get("user_id")
@@ -14770,7 +14762,6 @@ async def clear_seen_today():
         if connection:
             await connection.close()
 
-
 # Clear temporary VIPs granted with (vip.today) at end of stream
 async def clear_temporary_vips():
     connection = None
@@ -15084,7 +15075,7 @@ async def send_timed_message(message_id, message, delay):
     else:
         chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
 
-# --- Media-player song request helpers (non-Spotify fallback) ---
+# Media-player song request helpers (non-Spotify fallback)
 # The per-user media tables (media_queue / media_request_settings / media_banlist) are
 # created centrally by dashboard/usr_database.php, like every other per-user table.
 async def get_media_settings(connection):
@@ -18612,7 +18603,6 @@ async def check_and_handle_ads(last_notification_time, last_1min_notification_ti
     except Exception as e:
         api_logger.error(f"[ADS] Error in check_and_handle_ads: {e}")
         return last_notification_time, last_1min_notification_time, last_ad_time, last_snooze_count
-
 
 # Function to track chat messages for the bot counter
 async def track_chat_message():

@@ -1637,7 +1637,6 @@ html, body {
 .credits-overlay-page .column { flex: 1 1 0; padding: 0.75rem; }
 .credits-overlay-page .has-text-white { color: #ffffff; }
 
-
 .credits-overlay-page,
 html:has(body.credits-overlay-page) {
     --credits-text-color: #FFFFFF;
