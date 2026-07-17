@@ -1,11 +1,9 @@
 <?php
 // home/logout.php
-// ----------------------------------------------------------------
 // Ends the user's session everywhere.
 // session_destroy() drives WebSessionHandler::destroy(), which DELETEs
 // the row from web_sessions, so dashboard / support / members lose
 // their cookie-shared identity on the very next page load.
-// ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
 

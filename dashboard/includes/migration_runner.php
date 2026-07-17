@@ -197,7 +197,7 @@ function migration_adopt_baseline($db, $appliedBy) {
     $conn->close();
 }
 
-// ---- Helpers available to procedural migrations (callable up/down) ----
+// Helpers available to procedural migrations (callable up/down)
 function migration_table_exists(mysqli $conn, $table) {
     $stmt = $conn->prepare("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
     if (!$stmt) throw new Exception($conn->error);

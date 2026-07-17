@@ -3408,7 +3408,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             userSettings.ding_sound_enabled = enabled;
             saveSettingsToServer();
         }
-        // ----- Ding volume: a 0..1 multiplier applied to the ding's peak gain -----
+        // Ding volume: a 0..1 multiplier applied to the ding's peak gain
         const DING_VOLUME_STORAGE_KEY = 'yourchat-ding-volume';
         const DING_PEAK_GAIN = 0.18;  // peak gain at 100% volume (the original loudness)
         let dingVolume = 1;           // 0..1; default 100% (persisted in localStorage + userSettings)
@@ -3776,7 +3776,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 backgroundColor: 'linear-gradient(to right, #ff416c, #ff4b2b)',
             }).showToast();
         }
-        // ----- Skip-phrase list UI (mirrors the message-filter tag list) -----
+        // Skip-phrase list UI (mirrors the message-filter tag list)
         function renderNarratorFilters() {
             const list = document.getElementById('narrator-filter-list');
             if (!list) return;
@@ -3852,7 +3852,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             saveNarratorFilters(filters);
             renderNarratorFilters();
         }
-        // ----- Skip-username list UI (exact-match; mirrors the username-filter tag list) -----
+        // Skip-username list UI (exact-match; mirrors the username-filter tag list)
         function renderNarratorUsernameFilters() {
             const list = document.getElementById('narrator-user-filter-list');
             if (!list) return;
@@ -3890,7 +3890,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             saveNarratorUsernameFilters(filters);
             renderNarratorUsernameFilters();
         }
-        // ----- Allow-phrase list UI (overrides username skip; plain text or regex) -----
+        // Allow-phrase list UI (overrides username skip; plain text or regex)
         function renderNarratorAllowMessages() {
             const list = document.getElementById('narrator-allow-list');
             if (!list) return;

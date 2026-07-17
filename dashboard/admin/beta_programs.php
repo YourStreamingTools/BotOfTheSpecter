@@ -10,9 +10,7 @@ session_write_close();
 $pageTitle = t('admin_beta_title');
 ob_start();
 
-// ----------------------------------------------------------------
 // AJAX / POST handlers
-// ----------------------------------------------------------------
 
 // Create or update program
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_program'])) {

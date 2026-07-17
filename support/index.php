@@ -1,10 +1,8 @@
 <?php
 // support/index.php
-// ----------------------------------------------------------------
 // Public documentation landing page.
 // Static tabs: Setup, Features, Spotify, TTS, OBS Audio, Variables, Channel Points, Custom API, Run Yourself, Commands, FAQ, Troubleshooting.
 // Additional guide content is added as static PHP sections.
-// ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
 support_session_start();
@@ -31,7 +29,7 @@ $extraHead       = '<script>document.addEventListener("DOMContentLoaded",functio
 
 ob_start();
 ?>
-<!-- ===== HERO ===== -->
+<!-- HERO -->
 <div class="sp-hero" style="text-align:center;padding:1.5rem 1rem 1.25rem;border-bottom:1px solid var(--border);margin-bottom:1.5rem;">
     <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter"
          style="width:72px;height:72px;border-radius:50%;margin:0 auto 1rem;border:2px solid var(--border);display:block;">
@@ -54,7 +52,7 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
-<!-- ===== QUICK LINKS GRID ===== -->
+<!-- QUICK LINKS GRID -->
 <div class="sp-doc-grid sp-mb-3">
     <a href="#" class="sp-doc-card" data-goto="setup">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-rocket"></i></div>
@@ -117,9 +115,8 @@ ob_start();
         <div class="sp-doc-card-desc">Common issues and solutions.</div>
     </a>
 </div>
-<!-- ===================================================================
-     TAB: FIRST TIME SETUP
-=================================================================== -->
+<!-- TAB: FIRST TIME SETUP -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="setup">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -516,9 +513,8 @@ ob_start();
         </div>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: MAIN FEATURES
-=================================================================== -->
+<!-- TAB: MAIN FEATURES -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="features">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -798,9 +794,8 @@ ob_start();
         </table>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: SPOTIFY SETUP
-=================================================================== -->
+<!-- TAB: SPOTIFY SETUP -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="spotify">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -924,9 +919,8 @@ ob_start();
         </div>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: TEXT-TO-SPEECH (TTS)
-=================================================================== -->
+<!-- TAB: TEXT-TO-SPEECH (TTS) -->
+
 <?php
 $ttsVoices = [
     'alloy'   => 'Clear, crisp, and professional',
@@ -1053,9 +1047,8 @@ $ttsVoices = [
     });
 })();
 </script>
-<!-- ===================================================================
-     TAB: OBS AUDIO MONITORING
-=================================================================== -->
+<!-- TAB: OBS AUDIO MONITORING -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="obs-audio">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -1187,9 +1180,8 @@ $ttsVoices = [
         </div>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: CUSTOM VARIABLES
-=================================================================== -->
+<!-- TAB: CUSTOM VARIABLES -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="variables">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -1846,9 +1838,8 @@ $ttsVoices = [
         </div>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: TWITCH CHANNEL POINTS
-=================================================================== -->
+<!-- TAB: TWITCH CHANNEL POINTS -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="twitch-channel-points">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -2049,9 +2040,8 @@ $ttsVoices = [
         </div>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: CUSTOM API
-=================================================================== -->
+<!-- TAB: CUSTOM API -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="api">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -2322,9 +2312,8 @@ System.out.println(resp.body());</code></pre>
     show(sel.value);
 })();
 </script>
-<!-- ===================================================================
-     TAB: RUN YOURSELF (self-hosting)
-=================================================================== -->
+<!-- TAB: RUN YOURSELF (self-hosting) -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="run-yourself">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -3059,9 +3048,8 @@ pip install -r api/requirements.txt --upgrade</code></pre>
         </div>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: COMMANDS (from API)
-=================================================================== -->
+<!-- TAB: COMMANDS (from API) -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="commands">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -3132,9 +3120,8 @@ pip install -r api/requirements.txt --upgrade</code></pre>
         <span>Type <code>!commands</code> in your Twitch chat to see all active commands, including custom ones.</span>
     </div>
 </div>
-<!-- ===================================================================
-     TAB: FAQ
-=================================================================== -->
+<!-- TAB: FAQ -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="faq">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -3205,9 +3192,8 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </div>
 </div>
 
-<!-- ===================================================================
-     TAB: TROUBLESHOOTING
-=================================================================== -->
+<!-- TAB: TROUBLESHOOTING -->
+
 <div class="sp-tab-panel sp-doc-content" data-panel="troubleshooting">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem;">
         <div>

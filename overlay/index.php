@@ -484,7 +484,7 @@ if ($username) {
                 }
                 return { start, stop };
             })();
-            // ---- Legacy overlays folded into the unified overlay ----
+            // Legacy overlays folded into the unified overlay
             // Weather, deaths and walk-ons keep their original look (styles already
             // live in index.css). They render independently of the alert queue and
             // only fire when their category has an enabled variant in twitch_alerts.

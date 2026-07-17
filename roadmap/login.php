@@ -1,10 +1,8 @@
 <?php
 // roadmap/login.php
-// ----------------------------------------------------------------
 // Auth paths (same model as support/members):
 //   A) Handoff token from home/sso.php (no re-auth when already signed in)
 //   B) StreamersConnect → Twitch OAuth
-// ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
 roadmap_session_start();
@@ -19,9 +17,7 @@ if (roadmap_is_logged_in()) {
 $info     = 'Sign in to view and interact with the roadmap.';
 $hasError = false;
 
-// ----------------------------------------------------------------
 // PATH A - Handoff token from home/sso.php
-// ----------------------------------------------------------------
 if (!empty($_GET['handoff'])) {
     $token = preg_replace('/[^a-f0-9]/i', '', (string)$_GET['handoff']);
     if (strlen($token) === 64) {
@@ -70,9 +66,7 @@ if (!empty($_GET['handoff'])) {
     }
 }
 
-// ----------------------------------------------------------------
 // PATH B - StreamersConnect OAuth response
-// ----------------------------------------------------------------
 $cfg    = include '/var/www/config/main.php';
 $apiKey = $cfg['streamersconnect_api_key'] ?? '';
 

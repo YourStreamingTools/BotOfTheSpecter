@@ -258,7 +258,7 @@ if ($username && !$notFound && $isDeceased) {
 }
 session_write_close();
 
-// --- Layout variables for layout.php ---
+// Layout variables for layout.php
 $pageTitle     = $title;
 $activeNav     = !$username ? 'search' : '';
 $topbarActions = ($username && !$notFound && !$isRestricted && !$isDeceased)

@@ -1,6 +1,5 @@
 <?php
 // home/profile.php
-// ----------------------------------------------------------------
 // Account & active-sessions page on the IdP.
 //
 // Shows active rows in web_sessions for the current user (one row per
@@ -10,7 +9,6 @@
 //
 // Standard IdP feature - Google's "Devices", GitHub's "Sessions",
 // Discord's "Authorized apps".
-// ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
 require_once '/var/www/config/iplocate.php';
@@ -33,11 +31,9 @@ if (empty($_SESSION['csrf_token'])) {
 }
 $csrf = $_SESSION['csrf_token'];
 
-// ----------------------------------------------------------------
 // POST handlers - Remove one / Remove all others / Log out everywhere.
 // All paths verify CSRF AND filter by twitchUserId so a user can never
 // touch another user's rows even if they craft session_id.
-// ----------------------------------------------------------------
 $flash = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token  = $_POST['csrf']   ?? '';
@@ -98,12 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ----------------------------------------------------------------
 // Load active sessions only. Purge idle/stale rows first so weeks-old
 // cookies that read() already ignores don't show up as "signed in".
 // Active = last_seen within the session lifetime. Token validity is
 // enforced by Twitch validate in session_bootstrap, not this list.
-// ----------------------------------------------------------------
 bots_purge_stale_web_sessions($bots_session_db, $twitchUserId, BOTS_SESSION_LIFETIME);
 
 $sessions = [];
@@ -123,10 +117,8 @@ if ($stmt) {
     $stmt->close();
 }
 
-// ----------------------------------------------------------------
 // Friendly UA parser. Order matters: Edge/Opera contain "Chrome",
 // Chrome contains "Safari".
-// ----------------------------------------------------------------
 function bots_humanize_ua(?string $ua): string
 {
     if (!$ua) return 'Unknown device';
@@ -194,9 +186,7 @@ function bots_format_when($datetime): string
     }
 }
 
-// ----------------------------------------------------------------
 // Render via the home layout.
-// ----------------------------------------------------------------
 ob_start();
 $pageTitle       = 'Active Sessions - BotOfTheSpecter';
 $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSpecter account.';

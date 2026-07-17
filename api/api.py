@@ -2061,13 +2061,11 @@ async def handle_github_webhook(request: Request, api_key: str = Query(...)):
             raise HTTPException(status_code=500, detail="Error forwarding to websocket")
     return {"status": "success", "message": "GitHub Webhook received"}
 
-# ---------------------------------------------------------------------------
 # Kick.com Webhook Endpoint
 # URL: POST /kick/{username}
 # Kick posts events here; we verify the signature, look up the user's API key
 # by username, then forward the event to the internal WebSocket server so the
 # kick bot (which is connected via Socket.IO) can receive it.
-# ---------------------------------------------------------------------------
 
 # Kick public-key cache - fetched from Kick's API, refreshed every hour
 _kick_pubkey_cache: bytes | None = None
@@ -2213,16 +2211,13 @@ async def receive_kick_webhook(username: str, request: Request):
             raise HTTPException(status_code=500, detail="Error forwarding to WebSocket server")
     return {"status": "ok", "event": ws_event}
 
-# ---------------------------------------------------------------------------
 # Custom Inbound Webhooks (admin-defined)
-# ---------------------------------------------------------------------------
 # Admins create inbound webhook receivers from the admin panel (rows in
 # website.custom_webhooks). External services POST to /webhook/{slug}; the
 # request is verified per the webhook's configured mode (none/secret/hmac) and
 # the payload is forwarded to the internal WebSocket server as the configured
 # event - routed to a specific channel or to admin global-listeners. This lets a
 # new integration go live WITHOUT editing api.py or restarting the API server.
-# ---------------------------------------------------------------------------
 
 def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, request: Request, raw_body: bytes) -> bool:
     # Constant-time verification of an inbound custom webhook request.

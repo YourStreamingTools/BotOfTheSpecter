@@ -1,10 +1,8 @@
 <?php
 // support/layout.php
-// ----------------------------------------------------------------
 // Shared layout shell for all support portal pages.
 // Callers set: $pageTitle (string), $content (HTML string from ob_*)
 // Optional: $pageDescription, $bodyClass, $topbarTitle
-// ----------------------------------------------------------------
 
 if (!function_exists('uuidv4')) {
     function uuidv4(): string {

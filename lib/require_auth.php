@@ -1,6 +1,5 @@
 <?php
 // /var/www/lib/require_auth.php
-// ----------------------------------------------------------------
 // Auth gate for *.botofthespecter.com dashboard pages that need a
 // logged-in user. Include AFTER session_bootstrap.php.
 //
@@ -8,7 +7,6 @@
 // $_SESSION['redirect_after_login'] and bounce to /login.php; the
 // login flow honours that key to return the user to the page they
 // were trying to reach instead of the dashboard.
-// ----------------------------------------------------------------
 
 if (defined('BOTS_REQUIRE_AUTH_INCLUDED')) {
     return;

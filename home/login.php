@@ -1,6 +1,5 @@
 <?php
 // home/login.php
-// ----------------------------------------------------------------
 // Identity-provider entry point. botofthespecter.com is now the SSO
 // authority; this file owns the StreamersConnect OAuth callback and
 // is the destination for any consumer app that needs to log a user in.
@@ -14,7 +13,6 @@
 //     web_sessions handler, regenerate session id, redirect.
 //   - Otherwise -> kick off StreamersConnect with this page as the
 //     return URL.
-// ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
 
@@ -40,9 +38,7 @@ function bots_sanitize_return_url($url): ?string
     return null;
 }
 
-// ----------------------------------------------------------------
 // Already authenticated -> go to return URL or home.
-// ----------------------------------------------------------------
 if (!empty($_SESSION['access_token'])) {
     $dest = bots_sanitize_return_url($_SESSION['post_login_redirect'] ?? null) ?? '/';
     unset($_SESSION['post_login_redirect']);
@@ -50,9 +46,7 @@ if (!empty($_SESSION['access_token'])) {
     exit;
 }
 
-// ----------------------------------------------------------------
 // Stash a sanitized return URL for after login completes.
-// ----------------------------------------------------------------
 if (!empty($_GET['return'])) {
     $r = bots_sanitize_return_url($_GET['return']);
     if ($r) $_SESSION['post_login_redirect'] = $r;
@@ -64,9 +58,7 @@ $hasError = false;
 $cfg    = include '/var/www/config/main.php';
 $apiKey = $cfg['streamersconnect_api_key'] ?? '';
 
-// ----------------------------------------------------------------
 // StreamersConnect OAuth response (mirrors support/login.php).
-// ----------------------------------------------------------------
 if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
     $decoded = null;
     // Preferred: signature-based verification.
@@ -121,7 +113,6 @@ if ($resp && $http === 200) {
         $dname        = $user['display_name']      ?? ($user['global_name'] ?? $uname);
         $pimg         = $user['profile_image_url'] ?? null;
         if ($accessToken && $twitchUserId) {
-            // ----------------------------------------------------------------
             // Order matters here. Set $_SESSION FIRST so the auth completes
             // even if the users-table sync explodes for any reason
             // (mysqli in throw-mode + schema drift = uncaught exception
@@ -131,7 +122,6 @@ if ($resp && $http === 200) {
             // We re-read api_key / user_id / is_admin / email AFTER the sync
             // and patch them back into $_SESSION before the redirect, so the
             // happy path still has the correct denormalized values.
-            // ----------------------------------------------------------------
             $isAdmin   = 0;
             $userRowId = 0;
             $apiKey    = '';
@@ -151,13 +141,11 @@ if ($resp && $http === 200) {
             $_SESSION['profile_image']     = $pimg;
             $_SESSION['twitch_expires_at'] = time() + $expiresIn;
             $_SESSION['last_validated_at'] = time();
-            // ----------------------------------------------------------------
             // Best-effort users-table sync. dashboard/userdata.php looks up
             // the row by access_token, so we MUST keep users.access_token in
             // step with $_SESSION['access_token'] or the dashboard will
             // redirect-loop. But if the sync itself blows up, the session is
             // already authenticated above - we just log and move on.
-            // ----------------------------------------------------------------
             try {
                 if (isset($bots_session_db) && $bots_session_db instanceof mysqli) {
                     $emailFromDb = '';
@@ -282,9 +270,7 @@ if ($resp && $http === 200) {
     }
 }
 
-// ----------------------------------------------------------------
 // No auth data yet - bounce to StreamersConnect.
-// ----------------------------------------------------------------
 // Scope list MUST stay in sync with dashboard/login.php's $IDScope.
 // home is the SSO authority for the whole platform, so the access_token
 // it mints has to satisfy every consumer's Twitch API needs:

@@ -1,6 +1,5 @@
 <?php
 // support/tickets.php
-// ----------------------------------------------------------------
 // All ticket views in one file:
 //   ?action=list        - user's own tickets (default)
 //   ?action=list&view=queue - staff queue (is_staff() only)
@@ -8,7 +7,6 @@
 //   ?id=SPT-XXXXX       - ticket thread view
 //
 // All POST actions verified with CSRF.
-// ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
 support_session_start();
@@ -42,9 +40,7 @@ if (!$isRegisteredUser) {
     }
     $wdb->close();
 }
-// ----------------------------------------------------------------
 // POST: Staff - approve or decline a beta program request
-// ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])
     && in_array($_POST['_action'], ['approve_beta', 'decline_beta'], true)) {
     if (!is_staff()) {
@@ -110,9 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])
     }
 }
 
-// ----------------------------------------------------------------
 // POST: Submit new ticket
-// ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST['_action'] === 'new_ticket') {
     if (!verify_csrf()) {
         $errors[] = 'Security token mismatch. Please try again.';
@@ -208,9 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
     }
 }
 
-// ----------------------------------------------------------------
 // POST: Reply to ticket
-// ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST['_action'] === 'reply') {
     if (!verify_csrf()) {
         $errors[] = 'Security token mismatch. Please try again.';
@@ -263,9 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
     }
 }
 
-// ----------------------------------------------------------------
 // POST: Staff - update ticket status / priority
-// ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST['_action'] === 'staff_update') {
     if (!is_staff()) {
         $errors[] = 'Insufficient permissions.';
@@ -291,9 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
     }
 }
 
-// ----------------------------------------------------------------
 // Helpers
-// ----------------------------------------------------------------
 function status_badge(string $s): string {
     $labels = ['open'=>'Open','in_progress'=>'In Progress','resolved'=>'Resolved','closed'=>'Closed'];
     return '<span class="sp-badge sp-status-' . htmlspecialchars($s) . '">' . ($labels[$s] ?? ucfirst($s)) . '</span>';
@@ -317,24 +305,20 @@ function time_ago(string $dt): string {
     return floor($diff/86400) . 'd ago';
 }
 
-// ----------------------------------------------------------------
 // Build page
-// ----------------------------------------------------------------
 $pageTitle   = 'Support Tickets';
 $topbarTitle = 'Support Tickets';
 
 ob_start();
 
-// ---- show flash errors ----
+// show flash errors
 foreach ($errors as $err): ?>
 <div class="sp-alert sp-alert-danger" data-dismiss="6000">
     <i class="fa-solid fa-circle-xmark"></i><span><?php echo htmlspecialchars($err); ?></span>
 </div>
 <?php endforeach;
 
-// ============================================================
 // VIEW: THREAD
-// ============================================================
 if ($ticketId):
     $tn = $db->real_escape_string($ticketId);
     if (is_staff()) {
@@ -496,9 +480,7 @@ if ($ticketId):
 <?php endif; ?>
 <?php endif; // ticket found ?>
 <?php
-// ============================================================
 // VIEW: NEW TICKET
-// ============================================================
 elseif ($action === 'new'):
 ?>
 <div class="sp-page-header">
@@ -618,9 +600,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php
-// ============================================================
 // VIEW: STAFF QUEUE
-// ============================================================
 elseif ($queueView):
     $filter_status = $_GET['status'] ?? 'all';
     $filter_prio   = $_GET['priority'] ?? 'all';
@@ -691,9 +671,7 @@ elseif ($queueView):
 </div>
 <?php endif; ?>
 <?php
-// ============================================================
 // VIEW: MY TICKETS (default)
-// ============================================================
 else:
     $uid = $db->real_escape_string($_SESSION['twitch_user_id']);
     $filter_status = $_GET['status'] ?? 'all';

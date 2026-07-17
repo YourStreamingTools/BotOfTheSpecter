@@ -39,9 +39,7 @@ function wh_default_header($mode) {
 $validScopes = ['channel', 'global'];
 $validModes  = ['none', 'secret', 'hmac'];
 
-// ---------------------------------------------------------------------------
 // Create
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
     $name          = trim($_POST['name'] ?? '');
     $slug          = strtolower(trim($_POST['slug'] ?? ''));
@@ -92,9 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Update (slug is immutable to avoid breaking live integrations)
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_webhook'])) {
     $id            = (int) ($_POST['webhook_id'] ?? 0);
     $name          = trim($_POST['name'] ?? '');
@@ -156,9 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_webhook'])) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Delete
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_webhook'])) {
     $id = (int) ($_POST['webhook_id'] ?? 0);
     if ($id <= 0) wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
@@ -184,9 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_webhook'])) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Toggle enabled
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_webhook'])) {
     $id = (int) ($_POST['webhook_id'] ?? 0);
     $enabled = (int) (!empty($_POST['enabled']) ? 1 : 0);
@@ -203,9 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_webhook'])) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Regenerate secret
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_secret'])) {
     $id = (int) ($_POST['webhook_id'] ?? 0);
     if ($id <= 0) wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
@@ -227,9 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_secret']))
     }
 }
 
-// ---------------------------------------------------------------------------
 // Fetch all webhooks for display
-// ---------------------------------------------------------------------------
 $webhooks = [];
 if ($conn) {
     $result = $conn->query("SELECT id, slug, name, service, event_name, scope, target_username, verify_mode, secret, secret_header, enabled, last_received_at, received_count FROM custom_webhooks ORDER BY name");

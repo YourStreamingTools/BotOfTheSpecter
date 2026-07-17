@@ -1,11 +1,10 @@
-/* ============================================================
+/*
    BotOfTheSpecter Support Portal - style.css
    Custom dark theme, no external CSS framework
-   ============================================================ */
+ */
 
-/* ----------------------------------------------------------
-   1. Reset & Base
-   ---------------------------------------------------------- */
+/* 1. Reset & Base */
+
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -52,10 +51,11 @@
     color-scheme: dark;
 }
 
-/* ----------------------------------------------------------
+/*
    Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
-   ---------------------------------------------------------- */
+ */
+
 [data-theme="light"] {
     color-scheme: light;
     --bg-base:        #f4f4f7;
@@ -171,10 +171,8 @@ hr {
     margin: 1.5rem 0;
 }
 
+/* 2. Layout - Sidebar + Main */
 
-/* ----------------------------------------------------------
-   2. Layout - Sidebar + Main
-   ---------------------------------------------------------- */
 .sp-layout {
     display: flex;
     min-height: 100vh;
@@ -420,10 +418,8 @@ hr {
 .sp-footer a { color: var(--text-muted); }
 .sp-footer a:hover { color: var(--text-secondary); }
 
+/* 3. Cards */
 
-/* ----------------------------------------------------------
-   3. Cards
-   ---------------------------------------------------------- */
 .sp-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -560,10 +556,8 @@ hr {
 .sp-stat.resolved .sp-stat-value { color: var(--green); }
 .sp-stat.closed   .sp-stat-value { color: var(--grey); }
 
+/* 4. Buttons */
 
-/* ----------------------------------------------------------
-   4. Buttons
-   ---------------------------------------------------------- */
 .sp-btn {
     display: inline-flex;
     align-items: center;
@@ -634,10 +628,8 @@ hr {
     pointer-events: none;
 }
 
+/* 5. Forms */
 
-/* ----------------------------------------------------------
-   5. Forms
-   ---------------------------------------------------------- */
 .sp-form-group {
     margin-bottom: 1.25rem;
 }
@@ -729,10 +721,8 @@ hr {
 .sp-char-counter.warn { color: var(--amber); }
 .sp-char-counter.ok   { color: var(--green); }
 
+/* 6. Badges / Status pills */
 
-/* ----------------------------------------------------------
-   6. Badges / Status pills
-   ---------------------------------------------------------- */
 .sp-badge {
     display: inline-flex;
     align-items: center;
@@ -761,10 +751,8 @@ hr {
 .sp-badge-account  { background: var(--green-bg); color: var(--green); }
 .sp-badge-general  { background: var(--grey-bg);  color: var(--grey); }
 
+/* 7. Table */
 
-/* ----------------------------------------------------------
-   7. Table
-   ---------------------------------------------------------- */
 .sp-table-wrap {
     overflow-x: auto;
     border-radius: var(--radius-lg);
@@ -845,10 +833,8 @@ hr {
     color: var(--text-muted);
 }
 
+/* 8. Ticket Thread */
 
-/* ----------------------------------------------------------
-   8. Ticket Thread
-   ---------------------------------------------------------- */
 .sp-ticket-header {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -961,10 +947,8 @@ hr {
     letter-spacing: 0.05em;
 }
 
+/* 9. Staff controls */
 
-/* ----------------------------------------------------------
-   9. Staff controls
-   ---------------------------------------------------------- */
 .sp-staff-controls {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -991,10 +975,8 @@ hr {
     min-width: 140px;
 }
 
+/* 10. Alerts & notices */
 
-/* ----------------------------------------------------------
-   10. Alerts & notices
-   ---------------------------------------------------------- */
 .sp-alert {
     display: block;
     padding: 0.9rem 1.1rem;
@@ -1016,10 +998,8 @@ hr {
 .sp-alert-warning i { color: var(--amber); }
 .sp-alert-danger i  { color: var(--red); }
 
+/* 11. Page header */
 
-/* ----------------------------------------------------------
-   11. Page header
-   ---------------------------------------------------------- */
 .sp-page-header {
     margin-bottom: 1.75rem;
 }
@@ -1043,10 +1023,8 @@ hr {
     flex-wrap: wrap;
 }
 
+/* 12. Tabs (for index.php doc sections) */
 
-/* ----------------------------------------------------------
-   12. Tabs (for index.php doc sections)
-   ---------------------------------------------------------- */
 .sp-tabs {
     display: flex;
     gap: 0;
@@ -1088,10 +1066,8 @@ hr {
 .sp-tab-panel { display: none; }
 .sp-tab-panel.active { display: block; }
 
+/* 13. Doc content - rendered help articles */
 
-/* ----------------------------------------------------------
-   13. Doc content - rendered help articles
-   ---------------------------------------------------------- */
 .sp-doc-content h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
 .sp-doc-content h2 { font-size: 1.2rem; margin: 1.5rem 0 0.6rem; }
 .sp-doc-content h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; }
@@ -1300,10 +1276,8 @@ hr {
     color: var(--text-muted);
 }
 
+/* 14. Hero (login / landing) */
 
-/* ----------------------------------------------------------
-   14. Hero (login / landing)
-   ---------------------------------------------------------- */
 .sp-hero {
     display: flex;
     flex-direction: column;
@@ -1355,10 +1329,8 @@ hr {
 
 @keyframes sp-spin { to { transform: rotate(360deg); } }
 
+/* 15. Empty state */
 
-/* ----------------------------------------------------------
-   15. Empty state
-   ---------------------------------------------------------- */
 .sp-empty {
     display: flex;
     flex-direction: column;
@@ -1374,10 +1346,8 @@ hr {
 .sp-empty h3 { font-size: 1rem; color: var(--text-secondary); }
 .sp-empty p  { font-size: 0.85rem; max-width: 320px; }
 
+/* 16. Filters bar */
 
-/* ----------------------------------------------------------
-   16. Filters bar
-   ---------------------------------------------------------- */
 .sp-filters {
     display: flex;
     flex-wrap: wrap;
@@ -1421,10 +1391,8 @@ hr {
 .sp-flex-center { display: flex; align-items: center; gap: 0.5rem; }
 .sp-flex-between { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 
+/* 17. Responsive */
 
-/* ----------------------------------------------------------
-   17. Responsive
-   ---------------------------------------------------------- */
 @media (max-width: 900px) {
     :root { --sidebar-width: 0px; }
     .sp-sidebar {
@@ -1494,9 +1462,7 @@ hr {
     }
 }
 
-/* =================================================================
-   STAFF / CMS ADMIN COMPONENTS
-   ================================================================= */
+/* STAFF / CMS ADMIN COMPONENTS */
 
 /* ---- Sidebar: staff CMS link ---- */
 .sp-nav-link-staff {

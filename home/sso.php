@@ -1,6 +1,5 @@
 <?php
 // home/sso.php
-// ----------------------------------------------------------------
 // Generalized SSO handoff issuer. Consumers redirect users here
 // with ?target=<name>&return=<url-or-path>. We verify the user is
 // signed in to home (the .botofthespecter.com cookie), mint a
@@ -18,7 +17,6 @@
 //   consumer
 //     verifies token (target match, used=0, expires_at>now), marks used,
 //     creates its own session cookie scoped to its domain.
-// ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
 

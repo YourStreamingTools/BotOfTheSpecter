@@ -1598,7 +1598,7 @@ return [
     'dashboard_moderator_channels' => 'Moderator-Kanäle',
     'dashboard_quick_links' => 'Schnellzugriffe',
     'dashboard_js_beta_note' => '5.8 Beta',
-    // --- Dashboard-Startseiten-Umbau (2026): Zonen-Labels + JS (dashboard_js_*) Strings ---
+    // Dashboard-Startseiten-Umbau (2026): Zonen-Labels + JS (dashboard_js_*) Strings
     'dashboard_live_checking' => 'Prüfe…',
     'dashboard_chat_per_min' => 'Chat / Min.',
     'dashboard_active_chatters' => 'Aktive Chatter',

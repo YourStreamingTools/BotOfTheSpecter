@@ -1652,7 +1652,7 @@ return [
     'dashboard_quotes_saved' => 'Quotes Saved',
     'dashboard_moderator_channels' => 'Moderator Channels',
     'dashboard_quick_links' => 'Quick Links',
-    // --- Dashboard home rebuild (2026): zone labels + JS (dashboard_js_*) strings ---
+    // Dashboard home rebuild (2026): zone labels + JS (dashboard_js_*) strings
     'dashboard_live_checking' => 'Checking…',
     'dashboard_chat_per_min' => 'Chat / min',
     'dashboard_active_chatters' => 'Active chatters',

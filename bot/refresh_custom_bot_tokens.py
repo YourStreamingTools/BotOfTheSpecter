@@ -214,7 +214,7 @@ async def refresh_all_custom_bot_tokens():
     if not all([SQL_HOST, SQL_USER, SQL_PASSWORD, CLIENT_ID, CLIENT_SECRET]):
         logger.error("Missing required environment variables. Please check .env file.")
         return
-    # --- custom_bots table ---
+    # custom_bots table
     bots = await get_custom_bots_needing_refresh()
     if not bots:
         logger.info("No custom bots need token refresh at this time.")
@@ -240,7 +240,7 @@ async def refresh_all_custom_bot_tokens():
                 logger.error(f"✗ Failed to refresh token from Twitch for {bot_username} (channel: {channel_username})")
             await asyncio.sleep(1)
         logger.info(f"custom_bots refresh complete. Success: {success_count}, Failed: {fail_count}")
-    # --- custom_module_bots table ---
+    # custom_module_bots table
     module_bots = await get_module_bots_needing_refresh()
     if not module_bots:
         logger.info("No custom module bots need token refresh at this time.")

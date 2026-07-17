@@ -74,9 +74,7 @@ function getLocalMusicFiles() {
 // Fetch music files from local directory
 $musicFiles = getLocalMusicFiles();
 
-// ---------------------------
 // User-uploaded music handling
-// ---------------------------
 // $user_music_path is provided by storage_used.php (e.g. /var/www/private/music_user/<username>)
 $userMusicStatus = '';
 // Handle uploads

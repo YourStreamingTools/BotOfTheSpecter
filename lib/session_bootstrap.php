@@ -1,6 +1,5 @@
 <?php
 // /var/www/lib/session_bootstrap.php
-// ----------------------------------------------------------------
 // Single entry point every *.botofthespecter.com app includes before
 // touching $_SESSION. Configures the cross-subdomain cookie, registers
 // the WebSessionHandler so all four apps share one logical session
@@ -10,14 +9,12 @@
 // Usage at the top of any page (home/dashboard/support/members):
 //     require_once '/var/www/lib/session_bootstrap.php';
 //     // $_SESSION is now live and scoped to .botofthespecter.com
-// ----------------------------------------------------------------
 
 if (defined('BOTS_SESSION_BOOTSTRAPPED')) {
     return;
 }
 define('BOTS_SESSION_BOOTSTRAPPED', true);
 
-// ----------------------------------------------------------------
 // Bot short-circuit. Crawlers don't honor cookies and never come back
 // with one, so every page hit from them spawns a brand-new session id
 // and writes a fresh empty row into web_sessions. Across all four
@@ -33,7 +30,6 @@ define('BOTS_SESSION_BOOTSTRAPPED', true);
 // "real user" with a botty UA loses session, which they can
 // correct by using a normal browser. The trade is heavily in our
 // favor at the database level.
-// ----------------------------------------------------------------
 $bots_ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 // Categories covered:
 //   Search crawlers: googlebot, bingbot, slurp (yahoo), duckduckbot, baiduspider,
@@ -71,7 +67,6 @@ if ($bots_ua !== '' && preg_match(
 require_once __DIR__ . '/web_session.php';
 require_once '/var/www/config/database.php';
 
-// ----------------------------------------------------------------
 // Resolve DB credentials regardless of include scope.
 //
 // This bootstrap is sometimes require_once'd from *inside* a function
@@ -87,7 +82,6 @@ require_once '/var/www/config/database.php';
 // $GLOBALS so helpers like website_db() can always `global $db_*` and
 // find something. The mysqli connection below reads from $GLOBALS so it
 // works in both cases.
-// ----------------------------------------------------------------
 if (!isset($db_servername) || !isset($db_username) || !isset($db_password)) {
     global $db_servername, $db_username, $db_password;
 }
@@ -98,11 +92,9 @@ if (isset($db_password))   $GLOBALS['db_password']   = $db_password;
 // 4-hour session lifetime to match Twitch access-token TTL (defined in web_session.php)
 $BOTS_SESSION_LIFETIME = BOTS_SESSION_LIFETIME;
 
-// ----------------------------------------------------------------
 // Cookie config - must run before session_start().
 // Domain '.botofthespecter.com' (leading dot) makes the cookie span
 // home / dashboard / support / members.
-// ----------------------------------------------------------------
 ini_set('session.use_strict_mode',     '1');
 ini_set('session.cookie_secure',       '1');
 ini_set('session.cookie_httponly',     '1');
@@ -113,11 +105,9 @@ ini_set('session.gc_maxlifetime',      (string)$BOTS_SESSION_LIFETIME);
 ini_set('session.serialize_handler',   'php_serialize');
 session_name('bots_session');
 
-// ----------------------------------------------------------------
 // Connect to website DB and register the custom save handler.
 // The DB connection is held for the lifetime of the request; the
 // session handler reuses it for read/write/destroy/gc.
-// ----------------------------------------------------------------
 $bots_session_db = new mysqli(
     $GLOBALS['db_servername'] ?? '',
     $GLOBALS['db_username']   ?? '',
@@ -136,7 +126,6 @@ $bots_session_handler = new WebSessionHandler($bots_session_db, $BOTS_SESSION_LI
 session_set_save_handler($bots_session_handler, true);
 session_start();
 
-// ----------------------------------------------------------------
 // Cross-app session-key aliases.
 // home/dashboard write camelCase 'twitchUserId' / 'username' / 'profile_image';
 // support and members historically read the snake_case variants.
@@ -144,7 +133,6 @@ session_start();
 // regardless of which login flow populated the row. New keys added
 // here also persist back to web_sessions on the next write - harmless
 // duplication, keeps the source-of-truth row complete.
-// ----------------------------------------------------------------
 $BOTS_SESSION_ALIASES = [
     'twitchUserId'  => 'twitch_user_id',
     'username'      => 'twitch_username',
@@ -158,7 +146,6 @@ foreach ($BOTS_SESSION_ALIASES as $primary => $alias) {
     }
 }
 
-// ----------------------------------------------------------------
 // Twitch token validation.
 // Calls id.twitch.tv/oauth2/validate at most every 5 minutes per session
 // (or sooner if our stored expires_at says we're already past).
@@ -171,7 +158,6 @@ foreach ($BOTS_SESSION_ALIASES as $primary => $alias) {
 // Twitch validate is the sole authority for "is this login still real?".
 // The denormalized twitch_expires_at column is only a hint for when to
 // re-check - it must never destroy a session on its own.
-// ----------------------------------------------------------------
 if (!empty($_SESSION['access_token'])) {
     $now           = time();
     $last_validate = (int)($_SESSION['last_validated_at'] ?? 0);
