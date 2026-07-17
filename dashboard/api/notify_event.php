@@ -27,8 +27,8 @@ try {
         } elseif ($event === "DEATHS" && isset($_POST['death'], $_POST['game'])) {
             $params['death-text'] = $_POST['death'];
             $params['game'] = $_POST['game'];
-        } elseif (in_array($event, ["STREAM_ONLINE", "STREAM_OFFLINE"])) {
-            // No additional parameters needed
+        } elseif (in_array($event, ["STREAM_ONLINE", "STREAM_OFFLINE", "OVERLAY_REFRESH"])) {
+            // No additional parameters needed (OVERLAY_REFRESH = full browser-source reload)
         } elseif ($event === "WEATHER" && isset($_POST['weather'])) {
             $params['location'] = $_POST['weather'];
         } elseif ($event === "TWITCH_FOLLOW" && isset($_POST['user'])) {

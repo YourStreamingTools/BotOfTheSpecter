@@ -931,6 +931,16 @@ if ($username) {
                     if (isCategoryEnabled('walkons')) handleWalkon(data);
                 });
 
+                // Dashboard "Refresh Overlay" — full page reload (meta-refresh style)
+                // so PHP re-fetches alert configs / settings from the DB.
+                socket.on('OVERLAY_REFRESH', (data) => {
+                    console.log('OVERLAY_REFRESH received — reloading browser source', data);
+                    const meta = document.createElement('meta');
+                    meta.setAttribute('http-equiv', 'refresh');
+                    meta.setAttribute('content', '0');
+                    document.head.appendChild(meta);
+                });
+
                 // Log all events
                 socket.onAny((event, ...args) => {
                     console.log(`[onAny] Event: ${event}`, ...args);
