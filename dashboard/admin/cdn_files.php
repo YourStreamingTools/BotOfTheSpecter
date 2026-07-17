@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             'avatar'       => (string) ($u['profile_image'] ?? ''),
                         ];
                     } else {
-                        $folderUsers[$fn] = null; // orphaned — no matching user account
+                        $folderUsers[$fn] = null; // orphaned - no matching user account
                     }
                 }
             }
@@ -295,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 echo json_encode(['ok' => false, 'error' => t('cdn_files_err_invalid_store')]);
                 exit;
             }
-            // No-op if the name is unchanged — S3 copy-to-self would throw.
+            // No-op if the name is unchanged - S3 copy-to-self would throw.
             if ($newKey === $oldKey) {
                 echo json_encode(['ok' => true, 'new_key' => $newKey, 'error' => null]);
                 exit;
@@ -447,7 +447,7 @@ ob_start();
     let curFolder = '';
     // Utility
     function esc(s) {
-        // Escape for BOTH text and (double/single-quoted) attribute contexts —
+        // Escape for BOTH text and (double/single-quoted) attribute contexts -
         // textContent alone leaves " and ' unescaped, allowing attribute breakout.
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;')
@@ -475,7 +475,7 @@ ob_start();
         if (el) el.style.display = 'none';
     }
     function humanDate(ts) {
-        if (!ts) return '—';
+        if (!ts) return '-';
         const d = new Date(ts * 1000);
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
@@ -585,7 +585,7 @@ ob_start();
             }
             html += '</td>';
             html += '<td><span class="sp-badge sp-badge-grey">' + esc(I18N.folderLabel) + '</span></td>';
-            html += '<td>—</td>';
+            html += '<td>-</td>';
             html += '<td class="cdnfm-row-actions">';
             if (IS_SUPER) {
                 html += '<button class="sp-btn sp-btn-sm sp-btn-danger cdnfm-del-btn" ' +
@@ -676,7 +676,7 @@ ob_start();
             showAlert(String(e), 'danger');
             return false;
         }
-        // Server refused to silently overwrite an existing file — confirm first.
+        // Server refused to silently overwrite an existing file - confirm first.
         if (res && res.exists) {
             setLoading(false);
             const owResult = await Swal.fire({

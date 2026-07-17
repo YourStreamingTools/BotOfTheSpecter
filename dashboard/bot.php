@@ -1414,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', function() {
       notification.innerHTML = `<button class="sp-notif-close" aria-label="${dismissLabel}">&times;</button> ${message}`;
       notification.querySelector('.sp-notif-close').addEventListener('click', () => notification.remove());
     }
-    // Append to fixed overlay — never touches page layout
+    // Append to fixed overlay - never touches page layout
     getToastContainer().appendChild(notification);
     // If this was an update notification, remember we've shown it this session
     if (isUpdateNotification) {

@@ -79,7 +79,7 @@ WEB_SESSION_COOKIE_DOMAIN = ".botofthespecter.video"
 WEB_SESSION_LIFETIME_SECONDS = 14400  # 4h, matches the .com side
 # Signed-cookie key. Set the SAME value across every regional .env so a single
 # login cookie scopes to .botofthespecter.video and works on every region.
-# Falls back to an ephemeral key if missing — sessions then survive only until
+# Falls back to an ephemeral key if missing - sessions then survive only until
 # this process restarts.
 WEB_SECRET_KEY = os.getenv('WEB_SECRET_KEY')
 
@@ -929,7 +929,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
     app = Quart(__name__)
 
     # ------------------------------------------------------------------
-    # Quart session config — signed cookie scoped to .botofthespecter.video
+    # Quart session config - signed cookie scoped to .botofthespecter.video
     # so a single login covers every regional RTMP UI (provided every region
     # uses the SAME WEB_SECRET_KEY).
     # ------------------------------------------------------------------
@@ -1014,8 +1014,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         for s in session_registry.snapshot():
             connected_for = _humanize_duration(now - s["connected_at"])
             publishing = s["publishing_name"] or "(handshake)"
-            username = s["username"] or "—"
-            flv_size_str = "—"
+            username = s["username"] or "-"
+            flv_size_str = "-"
             flv = s["flv_file_path"]
             if flv and os.path.exists(flv):
                 flv_size_str = _humanize_bytes(float(os.path.getsize(flv)))
@@ -1162,7 +1162,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         session["is_admin"]      = bool(row["is_admin"])
         session["signed_in_at"]  = datetime.datetime.now().isoformat()
         # Drop the user back where they were trying to go. Only honour purely
-        # local paths — anything else falls back to "/".
+        # local paths - anything else falls back to "/".
         safe_return = "/"
         if isinstance(return_path, str) and return_path.startswith("/") and not return_path.startswith("//"):
             safe_return = return_path

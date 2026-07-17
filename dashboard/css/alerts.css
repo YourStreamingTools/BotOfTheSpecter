@@ -1,6 +1,6 @@
 /* =====================================================================
    Alerts Configurator
-   Surface 3 (per ui-theme). Lives on top of dashboard.css — uses the sp-*
+   Surface 3 (per ui-theme). Lives on top of dashboard.css - uses the sp-*
    token system (var(--accent), var(--bg-card), etc.) so the page tracks
    the dashboard theme rather than introducing its own palette.
    ===================================================================== */

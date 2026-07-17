@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $err = $stmt->error;
         $stmt->close();
         // Auto-track model: a freshly created current project has the newest updated_at,
-        // so it becomes the featured card on its own — no manual featured pointer to set.
+        // so it becomes the featured card on its own - no manual featured pointer to set.
         if ($ok) { maker_notify_overlay($makerApiKey); }
         maker_json(['success' => $ok, 'id' => $newId, 'error' => $ok ? null : $err]);
     }
@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
         $chk->close();
         if (!$exists) { maker_json(['success' => false, 'error' => t('makers_err_no_such_project')]); }
         // "Feature now" pins this project as the Featured card. The pin is sticky: it stays
-        // put when other projects are edited, gain images, or are newly created — only another
+        // put when other projects are edited, gain images, or are newly created - only another
         // "Feature now" moves it. Mark it current so the (current-only) Featured box shows it.
         $stmt = $db->prepare("UPDATE maker_projects SET status = 'current', updated_at = NOW() WHERE id = ?");
         $stmt->bind_param("i", $id);
@@ -339,8 +339,8 @@ if ($res = $db->query("SELECT id, title, description, status, link_url, complete
 
 // Featured "current" card = the project the user pinned via "Feature now"
 // (maker_overlay_settings.current_project_id), as long as it still exists and is current.
-// Falls back to auto-track — the current-status project worked on most recently (newest
-// updated_at; newer id breaks ties) — when nothing valid is pinned. Mirrors overlay/maker.php
+// Falls back to auto-track - the current-status project worked on most recently (newest
+// updated_at; newer id breaks ties) - when nothing valid is pinned. Mirrors overlay/maker.php
 // so the "Featured" badge here matches what viewers actually see.
 $featuredId = 0;
 $pinnedId = (int)($settings['current_project_id'] ?? 0);
@@ -933,7 +933,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         // Expand the editor to a large centered panel for easier, more precise placement.
-        // It's the same canvas element (same chips, snapping and hidden inputs) — only its
+        // It's the same canvas element (same chips, snapping and hidden inputs) - only its
         // size changes, so everything keeps working untouched.
         var expandBtn = document.getElementById('makerExpandBtn');
         var expandClose = document.getElementById('makerExpandClose');

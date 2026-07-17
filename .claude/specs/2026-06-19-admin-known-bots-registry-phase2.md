@@ -1,8 +1,8 @@
-# Known-Bots Registry — Phase 2 (Bot Consumers) Design
+# Known-Bots Registry - Phase 2 (Bot Consumers) Design
 
 **Date:** 2026-06-19
 **Status:** Draft
-**Depends on:** Phase 1 (`.claude/specs/2026-06-19-admin-known-bots-registry.md`) — the `website.known_bots` table + admin page must exist.
+**Depends on:** Phase 1 (`.claude/specs/2026-06-19-admin-known-bots-registry.md`) - the `website.known_bots` table + admin page must exist.
 
 ## Problem
 
@@ -13,7 +13,7 @@ points, and get welcomed / auto-shouted-out by the Twitch bot, because the bot o
 tiny hardcoded `IGNORED_WELCOME_USERNAMES` set (just `botofthespecter` + the bot's own login).
 
 Phase 2 makes the bot **consume the global registry** so a login added once in the admin page is
-excluded everywhere, for every channel — the "registry everywhere" intent.
+excluded everywhere, for every channel - the "registry everywhere" intent.
 
 ## Scope decision (locked in Phase 1 brainstorm)
 
@@ -25,10 +25,10 @@ excluded everywhere, for every channel — the "registry everywhere" intent.
 
 - Each bot reads the active global registry (the active rows' `bot_login` values from `known_bots`)
   through a short-lived cache and **unions it with the existing per-channel lists** at three points:
-  1. **Watch-time tracking** (`track_watch_time`) — union into the `watch_time_excluded_users` filter.
-  2. **Points** — union into the `bot_settings.excluded_users` check, both where points are *awarded*
+  1. **Watch-time tracking** (`track_watch_time`) - union into the `watch_time_excluded_users` filter.
+  2. **Points** - union into the `bot_settings.excluded_users` check, both where points are *awarded*
      and where the `!points` command *looks up* a target user.
-  3. **Welcome + auto-shoutout** — skip welcoming / auto-shouting-out a known bot.
+  3. **Welcome + auto-shoutout** - skip welcoming / auto-shouting-out a known bot.
 - The per-channel lists keep working exactly as today; the global set is *added*, never replaces them.
 - Adding/removing a login in the admin page propagates to the bots within the cache TTL (~5 min),
   no redeploy.
@@ -37,7 +37,7 @@ excluded everywhere, for every channel — the "registry everywhere" intent.
 
 - **No `message_counts` change.** Phase 1 deliberately left chat-message counting untouched (the
   chat-leaders board hides bots at *display*; other features may read per-user counts). Phase 2 keeps
-  that: a known bot that chats still increments `message_counts` — it's just not welcomed, not paid
+  that: a known bot that chats still increments `message_counts` - it's just not welcomed, not paid
   points, and hidden on the board. (See the one open decision below.)
 - **No schema change.** The table already exists (Phase 1). The bot only **reads** it.
 - **No new admin page or API endpoint.** Editing stays in Phase 1's `dashboard/admin/known_bots.php`.
@@ -60,13 +60,13 @@ KNOWN_BOTS_CACHE_TTL = 300   # seconds
 
 Design points:
 
-- **Lazy TTL cache** (checked on use), not a background task — simpler, matches the API and v6's
+- **Lazy TTL cache** (checked on use), not a background task - simpler, matches the API and v6's
   creds cache, and avoids version-specific startup-registration differences. The first call after
   expiry does one website-DB read; all callers within the TTL get the cached set.
 - **Lowercased set.** All registry logins are stored lowercased, so the helper returns a lowercased
   set and every comparison site normalises to lowercase before testing membership.
 - **Fallback = empty set** on error. Unlike the API (which falls back to the 41-login seed), the bot
-  does **not** carry its own copy of the seed — the DB is the single source of truth and the API
+  does **not** carry its own copy of the seed - the DB is the single source of truth and the API
   guarantees the table is seeded. A transient read failure simply returns the last good cache (or an
   empty set) and logs a warning, falling back to the per-channel lists (today's behaviour), never to
   a stale hardcoded list that could drift.
@@ -88,7 +88,7 @@ membership test runs against that union:
 | 4 | welcome + auto-shoutout | `IGNORED_WELCOME_USERNAMES` (static set) | also skip if the lowered name is in the known-bots set, checked at the welcome-decision site |
 
 `IGNORED_WELCOME_USERNAMES` is built at import time (before the event loop / DB), so we do **not**
-mutate that constant — we add an async membership check at each welcome decision point.
+mutate that constant - we add an async membership check at each welcome decision point.
 
 ### TwitchIO version differences (why two file-specific work items)
 
@@ -98,7 +98,7 @@ The two files need their own handling because their idioms differ:
   opens a cursor on it; `beta-v6.py` uses `async with await mysql_handler.get_connection(db_name="website")`
   with a `DictCursor` (DirectConnection). The loader in each file must match that file's idiom.
 - **Welcome vs counting placement:** in `beta.py`, the `IGNORED_WELCOME_USERNAMES` check sits at a
-  **shared early-return** that runs *before* the `message_counts` INSERT — so the known-bots welcome
+  **shared early-return** that runs *before* the `message_counts` INSERT - so the known-bots welcome
   skip must be placed at the welcome-decision branch *after* counting, to honour the
   "no `message_counts` change" non-goal. In `beta-v6.py`, the welcome check
   (`send_first_command_welcome_if_needed`) is already separate from counting, so the union goes there
@@ -109,7 +109,7 @@ The two files need their own handling because their idioms differ:
 ## Open decision (please confirm at review)
 
 **`message_counts` for known bots.** Recommended: **leave counting unchanged** (skip welcome /
-shoutout / points / watch-time, but still count their chat messages — they're hidden at display by
+shoutout / points / watch-time, but still count their chat messages - they're hidden at display by
 Phase 1). Alternative: also stop counting them in `message_counts`, which is simpler in `beta.py`
 (one early-return) but changes counting semantics other features may rely on, and re-opens the Phase 1
 decision. Recommendation: keep counting unchanged.

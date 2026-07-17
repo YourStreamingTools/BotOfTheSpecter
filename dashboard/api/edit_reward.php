@@ -80,7 +80,7 @@ foreach ($boolFields as $f) {
     }
 }
 
-// Twitch requires these limit fields to be sent as pairs — both the boolean and the numeric value
+// Twitch requires these limit fields to be sent as pairs - both the boolean and the numeric value
 if (isset($_POST['is_max_per_stream_enabled'])) {
     $body['is_max_per_stream_enabled'] = filter_var($_POST['is_max_per_stream_enabled'], FILTER_VALIDATE_BOOLEAN);
     $body['max_per_stream'] = !empty($_POST['max_per_stream']) ? (int)$_POST['max_per_stream'] : 1;

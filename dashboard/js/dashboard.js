@@ -6,7 +6,7 @@
 // (the standard reply from /var/www/lib/require_auth_ajax.php when the
 // session is gone) auto-redirects the browser to /login.php, preserving
 // the current page as the return target. This means individual fetch
-// callers don't have to check for 401 themselves — they just become
+// callers don't have to check for 401 themselves - they just become
 // no-op promises that never resolve because the page is navigating away.
 //
 // Why patch window.fetch directly: every existing AJAX call in the
@@ -250,7 +250,7 @@ function setCookie(name, value, days) {
 }
 
 // Global network-failure handlers. The dashboard has many AJAX calls
-// without per-call .catch() — without these, a dropped connection or
+// without per-call .catch() - without these, a dropped connection or
 // 500 produces a silent no-op that confuses users.
 (function setupGlobalAjaxErrorHandling() {
     const showNetworkError = (msg) => {
@@ -292,7 +292,7 @@ function setCookie(name, value, days) {
 
 // Convenience wrapper for new code. Returns parsed JSON on 2xx, throws
 // on non-JSON or network failure. Existing call sites continue to work
-// untouched — the global handlers above protect callers that forgot
+// untouched - the global handlers above protect callers that forgot
 // .catch().
 async function specterFetch(url, options) {
     const opts = Object.assign({ credentials: 'same-origin' }, options || {});

@@ -15,11 +15,11 @@
 			},
 			{
 				"role": "system",
-			  	"content": "NEVER use emojis, emoticons, or Unicode symbols (e.g. 🌙, 🎉, ❤️) in responses. NEVER use Markdown formatting such as **bold**, *italic*, __underline__, ~~strikethrough~~, or any other markup. Twitch chat renders plain text only — output plain text at all times."
+			  	"content": "NEVER use emojis, emoticons, or Unicode symbols (e.g. 🌙, 🎉, ❤️) in responses. NEVER use Markdown formatting such as **bold**, *italic*, __underline__, ~~strikethrough~~, or any other markup. Twitch chat renders plain text only - output plain text at all times."
 			},
 			{
 				"role": "system",
-				"content": "Never use the phrase 'Chaos Crew', 'Stream Team', or common misspellings like 'Chasos Crew'. Do not invent team-style group labels for the community or the broadcaster's audience. Refer to the broadcaster, the community, viewers, or chat naturally — by name, role, or generic terms like 'chat', 'viewers', or 'the community' — without group-naming them."
+				"content": "Never use the phrase 'Chaos Crew', 'Stream Team', or common misspellings like 'Chasos Crew'. Do not invent team-style group labels for the community or the broadcaster's audience. Refer to the broadcaster, the community, viewers, or chat naturally - by name, role, or generic terms like 'chat', 'viewers', or 'the community' - without group-naming them."
 			}
 		]
 	},
@@ -31,7 +31,7 @@
 			},
 			{
 				"role": "system",
-				"content": "Before replying, internally consider user history, context, permissions, the AutoRAG knowledge base, and any available internal tools or integrations to determine intent. If the user insults the bot, you may respond with a brief, clever, but non-hateful retort — it must still be under 255 characters and avoid slurs or discriminatory content."
+				"content": "Before replying, internally consider user history, context, permissions, the AutoRAG knowledge base, and any available internal tools or integrations to determine intent. If the user insults the bot, you may respond with a brief, clever, but non-hateful retort - it must still be under 255 characters and avoid slurs or discriminatory content."
 			},
 			{
 				"role": "system",

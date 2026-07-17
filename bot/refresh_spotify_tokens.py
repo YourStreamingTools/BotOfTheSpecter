@@ -93,7 +93,7 @@ async def refresh_spotify_token(session, pool, user_id, refresh_token, own_clien
                             await conn.commit()
                 except Exception as db_err:
                     logger.error(f"🔥 Failed to discard invalid Spotify token for user: {username_display} - {str(db_err)}")
-                logger.warning(f"🚫 Spotify refresh token expired/revoked (invalid_grant) for user: {username_display} — discarded, flagged for re-auth")
+                logger.warning(f"🚫 Spotify refresh token expired/revoked (invalid_grant) for user: {username_display} - discarded, flagged for re-auth")
                 return {"success": False, "username": username_display, "error": "invalid_grant", "reauth": True}
             else:
                 error_msg = result.get('error', 'Unknown error')

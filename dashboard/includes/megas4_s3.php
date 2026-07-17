@@ -138,7 +138,7 @@ if (!function_exists('megas4_upload')) {
         if ($normPrefix === false || $normPrefix === '') {
             return false;
         }
-        // Sanitise the filename — keeps only safe characters.
+        // Sanitise the filename - keeps only safe characters.
         $ext          = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
         $safeFilename = upload_sanitize_filename($filename, $ext);
         // Build the full S3 key.
@@ -277,7 +277,7 @@ if (!function_exists('megas4_rename')) {
                 'Key'    => $oldKey,
             ]);
         } catch (AwsException $e) {
-            // Delete of source failed — roll back by removing the copy.
+            // Delete of source failed - roll back by removing the copy.
             try {
                 $s3->deleteObject([
                     'Bucket' => $megas4_bucket,

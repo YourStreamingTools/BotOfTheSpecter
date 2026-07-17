@@ -22,10 +22,10 @@ $overlayLinkMasked = $overlayLink . '?code=' . str_repeat('•', 24);
 $allowedPositions = ['top', 'center', 'bottom'];
 $allowedBackgrounds = ['box', 'outline', 'none'];
 $allowedLanguages = ['en-US', 'en-GB', 'en-AU', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'pt-BR', 'nl-NL', 'ja-JP'];
-// Caption (translation) target languages — Chrome on-device Translator SHORT (BCP47) codes.
+// Caption (translation) target languages - Chrome on-device Translator SHORT (BCP47) codes.
 // '' means "no translation / same as spoken".
 $allowedTargetLanguages = ['', 'en', 'de', 'es', 'fr', 'it', 'pt', 'nl', 'ja', 'ko', 'zh', 'ru', 'pl', 'tr', 'uk', 'ar', 'hi', 'sv', 'da', 'fi', 'nb', 'cs', 'el', 'hu', 'ro', 'id', 'vi', 'th', 'bg', 'hr', 'sk', 'sl'];
-// Caption typeface — curated Google Fonts (MUST match the overlay's allowed list). 'Inter' is the default.
+// Caption typeface - curated Google Fonts (MUST match the overlay's allowed list). 'Inter' is the default.
 $allowedFonts = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
 
 // Settings load + save
@@ -47,7 +47,7 @@ $cc = [
 $ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language, font_family, show_confidence FROM closed_captions_settings WHERE id = 1");
 if (!$ccStmt) {
     // font_family is added by the schema migration in layout.php, which is included at the END
-    // of this page — so on the very first load after deploy the column may not exist yet. Fall
+    // of this page - so on the very first load after deploy the column may not exist yet. Fall
     // back to reading without it so real saved settings still populate the form (never defaults).
     $ccStmt = $db->prepare("SELECT enabled, language, font_size, text_color, background_style, position, max_lines, fade_seconds, profanity_filter, action_tags_enabled, target_language FROM closed_captions_settings WHERE id = 1");
 }
@@ -78,7 +78,7 @@ if ($ccCorrStmt) {
     $ccCorrStmt->close();
 }
 
-// Handle caption corrections save (AJAX POST) — full-list replace-all
+// Handle caption corrections save (AJAX POST) - full-list replace-all
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cc_corrections_save'])) {
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
@@ -309,9 +309,9 @@ ob_start();
                     <span class="cc-preview-placeholder"><?= t('closed_captions_preview_placeholder') ?></span>
                 </div>
                 <div id="ccConfidenceLegend" class="cc-conf-legend">
-                    <span><span class="cc-conf-dot cc-conf-high"></span> ≥80% — high</span>
-                    <span><span class="cc-conf-dot cc-conf-med"></span> 60–79% — check</span>
-                    <span><span class="cc-conf-dot cc-conf-low"></span> &lt;60% — mis-hear</span>
+                    <span><span class="cc-conf-dot cc-conf-high"></span> ≥80% - high</span>
+                    <span><span class="cc-conf-dot cc-conf-med"></span> 60–79% - check</span>
+                    <span><span class="cc-conf-dot cc-conf-low"></span> &lt;60% - mis-hear</span>
                 </div>
             </div>
         </div>
@@ -469,7 +469,7 @@ ob_start();
     const ccActionTagsEnabled = <?php echo json_encode((bool)$cc['action_tags_enabled']); ?>;
 
     let ccProfanityFilter = <?php echo json_encode((bool)$cc['profanity_filter']); ?>;
-    // Curated caption fonts — derived from the PHP allow-list so this can't drift from
+    // Curated caption fonts - derived from the PHP allow-list so this can't drift from
     // the overlay's copies. Used to load + preview the chosen typeface on the dashboard.
     const ccAllowedFonts = <?php echo json_encode($allowedFonts); ?>;
     // Caption (translation) target SHORT code; '' = no translation (same as spoken).
@@ -1305,7 +1305,7 @@ ob_start();
             } else if (event.error === 'network') {
                 setStatus(ccLang.networkErr, 'warn');
             } else if (event.error === 'aborted') {
-                /* expected on manual stop — ignore */
+                /* expected on manual stop - ignore */
             } else {
                 setStatus(event.error, 'warn');
             }
@@ -1348,7 +1348,7 @@ ob_start();
         try {
             recognition.start();
         } catch (e) {
-            // start() throws if already started — treat as running.
+            // start() throws if already started - treat as running.
         }
         setStatus(ccLang.listening, 'online');
         if (startBtn) startBtn.disabled = true;
@@ -1420,7 +1420,7 @@ ob_start();
                             const srcLang = (langSelect && langSelect.value) ? langSelect.value : 'en-US';
                             liveTranslator.ensure(srcLang);
                         }
-                        // Update the profanity filter live — the JS-side filter reads
+                        // Update the profanity filter live - the JS-side filter reads
                         // ccProfanityFilter on every caption, so no restart is needed.
                         ccProfanityFilter = document.getElementById('ccProfanity').checked;
                     }

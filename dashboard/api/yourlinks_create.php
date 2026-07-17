@@ -2,7 +2,7 @@
 /**
  * YourLinks.click Backend API Proxy
  * Server-to-server proxy for the user's YourLinks short-link creation.
- * The API key is taken from the logged-in session — never trust a key
+ * The API key is taken from the logged-in session - never trust a key
  * supplied in the request body.
  */
 
@@ -41,7 +41,7 @@ if ($sourceHost === '' || strcasecmp($sourceHost, $host) !== 0) {
     exit;
 }
 
-// Cap inbound payload at 4 KB — link metadata, not file uploads.
+// Cap inbound payload at 4 KB - link metadata, not file uploads.
 $rawBody = file_get_contents('php://input', false, null, 0, 4096);
 if ($rawBody === false || $rawBody === '') {
     http_response_code(400);

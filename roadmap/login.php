@@ -20,7 +20,7 @@ $info     = 'Sign in to view and interact with the roadmap.';
 $hasError = false;
 
 // ----------------------------------------------------------------
-// PATH A — Handoff token from home/sso.php
+// PATH A - Handoff token from home/sso.php
 // ----------------------------------------------------------------
 if (!empty($_GET['handoff'])) {
     $token = preg_replace('/[^a-f0-9]/i', '', (string)$_GET['handoff']);
@@ -71,7 +71,7 @@ if (!empty($_GET['handoff'])) {
 }
 
 // ----------------------------------------------------------------
-// PATH B — StreamersConnect OAuth response
+// PATH B - StreamersConnect OAuth response
 // ----------------------------------------------------------------
 $cfg    = include '/var/www/config/main.php';
 $apiKey = $cfg['streamersconnect_api_key'] ?? '';
@@ -177,7 +177,7 @@ $twitchUrl = 'https://streamersconnect.com/?' . http_build_query([
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login — BotOfTheSpecter Roadmap</title>
+    <title>Login - BotOfTheSpecter Roadmap</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <link rel="stylesheet" href="/css/style.css">

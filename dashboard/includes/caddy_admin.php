@@ -4,7 +4,7 @@
 //
 // Caddy runs on the web host as the origin web server. Its admin API is bound
 // to localhost:2019 (Caddy default). The dashboard PHP runs on the same host,
-// so these helpers talk to the admin API directly over loopback — no SSH.
+// so these helpers talk to the admin API directly over loopback - no SSH.
 //
 // SECURITY: GET /config/ returns the *resolved* config, which includes the
 // Cloudflare API token baked in from {env.CF_API_TOKEN}. Every config payload
@@ -64,7 +64,7 @@ if (!function_exists('caddy_redact_secrets')) {
 if (!function_exists('caddy_path_allowed')) {
     /**
      * Allowlist for the Caddy admin API surface this page may touch.
-     * /stop is intentionally absent — it stops the process that serves the
+     * /stop is intentionally absent - it stops the process that serves the
      * dashboard, leaving no API to recover with.
      */
     function caddy_path_allowed($path) {
@@ -259,7 +259,7 @@ if (!function_exists('caddy_parse_sites')) {
     /**
      * One row per top-level route (≈ one Caddyfile site block): the hostnames it
      * matches and a friendly type code. A Caddyfile collapses every block into a
-     * single HTTP server, so grouping by route — not by server — is what gives a
+     * single HTTP server, so grouping by route - not by server - is what gives a
      * readable, per-site breakdown.
      *
      * @return array<int,array{server:string,listen:array,hosts:array,type:string}>

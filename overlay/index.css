@@ -11,7 +11,7 @@ html, body {
     overflow: hidden;
 }
 
-/* Shared donation-overlay container — fourthwall, kofi, patreon all stack
+/* Shared donation-overlay container - fourthwall, kofi, patreon all stack
    newest-first in the bottom-left of the OBS browser source. Moved out of
    inline <style> blocks per the ui-theme rule. */
 #fw-container,
@@ -936,7 +936,7 @@ html, body {
     display: inline-block;
 }
 
-/* Hidden during normal operation — only surfaces when something's wrong,
+/* Hidden during normal operation - only surfaces when something's wrong,
    so the indicator isn't burned into the stream output. */
 .study-overlay-page-connection-status[data-state="connected"] {
     border-color: #32d486;
@@ -1376,7 +1376,7 @@ html, body {
     color: #f5a623;
 }
 
-/* Project chip under a viewer task row — shows which !project the task lives in.
+/* Project chip under a viewer task row - shows which !project the task lives in.
    Theme-aware via the shared task vars; truncates instead of wrapping so the
    row height stays stable at any browser-source resolution. */
 .study-overlay-page-task-sys-item-project {
@@ -1509,9 +1509,9 @@ html, body {
     }
 }
 
-/* dark — current look: no overrides; data-theme="dark" intentionally falls through to the root defaults. */
+/* dark - current look: no overrides; data-theme="dark" intentionally falls through to the root defaults. */
 
-/* peachy — warm coral / peach. */
+/* peachy - warm coral / peach. */
 .study-overlay-page-root[data-theme="peachy"] {
     --accent-color: #ff8a5c;
     --focus-color: #ff7a59;
@@ -1532,7 +1532,7 @@ html, body {
     --task-text-muted: rgba(255, 224, 205, 0.55);
 }
 
-/* ocean — cool blue. */
+/* ocean - cool blue. */
 .study-overlay-page-root[data-theme="ocean"] {
     --accent-color: #4fc3ff;
     --focus-color: #4fc3ff;
@@ -1553,7 +1553,7 @@ html, body {
     --task-text-muted: rgba(200, 226, 255, 0.55);
 }
 
-/* forest — green / earth tones. */
+/* forest - green / earth tones. */
 .study-overlay-page-root[data-theme="forest"] {
     --accent-color: #6fcf7a;
     --focus-color: #6fcf7a;
@@ -1574,7 +1574,7 @@ html, body {
     --task-text-muted: rgba(210, 228, 200, 0.55);
 }
 
-/* midnight — deep purple, high contrast. */
+/* midnight - deep purple, high contrast. */
 .study-overlay-page-root[data-theme="midnight"] {
     --accent-color: #b388ff;
     --focus-color: #b388ff;
@@ -1595,7 +1595,7 @@ html, body {
     --task-text-muted: rgba(214, 200, 255, 0.6);
 }
 
-/* pride — rainbow / LGBTQ+ pride flag gradient. */
+/* pride - rainbow / LGBTQ+ pride flag gradient. */
 .study-overlay-page-root[data-theme="pride"] {
     --accent-color: #ff4d6d;
     --focus-color: #ff4d6d;

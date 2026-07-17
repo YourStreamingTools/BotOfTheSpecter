@@ -174,13 +174,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $cycleCount = max(1, intval($_POST['cycle_count'] ?? 4));
         $showCycleBadge = !empty($_POST['show_cycle_badge']) ? 1 : 0;
         $autoCycleEnabled = !empty($_POST['auto_cycle_enabled']) ? 1 : 0;
-        // Overlay theme (Phase 5) — whitelist guard, falls back to dark.
+        // Overlay theme (Phase 5) - whitelist guard, falls back to dark.
         $allowedThemes = ['dark', 'peachy', 'ocean', 'forest', 'midnight', 'pride'];
         $theme = $_POST['theme'] ?? 'dark';
         if (!in_array($theme, $allowedThemes, true)) {
             $theme = 'dark';
         }
-        // Task list view mode (Phase 7) — whitelist guard, falls back to split.
+        // Task list view mode (Phase 7) - whitelist guard, falls back to split.
         $allowedListViewModes = ['split', 'unified'];
         $listViewMode = $_POST['list_view_mode'] ?? 'split';
         if (!in_array($listViewMode, $allowedListViewModes, true)) {
@@ -936,7 +936,7 @@ ob_start();
                             <label class="switch">
                                 <input type="checkbox" class="wcmd-toggle" data-command="<?= htmlspecialchars($wcmd) ?>"
                                     <?php echo $wcmdEnabled ? 'checked' : ''; ?>>
-                                <span><code>!<?= htmlspecialchars($wcmd) ?></code> — <?= t($wcmdKey) ?></span>
+                                <span><code>!<?= htmlspecialchars($wcmd) ?></code> - <?= t($wcmdKey) ?></span>
                             </label>
                         </div>
                         <?php endforeach; ?>
@@ -1728,14 +1728,14 @@ ob_start();
         chSocket.emit('REGISTER', { code: chApiKey, channel: 'dashboard', name: 'Tasks' });
         chLoadTasks();
     });
-    // /notify transport JSON-encodes the nested task dict — decode if needed.
+    // /notify transport JSON-encodes the nested task dict - decode if needed.
     function chParseTask(raw) {
         if (typeof raw === 'string') {
             try { return JSON.parse(raw); } catch (e) { return null; }
         }
         return raw || null;
     }
-    // Received events render with emit=false — re-emitting an inbound event would
+    // Received events render with emit=false - re-emitting an inbound event would
     // ping-pong it between connected dashboards forever.
     chSocket.on('TASK_CREATE',          (d) => {
         const task = chParseTask(d?.task);
@@ -1822,7 +1822,7 @@ ob_start();
             ? '<span class="has-text-grey">&mdash;</span>'
             : `<span class="tag is-light">${chEsc(task.project)}</span>`;
 
-        // Per-user/streamer sequence number only — never fall back to global DB id.
+        // Per-user/streamer sequence number only - never fall back to global DB id.
         let titleHtml = chEsc(task.title);
         const displayId = task.backlog_position;
         if (displayId !== undefined && displayId !== null && String(displayId).trim() !== '') {
@@ -1918,7 +1918,7 @@ ob_start();
     function chMarkStatus(id, owner, status) {
         const row = document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`);
         if (!row) return;
-        // User rows: User, Task, Project, Status — the Project column shifts Status to td 4.
+        // User rows: User, Task, Project, Status - the Project column shifts Status to td 4.
         const statusCellIndex = owner === 'streamer' ? 3 : 4;
         const cell = row.querySelector(`td:nth-child(${statusCellIndex})`);
         if (cell) cell.innerHTML = chStatusTag(status);
@@ -2024,7 +2024,7 @@ ob_start();
             }
         });
     };
-    // Always sends the FULL settings payload — ch_save_settings writes all four
+    // Always sends the FULL settings payload - ch_save_settings writes all four
     // columns, so a partial payload would silently reset the omitted ones.
     function chSaveTaskSettings(sourceToggle) {
         const payload = {

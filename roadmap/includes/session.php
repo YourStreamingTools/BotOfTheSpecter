@@ -44,7 +44,7 @@ if (!function_exists('roadmap_init_admin_db')) {
 
 if (!function_exists('roadmap_safe_redirect')) {
     // Only allow local, non-protocol-relative paths (e.g. "/foo"), never
-    // "https://..." or "//evil.com" — those would send the browser off-site.
+    // "https://..." or "//evil.com" - those would send the browser off-site.
     function roadmap_safe_redirect($path): string {
         $path = (string)$path;
         if (strncmp($path, '/', 1) !== 0 || strncmp($path, '//', 2) === 0) {

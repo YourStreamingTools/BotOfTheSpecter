@@ -11,7 +11,7 @@ $injectedSettings = [
 ];
 
 if ($code !== '') {
-    // Suppress connection error — overlay still works without settings
+    // Suppress connection error - overlay still works without settings
     $conn = @new mysqli($db_servername, $db_username, $db_password, 'website');
     if (!$conn->connect_error) {
         $stmt = $conn->prepare("SELECT twitch_user_id FROM users WHERE api_key = ? LIMIT 1");
@@ -20,7 +20,7 @@ if ($code !== '') {
             $stmt->execute();
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
-                // Twitch user IDs are numeric — sanitise before using in a file path
+                // Twitch user IDs are numeric - sanitise before using in a file path
                 $twitchUserId = preg_replace('/[^0-9]/', '', (string)$row['twitch_user_id']);
                 if ($twitchUserId !== '') {
                     $settingsFile = '/var/www/yourchat/user-settings/' . $twitchUserId . '.json';
@@ -111,7 +111,7 @@ if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'get_s
     exit;
 }
 
-// Handle overlay history save — called periodically by the overlay JS via POST
+// Handle overlay history save - called periodically by the overlay JS via POST
 if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'save_history' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $logsDir = '/var/www/yourchat/chat-logs';
@@ -124,7 +124,7 @@ if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'save_
         }
         // Atomic write: several Chat Overlay sources may save concurrently, so
         // write to a unique temp file and rename it over the target. rename() is
-        // atomic on the same filesystem — readers never see a half-written file
+        // atomic on the same filesystem - readers never see a half-written file
         // and concurrent writers resolve to last-writer-wins (their buffers are
         // near-identical since every source sees the same WebSocket stream).
         $tmpFile = $historyFile . '.tmp.' . getmypid() . '.' . uniqid('', true);
@@ -216,7 +216,7 @@ $badgeCacheJson = json_encode(
         const maxMessages = parseInt(params.get('max') || '20', 10);
         // Random per-instance ID so several Chat Overlay browser sources can
         // register on the same channel without colliding on the WebSocket
-        // client name — the server disconnects any client that registers with a
+        // client name - the server disconnects any client that registers with a
         // duplicate "{channel} - {name}" identity. Every instance loads AND
         // saves the same persisted history (written atomically server-side), so
         // chat survives scene switches and source reloads no matter how many
@@ -256,9 +256,9 @@ $badgeCacheJson = json_encode(
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(messageBuffer.slice(-100)),
                 });
-            } catch (_) { /* best-effort — overlay still works if save fails */ }
+            } catch (_) { /* best-effort - overlay still works if save fails */ }
         }
-        // Debounced save — triggers 5 s after the last new message so the file
+        // Debounced save - triggers 5 s after the last new message so the file
         // stays current without hammering the server on every single message.
         function scheduleSave() {
             if (saveTimer) clearTimeout(saveTimer);
@@ -315,7 +315,7 @@ $badgeCacheJson = json_encode(
             const toHex = n => { const h = Math.round(n).toString(16); return h.length === 1 ? '0' + h : h; };
             return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
         }
-        // Badge rendering — uses the server-injected Helix API cache
+        // Badge rendering - uses the server-injected Helix API cache
         // (global badges + channel-specific subscriber/bits tiers for this streamer)
         function parseBadges(badgeStr) {
             if (!badgeStr) return [];
@@ -440,7 +440,7 @@ $badgeCacheJson = json_encode(
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify([]),
-                }).catch(() => { /* best-effort — overlay still clears visually */ });
+                }).catch(() => { /* best-effort - overlay still clears visually */ });
             }
         }
         // Render today's chat history before connecting so the overlay is populated immediately
@@ -481,7 +481,7 @@ $badgeCacheJson = json_encode(
             socket.on('CHAT_MESSAGE_DELETE', data => {
                 if (data && data.message_id) removeMessage(data.message_id);
             });
-            // Stream went offline — clear the overlay so it doesn't carry old
+            // Stream went offline - clear the overlay so it doesn't carry old
             // messages into the next stream.
             socket.on('STREAM_OFFLINE', () => clearChatAndHistory());
         }

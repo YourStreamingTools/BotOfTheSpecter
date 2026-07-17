@@ -38,7 +38,7 @@
             }
 
             // Patreon webhooks are forwarded by api.py via urlencode(dict), which
-            // serialises the Python dict using str() — that produces single-quoted
+            // serialises the Python dict using str() - that produces single-quoted
             // keys/values and Python literals (None/True/False) rather than JSON.
             // Mirror the kofi/fourthwall tolerant parser so the overlay survives
             // until the upstream serialisation bug is fixed.

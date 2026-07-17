@@ -1,4 +1,4 @@
-﻿/* ==========================================================
+/* ==========================================================
    BotOfTheSpecter - Dashboard CSS
    Based on the sp-* dark theme system.
    ========================================================== */
@@ -52,7 +52,7 @@
 /* ----------------------------------------------------------
    0a. Light theme token overrides
    Applied when <html data-theme="light">. Every component that
-   reads the colour tokens above follows automatically — only
+   reads the colour tokens above follows automatically - only
    hardcoded colours (outside :root) need separate attention.
    Non-colour tokens (radii, sizes, transition) are NOT redefined
    here; they stay shared with the dark default.
@@ -65,7 +65,7 @@
     --bg-card:        #ffffff;
     --bg-card-hover:  #eeeef2;
     --bg-input:       #ffffff;
-    /* Brand / Accent — darkened for AA contrast on light surfaces */
+    /* Brand / Accent - darkened for AA contrast on light surfaces */
     --accent:         #6b48b0;
     --accent-hover:   #5a3a98;
     --accent-light:   rgba(124, 92, 191, 0.10);
@@ -77,7 +77,7 @@
     /* Borders */
     --border:         rgba(0, 0, 0, 0.10);
     --border-hover:   rgba(0, 0, 0, 0.18);
-    /* Status colours — hues kept, darkened for AA on white; denser tints */
+    /* Status colours - hues kept, darkened for AA on white; denser tints */
     --green:          #1f9d6b;
     --green-bg:       rgba(62, 207, 142, 0.18);
     --blue:           #2080d6;
@@ -461,7 +461,7 @@ ul { list-style: none; margin: 0; padding: 0; }
     border-color: var(--border-hover);
 }
 
-/* No notices/tags — center the title in available space */
+/* No notices/tags - center the title in available space */
 .sp-topbar-no-tags .sp-topbar-center { display: none; }
 .sp-topbar-no-tags .sp-topbar-title { flex: 1; text-align: center; }
 
@@ -1286,7 +1286,7 @@ ul { list-style: none; margin: 0; padding: 0; }
     transition: opacity 0.3s ease-in-out;
 }
 
-/* Toast container in the top-right corner gets opaque alert backgrounds —
+/* Toast container in the top-right corner gets opaque alert backgrounds -
    the inline sp-alert bgs are 12% tints meant to sit on a solid card, and
    look see-through when floated over arbitrary page content. */
 #sp-toast-container .sp-alert {
@@ -3112,7 +3112,7 @@ label.switch .check { display: none; }
     margin-bottom: 1.25rem;
 }
 
-/* Filter bar above the file list — buttons act as lenses, plus a search input. */
+/* Filter bar above the file list - buttons act as lenses, plus a search input. */
 .media-filter-bar {
     display: flex;
     flex-wrap: wrap;
@@ -3306,7 +3306,7 @@ label.switch .check { display: none; }
     padding: 0.35rem 1.8rem 0.35rem 0.6rem;
 }
 
-/* Walkon add picker — typeahead input + confirm button + status text */
+/* Walkon add picker - typeahead input + confirm button + status text */
 .walkon-add-wrap {
     display: flex;
     gap: 8px;
@@ -4249,7 +4249,7 @@ label.checkbox input[type="checkbox"] {
     color: var(--text-secondary);
     opacity: 0.7;
 }
-/* Confidence indicators — theme-aware via the shared status tokens. */
+/* Confidence indicators - theme-aware via the shared status tokens. */
 .cc-conf-high { color: var(--green); }
 .cc-conf-med  { color: var(--amber); }
 .cc-conf-low  { color: var(--red); }
@@ -4560,7 +4560,7 @@ label.checkbox input[type="checkbox"] {
 .maker-pos-canvas.is-expanded .maker-pos-expand-close { display: flex; }
 
 /* ----------------------------------------------------------
-   Built-in commands page — command name + alias pills
+   Built-in commands page - command name + alias pills
    ---------------------------------------------------------- */
 .bc-command-name { font-weight: 600; color: var(--blue); }
 .bc-aliases {

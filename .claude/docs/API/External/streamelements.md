@@ -9,15 +9,15 @@ the docs/ markdown files in the same repo, last verified 2026-05-11.
 ## Contents
 
 1. [Authentication](#1-authentication)
-2. [REST Endpoints — Channels & Users](#2-rest-endpoints--channels--users)
-3. [REST Endpoints — Tips](#3-rest-endpoints--tips)
-4. [REST Endpoints — Activities](#4-rest-endpoints--activities)
-5. [REST Endpoints — Sessions](#5-rest-endpoints--sessions)
-6. [REST Endpoints — Points & Loyalty](#6-rest-endpoints--points--loyalty)
-7. [REST Endpoints — Bot Control](#7-rest-endpoints--bot-control)
-8. [REST Endpoints — Store & Redemptions](#8-rest-endpoints--store--redemptions)
-9. [REST Endpoints — Overlays](#9-rest-endpoints--overlays)
-10. [WebSocket / Socket.IO — Realtime Events](#10-websocket--socketio--realtime-events)
+2. [REST Endpoints - Channels & Users](#2-rest-endpoints--channels--users)
+3. [REST Endpoints - Tips](#3-rest-endpoints--tips)
+4. [REST Endpoints - Activities](#4-rest-endpoints--activities)
+5. [REST Endpoints - Sessions](#5-rest-endpoints--sessions)
+6. [REST Endpoints - Points & Loyalty](#6-rest-endpoints--points--loyalty)
+7. [REST Endpoints - Bot Control](#7-rest-endpoints--bot-control)
+8. [REST Endpoints - Store & Redemptions](#8-rest-endpoints--store--redemptions)
+9. [REST Endpoints - Overlays](#9-rest-endpoints--overlays)
+10. [WebSocket / Socket.IO - Realtime Events](#10-websocket--socketio--realtime-events)
 11. [Rate Limits](#11-rate-limits)
 12. [Error Codes](#12-error-codes)
 13. [BotOfTheSpecter Callsites](#13-botofthespecter-callsites)
@@ -58,7 +58,7 @@ Use for: `/channels/me`, `/users/current`, `/tips/{channel}`, most channel manag
 #### OAuth2 Access Token (oAuth)
 
 A short-lived token obtained via the OAuth2 Authorization Code flow. Note the non-standard
-header casing — lowercase 'o', uppercase 'A'.
+header casing - lowercase 'o', uppercase 'A'.
 
 **Header:**
 ```
@@ -74,7 +74,7 @@ OAuth-token endpoints returns 401.
 #### API Key (Bearer, alternate)
 
 A per-channel API key (different from the JWT; visible as `apiToken` in channel details).
-Used by some widget/overlay SDK calls. Header format is identical to JWT Bearer — the token
+Used by some widget/overlay SDK calls. Header format is identical to JWT Bearer - the token
 value is what differs.
 
 ### 1.3 OAuth2 Authorization Code Flow
@@ -89,7 +89,7 @@ value is what differs.
 | Validate | GET | `https://api.streamelements.com/oauth2/validate` |
 | Revoke | POST | `https://api.streamelements.com/oauth2/revoke` |
 
-**Step 1 — Build the authorization URL:**
+**Step 1 - Build the authorization URL:**
 
 ```
 GET https://api.streamelements.com/oauth2/authorize
@@ -102,7 +102,7 @@ GET https://api.streamelements.com/oauth2/authorize
 
 User approves → redirected to `redirect_uri?code={code}&state={state}`.
 
-**Step 2 — Exchange the code:**
+**Step 2 - Exchange the code:**
 
 ```
 POST https://api.streamelements.com/oauth2/token
@@ -126,7 +126,7 @@ Response:
 }
 ```
 
-**Step 3 — Refresh an expired token:**
+**Step 3 - Refresh an expired token:**
 
 ```
 POST https://api.streamelements.com/oauth2/token
@@ -197,7 +197,7 @@ No response body on success (HTTP 200).
 
 ---
 
-## 2. REST Endpoints — Channels & Users
+## 2. REST Endpoints - Channels & Users
 
 ### GET /channels/me
 
@@ -251,7 +251,7 @@ Get public channel details by channel GUID or lowercase channel name.
 **Auth:** None required for public data; JWT/oAuth for full details.
 
 **Path params:**
-- `channel` — channel GUID or lowercase username
+- `channel` - channel GUID or lowercase username
 
 **Response 200:**
 ```json
@@ -334,7 +334,7 @@ Key fields: `channels[0]._id` (channel GUID), `channels[0].lastJWTToken` (fresh 
 
 ---
 
-## 3. REST Endpoints — Tips
+## 3. REST Endpoints - Tips
 
 All tips endpoints require channel GUID (not username) and JWT Bearer auth unless noted.
 
@@ -345,7 +345,7 @@ List tips with filtering and sorting.
 **Auth:** `Authorization: Bearer {jwt_token}` (scope: `tips:read`)
 
 **Path params:**
-- `channel` — channel GUID
+- `channel` - channel GUID
 
 **Query params:**
 
@@ -361,7 +361,7 @@ List tips with filtering and sorting.
 | `before` | datetime | End date (unix ms or ISO 8601). |
 | `message` | string | Filter by message text. |
 
-**Response 200 — `TipData` (paginated list):**
+**Response 200 - `TipData` (paginated list):**
 ```json
 {
   "docs": [
@@ -394,11 +394,11 @@ List tips with filtering and sorting.
 ```
 
 **Field notes:**
-- `docs[].donation.amount` — dollars (e.g. `100`), NOT cents. Do not divide by 100.
-- `docs[].donation.currency` — ISO 4217 code. Valid values: `AUD BRL CAD CZK DKK EUR HKD HUF ILS JPY MYR MXN NOK NZD PHP PLN GBP RUB SGD SEK CHF TWD THB TRY USD`
-- `docs[].provider` — payment provider, e.g. `paypal`, `twitch_subscription`
-- `docs[].approved` — moderation status: `allowed`, `pending`, `denied`
-- `docs[].status` — transaction status: `success`, `refunded`, `chargeback`
+- `docs[].donation.amount` - dollars (e.g. `100`), NOT cents. Do not divide by 100.
+- `docs[].donation.currency` - ISO 4217 code. Valid values: `AUD BRL CAD CZK DKK EUR HKD HUF ILS JPY MYR MXN NOK NZD PHP PLN GBP RUB SGD SEK CHF TWD THB TRY USD`
+- `docs[].provider` - payment provider, e.g. `paypal`, `twitch_subscription`
+- `docs[].approved` - moderation status: `allowed`, `pending`, `denied`
+- `docs[].status` - transaction status: `success`, `refunded`, `chargeback`
 
 **Note:** The dashboard uses a simplified form of this endpoint: `GET /kappa/v2/tips/{channelId}?limit=100`
 which is `offset=0&limit=100&sort=-createdAt` with defaults for the rest.
@@ -487,8 +487,8 @@ Get a single tip by ID.
 **Auth:** `Authorization: Bearer {jwt_token}`
 
 **Path params:**
-- `channel` — channel GUID
-- `tipId` — tip GUID (24-char hex)
+- `channel` - channel GUID
+- `tipId` - tip GUID (24-char hex)
 
 **Response 200:** Single tip object (same shape as `docs[]` above).
 
@@ -501,7 +501,7 @@ Get a single tip by ID.
 
 ---
 
-## 4. REST Endpoints — Activities
+## 4. REST Endpoints - Activities
 
 Activities are a unified feed of follows, tips, hosts, cheers, redemptions, raids, superchats,
 sponsors, merch orders. All require JWT Bearer auth.
@@ -513,7 +513,7 @@ List channel activities with filtering.
 **Auth:** JWT Bearer (scope: `activities:read`) or OAuth2 with `activities:read`
 
 **Path params:**
-- `channel` — channel GUID
+- `channel` - channel GUID
 
 **Query params:**
 
@@ -560,7 +560,7 @@ Activity `type` values: `follow`, `tip`, `host`, `cheer`, `redemption`, `raid`, 
 Get top activities by type and period.
 
 **Path params:**
-- `channel` — channel GUID
+- `channel` - channel GUID
 
 **Query params:**
 
@@ -601,7 +601,7 @@ Trigger an activity replay (re-fires the overlay alert for that activity).
 
 ---
 
-## 5. REST Endpoints — Sessions
+## 5. REST Endpoints - Sessions
 
 Session data tracks running totals for the current broadcast. Resets on stream start (if
 `autoReset: true`) or manually.
@@ -613,9 +613,9 @@ Get all current session data.
 **Auth:** `Authorization: Bearer {jwt_token}` (scope: `session:read`)
 
 **Path params:**
-- `channel` — channel GUID
+- `channel` - channel GUID
 
-**Response 200 — `SessionDataInfo`:**
+**Response 200 - `SessionDataInfo`:**
 
 The `data` object contains named keys for every session metric. All key names follow the pattern
 `{event-type}-{metric}`. Full list of keys (with example values):
@@ -731,7 +731,7 @@ Get top events from session aggregates.
 
 ---
 
-## 6. REST Endpoints — Points & Loyalty
+## 6. REST Endpoints - Points & Loyalty
 
 ### GET /points/{channel}/{user}
 
@@ -740,8 +740,8 @@ Get a user's current points balance.
 **Auth:** `Authorization: Bearer {jwt_token}` (scope: `loyalty:read`)
 
 **Path params:**
-- `channel` — channel GUID
-- `user` — username string
+- `channel` - channel GUID
+- `user` - username string
 
 Response schema not fully detailed in spec (200 with empty headers). Returns a user points object.
 
@@ -845,7 +845,7 @@ Update loyalty settings. Same response shape as GET.
 
 ---
 
-## 7. REST Endpoints — Bot Control
+## 7. REST Endpoints - Bot Control
 
 ### GET /bot/commands/{channel}
 
@@ -853,7 +853,7 @@ List all custom bot commands.
 
 **Auth:** `Authorization: Bearer {jwt_token}` (scope: `bot:read`)
 
-**Response 200 — array of `BotCommand`:**
+**Response 200 - array of `BotCommand`:**
 ```json
 [
   {
@@ -904,9 +904,9 @@ List only commands with `hidden: false`.
 
 List built-in default commands for a given language.
 
-**Query params:** `language` — ISO 639-1 language code (e.g. `en`)
+**Query params:** `language` - ISO 639-1 language code (e.g. `en`)
 
-**Response 200 — array of `DefaultCommand`:**
+**Response 200 - array of `DefaultCommand`:**
 ```json
 [
   {
@@ -1032,7 +1032,7 @@ Get the current value of a named counter.
 
 ---
 
-## 8. REST Endpoints — Store & Redemptions
+## 8. REST Endpoints - Store & Redemptions
 
 ### GET /store/{channel}/redemptions
 
@@ -1092,7 +1092,7 @@ Get, update, or delete a specific store item.
 
 ---
 
-## 9. REST Endpoints — Overlays
+## 9. REST Endpoints - Overlays
 
 ### GET /overlays/{channel}
 
@@ -1114,7 +1114,7 @@ Send an action to all overlays.
 
 ---
 
-## 10. WebSocket / Socket.IO — Realtime Events
+## 10. WebSocket / Socket.IO - Realtime Events
 
 ### 10.1 Connection
 
@@ -1284,7 +1284,7 @@ All `event` and `event:test` payloads share a common outer envelope:
 ### 10.6 `event:update` and `event:reset`
 
 These fire when session totals change. The payload matches the `GET /sessions/{channel}` `data`
-object format. Both are informational — most integrations safely ignore them in favour of
+object format. Both are informational - most integrations safely ignore them in favour of
 subscribing to individual `event` payloads.
 
 ### 10.7 Reconnection strategy

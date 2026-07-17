@@ -1,4 +1,4 @@
-# TwitchIO 2.10.0 — Historical Reference
+# TwitchIO 2.10.0 - Historical Reference
 
 Local reference for **TwitchIO 2.10.0** as used by `./bot/bot.py` (stable) and `./bot/beta.py` (beta testing track). For the TwitchIO 3.x API used by `./bot/beta-v6.py`, see [TwitchIO-Stable.md](./TwitchIO-Stable.md). For the underlying Twitch HTTP API (Helix endpoints, OAuth, EventSub topic shapes), see [twitch.md](./twitch.md).
 
@@ -17,7 +17,7 @@ Per [bot-versions.md](../../../rules/bot-versions.md):
 
 - **`bot.py`** is *stable*. Critical fixes only. TwitchIO version will not change here.
 - **`beta.py`** is the *testing* track on the same 2.10.0 line. New features land here first.
-- **`beta-v6.py`** is the *forward-looking rewrite* on TwitchIO 3.x — the IRC-driven chat is replaced by native EventSub WebSocket. See [TwitchIO-Stable.md](./TwitchIO-Stable.md).
+- **`beta-v6.py`** is the *forward-looking rewrite* on TwitchIO 3.x - the IRC-driven chat is replaced by native EventSub WebSocket. See [TwitchIO-Stable.md](./TwitchIO-Stable.md).
 
 The library APIs between 2.10.0 and 3.x are **not source-compatible**. [TwitchIO-Stable.md §4](./TwitchIO-Stable.md) is the side-by-side migration map for porting from `beta.py` to `beta-v6.py`.
 
@@ -35,7 +35,7 @@ Used at:
 - `./bot/bot.py:30-32`
 - `./bot/beta.py:33-35`
 
-There is no `from twitchio.ext import eventsub` in the 2.10 bots — the project never adopted the built-in `eventsub` extension on this version. EventSub WebSocket is hand-rolled with the `websockets` library (see §6).
+There is no `from twitchio.ext import eventsub` in the 2.10 bots - the project never adopted the built-in `eventsub` extension on this version. EventSub WebSocket is hand-rolled with the `websockets` library (see §6).
 
 ---
 
@@ -80,7 +80,7 @@ def start_bot():
     BOTS_TWITCH_BOT.run()  # blocking
 ```
 
-`bot.run()` is blocking and creates its own event loop. There is no `async with` lifecycle in 2.10 — the bot is constructed eagerly and `run()` blocks until shutdown.
+`bot.run()` is blocking and creates its own event loop. There is no `async with` lifecycle in 2.10 - the bot is constructed eagerly and `run()` blocks until shutdown.
 
 ---
 
@@ -90,10 +90,10 @@ All event hooks are coroutine methods on the `Bot` subclass (or registered with 
 
 | Event | Signature | Project hooks it? |
 | ----- | --------- | ----------------- |
-| `event_ready(self)` | no payload | Yes — `./bot/bot.py:1759`, starts background tasks (`twitch_eventsub`, `twitch_token_refresh`, `specter_websocket`, etc.) |
-| `event_message(self, message: twitchio.Message)` | full message | Yes — `./bot/bot.py:1813`. Calls `self.handle_commands(message)` then runs custom-command/AI/spam logic |
-| `event_channel_joined(self, channel: twitchio.Channel)` | channel object | Yes — `./bot/bot.py:1777` |
-| `event_command_error(self, ctx: Context, error: Exception)` | ctx + exc | Yes — `./bot/bot.py:1782` |
+| `event_ready(self)` | no payload | Yes - `./bot/bot.py:1759`, starts background tasks (`twitch_eventsub`, `twitch_token_refresh`, `specter_websocket`, etc.) |
+| `event_message(self, message: twitchio.Message)` | full message | Yes - `./bot/bot.py:1813`. Calls `self.handle_commands(message)` then runs custom-command/AI/spam logic |
+| `event_channel_joined(self, channel: twitchio.Channel)` | channel object | Yes - `./bot/bot.py:1777` |
+| `event_command_error(self, ctx: Context, error: Exception)` | ctx + exc | Yes - `./bot/bot.py:1782` |
 | `event_join(self, channel, user)` | chatter joined | Available, not hooked |
 | `event_part(self, channel, user)` | chatter left | Available, not hooked |
 | `event_message_delete(self, message)` | deletion | Available, not hooked |
@@ -111,7 +111,7 @@ All event hooks are coroutine methods on the `Bot` subclass (or registered with 
 
 `event_ready` fires after IRC connection completes. Only after this point is `self.nick` reliable and is the bot a member of `initial_channels`.
 
-`event_command_error` takes **two args** (`ctx`, `error`) in 2.10. In 3.x the signature becomes a single `payload` arg — the most common silent bug when porting. See [TwitchIO-Stable.md §3.3](./TwitchIO-Stable.md).
+`event_command_error` takes **two args** (`ctx`, `error`) in 2.10. In 3.x the signature becomes a single `payload` arg - the most common silent bug when porting. See [TwitchIO-Stable.md §3.3](./TwitchIO-Stable.md).
 
 ---
 
@@ -135,7 +135,7 @@ Examples: `./bot/bot.py:2643-2644`, `./bot/beta.py:3587-3588`.
 
 | Attribute | Type | Description |
 | --------- | ---- | ----------- |
-| `ctx.author` | `twitchio.Chatter` | Sender — `.name`, `.id`, `.is_mod`, `.is_subscriber`, `.is_vip`, `.is_broadcaster`, `.badges` |
+| `ctx.author` | `twitchio.Chatter` | Sender - `.name`, `.id`, `.is_mod`, `.is_subscriber`, `.is_vip`, `.is_broadcaster`, `.badges` |
 | `ctx.channel` | `twitchio.Channel` | Channel command was invoked in. `.name`, `.send(...)`, `.users` |
 | `ctx.message` | `twitchio.Message` | Original message. **`ctx.message.content`** in 2.10 |
 | `ctx.prefix` | `str` | The matched prefix |
@@ -146,7 +146,7 @@ Examples: `./bot/bot.py:2643-2644`, `./bot/beta.py:3587-3588`.
 | `ctx.bot` | `commands.Bot` | The Bot instance |
 | `ctx.args` | `list` | Positional arguments parsed from the command string |
 | `ctx.kwargs` | `dict` | Keyword arguments parsed from the command string |
-| `ctx.view` | `StringParser` | Raw command string parser — for advanced argument handling |
+| `ctx.view` | `StringParser` | Raw command string parser - for advanced argument handling |
 | `ctx.chatters` | `set[Chatter]` | Current chatters in the channel |
 | `ctx.users` | `set[Chatter]` | Alias for `ctx.chatters` |
 | `ctx.get_user(name: str)` | `Optional[Chatter]` | Retrieve a chatter from the channel cache by name |
@@ -181,9 +181,9 @@ async def cmd(self, ctx, value: Annotated[MyType, my_converter]): ...
 
 ### 4.3 Cooldowns
 
-`@commands.cooldown(rate=1, per=60.0, bucket=commands.Bucket.user)`. Confirmed buckets: `Bucket.user` (per-user globally), `Bucket.channel` (per-channel), `Bucket.member` (per-user per-channel), `Bucket.subscriber`, `Bucket.mod`. The exact identifier for a global-scope bucket is not confirmed for 2.10.0 — see upstream commands ext for the full enum.
+`@commands.cooldown(rate=1, per=60.0, bucket=commands.Bucket.user)`. Confirmed buckets: `Bucket.user` (per-user globally), `Bucket.channel` (per-channel), `Bucket.member` (per-user per-channel), `Bucket.subscriber`, `Bucket.mod`. The exact identifier for a global-scope bucket is not confirmed for 2.10.0 - see upstream commands ext for the full enum.
 
-This project does **not** use the built-in cooldown decorator — it uses its own DB-backed cooldown logic (`check_cooldown(...)`/`add_usage(...)` in `./bot/bot.py`).
+This project does **not** use the built-in cooldown decorator - it uses its own DB-backed cooldown logic (`check_cooldown(...)`/`add_usage(...)` in `./bot/bot.py`).
 
 ### 4.4 Exceptions
 
@@ -201,11 +201,11 @@ This project does **not** use the built-in cooldown decorator — it uses its ow
 | `HTTPException(message, reason=None, status=None, extra=None)` | `TwitchIOException` | HTTP request failed |
 | `Unauthorized(message, reason=None, status=None, extra=None)` | `HTTPException` | 401/403 HTTP response |
 
-**Commands ext exceptions** — all subclass `commands.TwitchCommandError`:
+**Commands ext exceptions** - all subclass `commands.TwitchCommandError`:
 
 | Exception | Raised when | Used in this project? |
 | --------- | ----------- | --------------------- |
-| `commands.CommandNotFound` | prefix matches but command isn't registered | Yes — caught in `event_command_error` to fall through to DB custom commands (`./bot/bot.py:1789`) |
+| `commands.CommandNotFound` | prefix matches but command isn't registered | Yes - caught in `event_command_error` to fall through to DB custom commands (`./bot/bot.py:1789`) |
 | `commands.CommandOnCooldown(retry_after=...)` | cooldown active | `error.retry_after` (float seconds) used at `./bot/bot.py:1785` |
 | `commands.MissingRequiredArgument(name=...)` | required positional missing | Available |
 | `commands.BadArgument` | converter raised | Available |
@@ -237,8 +237,8 @@ Decorator parameters:
 
 | Parameter | Type | Default | Description |
 | --------- | ---- | ------- | ----------- |
-| `seconds` / `minutes` / `hours` | float | — | Interval (mutually exclusive with `time`) |
-| `time` | `datetime.time` | — | Fixed time of day |
+| `seconds` / `minutes` / `hours` | float | - | Interval (mutually exclusive with `time`) |
+| `time` | `datetime.time` | - | Fixed time of day |
 | `iterations` | `int \| None` | `None` | `None`/`0` = infinite |
 | `wait_first` | bool | `False` | Sleep one interval before the first run |
 | `stop_on_error` | bool | `True` | Abort loop on uncaught exception |
@@ -258,7 +258,7 @@ async def _on_err(exc: Exception): ...
 
 Control methods: `start(*args, **kwargs)`, `stop()`, `cancel()`, `restart(force=False)`, `change_interval(seconds=..., minutes=..., hours=..., time=...)`. State: `completed_iterations`, `remaining_iterations`, `start_time`.
 
-Project usage (deliberately minimal — one-shot timers only):
+Project usage (deliberately minimal - one-shot timers only):
 
 ```python
 @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
@@ -267,13 +267,13 @@ async def _delayed_thing(): ...
 
 Callsites: `./bot/bot.py:8464`, `./bot/bot.py:10306`, `./bot/beta.py:6034`, `./bot/beta.py:12088`, `./bot/beta.py:14516`.
 
-Most periodic background work uses raw `asyncio.create_task(...)` — see the `looped_tasks[...] = create_task(...)` pattern in `event_ready`.
+Most periodic background work uses raw `asyncio.create_task(...)` - see the `looped_tasks[...] = create_task(...)` pattern in `event_ready`.
 
 **3.x rename:** `seconds=`/`minutes=`/`hours=` → `delta=timedelta(seconds=...)`. Do not mix the two forms.
 
 ---
 
-## 6. EventSub — hand-rolled WebSocket
+## 6. EventSub - hand-rolled WebSocket
 
 TwitchIO 2.10 ships `twitchio.ext.eventsub` (with `EventSubClient` for webhooks and `EventSubWSClient` for WebSockets). **This project does not use it.**
 
@@ -286,13 +286,13 @@ Flow:
 3. Calls `subscribe_to_events(session_id)` which `aiohttp.post`s one subscription per topic (via `gather()`).
 4. `twitch_receive_messages(...)` loops, dispatching to `process_twitch_eventsub_message(...)` and reconnects on close/timeout.
 
-None of TwitchIO 2.10's `event_eventsub_notification_*` events fire — the library's EventSub extension is never loaded. Custom routing in `process_twitch_eventsub_message` switches on `metadata.subscription_type`.
+None of TwitchIO 2.10's `event_eventsub_notification_*` events fire - the library's EventSub extension is never loaded. Custom routing in `process_twitch_eventsub_message` switches on `metadata.subscription_type`.
 
 ---
 
 ## 7. Sending chat
 
-The library provides `await ctx.send(...)` and `await channel.send(...)` over IRC, but **this project does not use them for production chat output**. All outbound chat goes through Helix `/helix/chat/messages` via `send_chat_message(...)` (`./bot/bot.py:10547-10591`). This is a deliberate architectural choice — Helix send works the same in 2.10 and 3.x, gives reply-parent threading and `is_sent`/`drop_reason` feedback, and keeps the send path identical across all three bot files.
+The library provides `await ctx.send(...)` and `await channel.send(...)` over IRC, but **this project does not use them for production chat output**. All outbound chat goes through Helix `/helix/chat/messages` via `send_chat_message(...)` (`./bot/bot.py:10547-10591`). This is a deliberate architectural choice - Helix send works the same in 2.10 and 3.x, gives reply-parent threading and `is_sent`/`drop_reason` feedback, and keeps the send path identical across all three bot files.
 
 A few `await ctx.send(...)` calls remain for ad-hoc cases; treat `send_chat_message(...)` as the canonical sender.
 
@@ -339,7 +339,7 @@ Full method reference on the Bot/Client instance:
 | `fetch_top_games()` | `List[Game]` | |
 | `search_channels(query, live_only=False)` | `List[SearchChannel]` | |
 | `search_categories(query)` | `List[Game]` | |
-| `create_user(user_id, user_name)` | `PartialUser` | Build lightweight user ref — no API call |
+| `create_user(user_id, user_name)` | `PartialUser` | Build lightweight user ref - no API call |
 | `get_channel(name)` | `Optional[Channel]` | Retrieve cached `Channel` by login name |
 | `wait_for_ready()` | `None` | Await until bot is connected and ready (use after `run()` starts) |
 | `wait_for(event, predicate=None, timeout=60.0)` | event payload | Wait for a specific dispatched event by name |
@@ -355,14 +355,14 @@ Passed to `event_message` and accessible via `ctx.message`:
 | Attribute | Description |
 | --------- | ----------- |
 | `message.content` | Plain text body (str) |
-| `message.author` | `Chatter` — sender |
+| `message.author` | `Chatter` - sender |
 | `message.channel` | `Channel` |
-| `message.echo` | bool — True if this is the bot seeing its own message |
+| `message.echo` | bool - True if this is the bot seeing its own message |
 | `message.tags` | `dict[str, str]` of raw IRC tags. Project uses `tags.get('source-room-id')` to filter shared-chat at `./bot/bot.py:1816-1821` |
 | `message.timestamp` | datetime |
 | `message.id` | message id (str) |
-| `message.first` | bool — `True` if this is the user's first message in the channel |
-| `message.hype_chat_data` | `HypeChatData \| None` — hype chat payload (`.amount`, `.currency`, `.level`, `.is_system_message`) |
+| `message.first` | bool - `True` if this is the user's first message in the channel |
+| `message.hype_chat_data` | `HypeChatData \| None` - hype chat payload (`.amount`, `.currency`, `.level`, `.is_system_message`) |
 | `await message.channel.send(text)` | reply via IRC (prefer Helix `send_chat_message` instead) |
 
 ### `twitchio.Chatter`
@@ -386,22 +386,22 @@ Returned by `fetch_users()`. Key attributes: `.id` (int in 2.10), `.name`, `.dis
 
 ### `twitchio.PartialUser`
 
-Lightweight user reference — no cache, no API call on creation. Attributes: `.id` (int/None), `.name`. Built with `bot.create_user(user_id, user_name)` or automatically when used as a command arg type hint (makes a Helix call). Use `await partial_user.user()` to fetch the full `User` object.
+Lightweight user reference - no cache, no API call on creation. Attributes: `.id` (int/None), `.name`. Built with `bot.create_user(user_id, user_name)` or automatically when used as a command arg type hint (makes a Helix call). Use `await partial_user.user()` to fetch the full `User` object.
 
 ### `twitchio.PartialChatter`
 
-Cache-independent chatter reference (from IRC context). Attributes: `.name`, `.channel`. Safe to use as a command arg type hint when you only need the username — unlike `Chatter`, it doesn't require the chatter to be in the cache.
+Cache-independent chatter reference (from IRC context). Attributes: `.name`, `.channel`. Safe to use as a command arg type hint when you only need the username - unlike `Chatter`, it doesn't require the chatter to be in the cache.
 
 **Distinction summary:**
 
 | Type | Origin | Has full attrs? |
 | ---- | ------ | --------------- |
-| `Chatter` | IRC (requires cache) | Yes — badges, colour, is_mod, etc. |
+| `Chatter` | IRC (requires cache) | Yes - badges, colour, is_mod, etc. |
 | `PartialChatter` | IRC (cache-independent) | Name + channel only |
-| `User` | Helix API (`fetch_users`) | Yes — broadcaster_type, description, etc. |
+| `User` | Helix API (`fetch_users`) | Yes - broadcaster_type, description, etc. |
 | `PartialUser` | `create_user()` or converter | ID + name only |
 
-Don't compare IRC objects with API objects — their `.id` types differ (int on both in 2.10, but sourced differently).
+Don't compare IRC objects with API objects - their `.id` types differ (int on both in 2.10, but sourced differently).
 
 ---
 
@@ -409,7 +409,7 @@ Don't compare IRC objects with API objects — their `.id` types differ (int on 
 
 1. **CLI args drive everything.** All three bot files take `-channel`, `-channelid`, `-token`, `-refresh`, optional `-apitoken`, `-custom`, `-botusername`, `-self`. The 2.10 bots wire `-token` into `commands.Bot(token=...)`. Don't hardcode a token; don't bypass argparse.
 
-2. **`event_command_error` signature is `(self, ctx, error)` in 2.10** — two args after `self`. Copying a 3.x handler that uses a single `payload` arg will silently do nothing. Mirror the correct form for the version you're editing.
+2. **`event_command_error` signature is `(self, ctx, error)` in 2.10** - two args after `self`. Copying a 3.x handler that uses a single `payload` arg will silently do nothing. Mirror the correct form for the version you're editing.
 
 3. **All chat send goes through Helix.** Don't introduce `await ctx.send(...)` for production output. Use `send_chat_message(...)`.
 
@@ -419,9 +419,9 @@ Don't compare IRC objects with API objects — their `.id` types differ (int on 
 
 6. **Shared-chat filtering reads IRC tags.** `message.tags.get('source-room-id')` at `./bot/bot.py:1817-1821` filters messages forwarded from shared-chat partner channels. In 3.x this becomes `message.source_broadcaster`.
 
-7. **`Bot.get_context()` and `Bot.process_commands()` renamed `message` → `payload` in 2.10.0.** If you subclass Bot and override either of these methods, update the parameter name. The built-in flow is unaffected — this only matters when overriding directly.
+7. **`Bot.get_context()` and `Bot.process_commands()` renamed `message` → `payload` in 2.10.0.** If you subclass Bot and override either of these methods, update the parameter name. The built-in flow is unaffected - this only matters when overriding directly.
 
-8. **`ctx.message` can be `None` in edge cases.** Don't access `ctx.message.content` unconditionally — guard with `if ctx.message` when it matters.
+8. **`ctx.message` can be `None` in edge cases.** Don't access `ctx.message.content` unconditionally - guard with `if ctx.message` when it matters.
 
 9. **`retain_cache=True` is the default.** The bot caches all seen chatters and channel state in memory across reconnects. Pass `retain_cache=False` to the constructor if you need a clean slate after restart (e.g., for accurate `channel.users` counts).
 
@@ -433,7 +433,7 @@ Don't compare IRC objects with API objects — their `.id` types differ (int on 
 - Client / dataclass reference: <https://twitchio.dev/en/historical-2.10.0/twitchio.html>, <https://twitchio.dev/en/historical-2.10.0/reference.html>
 - Commands ext: <https://twitchio.dev/en/historical-2.10.0/exts/commands.html>
 - Routines ext: <https://twitchio.dev/en/historical-2.10.0/exts/routines.html>
-- EventSub ext (webhook + WS — **not used**): <https://twitchio.dev/en/historical-2.10.0/exts/eventsub.html>
+- EventSub ext (webhook + WS - **not used**): <https://twitchio.dev/en/historical-2.10.0/exts/eventsub.html>
 - PubSub ext (**discontinued in 3.x**): <https://twitchio.dev/en/historical-2.10.0/exts/pubsub.html>
 
 ## 12. Cross-references

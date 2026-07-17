@@ -209,7 +209,7 @@ def _safe_eval_math(expression: str):
     for node in ast.walk(tree):
         if not isinstance(node, _ALLOWED_NODES):
             raise ValueError(f"Disallowed expression node: {type(node).__name__}")
-    return eval(compile(tree, '<math>', 'eval'))  # noqa: S307 — AST-validated, safe
+    return eval(compile(tree, '<math>', 'eval'))  # noqa: S307 - AST-validated, safe
 
 def split_message_preserve_markdown(text: str, max_len: int):
     if not text:
@@ -620,7 +620,7 @@ class WebsocketListener:
         self.specterSocket = None
 
     async def start(self):
-        # This listener has NO manual reconnect loop — it relies entirely on
+        # This listener has NO manual reconnect loop - it relies entirely on
         # python-socketio's built-in reconnection (single authority). Do NOT set
         # reconnection=False here or the Discord bot would never reconnect.
         # Keep infinite attempts but bound the delay for the ~2 min internal-server reboot.
@@ -1353,7 +1353,7 @@ class LiveChannelManager:
                 if not existing:
                     self.logger.info(f"Marked online: {username} stream_id={stream_id}")
             else:
-                # Existing row with same stream_id — update last_checked and details silently at DEBUG
+                # Existing row with same stream_id - update last_checked and details silently at DEBUG
                 try:
                     await self.mysql.execute(
                         "UPDATE online_streams SET last_checked = NOW(), details = %s WHERE LOWER(username) = %s",
@@ -1843,7 +1843,7 @@ class LiveChannelManager:
                                                             'started_at': s.get('started_at'),
                                                             'details': s
                                                         }
-                                                        self.logger.info(f"Periodic fallback: detected live for mapping {code} ({uname}) — calling handle_stream_event")
+                                                        self.logger.info(f"Periodic fallback: detected live for mapping {code} ({uname}) - calling handle_stream_event")
                                                         try:
                                                             if self.bot:
                                                                 await self.bot.handle_stream_event('ONLINE', event_data)
@@ -1895,7 +1895,7 @@ class LiveChannelManager:
             # Batch fetch current live status from Twitch API
             live_streams = await self.twitch_get_streams_by_logins(usernames_to_check)
             if live_streams is None:
-                self.logger.warning("Twitch API unreachable during boot sync — skipping channel updates to avoid falsely marking live streams as offline")
+                self.logger.warning("Twitch API unreachable during boot sync - skipping channel updates to avoid falsely marking live streams as offline")
                 return
             live_usernames = {s['user_login'].lower(): s for s in live_streams}
             self.logger.info(f"Found {len(live_usernames)} live streams from Twitch API")
@@ -1967,7 +1967,7 @@ class LiveChannelManager:
                             self.logger.info(f"Stream is live for {username_lower}, but notification already exists - preventing duplicate")
                             prevented_duplicates += 1
                         else:
-                            # No notification exists — check if stream was already running before bot restarted
+                            # No notification exists - check if stream was already running before bot restarted
                             started_at_str = stream_data.get('started_at')
                             stream_age_minutes = None
                             if started_at_str:
@@ -1981,11 +1981,11 @@ class LiveChannelManager:
                             if stream_age_minutes is not None and stream_age_minutes > 5:
                                 self.logger.info(
                                     f"Stream is live for {username_lower} (started {stream_age_minutes:.0f}m ago) "
-                                    f"but no DB notification found — bot restarted mid-stream, skipping re-announcement"
+                                    f"but no DB notification found - bot restarted mid-stream, skipping re-announcement"
                                 )
                                 prevented_duplicates += 1
                             else:
-                                # Stream recently started (or age unknown) — trigger announcement flow
+                                # Stream recently started (or age unknown) - trigger announcement flow
                                 self.logger.info(f"Stream is live for {username_lower}, triggering new notification")
                                 event_data = {
                                     'channel_code': code,
@@ -2107,7 +2107,7 @@ class TimeNowChannelManager:
     def _format_time_now_name(self, timezone_name: str) -> str:
         tz = self._resolve_timezone(timezone_name)
         now = datetime.now(tz)
-        # Floor to 10-minute boundary — Discord allows only 2 channel renames per 10 minutes
+        # Floor to 10-minute boundary - Discord allows only 2 channel renames per 10 minutes
         floored = now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
         tz_abbr = floored.strftime('%Z')
         return f"🕐 {floored.strftime('%I:%M %p')} {tz_abbr}"
@@ -3586,11 +3586,11 @@ class BotOfTheSpecter(commands.Bot):
                 title = "Ko-fi Subscription!"
                 desc  = f"**{donor}** subscribed via Ko-fi"
                 if tier_name: desc += f" *(Tier: {tier_name})*"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
             elif kofi_type == "Shop Order":
                 title = "Ko-fi Shop Order!"
                 desc  = f"**{donor}** placed an order"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
                 items = payload.get("shop_items") or []
                 if isinstance(items, list) and items:
                     desc += "\n" + ", ".join(
@@ -3642,7 +3642,7 @@ class BotOfTheSpecter(commands.Bot):
                 item_label = f"{qty}× {item_name}" if qty and qty > 1 else item_name
                 title = "Fourthwall Order!"
                 desc  = f"**{buyer}** bought **{item_label}**"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
                 color = discord.Color.from_rgb(155, 89, 182)
             elif fw_type == "DONATION":
                 msg = (event_data.get("message") or "").strip()
@@ -3655,7 +3655,7 @@ class BotOfTheSpecter(commands.Bot):
                 gname = ((event_data.get("offer") or {}).get("name")) or "a giveaway"
                 title = "Fourthwall Giveaway!"
                 desc  = f"**{buyer}** purchased **{gname}**"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
                 color = discord.Color.from_rgb(241, 196, 15)
             elif fw_type == "SUBSCRIPTION_PURCHASED":
                 variant = (event_data.get("subscription") or {}).get("variant") or {}
@@ -3663,15 +3663,15 @@ class BotOfTheSpecter(commands.Bot):
                 title = "Fourthwall Subscription!"
                 desc  = f"**{buyer}** subscribed"
                 if interval: desc += f" ({interval} plan)"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
                 color = discord.Color.gold()
             else:
                 title = "Fourthwall Event"
-                desc  = f"**{buyer}** — {fw_type.replace('_', ' ').title()}"
+                desc  = f"**{buyer}** - {fw_type.replace('_', ' ').title()}"
                 color = discord.Color.blurple()
             embed = discord.Embed(title=title, description=desc, color=color)
         elif event_type == "PATREON":
-            # Patreon JSON:API envelope arrives in data.data — same Python-literal
+            # Patreon JSON:API envelope arrives in data.data - same Python-literal
             # tolerance as overlay/patreon.php since api.py uses urlencode(dict).
             payload = {}
             raw = data.get("data") if isinstance(data, dict) else None
@@ -3720,13 +3720,13 @@ class BotOfTheSpecter(commands.Bot):
             elif patreon_type == "update":
                 title = "Patron Pledge Updated"
                 desc  = f"**{patron}** updated their pledge"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
                 if tier_name:    desc += f"\n*Tier: {tier_name}*"
                 color = discord.Color.from_rgb(155, 89, 182)
             else:
                 title = "New Patron!"
                 desc  = f"**{patron}** is now a patron!"
-                if amount_label: desc += f" — **{amount_label}**"
+                if amount_label: desc += f" - **{amount_label}**"
                 if tier_name:    desc += f"\n*Tier: {tier_name}*"
                 color = discord.Color.from_rgb(232, 91, 70)
             embed = discord.Embed(title=title, description=desc, color=color)
@@ -3962,13 +3962,13 @@ class BotOfTheSpecter(commands.Bot):
                                     if early_data.get("data"):
                                         self.logger.info(
                                             f"OFFLINE event for {early_username} (code: {code}) but Twitch API confirms "
-                                            f"stream is still live — ignoring entire false offline event"
+                                            f"stream is still live - ignoring entire false offline event"
                                         )
                                         self._stream_online_in_flight.discard(code)
                                         return
             except Exception as early_verify_err:
                 self.logger.debug(f"Error in early offline verification for {code}: {early_verify_err}")
-                self.logger.info(f"Cannot verify offline for {code} — ignoring event to prevent false offline processing")
+                self.logger.info(f"Cannot verify offline for {code} - ignoring event to prevent false offline processing")
                 self._stream_online_in_flight.discard(code)
                 return
         # Update Discord info in cache
@@ -3991,7 +3991,7 @@ class BotOfTheSpecter(commands.Bot):
         except discord.Forbidden as e:
             self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{channel.name} (ID: {channel.id})")
             self.logger.error(f"   Error: {e}")
-            await self._send_failure_dm(guild, "Stream status update", channel.name, f"Permission denied — bot cannot post messages in #{channel.name}. Please grant Send Messages permission.")
+            await self._send_failure_dm(guild, "Stream status update", channel.name, f"Permission denied - bot cannot post messages in #{channel.name}. Please grant Send Messages permission.")
         except Exception as e:
             self.logger.error(f"❌ Failed to send status message to #{channel.name}: {type(e).__name__}: {e}")
             await self._send_failure_dm(guild, "Stream status update", channel.name, f"Unexpected error ({type(e).__name__}) posting to #{channel.name}: {e}")
@@ -4088,7 +4088,7 @@ class BotOfTheSpecter(commands.Bot):
                                         self.logger.error(f"Error checking notification age for {account_username}: {time_check_err}", exc_info=True)
                                         skip_post = True
                                 else:
-                                    # No timestamp but record exists — skip
+                                    # No timestamp but record exists - skip
                                     self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} - skipping")
                                     skip_post = True
                                 # If stale, check Twitch to see if they're actually still live
@@ -4119,7 +4119,7 @@ class BotOfTheSpecter(commands.Bot):
                                             # skip_post remains False so we re-post when they go live again
                                     except Exception as live_check_err:
                                         self.logger.error(f"Error verifying live status for stale notification ({account_username}): {live_check_err}", exc_info=True)
-                                        # Can't confirm either way — keep skipping to avoid duplicate spam
+                                        # Can't confirm either way - keep skipping to avoid duplicate spam
                                         skip_post = True
                         except Exception as e:
                             self.logger.error(f"Error checking existing live notifications for {account_username}: {e}", exc_info=True)
@@ -4145,7 +4145,7 @@ class BotOfTheSpecter(commands.Bot):
                                                         if stream_age_minutes > 5:
                                                             self.logger.info(
                                                                 f"Stream for {account_username} has been live for {stream_age_minutes:.0f}m "
-                                                                f"but no DB entry exists — likely re-detection after false offline, "
+                                                                f"but no DB entry exists - likely re-detection after false offline, "
                                                                 f"skipping notification and silently inserting DB entry"
                                                             )
                                                             skip_post = True
@@ -4170,7 +4170,7 @@ class BotOfTheSpecter(commands.Bot):
                                                             except Exception as silent_err:
                                                                 self.logger.debug(f"Error silently inserting live_notification for {account_username}: {silent_err}")
                                                         else:
-                                                            self.logger.info(f"Stream for {account_username} started {stream_age_minutes:.1f}m ago — fresh stream, proceeding with notification")
+                                                            self.logger.info(f"Stream for {account_username} started {stream_age_minutes:.1f}m ago - fresh stream, proceeding with notification")
                             except Exception as age_check_err:
                                 self.logger.debug(f"Error checking stream age for {account_username}: {age_check_err}")
                         # Get user profile image and stream info
@@ -4218,7 +4218,7 @@ class BotOfTheSpecter(commands.Bot):
                                 self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
                                 self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
                                 self.logger.error(f"   Error details: {e}")
-                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Permission denied — bot is missing Send Messages / Embed Links in #{stream_channel.name}.")
+                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Permission denied - bot is missing Send Messages / Embed Links in #{stream_channel.name}.")
                             except discord.HTTPException as e:
                                 self.logger.error(f"❌ Discord HTTP error sending notification to #{stream_channel.name}: Status {e.status}")
                                 self.logger.error(f"   Response: {e.text}")
@@ -4327,7 +4327,7 @@ class BotOfTheSpecter(commands.Bot):
                         break
                 except discord.Forbidden:
                     self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
-                    await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Permission denied — bot lacks Manage Channels permission for #{channel.name}.")
+                    await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Permission denied - bot lacks Manage Channels permission for #{channel.name}.")
                     break
                 except Exception as e:
                     self.logger.error(f"❌ Failed to update channel name: {type(e).__name__}: {e}")
@@ -4352,12 +4352,12 @@ class BotOfTheSpecter(commands.Bot):
         BOT_OWNER_ID = 127783626917150720
         guild_name = guild.name if guild else "Unknown Server"
         guild_id = guild.id if guild else "N/A"
-        # Message for the server owner — plain and actionable
+        # Message for the server owner - plain and actionable
         owner_message = (
             f"⚠️ **{action}** failed because of: {reason}\n"
             f"Please contact <@{BOT_OWNER_ID}> for more help."
         )
-        # Message for the bot owner — full technical context
+        # Message for the bot owner - full technical context
         bot_owner_message = (
             f"⚠️ **{action}** failed\n"
             f"**Server:** {guild_name} (ID: `{guild_id}`)\n"
@@ -4485,7 +4485,7 @@ class QuoteCog(commands.Cog, name='Quote'):
                             if "quote" in quote_data and "author" in quote_data:
                                 quote = quote_data["quote"]
                                 author = quote_data["author"]
-                                message = f'📜 **Quote:** "{quote}" — *{author}*'
+                                message = f'📜 **Quote:** "{quote}" - *{author}*'
                                 # Calculate delay based on message length
                                 typing_delay = len(message) / self.typing_speed
                                 await asyncio.sleep(typing_delay)
@@ -4931,7 +4931,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 self.logger.info(f"Ticket #{ticket_id} closed and archived successfully")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to modify channel for ticket #{ticket_id}")
-                await self.bot._send_failure_dm(channel.guild, "Ticket closure", f"ticket #{ticket_id} in #{channel.name}", f"Permission denied — bot cannot modify/move ticket channel #{channel.name}. Please grant Manage Channels permission.")
+                await self.bot._send_failure_dm(channel.guild, "Ticket closure", f"ticket #{ticket_id} in #{channel.name}", f"Permission denied - bot cannot modify/move ticket channel #{channel.name}. Please grant Manage Channels permission.")
                 raise
             except Exception as e:
                 self.logger.error(f"Error archiving ticket #{ticket_id}: {e}")
@@ -6816,7 +6816,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             vc = await channel.connect(cls=voice_recv.VoiceRecvClient)
             self.voice_clients[guild_id] = vc
         elif not isinstance(vc, voice_recv.VoiceRecvClient):
-            # Regular VoiceClient can't receive audio — reconnect with VoiceRecvClient
+            # Regular VoiceClient can't receive audio - reconnect with VoiceRecvClient
             await vc.disconnect()
             vc = await channel.connect(cls=voice_recv.VoiceRecvClient)
             self.voice_clients[guild_id] = vc
@@ -6892,10 +6892,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                     },
                 }))
                 await ws.send(json.dumps({"type": "response.create"}))
-                self.logger.info("[REALTIME] Greeting request sent — waiting for spoken response")
+                self.logger.info("[REALTIME] Greeting request sent - waiting for spoken response")
                 async def audio_sender():
                     nonlocal packet_count
-                    self.logger.info("[REALTIME] Audio sender started — waiting for packets...")
+                    self.logger.info("[REALTIME] Audio sender started - waiting for packets...")
                     while True:
                         # Discord: 48 kHz, stereo, 16-bit LE → OpenAI: 24 kHz, mono, 16-bit LE
                         pcm_48k_stereo = await audio_queue.get()
@@ -6935,12 +6935,12 @@ class VoiceCog(commands.Cog, name='Voice'):
                         if router_thread is None or router_thread.is_alive():
                             continue
                         # Thread is dead (OpusError: corrupted stream).
-                        # NOTE: do NOT check vc.is_listening() here — when the PacketRouter
+                        # NOTE: do NOT check vc.is_listening() here - when the PacketRouter
                         # crashes, voice_recv tears down the listener internally, so
                         # is_listening() returns False and we'd incorrectly skip the restart.
                         self.logger.warning(
                             "[REALTIME] PacketRouter thread died (OpusError: corrupted stream) "
-                            "— restarting listener"
+                            "- restarting listener"
                         )
                         try:
                             vc.stop_listening()
@@ -7233,7 +7233,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                     if stream_age_minutes > 5:
                         self.logger.info(
                             f"Tracked streamer {user_login} has been live for {stream_age_minutes:.0f}m "
-                            f"but no DB entry in guild {guild_id} — likely re-detection after false offline, "
+                            f"but no DB entry in guild {guild_id} - likely re-detection after false offline, "
                             f"silently inserting DB entry without posting"
                         )
                         try:
@@ -7255,7 +7255,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                             self.logger.debug(f"Error silently inserting tracked streamer notification for {user_login}: {silent_err}")
                         return False
                     else:
-                        self.logger.info(f"Tracked streamer {user_login} started {stream_age_minutes:.1f}m ago — fresh stream, proceeding with notification")
+                        self.logger.info(f"Tracked streamer {user_login} started {stream_age_minutes:.1f}m ago - fresh stream, proceeding with notification")
             except Exception as age_err:
                 self.logger.debug(f"Error checking stream age for tracked streamer {user_login}: {age_err}")
         # If there's an old notification for a different stream_id, we should post this new one
@@ -7395,13 +7395,13 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                 if verify_data.get("data"):
                                     self.logger.info(
                                         f"Tracked streamer {username} missing from batch check but direct API confirms still live "
-                                        f"in guild {guild_id} — skipping offline to prevent duplicate notification"
+                                        f"in guild {guild_id} - skipping offline to prevent duplicate notification"
                                     )
                                     continue
             except Exception as verify_err:
                 self.logger.debug(f"Error verifying tracked streamer offline status for {username}: {verify_err}")
                 # If we can't verify, skip clearing to be safe
-                self.logger.info(f"Cannot verify offline for tracked streamer {username} — keeping live state")
+                self.logger.info(f"Cannot verify offline for tracked streamer {username} - keeping live state")
                 continue
             # Mark offline in the live_channel_manager and clear ALL live notifications across all guilds
             try:
@@ -7503,7 +7503,7 @@ class RoleButton(discord.ui.Button):
                     self.logger.error(f"[ROLE_BUTTON] Forbidden error when removing role: {e}")
                     await interaction.followup.send("❌ I don't have permission to remove this role. Please contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to remove role '{self.role.name}' from {member.name}#{member.discriminator}")
-                    await interaction.client._send_failure_dm(interaction.guild, "Role removal", f"Role '{self.role.name}' from {member.name}", f"Permission denied — bot cannot remove role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
+                    await interaction.client._send_failure_dm(interaction.guild, "Role removal", f"Role '{self.role.name}' from {member.name}", f"Permission denied - bot cannot remove role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when removing role: {type(e).__name__} - {e}")
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
@@ -7521,7 +7521,7 @@ class RoleButton(discord.ui.Button):
                     self.logger.error(f"[ROLE_BUTTON] Forbidden error when adding role: {e}")
                     await interaction.followup.send("❌ I don't have permission to assign this role. Please contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to assign role '{self.role.name}' to {member.name}#{member.discriminator}")
-                    await interaction.client._send_failure_dm(interaction.guild, "Role assignment", f"Role '{self.role.name}' to {member.name}", f"Permission denied — bot cannot assign role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
+                    await interaction.client._send_failure_dm(interaction.guild, "Role assignment", f"Role '{self.role.name}' to {member.name}", f"Permission denied - bot cannot assign role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when adding role: {type(e).__name__} - {e}")
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
@@ -7594,7 +7594,7 @@ class RulesAcceptButton(discord.ui.Button):
                     ephemeral=True
                 )
                 self.logger.error(f"[RULES_ACCEPT] Missing permissions to assign rules role '{self.role.name}' to {user.name}#{user.discriminator}")
-                await interaction.client._send_failure_dm(interaction.guild, "Rules role assignment", f"Role '{self.role.name}' to {user.name}", f"Permission denied — bot cannot assign rules acceptance role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
+                await interaction.client._send_failure_dm(interaction.guild, "Rules role assignment", f"Role '{self.role.name}' to {user.name}", f"Permission denied - bot cannot assign rules acceptance role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
             except Exception as e:
                 self.logger.error(f"[RULES_ACCEPT] Exception when assigning role: {type(e).__name__} - {e}")
                 self.logger.error(f"[RULES_ACCEPT] Traceback: {traceback.format_exc()}")
@@ -10236,7 +10236,7 @@ class ModerationCog(commands.Cog, name='Moderation'):
             except discord.Forbidden:
                 await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
                 self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
-                await self.bot._send_failure_dm(ctx.guild, "Message purge", f"#{ctx.channel.name}", f"Permission denied — bot cannot delete messages in #{ctx.channel.name}. Please grant Manage Messages permission.")
+                await self.bot._send_failure_dm(ctx.guild, "Message purge", f"#{ctx.channel.name}", f"Permission denied - bot cannot delete messages in #{ctx.channel.name}. Please grant Manage Messages permission.")
                 break
             except Exception as e:
                 await ctx.send(f"❌ An unexpected error occurred: {e}", delete_after=5)
@@ -10498,14 +10498,14 @@ class AdminCog(commands.Cog, name='Admin'):
                         value_lines.insert(0, f"Game: {game_name}")
                     if short_title:
                         value_lines.insert(0, f"Title: {short_title}")
-                    value = "\n".join([vl for vl in value_lines if vl]) or "—"
+                    value = "\n".join([vl for vl in value_lines if vl]) or "-"
                     # Add each user as a separate field; ensure we don't exceed the field character limits
                     try:
                         embed.add_field(name=str(username), value=value, inline=False)
                     except Exception:
                         # If something goes wrong, fallback to a minimal field
                         embed.add_field(name=str(username), value=f"Twitch ID: {twitch_user_id} | Stream ID: {stream_id}", inline=False)
-                embed.set_footer(text=f"BotOfTheSpecter — {total} total live channels")
+                embed.set_footer(text=f"BotOfTheSpecter - {total} total live channels")
                 await ctx.send(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in online_streams command: {e}")
@@ -10548,15 +10548,15 @@ class AdminCog(commands.Cog, name='Admin'):
             thumbnail = details_obj.get('thumbnail_url') or details_obj.get('thumbnail') or None
             stream_url = f"https://twitch.tv/{username}"
             embed = discord.Embed(
-                title=f"{username} — Live Status",
+                title=f"{username} - Live Status",
                 description=(title if title else f"{username} is live on Twitch") + f"\n[Watch on Twitch]({stream_url})",
                 color=config.bot_color
             )
             # Key fields
-            embed.add_field(name="Twitch ID", value=str(twitch_user_id) or "—", inline=True)
-            embed.add_field(name="Stream ID", value=str(stream_id) or "—", inline=True)
-            embed.add_field(name="Started At", value=started_at or "—", inline=False)
-            embed.add_field(name="Last Checked", value=last_checked or "—", inline=False)
+            embed.add_field(name="Twitch ID", value=str(twitch_user_id) or "-", inline=True)
+            embed.add_field(name="Stream ID", value=str(stream_id) or "-", inline=True)
+            embed.add_field(name="Started At", value=started_at or "-", inline=False)
+            embed.add_field(name="Last Checked", value=last_checked or "-", inline=False)
             if game_name:
                 embed.add_field(name="Game", value=game_name, inline=False)
             # Add a small details summary if there's extra info (viewer count, tags, etc.)
@@ -10572,7 +10572,7 @@ class AdminCog(commands.Cog, name='Admin'):
                     embed.set_thumbnail(url=thumbnail)
                 except Exception:
                     pass
-            embed.set_footer(text=f"BotOfTheSpecter — live status for {username}")
+            embed.set_footer(text=f"BotOfTheSpecter - live status for {username}")
             await ctx.send(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in live_status command for {username}: {e}")

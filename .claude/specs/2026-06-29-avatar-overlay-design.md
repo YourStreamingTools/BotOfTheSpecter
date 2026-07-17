@@ -1,4 +1,4 @@
-# Avatar Overlay (PNG-tuber) — Design Spec
+# Avatar Overlay (PNG-tuber) - Design Spec
 
 **Date:** 2026-06-29  
 **Status:** Shipped (MVP). Replaces the draft plan in `.claude/plans/png-vtuber-tools.md`.  
@@ -6,13 +6,13 @@
 
 ## Summary
 
-A per-channel PNG avatar overlay for OBS: four transparent frames (mouth × eyes), mouth driven by mic voice-activity from the **Avatar dashboard tab**, optional blink and idle bounce on the overlay. The OBS browser source is display-only. Avatar is **independent** of Closed Captions — each page captures its own mic; they may run at the same time.
+A per-channel PNG avatar overlay for OBS: four transparent frames (mouth × eyes), mouth driven by mic voice-activity from the **Avatar dashboard tab**, optional blink and idle bounce on the overlay. The OBS browser source is display-only. Avatar is **independent** of Closed Captions - each page captures its own mic; they may run at the same time.
 
 ## Problem
 
 Streamers want a lightweight VTuber-style presence without Live2D, VTube Studio, or face tracking. OBS browser sources cannot reliably drive mic-based mouth sync themselves. Specter already solves “mic in a real browser → WebSocket → overlay” for Closed Captions; Avatar applies the same pattern to a corner PNG character.
 
-## Goal (MVP — achieved)
+## Goal (MVP - achieved)
 
 - Upload four aligned PNG/WebP frames; mouth opens when the streamer talks.
 - Blink swaps to dedicated eyes-closed frames (not opacity tricks).
@@ -27,7 +27,7 @@ Streamers want a lightweight VTuber-style presence without Live2D, VTube Studio,
 Streamer microphone
         │
         ▼
-dashboard/avatar.php  (real browser tab — producer)
+dashboard/avatar.php  (real browser tab - producer)
         │  getUserMedia → AudioContext → AnalyserNode → RMS
         │  threshold + release_ms smoothing → talking | idle
         │  emit AVATAR_STATE (on change + 1.5s heartbeat while mic on)
@@ -36,7 +36,7 @@ websocket/server.py
         │  caches last AVATAR_STATE per channel_code
         │  broadcasts to overlay clients + replays on overlay register/request
         ▼
-overlay/avatar.php  (OBS browser source — consumer)
+overlay/avatar.php  (OBS browser source - consumer)
         │  pickFrameUrl(mouthState × blinkState) → single <img>
         │  blink + bounce run locally; transparent background
         ▼
@@ -90,9 +90,9 @@ Explicit handlers in `./websocket/server.py` cache `last_avatar_state[code]` and
 
 ## Dashboard behaviour
 
-- `./dashboard/avatar.php` — mic engine, live preview, four-slot upload, appearance form, storage bar, OBS URL copy.
-- `./dashboard/menu.php` — `navbar_avatar` entry.
-- `./dashboard/overlays.php` — Avatar card.
+- `./dashboard/avatar.php` - mic engine, live preview, four-slot upload, appearance form, storage bar, OBS URL copy.
+- `./dashboard/menu.php` - `navbar_avatar` entry.
+- `./dashboard/overlays.php` - Avatar card.
 - i18n: `dashboard/lang/{en,de,fr}.php` (`avatar_*` keys).
 - Upload helpers: `./dashboard/includes/upload_helpers.php` (`upload_reencode_image`).
 
@@ -157,5 +157,5 @@ Explicit handlers in `./websocket/server.py` cache `last_avatar_state[code]` and
 ## Future work (not in this spec’s implementation)
 
 1. **Phase 2:** `avatar_expressions` table, expression CRUD, dedicated blink art per expression, `loud` state.
-2. **Phase 3:** `avatar_triggers` + `AvatarManager` in `beta.py` — Twitch events/redemptions → temporary expression; port to `beta-v6.py`.
+2. **Phase 3:** `avatar_triggers` + `AvatarManager` in `beta.py` - Twitch events/redemptions → temporary expression; port to `beta-v6.py`.
 3. **Shared trigger UI** with Pet overlay when both exist.

@@ -8,9 +8,9 @@
 //          + view the pending requests queue.
 //
 // POST _action values:
-//   save_program    — staff: create (edit_id=0) or update a program
-//   toggle_program  — staff: flip is_active
-//   delete_program  — staff: delete (blocked if pending requests exist)
+//   save_program    - staff: create (edit_id=0) or update a program
+//   toggle_program  - staff: flip is_active
+//   delete_program  - staff: delete (blocked if pending requests exist)
 // ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
@@ -93,14 +93,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch data
 // ----------------------------------------------------------------
 
-// Programs list (staff sees all, users see only active) — website DB
+// Programs list (staff sees all, users see only active) - website DB
 $allPrograms = [];
 $res = is_staff()
     ? $wdb->query('SELECT * FROM beta_programs ORDER BY is_active DESC, name ASC')
     : $wdb->query('SELECT * FROM beta_programs WHERE is_active = 1 ORDER BY name ASC');
 if ($res) $allPrograms = $res->fetch_all(MYSQLI_ASSOC);
 
-// Current user's enrolled programs — website DB
+// Current user's enrolled programs - website DB
 $userPrograms = [];
 $wstmt = $wdb->prepare('SELECT beta_programs FROM users WHERE twitch_user_id = ? LIMIT 1');
 $wstmt->bind_param('s', $_SESSION['twitch_user_id']);
@@ -248,7 +248,7 @@ ob_start();
             <div class="sp-form-group" id="slug-group">
                 <label class="sp-label" for="prog_slug">
                     Slug <span class="sp-req">*</span>
-                    <span style="font-size:0.75rem;color:var(--text-muted);">— this becomes the program key (lowercase, no spaces)</span>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">- this becomes the program key (lowercase, no spaces)</span>
                 </label>
                 <input type="text" id="prog_slug" name="slug" class="sp-input"
                     placeholder="e.g. streaming" maxlength="50"
@@ -298,7 +298,7 @@ ob_start();
             <tbody>
             <?php foreach ($pendingRequests as $req):
                 $rm   = json_decode($req['meta'] ?? '{}', true);
-                $rProg = $rm['program_name'] ?? $rm['program'] ?? '—';
+                $rProg = $rm['program_name'] ?? $rm['program'] ?? '-';
             ?>
             <tr>
                 <td><a href="/tickets.php?id=<?php echo urlencode($req['ticket_number']); ?>"

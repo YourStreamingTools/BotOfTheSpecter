@@ -1574,7 +1574,7 @@ class UserPointsModificationResponse(BaseModel):
 
 class CheckKeyResponse(BaseModel):
     status: str
-    # Optional — only set when the key validates. The invalid-key branch
+    # Optional - only set when the key validates. The invalid-key branch
     # returns just `status` so the model must allow that shape.
     username: Optional[str] = None
     class Config:
@@ -2069,7 +2069,7 @@ async def handle_github_webhook(request: Request, api_key: str = Query(...)):
 # kick bot (which is connected via Socket.IO) can receive it.
 # ---------------------------------------------------------------------------
 
-# Kick public-key cache — fetched from Kick's API, refreshed every hour
+# Kick public-key cache - fetched from Kick's API, refreshed every hour
 _kick_pubkey_cache: bytes | None = None
 _kick_pubkey_cache_time: float   = 0.0
 _KICK_PUBKEY_CACHE_TTL           = 3600  # seconds
@@ -2101,7 +2101,7 @@ async def _verify_kick_signature(message_id: str, timestamp: str, raw_body: byte
         from cryptography.exceptions import InvalidSignature
         pubkey_der = await _get_kick_public_key()
         if not pubkey_der:
-            logging.warning("[KICK] Public key unavailable — accepting delivery without verification")
+            logging.warning("[KICK] Public key unavailable - accepting delivery without verification")
             return True   # fail-open; tighten once the key endpoint is confirmed reachable
         public_key   = serialization.load_der_public_key(pubkey_der)
         signed_bytes = f"{message_id}.{timestamp}.".encode() + raw_body
@@ -2177,7 +2177,7 @@ async def receive_kick_webhook(username: str, request: Request):
     if signature:
         valid = await _verify_kick_signature(msg_id, timestamp, raw_body, signature)
         if not valid:
-            logging.warning(f"[KICK] Bad signature — channel={username!r} event={event_type!r}")
+            logging.warning(f"[KICK] Bad signature - channel={username!r} event={event_type!r}")
             raise HTTPException(status_code=403, detail="Invalid Kick webhook signature")
     try:
         payload = json.loads(raw_body)
@@ -2187,7 +2187,7 @@ async def receive_kick_webhook(username: str, request: Request):
     ws_event = _KICK_EVENT_MAP.get(event_type, "KICK_UNKNOWN")
     api_key = await _get_api_key_for_username(username)
     if not api_key:
-        # Unknown channel — return 200 so Kick doesn't keep retrying
+        # Unknown channel - return 200 so Kick doesn't keep retrying
         logging.warning(f"[KICK] No user found for username={username!r}, ignoring event")
         return {"status": "ok", "note": "channel not registered"}
     async with aiohttp.ClientSession() as session:
@@ -2220,7 +2220,7 @@ async def receive_kick_webhook(username: str, request: Request):
 # website.custom_webhooks). External services POST to /webhook/{slug}; the
 # request is verified per the webhook's configured mode (none/secret/hmac) and
 # the payload is forwarded to the internal WebSocket server as the configured
-# event — routed to a specific channel or to admin global-listeners. This lets a
+# event - routed to a specific channel or to admin global-listeners. This lets a
 # new integration go live WITHOUT editing api.py or restarting the API server.
 # ---------------------------------------------------------------------------
 
@@ -2272,7 +2272,7 @@ async def receive_custom_webhook(slug: str, request: Request):
             webhook = await cur.fetchone()
     finally:
         conn.close()
-    # 404 for missing OR disabled — don't leak which slugs exist
+    # 404 for missing OR disabled - don't leak which slugs exist
     if not webhook or not webhook.get("enabled"):
         raise HTTPException(status_code=404, detail="Not Found")
     # Verify the request per the configured mode
@@ -2503,7 +2503,7 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
     finally:
         conn.close()
 
-# App Login Endpoint (v2 only — accessed via POST /v2/account/app-login with X-API-KEY header)
+# App Login Endpoint (v2 only - accessed via POST /v2/account/app-login with X-API-KEY header)
 class AppLoginBody(BaseModel):
     password: str = Field(..., description="Plaintext app password to verify")
 
@@ -2927,7 +2927,7 @@ async def chat_instructions(
                 and os.path.getmtime(repo_copy) > os.path.getmtime(server_copy) + 1):
             logging.warning(
                 f"AI instructions '{filename}': deployed server copy is OLDER than the "
-                f"repo-shipped copy — the server file may be stale. Redeploy it "
+                f"repo-shipped copy - the server file may be stale. Redeploy it "
                 f"(e.g. run api/deploy-ai-instructions.sh)."
             )
     except Exception:
@@ -6254,7 +6254,7 @@ class BotActionResponse(BaseModel):
 @app.post(
     "/bot/start",
     summary="Start the chat bot",
-    description="Start the chat bot for the authenticated user. Validates the user's Twitch access token (refreshing it via the user's refresh token if expired) before launching, and stops any other bot variant that is running for this user. Idempotent — if the requested bot variant is already running, returns success with the existing PID.",
+    description="Start the chat bot for the authenticated user. Validates the user's Twitch access token (refreshing it via the user's refresh token if expired) before launching, and stops any other bot variant that is running for this user. Idempotent - if the requested bot variant is already running, returns success with the existing PID.",
     tags=["User Account"],
     operation_id="start_bot",
     response_model=BotActionResponse,

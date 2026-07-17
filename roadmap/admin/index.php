@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once dirname(__DIR__) . '/includes/session.php';
 roadmap_session_start();
 date_default_timezone_set('Australia/Sydney');
@@ -766,7 +766,7 @@ window.__ROADMAP_SUBCAT_COLORS = <?php echo json_encode($subcatColorMap); ?>;
 $hasActiveFilters = !empty($searchQuery) || !empty($selectedCategory) || !empty($selectedPriority);
 if (!$hasActiveFilters): ?>
 <div class="rm-admin-board-toolbar">
-    <p class="rm-admin-board-hint"><i class="fa-solid fa-hand-pointer"></i> Drag-free kanban — use the action buttons or &ldquo;Move to&rdquo; menu on each card to advance work.</p>
+    <p class="rm-admin-board-hint"><i class="fa-solid fa-hand-pointer"></i> Drag-free kanban - use the action buttons or &ldquo;Move to&rdquo; menu on each card to advance work.</p>
     <button id="toggleRejectedBtn" type="button" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="toggleRejected()">
         <i class="fa-solid fa-eye"></i> Show Rejected
     </button>
@@ -838,7 +838,7 @@ if (!$hasActiveFilters): ?>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label" for="add-item-description">Description</label>
-                        <textarea class="sp-textarea sp-textarea-mono" id="add-item-description" name="description" placeholder="Optional — supports markdown" rows="7"></textarea>
+                        <textarea class="sp-textarea sp-textarea-mono" id="add-item-description" name="description" placeholder="Optional - supports markdown" rows="7"></textarea>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label">Attachments (optional)</label>
@@ -848,7 +848,7 @@ if (!$hasActiveFilters): ?>
                                 style="position:absolute;opacity:0;width:0;height:0;">
                             <i class="fa-solid fa-cloud-arrow-up"></i>
                             <span class="rm-upload-label">Click to choose or drag &amp; drop</span>
-                            <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT — max 10MB each</span>
+                            <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT - max 10MB each</span>
                             <span class="rm-upload-filename" id="initialAttachmentFileName"></span>
                         </label>
                     </div>

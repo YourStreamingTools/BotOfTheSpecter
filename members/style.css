@@ -1,5 +1,5 @@
 /* ============================================================
-   BotOfTheSpecter Members Portal — style.css
+   BotOfTheSpecter Members Portal - style.css
    Custom dark theme, no external CSS framework
    Follows the support portal design language
    ============================================================ */
@@ -54,7 +54,7 @@
 }
 
 /* ----------------------------------------------------------
-   Light theme token overrides — applied when <html data-theme="light">.
+   Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
    ---------------------------------------------------------- */
 [data-theme="light"] {
@@ -157,7 +157,7 @@ hr {
 
 
 /* ----------------------------------------------------------
-   2. Layout — Sidebar + Main
+   2. Layout - Sidebar + Main
    ---------------------------------------------------------- */
 .sp-layout {
     display: flex;
@@ -1312,7 +1312,7 @@ body.sp-hero-page .sp-hero {
 
 /* The In Memoriam page keeps its deliberate dark, cosmic aesthetic in BOTH
    themes. Forcing it light breaks the star field (white stars vanish on white),
-   the candle glow and the dark gradients — and the page is intentionally somber
+   the candle glow and the dark gradients - and the page is intentionally somber
    and sensitive. Pin its token subtree to the dark palette so light mode leaves
    it untouched. */
 [data-theme="light"] .memorial-page {

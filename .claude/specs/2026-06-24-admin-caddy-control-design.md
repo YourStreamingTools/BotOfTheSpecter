@@ -1,4 +1,4 @@
-# Admin Caddy Control Page — Design
+# Admin Caddy Control Page - Design
 
 **Date:** 2026-06-24
 **Status:** Approved (design); not yet planned/implemented
@@ -11,12 +11,12 @@ I want a new admin page (`dashboard/admin/caddy.php`) that lets admins observe a
 [admin API](https://caddyserver.com/docs/api) on `localhost:2019`.
 
 - **Normal admins (`is_admin`)** get **read-only** monitoring.
-- **Super admins (`super_admin`)** get **full control** — arbitrary config
+- **Super admins (`super_admin`)** get **full control** - arbitrary config
   changes via a raw API console, a Load-config tab, and reload/restart.
 
 Caddy runs **only on the web host**, as the origin web server for all 13
 surfaces (the `web/Caddyfile`). It is not a reverse proxy in front of the API,
-WebSocket, or stream servers — those face the internet directly (Cloudflare is
+WebSocket, or stream servers - those face the internet directly (Cloudflare is
 DNS-only). So this page manages exactly one Caddy instance: the web host's.
 
 ## Goals
@@ -31,7 +31,7 @@ DNS-only). So this page manages exactly one Caddy instance: the web host's.
 
 - Per-certificate expiry dashboard. The admin API has no clean cert-listing
   endpoint; it would require parsing CertMagic storage. Out of scope.
-- Managing the other servers (API/WS/stream) — they run no Caddy.
+- Managing the other servers (API/WS/stream) - they run no Caddy.
 - A visual/point-and-click config builder. The raw console + Load tab already
   provide full control.
 - Exposing `POST /stop` (see Guard rails).
@@ -68,38 +68,38 @@ prepared `SELECT super_admin FROM users WHERE id = ?` keyed on the session's
 - **Server-side enforcement is authoritative.** Every mutating AJAX action
   re-checks the super-admin flag before doing anything and returns a
   `403` JSON error (`{"success":false,"error":…}`) if it's false. The UI
-  disabling is cosmetic — never trusted for authorization.
+  disabling is cosmetic - never trusted for authorization.
 
 ## Transport
 
-### Caddy admin API (reads + API writes) — direct, no SSH
+### Caddy admin API (reads + API writes) - direct, no SSH
 
 The dashboard PHP runs on the web host alongside Caddy, so it can curl
-`http://localhost:2019` directly. A single helper centralises this — a function
+`http://localhost:2019` directly. A single helper centralises this - a function
 that takes a method, a path, an optional body, and a content type, and returns a
 structured result (an `ok` flag, the HTTP status, the body, and any error
 string). Its design rules:
 
-- **Path allowlist** — only these prefixes are permitted:
+- **Path allowlist** - only these prefixes are permitted:
   `/config`, `/id`, `/adapt`, `/load`, `/reverse_proxy`, `/pki`.
 - `/stop` is **rejected at this layer** even if explicitly requested.
 - A reasonable curl timeout, with the structured error return described above.
 - Reads (`GET`) are allowed for any admin; mutating methods require the
   super-admin flag, which the caller checks before invoking the helper.
 
-### reload / restart — existing SSH infrastructure
+### reload / restart - existing SSH infrastructure
 
 Reuse `SSHConnectionManager` against the web host and run
 `sudo -n systemctl reload caddy` or `sudo -n systemctl restart caddy`. This
 mirrors the service-control handler in `admin/index.php`, which runs
 `sudo -n systemctl $action $service`.
 
-That path needs web-host SSH credentials in `config/ssh.php` — a web SSH host,
+That path needs web-host SSH credentials in `config/ssh.php` - a web SSH host,
 plus username and password reusing the shared server credentials. Production
 (`/var/www/config/ssh.php`) already has SSH access to every server; the only
 change needed is adding blank placeholders for the web host to the dev stub
 (`config/ssh.php`). If the web SSH host is empty, the reload/restart buttons
-render disabled with a "web host SSH not configured" note — graceful
+render disabled with a "web host SSH not configured" note - graceful
 degradation in the same spirit as the existing SSH failure handling.
 
 > Note: a `restart` only helps when Caddy is **running-but-wedged**. A fully
@@ -109,35 +109,35 @@ degradation in the same spirit as the existing SSH failure handling.
 
 ## Read-only panels (all admins)
 
-1. **Status** — `GET /config/` returning 200 ⇒ "Running". Caddy version is
+1. **Status** - `GET /config/` returning 200 ⇒ "Running". Caddy version is
    best-effort via SSH `caddy version` (omitted/"unknown" if SSH unavailable).
-2. **Sites / hosts table** — parsed from `GET /config/apps/http/servers`:
+2. **Sites / hosts table** - parsed from `GET /config/apps/http/servers`:
    each server → listen addresses → host matchers → handler type(s). Gives a
    single overview of all configured surfaces.
-3. **Reverse-proxy upstreams** — `GET /reverse_proxy/upstreams`. Renders
+3. **Reverse-proxy upstreams** - `GET /reverse_proxy/upstreams`. Renders
    "none configured" gracefully (the current Caddyfile defines no upstreams).
-4. **TLS / ACME** — issuer and DNS-challenge provider summarised from config,
+4. **TLS / ACME** - issuer and DNS-challenge provider summarised from config,
    with the Cloudflare API token **redacted**.
-5. **Redacted full-config viewer** — `GET /config/` piped through a key-based
+5. **Redacted full-config viewer** - `GET /config/` piped through a key-based
    redactor (strips values whose key contains `token`, `secret`, `password`,
    `key`, `api_token`, `oauth`, etc.), pretty-printed, collapsible.
 
 ## Super-admin control
 
-1. **Raw API console** — method dropdown (`GET/POST/PUT/PATCH/DELETE`), path
+1. **Raw API console** - method dropdown (`GET/POST/PUT/PATCH/DELETE`), path
    input (prefilled `/config/`), JSON body textarea, Send. Destructive methods
    (`POST/PUT/PATCH/DELETE`, and any `/load`) require a typed confirmation.
    Responses are passed through the same redactor before display.
-2. **Load config tab** — a large textarea with an `application/json` ⇄
+2. **Load config tab** - a large textarea with an `application/json` ⇄
    `text/caddyfile` toggle. For `text/caddyfile`, the input is validated via
    `POST /adapt` first; on success it is applied via `POST /load`.
-3. **Reload from on-disk Caddyfile** — SSH `sudo -n systemctl reload caddy`.
-4. **Restart service** — SSH `sudo -n systemctl restart caddy`; typed
+3. **Reload from on-disk Caddyfile** - SSH `sudo -n systemctl reload caddy`.
+4. **Restart service** - SSH `sudo -n systemctl restart caddy`; typed
    confirmation required.
 
 ## Guard rails
 
-- **`/stop` excluded everywhere** — request-layer rejection in the Caddy admin
+- **`/stop` excluded everywhere** - request-layer rejection in the Caddy admin
   helper; not offered in any UI.
 - **Secret redaction** applied to every config payload before it reaches the
   browser or the audit log (the `GET /config/` response contains the resolved
@@ -147,7 +147,7 @@ degradation in the same spirit as the existing SSH failure handling.
   already redacts sensitive keys as a second layer.
 - **Config-drift notice** in the control section: API writes diverge from the
   on-disk `Caddyfile` until a reload. The on-disk Caddyfile is the recovery
-  anchor — "Reload from on-disk Caddyfile" re-applies known-good config while
+  anchor - "Reload from on-disk Caddyfile" re-applies known-good config while
   Caddy is still running, which is the undo path for a bad API edit.
 
 ## Conventions
@@ -187,7 +187,7 @@ The behaviour to confirm once this is built:
 
 - A normal admin sees the read-only panels and no control UI.
 - A normal admin who POSTs a mutating `action` anyway gets a `403` from the
-  server-side super-admin re-check — the security does not depend on the hidden
+  server-side super-admin re-check - the security does not depend on the hidden
   button.
 - A super admin can view the redacted config, run a `GET` through the console,
   run a scoped `PATCH`, load a Caddyfile (adapt → load), reload, and restart

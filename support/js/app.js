@@ -1,5 +1,5 @@
 /* ============================================================
-   BotOfTheSpecter Support Portal — app.js
+   BotOfTheSpecter Support Portal - app.js
    Vanilla JS only, no dependencies
    ============================================================ */
 

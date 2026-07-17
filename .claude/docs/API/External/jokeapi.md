@@ -1,4 +1,4 @@
-# JokeAPI v2 — Comprehensive API Reference
+# JokeAPI v2 - Comprehensive API Reference
 
 Upstream free REST API for jokes. No registration, no payment, no API key required for standard use.
 
@@ -42,7 +42,7 @@ Upstream free REST API for jokes. No registration, no payment, no API key requir
 
 ## 1. Authentication
 
-**No token is required** for standard use. Do not add an Authorization header — it is ignored unless you have been issued a token.
+**No token is required** for standard use. Do not add an Authorization header - it is ignored unless you have been issued a token.
 
 **Optional API tokens** are available for:
 - Clients that are being rate-limited due to high volume
@@ -65,7 +65,7 @@ The response will include a `Token-Valid` header: `1` if the token is recognized
 | --- | --- | --- |
 | General requests | **120 / minute** | Per client IP |
 | Joke submissions | **5 / minute** | Per client IP |
-| Exceeded → | HTTP 429 | — |
+| Exceeded → | HTTP 429 | - |
 
 **Rate-limit response headers** (present on all responses):
 
@@ -114,7 +114,7 @@ Fetch one or more jokes, with optional filtering.
 | `contains` | any string (percent-encoded) | none | Case-insensitive substring search across joke text |
 | `idRange` | `0-100`, `42`, `0-55,100-200` | none | Restrict to specific joke IDs or ranges |
 | `amount` | `1`–`10` | `1` | Number of jokes to return in a single response |
-| `safe-mode` | (no value) | disabled | Enable safe mode — see §9 |
+| `safe-mode` | (no value) | disabled | Enable safe mode - see §9 |
 | `format` | see §7 | `json` | Response format |
 | `lang` | ISO 639-1 | `en` | Joke language |
 
@@ -347,7 +347,7 @@ For `type: "twopart"`, replace `"joke"` with `"setup"` and `"delivery"`:
 ```
 
 **Submission constraints:**
-- `category` must be one of the canonical names — **not** `"Any"`
+- `category` must be one of the canonical names - **not** `"Any"`
 - Only Unicode code points U+0000–U+0FFF are accepted
 - `id` is auto-assigned; do not include it
 - Body must not exceed 5,120 bytes
@@ -359,7 +359,7 @@ For `type: "twopart"`, replace `"joke"` with `"setup"` and `"delivery"`:
 
 | Category | Description |
 | --- | --- |
-| `Any` | Wildcard — selects from all categories randomly. Cannot be used as a submit target. |
+| `Any` | Wildcard - selects from all categories randomly. Cannot be used as a submit target. |
 | `Misc` | Miscellaneous jokes that don't fit other categories. Alias: `Miscellaneous` |
 | `Programming` | Jokes about software development, languages, computers. Alias: `Coding` |
 | `Dark` | Dark-humour jokes. Excluded by safe mode. |
@@ -375,7 +375,7 @@ For `type: "twopart"`, replace `"joke"` with `"setup"` and `"delivery"`:
 | --- | --- |
 | `/joke/Programming` | Only Programming jokes |
 | `/joke/Programming,Misc` | Programming **or** Misc jokes |
-| `/joke/Programming+Misc` | Same as comma — union |
+| `/joke/Programming+Misc` | Same as comma - union |
 | `/joke/Any-Dark` | Any category **except** Dark |
 | `/joke/Any-Dark-Spooky` | Any except Dark and Spooky |
 
@@ -387,7 +387,7 @@ Flags describe content properties of a joke. Setting a flag in `blacklistFlags` 
 
 | Flag | What it marks |
 | --- | --- |
-| `nsfw` | Not Safe For Work — broadly offensive or adult content |
+| `nsfw` | Not Safe For Work - broadly offensive or adult content |
 | `religious` | References to religion or religious figures |
 | `political` | Political content or commentary |
 | `racist` | Racist content |
@@ -702,7 +702,7 @@ j = await Jokes()
 result = await j.get_joke()
 ```
 
-The wrapper calls `GET /joke/Any` internally. No category, type, or blacklist parameters are forwarded by the wrapper — the bot post-filters category against its own per-channel MySQL blacklist by looping `get_joke()` until an acceptable category is returned.
+The wrapper calls `GET /joke/Any` internally. No category, type, or blacklist parameters are forwarded by the wrapper - the bot post-filters category against its own per-channel MySQL blacklist by looping `get_joke()` until an acceptable category is returned.
 
 ### Files
 
@@ -711,26 +711,26 @@ The wrapper calls `GET /joke/Any` internally. No category, type, or blacklist pa
 | `./bot/bot.py` | 37 | ~3242–3318 | Stable. Sync `Jokes()` + `run_in_executor`. Defends against list return shape. Has per-channel blacklist loop. |
 | `./bot/beta.py` | 39 | ~5177–5246 | Beta. Same pattern as stable. |
 | `./bot/beta-v6.py` | 39 | ~4273–4321 | v6. `await Jokes()` then `await get_joke()`. No list-shape defence. |
-| `./bot/kick.py` | 28 | ~985–1001 | Kick bot. Simpler — no per-channel blacklist. |
-| `./api/api.py` | 38 | — | Imported, currently unused at API layer. |
+| `./bot/kick.py` | 28 | ~985–1001 | Kick bot. Simpler - no per-channel blacklist. |
+| `./api/api.py` | 38 | - | Imported, currently unused at API layer. |
 
 ### Endpoints actually used
 
 | Endpoint | Used? | How |
 | --- | --- | --- |
 | `GET /joke/Any` | Yes | Via `jokeapi` wrapper (`get_joke()`) |
-| `GET /info` | No | — |
+| `GET /info` | No | - |
 | `GET /categories` | No | Categories are hard-coded in bot config |
-| `GET /langcode/{language}` | No | — |
-| `GET /languages` | No | — |
-| `GET /flags` | No | — |
-| `GET /formats` | No | — |
-| `GET /ping` | No | — |
-| `POST /submit` | No | — |
+| `GET /langcode/{language}` | No | - |
+| `GET /languages` | No | - |
+| `GET /flags` | No | - |
+| `GET /formats` | No | - |
+| `GET /ping` | No | - |
+| `POST /submit` | No | - |
 
 ### Known gotchas
 
-- **Constructor is sync in stable/beta, async in v6.** Don't mix patterns — `Jokes()` vs `await Jokes()`.
+- **Constructor is sync in stable/beta, async in v6.** Don't mix patterns - `Jokes()` vs `await Jokes()`.
 - **Some wrapper versions return a `list` instead of a `dict`.** `bot.py` and `beta.py` guard against this; `beta-v6.py` does not.
 - **Blacklist loop is unbounded.** If a streamer blacklists all categories the loop never terminates. A max-attempts guard should be added when this code is next modified.
 - **Wrapper doesn't expose `blacklistFlags` or `safe-mode`.** To use those parameters, call the raw HTTP endpoint instead of the wrapper.

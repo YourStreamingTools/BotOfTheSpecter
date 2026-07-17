@@ -1,11 +1,11 @@
 ---
 name: openweathermap-onecall-api
-description: Use when calling, extending, or debugging OpenWeatherMap One Call API 3.0 — the 5 endpoints (current/forecast, timemachine, day_summary, overview, AI assistant), the always-applies units gotcha (default is Kelvin + m/s, NOT Celsius), exclude= rules, error envelope shape, weather condition code ranges, icon URL format, and integration with the BotOfTheSpecter weather flow (Specter API proxy at ./api/api.py — bot files never hit OpenWeatherMap directly).
+description: Use when calling, extending, or debugging OpenWeatherMap One Call API 3.0 - the 5 endpoints (current/forecast, timemachine, day_summary, overview, AI assistant), the always-applies units gotcha (default is Kelvin + m/s, NOT Celsius), exclude= rules, error envelope shape, weather condition code ranges, icon URL format, and integration with the BotOfTheSpecter weather flow (Specter API proxy at ./api/api.py - bot files never hit OpenWeatherMap directly).
 ---
 
 # OpenWeatherMap One Call API 3.0
 
-Reference for One Call API 3.0 — OpenWeatherMap's proprietary unified weather endpoint. Five endpoints under `https://api.openweathermap.org/data/3.0/onecall/*` plus an AI assistant under `https://api.openweathermap.org/assistant/*`. Subscription is **"One Call by Call"** (separate from the legacy 2.5 plans): 1,000 free calls/day by default, pay-per-call beyond.
+Reference for One Call API 3.0 - OpenWeatherMap's proprietary unified weather endpoint. Five endpoints under `https://api.openweathermap.org/data/3.0/onecall/*` plus an AI assistant under `https://api.openweathermap.org/assistant/*`. Subscription is **"One Call by Call"** (separate from the legacy 2.5 plans): 1,000 free calls/day by default, pay-per-call beyond.
 
 This file documents the API surface. For BotOfTheSpecter-specific integration (proxy at `./api/api.py:3782`, MySQL quota counter in `api_counts`, bot/overlay flow, WeatherAPI.com fallback for Kick), see `./.claude/docs/API/External/weather.md`.
 
@@ -17,9 +17,9 @@ This file documents the API surface. For BotOfTheSpecter-specific integration (p
 - Picking the right `exclude=` value to save quota
 - Extending `./api/api.py:3829` (`fetch_weather_data`) to return more than just `current`
 - Triaging an OpenWeatherMap error response (`{cod, message, parameters}`)
-- Adding the AI Weather Assistant (`/assistant/session`) — note: AI assistant prompts are free, but the weather lookups it performs count against your One Call quota
+- Adding the AI Weather Assistant (`/assistant/session`) - note: AI assistant prompts are free, but the weather lookups it performs count against your One Call quota
 
-Skip this file if you're working on the Kick.com `!weather` command — that uses WeatherAPI.com, a different provider with a different shape. See `weather.md`.
+Skip this file if you're working on the Kick.com `!weather` command - that uses WeatherAPI.com, a different provider with a different shape. See `weather.md`.
 
 ## The 5 endpoints
 
@@ -39,7 +39,7 @@ Auth (all endpoints):
 
 In this repo the key lives in env var `WEATHER_API`, loaded at `./api/api.py:66`. Never hardcode. Never log in full. See `secrets.md`.
 
-## Endpoint 1 — `/data/3.0/onecall` (current + forecasts + alerts)
+## Endpoint 1 - `/data/3.0/onecall` (current + forecasts + alerts)
 
 ```text
 GET /data/3.0/onecall?lat={lat}&lon={lon}&appid={key}
@@ -48,16 +48,16 @@ GET /data/3.0/onecall?lat={lat}&lon={lon}&appid={key}
 
 **Required:** `lat` (−90..90), `lon` (−180..180), `appid`.
 
-**`exclude`** — comma-delimited, **no spaces**. Valid values: `current`, `minutely`, `hourly`, `daily`, `alerts`. Excluding a block does NOT save quota (you're still charged 1 call), but it shrinks the response. Use it to keep parsing simple and bandwidth low.
+**`exclude`** - comma-delimited, **no spaces**. Valid values: `current`, `minutely`, `hourly`, `daily`, `alerts`. Excluding a block does NOT save quota (you're still charged 1 call), but it shrinks the response. Use it to keep parsing simple and bandwidth low.
 
 Common patterns:
-- `exclude=minutely,hourly,daily,alerts` — current only. **This is what `./api/api.py:3831` uses.**
-- `exclude=current,minutely,hourly,daily` — alerts only (the "alerts for location" use case)
-- `exclude=minutely` — current + hourly + daily + alerts; skip the minute-by-minute block which is huge
+- `exclude=minutely,hourly,daily,alerts` - current only. **This is what `./api/api.py:3831` uses.**
+- `exclude=current,minutely,hourly,daily` - alerts only (the "alerts for location" use case)
+- `exclude=minutely` - current + hourly + daily + alerts; skip the minute-by-minute block which is huge
 
-**`units`** — `standard` (default — **Kelvin** + m/s), `metric` (Celsius + m/s), `imperial` (Fahrenheit + mph). **Always pass this explicitly.** The default returning Kelvin is the #1 bug source.
+**`units`** - `standard` (default - **Kelvin** + m/s), `metric` (Celsius + m/s), `imperial` (Fahrenheit + mph). **Always pass this explicitly.** The default returning Kelvin is the #1 bug source.
 
-**`lang`** — translates `weather[].description` only. 47 codes supported (en, fr, de, zh_cn, zh_tw, ja, ko, hi, ar, ru, es, pt_br, etc.). Numeric `id` and `main` stay English. Branch on `id`, not `description`.
+**`lang`** - translates `weather[].description` only. 47 codes supported (en, fr, de, zh_cn, zh_tw, ja, ko, hi, ar, ru, es, pt_br, etc.). Numeric `id` and `main` stay English. Branch on `id`, not `description`.
 
 ### Response (top-level)
 
@@ -88,12 +88,12 @@ Common patterns:
 | `visibility` | int m | **Capped at 10000** |
 | `wind_speed`, `wind_gust` | float | m/s or mph; `wind_gust` only "where available" |
 | `wind_deg` | int | Meteorological degrees from N |
-| `rain.1h`, `snow.1h` | float | mm/h. **mm/h only — units= doesn't affect these.** Only present if precipitation is happening |
+| `rain.1h`, `snow.1h` | float | mm/h. **mm/h only - units= doesn't affect these.** Only present if precipitation is happening |
 | `weather` | array | Always at least one element; multiple if compound conditions (rain + thunderstorm) |
-| `weather[].id` | int | **Numeric condition code** — branch on this, not `description` |
+| `weather[].id` | int | **Numeric condition code** - branch on this, not `description` |
 | `weather[].main` | string | English group: `Clear`, `Clouds`, `Rain`, `Snow`, `Thunderstorm`, `Drizzle`, `Atmosphere` |
 | `weather[].description` | string | Translated if `lang=` set |
-| `weather[].icon` | string | e.g. `01d`, `10n` — see [Icon URL](#icon-url) |
+| `weather[].icon` | string | e.g. `01d`, `10n` - see [Icon URL](#icon-url) |
 
 ### `minutely` block
 
@@ -106,7 +106,7 @@ Array of 60 objects, one per minute for the next hour:
 ### `hourly` block
 
 Array of 48 objects, one per hour for the next 48 hours. Same fields as `current` plus:
-- `pop` — Probability of precipitation, **0.0–1.0** (not 0–100)
+- `pop` - Probability of precipitation, **0.0–1.0** (not 0–100)
 
 ### `daily` block
 
@@ -118,8 +118,8 @@ Array of 8 objects (today + 7 days). Has `sunrise`/`sunset` (absent in polar reg
   "feels_like": { "morn": ..., "day": ..., "eve": ..., "night": ... }
   ```
 - `rain` / `snow` are **scalar mm totals** for the day (not the `.1h` object shape used in `current`/`hourly`)
-- `pop` — 0.0–1.0
-- `uvi` — daily **max**, not midday
+- `pop` - 0.0–1.0
+- `uvi` - daily **max**, not midday
 
 `moon_phase`: 0 and 1 = new moon, 0.25 = first quarter, 0.5 = full, 0.75 = last quarter. Intermediate values are linear between.
 
@@ -136,11 +136,11 @@ Array of 8 objects (today + 7 days). Has `sunrise`/`sunset` (absent in polar reg
 }]
 ```
 
-**The `alerts` key is absent from the response entirely when there are no active alerts** — don't `KeyError` on it. Always use `.get("alerts", [])` or equivalent.
+**The `alerts` key is absent from the response entirely when there are no active alerts** - don't `KeyError` on it. Always use `.get("alerts", [])` or equivalent.
 
 `description` is the raw alert text from the agency (often in ALL CAPS with embedded newlines). Default language is English; some agencies provide local-language only and the `lang=` param does **not** translate this field.
 
-## Endpoint 2 — `/data/3.0/onecall/timemachine`
+## Endpoint 2 - `/data/3.0/onecall/timemachine`
 
 ```text
 GET /data/3.0/onecall/timemachine?lat={lat}&lon={lon}&dt={unix}&appid={key}[&units=][&lang=]
@@ -166,17 +166,17 @@ One specific moment. `dt` accepts any Unix timestamp from **1979-01-01 onwards, 
 
 Gotchas:
 - **Historical `uvi` only goes back 5 days** by default. Older UV index requires a contact-OpenWeatherMap request.
-- `data` is an array of one — don't expect multiple timestamps per call.
+- `data` is an array of one - don't expect multiple timestamps per call.
 - For ranges, you call this endpoint N times (and pay N quota units).
 
-## Endpoint 3 — `/data/3.0/onecall/day_summary`
+## Endpoint 3 - `/data/3.0/onecall/day_summary`
 
 ```text
 GET /data/3.0/onecall/day_summary?lat={lat}&lon={lon}&date={YYYY-MM-DD}&appid={key}
                                  [&units=][&lang=][&tz=±HH:MM]
 ```
 
-Aggregated weather for one calendar day. Range: **1979-01-02 to +1.5 years ahead** (note: not 1979-01-01 — the timemachine endpoint covers that day).
+Aggregated weather for one calendar day. Range: **1979-01-02 to +1.5 years ahead** (note: not 1979-01-01 - the timemachine endpoint covers that day).
 
 `date` is `YYYY-MM-DD`. Optional `tz` overrides the auto-detected timezone in `±HH:MM` format (e.g. `+03:00`); when set, the "morning/afternoon/evening/night" buckets are computed relative to that timezone.
 
@@ -198,13 +198,13 @@ Response (no `data` wrapper):
 
 Buckets are at fixed local hours: **morning = 06:00, afternoon = 12:00, evening = 18:00, night = 00:00**.
 
-## Endpoint 4 — `/data/3.0/onecall/overview`
+## Endpoint 4 - `/data/3.0/onecall/overview`
 
 ```text
 GET /data/3.0/onecall/overview?lat={lat}&lon={lon}&appid={key}[&date=YYYY-MM-DD][&units=]
 ```
 
-AI-generated paragraph summarising the weather. `date` is optional — today or tomorrow only. Defaults to today.
+AI-generated paragraph summarising the weather. `date` is optional - today or tomorrow only. Defaults to today.
 
 ```json
 {
@@ -214,11 +214,11 @@ AI-generated paragraph summarising the weather. `date` is optional — today or 
 }
 ```
 
-Good for: dashboard widgets, TTS announcements, chat `!weather` variants that want a friendlier sentence. Not suitable for programmatic decisions — the text is unstructured.
+Good for: dashboard widgets, TTS announcements, chat `!weather` variants that want a friendlier sentence. Not suitable for programmatic decisions - the text is unstructured.
 
 No `lang` param supported on this endpoint as of the docs reviewed; output language follows the user's account default.
 
-## Endpoint 5 — AI Weather Assistant
+## Endpoint 5 - AI Weather Assistant
 
 Two HTTP calls. Free per call, but **internal weather lookups it performs count against your One Call quota**.
 
@@ -254,11 +254,11 @@ Response:
 - `data` is **empty `{}`** when the assistant didn't need to fetch fresh weather (e.g. follow-up question about the same location it just looked up).
 - Numeric values in `data` are **always Kelvin + m/s** (the AI assistant ignores any `units` preference).
 - Persist `session_id` if you want conversational continuity; new POST to `/assistant/session` resets context.
-- Supported in 50+ languages — pass the prompt in any of them; the assistant replies in the same language.
+- Supported in 50+ languages - pass the prompt in any of them; the assistant replies in the same language.
 
 There's also a web interface at `https://openweathermap.org/weather-assistant?apikey={key}` for testing without writing code.
 
-## Units — the most common gotcha
+## Units - the most common gotcha
 
 | `units` value | Temperature | Wind speed | Pressure | Humidity | Rain/Snow |
 |---------------|-------------|------------|----------|----------|-----------|
@@ -270,7 +270,7 @@ There's also a web interface at `https://openweathermap.org/weather-assistant?ap
 
 `pressure`, `humidity`, `rain.1h`, `snow.1h`, `pop`, `clouds`, `visibility`, `uvi` are **never** affected by `units=`. Only `temp*`, `feels_like*`, `dew_point`, `wind_speed`, and `wind_gust`.
 
-**The repo currently fetches the One Call endpoint twice — once with `units=metric` and once with `units=imperial` — to show both °C/°F and m/s/mph in chat (`./api/api.py:3831`).** This costs 2 quota units per `!weather` invocation. To reduce to 1, fetch metric only and convert imperial client-side:
+**The repo currently fetches the One Call endpoint twice - once with `units=metric` and once with `units=imperial` - to show both °C/°F and m/s/mph in chat (`./api/api.py:3831`).** This costs 2 quota units per `!weather` invocation. To reduce to 1, fetch metric only and convert imperial client-side:
 - °F = °C × 9/5 + 32
 - mph = m/s × 2.23694
 - (kph = m/s × 3.6)
@@ -293,7 +293,7 @@ https://openweathermap.org/img/wn/{icon}@2x.png    # 100×100
 https://openweathermap.org/img/wn/{icon}@4x.png    # 200×200
 ```
 
-Repo builds the `@2x` form at `./api/api.py:3851`. The trailing `d`/`n` is day/night — OpenWeatherMap derives this from the **sun's position at the location**, not from the request time, so an evening request for a daytime hemisphere correctly returns `d`.
+Repo builds the `@2x` form at `./api/api.py:3851`. The trailing `d`/`n` is day/night - OpenWeatherMap derives this from the **sun's position at the location**, not from the request time, so an evening request for a daytime hemisphere correctly returns `d`.
 
 ## Weather condition codes
 
@@ -309,7 +309,7 @@ Repo builds the `@2x` form at `./api/api.py:3851`. The trailing `d`/`n` is day/n
 | 800 | Clear sky | `Clear` |
 | 80x | Clouds (801 few, 802 scattered, 803 broken, 804 overcast) | `Clouds` |
 
-Full table: https://openweathermap.org/weather-conditions — fetch that page if you need exact mappings (e.g. `511` = freezing rain, `622` = heavy shower snow).
+Full table: https://openweathermap.org/weather-conditions - fetch that page if you need exact mappings (e.g. `511` = freezing rain, `622` = heavy shower snow).
 
 ## Error response envelope
 
@@ -323,11 +323,11 @@ All endpoints return this shape on error:
 }
 ```
 
-- `cod` is an integer (sometimes returned as string — handle both)
+- `cod` is an integer (sometimes returned as string - handle both)
 - `parameters` is optional; only present for input-validation errors
 - 401 = bad/missing key (or key not subscribed to One Call 3.0)
 - 404 = location not found / coordinates out of supported range
-- 429 = quota exceeded — back off
+- 429 = quota exceeded - back off
 
 **Detect errors by checking for the expected payload block, not by HTTP status alone.** The repo wrapper at `./api/api.py:3829` raises `ValueError` if `current` is missing from the response, because OpenWeatherMap sometimes returns 200 with an error envelope on quota issues.
 
@@ -349,19 +349,19 @@ Currently used:
 - `GET /data/3.0/onecall` with `exclude=minutely,hourly,daily,alerts` → at `./api/api.py:3831` via `fetch_weather_data()`
 
 Not currently used (would extend this skill's footprint):
-- `daily` block — for a forecast feature on the overlay
-- `alerts` block — for severe-weather notifications via TTS or Discord
-- `/timemachine` — for "weather on this day last year" features
-- `/day_summary` — for streamer-set "historic stream day" recaps
-- `/overview` — for the AI-summary version of `!weather`
-- `/assistant/session` — would slot into the existing OpenAI chat flow
+- `daily` block - for a forecast feature on the overlay
+- `alerts` block - for severe-weather notifications via TTS or Discord
+- `/timemachine` - for "weather on this day last year" features
+- `/day_summary` - for streamer-set "historic stream day" recaps
+- `/overview` - for the AI-summary version of `!weather`
+- `/assistant/session` - would slot into the existing OpenAI chat flow
 
 Rules if adding any of the above:
-1. **Always route through `./api/api.py`.** Bot files never call OpenWeatherMap directly — see `data-flow.md`. The proxy is the global quota gate.
-2. **Update `api_counts` decrement.** Currently 3 per `!weather` (1 geocode + 1 metric + 1 imperial). New endpoints add to that — see `./api/api.py:501,574,3805`.
-3. **Emit results over WebSocket** if overlays should receive them — don't poll the API from overlays (`overlays.md`).
+1. **Always route through `./api/api.py`.** Bot files never call OpenWeatherMap directly - see `data-flow.md`. The proxy is the global quota gate.
+2. **Update `api_counts` decrement.** Currently 3 per `!weather` (1 geocode + 1 metric + 1 imperial). New endpoints add to that - see `./api/api.py:501,574,3805`.
+3. **Emit results over WebSocket** if overlays should receive them - don't poll the API from overlays (`overlays.md`).
 4. **Schema additions go in `format_weather_data()`** (`./api/api.py:3839`) so overlay HTML and bot chat formatters get the new fields consistently across `bot.py`, `beta.py`, `beta-v6.py`.
-5. **No second weather provider as a fallback** without coordinating — the Kick bot's WeatherAPI.com integration is intentionally separate, not a fallback (see `weather.md`).
+5. **No second weather provider as a fallback** without coordinating - the Kick bot's WeatherAPI.com integration is intentionally separate, not a fallback (see `weather.md`).
 
 ## Quick reference
 
@@ -383,15 +383,15 @@ Rules if adding any of the above:
 |---------|-----|
 | Omitting `units=` and getting Kelvin | Always pass `units=metric` or `imperial` |
 | Branching on `weather[].description` text | Branch on `weather[].id` (numeric, never translated) |
-| `KeyError` on `alerts` | Use `.get("alerts", [])` — key absent when no alerts |
+| `KeyError` on `alerts` | Use `.get("alerts", [])` - key absent when no alerts |
 | `KeyError` on `sunrise`/`sunset` for polar regions | Always `.get()` |
 | Treating `daily.temp` as a scalar | It's an object: `{morn, day, eve, night, min, max}` |
 | Treating `daily.rain` as `{1h: ...}` | It's a scalar mm total at `daily` level; the `.1h` object shape is `current`/`hourly` only |
 | Treating `pop` as 0–100 | It's 0.0–1.0 |
 | Setting `exclude` with spaces (`current, hourly`) | No spaces: `current,hourly` |
-| Setting `exclude` to skip the only block you need | Excluded blocks are gone from the response — re-read the request |
+| Setting `exclude` to skip the only block you need | Excluded blocks are gone from the response - re-read the request |
 | Calling `/timemachine` for date ranges | One timestamp per call; loop with N quota units |
 | Calling OpenWeatherMap directly from a bot file | Route through `./api/api.py` so `api_counts` stays accurate |
-| Adding a second `units` fetch in a new feature | Convert client-side instead — quota doubles per call otherwise |
+| Adding a second `units` fetch in a new feature | Convert client-side instead - quota doubles per call otherwise |
 | Polling more often than every 10 min | Underlying model updates every 10 min; faster polls waste quota |
 | Logging the key | Log length or last-4 only (see `secrets.md`) |

@@ -19,6 +19,6 @@ Three transport layers exist. Picking the wrong one creates lag, duplicated logi
 2. **Overlays talk only to the WebSocket** (Socket.io client). They do not call the API directly for live data.
 3. **The Dashboard talks to the API** for configuration reads/writes, and emits to the WebSocket for live triggers (e.g., test sound alerts).
 4. **The Bot talks to all three:** Twitch EventSub for chat events, the API for queries, the WebSocket for real-time fan-out.
-5. **New WebSocket events go in the right handler module** — `event_handler.py`, `music_handler.py`, `tts_handler.py`, `obs_handler.py`, `donation_handler.py`. Don't dump everything in `server.py`.
+5. **New WebSocket events go in the right handler module** - `event_handler.py`, `music_handler.py`, `tts_handler.py`, `obs_handler.py`, `donation_handler.py`. Don't dump everything in `server.py`.
 6. **New API endpoints need Pydantic models** for request/response validation, plus auth via `verify_key()` and `resolve_username()`.
 7. **Webhook endpoints (Ko-fi, Patreon, Fourthwall, GitHub, Kick) verify signatures** where the upstream supports it. Don't skip the check.

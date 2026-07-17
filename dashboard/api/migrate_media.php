@@ -114,7 +114,7 @@ if (is_dir($walkon_path)) {
             $seenStmt->execute();
             $seenRes = $seenStmt->get_result();
             $seenStmt->close();
-            // seen_users doesn't store user_id directly — we still need Helix for that
+            // seen_users doesn't store user_id directly - we still need Helix for that
             // but the existence check tells us it's a known chatter
         }
         // Helix lookup

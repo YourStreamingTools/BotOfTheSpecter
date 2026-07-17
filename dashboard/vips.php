@@ -365,7 +365,7 @@ $(document).ready(function() {
         }
     });
 
-    // AJAX form submission — update list without page reload
+    // AJAX form submission - update list without page reload
     $('#vip-modal form').on('submit', function(e) {
         e.preventDefault();
     });

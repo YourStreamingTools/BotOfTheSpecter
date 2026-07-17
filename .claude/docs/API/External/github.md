@@ -1,4 +1,4 @@
-# GitHub API & Webhooks — BotOfTheSpecter
+# GitHub API & Webhooks - BotOfTheSpecter
 
 Local reference for how this project ingests GitHub webhook deliveries and (does not) talk back to the GitHub REST API. Read this before editing the `/github` endpoint, the `GITHUB_EVENT` broadcast path, or anything that consumes repo/release data.
 
@@ -8,8 +8,8 @@ Local reference for how this project ingests GitHub webhook deliveries and (does
 
 BotOfTheSpecter is **inbound-only** for GitHub at the runtime layer:
 
-- **Inbound** — GitHub repo webhooks POST to `https://api.botofthespecter.com/github`, are validated against an admin API key, then forwarded to the WebSocket server, which fans them out to admin-authenticated global listeners (the Discord bot).
-- **Outbound** — There are **no live REST calls to `api.github.com` from the bot, API server, WebSocket server, or PHP dashboard.** The only GitHub references in PHP are static `<a href="https://github.com/…">` links on the marketing pages. See section 4.
+- **Inbound** - GitHub repo webhooks POST to `https://api.botofthespecter.com/github`, are validated against an admin API key, then forwarded to the WebSocket server, which fans them out to admin-authenticated global listeners (the Discord bot).
+- **Outbound** - There are **no live REST calls to `api.github.com` from the bot, API server, WebSocket server, or PHP dashboard.** The only GitHub references in PHP are static `<a href="https://github.com/…">` links on the marketing pages. See section 4.
 
 This makes the GitHub integration small, but the rules around webhook authenticity still matter.
 
@@ -39,12 +39,12 @@ Global listeners (admin-authenticated, e.g. Discord bot)
 | --- | --- |
 | URL | `https://api.botofthespecter.com/github` |
 | Method | `POST` |
-| Auth | Admin API key in query string (`?api_key=...`) — **not** GitHub's `X-Hub-Signature-256` |
+| Auth | Admin API key in query string (`?api_key=...`) - **not** GitHub's `X-Hub-Signature-256` |
 | Required admin scope | `service='GitHub'` or `service='admin'` (super-admin) |
 | Response | `200 {"status":"success","message":"GitHub Webhook received"}` |
 | Implementation | `./api/api.py` lines ~2018–2062 |
 | OpenAPI tag | `Admin Only` |
-| V2 routing | Listed in `_V2_WEBHOOK_PATHS` (`./api/api.py` line 718) — exempt from V2's `X-API-KEY` header rewrite, keeps `api_key` in URL |
+| V2 routing | Listed in `_V2_WEBHOOK_PATHS` (`./api/api.py` line 718) - exempt from V2's `X-API-KEY` header rewrite, keeps `api_key` in URL |
 
 ### 2.2 How to configure the GitHub side
 
@@ -53,7 +53,7 @@ When adding a webhook to a repository under https://github.com/YourStreamingTool
 - **Payload URL:** `https://api.botofthespecter.com/github?api_key=<ADMIN_KEY>`  
   The admin key must exist in the `admin_api_keys` table with `service='GitHub'` (or `'admin'`).
 - **Content type:** `application/json`
-- **Secret:** Leave blank, or fill it in for future-proofing — see section 5.1, this project does **not** currently verify it.
+- **Secret:** Leave blank, or fill it in for future-proofing - see section 5.1, this project does **not** currently verify it.
 - **SSL verification:** Enable.
 - **Events:** Select the events you want forwarded (push, release, issues, etc.). The endpoint accepts everything; the consumer (Discord bot) decides what to react to.
 
@@ -63,16 +63,16 @@ When adding a webhook to a repository under https://github.com/YourStreamingTool
 
 | Header | Used for |
 | --- | --- |
-| `X-GitHub-Event` | Event name (e.g. `push`, `release`) — stored in forwarded payload as `event` |
-| `X-GitHub-Delivery` | Per-delivery UUID — forwarded as `delivery` for de-dup/logging |
+| `X-GitHub-Event` | Event name (e.g. `push`, `release`) - stored in forwarded payload as `event` |
+| `X-GitHub-Delivery` | Per-delivery UUID - forwarded as `delivery` for de-dup/logging |
 
 Headers GitHub sends but **this endpoint does not read** (relevant if you ever harden it):
 
-- `X-Hub-Signature-256` — HMAC-SHA256 of raw body, prefixed `sha256=` (see section 5.1)
+- `X-Hub-Signature-256` - HMAC-SHA256 of raw body, prefixed `sha256=` (see section 5.1)
 - `X-GitHub-Hook-ID`
 - `X-GitHub-Hook-Installation-Target-ID`
 - `X-GitHub-Hook-Installation-Target-Type`
-- `User-Agent` — always starts with `GitHub-Hookshot/`
+- `User-Agent` - always starts with `GitHub-Hookshot/`
 
 ### 2.4 Auth flow inside the endpoint
 
@@ -109,7 +109,7 @@ url = f"https://websocket.botofthespecter.com/notify?{urlencode(params)}"
 async with session.get(url, timeout=10) as response: ...
 ```
 
-Forwarding is HTTP `GET` to the WebSocket server's `/notify` route — same pattern used by the Ko-fi, Patreon, Fourthwall, FreeStuff handlers. A `timeout=10` applies; on timeout or non-200 response the API returns `500`.
+Forwarding is HTTP `GET` to the WebSocket server's `/notify` route - same pattern used by the Ko-fi, Patreon, Fourthwall, FreeStuff handlers. A `timeout=10` applies; on timeout or non-200 response the API returns `500`.
 
 ### 2.6 WebSocket-side handling
 
@@ -120,7 +120,7 @@ Forwarding is HTTP `GET` to the WebSocket server's `/notify` route — same patt
 
 `handle_github_event()` (line ~1001):
 
-1. Re-parses `data` (string → dict) — it is JSON-encoded inside the URL param.
+1. Re-parses `data` (string → dict) - it is JSON-encoded inside the URL param.
 2. Re-parses `data['data']` (the inner GitHub payload), with a fallback to `ast.literal_eval` for legacy stringified-dict inputs.
 3. Pulls `event = webhook_data.get('event', 'unknown')`.
 4. Iterates `self.global_listeners` (admin-authenticated SocketIO clients only) and emits:
@@ -133,7 +133,7 @@ await self.sio.emit('GITHUB_EVENT', {
 }, to=listener['sid'])
 ```
 
-Note: `GITHUB_EVENT` is **only** sent to global listeners — it is not broadcast to per-channel `registered_clients`. End-users' overlays/dashboards do not receive GitHub events. Today the practical consumer is the Discord bot when it registers as a global listener.
+Note: `GITHUB_EVENT` is **only** sent to global listeners - it is not broadcast to per-channel `registered_clients`. End-users' overlays/dashboards do not receive GitHub events. Today the practical consumer is the Discord bot when it registers as a global listener.
 
 ### 2.7 Event types accepted
 
@@ -238,10 +238,10 @@ No `action` field. `commits` is capped at 2048 entries by GitHub.
 
 ### 2.8 Common payload fields (every event)
 
-- `repository` — repo object (full name, owner, default branch, etc.).
-- `sender` — GitHub user who triggered the event.
-- `organization` — present only for org-installed webhooks.
-- `installation` — present only for GitHub App deliveries.
+- `repository` - repo object (full name, owner, default branch, etc.).
+- `sender` - GitHub user who triggered the event.
+- `organization` - present only for org-installed webhooks.
+- `installation` - present only for GitHub App deliveries.
 
 ### 2.9 What downstream consumers see
 
@@ -253,7 +253,7 @@ The Discord bot (or any future global listener) receives a SocketIO `GITHUB_EVEN
   "data":     { "ref": "...", "commits": [...], "repository": {...}, "sender": {...} } }
 ```
 
-`data` is the **full GitHub payload** unmodified — consumers can branch on `event` (push/release/issues/...) and read whatever fields they need. The `action` sub-discriminator (e.g. `release.action="published"`) lives inside `data`, not at the top level.
+`data` is the **full GitHub payload** unmodified - consumers can branch on `event` (push/release/issues/...) and read whatever fields they need. The `action` sub-discriminator (e.g. `release.action="published"`) lives inside `data`, not at the top level.
 
 ---
 
@@ -276,16 +276,16 @@ If you change the wrapping on the API side, also adjust `handle_github_event` in
 
 Verified by grep across the repo (excluding `vendor/`):
 
-- `api.github.com` — no matches.
-- `github.com/repos` — no matches.
-- `GITHUB_TOKEN` / `github_token` — no matches.
-- `Authorization: Bearer` against GitHub — no matches.
+- `api.github.com` - no matches.
+- `github.com/repos` - no matches.
+- `GITHUB_TOKEN` / `github_token` - no matches.
+- `Authorization: Bearer` against GitHub - no matches.
 
 The only `github.com` references in source are static frontend links:
 
-- `./home/index.php` — link to https://github.com/YourStreamingTools/BotOfTheSpecter.
-- `./dashboard/controllerapp.php` — link to the OBS-Connector releases page.
-- Various `./dashboard/lang/*.php`, `./support/`, `./roadmap/`, `./help/` files — UI strings and footer links.
+- `./home/index.php` - link to https://github.com/YourStreamingTools/BotOfTheSpecter.
+- `./dashboard/controllerapp.php` - link to the OBS-Connector releases page.
+- Various `./dashboard/lang/*.php`, `./support/`, `./roadmap/`, `./help/` files - UI strings and footer links.
 
 If outbound calls are ever added, follow these conventions (none of which currently apply):
 
@@ -293,7 +293,7 @@ If outbound calls are ever added, follow these conventions (none of which curren
 | --- | --- |
 | Token type | Fine-grained PAT or GitHub App installation token, **not** classic PAT. |
 | Storage | Python: `os.getenv("GITHUB_TOKEN")` from `/home/botofthespecter/.env`. PHP: `./config/github.php` per [php-config.md](../../../rules/php-config.md). |
-| Header | `Authorization: Bearer <token>` (use `Bearer`, not `token` — works for PAT and JWT). |
+| Header | `Authorization: Bearer <token>` (use `Bearer`, not `token` - works for PAT and JWT). |
 | Versioning | `X-GitHub-Api-Version: 2022-11-28`. |
 | User-Agent | Required by GitHub. Use a stable identifier like `BotOfTheSpecter/1.0`. |
 | Rate limit | 5,000 requests/hour authenticated, 60/hour unauthenticated, 15,000/hour for GitHub Apps on Enterprise. Track in `website.api_counts` if added (same pattern as Weather/Shazam). |
@@ -326,8 +326,8 @@ async def handle_github_webhook(request: Request, api_key: str = Query(...)):
 Critical points:
 
 1. **Compute HMAC over the raw request body bytes, not over a re-encoded JSON.** `await request.json()` parses and re-encodes; the bytes will not match. Capture `await request.body()` first, verify, then `json.loads(raw_body)`.
-2. **Use `hmac.compare_digest()`** for constant-time comparison — never `==`. Standard equality leaks timing info.
-3. The header value is `sha256=<hex>`; do not strip the prefix before comparing — include it in the expected value too.
+2. **Use `hmac.compare_digest()`** for constant-time comparison - never `==`. Standard equality leaks timing info.
+3. The header value is `sha256=<hex>`; do not strip the prefix before comparing - include it in the expected value too.
 4. Store the secret in `/home/botofthespecter/.env` as `GITHUB_WEBHOOK_SECRET` and re-use the same value in the GitHub repo's webhook configuration.
 5. Per [secrets.md](../../../rules/secrets.md): never log the secret; never log the full signature header.
 
@@ -343,7 +343,7 @@ Implications:
 
 ### 5.3 Replay attacks
 
-`X-GitHub-Delivery` is a UUID per delivery. If signature verification is added, also de-dup on `delivery` to guard against an attacker replaying a previously-captured (signed) request. Today, the admin-API-key gate makes replay roughly equivalent to having the key — already game over — so this isn't urgent, but worth doing alongside signature verification.
+`X-GitHub-Delivery` is a UUID per delivery. If signature verification is added, also de-dup on `delivery` to guard against an attacker replaying a previously-captured (signed) request. Today, the admin-API-key gate makes replay roughly equivalent to having the key - already game over - so this isn't urgent, but worth doing alongside signature verification.
 
 ### 5.4 Issue comments fire on PRs too
 
@@ -367,7 +367,7 @@ The `/github` endpoint **only** accepts admin keys with `service='GitHub'` or `s
 
 ---
 
-## 6. Quick reference — file map
+## 6. Quick reference - file map
 
 | What | Where |
 | --- | --- |
@@ -385,19 +385,19 @@ The `/github` endpoint **only** accepts admin keys with `service='GitHub'` or `s
 
 ---
 
-## 7. Adding GitHub features later — checklist
+## 7. Adding GitHub features later - checklist
 
 If you add downstream handling (e.g. Discord posts a message on `release`):
 
 1. Subscribe a global listener via the existing admin SocketIO auth flow.
 2. Listen for `GITHUB_EVENT` and branch on `payload.event`.
 3. For `release.action`, read `payload.data.action` (it lives inside `data`, not at the top).
-4. Handle `ping` gracefully — log it and return; don't post to Discord.
+4. Handle `ping` gracefully - log it and return; don't post to Discord.
 5. De-dup on `payload.delivery` if at-least-once delivery would cause duplicate user-visible side effects.
 
 If you add a new event type to react to:
 
-1. No code change is needed at the API layer — `/github` accepts everything.
+1. No code change is needed at the API layer - `/github` accepts everything.
 2. Add the GitHub event in the repo's webhook settings (or "Send all events").
 3. Add the handler in the consumer (Discord bot, etc.).
 
@@ -406,7 +406,7 @@ If you add outbound REST calls:
 1. Add `GITHUB_TOKEN` to `/home/botofthespecter/.env` per [secrets.md](../../../rules/secrets.md).
 2. Send `Authorization: Bearer …`, `User-Agent: BotOfTheSpecter/1.0`, `X-GitHub-Api-Version: 2022-11-28`.
 3. Track quota in `website.api_counts` if calls are frequent (5,000/hr ceiling).
-4. Cache release/repo metadata — most consumers don't need fresh-every-request data.
+4. Cache release/repo metadata - most consumers don't need fresh-every-request data.
 
 ---
 

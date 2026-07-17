@@ -380,7 +380,7 @@ ob_end_clean();
                         return value;
                     }
                 } catch (error) {
-                    /* getComputedStyle unavailable — fall through to the static accent */
+                    /* getComputedStyle unavailable - fall through to the static accent */
                 }
                 return phase.accent;
             };
@@ -1297,7 +1297,7 @@ ob_end_clean();
                 if (isTimerTask(task)) return '⏱';
                 return '';
             };
-            // /notify transport JSON-encodes the nested task dict — decode if needed.
+            // /notify transport JSON-encodes the nested task dict - decode if needed.
             const parseTaskPayload = (raw) => {
                 if (typeof raw === 'string') {
                     try { return JSON.parse(raw); } catch (e) { return null; }
@@ -1389,7 +1389,7 @@ ob_end_clean();
                         return value;
                     }
                 } catch (error) {
-                    /* getComputedStyle unavailable — fall through to the static colour */
+                    /* getComputedStyle unavailable - fall through to the static colour */
                 }
                 return fallback;
             };
@@ -1431,7 +1431,7 @@ ob_end_clean();
                 }
                 const row = findPomoRow(key);
                 if (!row) {
-                    // No visible row yet — keep the state, drop any stale badge node.
+                    // No visible row yet - keep the state, drop any stale badge node.
                     const orphan = document.getElementById('pomo-badge-' + key);
                     if (orphan) orphan.remove();
                     return;

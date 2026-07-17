@@ -29,7 +29,7 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
-// Per-category variant caps. A follow is a follow — no condition can
+// Per-category variant caps. A follow is a follow - no condition can
 // meaningfully split it, so 1 is the only sane number.
 $variantLimits = [
     'follow'       => 1,
@@ -67,12 +67,12 @@ $defaultAlerts = [
     ['raid', 'Raid', 0, 'viewers >= 1', "{username}\nraiding with {viewers}!"],
     ['hype_train', 'Hype train started', 0, null, "The Hype Train is leaving the station!"],
     ['hype_train', 'Level 3 reached',    1, 'level >= 3', "Hype Train is at Level {level}!"],
-    ['hype_train', 'Level 5 reached',    2, 'level >= 5', "MAX LEVEL — Hype Train hit Level {level}!"],
+    ['hype_train', 'Level 5 reached',    2, 'level >= 5', "MAX LEVEL - Hype Train hit Level {level}!"],
     ['charity', 'Charity donation',  0, null,             "{username}\ndonated {amount} to {charity_name}!"],
-    ['charity', 'Large donation',    1, 'amount >= 100',  "Massive thank-you to {username}\n— {amount} for {charity_name}!"],
-    ['charity', 'Mega donation',     2, 'amount >= 500',  "INCREDIBLE — {username} just dropped {amount} for {charity_name}!"],
+    ['charity', 'Large donation',    1, 'amount >= 100',  "Massive thank-you to {username}\n- {amount} for {charity_name}!"],
+    ['charity', 'Mega donation',     2, 'amount >= 500',  "INCREDIBLE - {username} just dropped {amount} for {charity_name}!"],
     ['channel_points', 'Channel point reward', 0, null, "{username}\nredeemed a reward!"],
-    // BotOfTheSpecter integrations — what makes this page ours
+    // BotOfTheSpecter integrations - what makes this page ours
     ['discord_join', 'New Discord member', 0, null, "{username}\nhopped into the Discord!"],
     ['kofi', 'Ko-fi Support', 0, null, "{username}\nsupported on Ko-fi!"],
     ['patreon', 'Patreon Support', 0, null, "{username}\nbecame a patron!"],
@@ -466,7 +466,7 @@ $mediaBase = "https://media.botofthespecter.com/$username/";
 $browserSourceUrl = "https://overlay.botofthespecter.com/?code=" . urlencode($api_key);
 $totalVariants = count($allAlerts);
 
-// Library files exposed to the picker — only types this builder can use
+// Library files exposed to the picker - only types this builder can use
 $libraryImageExts = ['png', 'jpg', 'jpeg', 'gif', 'webm'];
 $librarySoundExts = ['mp3'];
 $libraryImages = [];
@@ -490,7 +490,7 @@ ob_start();
         <i class="fas fa-photo-film"></i>
         <span><?= t('alerts_media_notice') ?></span>
     </div>
-    <!-- Top header bar — title, counter, save/discard -->
+    <!-- Top header bar - title, counter, save/discard -->
     <header class="alerts-top-bar">
         <div class="alerts-top-bar-left">
             <h1 class="alerts-page-title"><?= t('alerts_page_title') ?></h1>
@@ -1039,7 +1039,7 @@ ob_start();
         </div>
     </footer>
 </div>
-<!-- Media library picker — used by both image and sound "Browse library" buttons -->
+<!-- Media library picker - used by both image and sound "Browse library" buttons -->
 <div class="sp-modal-backdrop" id="alerts-library-modal" style="display:none;">
     <div class="sp-modal alerts-library-modal-card" role="dialog" aria-modal="true" aria-labelledby="alerts-library-modal-title">
         <header class="sp-modal-head">
@@ -1116,7 +1116,7 @@ $(document).ready(function() {
         chooseImage: <?php echo json_encode(t('alerts_choose_image')); ?>,
         chooseSound: <?php echo json_encode(t('alerts_choose_sound')); ?>
     };
-    // Enable/disable-only categories — selecting one shows just an on/off switch;
+    // Enable/disable-only categories - selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
     const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall'];
     // ---- Drag-to-place position editor -------------------------------------
@@ -1788,7 +1788,7 @@ $(document).ready(function() {
         }
         $.post('', { action: 'toggle_alert', id: id, enabled: enabled }, null, 'json');
     });
-    // Per-category randomize toggle — also fires immediately, single-field
+    // Per-category randomize toggle - also fires immediately, single-field
     $(document).on('change', '.alerts-randomize-toggle', function() {
         var category = $(this).data('category');
         var randomize = this.checked ? 1 : 0;
@@ -2143,7 +2143,7 @@ $(document).ready(function() {
             }
         }, 'json');
     });
-    // Click-to-reveal on the OBS browser source URL — masked by default so the
+    // Click-to-reveal on the OBS browser source URL - masked by default so the
     // API key embedded in the URL isn't visible in screen recordings.
     $('#alerts-browser-source-url').on('focus click', function() {
         this.type = 'text';

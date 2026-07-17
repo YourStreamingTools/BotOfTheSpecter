@@ -95,7 +95,7 @@ $host = $username !== '' ? $username : 'specter';
 
     // Pill theme: enable a smooth one-way marquee only when the title/artist
     // overflows the pill. Measured at zoom 1 (clean px) and re-run only when the
-    // track changes — so the loop doesn't restart on every poll.
+    // track changes - so the loop doesn't restart on every poll.
     function measureMarquee() {
         const text = root.querySelector('.spotify-overlay-page-pill-text');
         if (!text) return;
@@ -168,7 +168,7 @@ $host = $username !== '' ? $username : 'specter';
         if (isPlaying && durMs) { progMs = Math.min(durMs, progMs + 1000); paint(); }
     }, 1000);
     // Resize only needs to re-fit zoom; the pill is a fixed width so the
-    // marquee decision can't change — don't restart the scroll on every resize.
+    // marquee decision can't change - don't restart the scroll on every resize.
     window.addEventListener('resize', () => layout(false));
 })();
 </script>

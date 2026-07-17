@@ -1,4 +1,4 @@
-# Custom Command Aliases (BETA) — Design Spec
+# Custom Command Aliases (BETA) - Design Spec
 
 **Date:** 2026-06-28
 **Scope:** the beta Twitch bots (`bot/beta.py`, `bot/beta-v6.py`), the custom-commands dashboard page, the per-user schema manager, and the dashboard language files. Stable `bot/bot.py` is intentionally left alone.
@@ -6,7 +6,7 @@
 
 ## Problem
 
-A streamer who wants two names for the same custom command — say `!book` should behave exactly like `!books` — has no clean way to do it today. The only workaround is to create a second command whose response is the `(command.books)` placeholder. That approach is poor for several reasons:
+A streamer who wants two names for the same custom command - say `!book` should behave exactly like `!books` - has no clean way to do it today. The only workaround is to create a second command whose response is the `(command.books)` placeholder. That approach is poor for several reasons:
 
 - It duplicates the command as a real row with its own response, cooldown, and permission, all of which can drift away from the target over time.
 - It emits the target's output as a *separate, appended* "additional" message rather than running as the real command.
@@ -16,11 +16,11 @@ There is no first-class alias concept for custom commands. (A hardcoded `builtin
 
 ## Goal
 
-Let a streamer attach one or more **aliases to a custom command**. Typing any alias should run that command exactly as if the canonical name had been typed — a true alias, not a copy. Aliases are configured through a new comma-separated input on the **Edit** form of the custom-commands dashboard page, marked clearly as a BETA feature.
+Let a streamer attach one or more **aliases to a custom command**. Typing any alias should run that command exactly as if the canonical name had been typed - a true alias, not a copy. Aliases are configured through a new comma-separated input on the **Edit** form of the custom-commands dashboard page, marked clearly as a BETA feature.
 
 ## Design decisions
 
-1. **True alias, shared cooldown.** An alias uses the target command's response, permission, and cooldown — and using an alias also cools down the canonical command. We achieve this by redirecting the dispatch to the canonical command name *before* the existing permission, cooldown, and processing logic runs, so everything downstream operates on the canonical command.
+1. **True alias, shared cooldown.** An alias uses the target command's response, permission, and cooldown - and using an alias also cools down the canonical command. We achieve this by redirecting the dispatch to the canonical command name *before* the existing permission, cooldown, and processing logic runs, so everything downstream operates on the canonical command.
 2. **Beta bots only.** The resolution logic ships in `beta.py` and `beta-v6.py`. Stable `bot.py` is untouched and simply ignores the new column. There is no `(command.<target>)` fallback message.
 3. **Aliases live on the target command** as a comma-separated list. Because an alias name is never its own table row, alias *chains* are structurally impossible, so we don't need chain or loop handling beyond a single defensive redirect.
 
@@ -54,7 +54,7 @@ On a hit, the dispatch reassigns the working command name to the returned canoni
 - The cooldown is keyed on the canonical name, so the alias and the command share a single cooldown.
 - Dynamic-variable processing runs with the canonical name and canonical response, so it behaves byte-for-byte like the real command (including `(command.)`, `(user)`, and the rest).
 - Usage tracking records under the canonical name.
-- Status is checked downstream rather than filtered in SQL, so a disabled canonical command disables its aliases too — correct for a true alias.
+- Status is checked downstream rather than filtered in SQL, so a disabled canonical command disables its aliases too - correct for a true alias.
 
 ### Placement in each bot
 
@@ -67,7 +67,7 @@ The extra lookup is small enough to inline at each insert point; it reuses the c
 
 ### Edit form (the primary surface)
 
-Add an **Aliases** field after the permission selector, carrying a BETA badge. It's a single text input taking a comma-separated list, with help text explaining that the names are alternates for this command, that they work on beta bots only, and that each alias runs the command exactly and shares its cooldown. The field is populated from the selected command when the edit combobox changes — the command data exposed to the page already includes every column, so the alias value is available client-side.
+Add an **Aliases** field after the permission selector, carrying a BETA badge. It's a single text input taking a comma-separated list, with help text explaining that the names are alternates for this command, that they work on beta bots only, and that each alias runs the command exactly and shares its cooldown. The field is populated from the selected command when the edit combobox changes - the command data exposed to the page already includes every column, so the alias value is available client-side.
 
 ### Save handler
 
@@ -77,7 +77,7 @@ Then run a conflict check against the other rows: gather every other command's n
 
 ### Command list
 
-In the command table, show a command's aliases subtly beneath its name (for example, a muted `!book, !bk` line). This is read-only — editing happens through the Edit form — but it lets a streamer see aliases at a glance.
+In the command table, show a command's aliases subtly beneath its name (for example, a muted `!book, !bk` line). This is read-only - editing happens through the Edit form - but it lets a streamer see aliases at a glance.
 
 ### Add form
 
@@ -85,14 +85,14 @@ Left unchanged. New commands default to no aliases; the streamer edits a command
 
 ### Internationalization
 
-The new labels — the field label, the BETA tag, the placeholder, the help text, and the conflict warning — go through the dashboard's `t()` translation layer. Keys are added to the English base and to the German and French files per the project's i18n rule, with French apostrophes escaped.
+The new labels - the field label, the BETA tag, the placeholder, the help text, and the conflict warning - go through the dashboard's `t()` translation layer. Keys are added to the English base and to the German and French files per the project's i18n rule, with French apostrophes escaped.
 
 ## Out of scope (deliberately)
 
-- Chat-command management of aliases (`!addcommand` / `!editcommand`) — the dashboard is the configuration surface.
+- Chat-command management of aliases (`!addcommand` / `!editcommand`) - the dashboard is the configuration surface.
 - Porting to stable `bot.py` or to the Discord/Kick companion bots.
-- Aliases on `custom_user_commands` — only `custom_commands`.
-- Per-alias cooldown or permission overrides — rejected in favor of the true-alias model.
+- Aliases on `custom_user_commands` - only `custom_commands`.
+- Per-alias cooldown or permission overrides - rejected in favor of the true-alias model.
 
 ## Risks and edge cases
 
@@ -100,7 +100,7 @@ The new labels — the field label, the BETA tag, the placeholder, the help text
 - **Casing and spacing in `FIND_IN_SET`.** Mitigated by storing a normalized, lowercase, space-free list; the default collation also makes the match case-insensitive.
 - **Stable users on the shared dashboard.** They can set aliases that do nothing until they run a beta bot. Accepted under the "beta only" decision; the BETA badge signals it.
 - **Renaming a command that has aliases.** The aliases column travels with the row, so a rename keeps them intact.
-- **Deleting a command.** Aliases are a column on the row and are removed with it — no orphans.
+- **Deleting a command.** Aliases are a column on the row and are removed with it - no orphans.
 
 ## How we'll know it's right
 

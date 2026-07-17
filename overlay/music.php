@@ -294,11 +294,11 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             if (currentKey !== null) {
                 const sameIndex = playlist.findIndex(song => getSongKey(song) === currentKey);
                 if (sameIndex >= 0) {
-                    // Still-playing song just moved slots — re-anchor so playNextSong() advances correctly.
+                    // Still-playing song just moved slots - re-anchor so playNextSong() advances correctly.
                     currentIndex = sameIndex;
                     return;
                 }
-                // Playing song was filtered out — resume from whichever track would have followed it.
+                // Playing song was filtered out - resume from whichever track would have followed it.
                 for (let i = 1; i <= previousPlaylist.length; i++) {
                     const nextKey = getSongKey(previousPlaylist[(currentIndex + i) % previousPlaylist.length]);
                     const nextIndex = playlist.findIndex(song => getSongKey(song) === nextKey);
@@ -317,7 +317,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             if (playlist.length > 0) {
                 playSongByIndex(0);
             } else {
-                // no tracks available for the selected source — wait for NOW_PLAYING from controller
+                // no tracks available for the selected source - wait for NOW_PLAYING from controller
                 console.log('[Overlay] no tracks available for current music source; waiting for NOW_PLAYING events');
             }
         }

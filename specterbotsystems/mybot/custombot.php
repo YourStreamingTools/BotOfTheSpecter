@@ -303,7 +303,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'login'
     // Build StreamersConnect URL
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
     $originDomain = $_SERVER['HTTP_HOST'];
-    // Use only the script path — no query string — so the return URL is clean
+    // Use only the script path - no query string - so the return URL is clean
     $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'];
     $streamersconnectBase = 'https://streamersconnect.com/';
     $authUrl = $streamersconnectBase . '?' . http_build_query([

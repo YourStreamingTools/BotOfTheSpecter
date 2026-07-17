@@ -25,11 +25,11 @@ define('BOTS_SESSION_BOOTSTRAPPED', true);
 //
 // Detect the obvious crawler/preview-bot user agents and bail out
 // BEFORE session_start so they never get a Set-Cookie at all. The
-// bot still receives the page (we don't 403 them — losing SEO on
+// bot still receives the page (we don't 403 them - losing SEO on
 // home/support docs would be worse than the DB churn). They just
 // don't get session storage.
 //
-// Pattern is intentionally broad — any false positive just means a
+// Pattern is intentionally broad - any false positive just means a
 // "real user" with a botty UA loses session, which they can
 // correct by using a normal browser. The trade is heavily in our
 // favor at the database level.
@@ -47,9 +47,9 @@ $bots_ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 //   Uptime monitors: hetrixtools, uptimerobot, pingdom, statuscake, uptime,
 //                    site24x7, betteruptime, monitorbacklinks, newrelicpinger
 //   Generic:         crawl, spider, scrapy, python-requests, curl/, wget/
-// All matched UAs short-circuit BEFORE session_start — no cookie, no
+// All matched UAs short-circuit BEFORE session_start - no cookie, no
 // session id generated, no DB row written. They still receive the page
-// (we don't 403 — losing SEO/uptime visibility is worse than the churn).
+// (we don't 403 - losing SEO/uptime visibility is worse than the churn).
 if ($bots_ua !== '' && preg_match(
     '~(?:googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|'
     . 'facebot|facebookexternalhit|twitterbot|linkedinbot|slackbot|discordbot|'
@@ -62,7 +62,7 @@ if ($bots_ua !== '' && preg_match(
     $bots_ua
 )) {
     // Don't start a session, don't set a cookie, don't write a row.
-    // $_SESSION will be undefined for the rest of the request — code
+    // $_SESSION will be undefined for the rest of the request - code
     // that does isset()/empty()/$_SESSION[...] reads handles that fine
     // (PHP returns null for missing superglobal keys without warning).
     return;
@@ -99,7 +99,7 @@ if (isset($db_password))   $GLOBALS['db_password']   = $db_password;
 $BOTS_SESSION_LIFETIME = BOTS_SESSION_LIFETIME;
 
 // ----------------------------------------------------------------
-// Cookie config — must run before session_start().
+// Cookie config - must run before session_start().
 // Domain '.botofthespecter.com' (leading dot) makes the cookie span
 // home / dashboard / support / members.
 // ----------------------------------------------------------------
@@ -142,7 +142,7 @@ session_start();
 // support and members historically read the snake_case variants.
 // Mirror them at read time so every app sees the keys it expects
 // regardless of which login flow populated the row. New keys added
-// here also persist back to web_sessions on the next write — harmless
+// here also persist back to web_sessions on the next write - harmless
 // duplication, keeps the source-of-truth row complete.
 // ----------------------------------------------------------------
 $BOTS_SESSION_ALIASES = [
@@ -170,7 +170,7 @@ foreach ($BOTS_SESSION_ALIASES as $primary => $alias) {
 //
 // Twitch validate is the sole authority for "is this login still real?".
 // The denormalized twitch_expires_at column is only a hint for when to
-// re-check — it must never destroy a session on its own.
+// re-check - it must never destroy a session on its own.
 // ----------------------------------------------------------------
 if (!empty($_SESSION['access_token'])) {
     $now           = time();
@@ -220,12 +220,12 @@ if (!empty($_SESSION['access_token'])) {
                     error_log('[session_bootstrap] twitch validate 401, refreshed access token for sid='
                         . session_id());
                 } elseif (($refresh['reason'] ?? '') === 'transient') {
-                    // Refresh failed for operational reasons — keep session,
+                    // Refresh failed for operational reasons - keep session,
                     // retry soon. Do not bounce the user to SSO.
                     error_log('[session_bootstrap] token refresh transient http='
                         . ($refresh['http'] ?? '?')
                         . ' err=' . ($refresh['err'] ?? '')
-                        . ' — keeping session');
+                        . ' - keeping session');
                     $_SESSION['last_validated_at'] = $now - 240;
                     $kept = true;
                 } else {
@@ -255,11 +255,11 @@ if (!empty($_SESSION['access_token'])) {
                 session_destroy();
             }
         } else {
-            // Transient — keep the session, retry in ~60s.
+            // Transient - keep the session, retry in ~60s.
             error_log('[session_bootstrap] twitch validate transient failure http='
                 . ($result['http'] ?? '?')
                 . ' err=' . ($result['err'] ?? '')
-                . ' — keeping session');
+                . ' - keeping session');
             $_SESSION['last_validated_at'] = $now - 240; // retry in 60s instead of 300s
         }
     }

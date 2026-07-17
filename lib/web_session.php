@@ -19,7 +19,7 @@ if (!defined('BOTS_SESSION_LIFETIME')) {
  * Delete web_sessions rows that are no longer valid by idle lifetime only.
  *
  * A row is stale when last_seen_at is older than $lifetime, or when
- * last_seen_at is NULL. Token validity is NOT decided here — Twitch
+ * last_seen_at is NULL. Token validity is NOT decided here - Twitch
  * id.twitch.tv/oauth2/validate (in session_bootstrap) is the only
  * authority that may destroy an authenticated session. The denormalized
  * twitch_expires_at column is a display / "when to re-validate" hint.
@@ -86,7 +86,7 @@ class WebSessionHandler implements SessionHandlerInterface
         $this->db->query("SELECT GET_LOCK('{$safelock}', 5)");
         // Eagerly delete this cookie's row when last_seen_at has gone stale.
         // Token expiry is handled after read() in session_bootstrap via
-        // id.twitch.tv/oauth2/validate — checking twitch_expires_at here
+        // id.twitch.tv/oauth2/validate - checking twitch_expires_at here
         // would run before that validation and log users out incorrectly.
         $purge = $this->db->prepare(
             "DELETE FROM web_sessions
@@ -121,9 +121,9 @@ class WebSessionHandler implements SessionHandlerInterface
         $decoded = ($data === '') ? [] : @unserialize($data);
         if (!is_array($decoded)) $decoded = [];
 
-        // Don't write empty sessions. Anything with no $_SESSION keys —
+        // Don't write empty sessions. Anything with no $_SESSION keys -
         // typically anonymous visitors who never started a flow, plus
-        // any bot UAs that slipped past the bootstrap short-circuit —
+        // any bot UAs that slipped past the bootstrap short-circuit -
         // would otherwise become a NULL-token row in web_sessions and
         // pile up until session_gc runs. Returning true tells PHP "saved";
         // the session id stays in the cookie but no row exists in DB.
@@ -159,7 +159,7 @@ class WebSessionHandler implements SessionHandlerInterface
         // last_seen_at is set explicitly on INSERT (not just on UPDATE)
         // so the column has a real timestamp from the very first write.
         // If the schema doesn't default it to CURRENT_TIMESTAMP, fresh
-        // rows would otherwise be NULL — and the session_gc cron would
+        // rows would otherwise be NULL - and the session_gc cron would
         // skip them because NULL < NOW() - INTERVAL is itself NULL.
         $stmt = $this->db->prepare(
             "INSERT INTO web_sessions
@@ -263,7 +263,7 @@ function bots_twitch_oauth_client_creds(?mysqli $db = null): array
         if (is_readable($cfgPath)) {
             // Isolate include so local $clientID/$clientSecret cannot clobber
             // the caller's scope. twitch.php may open its own DB connection
-            // to apply bot_chat_token overrides — acceptable as a fallback.
+            // to apply bot_chat_token overrides - acceptable as a fallback.
             $loader = static function () use ($cfgPath) {
                 $clientID = '';
                 $clientSecret = '';
@@ -297,7 +297,7 @@ function bots_twitch_oauth_client_creds(?mysqli $db = null): array
 //
 // Callers should only sign the user out on reason='invalid' AFTER an
 // optional refresh attempt fails. Transient failures must NOT destroy
-// the session — a flaky id.twitch.tv response or a 30-second egress
+// the session - a flaky id.twitch.tv response or a 30-second egress
 // hiccup should not log every active user out.
 // ----------------------------------------------------------------
 function bots_twitch_validate(string $access_token): array
@@ -317,7 +317,7 @@ function bots_twitch_validate(string $access_token): array
         if (is_array($j) && !empty($j['user_id'])) {
             return ['ok' => true, 'payload' => $j];
         }
-        // 200 but malformed body — treat as transient, don't sign out.
+        // 200 but malformed body - treat as transient, don't sign out.
         return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => 'malformed response body'];
     }
     if ($http === 401) {
@@ -339,7 +339,7 @@ function bots_twitch_refresh_token(string $refresh_token, ?mysqli $db = null): a
     }
     [$clientId, $clientSecret] = bots_twitch_oauth_client_creds($db);
     if ($clientId === '' || $clientSecret === '') {
-        // Missing creds is operational, not "user revoked" — keep session.
+        // Missing creds is operational, not "user revoked" - keep session.
         return ['ok' => false, 'reason' => 'transient', 'err' => 'missing Twitch client credentials'];
     }
     $ch = curl_init('https://id.twitch.tv/oauth2/token');

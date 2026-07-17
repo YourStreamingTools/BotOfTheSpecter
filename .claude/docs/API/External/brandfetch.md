@@ -10,7 +10,7 @@
 
 ## 1. Authentication
 
-### 1.1 CDN Logo Link — `client_id`
+### 1.1 CDN Logo Link - `client_id`
 
 All CDN requests require a `client_id` passed as the `c=` query parameter. Without it the CDN may rate-limit or refuse the request.
 
@@ -18,9 +18,9 @@ All CDN requests require a `client_id` passed as the `c=` query parameter. Witho
 https://cdn.brandfetch.io/{identifier}/...?c={client_id}
 ```
 
-**How to obtain:** Register a free account at [developers.brandfetch.com](https://developers.brandfetch.com/). A `client_id` is issued on signup. It is **not a secret** — it is embedded in rendered HTML and visible to any browser.
+**How to obtain:** Register a free account at [developers.brandfetch.com](https://developers.brandfetch.com/). A `client_id` is issued on signup. It is **not a secret** - it is embedded in rendered HTML and visible to any browser.
 
-### 1.2 Brand API — Bearer token (`api_key`)
+### 1.2 Brand API - Bearer token (`api_key`)
 
 All JSON API requests require an `Authorization` header:
 
@@ -28,7 +28,7 @@ All JSON API requests require an `Authorization` header:
 Authorization: Bearer {api_key}
 ```
 
-**How to obtain:** Same developer portal as above. The `api_key` **is a secret** — store it in `./config/brandfetch.php` (`$brandfetch_api_key`) and never commit a real value. See [secrets.md](../../../rules/secrets.md).
+**How to obtain:** Same developer portal as above. The `api_key` **is a secret** - store it in `./config/brandfetch.php` (`$brandfetch_api_key`) and never commit a real value. See [secrets.md](../../../rules/secrets.md).
 
 ### 1.3 Credentials in this repo
 
@@ -39,14 +39,14 @@ Authorization: Bearer {api_key}
 
 Two distinct client IDs are currently hardcoded in dashboard HTML (cleanup task pending):
 
-- `c=1bxid64Mup7aczewSAYMX` — primary; used for all services except StreamElements
-- `c=1dxbfHSJFAPEGdCLU4o5B` — used only for the StreamElements icon
+- `c=1bxid64Mup7aczewSAYMX` - primary; used for all services except StreamElements
+- `c=1dxbfHSJFAPEGdCLU4o5B` - used only for the StreamElements icon
 
 ---
 
 ## 2. CDN Logo Link
 
-The CDN Logo Link system serves brand images by constructing a URL. No JSON parsing required — point an `<img src>` directly at it.
+The CDN Logo Link system serves brand images by constructing a URL. No JSON parsing required - point an `<img src>` directly at it.
 
 ### 2.1 Full URL pattern
 
@@ -62,7 +62,7 @@ The identifier is the first path segment after the host. Five forms are accepted
 
 | Form | Example | Notes |
 | ---- | ------- | ----- |
-| `{brandId}` (opaque) | `idIwZCwD2f` | Brandfetch-issued stable ID. Preferred — survives domain changes. |
+| `{brandId}` (opaque) | `idIwZCwD2f` | Brandfetch-issued stable ID. Preferred - survives domain changes. |
 | `{domain}` (auto-detect) | `nike.com` | Auto-detected as domain if it contains a `.`. |
 | `domain/{domain}` (explicit) | `domain/nike.com` | Forces domain resolution; avoids collisions with tickers/ISINs. |
 | `ticker/{symbol}` | `ticker/AAPL` | Stock or ETF ticker. |
@@ -160,7 +160,7 @@ GET https://api.brandfetch.io/v2/brands/{identifier}
 Authorization: Bearer {api_key}
 ```
 
-**Path parameter — `identifier`:**
+**Path parameter - `identifier`:**
 
 Same five forms as the CDN (see section 2.2). Explicit type-prefix routes are available to avoid resolution ambiguity:
 
@@ -182,15 +182,15 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 
 ```json
 {
-  "id":              "string   — Brandfetch stable brand ID",
-  "name":            "string   — Brand display name",
-  "domain":          "string   — Primary domain (e.g. 'nike.com')",
-  "claimed":         "boolean  — true if verified and claimed by the brand owner",
-  "description":     "string   — Short brand description",
-  "longDescription": "string   — Extended brand description",
-  "urn":             "string   — Uniform Resource Name",
-  "qualityScore":    "number   — 0–1 data quality score (bottom third = poor, middle = OK, top = high)",
-  "isNsfw":          "boolean  — true if flagged as adult content",
+  "id":              "string   - Brandfetch stable brand ID",
+  "name":            "string   - Brand display name",
+  "domain":          "string   - Primary domain (e.g. 'nike.com')",
+  "claimed":         "boolean  - true if verified and claimed by the brand owner",
+  "description":     "string   - Short brand description",
+  "longDescription": "string   - Extended brand description",
+  "urn":             "string   - Uniform Resource Name",
+  "qualityScore":    "number   - 0–1 data quality score (bottom third = poor, middle = OK, top = high)",
+  "isNsfw":          "boolean  - true if flagged as adult content",
   "links":           [...],    // see 3.1.2
   "logos":           [...],    // see 3.1.3
   "colors":          [...],    // see 3.1.4
@@ -207,8 +207,8 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 ```json
 [
   {
-    "name": "string  — platform name (twitter, facebook, instagram, github, youtube, linkedin, crunchbase)",
-    "url":  "string  — full profile URL"
+    "name": "string  - platform name (twitter, facebook, instagram, github, youtube, linkedin, crunchbase)",
+    "url":  "string  - full profile URL"
   }
 ]
 ```
@@ -218,17 +218,17 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 ```json
 [
   {
-    "type":    "string   — icon | logo | symbol | other",
-    "theme":   "string   — dark | light | null",
-    "tags":    ["string  — e.g. 'photographic', 'portrait'"],
+    "type":    "string   - icon | logo | symbol | other",
+    "theme":   "string   - dark | light | null",
+    "tags":    ["string  - e.g. 'photographic', 'portrait'"],
     "formats": [
       {
-        "src":        "string   — CDN URL of this format",
-        "format":     "string   — svg | webp | png | jpeg",
-        "height":     "integer  — pixels (null for SVG)",
-        "width":      "integer  — pixels (null for SVG)",
-        "size":       "integer  — file size in bytes",
-        "background": "boolean  — true if format has a background (non-transparent)"
+        "src":        "string   - CDN URL of this format",
+        "format":     "string   - svg | webp | png | jpeg",
+        "height":     "integer  - pixels (null for SVG)",
+        "width":      "integer  - pixels (null for SVG)",
+        "size":       "integer  - file size in bytes",
+        "background": "boolean  - true if format has a background (non-transparent)"
       }
     ]
   }
@@ -240,9 +240,9 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 ```json
 [
   {
-    "hex":        "string   — e.g. '#FF0000'",
-    "type":       "string   — accent | dark | light | brand",
-    "brightness": "number   — perceptual brightness value"
+    "hex":        "string   - e.g. '#FF0000'",
+    "type":       "string   - accent | dark | light | brand",
+    "brightness": "number   - perceptual brightness value"
   }
 ]
 ```
@@ -252,10 +252,10 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 ```json
 [
   {
-    "name":    "string   — font family name",
-    "type":    "string   — title | body",
-    "origin":  "string   — google | custom | system",
-    "weights": ["integer — e.g. 400, 700"]
+    "name":    "string   - font family name",
+    "type":    "string   - title | body",
+    "origin":  "string   - google | custom | system",
+    "weights": ["integer - e.g. 400, 700"]
   }
 ]
 ```
@@ -265,14 +265,14 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 ```json
 [
   {
-    "type":    "string   — banner | other",
+    "type":    "string   - banner | other",
     "formats": [
       {
-        "src":        "string   — CDN URL",
-        "format":     "string   — webp | png | jpeg",
+        "src":        "string   - CDN URL",
+        "format":     "string   - webp | png | jpeg",
         "height":     "integer",
         "width":      "integer",
-        "size":       "integer  — bytes",
+        "size":       "integer  - bytes",
         "background": "boolean"
       }
     ]
@@ -284,9 +284,9 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 
 ```json
 {
-  "employees":            "integer | null  — headcount",
-  "foundedYear":          "integer | null  — e.g. 1994",
-  "kind":                 "string  | null  — e.g. 'public', 'private', 'nonprofit'",
+  "employees":            "integer | null  - headcount",
+  "foundedYear":          "integer | null  - e.g. 1994",
+  "kind":                 "string  | null  - e.g. 'public', 'private', 'nonprofit'",
   "location": {
     "city":    "string | null",
     "country": "string | null",
@@ -314,10 +314,10 @@ GET /v2/brands/crypto/{symbol}       # e.g. /v2/brands/crypto/BTC
 | Code | Meaning |
 | ---- | ------- |
 | 200 | Success |
-| 400 | Bad Request — malformed identifier or parameter |
-| 401 | Unauthorized — missing or invalid Bearer token |
-| 404 | Not Found — brand not in database, or NSFW filtered via `allowNsfw=false` |
-| 429 | Quota exceeded — API key rate limit hit |
+| 400 | Bad Request - malformed identifier or parameter |
+| 401 | Unauthorized - missing or invalid Bearer token |
+| 404 | Not Found - brand not in database, or NSFW filtered via `allowNsfw=false` |
+| 429 | Quota exceeded - API key rate limit hit |
 
 ---
 
@@ -330,7 +330,7 @@ GET https://api.brandfetch.io/v2/search/{query}
 Authorization: Bearer {api_key}
 ```
 
-**Path parameter — `query`:** Free-text search string (brand name, partial domain, etc.).
+**Path parameter - `query`:** Free-text search string (brand name, partial domain, etc.).
 
 #### 3.2.1 Response schema (200 OK)
 
@@ -339,10 +339,10 @@ Returns an array of brand suggestion objects:
 ```json
 [
   {
-    "name":    "string  — brand display name",
-    "domain":  "string  — primary domain",
-    "claimed": "boolean — verified/claimed status",
-    "icon":    "string  — CDN URL for brand icon (ready to use as <img src>)"
+    "name":    "string  - brand display name",
+    "domain":  "string  - primary domain",
+    "claimed": "boolean - verified/claimed status",
+    "icon":    "string  - CDN URL for brand icon (ready to use as <img src>)"
   }
 ]
 ```
@@ -379,15 +379,15 @@ The developer portal at [developers.brandfetch.com](https://developers.brandfetc
 - Logos are licensed for display use within the context of identifying the brand they belong to.
 - Do not alter, distort, or misrepresent logos.
 - Do not use logos to imply sponsorship, endorsement, or partnership without permission from the brand owner.
-- Some brands update assets periodically. A stale-looking logo usually means Brandfetch's CDN has a newer version — removing the `t=` cache-buster or updating its value will pull the latest.
+- Some brands update assets periodically. A stale-looking logo usually means Brandfetch's CDN has a newer version - removing the `t=` cache-buster or updating its value will pull the latest.
 
 ---
 
-## 6. Logo Types and Formats — Quick Reference
+## 6. Logo Types and Formats - Quick Reference
 
 | Asset type | Meaning | SVG | WebP | PNG | JPEG |
 | ---------- | ------- | :-: | :--: | :-: | :--: |
-| `icon` | Square app-icon variant | — | Yes | Yes | Yes |
+| `icon` | Square app-icon variant | - | Yes | Yes | Yes |
 | `symbol` | Logomark only (no wordmark) | Yes | Yes | Yes | Yes |
 | `logo` | Full logo (wordmark + symbol) | Yes | Yes | Yes | Yes |
 
@@ -403,7 +403,7 @@ Per [php-config.md](../../../rules/php-config.md), credentials come from `./conf
 require_once '/var/www/config/brandfetch.php';  // server
 // dev: require_once __DIR__ . '/../config/brandfetch.php';
 
-// CDN usage (current pattern — hardcoded, cleanup pending)
+// CDN usage (current pattern - hardcoded, cleanup pending)
 $url = "https://cdn.brandfetch.io/{$brandId}/theme/dark/symbol.svg?c={$brandfetch_client_id}";
 
 // Brand API usage (future)
@@ -430,7 +430,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$brandfetch_api_ke
 | Kick | `id3gkQXO6j` | `/w/400/h/400/theme/dark/icon.jpeg` | `1bxid64Mup7aczewSAYMX` | `profile.php`*, `recording.php` |
 | Trovo | `idiHGB0VOK` | `/theme/dark/logo.svg` | `1bxid64Mup7aczewSAYMX` | `recording.php` |
 
-*Note: The Kick entry in `profile.php` line 1027 is missing the `?c=` query parameter entirely — it will be rate-limited or refused. `recording.php` line 155 has the correct `?c=` param for the same brand ID.
+*Note: The Kick entry in `profile.php` line 1027 is missing the `?c=` query parameter entirely - it will be rate-limited or refused. `recording.php` line 155 has the correct `?c=` param for the same brand ID.
 
 ### 8.2 Source file reference
 

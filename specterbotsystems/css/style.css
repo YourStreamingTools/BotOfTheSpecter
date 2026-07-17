@@ -1,4 +1,4 @@
-﻿/* ==========================================================
+/* ==========================================================
    BotOfTheSpecter - Dashboard CSS
    Based on the sp-* dark theme system.
    ========================================================== */
@@ -51,7 +51,7 @@
 /* ----------------------------------------------------------
    0b. Light theme token overrides
    Applied when <html data-theme="light"> is set. Only overrides
-   the colour tokens that exist in :root above — layout, radii and
+   the colour tokens that exist in :root above - layout, radii and
    transitions are inherited unchanged.
    ---------------------------------------------------------- */
 [data-theme="light"] {
@@ -62,7 +62,7 @@
     --bg-card:        #ffffff;
     --bg-card-hover:  #eeeef2;
     --bg-input:       #ffffff;
-    /* Brand / Accent — darkened for AA contrast on light surfaces */
+    /* Brand / Accent - darkened for AA contrast on light surfaces */
     --accent:         #6b48b0;
     --accent-hover:   #5a3a98;
     --accent-light:   rgba(124, 92, 191, 0.10);
@@ -74,7 +74,7 @@
     /* Borders */
     --border:         rgba(0, 0, 0, 0.10);
     --border-hover:   rgba(0, 0, 0, 0.18);
-    /* Status colours — hues kept, darkened for AA on white; denser tints */
+    /* Status colours - hues kept, darkened for AA on white; denser tints */
     --green:          #1f9d6b;
     --green-bg:       rgba(62, 207, 142, 0.18);
     --blue:           #2080d6;
@@ -437,7 +437,7 @@ ul { list-style: none; margin: 0; padding: 0; }
     flex-shrink: 0;
 }
 
-/* No notices/tags — center the title in available space */
+/* No notices/tags - center the title in available space */
 .sp-topbar-no-tags .sp-topbar-center { display: none; }
 .sp-topbar-no-tags .sp-topbar-title { flex: 1; text-align: center; }
 

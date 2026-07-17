@@ -16,7 +16,7 @@ can reuse over time.
 
 | Decision | Choice |
 | --- | --- |
-| Scope of the list | **Full global bot registry** — one shared list, designed for reuse (API now, bot later, future features). |
+| Scope of the list | **Full global bot registry** - one shared list, designed for reuse (API now, bot later, future features). |
 | Sequencing | **Phased.** Phase 1 = registry + admin UI + API read (this spec). Phase 2 = bot consumers, separate spec. |
 | Board coverage | **All person-keyed boards:** Watch, Chat, Streaks, and the Hugs/Kisses/Highfives interaction leaders. |
 | Who can edit | **Any admin** (`users.is_admin = 1`), same gate as the existing API-keys / webhooks admin pages. |
@@ -40,7 +40,7 @@ can reuse over time.
   time only, so nothing else that reads those tables is affected.
 - The per-channel `watch_time_excluded_users` (and `bot_settings.excluded_users`) lists are
   **unchanged** and still unioned in at the API. The global registry deliberately does **not**
-  contain the streamer/owner — per-channel lists handle that.
+  contain the streamer/owner - per-channel lists handle that.
 
 ## Architecture
 
@@ -54,7 +54,7 @@ Admin (browser)
         filters Watch / Chat / Streaks / interaction boards
 ```
 
-### 1. Data model — `known_bots` (central `website` DB)
+### 1. Data model - `known_bots` (central `website` DB)
 
 One row per bot login. The schema:
 
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS known_bots (
 ```
 
 The table is **created at runtime**, the same way `freestuff_games`, `custom_webhooks`, and
-`admin_api_keys` already come into existence — there is no canonical-schema-file entry, and the
+`admin_api_keys` already come into existence - there is no canonical-schema-file entry, and the
 deprecated `./help` folder must not be touched.
 
 A defensive `ensure_known_bots_table()` helper in `./api/api.py` handles this. It runs from the
@@ -82,11 +82,11 @@ hardcoded set (`DEFAULT_KNOWN_BOTS_SEED`) using `added_by='system'`, `is_active=
 
 **Empty-table semantics:** seeding happens only on an *empty* table (at startup), and the read
 fallback (below) also triggers only on an *empty* result. So an admin removing a few entries
-works as expected — the remaining rows are authoritative — but a table emptied all the way to
+works as expected - the remaining rows are authoritative - but a table emptied all the way to
 zero rows re-applies the seed on the next read or restart. In other words, "filter nothing" is
 not a reachable state. That degenerate case is acceptable and intentional.
 
-### 2. API read path — `./api/api.py`
+### 2. API read path - `./api/api.py`
 
 The existing `KNOWN_BOT_LOGINS` set is renamed to `DEFAULT_KNOWN_BOTS_SEED` (same 41 entries).
 It serves a dual purpose now: the seed source for `ensure_known_bots_table()` and the fallback
@@ -108,7 +108,7 @@ per-channel `watch_time_excluded_users` row stays exactly as it is.
 
 ### 3. Board coverage
 
-The same `LOWER(<col>) NOT IN (<placeholders>)` filter — built once from `excluded_logins` — is
+The same `LOWER(<col>) NOT IN (<placeholders>)` filter - built once from `excluded_logins` - is
 applied to every person-keyed board in the endpoint:
 
 | Board | Table | Name column |
@@ -123,7 +123,7 @@ applied to every person-keyed board in the endpoint:
 Non-person boards (commands, rewards, deaths-by-game, songs) are untouched. Filtering happens in
 SQL **before `LIMIT`**, so each board still returns a full set of real users.
 
-### 4. Admin UI — `./dashboard/admin/known_bots.php` (new)
+### 4. Admin UI - `./dashboard/admin/known_bots.php` (new)
 
 This page clones the proven structure of `./dashboard/admin/api_keys.php`.
 
@@ -131,12 +131,12 @@ This page clones the proven structure of `./dashboard/admin/api_keys.php`.
   `is_admin = 1`) → i18n → `db_connect.php` (`$conn`, website DB) → `userdata.php` →
   `session_write_close()`.
 - **AJAX POST handlers**, dispatched on the request method and the posted action:
-  - `add_bot` — normalize the login (`strtolower`, strip a leading `@`, `trim`), validate it
+  - `add_bot` - normalize the login (`strtolower`, strip a leading `@`, `trim`), validate it
     against `^[a-z0-9_]{1,25}$`, then a prepared `INSERT`. A UNIQUE-key collision is surfaced as a
     friendly duplicate error rather than a raw SQL failure. `notes` is optional. `added_by` is set
     to the current admin's username.
-  - `delete_bot` — prepared `DELETE` by `id`.
-  - `toggle_bot` — prepared `UPDATE ... SET is_active = ?` by `id`.
+  - `delete_bot` - prepared `DELETE` by `id`.
+  - `toggle_bot` - prepared `UPDATE ... SET is_active = ?` by `id`.
   - Every handler validates first, then clears any buffered output, sets the JSON content type,
     echoes a `{success, message}` payload, and exits.
   - Each successful action writes an audit entry via `admin_audit_log` under the
@@ -145,7 +145,7 @@ This page clones the proven structure of `./dashboard/admin/api_keys.php`.
 - **Render:** a table of existing bots (login, active toggle, added_by, created_at, delete button)
   plus an add form. The JS uses `fetch` + `FormData`, updates the table on success, and shows
   errors through the existing alert mechanism (e.g. `Swal`). Seed rows (`added_by='system'`) are
-  deletable like any other row — admins own the list.
+  deletable like any other row - admins own the list.
 - **No CSRF token**, consistent with all current admin pages (session + `is_admin` gate).
 
 ### 5. Navigation, i18n, CSS
@@ -158,13 +158,13 @@ This page clones the proven structure of `./dashboard/admin/api_keys.php`.
   `known_bots_col_active`, `known_bots_col_created`, `known_bots_delete`,
   `known_bots_confirm_delete`, plus the success/error message strings the handlers return.
   (French apostrophes need escaping; edited PHP should pass `php -l`.)
-- Component styles live in `./dashboard/css/dashboard.css` using the existing theme tokens — no
+- Component styles live in `./dashboard/css/dashboard.css` using the existing theme tokens - no
   inline styles, no page `<style>` block.
 
 ## Error handling
 
 - `get_known_bots_list()` returns `DEFAULT_KNOWN_BOTS_SEED` on an empty result or any DB error,
-  and logs a warning — leaderboards always have a working filter.
+  and logs a warning - leaderboards always have a working filter.
 - `ensure_known_bots_table()` failures are logged but must not crash startup (wrap it; the seed
   fallback covers reads regardless).
 - Admin handlers return `{success:false, message:...}` for invalid or duplicate logins; no raw SQL
@@ -179,7 +179,7 @@ page, `menu.php`, and the three lang files for PHP). Beyond that, the behaviour 
   size of the seed set.
 - Adding a bot in the admin page makes it disappear from every leaderboard within the cache TTL
   (≤ 5 minutes); toggling `is_active` off brings it back.
-- Emptying the table entirely still leaves leaderboards filtering against the seed — proving the
+- Emptying the table entirely still leaves leaderboards filtering against the seed - proving the
   fallback path.
 - Per-channel `watch_time_excluded_users` additions continue to take effect, confirming the union
   with the global registry is preserved.
@@ -194,15 +194,15 @@ page, `menu.php`, and the three lang files for PHP). Beyond that, the behaviour 
 | `./dashboard/lang/en.php`, `de.php`, `fr.php` | Add the i18n keys. |
 | `./dashboard/css/dashboard.css` | Add component styles for the page. |
 
-## Phase 2 (outline — separate spec)
+## Phase 2 (outline - separate spec)
 
 `beta.py` and `beta-v6.py` gain a cached loader for `website.known_bots` (the bot reads `website`
-via `mysql_connection("website")`), consumed — **unioned with** the existing per-channel lists,
-never replacing them — at:
+via `mysql_connection("website")`), consumed - **unioned with** the existing per-channel lists,
+never replacing them - at:
 
-- **Watch-time tracking** (`track_watch_time`) — union with `watch_time_excluded_users`.
-- **Points** award path — union with `bot_settings.excluded_users`.
-- **Welcome / shoutout** — union with `IGNORED_WELCOME_USERNAMES`.
+- **Watch-time tracking** (`track_watch_time`) - union with `watch_time_excluded_users`.
+- **Points** award path - union with `bot_settings.excluded_users`.
+- **Welcome / shoutout** - union with `IGNORED_WELCOME_USERNAMES`.
 
 That phase needs a bot deploy and wider testing. Stable `bot.py` is excluded by policy. Discord
 (`specterdiscord.py`) and Kick (`kick.py`) can read the same table later if we decide it's useful.

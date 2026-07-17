@@ -26,15 +26,15 @@ $_cssV = file_exists(__DIR__ . '/style.css') ? filemtime(__DIR__ . '/style.css')
         })();
     </script>
     <title>BotOfTheSpecter &mdash; <?php echo htmlspecialchars($pageTitle); ?></title>
-    <meta name="description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
+    <meta name="description" content="BotOfTheSpecter Members Portal - view channel data, commands, stats and more.">
     <meta property="og:title" content="BotOfTheSpecter &mdash; <?php echo htmlspecialchars($pageTitle); ?>">
-    <meta property="og:description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
+    <meta property="og:description" content="BotOfTheSpecter Members Portal - view channel data, commands, stats and more.">
     <meta property="og:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@Tools4Streaming">
     <meta name="twitter:title" content="BotOfTheSpecter &mdash; <?php echo htmlspecialchars($pageTitle); ?>">
-    <meta name="twitter:description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
+    <meta name="twitter:description" content="BotOfTheSpecter Members Portal - view channel data, commands, stats and more.">
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">

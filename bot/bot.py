@@ -1200,7 +1200,7 @@ async def specter_websocket():
                 websocket_logger.info(f"Reconnection attempt {consecutive_failures}, waiting {total_delay:.1f} seconds (server reboot consideration)")
                 await sleep(total_delay)
             # Attempt to connect to the WebSocket server using websocket transport directly.
-            # Hard timeout on connect() itself — prevents hanging forever when the server is
+            # Hard timeout on connect() itself - prevents hanging forever when the server is
             # mid-reboot and accepts TCP but never completes the socket.io handshake.
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
             await asyncio_wait_for(
@@ -9637,7 +9637,7 @@ async def start_subathon(ctx):
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
                     create_task(subathon_countdown())
-                    # Send websocket notice — end_timestamp_ms lets the overlay tick against an
+                    # Send websocket notice - end_timestamp_ms lets the overlay tick against an
                     # absolute target so it doesn't accumulate setInterval drift.
                     additional_data = {
                         'starting_minutes': starting_minutes,
@@ -9677,7 +9677,7 @@ async def pause_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                # Seconds precision — flooring to minutes here would lose up to 59 seconds
+                # Seconds precision - flooring to minutes here would lose up to 59 seconds
                 # per pause/resume cycle.
                 remaining_seconds_float = (subathon_state["end_time"] - time_right_now()).total_seconds()
                 remaining_seconds = max(0, int(remaining_seconds_float))

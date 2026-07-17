@@ -1,6 +1,6 @@
 # Tanggle Reference (BotOfTheSpecter)
 
-Tanggle (`tanggle.io`) is a collaborative jigsaw puzzle platform. The bot subscribes to a community's WebSocket feed and listens for `room.complete` events, persists the result to the per-user DB, and exposes total completions via `!puzzles`. The bot does **not** currently create rooms — room creation is handled by the streamer or a moderator directly on the Tanggle site.
+Tanggle (`tanggle.io`) is a collaborative jigsaw puzzle platform. The bot subscribes to a community's WebSocket feed and listens for `room.complete` events, persists the result to the per-user DB, and exposes total completions via `!puzzles`. The bot does **not** currently create rooms - room creation is handled by the streamer or a moderator directly on the Tanggle site.
 
 - **WebSocket URL:** `wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms`
 - **REST API base:** `https://api.tanggle.io` (room creation endpoint documented below; not yet called)
@@ -22,7 +22,7 @@ WebSocket connection header:
 Authorization: Bearer {tanggle_api_token}
 ```
 
-If either credential is missing or empty the bot logs once, sleeps 300 seconds, and checks again — it does **not** exit the task entirely (unlike HypeRate's `hr: null` behaviour).
+If either credential is missing or empty the bot logs once, sleeps 300 seconds, and checks again - it does **not** exit the task entirely (unlike HypeRate's `hr: null` behaviour).
 
 ---
 
@@ -36,18 +36,18 @@ wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms
 
 `events=queue+rooms` subscribes to both the community queue and room lifecycle events. Only `room.complete` is currently processed; all other event types are logged and discarded.
 
-**Connection lifecycle (`connect_to_tanggle()` — `./bot/beta.py:2768–2836`):**
+**Connection lifecycle (`connect_to_tanggle()` - `./bot/beta.py:2768–2836`):**
 
 1. Read `tanggle_api_token` and `tanggle_community_uuid` from the per-user `profile` table. If missing, sleep 300 s and retry.
 2. Open WebSocket with `Authorization: Bearer` header.
-3. Inner receive loop — parse JSON, dispatch on `type`.
+3. Inner receive loop - parse JSON, dispatch on `type`.
 4. On `WebSocketConnectionClosed` or any exception: log, break inner loop, sleep 10 s, re-enter outer loop (reconnects indefinitely).
 
 **Received event types:**
 
 | `type` | Handled | Notes |
 | ------ | ------- | ----- |
-| `room.complete` | Yes — `process_tanggle_room_complete()` | Persisted to DB, announced in chat |
+| `room.complete` | Yes - `process_tanggle_room_complete()` | Persisted to DB, announced in chat |
 | All others | Logged only | No processing; logged to `integrations_logger` |
 
 ### `room.complete` payload
@@ -125,13 +125,13 @@ wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms
 | `participants_json` | Full `participants` array as JSON |
 | `raw_payload` | Full event payload as JSON |
 
-Uses `INSERT IGNORE` — duplicate `room_uuid` events are silently skipped.
+Uses `INSERT IGNORE` - duplicate `room_uuid` events are silently skipped.
 
 ---
 
 ## 3. REST endpoints
 
-### POST `/puzzles/rooms` — Create a puzzle room (not currently called)
+### POST `/puzzles/rooms` - Create a puzzle room (not currently called)
 
 The bot receives room completion events but does **not** create rooms. Documented here for future implementation.
 
@@ -140,7 +140,7 @@ The bot receives room completion events but does **not** create rooms. Documente
 **Rate limit:** 3 rooms per 30 seconds (sliding window) → HTTP 429  
 **Tier limit:** Community subscription tier caps concurrent rooms → HTTP 400
 
-**Request body — community type** (used for starting a puzzle directly):
+**Request body - community type** (used for starting a puzzle directly):
 
 ```json
 {
@@ -161,7 +161,7 @@ The bot receives room completion events but does **not** create rooms. Documente
 }
 ```
 
-**Request body — community queue moderator** (used for queueing a puzzle):
+**Request body - community queue moderator** (used for queueing a puzzle):
 
 ```json
 {
@@ -178,7 +178,7 @@ The bot receives room completion events but does **not** create rooms. Documente
 
 **`pieces` field:** Either an integer (1–10099 total pieces) or `{"x": 25, "y": 20}` for explicit grid dimensions (3–500 per axis).
 
-**`imageCrop`:** `{"x": 0, "y": 0, "width": W, "height": H}` — pixel crop on the source image. `null` to use the full image (min 100×100, max 16384×16384). Set to `null` unless cropping is needed.
+**`imageCrop`:** `{"x": 0, "y": 0, "width": W, "height": H}` - pixel crop on the source image. `null` to use the full image (min 100×100, max 16384×16384). Set to `null` unless cropping is needed.
 
 **Response (success):**
 
@@ -186,7 +186,7 @@ The bot receives room completion events but does **not** create rooms. Documente
 { "success": true, "uuid": "<room_uuid>" }
 ```
 
-**Response (logical failure — still HTTP 200):**
+**Response (logical failure - still HTTP 200):**
 
 ```json
 { "success": false, "reason": "mulltiple_forbidden" }
@@ -194,7 +194,7 @@ The bot receives room completion events but does **not** create rooms. Documente
 
 | `reason` | Meaning |
 | -------- | ------- |
-| `mulltiple_forbidden` | Can't add more than 1 puzzle to the community queue (note: upstream typo — double `l`) |
+| `mulltiple_forbidden` | Can't add more than 1 puzzle to the community queue (note: upstream typo - double `l`) |
 | `queue_size_exceeded` | Community queue size cap reached |
 
 **Other payload types** (not expected to be needed):
@@ -211,7 +211,7 @@ The bot receives room completion events but does **not** create rooms. Documente
 
 ### `!puzzledone` (mod by default)
 
-Manual fallback for missed `room.complete` events (anything fired while the bot's Tanggle WebSocket is disconnected is lost — there is no replay or REST backfill). Adds one to `tanggle_puzzle_stats.completed_count` and announces the new total in chat. No `tanggle_room_completions` row is written (no room data is available), so `last_completed_room_uuid` / `last_completed_at` keep reflecting the last real room. In `./bot/beta.py` it also fires the `TANNGLE_COMPLETE` websocket event with `manual: "true"`; the `./bot/beta-v6.py` port does not (v6's automatic path sends no websocket notice either). Seeded `permission='mod'` via the `mod_commands` set; the streamer can change it on the dashboard.
+Manual fallback for missed `room.complete` events (anything fired while the bot's Tanggle WebSocket is disconnected is lost - there is no replay or REST backfill). Adds one to `tanggle_puzzle_stats.completed_count` and announces the new total in chat. No `tanggle_room_completions` row is written (no room data is available), so `last_completed_room_uuid` / `last_completed_at` keep reflecting the last real room. In `./bot/beta.py` it also fires the `TANNGLE_COMPLETE` websocket event with `manual: "true"`; the `./bot/beta-v6.py` port does not (v6's automatic path sends no websocket notice either). Seeded `permission='mod'` via the `mod_commands` set; the streamer can change it on the dashboard.
 
 ### `!puzzles`
 
@@ -244,8 +244,8 @@ Callsite: `./bot/beta.py:9157–9189` (`puzzles_command`). Uses `get_tanggle_com
 ## 6. Reconnect behaviour
 
 - **On `WebSocketConnectionClosed` or any exception:** break inner loop, sleep 10 s, reconnect.
-- **On missing credentials:** sleep 300 s, re-check — does not exit the task.
-- **No cap on reconnect attempts** — retries indefinitely.
+- **On missing credentials:** sleep 300 s, re-check - does not exit the task.
+- **No cap on reconnect attempts** - retries indefinitely.
 - **Global flag `_tanggle_no_creds_logged`** prevents log spam when credentials are absent.
 
 ---
@@ -255,7 +255,7 @@ Callsite: `./bot/beta.py:9157–9189` (`puzzles_command`). Uses `get_tanggle_com
 - **REST room creation is not implemented.** Rooms must be started manually from the Tanggle site or dashboard. If a `!puzzle create` command is ever added, use `type: 'community'` to start immediately or `type: 'community_queue_moderator'` to queue.
 - **`success: false` is still HTTP 200.** Check the `success` field, not just the status code, when implementing room creation.
 - **`mulltiple_forbidden` has a typo** (double `l`) in the upstream API spec. Match the upstream string exactly when checking `reason`.
-- **`twitch.username` may be null** — a participant who hasn't linked Twitch returns `null` in the connections object. `winner_twitch_username` will be stored as null.
-- **`INSERT IGNORE` on `room_uuid`** — the WebSocket may deliver `room.complete` more than once (e.g. after reconnect). The ignore clause prevents duplicate rows.
+- **`twitch.username` may be null** - a participant who hasn't linked Twitch returns `null` in the connections object. `winner_twitch_username` will be stored as null.
+- **`INSERT IGNORE` on `room_uuid`** - the WebSocket may deliver `room.complete` more than once (e.g. after reconnect). The ignore clause prevents duplicate rows.
 - **Beta-only feature as of writing.** `bot.py` (stable) does not have Tanggle integration. Per [bot-versions.md](../../../rules/bot-versions.md), it stays beta until stable enough to backport.
-- **Tier limits apply to room creation** — the community subscription tier on `tanggle.io/subscription` caps how many rooms can run concurrently. A 400 on `POST /puzzles/rooms` means the tier cap was hit.
+- **Tier limits apply to room creation** - the community subscription tier on `tanggle.io/subscription` caps how many rooms can run concurrently. A 400 on `POST /puzzles/rooms` means the tier cap was hit.

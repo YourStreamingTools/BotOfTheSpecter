@@ -425,7 +425,7 @@ async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_
         # Calculate remaining cooldown time
         if send_message:
             oldest_usage = min(command_usage[key]) if command_usage[key] else current_time
-            # Never announce "0 seconds" — if we're still on cooldown, show at least 1.
+            # Never announce "0 seconds" - if we're still on cooldown, show at least 1.
             remaining_time = max(1, math.ceil(time_window - (current_time - oldest_usage)))
             await send_chat_message(f"{command} is on cooldown. Please wait {remaining_time} seconds.")
         return False  # Command on cooldown
@@ -1428,7 +1428,7 @@ async def process_twitch_eventsub_message(message):
                         if recipient_user_id:
                             gift_sub_recipients[recipient_user_id] = time.time()
                         # If part of a community gift batch, the community_sub_gift event already
-                        # handles the aggregate chat message — skip individual sub_gift alerts
+                        # handles the aggregate chat message - skip individual sub_gift alerts
                         is_community_gift = bool(sub_gift_data.get("community_gift_id"))
                         if not is_community_gift:
                             safe_create_task(process_giftsub_event(
@@ -1604,7 +1604,7 @@ async def process_twitch_eventsub_message(message):
                         if ws_streak_lost:
                             ws_msg = (
                                 f"We're sorry you lost your {ws_old_streak} stream streak, {ws_display}! "
-                                f"You have now watched {ws_value} streams in a row — total streams watched: {ws_new_total}."
+                                f"You have now watched {ws_value} streams in a row - total streams watched: {ws_new_total}."
                             )
                         else:
                             if ws_streak_result and ws_streak_result.get("alert_message"):
@@ -1683,7 +1683,7 @@ async def process_twitch_eventsub_message(message):
                     if result and result.get("sound_mapping"):
                         sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                         safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
-                    # Specter Alerts overlay — variant matcher picks tier by level
+                    # Specter Alerts overlay - variant matcher picks tier by level
                     safe_create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
                         "twitch-hype-level": int(level),
                         "twitch-hype-phase": "begin",
@@ -1734,7 +1734,7 @@ async def process_twitch_eventsub_message(message):
                     value_formatted = f"{donation:,.{decimal_places}f}"
                     message = f"Thank you so much {user} for your {value_formatted} {currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await send_chat_message(message)
-                    # Specter Alerts overlay — variant matcher tiers by donation value
+                    # Specter Alerts overlay - variant matcher tiers by donation value
                     safe_create_task(websocket_notice(event="TWITCH_CHARITY", additional_data={
                         "twitch-username":       user,
                         "twitch-charity-amount": f"{value_formatted} {currency}",
@@ -2262,7 +2262,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     bot_logger.info("[IRC PRESENCE] IRC Presence: Server sent RECONNECT, reconnecting immediately...")
                     server_reconnect = True
                     break
-                # ── NOTICE — categorised handling using the full NOTICE msg-id reference ──
+                # ── NOTICE - categorised handling using the full NOTICE msg-id reference ──
                 elif " NOTICE " in line and ("#" + CHANNEL_NAME) in line:
                     tags = _parse_irc_tags(line)
                     msg_id = tags.get("msg-id", "")
@@ -2299,7 +2299,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     else:
                         # All other NOTICEs (rate limits, duplicate, etc.) - log as warning
                         bot_logger.warning(f"[IRC PRESENCE] IRC Presence NOTICE (msg-id={msg_id or 'none'}): {line}")
-                # ── USERSTATE — log bot's role in the channel after JOIN or PRIVMSG ─
+                # ── USERSTATE - log bot's role in the channel after JOIN or PRIVMSG ─
                 # Tags: mod, badges, subscriber, display-name (see USERSTATE tag docs)
                 elif "USERSTATE" in line and ("#" + CHANNEL_NAME) in line:
                     us_tags = _parse_irc_tags(line)
@@ -2322,7 +2322,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                         f"[IRC PRESENCE] IRC Presence: Bot joined #{CHANNEL_NAME} as {role} "
                         f"(IRC rate limit: {rate_bucket})"
                     )
-                # USERNOTICE — subscription/raid/milestone events
+                # USERNOTICE - subscription/raid/milestone events
                 elif "USERNOTICE" in line and ("#" + CHANNEL_NAME) in line and irc_nick == "botofthespecter":
                     un_tags = _parse_irc_tags(line)
                     un_msg_id = un_tags.get("msg-id", "")
@@ -2334,7 +2334,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                             bot_logger.info(f"[IRC PRESENCE] IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")
                     else:
                         bot_logger.info(f"[IRC PRESENCE] IRC Presence USERNOTICE (msg-id={un_msg_id}): {line}")
-                # ── Expected / informational messages — silently consumed ───────────
+                # ── Expected / informational messages - silently consumed ───────────
                 # ROOMSTATE  : chat room settings on join or change
                 # USERSTATE  : bot's own state on join or after PRIVMSG
                 # GLOBALUSERSTATE : global bot state (can arrive after JOIN too)
@@ -2392,7 +2392,7 @@ async def specter_websocket():
     consecutive_failures = 0
     while True:
         try:
-            # Always ensure clean state — disconnect regardless of .connected flag
+            # Always ensure clean state - disconnect regardless of .connected flag
             # so we recover even from indeterminate socket states.
             websocket_connected = False
             try:
@@ -2413,7 +2413,7 @@ async def specter_websocket():
                 f"[SPECTER WEBSOCKET] Attempting to connect to Internal WebSocket Server "
                 f"(attempt {consecutive_failures + 1})"
             )
-            # Hard timeout on connect() itself — prevents hanging when the server is
+            # Hard timeout on connect() itself - prevents hanging when the server is
             # mid-reboot and accepts TCP but never completes the socket.io handshake.
             await asyncio_wait_for(
                 specterSocket.connect(specter_websocket_uri, transports=['websocket']),
@@ -2457,7 +2457,7 @@ async def connect():
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
-        websocket_logger.info("[SPECTER WEBSOCKET] REGISTER sent — waiting for server SUCCESS confirmation")
+        websocket_logger.info("[SPECTER WEBSOCKET] REGISTER sent - waiting for server SUCCESS confirmation")
         # websocket_connected is set True only when the server replies with SUCCESS
     except Exception as e:
         websocket_logger.error(f"[SPECTER WEBSOCKET] Failed to send REGISTER: {e}")
@@ -2873,7 +2873,7 @@ async def stream_bingo_websocket():
                     _stream_bingo_no_creds_logged = True
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
-            # Credentials found — reset the flag so a reconnection is logged if creds are later removed
+            # Credentials found - reset the flag so a reconnection is logged if creds are later removed
             _stream_bingo_no_creds_logged = False
             # Recover game ID from DB if we were restarted mid-game
             if _current_bingo_game_id is None:
@@ -2904,7 +2904,7 @@ async def stream_bingo_websocket():
                         # Parse JSON message
                         try:
                             data = json.loads(message)
-                            # Normalize top-level keys to lowercase — the real API sends PascalCase
+                            # Normalize top-level keys to lowercase - the real API sends PascalCase
                             # (e.g. "Type", "Events", "IsSubOnly") rather than the camelCase shown in docs
                             data = {k.lower(): v for k, v in data.items()}
                             # Process bingo events here
@@ -2955,7 +2955,7 @@ async def connect_to_tanggle():
                     _tanggle_no_creds_logged = True
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
-            # Credentials found — reset the flag so a reconnection is logged if creds are later removed
+            # Credentials found - reset the flag so a reconnection is logged if creds are later removed
             _tanggle_no_creds_logged = False
             # Construct WebSocket URL with events parameter
             websocket_url = f"wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms"
@@ -3181,7 +3181,7 @@ async def process_stream_bingo_message(data):
                 await send_chat_message("The Stream Bingo game has ended! Thanks for playing!")
                 safe_create_task(websocket_notice(event="STREAM_BINGO_ENDED"))
             elif event_type in ['number_called', 'EVENT_CALLED']:
-                # Handle number called — keys are fully lowercased after normalization
+                # Handle number called - keys are fully lowercased after normalization
                 display_number = data.get('displaynumber')
                 event_id = data.get('eventid')
                 event_name = data.get('eventname')
@@ -3192,7 +3192,7 @@ async def process_stream_bingo_message(data):
                     additional_data={"display_number": display_number, "event_name": event_name, "event_id": event_id}
                 ))
             elif event_type == 'PLAYER_JOINED':
-                # Handle player joined — log to database only, no chat notice
+                # Handle player joined - log to database only, no chat notice
                 player_name = data.get('playername')
                 player_id = data.get('playerid')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Player joined - {player_name} (ID: {player_id})")
@@ -3533,7 +3533,7 @@ class TwitchBot(commands.Bot):
             _shared_http_session = httpClientSession()
         for cls in _MODULE_CLASSES:
             if not callable(getattr(cls, 'claims_channel', None)):
-                bot_logger.warning(f"[module] {cls.__name__} does not implement claims_channel() — skipping.")
+                bot_logger.warning(f"[module] {cls.__name__} does not implement claims_channel() - skipping.")
                 continue
             if not cls.claims_channel(CHANNEL_NAME):
                 continue
@@ -5215,7 +5215,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"No items in the {point_name} store yet.")
                         add_usage("store", bucket_key, cooldown_bucket)
                         return
-                    # Compact list: Title (cost) — fit chat length
+                    # Compact list: Title (cost) - fit chat length
                     parts = []
                     for it in items[:20]:
                         slug = it.get("slug") or str(it["id"])
@@ -7694,7 +7694,7 @@ class TwitchBot(commands.Bot):
                     return
                 username = ctx.author.name.lower()
                 if await word_replace_user_opt_out(username, True):
-                    await send_chat_message("Okay — I won't randomly word-replace your messages anymore.")
+                    await send_chat_message("Okay - I won't randomly word-replace your messages anymore.")
                 else:
                     await send_chat_message("Word replace is already off for you.")
                 add_usage('wordreplaceoff', bucket_key, settings["cooldown_bucket"])
@@ -7724,7 +7724,7 @@ class TwitchBot(commands.Bot):
                     return
                 username = ctx.author.name.lower()
                 if await word_replace_user_opt_out(username, False):
-                    await send_chat_message("Okay — I might randomly word-replace your messages again.")
+                    await send_chat_message("Okay - I might randomly word-replace your messages again.")
                 else:
                     await send_chat_message("Word replace is already on for you.")
                 add_usage('wordreplaceon', bucket_key, settings["cooldown_bucket"])
@@ -8232,7 +8232,7 @@ class TwitchBot(commands.Bot):
                     parts = content.split(' ', 1)
                     title = parts[1].strip() if len(parts) > 1 else ''
                     if not title:
-                        await send_chat_message("Usage: !task <title> — sets your current task.")
+                        await send_chat_message("Usage: !task <title> - sets your current task.")
                         return
                     title = title[:255]
                     user_id = str(ctx.author.id)
@@ -8242,7 +8242,7 @@ class TwitchBot(commands.Bot):
                     reward_points = await task_default_reward(cursor)
                     # A new !task is always the thing you're working on NOW. If you already have an
                     # active task it's demoted to the front of the backlog (#1) so !done next picks it
-                    # straight back up — use !later / !soon to queue a task without switching off this one.
+                    # straight back up - use !later / !soon to queue a task without switching off this one.
                     await cursor.execute(
                         "SELECT id, title FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
                         (user_id, project)
@@ -8318,7 +8318,7 @@ class TwitchBot(commands.Bot):
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
                     owner = "streamer" if user_name.lower() == bot_owner.lower() else "user"
-                    # !done <id> or !done <id>;<id2> — complete specific task(s) by database id.
+                    # !done <id> or !done <id>;<id2> - complete specific task(s) by database id.
                     # If the completed task was the active one, the next backlog item is promoted.
                     if arg and all(p.strip().isdigit() for p in arg.split(';') if p.strip()):
                         raw_parts = [p.strip() for p in arg.split(';') if p.strip()]
@@ -8377,7 +8377,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{user_name} {msg}")
                         add_usage('done', bucket_key, cooldown_bucket)
                         return
-                    # !done next — complete active, then promote backlog #1.
+                    # !done next - complete active, then promote backlog #1.
                     if arg.lower() == 'next':
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
@@ -8404,7 +8404,7 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f"@{user_name} {msg} Backlog is now empty.")
                         add_usage('done', bucket_key, cooldown_bucket)
                         return
-                    # !done — complete the current active task and promote the next backlog item.
+                    # !done - complete the current active task and promote the next backlog item.
                     project = await resolve_active_project(cursor, user_id)
                     await cursor.execute(
                         "SELECT id, title, reward_points FROM user_tasks WHERE user_id = %s AND status = 'active' AND task_type = 'task' AND project <=> %s LIMIT 1",
@@ -8463,7 +8463,7 @@ class TwitchBot(commands.Bot):
                     parts = content.split(' ', 1)
                     new_title = parts[1].strip() if len(parts) > 1 else ''
                     if not new_title:
-                        await send_chat_message("Usage: !rename <title> — renames your current task.")
+                        await send_chat_message("Usage: !rename <title> - renames your current task.")
                         return
                     new_title = new_title[:255]
                     user_id = str(ctx.author.id)
@@ -8706,7 +8706,7 @@ class TwitchBot(commands.Bot):
                     if not arg:
                         await send_chat_message("Usage: !now <title> | !now <n> | !now skip")
                         return
-                    # !now skip — complete current active, promote backlog #1.
+                    # !now skip - complete current active, promote backlog #1.
                     if arg.lower() == 'skip':
                         project = await resolve_active_project(cursor, user_id)
                         await cursor.execute(
@@ -8733,7 +8733,7 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f"@{user_name} {done_msg} Backlog is now empty.")
                         add_usage('now', bucket_key, cooldown_bucket)
                         return
-                    # !now <n> — promote backlog item #n to active, demote current active to backlog.
+                    # !now <n> - promote backlog item #n to active, demote current active to backlog.
                     if arg.isdigit():
                         n = int(arg)
                         project = await resolve_active_project(cursor, user_id)
@@ -8776,7 +8776,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{user_name} now active task #{n}: \"{target_title}\".")
                         add_usage('now', bucket_key, cooldown_bucket)
                         return
-                    # !now <title> [; <title> ...] — create + set active; demote existing active to backlog #1.
+                    # !now <title> [; <title> ...] - create + set active; demote existing active to backlog #1.
                     titles = split_task_titles(arg)
                     if not titles:
                         await send_chat_message("Usage: !now <title> | !now <n> | !now skip")
@@ -9069,7 +9069,7 @@ class TwitchBot(commands.Bot):
                     arg = parts[1].strip() if len(parts) > 1 else ''
                     user_id = str(ctx.author.id)
                     user_name = ctx.author.name
-                    # !project (no arg) — report the current project.
+                    # !project (no arg) - report the current project.
                     if not arg:
                         project = await resolve_active_project(cursor, user_id)
                         if project:
@@ -9088,7 +9088,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{user_name} Projects organize your tasks. Type !project <name> to enter a project, then use normal commands like !task or !later. All tasks will save to that project. Use !project clear to return to your main default list.")
                         add_usage('project', bucket_key, cooldown_bucket)
                         return
-                    # !project clear — reset to the default (NULL) context. 'clear' is reserved.
+                    # !project clear - reset to the default (NULL) context. 'clear' is reserved.
                     if arg.lower() == 'clear':
                         await cursor.execute(
                             "INSERT INTO user_active_project (user_id, user_name, project) VALUES (%s, %s, NULL) "
@@ -9096,7 +9096,7 @@ class TwitchBot(commands.Bot):
                             (user_id, user_name)
                         )
                         emit_project_update(user_id, user_name, 'clear')
-                        await send_chat_message(f"@{user_name} project cleared — you are back in the default project.")
+                        await send_chat_message(f"@{user_name} project cleared - you are back in the default project.")
                         add_usage('project', bucket_key, cooldown_bucket)
                         return
                     # Subcommands (reserved first words): move / rename / delete.
@@ -9117,7 +9117,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"@{user_name} {msg}")
                         add_usage('project', bucket_key, cooldown_bucket)
                         return
-                    # !project <name> — validate (§8.5), register, and switch.
+                    # !project <name> - validate (§8.5), register, and switch.
                     name = validate_project_name(arg)
                     if not name:
                         await send_chat_message(f"@{user_name} invalid project name. Use letters, numbers, spaces and dashes, max 24 characters.")
@@ -9143,7 +9143,7 @@ class TwitchBot(commands.Bot):
 
     @commands.command(name='projects')
     async def projects_command(self, ctx):
-        # !projects — list the chatter's DISTINCT non-null projects from user_tasks.
+        # !projects - list the chatter's DISTINCT non-null projects from user_tasks.
         global bot_owner
         connection = None
         connection = await mysql_connection()
@@ -9206,9 +9206,9 @@ class TwitchBot(commands.Bot):
     @commands.command(name='personaltimer', aliases=['timer', 'ptimer', 'mytimer', 'focus'])
     async def personaltimer_command(self, ctx):
         # Three modes:
-        #   General: !timer 60 read the book           — plain countdown, no task-list link
-        #   Focus:   !timer 20 "my task here" focus    — single focus block, task list + overlay
-        #   Pomo:    !timer 60/10/4 [label]             — focus/break cycles, task list + overlay
+        #   General: !timer 60 read the book           - plain countdown, no task-list link
+        #   Focus:   !timer 20 "my task here" focus    - single focus block, task list + overlay
+        #   Pomo:    !timer 60/10/4 [label]             - focus/break cycles, task list + overlay
         global bot_owner
         connection = None
         connection = await mysql_connection()
@@ -11015,7 +11015,7 @@ class TwitchBot(commands.Bot):
                     if not await check_cooldown('puzzledone', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Manual fallback for when the Tanggle websocket misses a room.complete
-                    # event. No room data is available here, so only the stats counter moves —
+                    # event. No room data is available here, so only the stats counter moves -
                     # tanggle_room_completions is left untouched.
                     await cursor.execute(
                         """
@@ -11673,7 +11673,7 @@ def should_random_trigger(frequency, rng=random.random):
     return _chance(frequency, rng)
 
 def is_word_replace_eligible(author, *, is_echo, channel_name, bot_username):
-    # Random echo only targets normal viewers — never the bot's own messages
+    # Random echo only targets normal viewers - never the bot's own messages
     # (echo / timed messages / alerts) or the streamer.
     if is_echo:
         return False
@@ -12048,7 +12048,7 @@ async def register_user_project(cursor, user_id, user_name, name):
 
 # Function returning the registry's stored casing for a project name
 async def canonical_project_name(cursor, user_id, name):
-    # utf8mb4_unicode_ci: 'study' and 'Study' are the same project — return the
+    # utf8mb4_unicode_ci: 'study' and 'Study' are the same project - return the
     # registry row's stored casing so writes never fork a case-variant duplicate.
     await cursor.execute(
         "SELECT name FROM user_projects WHERE user_id = %s AND name = %s LIMIT 1",
@@ -12124,7 +12124,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
     if not target:
         return "invalid project name. Use letters, numbers, spaces and dashes, max 24 characters."
     # The DB collation is case-insensitive, so the guard and the stored casing
-    # must be too — otherwise a case-variant self-move shuffles the active slot.
+    # must be too - otherwise a case-variant self-move shuffles the active slot.
     target = await canonical_project_name(cursor, user_id, target)
     source_project = await resolve_active_project(cursor, user_id)
     if source_project is not None and target.lower() == source_project.lower():
@@ -12154,7 +12154,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
             }, owner=task_owner)
         placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
         follow_up = f" Now working on \"{promoted.get('title')}\"." if promoted else ""
-        return f"moved \"{title}\" — it {placed}.{follow_up}"
+        return f"moved \"{title}\" - it {placed}.{follow_up}"
     if selector.isdigit():
         n = int(selector)
         await cursor.execute(
@@ -12175,7 +12175,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
             "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner,
         }, owner=task_owner)
         placed = f"is now active task #{new_pos} in \"{target}\"" if new_status == 'active' else f"queued as task #{new_pos} in \"{target}\""
-        return f"moved \"{title}\" — it {placed}."
+        return f"moved \"{title}\" - it {placed}."
     return "usage: !project move <n|now> <project name>"
 
 # Function handling !project rename <old> | <new>; returns the chat reply (no @user prefix)
@@ -12195,7 +12195,7 @@ async def project_rename_subcommand(cursor, user_id, user_name, rest):
     # collision check that would otherwise see the project as already taken.
     same_ci = old_name.lower() == new_name.lower()
     if not same_ci and await user_project_exists(cursor, user_id, new_name):
-        return f"you already have a project named \"{new_name}\" — use !project move to combine tasks instead."
+        return f"you already have a project named \"{new_name}\" - use !project move to combine tasks instead."
     await register_user_project(cursor, user_id, user_name, old_name)
     await cursor.execute(
         "UPDATE user_projects SET name = %s WHERE user_id = %s AND name = %s",
@@ -12219,7 +12219,7 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
         return "usage: !project delete <project name>"
     if not await user_project_exists(cursor, user_id, name):
         return f"you have no project named \"{name}\"."
-    # Open tasks are NEVER deleted — they fall back to the default project. The
+    # Open tasks are NEVER deleted - they fall back to the default project. The
     # default's active slot wins: the deleted project's active task only becomes
     # the default active task when that slot is free, otherwise it queues.
     await cursor.execute(
@@ -12269,7 +12269,7 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
     )
     emit_project_update(user_id, user_name, 'delete', name=name)
     if moved:
-        return f"project \"{name}\" deleted — {moved} open task(s) moved to your default project."
+        return f"project \"{name}\" deleted - {moved} open task(s) moved to your default project."
     return f"project \"{name}\" deleted."
 
 # Function to format !mytasks for Twitch's 500-char limit: active task + packed backlog titles
@@ -12380,7 +12380,7 @@ def emit_completion_messages_and_events(user_id, user_name, task_id, task_title,
             "user_name": user_name, "points_awarded": award_points, "new_total": new_total,
         }))
     if pending:
-        return f"task \"{task_title}\" completed — awaiting streamer approval for points."
+        return f"task \"{task_title}\" completed - awaiting streamer approval for points."
     elif award_points > 0:
         return f"task \"{task_title}\" done! +{award_points} points (total: {new_total})."
     else:
@@ -12651,7 +12651,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                     task_desc = f"Focus timer: {work_minutes}m"
                 else:
                     task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
-                # Per-user (or streamer-global) display number — same sequence as !task / !later.
+                # Per-user (or streamer-global) display number - same sequence as !task / !later.
                 if is_streamer:
                     await cursor.execute(
                         f"SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM {task_table}"
@@ -12889,7 +12889,7 @@ async def run_pomo_until_done(user_id):
                 return
             rem2 = max(0, int(row.get('remaining_seconds') or 0))
             if rem2 > 0:
-                # Not expired yet (clock skew / early wake) — loop and re-wait.
+                # Not expired yet (clock skew / early wake) - loop and re-wait.
                 continue
             result = await advance_pomo_phase(row)
             if result == 'completed':
@@ -15099,7 +15099,7 @@ async def get_media_banlist(connection):
         return await cursor.fetchall()
 
 async def resolve_youtube_request(message_content):
-    """Return dict {video_id,title,uploader,duration} or None. Metadata only — no download."""
+    """Return dict {video_id,title,uploader,duration} or None. Metadata only - no download."""
     youtube_url_patterns = [
         re.compile(r'https?://(www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)'),
         re.compile(r'https?://(www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)'),
@@ -15909,7 +15909,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 if result and result.get("sound_mapping"):
                     sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                     safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
-                # Specter Alerts overlay + Discord — variant matcher tiers by gift count
+                # Specter Alerts overlay + Discord - variant matcher tiers by gift count
                 safe_create_task(websocket_notice(event="TWITCH_GIFT_SUB", additional_data={
                     "twitch-username":      giftsubfrom,
                     "twitch-gift-count":    int(number_gifts),
@@ -16246,7 +16246,7 @@ async def websocket_notice(
                 elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM", "PROJECT_UPDATE"]:
                     # Working & Study task events. The task payload is JSON-encoded so the
                     # nested dict survives URL-encoding; the overlay/dashboard decode it.
-                    # Top-level None values are dropped — urlencode would stringify them
+                    # Top-level None values are dropped - urlencode would stringify them
                     # to the literal string 'None'.
                     if additional_data:
                         for _task_key, _task_val in additional_data.items():
@@ -16803,7 +16803,7 @@ async def generate_winning_lotto_numbers():
             all_numbers = random.sample(range(1, 48), 9)
             winning_str = ', '.join(map(str, all_numbers[:6]))
             supplementary_str = ', '.join(map(str, all_numbers[6:]))
-            # Fresh round — wipe any stale user entries left over from a prior round
+            # Fresh round - wipe any stale user entries left over from a prior round
             await cursor.execute("TRUNCATE TABLE stream_lotto")
             await cursor.execute(
                 "INSERT INTO stream_lotto_winning_numbers (winning_numbers, supplementary_numbers) VALUES (%s, %s)",
@@ -16946,7 +16946,7 @@ async def perform_lotto_draw(announce_empty=True):
                     division_winners.setdefault(division, []).append(user_name)
                 await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                 await connection.commit()
-            # Announce winners grouped by division — one chat message per division, top tier first
+            # Announce winners grouped by division - one chat message per division, top tier first
             for division in prize_pool.keys():
                 names = division_winners.get(division)
                 if not names:
@@ -17196,7 +17196,7 @@ async def start_subathon(ctx):
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
                     safe_create_task(subathon_countdown())
-                    # Send websocket notice — end_timestamp_ms lets the overlay tick against an
+                    # Send websocket notice - end_timestamp_ms lets the overlay tick against an
                     # absolute target so it doesn't accumulate setInterval drift.
                     additional_data = {
                         'starting_minutes': starting_minutes,
@@ -17236,7 +17236,7 @@ async def pause_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                # Seconds precision — flooring to minutes here would lose up to 59 seconds
+                # Seconds precision - flooring to minutes here would lose up to 59 seconds
                 # per pause/resume cycle.
                 remaining_seconds_float = (subathon_state["end_time"] - time_right_now()).total_seconds()
                 remaining_seconds = max(0, int(remaining_seconds_float))
@@ -17342,7 +17342,7 @@ async def subathon_countdown():
                 safe_create_task(websocket_notice(event="SUBATHON_STOP"))
                 break
         elif not subathon_state or subathon_state["paused"]:
-            # No active subathon to watch — exit; a new !subathon start spawns a fresh task.
+            # No active subathon to watch - exit; a new !subathon start spawns a fresh task.
             break
         await sleep(30)
 
@@ -19106,7 +19106,7 @@ async def irc_health_check():
                 continue
             channels = bot.connected_channels
             if not channels:
-                bot_logger.warning("[IRC HEALTH] TwitchIO IRC has no connected channels — commands will not work. Attempting reconnect...")
+                bot_logger.warning("[IRC HEALTH] TwitchIO IRC has no connected channels - commands will not work. Attempting reconnect...")
                 try:
                     await bot.connect()
                     bot_logger.info("[IRC HEALTH] TwitchIO IRC reconnect initiated.")

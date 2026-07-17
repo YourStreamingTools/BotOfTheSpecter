@@ -4,7 +4,7 @@
 		"bot":			"Shows information about the bot developer and a link to the BotOfTheSpecter website.",
 		"roadmap":		"Posts a link to the public Trello board showing upcoming features and development plans.",
 		"quote":		"Retrieves a random quote, or a specific one by number if provided.",
-		"rps":			"Play Rock-Paper-Scissors against Specter. Specter picks randomly — may the best hand win!",
+		"rps":			"Play Rock-Paper-Scissors against Specter. Specter picks randomly - may the best hand win!",
 		"story":		"Kicks off a collaborative AI-generated story in chat. Each use continues the tale.",
 		"roulette":		"Spin the roulette wheel in chat for a random outcome.",
 		"songrequest":	"Adds a song to the Spotify queue. Accepts a song title, artist name, Spotify link, or YouTube link. Requires Spotify to be linked in the dashboard.",

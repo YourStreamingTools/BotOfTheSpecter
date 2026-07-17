@@ -1,4 +1,4 @@
-# Patreon Webhooks v2 — Local API Reference
+# Patreon Webhooks v2 - Local API Reference
 
 Patreon Webhooks v2 push campaign events (membership changes, pledge changes, posts) to a
 registered HTTPS endpoint in real time. This document is the complete local reference for the
@@ -85,10 +85,10 @@ Request body (JSON:API):
 }
 ```
 
-- `triggers` — array of trigger names (see §3). Omitting a trigger means that event will never
+- `triggers` - array of trigger names (see §3). Omitting a trigger means that event will never
   be delivered to this webhook.
-- `uri` — must be a fully qualified HTTPS URL; Patreon will reject plain HTTP.
-- `relationships.campaign` — the campaign whose events should fire this webhook. A creator can
+- `uri` - must be a fully qualified HTTPS URL; Patreon will reject plain HTTP.
+- `relationships.campaign` - the campaign whose events should fire this webhook. A creator can
   have more than one campaign; specify which one explicitly.
 
 Successful response (HTTP 200):
@@ -135,7 +135,7 @@ Response: standard JSON:API list with `data` array of webhook objects (same sche
 PATCH /webhooks/{webhook_id}
 ```
 
-Request body — include only the fields to change:
+Request body - include only the fields to change:
 
 ```json
 {
@@ -188,7 +188,7 @@ The trigger name is sent in the `X-Patreon-Event` request header on every delive
 
 | Trigger | When it fires | Notes |
 | ------- | ------------- | ----- |
-| `members:create` | A new member resource is created — covers first follow, first free join, and first paid join. | May fire more than once for the same patron if they delete and rejoin. |
+| `members:create` | A new member resource is created - covers first follow, first free join, and first paid join. | May fire more than once for the same patron if they delete and rejoin. |
 | `members:update` | Membership attributes change. Also fires on every payment charge attempt (success or failure). | `last_charge_status` and `last_charge_date` will reflect the new charge state. |
 | `members:delete` | The membership resource is deleted. | May fire more than once per patron if they delete and rejoin. |
 | `members:pledge:create` | A new paid pledge is created within an existing membership. | Does **not** fire when a user becomes a free member or redeems a gift membership. |
@@ -254,7 +254,7 @@ FastAPI / Starlette usage (read body before JSON parse):
 ```python
 @app.post("/patreon")
 async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
-    raw_body = await request.body()          # bytes — must come before request.json()
+    raw_body = await request.body()          # bytes - must come before request.json()
     sig = request.headers.get("X-Patreon-Signature", "")
     event = request.headers.get("X-Patreon-Event", "")
     secret = await get_patreon_secret_for_key(api_key)   # load from DB
@@ -333,7 +333,7 @@ Key rules:
 
 ### 8.1 Member
 
-`data.type = "member"` — delivered for all six member triggers.
+`data.type = "member"` - delivered for all six member triggers.
 
 **Attributes:**
 
@@ -343,12 +343,12 @@ Key rules:
 | `currently_entitled_amount_cents` | integer | Pledge amount the patron is currently entitled to, in cents. 0 for free followers. |
 | `email` | string \| absent | Patron email. Only present when the webhook was created with a token that has the `campaigns.members[email]` scope. |
 | `full_name` | string | Patron's display name. |
-| `is_follower` | boolean | Deprecated — always `false` in v2 API. |
+| `is_follower` | boolean | Deprecated - always `false` in v2 API. |
 | `last_charge_date` | ISO 8601 \| null | Timestamp of the most recent charge attempt. null if never charged. |
 | `last_charge_status` | enum \| null | Result of the most recent charge. Values: `Paid`, `Declined`, `Deleted`, `Pending`, `Refunded`, `Fraud`, `Other`. null if never charged. |
 | `next_charge_date` | ISO 8601 \| null | When the next charge is scheduled. null for non-recurring pledges. |
 | `note` | string | Creator-visible private note about this patron. |
-| `patron_status` | enum \| null | `active_patron` — has a paid active pledge. `declined_patron` — has a pledge but last charge was declined. `former_patron` — once pledged but no longer does. null — free follower with no pledge history. |
+| `patron_status` | enum \| null | `active_patron` - has a paid active pledge. `declined_patron` - has a pledge but last charge was declined. `former_patron` - once pledged but no longer does. null - free follower with no pledge history. |
 | `pledge_cadence` | integer \| null | Billing cadence in months (1 = monthly). |
 | `pledge_relationship_start` | ISO 8601 \| null | When the patron first pledged (not necessarily the current pledge start). |
 | `will_pay_amount_cents` | integer | Amount the patron will be charged on the next billing date, in cents. |
@@ -452,7 +452,7 @@ Returned inside `included` via the member's `currently_entitled_tiers` relations
 
 ### 8.6 Post
 
-`data.type = "post"` — delivered for all three post triggers.
+`data.type = "post"` - delivered for all three post triggers.
 
 **Attributes:**
 
@@ -483,7 +483,7 @@ Patreon includes related resources in the top-level `included` array. To travers
 2. Find the matching object in `included` where `type == "user"` and `id == "12345678"`.
 3. Read attributes from that object.
 
-Example — extract patron's Twitch connection from a `members:pledge:create` payload:
+Example - extract patron's Twitch connection from a `members:pledge:create` payload:
 
 ```python
 def find_included(included: list, rtype: str, rid: str) -> dict | None:
@@ -496,9 +496,9 @@ twitch_user_id = twitch["user_id"] if twitch else None
 ```
 
 Relationships that may appear in `included` on member events:
-- `user` — patron's Patreon user record
-- `campaign` — the campaign resource
-- `currently_entitled_tiers` — array; each element is a tier resource
+- `user` - patron's Patreon user record
+- `campaign` - the campaign resource
+- `currently_entitled_tiers` - array; each element is a tier resource
 
 `pledge_history` is typically **not** included by default on webhook deliveries. It is available
 via direct API queries with `include=pledge_history`.

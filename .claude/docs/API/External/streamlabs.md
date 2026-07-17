@@ -1,4 +1,4 @@
-# StreamLabs API — Comprehensive Reference
+# StreamLabs API - Comprehensive Reference
 
 **Base URL (REST v2.0):** `https://streamlabs.com/api/v2.0`  
 **Socket URL:** `https://sockets.streamlabs.com`  
@@ -12,9 +12,9 @@
 1. [Authentication (OAuth 2.0)](#1-authentication-oauth-20)
 2. [REST Endpoints](#2-rest-endpoints)
    - [User](#21-user)
-   - [Donations — GET](#22-donations--get)
-   - [Donations — POST](#23-donations--post)
-   - [Alerts — POST](#24-alerts--post)
+   - [Donations - GET](#22-donations--get)
+   - [Donations - POST](#23-donations--post)
+   - [Alerts - POST](#24-alerts--post)
    - [Socket Token](#25-socket-token)
    - [Points](#26-points)
    - [Credits](#27-credits)
@@ -28,17 +28,17 @@
    - [Connection](#51-connection)
    - [Event envelope](#52-event-envelope)
    - [Donations (Streamlabs)](#53-donations-streamlabs)
-   - [Twitch — Follow](#54-twitch--follow)
-   - [Twitch — Subscription](#55-twitch--subscription)
-   - [Twitch — Host](#56-twitch--host)
-   - [Twitch — Bits](#57-twitch--bits)
-   - [Twitch — Raid](#58-twitch--raid)
-   - [YouTube — Follow](#59-youtube--follow)
-   - [YouTube — Subscription](#510-youtube--subscription)
-   - [YouTube — Superchat](#511-youtube--superchat)
-   - [Mixer — Follow](#512-mixer--follow)
-   - [Mixer — Subscription](#513-mixer--subscription)
-   - [Mixer — Host](#514-mixer--host)
+   - [Twitch - Follow](#54-twitch--follow)
+   - [Twitch - Subscription](#55-twitch--subscription)
+   - [Twitch - Host](#56-twitch--host)
+   - [Twitch - Bits](#57-twitch--bits)
+   - [Twitch - Raid](#58-twitch--raid)
+   - [YouTube - Follow](#59-youtube--follow)
+   - [YouTube - Subscription](#510-youtube--subscription)
+   - [YouTube - Superchat](#511-youtube--superchat)
+   - [Mixer - Follow](#512-mixer--follow)
+   - [Mixer - Subscription](#513-mixer--subscription)
+   - [Mixer - Host](#514-mixer--host)
 6. [Rate Limits](#6-rate-limits)
 7. [Error Codes](#7-error-codes)
 8. [BotOfTheSpecter Callsites](#8-botofthespecter-callsites)
@@ -79,7 +79,7 @@ Content-Type: application/x-www-form-urlencoded
 X-Requested-With: XMLHttpRequest
 ```
 
-**Request body — authorization code grant:**
+**Request body - authorization code grant:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -89,7 +89,7 @@ X-Requested-With: XMLHttpRequest
 | `redirect_uri` | string | Yes | Same URI used in the authorization request |
 | `code` | string | Yes | The authorization code from the callback |
 
-**Request body — refresh token grant:**
+**Request body - refresh token grant:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -187,7 +187,7 @@ Returns the authenticated user's Streamlabs profile.
 
 ---
 
-### 2.2 Donations — GET
+### 2.2 Donations - GET
 
 **`GET /donations`**
 
@@ -201,7 +201,7 @@ Retrieve the authenticated user's donation history in reverse chronological orde
 | `before` | int32 | No | Return donations with an ID strictly less than this value (cursor for older records). |
 | `after` | int32 | No | Return donations with an ID strictly greater than this value (cursor for newer records). |
 | `currency` | string | No | ISO 4217 3-letter currency code. When set, all amounts are converted to this currency. If omitted, each record retains its originating currency. |
-| `verified` | boolean | No | `true` — return only verified donations (PayPal, credit card, Skrill, Unitpay). `false` — return only unverified (streamer-added). Omit to return both. |
+| `verified` | boolean | No | `true` - return only verified donations (PayPal, credit card, Skrill, Unitpay). `false` - return only unverified (streamer-added). Omit to return both. |
 
 **Response (200):**
 
@@ -231,7 +231,7 @@ Retrieve the authenticated user's donation history in reverse chronological orde
 
 ---
 
-### 2.3 Donations — POST
+### 2.3 Donations - POST
 
 **`POST /donations`**
 
@@ -242,11 +242,11 @@ Create a donation entry (e.g., for manual entry or integration bridging). Requir
 | Parameter | Type | Required | Constraints | Description |
 |-----------|------|----------|-------------|-------------|
 | `name` | string | Yes | 2–25 characters, UTF-8 | Donor display name |
-| `identifier` | string | Yes | — | Unique identifier for the donor, used to group repeat donors (e.g., email address or a stable hash) |
-| `amount` | double | Yes | — | Donation amount |
+| `identifier` | string | Yes | - | Unique identifier for the donor, used to group repeat donors (e.g., email address or a stable hash) |
+| `amount` | double | Yes | - | Donation amount |
 | `currency` | string | Yes | Must be one of the supported currency codes (see §4) | ISO 4217 currency code |
 | `message` | string | No | Max 255 characters | Message from the donor |
-| `created_at` | string | No | — | Timestamp for the donation; defaults to current server time if omitted |
+| `created_at` | string | No | - | Timestamp for the donation; defaults to current server time if omitted |
 | `skip_alert` | string | No | `"yes"` or `"no"` | Defaults to `"no"`. Set to `"yes"` to suppress the Streamlabs alert for this donation. |
 
 **Response (200):**
@@ -259,7 +259,7 @@ Create a donation entry (e.g., for manual entry or integration bridging). Requir
 
 ---
 
-### 2.4 Alerts — POST
+### 2.4 Alerts - POST
 
 **`POST /alerts`**
 
@@ -320,7 +320,7 @@ Obtain a dedicated, opaque WebSocket authentication token for the real-time Sock
 |-------|------|-------------|
 | `socket_token` | string | Opaque token used as the `token` query parameter when connecting to `wss://sockets.streamlabs.com`. This token is distinct from and unrelated to the OAuth `access_token`. |
 
-> The OAuth `access_token` with the `socket.token` scope can also be used directly in place of `socket_token` when connecting to the WebSocket — but the dedicated socket token is preferred.
+> The OAuth `access_token` with the `socket.token` scope can also be used directly in place of `socket_token` when connecting to the WebSocket - but the dedicated socket token is preferred.
 
 > Do not open the same `socket_token` from two concurrent processes. StreamLabs enforces a per-token concurrent connection limit and will revoke the token if it is exceeded.
 
@@ -497,8 +497,8 @@ The StreamLabs REST API uses **cursor-based pagination** on list endpoints (e.g.
 | Parameter | Description |
 |-----------|-------------|
 | `limit` | Maximum number of records per page. Each endpoint defines its own maximum; requests above it are clamped silently. |
-| `before` | Cursor — return records with an ID less than this value (paginating towards older records). |
-| `after` | Cursor — return records with an ID greater than this value (paginating towards newer records). |
+| `before` | Cursor - return records with an ID less than this value (paginating towards older records). |
+| `after` | Cursor - return records with an ID greater than this value (paginating towards newer records). |
 
 Typical pattern:
 
@@ -506,7 +506,7 @@ Typical pattern:
 # Page 1
 GET /donations?limit=50
 
-# Page 2 — pass the smallest ID from page 1 as 'before'
+# Page 2 - pass the smallest ID from page 1 as 'before'
 GET /donations?limit=50&before=79530994
 ```
 
@@ -608,12 +608,12 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 |-------|------|-------------|
 | `type` | string | Event category (e.g., `donation`, `follow`, `subscription`, `host`, `bits`, `raid`, `superchat`) |
 | `for` | string or absent | Platform identifier: `twitch_account`, `youtube_account`, `mixer_account`. Absent for Streamlabs-native donations. |
-| `message` | array | Array of one or more event payload objects. Always iterate — multiple events can arrive in a single frame. |
+| `message` | array | Array of one or more event payload objects. Always iterate - multiple events can arrive in a single frame. |
 | `event_id` | string | Opaque unique identifier for deduplication. Present on some event types. |
 
 ### 5.3 Donations (Streamlabs)
 
-**`type: "donation"` — no `for` field**
+**`type: "donation"` - no `for` field**
 
 ```json
 {
@@ -656,7 +656,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `iconClassName` | string | CSS icon class for UI rendering |
 | `to.name` | string | The channel/streamer receiving the donation |
 
-### 5.4 Twitch — Follow
+### 5.4 Twitch - Follow
 
 **`type: "follow"`, `for: "twitch_account"`**
 
@@ -682,7 +682,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `name` | string | Twitch username of the follower |
 | `created_at` | string | ISO 8601 timestamp of the follow |
 
-### 5.5 Twitch — Subscription
+### 5.5 Twitch - Subscription
 
 **`type: "subscription"`, `for: "twitch_account"`**
 
@@ -716,7 +716,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `sub_plan_name` | string | Human-readable tier name |
 | `sub_type` | string | `"sub"` (new), `"resub"` (renewal), `"subgift"` (gifted) |
 
-### 5.6 Twitch — Host
+### 5.6 Twitch - Host
 
 **`type: "host"`, `for: "twitch_account"`**
 
@@ -742,7 +742,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `viewers` | integer | Number of viewers brought by the host |
 | `type` | string | `"manual"` or `"auto"` |
 
-### 5.7 Twitch — Bits
+### 5.7 Twitch - Bits
 
 **`type: "bits"`, `for: "twitch_account"`**
 
@@ -772,7 +772,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `message` | string | Cheer message including emote strings |
 | `emotes` | null or object | Parsed emote positions |
 
-### 5.8 Twitch — Raid
+### 5.8 Twitch - Raid
 
 **`type: "raid"`, `for: "twitch_account"`**
 
@@ -798,7 +798,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `name` | string | Username of the raiding channel |
 | `raiders` | integer | Number of raiders |
 
-### 5.9 YouTube — Follow
+### 5.9 YouTube - Follow
 
 **`type: "follow"`, `for: "youtube_account"`**
 
@@ -824,7 +824,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `name` | string | YouTube display name |
 | `publishedAt` | string | ISO 8601 timestamp |
 
-### 5.10 YouTube — Subscription
+### 5.10 YouTube - Subscription
 
 **`type: "subscription"`, `for: "youtube_account"`**
 
@@ -854,7 +854,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `months` | integer | Months as a member |
 | `sponsorSince` | string | ISO 8601 start date of membership |
 
-### 5.11 YouTube — Superchat
+### 5.11 YouTube - Superchat
 
 **`type: "superchat"`, `for: "youtube_account"`**
 
@@ -894,7 +894,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `messageType` | integer | YouTube Superchat tier type (1–7) |
 | `createdAt` | string | ISO 8601 timestamp |
 
-### 5.12 Mixer — Follow
+### 5.12 Mixer - Follow
 
 **`type: "follow"`, `for: "mixer_account"`**
 
@@ -905,7 +905,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `name` | string | Mixer username |
 | `created_at` | string | ISO 8601 timestamp |
 
-### 5.13 Mixer — Subscription
+### 5.13 Mixer - Subscription
 
 **`type: "subscription"`, `for: "mixer_account"`**
 
@@ -919,7 +919,7 @@ All real-time events arrive on the `event` socket event name. The payload is an 
 | `emotes` | null or object | Emote data |
 | `since` | string | ISO 8601 subscription start timestamp |
 
-### 5.14 Mixer — Host
+### 5.14 Mixer - Host
 
 **`type: "host"`, `for: "mixer_account"`**
 
@@ -941,7 +941,7 @@ StreamLabs does not publish exact numeric rate limits in its public documentatio
 **REST endpoints:**
 - A tier-based rate limit exists. The specific ceiling is not surfaced for free-tier applications.
 - On limit breach, the server returns HTTP `429 Too Many Requests` with a `Retry-After` header (value in seconds). Implement exponential backoff respecting this header.
-- The `GET /donations` and `GET /user` endpoints on the dashboard are uncached — add a response cache or backoff if they are called in a hot path.
+- The `GET /donations` and `GET /user` endpoints on the dashboard are uncached - add a response cache or backoff if they are called in a hot path.
 
 **Socket.IO:**
 - No documented per-event rate limit.

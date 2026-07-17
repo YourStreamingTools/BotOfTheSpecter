@@ -187,7 +187,7 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
 function verifyPersistedChatToken($conn, $accessToken) {
     $verify = fetchWebsiteTwitchSettings($conn);
     $storedToken = isset($verify['chat_token']) ? (string) $verify['chat_token'] : '';
-    // fetchWebsiteTwitchSettings trims the stored value, so trim the expected side too — the
+    // fetchWebsiteTwitchSettings trims the stored value, so trim the expected side too - the
     // comparison stays symmetric and a legit token can never read as a false mismatch.
     $expectedToken = trim((string) $accessToken);
     if ($storedToken !== $expectedToken) {
@@ -323,7 +323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
                             exit;
                         }
                         // Minted a fresh token but could not save it (incl. truncation read-back
-                        // mismatch) — surface the real error instead of the generic invalid one.
+                        // mismatch) - surface the real error instead of the generic invalid one.
                         echo json_encode(['success' => false, 'error' => $persistResult['error'] ?? t('admin_twitch_tokens_err_persist_token')]);
                         exit;
                     }

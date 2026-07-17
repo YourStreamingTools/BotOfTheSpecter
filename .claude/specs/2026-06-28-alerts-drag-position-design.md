@@ -1,4 +1,4 @@
-# Alert Box Drag-to-Position — Design Spec
+# Alert Box Drag-to-Position - Design Spec
 
 **Date:** 2026-06-28
 **Scope:** the unified alerts builder (`dashboard/alerts.php`), its stylesheet (`dashboard/css/alerts.css`), the per-user schema manager (`dashboard/includes/usr_database.php`), the alert overlay (`overlay/index.php`), the dashboard language files, and a small documentation tweak to `dashboard/makers.php`.
@@ -6,27 +6,27 @@
 
 ## Problem
 
-On the alerts page a streamer can only place an alert at one of nine fixed spots — the corners, edges, and centre of a 3×3 grid. Each alert variant stores that choice in `twitch_alerts.screen_position` (`left-top` … `right-bottom`), the dashboard picks it with a grid of dots, and the overlay anchors the box to the matching corner with a fixed 24px margin.
+On the alerts page a streamer can only place an alert at one of nine fixed spots - the corners, edges, and centre of a 3×3 grid. Each alert variant stores that choice in `twitch_alerts.screen_position` (`left-top` … `right-bottom`), the dashboard picks it with a grid of dots, and the overlay anchors the box to the matching corner with a fixed 24px margin.
 
-The makers overlay already does better: it lets the streamer drag a box anywhere on a preview canvas and stores its position as a free x/y percentage. We want the alert box to be placed the same way — drag it to exactly where it should sit on stream — rather than snapping to one of nine presets.
+The makers overlay already does better: it lets the streamer drag a box anywhere on a preview canvas and stores its position as a free x/y percentage. We want the alert box to be placed the same way - drag it to exactly where it should sit on stream - rather than snapping to one of nine presets.
 
 The alerts page has one advantage makers doesn't: it already renders a live preview of the alert in the centre column. So instead of bolting on a separate mini editor, we make the preview itself the thing you drag.
 
 ## Goal
 
-Let a streamer position each alert by dragging the live preview box around a true-to-scale canvas and dropping it where it belongs. The dropped spot is saved as a free x/y percentage and reproduced on the overlay. This replaces the 3×3 preset grid everywhere it appears — the main variant settings and the simpler weather / death-counter / walk-on panels — so there is a single positioning surface for every category.
+Let a streamer position each alert by dragging the live preview box around a true-to-scale canvas and dropping it where it belongs. The dropped spot is saved as a free x/y percentage and reproduced on the overlay. This replaces the 3×3 preset grid everywhere it appears - the main variant settings and the simpler weather / death-counter / walk-on panels - so there is a single positioning surface for every category.
 
 ## Design decisions
 
 1. **Drag the live preview, not a separate editor.** The box already shown in the centre preview becomes draggable. Where the streamer drops it is where the alert lands. This is the most direct "what you see is what you get" we can offer, and it avoids a second positioning widget that would duplicate the preview.
 
-2. **The preview becomes a true OBS canvas.** Today the preview is a freeform box whose width and height the streamer types in, positioned by flexbox alignment. We replace that with a fixed 16:9 canvas representing the OBS browser source, plus a resolution selector — **1280×720 (720p) as the minimum, 1920×1080, and 2560×1440 (2K) as the maximum**, matching the makers editor. The box renders true-to-scale for the chosen resolution so the preview reflects real proportions.
+2. **The preview becomes a true OBS canvas.** Today the preview is a freeform box whose width and height the streamer types in, positioned by flexbox alignment. We replace that with a fixed 16:9 canvas representing the OBS browser source, plus a resolution selector - **1280×720 (720p) as the minimum, 1920×1080, and 2560×1440 (2K) as the maximum**, matching the makers editor. The box renders true-to-scale for the chosen resolution so the preview reflects real proportions.
 
-3. **Free x/y replaces the nine presets.** Both 3×3 grids (the main variant grid and the simple-category grid) are removed. Dragging — with snapping to edges, centre, and thirds — covers everything the presets did, with the precision the presets couldn't.
+3. **Free x/y replaces the nine presets.** Both 3×3 grids (the main variant grid and the simple-category grid) are removed. Dragging - with snapping to edges, centre, and thirds - covers everything the presets did, with the precision the presets couldn't.
 
 4. **Position is stored as the box's top-left, as a 0–100% of the canvas**, the same convention makers uses. Because the canvas is always 16:9, the stored percentage is resolution-independent: a box placed at 720p sits in the same relative spot at 2K.
 
-5. **New columns, with the old one kept as a fallback.** Two nullable `DECIMAL(5,2)` columns — `position_x` and `position_y` — are added to `twitch_alerts`. The legacy `screen_position` column stays in the schema but is no longer written by the new UI. Existing users keep their spot: the overlay falls back to the old preset (then to the per-category default) whenever x/y is null, and the editor seeds the box from the old preset the first time it opens so the first drag starts where the streamer already was.
+5. **New columns, with the old one kept as a fallback.** Two nullable `DECIMAL(5,2)` columns - `position_x` and `position_y` - are added to `twitch_alerts`. The legacy `screen_position` column stays in the schema but is no longer written by the new UI. Existing users keep their spot: the overlay falls back to the old preset (then to the per-category default) whenever x/y is null, and the editor seeds the box from the old preset the first time it opens so the first drag starts where the streamer already was.
 
 6. **Every category drags, including the simple ones.** Weather, death counter, and walk-ons share the same draggable canvas. Weather and deaths already render a sample in the preview; walk-ons don't (their mode is per-viewer), so a representative walk-on card sample is shown purely as the drag target.
 
@@ -39,15 +39,15 @@ position_x DECIMAL(5,2) DEFAULT NULL
 position_y DECIMAL(5,2) DEFAULT NULL
 ```
 
-They hold the box's top-left corner as a percentage of the canvas (0–100, two decimals). `NULL` means "never positioned by drag" — the overlay then falls back to `screen_position`, then to the category default.
+They hold the box's top-left corner as a percentage of the canvas (0–100, two decimals). `NULL` means "never positioned by drag" - the overlay then falls back to `screen_position`, then to the category default.
 
 Both columns are declared in the `twitch_alerts` definition inside the per-user schema manager (`dashboard/includes/usr_database.php`). That manager compares the declared columns against each database's actual columns and issues an `ALTER TABLE … ADD` for anything missing on the next dashboard page load, so the columns propagate to every existing user database without a standalone migration script. `screen_position` is left in place and untouched.
 
 ## Positioning behaviour
 
-**The convention.** The stored x/y is the box's top-left, as a percentage of the canvas. On the overlay the box is placed with `left` and `top` at those percentages, anchored top-left (no centring transform). Because alert content varies in size — a long username, an image, a short word — the box could otherwise run off the edge, so the overlay clamps the placement using the box's *rendered* size: the top-left is pulled back so the box's right and bottom stay inside the viewport. This mirrors makers, which clamps a chip's top-left to the canvas minus the chip's own size.
+**The convention.** The stored x/y is the box's top-left, as a percentage of the canvas. On the overlay the box is placed with `left` and `top` at those percentages, anchored top-left (no centring transform). Because alert content varies in size - a long username, an image, a short word - the box could otherwise run off the edge, so the overlay clamps the placement using the box's *rendered* size: the top-left is pulled back so the box's right and bottom stay inside the viewport. This mirrors makers, which clamps a chip's top-left to the canvas minus the chip's own size.
 
-**In the dashboard.** The streamer drags the real preview box, so its true rendered size is known at drag time. The same clamp keeps it on the canvas, and snapping aligns its near edge, centre, or far edge to the canvas edges, centre, and thirds — and to a guide line that appears only while a snap is active. Holding Alt bypasses snapping for free placement, as in makers.
+**In the dashboard.** The streamer drags the real preview box, so its true rendered size is known at drag time. The same clamp keeps it on the canvas, and snapping aligns its near edge, centre, or far edge to the canvas edges, centre, and thirds - and to a guide line that appears only while a snap is active. Holding Alt bypasses snapping for free placement, as in makers.
 
 **Animations.** The resting position is `left`/`top`; the in/out animations are transforms and opacity, so they compose with the absolute position without fighting it. The box animates into and out of the spot it was dragged to.
 
@@ -55,13 +55,13 @@ Both columns are declared in the `twitch_alerts` definition inside the per-user 
 
 ### Preview panel
 
-The freeform width/height number inputs are replaced by a resolution selector offering 720p, 1080p, and 2K, with 720p and 2K called out as the supported minimum and maximum. The preview area becomes a fixed 16:9 frame — the OBS canvas — and switches from flex-alignment positioning to absolute positioning, with the box placed at its stored x/y. Autoplay and the background swatches stay as they are.
+The freeform width/height number inputs are replaced by a resolution selector offering 720p, 1080p, and 2K, with 720p and 2K called out as the supported minimum and maximum. The preview area becomes a fixed 16:9 frame - the OBS canvas - and switches from flex-alignment positioning to absolute positioning, with the box placed at its stored x/y. Autoplay and the background swatches stay as they are.
 
 ### Dragging
 
 The preview box (and the weather/deaths sample, and the new walk-on sample) is made draggable with pointer events: grab, move, clamp, snap, release. While dragging, thin guide lines flag an active snap. On release the box's clamped top-left percentage is written to the variant's working state and marked for saving. The snapping, guide, and expand logic is ported from the makers editor and adapted to operate on the real box's measured size rather than a synthesised chip footprint.
 
-An expand-to-fullscreen control — the same affordance makers has — promotes the canvas to a large centred panel for precise placement, backed by a dim backdrop, closable with the button, the backdrop, or Escape. It is the same canvas and box, only larger, so dragging and saving keep working untouched.
+An expand-to-fullscreen control - the same affordance makers has - promotes the canvas to a large centred panel for precise placement, backed by a dim backdrop, closable with the button, the backdrop, or Escape. It is the same canvas and box, only larger, so dragging and saving keep working untouched.
 
 ### Removing the grids
 
@@ -77,15 +77,15 @@ When a variant opens, the box starts at its stored x/y. If those are null but a 
 
 ## Overlay changes (`overlay/index.php`)
 
-The overlay's `applyScreenPosition` helper becomes position-aware. It prefers the variant's `position_x`/`position_y` — placing the box at those percentages, top-left anchored, then clamping with the rendered box size so dynamic content never overflows. When x/y is absent it falls back to the existing preset behaviour, and when that's absent too, to the category default. The four places that position something — the main alert container, the death overlay, the weather overlay, and the walk-on overlay — all flow through this helper, and each passes the relevant variant's x/y along with the category it already passes.
+The overlay's `applyScreenPosition` helper becomes position-aware. It prefers the variant's `position_x`/`position_y` - placing the box at those percentages, top-left anchored, then clamping with the rendered box size so dynamic content never overflows. When x/y is absent it falls back to the existing preset behaviour, and when that's absent too, to the category default. The four places that position something - the main alert container, the death overlay, the weather overlay, and the walk-on overlay - all flow through this helper, and each passes the relevant variant's x/y along with the category it already passes.
 
 ## Documentation tweak (`makers.php`)
 
-The makers canvas-size selector already offers exactly 720p, 1080p, and 2K. We make the supported range explicit there — a short hint by the selector and a clarifying comment — stating the 1280×720 minimum and 2560×1440 maximum, so the two pages document the same constraint and stay in lockstep.
+The makers canvas-size selector already offers exactly 720p, 1080p, and 2K. We make the supported range explicit there - a short hint by the selector and a clarifying comment - stating the 1280×720 minimum and 2560×1440 maximum, so the two pages document the same constraint and stay in lockstep.
 
 ## Internationalization
 
-The new labels — the resolution/canvas-size label, the drag hint, the snap hint, and the expand/collapse controls — go through the dashboard's `t()` layer. Keys are added to the English base and to the German and French files per the project's i18n rule, with French apostrophes escaped. Where the makers editor already has an equivalent string, the alerts keys mirror its wording.
+The new labels - the resolution/canvas-size label, the drag hint, the snap hint, and the expand/collapse controls - go through the dashboard's `t()` layer. Keys are added to the English base and to the German and French files per the project's i18n rule, with French apostrophes escaped. Where the makers editor already has an equivalent string, the alerts keys mirror its wording.
 
 ## Out of scope (deliberately)
 

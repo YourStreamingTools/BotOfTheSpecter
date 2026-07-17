@@ -1,5 +1,5 @@
 /* ============================================================
-   BotOfTheSpecter Home — style.css
+   BotOfTheSpecter Home - style.css
    Custom dark theme, no external CSS framework
    ============================================================ */
 
@@ -36,7 +36,7 @@
 }
 
 /* ----------------------------------------------------------
-   Light theme token overrides — applied when <html data-theme="light">.
+   Light theme token overrides - applied when <html data-theme="light">.
    ---------------------------------------------------------- */
 [data-theme="light"] {
     color-scheme: light;

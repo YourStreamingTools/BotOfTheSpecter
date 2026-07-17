@@ -1,11 +1,11 @@
 # FreeStuff Webhooks Reference (BotOfTheSpecter)
 
-FreeStuff is the third-party FreeStuffBot service that announces free games (Steam, Epic, GOG, etc.) when they go free-to-keep. This integration is **operationally different** from the per-user donation webhooks: it is a single shared **admin webhook** consumed centrally, not per-streamer. Game announcements are saved to the central `freestuff_games` table and broadcast to global WebSocket listeners (the SpecterDiscord bot, which posts to Discord channels) — not to per-user overlays.
+FreeStuff is the third-party FreeStuffBot service that announces free games (Steam, Epic, GOG, etc.) when they go free-to-keep. This integration is **operationally different** from the per-user donation webhooks: it is a single shared **admin webhook** consumed centrally, not per-streamer. Game announcements are saved to the central `freestuff_games` table and broadcast to global WebSocket listeners (the SpecterDiscord bot, which posts to Discord channels) - not to per-user overlays.
 
 - **Ingest endpoint:** `POST /freestuff?api_key=<ADMIN_API_KEY>` → `./api/api.py:~1971` (`handle_freestuff_webhook`)
 - **WebSocket event:** `FREESTUFF` → global listeners only → `FREESTUFF_ANNOUNCEMENT` in SpecterDiscord
 - **Auth scope:** admin API key with `service='FreeStuff'` (or super-admin `service='admin'`)
-- **No overlay:** there is no `./overlay/freestuff.php` — display is exclusively via Discord
+- **No overlay:** there is no `./overlay/freestuff.php` - display is exclusively via Discord
 
 ---
 
@@ -25,10 +25,10 @@ Source: `https://docs.freestuffbot.xyz/api-v2/webhooks/`
 
 ## 2. Setup on FreeStuff
 
-FreeStuff only allows a small number of partner integrations to receive their webhook directly — **this is not a per-streamer setup**.
+FreeStuff only allows a small number of partner integrations to receive their webhook directly - **this is not a per-streamer setup**.
 
 1. The BotOfTheSpecter operator registers an account at `https://freestuffbot.xyz/` and goes to the partner/dashboard area.
-2. Creates an "App" in the FreeStuff dashboard — receives a webhook signing public key (Ed25519).
+2. Creates an "App" in the FreeStuff dashboard - receives a webhook signing public key (Ed25519).
 3. Webhook URL entered: `https://api.botofthespecter.com/freestuff?api_key=<FREESTUFF_ADMIN_KEY>`
    - `<FREESTUFF_ADMIN_KEY>` is an admin API key with `service='FreeStuff'` in the `admin_api_keys` table.
 4. Subscribes to: `fsb:event:ping`, `fsb:event:announcement_created`, `fsb:event:product_updated`.
@@ -39,23 +39,23 @@ FreeStuff only allows a small number of partner integrations to receive their we
 
 ## 3. Authentication & signature verification
 
-**Layer 1 — BotOfTheSpecter side (enforced):**
+**Layer 1 - BotOfTheSpecter side (enforced):**
 `?api_key=<key>` must satisfy `verify_key(api_key, service="FreeStuff")` with `key_info["type"] == "admin"`. Accepts super-admin (`service='admin'`) or FreeStuff-scoped (`service='FreeStuff'`) keys. Anything else → HTTP 401.
 
-**Layer 2 — FreeStuff Ed25519 signature (NOT currently enforced — see §6):**
+**Layer 2 - FreeStuff Ed25519 signature (NOT currently enforced - see §6):**
 
 Standard Webhooks Spec headers:
 
 | Header | Value |
 | ------ | ----- |
-| `Webhook-Id` | Unique per delivery — use for idempotency. |
-| `Webhook-Timestamp` | Unix seconds from **2025-01-01** (custom epoch — not standard Unix epoch from 1970). |
+| `Webhook-Id` | Unique per delivery - use for idempotency. |
+| `Webhook-Timestamp` | Unix seconds from **2025-01-01** (custom epoch - not standard Unix epoch from 1970). |
 | `Webhook-Signature` | Ed25519 signature, base64-encoded. |
 | `X-Compatibility-Date` | Schema version of the payload. |
 
 Verification algorithm: Ed25519 over the message `"<webhook_id>.<webhook_timestamp>.<raw_body>"`, using the partner public key from the FreeStuff dashboard. **Use the raw HTTP body before JSON parsing.**
 
-The bot currently reads `Webhook-Id` and `X-Compatibility-Date` only for logging — no signature verification is performed.
+The bot currently reads `Webhook-Id` and `X-Compatibility-Date` only for logging - no signature verification is performed.
 
 ---
 
@@ -89,7 +89,7 @@ class FreeStuffWebhookPayload(BaseModel):
 }
 ```
 
-`data.manual: true` = human clicked "Send test webhook"; `false` = automated health check. Bot returns `204 No Content` with `X-Client-Library: BotOfTheSpecter/1.0`. **This header is required** — FreeStuff uses it to fingerprint the consumer for analytics. Returning it without a body is correct; do not forward ping events to the WebSocket.
+`data.manual: true` = human clicked "Send test webhook"; `false` = automated health check. Bot returns `204 No Content` with `X-Client-Library: BotOfTheSpecter/1.0`. **This header is required** - FreeStuff uses it to fingerprint the consumer for analytics. Returning it without a body is correct; do not forward ping events to the WebSocket.
 
 ### `fsb:event:announcement_created`
 
@@ -131,7 +131,7 @@ class FreeStuffWebhookPayload(BaseModel):
 }
 ```
 
-`prices[*].oldValue` / `newValue` are integers in **cents** (USD `1999` = $19.99). Free-tier consumers see a subset of `images` and `urls` — don't rely on full data.
+`prices[*].oldValue` / `newValue` are integers in **cents** (USD `1999` = $19.99). Free-tier consumers see a subset of `images` and `urls` - don't rely on full data.
 
 ### `fsb:event:product_updated`
 
@@ -185,19 +185,19 @@ Server-side (`./websocket/server.py:964-999`):
 - **Does NOT broadcast to per-code clients.** No overlays are subscribed to `FREESTUFF`.
 
 Read-only API endpoints:
-- `GET /freestuff/games` — last 5 games (`FreeStuffGamesResponse` model, `./api/api.py:2203`)
-- `GET /freestuff/latest` — most recent game (`FreeStuffGame` model, `./api/api.py:2245`)
+- `GET /freestuff/games` - last 5 games (`FreeStuffGamesResponse` model, `./api/api.py:2203`)
+- `GET /freestuff/latest` - most recent game (`FreeStuffGame` model, `./api/api.py:2245`)
 
 ---
 
 ## 7. Idempotency, retries & gotchas
 
 - **Idempotency key:** `Webhook-Id` header is the canonical dedupe key. The bot reads it but only logs it. **TODO:** add a dedup cache (e.g. an LRU dict keyed by `Webhook-Id` with 1-hour TTL, or a `freestuff_seen_ids` table) to drop replays.
-- **Retries:** FreeStuff retries on non-2xx per Standard Webhooks schedule. Webhooks marked "dead" after multiple consecutive failures over days are silently removed — re-register the URL to resume.
-- **Custom epoch on `Webhook-Timestamp`.** It's Unix seconds from **2025-01-01**, not 1970. Don't compare directly with `time.time()`. The bot doesn't parse this currently — flag it if implementing replay protection.
+- **Retries:** FreeStuff retries on non-2xx per Standard Webhooks schedule. Webhooks marked "dead" after multiple consecutive failures over days are silently removed - re-register the URL to resume.
+- **Custom epoch on `Webhook-Timestamp`.** It's Unix seconds from **2025-01-01**, not 1970. Don't compare directly with `time.time()`. The bot doesn't parse this currently - flag it if implementing replay protection.
 - **`X-Set-Compatibility-Date` response header.** The bot can pin a schema version by returning this header. Currently unused. If FreeStuff bumps the compatibility date and the parser breaks, return `X-Set-Compatibility-Date: <YYYY-MM-DD>` to pin an older schema.
-- **Signature not verified.** Add Ed25519 verify with the partner public key (cached from FreeStuff API) before trusting events. Store the public key as `FREESTUFF_PUBKEY_B64` in `/home/botofthespecter/.env` (server) — one global value, not per-user.
-- **Per-product errors are tolerated.** Inside `save_freestuff_game`, each product is wrapped in its own try/except — one malformed product doesn't break the rest of the batch.
+- **Signature not verified.** Add Ed25519 verify with the partner public key (cached from FreeStuff API) before trusting events. Store the public key as `FREESTUFF_PUBKEY_B64` in `/home/botofthespecter/.env` (server) - one global value, not per-user.
+- **Per-product errors are tolerated.** Inside `save_freestuff_game`, each product is wrapped in its own try/except - one malformed product doesn't break the rest of the batch.
 - **Description language is hardcoded to `en-US`/`en`.** Non-English-primary creators get whichever entry comes first.
 - **Price stored as formatted string, not numeric.** `"Was $19.99"` is fine for display but unusable for filters/sorting. If filtering by price is ever needed, store `old_value_cents INT` and `currency VARCHAR(3)`.
 - **5-game cap is hard-coded.** The `DELETE ... LIMIT 5` cleanup at the bottom of `save_freestuff_game()` is the place to change if more history is needed.
@@ -225,4 +225,4 @@ Read-only API endpoints:
 | Read endpoints | `./api/api.py:2203` (`/freestuff/games`), `:2245` (`/freestuff/latest`) |
 | Pydantic models | `./api/api.py:1241` (`FreeStuffWebhookPayload`), `:1624`, `:1649` |
 | WebSocket router | `./websocket/server.py:964` (`handle_freestuff_event`) |
-| Discord consumer | `./bot/specterdiscord.py` (`WebsocketListener` — global listener) |
+| Discord consumer | `./bot/specterdiscord.py` (`WebsocketListener` - global listener) |
