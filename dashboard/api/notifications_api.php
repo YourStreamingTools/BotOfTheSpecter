@@ -65,7 +65,7 @@ try {
                 echo json_encode(['success' => false, 'error' => 'Missing subscription_ids']);
                 exit();
             }
-            // Bulk session deletes are always WebSocket subs — user token is correct
+            // Bulk session deletes are always WebSocket subs - user token is correct
             deleteSession($_POST['subscription_ids'], $accessToken, $clientID);
             break;
         case 'cleanup_sessions':

@@ -560,7 +560,7 @@ class BotOfTheSpecter_WebsocketServer:
             if not user_id:
                 self.logger.warning("USER_POMO_START: missing user_id, ignoring")
                 return 0
-            # Validate/clamp timings server-side too (defence in depth — never trust input).
+            # Validate/clamp timings server-side too (defence in depth - never trust input).
             work_minutes = self._coerce_pomo_int(payload.get('work_minutes'), None, 1, 600)
             break_minutes = self._coerce_pomo_int(payload.get('break_minutes'), 0, 0, 120)
             total_cycles = self._coerce_pomo_int(payload.get('total_cycles'), 1, 1, 24)
@@ -757,8 +757,8 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def scan_active_pomo_dbs(self):
         # One-time startup recovery: find tenants with a running pomo so the ticker
-        # can resume them after a restart. Steady-state tracking is event-driven —
-        # USER_POMO_START adds a DB, a tick that finds no active pomos removes it —
+        # can resume them after a restart. Steady-state tracking is event-driven -
+        # USER_POMO_START adds a DB, a tick that finds no active pomos removes it -
         # so the ticker never polls every user database.
         try:
             rows = await self.execute_query(
@@ -894,7 +894,7 @@ class BotOfTheSpecter_WebsocketServer:
             (), database_name=db_name
         )
         if actives is None:
-            # Query FAILED (transient MySQL outage, DB restart) — keep the DB tracked
+            # Query FAILED (transient MySQL outage, DB restart) - keep the DB tracked
             # and just skip this tick, otherwise a one-second blip would freeze every
             # running pomo until its owner manually restarts it. A DB with a missing
             # user_timers table can never enter the set (USER_POMO_START and the
@@ -909,7 +909,7 @@ class BotOfTheSpecter_WebsocketServer:
         if do_update:
             fresh = actives
             if expired_rows:
-                # Phases just advanced — re-read so UPDATE broadcasts carry new state.
+                # Phases just advanced - re-read so UPDATE broadcasts carry new state.
                 fresh = await self.execute_query(
                     "SELECT id, user_id, user_name, label, work_minutes, break_minutes, total_cycles, "
                     "current_cycle, current_phase, "
@@ -1701,7 +1701,7 @@ class BotOfTheSpecter_WebsocketServer:
         # Start the SSH cleanup task
         await self.start_ssh_cleanup_task()
         # Personal pomos are bot-owned (DB phase_ends_at + chat tag). Do not run a WS ticker.
-        self.logger.info("Pomo ticker disabled — bot owns personal timer lifecycle")
+        self.logger.info("Pomo ticker disabled - bot owns personal timer lifecycle")
         # Start the TTS processing task
         await self.tts_handler.start_processing()
         # Write (or touch) an uptime marker file so external services can read websocket start time via SSH

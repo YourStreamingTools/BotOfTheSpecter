@@ -240,7 +240,7 @@ return [
     'makers_js_failed' => '失败的',
     'makers_js_confirm_delete' => '删除该项目及其图像？',
     'makers_js_upload_failed' => '上传失败',
-    'makers_err_file_too_large' => '文件太大 — 超出 %2$s 服务器上传限制：%1$s',
+    'makers_err_file_too_large' => '文件太大 - 超出 %2$s 服务器上传限制：%1$s',
     'makers_js_upload_too_big' => '服务器拒绝了请求 - 您的图像可能太大而无法立即上传。',
     // ===== i18n batch 5 (auto-added) =====
     // raids.php
@@ -306,7 +306,7 @@ return [
     'recording_btn_download' => '下载',
     'recording_forward_card_title' => '流转发',
     'recording_forward_about_heading' => '关于流转发',
-    'recording_forward_about_desc' => '流转发可在录制直播的同时将您的Twitch直播重新流式传输到一个或多个外部平台。这与上面的录音设置无关——您可以转发而不录音，或者同时进行两者。',
+    'recording_forward_about_desc' => '流转发可在录制直播的同时将您的Twitch直播重新流式传输到一个或多个外部平台。这与上面的录音设置无关--您可以转发而不录音，或者同时进行两者。',
     'recording_forward_item_key' => '输入您想要转发到的每个平台的流密钥。',
     'recording_forward_item_toggle' => '为您想要激活的每项服务启用开关。',
     'recording_forward_item_coming_soon' => '更多平台即将推出。',
@@ -1381,7 +1381,7 @@ return [
     'alerts_test_sent_text' => '检查您的 OBS 浏览器源。',
     'alerts_test_send_failed' => '发送测试事件失败。',
     'alerts_copied' => '已复制',
-    'alerts_edit_multiple_title' => '编辑多个 — 即将推出',
+    'alerts_edit_multiple_title' => '编辑多个 - 即将推出',
     'alerts_edit_multiple_text' => '同时批量编辑多个变体已列入路线图。现在，打开每个变体并单独使用“保存更改”。',
     'alerts_choose_image' => '选择警报图像',
     'alerts_choose_sound' => '选择警报声音',
@@ -1944,7 +1944,7 @@ return [
     'layout_user_dashboard' => '用户仪表板',
     'layout_mod_channels' => '模组频道',
     'layout_toggle_navigation' => '切换导航',
-    'layout_topbar_admin_dashboard' => '管理仪表板 — 限制访问',
+    'layout_topbar_admin_dashboard' => '管理仪表板 - 限制访问',
     'layout_topbar_dev_stream_online' => '在线开发直播',
     'layout_topbar_viewing_as' => '查看为',
     'layout_topbar_maintenance_in_progress' => '维护中 - 某些功能可能暂时不可用',
@@ -1992,7 +1992,7 @@ return [
     'admin_known_bots_add_heading' => '添加机器人',
     'admin_known_bots_login_label' => 'Twitch 登录',
     'admin_known_bots_login_placeholder' => '例如夜间机器人',
-    'admin_known_bots_login_help' => '小写 Twitch 登录名 — 字母、数字和下划线（最多 25 个字符）。',
+    'admin_known_bots_login_help' => '小写 Twitch 登录名 - 字母、数字和下划线（最多 25 个字符）。',
     'admin_known_bots_notes_label' => '注释 (optional)',
     'admin_known_bots_notes_placeholder' => '为什么此帐户被排除',
     'admin_known_bots_add_button' => '添加机器人',
@@ -2027,7 +2027,7 @@ return [
     // DB Migrations (admin) page
     'menu_admin_migrations' => '数据库迁移',
     'admin_migrations_page_title' => '数据库迁移',
-    'admin_migrations_intro' => '检查架构更改并将其应用到系统数据库。迁移是提交的文件；没有什么是自动运行的——你在这里应用每一个。',
+    'admin_migrations_intro' => '检查架构更改并将其应用到系统数据库。迁移是提交的文件；没有什么是自动运行的--你在这里应用每一个。',
     'admin_migrations_counts' => '%d 已申请 · %d 待定',
     'admin_migrations_missing_warn' => '· %d申请迁移(s)不再有文件',
     'admin_migrations_adopt_baseline' => '采用基线（标记为已应用）',
@@ -2184,7 +2184,7 @@ return [
     'known_users_characters_label' => '人物',
     'known_users_user_inactive_title' => '用户处于非活动状态',
     // streaming.php
-    'streaming_access_confirmed_banner' => '<strong>Beta 访问已确认</strong> — 您已被授予访问 Streaming beta 程序的权限。',
+    'streaming_access_confirmed_banner' => '<strong>Beta 访问已确认</strong> - 您已被授予访问 Streaming beta 程序的权限。',
     'streaming_coming_soon_title' => '即将推出',
     'streaming_coming_soon_description' => '这是对旧流媒体系统的完全重写，从头开始重建，以提供更好的性能、可靠性和功能。作为 Beta 测试人员，您可以提前访问 - 随着功能可用，此页面将更新流媒体控件、服务器信息和您的录音。',
     'streaming_coming_soon_thanks' => '感谢您参与测试计划。请密切关注此页面的更新。',
@@ -2259,28 +2259,28 @@ return [
     'makers_url_copied' => '复制了！',
     'makers_reveal_show' => '展示',
     'makers_reveal_hide' => '隐藏',
-    'makers_key_warning' => '保持此 URL 的私密性 — 它包含您的 API 密钥。不要在直播中展示它。',
+    'makers_key_warning' => '保持此 URL 的私密性 - 它包含您的 API 密钥。不要在直播中展示它。',
     // ===== i18n batch 1 (auto-added) =====
     // media.php
     'media_upload_media' => '上传媒体',
-    'media_upload_hint' => '将音频 (MP3)、视频 (MP4/WEBM) 或图像 (PNG/JPG/GIF) 上传到您的共享库。单击下面的文件将其附加到频道点奖励、Twitch 事件或步行者 — 相同的文件为 <a href="alerts.php">Specter Alerts</a> 构建器提供支持。上传一次，随处使用。',
+    'media_upload_hint' => '将音频 (MP3)、视频 (MP4/WEBM) 或图像 (PNG/JPG/GIF) 上传到您的共享库。单击下面的文件将其附加到频道点奖励、Twitch 事件或步行者 - 相同的文件为 <a href="alerts.php">Specter Alerts</a> 构建器提供支持。上传一次，随处使用。',
     'media_no_files_selected' => '未选择文件',
     'media_click_or_drag' => '单击或拖动文件至此处',
     'media_preparing_upload' => '正在准备上传...',
     'media_migrate_title' => '升级到统一媒体库',
-    'media_migrate_important' => '重要 — 请在迁移之前阅读。',
+    'media_migrate_important' => '重要 - 请在迁移之前阅读。',
     'media_migrate_warning_body' => '统一媒体库仅适用于 <strong>Bot 5.8 及以上版本 </strong>。 Stable Bot (5.7.x) 不知道该系统，并且会在您迁移时停止发出声音、视频和步行警报 </strong>。',
     'media_migrate_two_options' => '您有两个选择：',
-    'media_migrate_option_now' => '<strong> 立即迁移</strong> — 首先将您的频道切换到 Beta Bot（机器人 › 运行 Beta Bot），然后返回此处并迁移。',
-    'media_migrate_option_hold' => '<strong>紧紧抓住</strong>——5.8版即将发布到稳定机器人。一旦 5.8 稳定发布，您的频道将自动迁移。无需采取任何行动。',
+    'media_migrate_option_now' => '<strong> 立即迁移</strong> - 首先将您的频道切换到 Beta Bot（机器人 › 运行 Beta Bot），然后返回此处并迁移。',
+    'media_migrate_option_hold' => '<strong>紧紧抓住</strong>--5.8版即将发布到稳定机器人。一旦 5.8 稳定发布，您的频道将自动迁移。无需采取任何行动。',
     'media_how_it_works_title' => '新系统如何运作',
     'media_how_it_works_body' => 'BotOfTheSpecter 正在转向统一的媒体库。 <strong> 所有文件都位于一个共享池 </strong> 中，而不是为声音警报、通道点声音、Twitch 事件声音和步行保留单独的文件夹。单个文件可以映射到触发器的任意组合 - 不再有重复的文件。',
-    'media_benefit_one_upload' => '<strong>一次上传，任意触发</strong> — 上传文件一次并将其分配给任何频道点奖励、Twitch 事件或walkon。',
-    'media_benefit_unified' => '<strong>统一库</strong> — 所有音频和视频文件都位于一个共享池中。',
-    'media_benefit_non_destructive' => '<strong>非破坏性迁移</strong> — 您现有的文件被<em>复制</em>到新库中；旧位置中没有删除任何内容。',
-    'media_benefit_walkons_autolinked' => '<strong>Walkons 自动链接</strong> — 现有的 walkon 文件（以其 Twitch 登录名命名）在迁移过程中自动标记到正确的用户。',
+    'media_benefit_one_upload' => '<strong>一次上传，任意触发</strong> - 上传文件一次并将其分配给任何频道点奖励、Twitch 事件或walkon。',
+    'media_benefit_unified' => '<strong>统一库</strong> - 所有音频和视频文件都位于一个共享池中。',
+    'media_benefit_non_destructive' => '<strong>非破坏性迁移</strong> - 您现有的文件被<em>复制</em>到新库中；旧位置中没有删除任何内容。',
+    'media_benefit_walkons_autolinked' => '<strong>Walkons 自动链接</strong> - 现有的 walkon 文件（以其 Twitch 登录名命名）在迁移过程中自动标记到正确的用户。',
     'media_migrate_btn' => '迁移到统一媒体库',
-    'media_using_unified_notice' => '<strong>使用统一媒体库</strong> — 您的音频和视频文件通过共享库进行管理。需要 Beta 机器人。',
+    'media_using_unified_notice' => '<strong>使用统一媒体库</strong> - 您的音频和视频文件通过共享库进行管理。需要 Beta 机器人。',
     'media_filter_all' => '全部',
     'media_filter_with_rewards' => '有奖励',
     'media_filter_with_events' => '有活动',
@@ -2621,10 +2621,10 @@ return [
     'media_player_th_uploader' => '渠道',
     'media_player_spotify_control_title' => 'Spotify玩家',
     'media_player_spotify_actas' => '当作为另一个用户时，Spotify 播放控制被禁用。',
-    'media_player_spotify_err_no_device' => '没有活动的 Spotify 设备 — 在设备上打开 Spotify 来控制播放。',
+    'media_player_spotify_err_no_device' => '没有活动的 Spotify 设备 - 在设备上打开 Spotify 来控制播放。',
     'media_player_spotify_err_premium' => '控制播放需要 Spotify Premium。',
     'media_player_spotify_err_expired' => 'Spotify 会话正在刷新 - 稍后再试。',
-    'media_player_spotify_err_rate' => '请求太多——请放慢速度。',
+    'media_player_spotify_err_rate' => '请求太多--请放慢速度。',
     'media_player_spotify_err_generic' => 'Spotify 请求失败。请再试一次。',
     'navbar_raffles' => '莱佛士',
     'navbar_todo_list' => '待办事项清单',
@@ -3487,7 +3487,7 @@ return [
     'streaming_file_rename_error' => '重命名文件时发生错误。',
     'streaming_error_fetching_updated_data' => '获取更新的流数据时出错：',
     // Streaming beta gate
-    'streaming_beta_title' => '流媒体——有限测试',
+    'streaming_beta_title' => '流媒体--有限测试',
     'streaming_beta_description' => '随着我们推出新的基础设施，流媒体服务目前可供有限数量的测试人员使用。只能通过邀请才能访问。',
     'streaming_beta_request_access' => '要请求访问权限，请访问我们的支持页面并提交测试请求。我们的团队将审核您的请求并在容量允许的情况下授予访问权限。',
     'streaming_beta_support_link' => '访问支持页面',
@@ -3544,7 +3544,7 @@ return [
     'overlays_add_once_auto' => '添加此链接一次，任何新的叠加层都会自动包含在内。',
     'overlays_coming_soon' => '即将推出',
     'overlays_spotify' => 'Spotify 正在播放',
-    'overlays_spotify_desc' => '将您当前播放的 Spotify 曲目显示为时尚的叠加层 — 需要 <a href="spotifylink.php">Spotify linked</a>。',
+    'overlays_spotify_desc' => '将您当前播放的 Spotify 曲目显示为时尚的叠加层 - 需要 <a href="spotifylink.php">Spotify linked</a>。',
     'overlays_spotify_themes_note' => '使用 <code>&theme=</code> 选择样式：<code>terminal</code> (default)、<code>pill</code>、<code>card</code> 或 <code>macwindow</code>。它会自动缩放以适应您的浏览器源代码大小 - 只需在 OBS 中调整源代码大小即可。',
     'overlays_stream_ending_credits_desc' => '显示参加并支持直播的所有观众（关注者、订阅者、捐赠者、欢呼者）的滚动列表。',
     'overlays_todo_list_desc' => '显示直播期间要完成的任务列表。使用 <code>&category=1</code> 指定一个类别，或使用 <code>&category=1,3</code> 指定多个类别。',
@@ -3554,7 +3554,7 @@ return [
     'overlays_weather_overlay' => '天气叠加',
     'overlays_weather_overlay_desc' => '在信息流中显示您指定位置的当前天气信息。',
     'overlays_media_player_overlay' => '媒体播放器（歌曲请求）叠加',
-    'overlays_media_player_overlay_desc' => '通过 YouTube 播放器浏览器源播放观众歌曲请求 — 无需 Spotify。使用媒体播放器歌曲请求时添加此项。',
+    'overlays_media_player_overlay_desc' => '通过 YouTube 播放器浏览器源播放观众歌曲请求 - 无需 Spotify。使用媒体播放器歌曲请求时添加此项。',
     'overlays_discord_join_notifications' => 'Discord 加入通知',
     'overlays_discord_join_notifications_desc' => '当用户加入 Discord 服务器时显示通知。',
     'overlays_subathon' => '苏巴松',
@@ -4182,12 +4182,12 @@ return [
     'embed_builder_id_required' => '需要嵌入 ID',
     'embed_builder_deleted_success' => '嵌入删除成功',
     'embed_builder_delete_failed' => '无法删除嵌入：%s',
-    // media.php — Helix lookup / JSON errors
+    // media.php - Helix lookup / JSON errors
     'media_err_invalid_login' => '登录无效',
     'media_err_bot_credentials' => '机器人凭据不可用',
     'media_err_helix_failed' => '螺旋请求失败',
     'media_err_user_not_found' => '未找到用户',
-    // media.php — mapping status messages
+    // media.php - mapping status messages
     'media_status_sound_added' => '添加了声音警报映射。',
     'media_status_sound_removed' => '声音警报映射已删除。',
     'media_status_video_added' => '添加了视频警报映射。',
@@ -4196,7 +4196,7 @@ return [
     'media_status_event_removed' => 'Twitch 事件映射已删除。',
     'media_status_walkon_added' => '沃肯补充道。',
     'media_status_walkon_removed' => '沃肯被移除。',
-    // media.php — upload status messages
+    // media.php - upload status messages
     'media_upload_ext_label' => '音频 (MP3)、视频 (MP4/WEBM) 或图像 (PNG/JPG/GIF/WEBP)',
     'media_upload_error' => '上传 %s 时出错。',
     'media_upload_failed_invalid' => '上传 %s 失败。上传无效。',
@@ -4205,11 +4205,11 @@ return [
     'media_upload_failed_mime' => '上传 %s 失败。文件内容与声明的文件类型不匹配。',
     'media_upload_success' => '文件 %s 已上传。',
     'media_upload_failed_generic' => '抱歉，上传 %s 时出错。',
-    // media.php — delete status messages
+    // media.php - delete status messages
     'media_delete_failed' => '删除%s失败。',
     'media_delete_linked' => '《0》《2》《1》仍然链接到《3》。首先删除链接(s)，然后重试。',
     'media_delete_success' => '文件 %s 已被删除。',
-    // media.php — reference type labels (deletion safety check)
+    // media.php - reference type labels (deletion safety check)
     'media_ref_reward' => '%s通道积分奖励',
     'media_ref_reward_plural' => '%s通道积分奖励',
     'media_ref_video' => '%s视频奖励',
@@ -4220,7 +4220,7 @@ return [
     'media_ref_walkon_plural' => '%s 步行者',
     'media_ref_alert' => '%s 警报变体',
     'media_ref_alert_plural' => '%s 警报变体',
-    // media.php — file row summary fragments
+    // media.php - file row summary fragments
     'media_summary_unused' => '未使用',
     'media_summary_reward' => '%s奖励',
     'media_summary_reward_plural' => '%s奖励',
@@ -4230,7 +4230,7 @@ return [
     'media_summary_walkon_plural' => '%s 步行者',
     'media_summary_alert' => '%s 警报',
     'media_summary_alert_plural' => '%s 警报',
-    // media.php — modal (JS-rendered)
+    // media.php - modal (JS-rendered)
     'media_js_unknown_reward' => '（奖励未知）',
     'media_js_no_mappings' => '还没有映射。',
     'media_js_used_by_alert_builder' => '由警报生成器使用',
@@ -4253,7 +4253,7 @@ return [
     'media_js_walkon_tag_video' => '视频',
     'media_js_looking_up' => '查找@%s…',
     'media_js_lookup_failed' => '查找失败',
-    // media.php — upload (JS)
+    // media.php - upload (JS)
     'media_js_upload_no_files_title' => '未选择文件',
     'media_js_upload_no_files_text' => '请至少选择一个要上传的文件。',
     'media_js_uploading_files' => '正在上传 %s 文件(s)...',
@@ -4265,7 +4265,7 @@ return [
     'media_js_upload_failed_generic' => '上传期间发生错误。',
     'media_js_upload_failed_retry' => '上传期间发生错误。请再试一次。',
     'media_js_upload_btn_short' => '上传',
-    // media.php — delete (JS SweetAlert)
+    // media.php - delete (JS SweetAlert)
     'media_js_bulk_in_use_title' => '部分文件仍在使用中',
     'media_js_bulk_in_use_intro' => '删除之前先删除这些文件上的链接：',
     'media_js_bulk_in_use_outro' => '打开每个文件以取消链接其奖励/事件/walkons，或访问 <a href="alerts.php">Specter Alerts</a> 以了解警报构建器的使用。',
@@ -4277,7 +4277,7 @@ return [
     'media_js_cancel' => '取消',
     'media_js_locked_title' => '文件正在使用中',
     'media_js_locked_body' => ':name 仍然附加到 :summary。<br><br> 打开文件以删除其通道点奖励、Twitch 事件或 walkon 链接。对于警报构建器的使用，请打开 <a href="alerts.php">Specter Alerts</a> 并清除受影响变体的文件。然后返回并再次尝试删除。',
-    // media.php — migration (JS SweetAlert)
+    // media.php - migration (JS SweetAlert)
     'media_js_migrate_title' => '迁移到统一库？',
     'media_js_migrate_body' => '<div style="text-align:left;"> <p> <strong> 需要测试版机器人。</strong> 稳定机器人 (5.7.x) 无法从统一库发出警报。如果您在稳定机器人上进行迁移，您的声音、视频和步行警报将停止工作，直到您将频道切换到 Beta 机器人。</p> <p> 5.8 版将很快推出到稳定机器人，届时您的频道将自动迁移 - 无需着急。</p> <hr> <p> 如果您了解并希望立即迁移，请单击 <strong> 是，迁移</strong> 。现有文件将被复制（而不是删除），并且 walkons 会自动标记为其 Twitch 用户。</p></div>',
     'media_js_migrate_confirm' => '是的，迁移',
@@ -5871,7 +5871,7 @@ return [
     'admin_users_js_remove_beta_html' => '删除 :name 的测试版访问权限？这会将 beta_access 设置为 0。',
     'admin_users_js_remove_word' => '移除',
     'admin_users_js_beta_access_removed' => '测试版访问已删除。',
-    'admin_users_js_beta_programs_title' => '测试版程序 — :name',
+    'admin_users_js_beta_programs_title' => '测试版程序 - :name',
     'admin_users_js_current_programs_label' => '当前程序（点击删除）：',
     'admin_users_js_none' => '没有任何',
     'admin_users_js_program_placeholder' => '节目名称（例如流媒体）',
@@ -6153,7 +6153,7 @@ return [
     'overlays_avatar_settings_title' => '打开头像设置',
     'overlays_avatar_desc' => '一个 PNG 视频人物头像，当你说话时它会张开嘴，眨眼并轻轻地摆动。从头像页面配置艺术并驱动嘴巴。',
     'avatar_page_title' => '阿凡达',
-    'avatar_intro_description' => '适合您直播的轻量级 PNG 头像 — 说话时张开嘴，可选择眨眼和闲置弹跳。上传四个透明帧，将叠加层添加到 OBS，然后在直播时单击此页面上的“启动麦克风”。',
+    'avatar_intro_description' => '适合您直播的轻量级 PNG 头像 - 说话时张开嘴，可选择眨眼和闲置弹跳。上传四个透明帧，将叠加层添加到 OBS，然后在直播时单击此页面上的“启动麦克风”。',
     'avatar_browser_note_title' => '流式传输时保持此选项卡打开',
     'avatar_browser_note_body' => 'OBS 无法读取您的麦克风。打开此头像页面并单击开始麦克风 - 您的覆盖嘴从这里同步。 OBS 中的叠加层仅用于显示。',
     'avatar_overlay_url_title' => 'OBS浏览器源网址',
@@ -6184,8 +6184,8 @@ return [
     'avatar_upload_help' => '推荐透明 PNG 或 WebP。每个框架的宽度和高度必须为 %1$d–%2$d px（每边的最小–最大），每个文件最多为 %3$d MB。',
     'avatar_upload_error_invalid' => '上传失败：文件不是有效的 PNG 或 WebP 图像。',
     'avatar_upload_error_file_size' => '上传失败：文件必须为 %1$d MB 或更小。',
-    'avatar_upload_error_too_small' => '上传失败：图像为 %2$d×%3$d 像素 — 每边必须至少为 %1$d 像素。',
-    'avatar_upload_error_too_large' => '上传失败：图像为 %2$d×%3$d 像素 — 每边不得超过 %1$d 像素。',
+    'avatar_upload_error_too_small' => '上传失败：图像为 %2$d×%3$d 像素 - 每边必须至少为 %1$d 像素。',
+    'avatar_upload_error_too_large' => '上传失败：图像为 %2$d×%3$d 像素 - 每边不得超过 %1$d 像素。',
     'avatar_upload_error_storage' => '上传失败：超出存储限制。头像框计入您的媒体库限额。',
     'avatar_storage_note' => '头像框架图像存储在您的媒体库中，并计入您的上传限额。',
     'avatar_position_label' => '位置',
@@ -6357,7 +6357,7 @@ return [
     'caddy_type_reverse_proxy' => '反向代理',
     'caddy_type_response' => '固定响应',
     'caddy_type_other' => '其他',
-    'caddy_host_fallback' => '后备 — 任何其他主机名',
+    'caddy_host_fallback' => '后备 - 任何其他主机名',
     'caddy_host_all_subdomains' => '所有子域',
     // Admin: CDN / S3 file manager
     'menu_admin_cdn_files' => 'CDN 文件管理器',

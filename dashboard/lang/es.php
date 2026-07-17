@@ -4241,12 +4241,12 @@ Artículo 3',
     'embed_builder_id_required' => 'Se requiere ID para insertar',
     'embed_builder_deleted_success' => 'Insertar eliminado correctamente',
     'embed_builder_delete_failed' => 'No se pudo eliminar la inserción: %s',
-    // media.php — Helix lookup / JSON errors
+    // media.php - Helix lookup / JSON errors
     'media_err_invalid_login' => 'Inicio de sesión no válido',
     'media_err_bot_credentials' => 'Credenciales del bot no disponibles',
     'media_err_helix_failed' => 'Error en la solicitud de hélice',
     'media_err_user_not_found' => 'Usuario no encontrado',
-    // media.php — mapping status messages
+    // media.php - mapping status messages
     'media_status_sound_added' => 'Se agregó mapeo de alerta de sonido.',
     'media_status_sound_removed' => 'Se eliminó el mapeo de alerta de sonido.',
     'media_status_video_added' => 'Se agregó mapeo de alertas de video.',
@@ -4255,7 +4255,7 @@ Artículo 3',
     'media_status_event_removed' => 'Se eliminó el mapeo de eventos Twitch.',
     'media_status_walkon_added' => 'Añadió Walkon.',
     'media_status_walkon_removed' => 'Walkon eliminado.',
-    // media.php — upload status messages
+    // media.php - upload status messages
     'media_upload_ext_label' => 'audio (MP3), vídeo (MP4/WEBM) o imagen (PNG/JPG/GIF/WEBP)',
     'media_upload_error' => 'Error al cargar %s.',
     'media_upload_failed_invalid' => 'No se pudo cargar %s. Carga no válida.',
@@ -4264,11 +4264,11 @@ Artículo 3',
     'media_upload_failed_mime' => 'No se pudo cargar %s. El contenido del archivo no coincide con el tipo de archivo declarado.',
     'media_upload_success' => 'Se ha subido el archivo %s.',
     'media_upload_failed_generic' => 'Lo sentimos, hubo un error al cargar %s.',
-    // media.php — delete status messages
+    // media.php - delete status messages
     'media_delete_failed' => 'No se pudo eliminar %s.',
     'media_delete_linked' => '<strong>:name</strong> todavía está vinculado a :refs. Primero elimine los enlaces y luego vuelva a intentarlo.',
     'media_delete_success' => 'El archivo %s ha sido eliminado.',
-    // media.php — reference type labels (deletion safety check)
+    // media.php - reference type labels (deletion safety check)
     'media_ref_reward' => 'Recompensa de puntos del canal %s',
     'media_ref_reward_plural' => 'Recompensas de puntos del canal %s',
     'media_ref_video' => 'Recompensa de vídeo %s',
@@ -4279,7 +4279,7 @@ Artículo 3',
     'media_ref_walkon_plural' => 'Walkons %s',
     'media_ref_alert' => 'Variante de alerta %s',
     'media_ref_alert_plural' => 'Variantes de alerta %s',
-    // media.php — file row summary fragments
+    // media.php - file row summary fragments
     'media_summary_unused' => 'No usado',
     'media_summary_reward' => 'Recompensa %s',
     'media_summary_reward_plural' => 'Recompensas %s',
@@ -4289,7 +4289,7 @@ Artículo 3',
     'media_summary_walkon_plural' => 'Walkons %s',
     'media_summary_alert' => 'alerta %s',
     'media_summary_alert_plural' => 'Alertas %s',
-    // media.php — modal (JS-rendered)
+    // media.php - modal (JS-rendered)
     'media_js_unknown_reward' => '(recompensa desconocida)',
     'media_js_no_mappings' => 'Aún no hay asignaciones.',
     'media_js_used_by_alert_builder' => 'Utilizado por el generador de alertas',
@@ -4312,7 +4312,7 @@ Artículo 3',
     'media_js_walkon_tag_video' => 'video',
     'media_js_looking_up' => 'Mirando hacia arriba @%s…',
     'media_js_lookup_failed' => 'La búsqueda falló',
-    // media.php — upload (JS)
+    // media.php - upload (JS)
     'media_js_upload_no_files_title' => 'No hay archivos seleccionados',
     'media_js_upload_no_files_text' => 'Seleccione al menos un archivo para cargar.',
     'media_js_uploading_files' => 'Cargando archivo(s) %s...',
@@ -4324,7 +4324,7 @@ Artículo 3',
     'media_js_upload_failed_generic' => 'Se produjo un error durante la carga.',
     'media_js_upload_failed_retry' => 'Se produjo un error durante la carga. Por favor inténtalo de nuevo.',
     'media_js_upload_btn_short' => 'Subir',
-    // media.php — delete (JS SweetAlert)
+    // media.php - delete (JS SweetAlert)
     'media_js_bulk_in_use_title' => 'Algunos archivos todavía están en uso.',
     'media_js_bulk_in_use_intro' => 'Elimine los enlaces de estos archivos antes de eliminarlos:',
     'media_js_bulk_in_use_outro' => 'Abra cada archivo para desvincular sus recompensas/eventos/walkons, o visite <a href="alerts.php">Specter Alerts</a> para conocer el uso del generador de alertas.',
@@ -4336,7 +4336,7 @@ Artículo 3',
     'media_js_cancel' => 'Cancelar',
     'media_js_locked_title' => 'El archivo está en uso',
     'media_js_locked_body' => ':name todavía está adjunto a :summary.<br><br>Abra el archivo para eliminar su recompensa de puntos de canal, evento Twitch o enlaces de walkon. Para utilizar el generador de alertas, abra <a href="alerts.php">Specter Alerts</a> y borre el archivo de las variantes afectadas. Luego regrese e intente eliminar nuevamente.',
-    // media.php — migration (JS SweetAlert)
+    // media.php - migration (JS SweetAlert)
     'media_js_migrate_title' => '¿Migrar a la biblioteca unificada?',
     'media_js_migrate_body' => '<div style="text-align:left;"><p><strong>Se requiere Beta Bot.</strong> El Stable Bot (5.7.x) no puede activar alertas desde la biblioteca unificada. Si migra mientras aún está en Stable Bot, sus alertas de sonido, video y walkon dejarán de funcionar hasta que cambie su canal a Beta Bot. </p><p> La versión 5.8 se implementará pronto en Stable Bot y su canal migrará automáticamente en ese momento; no hay prisa. </p><hr><p>Si comprende y desea migrar ahora, haga clic en <strong>YSí, migre</strong>. Los archivos existentes se copian (no se eliminan) y los walkons se etiquetan automáticamente con su usuario Twitch.</p></div>',
     'media_js_migrate_confirm' => 'Si, migrar',

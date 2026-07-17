@@ -11,7 +11,7 @@
             const retryInterval = 5000;
             let reconnectAttempts = 0;
             let countdownInterval = null;
-            // Absolute target end (Unix ms) — ticking against this avoids setInterval drift.
+            // Absolute target end (Unix ms) - ticking against this avoids setInterval drift.
             let endTimestampMs = 0;
             // While paused, the bot tells us how many seconds were left; the overlay holds
             // that locally so reads after pause show the frozen remainder.

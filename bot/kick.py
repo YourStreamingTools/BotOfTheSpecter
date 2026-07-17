@@ -361,12 +361,12 @@ async def send_chat_message(message: str, reply_to_message_id: str = None) -> bo
         chat_logger.info(f"[SEND] {message[:80]}")
         return True
     if status == 401:
-        bot_logger.warning("[SEND] 401 — refreshing token and retrying")
+        bot_logger.warning("[SEND] 401 - refreshing token and retrying")
         if await refresh_kick_token():
             status, body = await kick_post("/chat", payload)
             return status in (200, 201)
     if status == 429:
-        bot_logger.warning("[SEND] Rate limited — sleeping 2 s")
+        bot_logger.warning("[SEND] Rate limited - sleeping 2 s")
         await sleep(2)
         return False
     bot_logger.error(f"[SEND] Failed ({status}): {body}")
@@ -437,7 +437,7 @@ async def specter_websocket():
                 )
                 await sleep(reconnect_delay + jitter)
             bot_logger.info(f"[WS] Connecting to {specter_uri} (attempt {consecutive_failures + 1})")
-            # Hard timeout on connect() — prevents hanging when the server is mid-reboot
+            # Hard timeout on connect() - prevents hanging when the server is mid-reboot
             # and accepts TCP but never completes the socket.io handshake.
             await asyncio_wait_for(
                 specterSocket.connect(specter_uri, transports=['websocket']),
@@ -457,7 +457,7 @@ async def specter_websocket():
             websocket_connected = False
             websocket_logger.error(f"[WS] Connection failed (attempt {consecutive_failures}): {e}")
         except asyncioCancelledError:
-            websocket_logger.info("[WS] Loop cancelled — exiting.")
+            websocket_logger.info("[WS] Loop cancelled - exiting.")
             break
         except Exception as e:
             consecutive_failures += 1
@@ -875,7 +875,7 @@ async def cmd_commands(_ctx: _Ctx):
     await send_chat_message("Available commands: https://botofthespecter.com/commands")
 
 async def cmd_bot(_ctx: _Ctx):
-    await send_chat_message(f"BotOfTheSpecter Kick Bot v{VERSION} — https://botofthespecter.com/")
+    await send_chat_message(f"BotOfTheSpecter Kick Bot v{VERSION} - https://botofthespecter.com/")
 
 async def cmd_version(_ctx: _Ctx):
     await send_chat_message(f"Running BotOfTheSpecter Kick Bot v{VERSION} ({SYSTEM}).")
@@ -1158,7 +1158,7 @@ async def cmd_slots(ctx: _Ctx):
         msg    = "Two of a kind! Small win!"; payout = 20
     else:
         msg    = "No match. Better luck next time!"; payout = 0
-    await send_chat_message(f"@{ctx.user_name} — {display} — {msg}")
+    await send_chat_message(f"@{ctx.user_name} - {display} - {msg}")
     if payout:
         await manage_user_points(ctx.user_id, ctx.user_name, "credit", payout)
 
@@ -1454,7 +1454,7 @@ async def cmd_songrequest(ctx: _Ctx):
     if not ctx.args_str:
         await send_chat_message("Usage: !songrequest <song name or URL>")
         return
-    await send_chat_message(f"Song request from @{ctx.user_name}: {ctx.args_str} — queued.")
+    await send_chat_message(f"Song request from @{ctx.user_name}: {ctx.args_str} - queued.")
 
 async def cmd_skipsong(_ctx: _Ctx):
     if await skip_spotify_song():
@@ -1486,7 +1486,7 @@ async def cmd_steam(ctx: _Ctx):
             item = items[0]
             price = (item.get("price") or {}).get("final_formatted", "Free/N/A")
             await send_chat_message(
-                f"{item['name']}: https://store.steampowered.com/app/{item['id']}/ — {price}"
+                f"{item['name']}: https://store.steampowered.com/app/{item['id']}/ - {price}"
             )
         else:
             await send_chat_message(f"No Steam game found for '{ctx.args_str}'.")
@@ -1856,7 +1856,7 @@ async def update_version_control():
 
 async def main():
     global _shared_http_session
-    bot_logger.info(f"[BOT] Starting Kick bot — channel: {TWITCH_USERNAME} | channel_id: {CHANNEL_ID} | chatroom_id: {CHATROOM_ID}")
+    bot_logger.info(f"[BOT] Starting Kick bot - channel: {TWITCH_USERNAME} | channel_id: {CHANNEL_ID} | chatroom_id: {CHATROOM_ID}")
     _shared_http_session = httpClientSession()
     await update_version_control()
     await builtin_commands_creation()

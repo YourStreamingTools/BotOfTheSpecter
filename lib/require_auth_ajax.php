@@ -25,7 +25,7 @@ if (!isset($_SESSION['access_token'])) {
         'success'         => false,
         'session_expired' => true,
         'redirect'        => '/login.php',
-        'message'         => 'Session expired — please sign in again.',
+        'message'         => 'Session expired - please sign in again.',
     ]);
     exit();
 }

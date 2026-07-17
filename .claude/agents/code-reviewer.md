@@ -24,4 +24,4 @@ Style rules to enforce:
 Output format:
 - List issues grouped by severity: Critical, Warning, Suggestion
 - For each issue: file, line number, problem, and recommended fix
-- If nothing is wrong, say so clearly — do not invent issues
+- If nothing is wrong, say so clearly - do not invent issues

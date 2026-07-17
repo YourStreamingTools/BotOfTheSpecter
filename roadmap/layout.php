@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // roadmap/layout.php
 date_default_timezone_set('Australia/Sydney');
 
@@ -33,9 +33,9 @@ $v = uuidv4();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
-    <title><?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Roadmap</title>
+    <title><?php echo htmlspecialchars($pageTitle); ?> - BotOfTheSpecter Roadmap</title>
     <meta name="description" content="BotOfTheSpecter development roadmap.">
-    <meta property="og:title" content="<?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Roadmap">
+    <meta property="og:title" content="<?php echo htmlspecialchars($pageTitle); ?> - BotOfTheSpecter Roadmap">
     <meta property="og:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
@@ -201,7 +201,7 @@ $v = uuidv4();
     <div class="rm-modal-backdrop" onclick="closeVersionModal()"></div>
     <div class="rm-modal-card rm-modal-card-lg" style="max-height:88vh;">
         <div class="rm-modal-head">
-            <span class="rm-modal-title">Version <span id="modalVersionNumber"></span> — Changelog</span>
+            <span class="rm-modal-title">Version <span id="modalVersionNumber"></span> - Changelog</span>
             <button class="rm-modal-close" onclick="closeVersionModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="rm-modal-body rm-doc-content" id="modalContent"></div>
@@ -358,7 +358,7 @@ $v = uuidv4();
                             style="position:absolute;opacity:0;width:0;height:0;">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                         <span class="rm-upload-label">Click to choose or drag &amp; drop</span>
-                        <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT — max 10MB</span>
+                        <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT - max 10MB</span>
                         <span class="rm-upload-filename" id="attachmentFileName"></span>
                     </label>
                 </div>

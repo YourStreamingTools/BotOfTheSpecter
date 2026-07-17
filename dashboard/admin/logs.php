@@ -271,7 +271,7 @@ function highlight_mysql_logs($text) {
     return implode("<br>", $lines);
 }
 
-// Caddy site log paths — mirrors web/Caddyfile per-host log { output file ... } blocks
+// Caddy site log paths - mirrors web/Caddyfile per-host log { output file ... } blocks
 function get_caddy_site_log_paths() {
     return [
         'caddy-botofthespecter' => '/var/log/caddy/botofthespecter.log',

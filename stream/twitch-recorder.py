@@ -521,9 +521,9 @@ class RecordChecker:
             if result.returncode == 0:
                 self.logger.info(f"ffmpeg found: {result.stdout.splitlines()[0].strip()}")
             else:
-                self.logger.warning("ffmpeg not found or not working — stream forwarding will be unavailable")
+                self.logger.warning("ffmpeg not found or not working - stream forwarding will be unavailable")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            self.logger.warning("ffmpeg not found in PATH — stream forwarding will be unavailable")
+            self.logger.warning("ffmpeg not found in PATH - stream forwarding will be unavailable")
 
     async def check_channels_loop(self):
         self.logger.info("Starting channel checking loop...")
@@ -710,7 +710,7 @@ class RecordChecker:
                 process = recording_info['process']
                 log_file = recording_info.get('log_file')
                 output_prefix = recording_info.get('output_prefix', '')
-                # Give yt-dlp time to finish naturally before sending SIGTERM — it may
+                # Give yt-dlp time to finish naturally before sending SIGTERM - it may
                 # already be finalizing after detecting the HLS playlist ended
                 if process.poll() is None:
                     process.terminate()

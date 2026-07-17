@@ -1,5 +1,5 @@
 <?php
-// System-DB migration runner. Pure logic — nothing executes on include.
+// System-DB migration runner. Pure logic - nothing executes on include.
 // Migrations live OUTSIDE the public web root, in /var/www/migrations/{db}/ on the
 // server (repo: ./migrations/{db}/{YYYYMMDD}_{NNNN}_{slug}.php), and
 // return ['description'=>..., 'up'=>[sql,...]|callable, 'down'=>[sql,...]|callable, 'preview'=>..., 'destructive'=>bool].

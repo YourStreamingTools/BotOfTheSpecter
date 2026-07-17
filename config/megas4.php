@@ -1,6 +1,6 @@
 <?php
 // MEGA S4 object-storage configuration.
-// Regional endpoint — pick the region nearest the web host.
+// Regional endpoint - pick the region nearest the web host.
 // Other options include eu-central, us-east, us-west, etc.
 $megas4_endpoint = "https://s3.g.megas4.com";
 

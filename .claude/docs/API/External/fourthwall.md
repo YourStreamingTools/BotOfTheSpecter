@@ -1,4 +1,4 @@
-# Fourthwall Webhooks — Local API Reference
+# Fourthwall Webhooks - Local API Reference
 
 Fourthwall is a creator commerce platform (storefront, donations, memberships, gifting, giveaways).
 Webhooks fire for every customer-facing transaction and are delivered as HTTP POST with a JSON body.
@@ -40,7 +40,7 @@ Path: **Dashboard → Settings → For Developers → Webhooks** (some UI revisi
 1. Click **Add webhook**.
 2. **URL:** `https://api.botofthespecter.com/fourthwall?api_key=<USER_API_KEY>`
 3. **Subscribed events (`allowedTypes`):** select each event type to subscribe. Typical set for streamers: `ORDER_PLACED`, `DONATION`, `SUBSCRIPTION_PURCHASED`, `GIFT_PURCHASE`.
-4. Save. Fourthwall displays a **secret** once at creation time — copy it immediately. This is the HMAC signing key for signature verification.
+4. Save. Fourthwall displays a **secret** once at creation time - copy it immediately. This is the HMAC signing key for signature verification.
 
 ### Via API
 
@@ -62,7 +62,7 @@ Response fields:
 | `id` | string | Webhook configuration ID |
 | `url` | string | Registered endpoint URL |
 | `allowedTypes` | string[] | Subscribed event type strings |
-| `secret` | string (UUID) | HMAC signing key — store securely, shown only once |
+| `secret` | string (UUID) | HMAC signing key - store securely, shown only once |
 
 Other management endpoints: `GET /api/webhooks`, `GET /api/webhooks/{id}`, `PUT /api/webhooks/{id}`, `DELETE /api/webhooks/{id}`.
 
@@ -151,7 +151,7 @@ All monetary values in Fourthwall payloads use **decimal numbers in major curren
 { "value": 32.13, "currency": "USD" }
 ```
 
-- `32.13` means $32.13 USD — do **not** divide by 100.
+- `32.13` means $32.13 USD - do **not** divide by 100.
 - This is the **opposite** of Patreon (which uses cents) and Stripe (which uses the smallest unit).
 - Every `value` object carries its own `currency` field. Multi-currency shops send per-amount currencies.
 
@@ -252,7 +252,7 @@ Shape is identical to `ORDER_PLACED` with an updated `status` value:
 | `REFUNDED` | Order refunded. |
 | `CANCELLED` | Order cancelled. |
 
-The overlay's `buildAlertElement` does not have a specific branch for `ORDER_UPDATED` — it falls through to the generic fallback alert.
+The overlay's `buildAlertElement` does not have a specific branch for `ORDER_UPDATED` - it falls through to the generic fallback alert.
 
 ---
 
@@ -411,7 +411,7 @@ Fired when a subscriber manually cancels. The subscription typically remains act
 }
 ```
 
-**Note:** `SUBSCRIPTION_CANCELLED` and `SUBSCRIPTION_CHARGE_FAILED` are listed as separate subscribable events in the Fourthwall docs but do not appear in the original `llms-full.txt` event enumeration — they may be surfaced under the same `SUBSCRIPTION_*` topic family. Treat them the same way structurally.
+**Note:** `SUBSCRIPTION_CANCELLED` and `SUBSCRIPTION_CHARGE_FAILED` are listed as separate subscribable events in the Fourthwall docs but do not appear in the original `llms-full.txt` event enumeration - they may be surfaced under the same `SUBSCRIPTION_*` topic family. Treat them the same way structurally.
 
 ---
 
@@ -610,7 +610,7 @@ These event types are documented in the Fourthwall subscription options but are 
 
 | Concern | File | Location |
 | ------- | ---- | -------- |
-| HTTP route handler | `./api/api.py` | `handle_fourthwall_webhook` — `POST /fourthwall?api_key=` |
+| HTTP route handler | `./api/api.py` | `handle_fourthwall_webhook` - `POST /fourthwall?api_key=` |
 | Signature verification | `./api/api.py` | **Not implemented.** `X-Fourthwall-Hmac-SHA256` / `X-Fourthwall-Hmac-Apps-SHA256` are not read. |
 | API key validation | `./api/api.py` | `verify_api_key()` against central `website` DB |
 | WebSocket forward | `./api/api.py` | `GET https://websocket.botofthespecter.com/notify?...` with `"data": json.dumps(webhook_data)` |
@@ -621,8 +621,8 @@ These event types are documented in the Fourthwall subscription options but are 
 | ------- | ---- | -------- |
 | Event registration | `./websocket/server.py` | `("FOURTHWALL", self.handle_fourthwall_event)` |
 | HTTP notify router | `./websocket/server.py` | `elif event == "FOURTHWALL"` |
-| Server-level handler | `./websocket/server.py` | `handle_fourthwall_event(code, data)` — delegates to donation handler |
-| Broadcast | `./websocket/donation_handler.py` | `handle_fourthwall_event()` — calls `broadcast_with_globals("FOURTHWALL", data, code)` |
+| Server-level handler | `./websocket/server.py` | `handle_fourthwall_event(code, data)` - delegates to donation handler |
+| Broadcast | `./websocket/donation_handler.py` | `handle_fourthwall_event()` - calls `broadcast_with_globals("FOURTHWALL", data, code)` |
 
 ### Overlay (live browser source)
 
@@ -643,4 +643,4 @@ These event types are documented in the Fourthwall subscription options but are 
 
 ---
 
-*Sources: Fourthwall developer documentation at `https://docs.fourthwall.com/` (fetched 2026-05-11) — `webhooks/getting-started`, `webhooks/api-management`, `webhooks/signature-verification`, `webhooks/retry-policies`, `webhooks/limitations`, `webhooks/webhook-model`, `llms-full.txt` index. Payload schemas for uncommon events (`SUBSCRIPTION_CANCELLED`, `SUBSCRIPTION_CHARGE_FAILED`, `TWITCH_CHARITY_DONATION`) are inferred from the subscription event family pattern — verify against live test events.*
+*Sources: Fourthwall developer documentation at `https://docs.fourthwall.com/` (fetched 2026-05-11) - `webhooks/getting-started`, `webhooks/api-management`, `webhooks/signature-verification`, `webhooks/retry-policies`, `webhooks/limitations`, `webhooks/webhook-model`, `llms-full.txt` index. Payload schemas for uncommon events (`SUBSCRIPTION_CANCELLED`, `SUBSCRIPTION_CHARGE_FAILED`, `TWITCH_CHARITY_DONATION`) are inferred from the subscription event family pattern - verify against live test events.*

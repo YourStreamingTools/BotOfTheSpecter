@@ -135,7 +135,7 @@ ob_start();
     </div>
 </div>
 <?php
-// Spotify player control card — only when Spotify is linked & authorized.
+// Spotify player control card - only when Spotify is linked & authorized.
 $spotifyConnected = false;
 $spStmt = $conn->prepare("SELECT access_token, has_access, own_client FROM spotify_tokens WHERE user_id = ? LIMIT 1");
 $spStmt->bind_param('i', $user_id);
@@ -183,7 +183,7 @@ $spotifyActAs = !empty($_SESSION['admin_act_as_active']);
 </div>
 <?php endif; ?>
 <?php
-// Song Request Analytics (Spotify) — moved here from spotifylink.php.
+// Song Request Analytics (Spotify) - moved here from spotifylink.php.
 // Table is created by usr_database.php; the bot logs each !songrequest into song_request_analytics.
 $analyticsTableExists = $db->query("SHOW TABLES LIKE 'song_request_analytics'")->num_rows > 0;
 if ($analyticsTableExists):
@@ -289,7 +289,7 @@ endif;
 </div>
 <?php endif; ?>
 <?php
-// YouTube Song Request Analytics — from media_queue (created by usr_database.php).
+// YouTube Song Request Analytics - from media_queue (created by usr_database.php).
 // Shown only when the user is actually using YouTube song requests (queue has rows).
 $ytTableExists = $db->query("SHOW TABLES LIKE 'media_queue'")->num_rows > 0;
 $ytTotal = 0; $ytTopVideos = []; $ytRecentRequests = [];

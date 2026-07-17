@@ -26,7 +26,7 @@ ksort($commands);
 
 $pageTitle       = 'Documentation';
 $topbarTitle     = 'BotOfTheSpecter Documentation';
-$pageDescription = 'Complete documentation for BotOfTheSpecter — setup guides, command reference, integrations, and support tickets.';
+$pageDescription = 'Complete documentation for BotOfTheSpecter - setup guides, command reference, integrations, and support tickets.';
 $extraHead       = '<script>document.addEventListener("DOMContentLoaded",function(){var w=document.getElementById("sp-search-wrap");if(w)w.style.display="block";});</script>';
 
 ob_start();
@@ -280,17 +280,17 @@ ob_start();
                         <li>External connections for Discord, Spotify, and StreamElements</li>
                     </ul>
                 </li>
-                <li><strong>Command Prefix:</strong> Commands use <code>!</code> — this cannot be changed.</li>
+                <li><strong>Command Prefix:</strong> Commands use <code>!</code> - this cannot be changed.</li>
             </ul>
 
             <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
                 <i class="fa-solid fa-gamepad"></i>
                 <div>
                     <strong>Control Your Bot</strong><br>
-                    BotOfTheSpecter is designed with control in mind — <strong>you run the bot, you stop the bot</strong>.
+                    BotOfTheSpecter is designed with control in mind - <strong>you run the bot, you stop the bot</strong>.
                     If you no longer wish to use it, simply click <strong>STOP</strong>. It's that simple.<br><br>
                     <em style="display:block;padding-left:0.75rem;border-left:3px solid var(--accent);margin-top:0.5rem;">
-                        "I built Specter so I'm not running 4 different chat bots on my own stream, now I just run one, that's Specter." — Developer
+                        "I built Specter so I'm not running 4 different chat bots on my own stream, now I just run one, that's Specter." - Developer
                     </em>
                 </div>
             </div>
@@ -407,7 +407,7 @@ ob_start();
                     <li>Check that the bot is turned on in the dashboard</li>
                     <li>Verify the bot is added as a moderator</li>
                     <li>Try refreshing the dashboard and re-starting the bot</li>
-                    <li>Check the bot status indicator — ONLINE/OFFLINE</li>
+                    <li>Check the bot status indicator - ONLINE/OFFLINE</li>
                 </ul>
             </div>
         </div>
@@ -415,7 +415,7 @@ ob_start();
             <div class="sp-card-header"><i class="fa-solid fa-terminal"></i> Commands Not Working</div>
             <div class="sp-card-body">
                 <ul>
-                    <li>Ensure you're using the correct prefix — the bot uses <code>!</code></li>
+                    <li>Ensure you're using the correct prefix - the bot uses <code>!</code></li>
                     <li>Check if the command is enabled in settings</li>
                     <li>Verify the user has permission to use it</li>
                     <li>Some commands require premium features</li>
@@ -438,8 +438,8 @@ ob_start();
             <div class="sp-card-body">
                 <ul>
                     <li>Ensure the bot is a moderator in your channel</li>
-                    <li>Only the broadcaster can start and stop the bot — the moderator dashboard does not have this capability</li>
-                    <li>Some features require VIP or subscriber status — check the user has the appropriate role</li>
+                    <li>Only the broadcaster can start and stop the bot - the moderator dashboard does not have this capability</li>
+                    <li>Some features require VIP or subscriber status - check the user has the appropriate role</li>
                 </ul>
             </div>
         </div>
@@ -548,13 +548,13 @@ ob_start();
     <h3>Custom Commands</h3>
     <p>Create unlimited custom commands from the dashboard or directly in chat.</p>
     <ul>
-        <li><code>!addcommand !name response</code> — creates a new command.</li>
-        <li><code>!editcommand !name new response</code> — updates an existing command.</li>
-        <li><code>!removecommand !name</code> — deletes a command.</li>
+        <li><code>!addcommand !name response</code> - creates a new command.</li>
+        <li><code>!editcommand !name new response</code> - updates an existing command.</li>
+        <li><code>!removecommand !name</code> - deletes a command.</li>
         <li>Give a command a permission level by quoting the response: <code>!addcommand !name "response text" mod</code> (levels: everyone, mod, vip, subscribers, broadcaster). <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
     </ul>
-    <p>Responses support the full <a href="#" data-goto="variables">variables system</a> — including <code>(user)</code>, <code>(count)</code>, <code>(customapi.URL)</code>, math expressions, and more.</p>
-    <p>Commands can also have aliases — extra trigger words that redirect to the same command and share its cooldown. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></p>
+    <p>Responses support the full <a href="#" data-goto="variables">variables system</a> - including <code>(user)</code>, <code>(count)</code>, <code>(customapi.URL)</code>, math expressions, and more.</p>
+    <p>Commands can also have aliases - extra trigger words that redirect to the same command and share its cooldown. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></p>
 
     <h3>Timed Messages</h3>
     <p>Schedule messages to post automatically at a set interval. Manage them under <strong>Commands → Timed Messages</strong>.</p>
@@ -570,7 +570,7 @@ ob_start();
             <thead><tr><th>Mode</th><th>Description</th></tr></thead>
             <tbody>
                 <tr><td><strong>Standard</strong></td><td>The main BotOfTheSpecter account joins your channel.</td></tr>
-                <tr><td><strong>Custom Bot</strong></td><td>Use your own Twitch bot account — the bot acts with your bot's identity.</td></tr>
+                <tr><td><strong>Custom Bot</strong></td><td>Use your own Twitch bot account - the bot acts with your bot's identity.</td></tr>
                 <tr><td><strong>Self Mode</strong></td><td>The broadcaster's own account is used as the bot.</td></tr>
             </tbody>
         </table>
@@ -596,7 +596,7 @@ ob_start();
                 </tr>
                 <tr>
                     <td><code>!roulette</code></td>
-                    <td>Russian roulette — survive or get shot. If shot, deducts 100 points as hospital penalty. No chat timeout applied.</td>
+                    <td>Russian roulette - survive or get shot. If shot, deducts 100 points as hospital penalty. No chat timeout applied.</td>
                 </tr>
             </tbody>
         </table>
@@ -640,13 +640,13 @@ ob_start();
     <ol>
         <li>Create a Channel Point reward on Twitch for lotto entry.</li>
         <li>In the Specter dashboard, sync your Channel Point rewards.</li>
-        <li>Edit the lotto reward and add <code>(lotto)</code> to the custom message — this generates the viewer's lotto numbers.</li>
+        <li>Edit the lotto reward and add <code>(lotto)</code> to the custom message - this generates the viewer's lotto numbers.</li>
         <li>Viewers redeem the reward to receive their numbers and enter the draw.</li>
     </ol>
     <h4>Commands</h4>
     <ul>
-        <li><code>!startlotto</code> (Moderator) — manually generates the winning numbers (they are also generated automatically when the stream goes live).</li>
-        <li><code>!drawlotto</code> (Moderator) — compares entries to winning numbers and awards <strong>Bot Points</strong> by division: Division 1 (100,000), Division 2 (50,000), Division 3 (10,000), Division 4 (5,000), Division 5 (1,000), Division 6 (500).</li>
+        <li><code>!startlotto</code> (Moderator) - manually generates the winning numbers (they are also generated automatically when the stream goes live).</li>
+        <li><code>!drawlotto</code> (Moderator) - compares entries to winning numbers and awards <strong>Bot Points</strong> by division: Division 1 (100,000), Division 2 (50,000), Division 3 (10,000), Division 4 (5,000), Division 5 (1,000), Division 6 (500).</li>
     </ul>
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
@@ -671,7 +671,7 @@ ob_start();
                 <tr><td><strong>Bits / Cheer</strong></td><td>Thanks the viewer. Supports <code>(bits)</code> and <code>(total-bits)</code>.</td></tr>
                 <tr><td><strong>Charity Donation</strong></td><td>Thanks the donor in chat for a donation to the channel's active Twitch charity campaign.</td></tr>
                 <tr><td><strong>Raid</strong></td><td>Welcomes the raider, triggers an automatic Twitch shoutout. Supports <code>(viewers)</code>.</td></tr>
-                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward — supports TTS, lotto, fortune, and API calls. VIP grants are also supported <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span>.</td></tr>
+                <tr><td><strong>Channel Points Redemption</strong></td><td>Executes a custom response per reward - supports TTS, lotto, fortune, and API calls. VIP grants are also supported <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span>.</td></tr>
                 <tr><td><strong>Hype Train</strong></td><td>Announces the start and end of the Hype Train. Supports <code>(level)</code>.</td></tr>
                 <tr><td><strong>Channel Goal <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></strong></td><td>Broadcasts overlay updates when a channel goal begins, progresses, and ends.</td></tr>
                 <tr><td><strong>Ad Break</strong></td><td>Sends an upcoming ad warning, activates an AI chat companion during the break, then resumes normal mode.</td></tr>
@@ -704,10 +704,10 @@ ob_start();
     <h3>Bot Points</h3>
     <p>A built-in loyalty point system earned by chatting and participating in the stream, with bonus points for new follows, subscriptions, cheers, and raids. Configure the name, earn rate, and icon under <strong>Settings → Bot Points</strong>.</p>
     <ul>
-        <li><code>!points</code> — check your balance.</li>
-        <li><code>!addpoints</code> / <code>!removepoints</code> — moderator manual adjustment.</li>
+        <li><code>!points</code> - check your balance.</li>
+        <li><code>!addpoints</code> / <code>!removepoints</code> - moderator manual adjustment.</li>
         <li>Spent playing <code>!gamble</code>, <code>!slots</code>, and <code>!roulette</code>.</li>
-        <li><code>!store</code> / <code>!store &lt;item&gt;</code> — browse or redeem rewards from the point store. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
+        <li><code>!store</code> / <code>!store &lt;item&gt;</code> - browse or redeem rewards from the point store. <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></li>
     </ul>
 
     <h3>Watch Time</h3>
@@ -715,40 +715,40 @@ ob_start();
 
     <h3>Lurk Tracking</h3>
     <ul>
-        <li><code>!lurk</code> — starts tracking and announces the viewer is lurking.</li>
-        <li><code>!unlurk</code> — ends tracking and announces the viewer is back.</li>
-        <li><code>!lurking</code> — shows how long the user has been lurking this session.</li>
-        <li><code>!lurklead</code> — shows who has the most accumulated all-time lurk time.</li>
-        <li><code>!userslurking</code> — shows how many viewers are currently lurking.</li>
+        <li><code>!lurk</code> - starts tracking and announces the viewer is lurking.</li>
+        <li><code>!unlurk</code> - ends tracking and announces the viewer is back.</li>
+        <li><code>!lurking</code> - shows how long the user has been lurking this session.</li>
+        <li><code>!lurklead</code> - shows who has the most accumulated all-time lurk time.</li>
+        <li><code>!userslurking</code> - shows how many viewers are currently lurking.</li>
     </ul>
 
     <h3>Death Counter</h3>
     <p>Tracks in-game deaths for the current session.</p>
     <ul>
-        <li><code>!deaths</code> — shows the count (anyone).</li>
-        <li><code>!deathadd</code> / <code>!death+</code> — adds to the counter (moderator).</li>
-        <li><code>!deathremove</code> / <code>!death-</code> — removes from the counter (moderator).</li>
+        <li><code>!deaths</code> - shows the count (anyone).</li>
+        <li><code>!deathadd</code> / <code>!death+</code> - adds to the counter (moderator).</li>
+        <li><code>!deathremove</code> / <code>!death-</code> - removes from the counter (moderator).</li>
     </ul>
 
     <h3>Typo Counter</h3>
     <ul>
-        <li><code>!typo @user</code> — records a typo for a user (moderator).</li>
-        <li><code>!typos [@user]</code> — shows the typo count.</li>
-        <li><code>!edittypos @user &lt;n&gt;</code> — sets the count to a specific number (moderator).</li>
-        <li><code>!removetypos @user</code> — decrements or resets (moderator).</li>
+        <li><code>!typo @user</code> - records a typo for a user (moderator).</li>
+        <li><code>!typos [@user]</code> - shows the typo count.</li>
+        <li><code>!edittypos @user &lt;n&gt;</code> - sets the count to a specific number (moderator).</li>
+        <li><code>!removetypos @user</code> - decrements or resets (moderator).</li>
     </ul>
 
     <h3>Quotes</h3>
     <ul>
-        <li><code>!quote [number]</code> — shows a random quote or one by number.</li>
-        <li><code>!quoteadd &lt;text&gt;</code> — saves a new quote (moderator).</li>
-        <li><code>!removequote &lt;number&gt;</code> — deletes a quote (moderator).</li>
+        <li><code>!quote [number]</code> - shows a random quote or one by number.</li>
+        <li><code>!quoteadd &lt;text&gt;</code> - saves a new quote (moderator).</li>
+        <li><code>!removequote &lt;number&gt;</code> - deletes a quote (moderator).</li>
     </ul>
 
     <h3>Bits Tracking</h3>
     <ul>
-        <li><code>!mybits</code> — shows the user's total all-time bits cheered in the channel.</li>
-        <li><code>!cheerleader</code> — shows the all-time top bit cheerer.</li>
+        <li><code>!mybits</code> - shows the user's total all-time bits cheered in the channel.</li>
+        <li><code>!cheerleader</code> - shows the all-time top bit cheerer.</li>
     </ul>
 
     <h3>Follow Age</h3>
@@ -757,14 +757,14 @@ ob_start();
     <h3>Working &amp; Study</h3>
     <p>A productivity overlay for co-working streams.</p>
     <ul>
-        <li><code>!task &lt;name&gt;</code> — sets your active task on the overlay.</li>
-        <li><code>!done [n]</code> — finishes your active task (or multiple backlog items like <code>!done 2; 4; 5</code>) and awards points.</li>
-        <li><code>!later &lt;name&gt;</code> / <code>!soon &lt;name&gt;</code> — queues tasks into your backlog.</li>
-        <li><code>!backlog</code> — views your pending tasks.</li>
-        <li><code>!personaltimer &lt;minutes&gt; &lt;label&gt;</code> — starts a personal focus timer (also supports cycles like <code>50/10/4</code>).</li>
-        <li><code>!project &lt;name&gt;</code> — organises your tasks into specific projects.</li>
-        <li><code>!tasktimer</code> — broadcaster/mod controls for the main overlay timer (e.g. <code>!tasktimer auto on</code>).</li>
-        <li><code>!taskhelp</code> — outputs a summary of these commands in chat.</li>
+        <li><code>!task &lt;name&gt;</code> - sets your active task on the overlay.</li>
+        <li><code>!done [n]</code> - finishes your active task (or multiple backlog items like <code>!done 2; 4; 5</code>) and awards points.</li>
+        <li><code>!later &lt;name&gt;</code> / <code>!soon &lt;name&gt;</code> - queues tasks into your backlog.</li>
+        <li><code>!backlog</code> - views your pending tasks.</li>
+        <li><code>!personaltimer &lt;minutes&gt; &lt;label&gt;</code> - starts a personal focus timer (also supports cycles like <code>50/10/4</code>).</li>
+        <li><code>!project &lt;name&gt;</code> - organises your tasks into specific projects.</li>
+        <li><code>!tasktimer</code> - broadcaster/mod controls for the main overlay timer (e.g. <code>!tasktimer auto on</code>).</li>
+        <li><code>!taskhelp</code> - outputs a summary of these commands in chat.</li>
     </ul>
 
     <h3>Subathon Timer</h3>
@@ -779,8 +779,8 @@ ob_start();
             <thead><tr><th>Service</th><th>What the bot does</th></tr></thead>
             <tbody>
                 <tr><td><strong><i class="fa-brands fa-spotify" style="color:#1DB954;"></i> Spotify</strong></td><td>Displays the current track (<code>!song</code>), accepts viewer song requests via Spotify links, search terms, or YouTube links auto-matched to Spotify (<code>!sr</code>), skips tracks (<code>!skipsong</code>), and shows the queue (<code>!songqueue</code>).</td></tr>
-                <tr><td><strong><i class="fa-solid fa-fingerprint" style="color:#0088FF;"></i> Shazam</strong></td><td>Identifies the currently playing song by audio fingerprinting when Spotify has no track data — a premium failover for <code>!song</code> (monthly request limit resets on the 23rd).</td></tr>
-                <tr><td><strong><i class="fa-brands fa-steam"></i> Steam</strong></td><td>Looks up Steam games by name via the Steam API — shows store descriptions, prices, and app IDs (<code>!steam</code>).</td></tr>
+                <tr><td><strong><i class="fa-solid fa-fingerprint" style="color:#0088FF;"></i> Shazam</strong></td><td>Identifies the currently playing song by audio fingerprinting when Spotify has no track data - a premium failover for <code>!song</code> (monthly request limit resets on the 23rd).</td></tr>
+                <tr><td><strong><i class="fa-brands fa-steam"></i> Steam</strong></td><td>Looks up Steam games by name via the Steam API - shows store descriptions, prices, and app IDs (<code>!steam</code>).</td></tr>
                 <tr><td><strong><i class="fa-solid fa-video"></i> OBS WebSocket</strong></td><td>Controls OBS scenes and sources directly from chat via the <code>!obs</code> moderator command.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-heart-pulse" style="color:#e74c3c;"></i> HypeRate</strong></td><td>Connects via WebSocket to show the streamer's live BPM in chat with <code>!heartrate</code>.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-bolt" style="color:#f5a623;"></i> StreamElements</strong></td><td>Receives tip and merch alert events in real time via Socket.IO and forwards them to overlays.</td></tr>
@@ -793,7 +793,7 @@ ob_start();
                 <tr><td><strong><i class="fa-solid fa-user-tag"></i> Pronouns (alejo.io)</strong></td><td>Looks up and caches viewer-set pronouns, using them naturally when the bot mentions a viewer by name.</td></tr>
                 <tr><td><strong><i class="fa-brands fa-discord" style="color:#5865F2;"></i> Discord</strong></td><td>A companion Discord bot handles stream announcements, reaction roles, support tickets, voice music playback, and Twitch account linking.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Converts viewer messages to speech using AI voices (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer) through an OBS browser source overlay.</td></tr>
-                <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit &amp; Currency Conversion</strong></td><td>Powered by the Pint unit library for length, weight, temperature, volume, speed, and more — plus live currency exchange rates via the ExchangeRate API — all through <code>!convert</code> (e.g. <code>!convert 10 km mi</code> or <code>!convert $10 USD AUD</code>).</td></tr>
+                <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit &amp; Currency Conversion</strong></td><td>Powered by the Pint unit library for length, weight, temperature, volume, speed, and more - plus live currency exchange rates via the ExchangeRate API - all through <code>!convert</code> (e.g. <code>!convert 10 km mi</code> or <code>!convert $10 USD AUD</code>).</td></tr>
             </tbody>
         </table>
     </div>
@@ -817,7 +817,7 @@ ob_start();
         <i class="fa-solid fa-triangle-exclamation"></i>
         <div>
             <strong>Important: Spotify Integration Changes (Effective March 9, 2026)</strong><br>
-            We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users — Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration — it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
+            We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users - Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration - it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
         </div>
     </div>
 
@@ -873,7 +873,7 @@ ob_start();
             <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
                 <i class="fa-solid fa-triangle-exclamation"></i>
                 <div>
-                    <strong>Keep your Client Secret secure</strong> — never share it publicly or commit it to version control.
+                    <strong>Keep your Client Secret secure</strong> - never share it publicly or commit it to version control.
                 </div>
             </div>
             <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
@@ -911,7 +911,7 @@ ob_start();
             <strong>Permissions:</strong> The required scopes (<code>user-read-playback-state</code>, <code>user-modify-playback-state</code>, <code>user-read-currently-playing</code>) are automatically requested during authorization.
         </li>
         <li>
-            <strong>Rate limits:</strong> Spotify has rate limits — if you exceed them, wait a moment before trying again.
+            <strong>Rate limits:</strong> Spotify has rate limits - if you exceed them, wait a moment before trying again.
         </li>
         <li>
             <strong>Authorization fails:</strong> Double-check that your Client ID and Client Secret are correct and that the Redirect URI matches exactly.
@@ -960,7 +960,7 @@ $ttsVoices = [
     <ol>
         <li>Navigate to the <strong>TTS Settings</strong> section in the BotOfTheSpecter dashboard.</li>
         <li>Choose your preferred voice from the available options (see the Available Voices section below).</li>
-        <li>Set up your audio overlay to hear TTS output — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li>Set up your audio overlay to hear TTS output - see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li>Test your setup with a sample message.</li>
     </ol>
 
@@ -1069,7 +1069,7 @@ $ttsVoices = [
     </div>
 
     <h2>Why Audio Monitoring?</h2>
-    <p>Audio monitoring lets you hear audio from your overlays — sound alerts, TTS, and walk-ons — directly through OBS, ensuring they play correctly during your stream.</p>
+    <p>Audio monitoring lets you hear audio from your overlays - sound alerts, TTS, and walk-ons - directly through OBS, ensuring they play correctly during your stream.</p>
     <div class="sp-alert sp-alert-info" style="margin:1rem 0;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
@@ -1161,7 +1161,7 @@ $ttsVoices = [
     <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
         <i class="fa-solid fa-triangle-exclamation"></i>
         <div>
-            <strong>Hearing an echo on sound alerts?</strong> Set Audio Monitoring to <strong>Monitor Only (mute output)</strong> instead of "Monitor and Output". Everyone's audio/sound setup is different — try this first before anything else.
+            <strong>Hearing an echo on sound alerts?</strong> Set Audio Monitoring to <strong>Monitor Only (mute output)</strong> instead of "Monitor and Output". Everyone's audio/sound setup is different - try this first before anything else.
         </div>
     </div>
     <div style="display:grid;gap:1rem;">
@@ -1207,14 +1207,14 @@ $ttsVoices = [
         <div>
             This is the central reference for <strong>every message variable</strong> in BotOfTheSpecter. The same variable-processing engine powers
             <strong>custom commands</strong>, <strong>timed messages</strong>, <strong>channel point rewards</strong>, and <strong>event alerts</strong>
-            (welcomes, follows, subs, raids, bits, and ad notices) — so the <strong>Universal Variables</strong> below work in all of them.
+            (welcomes, follows, subs, raids, bits, and ad notices) - so the <strong>Universal Variables</strong> below work in all of them.
             Reward-only and event-only tokens are listed in their own sections further down.
             Variables marked <span style="color:#c813e0;font-weight:600;">purple</span> are beta-only and currently in testing.
         </div>
     </div>
 
     <h2>Universal Variables</h2>
-    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type — custom commands, channel point rewards, and event alerts. <strong>Timed messages</strong> are the exception: on the live bot only <code>(game)</code> is currently replaced in timed messages; full variable support in timed messages is a <span style="color:#c813e0;font-weight:600;">Beta</span> feature.</p>
+    <p style="margin:0 0 0.25rem;">These work in <strong>every</strong> message type - custom commands, channel point rewards, and event alerts. <strong>Timed messages</strong> are the exception: on the live bot only <code>(game)</code> is currently replaced in timed messages; full variable support in timed messages is a <span style="color:#c813e0;font-weight:600;">Beta</span> feature.</p>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.25rem;">
 
@@ -1284,7 +1284,7 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#3273dc;">(math.expression)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Evaluates a simple math expression left-to-right. Supports <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> — operators apply strictly in the order they appear (no standard order of operations), and parentheses are <strong>not</strong> supported.</p>
+                <p style="margin-top:0.5rem;">Evaluates a simple math expression left-to-right. Supports <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> - operators apply strictly in the order they appear (no standard order of operations), and parentheses are <strong>not</strong> supported.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>2 + 2 = (math.2+2)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>2 + 2 = 4</code></p>
             </div>
@@ -1340,9 +1340,9 @@ $ttsVoices = [
                 <span class="sp-badge">All message types</span>
                 <p style="margin-top:0.5rem;">Fetches a URL and inserts the plain text response. On the live bot, <code>(customapi.json.URL)</code> fetches JSON and inserts it as raw text just like a normal request. <span style="color:#c813e0;font-weight:600;">Beta:</span> <code style="color:#c813e0;">(customapi.json.URL)</code> instead runs silently (nothing is printed) and stores the JSON in temporary context for use with the Beta <code style="color:#c813e0;">(json.*)</code> variable.</p>
                 <p style="margin-top:0.5rem;"><strong>Examples:</strong><br>
-                    <code>(customapi.https://api.example.com/joke)</code> — raw response<br>
-                    <code>(customapi.json.https://api.example.com/data)</code> — raw JSON text on the live bot; silent Beta context on beta<br>
-                    <code>(customapi.https://yourapi.com/user.php?user=(user))</code> — with variable in URL</p>
+                    <code>(customapi.https://api.example.com/joke)</code> - raw response<br>
+                    <code>(customapi.json.https://api.example.com/data)</code> - raw JSON text on the live bot; silent Beta context on beta<br>
+                    <code>(customapi.https://yourapi.com/user.php?user=(user))</code> - with variable in URL</p>
             </div>
         </div>
 
@@ -1452,7 +1452,7 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#c813e0;">(todo.add.category.[description])</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
                 <span class="sp-badge">All message types</span>
-                <p style="margin-top:0.5rem;">Silently adds an item to your to-do list under a category. Outputs nothing in chat. <code>CATEGORY</code> must be the numeric ID of one of your to-do categories (from the To-Do List page) — a non-numeric value silently falls back to your first category. Format: <code>(todo.add.CATEGORY.[the item text])</code>.</p>
+                <p style="margin-top:0.5rem;">Silently adds an item to your to-do list under a category. Outputs nothing in chat. <code>CATEGORY</code> must be the numeric ID of one of your to-do categories (from the To-Do List page) - a non-numeric value silently falls back to your first category. Format: <code>(todo.add.CATEGORY.[the item text])</code>.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Noted! (todo.add.2.[fix the overlay flicker])</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>Noted!</code></p>
             </div>
@@ -1466,7 +1466,7 @@ $ttsVoices = [
     <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            <strong>Tip:</strong> All shared variables from the section above — including <code>(count)</code>, <code>(user)</code>, <code>(author)</code>, <code>(game)</code>, <code>(random.*)</code>, <code>(math.*)</code>, <code>(customapi.*)</code>, <code>(json.*)</code>, <code>(if.*)</code>, <code>(daysuntil.*)</code>, <code>(timeuntil.*)</code>, <code>(pronouns)</code>, <code>(command.*)</code>, <code>(call.*)</code>, and <code>(arg)</code> — also work in channel point reward messages.
+            <strong>Tip:</strong> All shared variables from the section above - including <code>(count)</code>, <code>(user)</code>, <code>(author)</code>, <code>(game)</code>, <code>(random.*)</code>, <code>(math.*)</code>, <code>(customapi.*)</code>, <code>(json.*)</code>, <code>(if.*)</code>, <code>(daysuntil.*)</code>, <code>(timeuntil.*)</code>, <code>(pronouns)</code>, <code>(command.*)</code>, <code>(call.*)</code>, and <code>(arg)</code> - also work in channel point reward messages.
         </div>
     </div>
 
@@ -1546,7 +1546,7 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#3273dc;">(fortune)</code></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
-                <p style="margin-top:0.5rem;">Fetches a random fortune for the redeeming user. It does not include their name automatically — combine it with <code>(user)</code> if you want the fortune addressed to them.</p>
+                <p style="margin-top:0.5rem;">Fetches a random fortune for the redeeming user. It does not include their name automatically - combine it with <code>(user)</code> if you want the fortune addressed to them.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>(user), (fortune)</code></p>
                 <p style="margin-top:0.5rem;"><strong>In chat:</strong> <code>streamername, you will find great success today</code></p>
             </div>
@@ -1639,7 +1639,7 @@ $ttsVoices = [
             <div class="sp-card-header"><code style="color:#c813e0;">(storeredeem)</code> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
             <div class="sp-card-body">
                 <span class="sp-badge" style="background:#fdf4ff;color:#7e22ce;">Channel Points Only</span>
-                <p style="margin-top:0.5rem;">Records this redemption into your stored redeems list — used for <strong>Point Store</strong> fulfillment tracking. Outputs nothing in chat.</p>
+                <p style="margin-top:0.5rem;">Records this redemption into your stored redeems list - used for <strong>Point Store</strong> fulfillment tracking. Outputs nothing in chat.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Order received! (storeredeem)</code></p>
             </div>
         </div>
@@ -1649,7 +1649,7 @@ $ttsVoices = [
     <hr class="sp-divider">
 
     <h2>Event Alert Variables</h2>
-    <p>Event-specific tokens for <strong>welcome messages</strong>, <strong>ad notices</strong>, and <strong>Twitch chat alerts</strong> (followers, subs, raids, bits, hype trains). Every <strong>Universal Variable</strong> above also works here — the event-specific tokens below are available <em>in addition</em> to them, because all alert messages run through the same variable-processing engine as custom commands.</p>
+    <p>Event-specific tokens for <strong>welcome messages</strong>, <strong>ad notices</strong>, and <strong>Twitch chat alerts</strong> (followers, subs, raids, bits, hype trains). Every <strong>Universal Variable</strong> above also works here - the event-specific tokens below are available <em>in addition</em> to them, because all alert messages run through the same variable-processing engine as custom commands.</p>
     <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
         <i class="fa-solid fa-lightbulb"></i>
         <div>
@@ -1664,7 +1664,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><code style="color:#3273dc;">(user)</code></div>
             <div class="sp-card-body">
-                <p>In an alert, <code>(user)</code> resolves to whoever triggered the event — the follower, subscriber, raider, gifter, or cheerer.</p>
+                <p>In an alert, <code>(user)</code> resolves to whoever triggered the event - the follower, subscriber, raider, gifter, or cheerer.</p>
                 <p style="margin-top:0.5rem;"><strong>Example:</strong> <code>Thank you (user) for following!</code></p>
                 <p><strong>In chat:</strong> <code>Thank you BotOfTheSpecter for following!</code></p>
             </div>
@@ -1684,7 +1684,7 @@ $ttsVoices = [
     <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            <code style="color:#c813e0;">(pronouns)</code> (plus <code style="color:#c813e0;">(pronouns.they)</code> / <code style="color:#c813e0;">(pronouns.them)</code>), <code style="color:#c813e0;">(arg)</code>, and <code style="color:#c813e0;">(if.*)</code> also work in alerts — they're documented once under <strong>Universal Variables</strong> above.
+            <code style="color:#c813e0;">(pronouns)</code> (plus <code style="color:#c813e0;">(pronouns.they)</code> / <code style="color:#c813e0;">(pronouns.them)</code>), <code style="color:#c813e0;">(arg)</code>, and <code style="color:#c813e0;">(if.*)</code> also work in alerts - they're documented once under <strong>Universal Variables</strong> above.
         </div>
     </div>
 
@@ -1694,7 +1694,7 @@ $ttsVoices = [
         <div class="sp-card">
             <div class="sp-card-header"><i class="fa-solid fa-hand-wave"></i> Welcome Messages</div>
             <div class="sp-card-body">
-                <p style="color:var(--text-secondary);font-size:0.875rem;">No unique variables — all <strong>General Variables</strong> above (including <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, <code style="color:#c813e0;">(pronouns.them)</code>) are available in welcome messages.</p>
+                <p style="color:var(--text-secondary);font-size:0.875rem;">No unique variables - all <strong>General Variables</strong> above (including <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, <code style="color:#c813e0;">(pronouns.them)</code>) are available in welcome messages.</p>
             </div>
         </div>
         <div class="sp-card">
@@ -1726,7 +1726,7 @@ $ttsVoices = [
         </div>
         <div class="sp-card" style="border-color:#c813e0;">
             <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -1746,7 +1746,7 @@ $ttsVoices = [
         </div>
         <div class="sp-card" style="border-color:#c813e0;">
             <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -1762,7 +1762,7 @@ $ttsVoices = [
         </div>
         <div class="sp-card" style="border-color:#c813e0;">
             <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -1790,7 +1790,7 @@ $ttsVoices = [
         </div>
         <div class="sp-card" style="border-color:#c813e0;">
             <div class="sp-card-header" style="color:#c813e0;">Also available <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></div>
-            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> — see General Variables above.</div>
+            <div class="sp-card-body" style="font-size:0.875rem;">Supports <code style="color:#c813e0;">(shoutout)</code>, <code style="color:#c813e0;">(pronouns)</code>, <code style="color:#c813e0;">(pronouns.they)</code>, and <code style="color:#c813e0;">(pronouns.them)</code> - see General Variables above.</div>
         </div>
     </div>
 
@@ -2159,87 +2159,87 @@ $ttsVoices = [
 
     <h3>Public (no authentication required)</h3>
     <ul>
-        <li><code>GET /freestuff/games</code> — Get recent free games</li>
-        <li><code>GET /freestuff/latest</code> — Get the most recent free game</li>
-        <li><code>GET /versions</code> — Get the current bot versions</li>
-        <li><code>GET /commands/info</code> — Get builtin commands information</li>
-        <li><code>GET /heartbeat/websocket</code> — Get the heartbeat status of the websocket server</li>
-        <li><code>GET /heartbeat/api</code> — Get the heartbeat status of the API server</li>
-        <li><code>GET /heartbeat/database</code> — Get the heartbeat status of the database server</li>
-        <li><code>GET /system/uptime</code> — Get API process uptime</li>
-        <li><code>GET /chat-instructions</code> — Get AI chat instructions</li>
-        <li><code>GET /api/song</code> — Get the remaining song requests</li>
-        <li><code>GET /api/exchangerate</code> — Get the remaining exchangerate requests</li>
-        <li><code>GET /api/weather</code> — Get the remaining weather API requests</li>
-        <li><code>GET /api/steamapplist</code> — Get Steam app list mapping</li>
+        <li><code>GET /freestuff/games</code> - Get recent free games</li>
+        <li><code>GET /freestuff/latest</code> - Get the most recent free game</li>
+        <li><code>GET /versions</code> - Get the current bot versions</li>
+        <li><code>GET /commands/info</code> - Get builtin commands information</li>
+        <li><code>GET /heartbeat/websocket</code> - Get the heartbeat status of the websocket server</li>
+        <li><code>GET /heartbeat/api</code> - Get the heartbeat status of the API server</li>
+        <li><code>GET /heartbeat/database</code> - Get the heartbeat status of the database server</li>
+        <li><code>GET /system/uptime</code> - Get API process uptime</li>
+        <li><code>GET /chat-instructions</code> - Get AI chat instructions</li>
+        <li><code>GET /api/song</code> - Get the remaining song requests</li>
+        <li><code>GET /api/exchangerate</code> - Get the remaining exchangerate requests</li>
+        <li><code>GET /api/weather</code> - Get the remaining weather API requests</li>
+        <li><code>GET /api/steamapplist</code> - Get Steam app list mapping</li>
     </ul>
 
     <h3>Webhooks (require API key)</h3>
     <ul>
-        <li><code>POST /fourthwall</code> — Receive and process FOURTHWALL Webhook Requests</li>
-        <li><code>POST /kofi</code> — Receive and process KOFI Webhook Requests</li>
-        <li><code>POST /patreon</code> — Receive and process Patreon Webhook Requests</li>
+        <li><code>POST /fourthwall</code> - Receive and process FOURTHWALL Webhook Requests</li>
+        <li><code>POST /kofi</code> - Receive and process KOFI Webhook Requests</li>
+        <li><code>POST /patreon</code> - Receive and process Patreon Webhook Requests</li>
     </ul>
 
     <h3>Commands (requires user API key)</h3>
     <p>Admins can query any user's data with the <code>channel</code> parameter.</p>
     <ul>
-        <li><code>GET /v2/quotes</code> — Get a random quote</li>
-        <li><code>GET /v2/fortune</code> — Get a random fortune</li>
-        <li><code>GET /v2/kill</code> — Retrieve the Kill Command Responses</li>
-        <li><code>GET /v2/joke</code> — Get a random joke</li>
-        <li><code>GET /v2/sound-alerts</code> — Get list of sound alerts for user</li>
-        <li><code>GET /v2/custom-commands</code> — Get list of custom commands for your account</li>
-        <li><code>GET /v2/user-commands/get</code> — Get list of user managed commands</li>
-        <li><code>POST /v2/user-commands/add</code> — Add a user managed command</li>
-        <li><code>POST /v2/user-commands/remove</code> — Remove a user managed command</li>
-        <li><code>GET /v2/weather</code> — Get weather data and trigger WebSocket weather event</li>
-        <li><code>GET /v2/user-points</code> — Get user points</li>
-        <li><code>POST /v2/user-points/credit</code> — Credit points to a user</li>
-        <li><code>POST /v2/user-points/debit</code> — Debit points from a user</li>
+        <li><code>GET /v2/quotes</code> - Get a random quote</li>
+        <li><code>GET /v2/fortune</code> - Get a random fortune</li>
+        <li><code>GET /v2/kill</code> - Retrieve the Kill Command Responses</li>
+        <li><code>GET /v2/joke</code> - Get a random joke</li>
+        <li><code>GET /v2/sound-alerts</code> - Get list of sound alerts for user</li>
+        <li><code>GET /v2/custom-commands</code> - Get list of custom commands for your account</li>
+        <li><code>GET /v2/user-commands/get</code> - Get list of user managed commands</li>
+        <li><code>POST /v2/user-commands/add</code> - Add a user managed command</li>
+        <li><code>POST /v2/user-commands/remove</code> - Remove a user managed command</li>
+        <li><code>GET /v2/weather</code> - Get weather data and trigger WebSocket weather event</li>
+        <li><code>GET /v2/user-points</code> - Get user points</li>
+        <li><code>POST /v2/user-points/credit</code> - Credit points to a user</li>
+        <li><code>POST /v2/user-points/debit</code> - Debit points from a user</li>
     </ul>
 
     <h3>User Account (requires user API key)</h3>
     <p>Admins can query any user's data with the <code>channel</code> parameter.</p>
     <ul>
-        <li><code>GET /v2/account</code> — Get account information</li>
-        <li><code>GET /v2/checkkey</code> — Check if the API key is valid</li>
-        <li><code>GET /v2/streamonline</code> — Check if the stream is online</li>
-        <li><code>POST /v2/discord/twitch-link/confirm</code> — Confirm Discord to Twitch link using one-time token</li>
-        <li><code>GET /v2/bot/status</code> — Get chat bot status</li>
+        <li><code>GET /v2/account</code> - Get account information</li>
+        <li><code>GET /v2/checkkey</code> - Check if the API key is valid</li>
+        <li><code>GET /v2/streamonline</code> - Check if the stream is online</li>
+        <li><code>POST /v2/discord/twitch-link/confirm</code> - Confirm Discord to Twitch link using one-time token</li>
+        <li><code>GET /v2/bot/status</code> - Get chat bot status</li>
     </ul>
 
     <h3>WebSocket Triggers (requires user API key)</h3>
     <p>Endpoints that trigger real-time events via WebSocket to the bot and overlays.</p>
     <ul>
-        <li><code>GET /v2/websocket/tts</code> — Trigger TTS via API</li>
-        <li><code>GET /v2/websocket/walkon</code> — Trigger Walkon via API</li>
-        <li><code>GET /v2/websocket/deaths</code> — Trigger Deaths via API</li>
-        <li><code>GET /v2/websocket/sound_alert</code> — Trigger Sound Alert via API</li>
-        <li><code>GET /v2/websocket/custom_command</code> — Trigger Custom Command via API</li>
-        <li><code>GET /v2/websocket/stream_online</code> — Trigger Stream Online via API</li>
-        <li><code>GET /v2/websocket/raffle_winner</code> — Trigger Raffle Winner via API</li>
-        <li><code>GET /v2/websocket/stream_offline</code> — Trigger Stream Offline via API</li>
-        <li><code>POST /v2/SEND_OBS_EVENT</code> — Pass OBS events to the websocket server</li>
+        <li><code>GET /v2/websocket/tts</code> - Trigger TTS via API</li>
+        <li><code>GET /v2/websocket/walkon</code> - Trigger Walkon via API</li>
+        <li><code>GET /v2/websocket/deaths</code> - Trigger Deaths via API</li>
+        <li><code>GET /v2/websocket/sound_alert</code> - Trigger Sound Alert via API</li>
+        <li><code>GET /v2/websocket/custom_command</code> - Trigger Custom Command via API</li>
+        <li><code>GET /v2/websocket/stream_online</code> - Trigger Stream Online via API</li>
+        <li><code>GET /v2/websocket/raffle_winner</code> - Trigger Raffle Winner via API</li>
+        <li><code>GET /v2/websocket/stream_offline</code> - Trigger Stream Offline via API</li>
+        <li><code>POST /v2/SEND_OBS_EVENT</code> - Pass OBS events to the websocket server</li>
     </ul>
 
     <h3>Admin Only (requires admin API key)</h3>
     <p>Administrative endpoints that require admin API key. Service-specific admin keys are restricted to their designated service.</p>
     <ul>
-        <li><code>POST /freestuff</code> — Receive and process FreeStuff Webhook Requests</li>
-        <li><code>POST /github</code> — Receive and process GitHub Webhook Requests</li>
-        <li><code>GET /v2/authorizedusers</code> — Get a list of authorized users for full beta access to the entire Specter Ecosystem</li>
-        <li><code>GET /v2/discord/linked</code> — Check if Discord user is linked</li>
-        <li><code>GET /v2/discord/twitch-link</code> — Get Discord to Twitch link</li>
-        <li><code>POST /v2/discord/twitch-link/request</code> — Create one-time Twitch link token for a Discord user</li>
-        <li><code>POST /v2/discord/twitch-link/unlink</code> — Unlink Discord user from Twitch account</li>
+        <li><code>POST /freestuff</code> - Receive and process FreeStuff Webhook Requests</li>
+        <li><code>POST /github</code> - Receive and process GitHub Webhook Requests</li>
+        <li><code>GET /v2/authorizedusers</code> - Get a list of authorized users for full beta access to the entire Specter Ecosystem</li>
+        <li><code>GET /v2/discord/linked</code> - Check if Discord user is linked</li>
+        <li><code>GET /v2/discord/twitch-link</code> - Get Discord to Twitch link</li>
+        <li><code>POST /v2/discord/twitch-link/request</code> - Create one-time Twitch link token for a Discord user</li>
+        <li><code>POST /v2/discord/twitch-link/unlink</code> - Unlink Discord user from Twitch account</li>
     </ul>
 
     <hr class="sp-divider">
 
     <h2>Using the API</h2>
     <p>For <code>/v2/</code> endpoints, send your API key in the <code>X-API-KEY</code> header. Legacy endpoints can still use a URL query parameter where supported.</p>
-    <p>Do not expose the key in public client-side code — treat it like a secret and rotate it if you suspect compromise.</p>
+    <p>Do not expose the key in public client-side code - treat it like a secret and rotate it if you suspect compromise.</p>
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
@@ -2492,7 +2492,7 @@ sudo apt install -y mysql-server</code></pre>
     <hr class="sp-divider">
 
     <h2>Step 1: Clone the Repository (Servers 1, 2, 3, 5)</h2>
-    <p>Clone the BotOfTheSpecter repository to a temporary directory on each server (except Server 4 — Database):</p>
+    <p>Clone the BotOfTheSpecter repository to a temporary directory on each server (except Server 4 - Database):</p>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>cd /tmp
 git clone https://github.com/YourStreamingTools/BotOfTheSpecter.git botofthespecter-temp
 cd botofthespecter-temp</code></pre>
@@ -2531,18 +2531,18 @@ sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
     <hr class="sp-divider">
 
     <h2>Step 2: Configure Database Server (Server 4 Only)</h2>
-    <p>Server 4 does not require application files from the repository — it only needs MySQL installed and configured. Specter uses <strong>two database scopes</strong>:</p>
+    <p>Server 4 does not require application files from the repository - it only needs MySQL installed and configured. Specter uses <strong>two database scopes</strong>:</p>
     <ol>
-        <li><strong>Central / system databases</strong> — you create these once by hand (<code>website</code>, <code>spam_pattern</code>, optional <code>roadmap</code> / <code>specterdiscordbot</code>).</li>
-        <li><strong>Per-user databases</strong> — one MySQL database <strong>per Twitch username</strong> (DB name = username). These are <strong>never</strong> created by hand; the dashboard creates them on first login.</li>
+        <li><strong>Central / system databases</strong> - you create these once by hand (<code>website</code>, <code>spam_pattern</code>, optional <code>roadmap</code> / <code>specterdiscordbot</code>).</li>
+        <li><strong>Per-user databases</strong> - one MySQL database <strong>per Twitch username</strong> (DB name = username). These are <strong>never</strong> created by hand; the dashboard creates them on first login.</li>
     </ol>
 
     <h3>Central databases (create manually)</h3>
     <ul>
-        <li><strong>spam_pattern</strong> — global spam phrases for auto-ban (table: <code>spam_patterns</code>)</li>
-        <li><strong>website</strong> — accounts, OAuth tokens, API keys, admin keys, system tables</li>
-        <li><strong>specterdiscordbot</strong> — Discord bot state <em>(optional)</em></li>
-        <li><strong>roadmap</strong> — roadmap site <em>(optional)</em></li>
+        <li><strong>spam_pattern</strong> - global spam phrases for auto-ban (table: <code>spam_patterns</code>)</li>
+        <li><strong>website</strong> - accounts, OAuth tokens, API keys, admin keys, system tables</li>
+        <li><strong>specterdiscordbot</strong> - Discord bot state <em>(optional)</em></li>
+        <li><strong>roadmap</strong> - roadmap site <em>(optional)</em></li>
     </ul>
     <p>Minimal bootstrap SQL for the core DBs (expand as needed; full <code>website</code> tables also grow via <code>migrations/website/</code>):</p>
     <details style="margin-top:1rem;">
@@ -2585,7 +2585,7 @@ CREATE TABLE IF NOT EXISTS roadmap_comments (
     CONSTRAINT roadmap_comments_ibfk_1 FOREIGN KEY (item_id) REFERENCES roadmap_items (id) ON DELETE CASCADE
 );
 
--- specterdiscordbot (optional — full schema in repo)
+-- specterdiscordbot (optional - full schema in repo)
 CREATE DATABASE IF NOT EXISTS specterdiscordbot;
 
 -- website (accounts + system tables; users row is the minimum for login)
@@ -2615,7 +2615,7 @@ CREATE TABLE IF NOT EXISTS users (
 );</code></pre>
     </details>
 
-    <p style="margin-top:1rem;">Then create your MySQL application user (must be able to create databases — per-user DBs need <code>CREATE</code>):</p>
+    <p style="margin-top:1rem;">Then create your MySQL application user (must be able to create databases - per-user DBs need <code>CREATE</code>):</p>
     <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
 GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;</code></pre>
@@ -2632,8 +2632,8 @@ FLUSH PRIVILEGES;</code></pre>
     <p>Source of truth: <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/blob/main/dashboard/includes/usr_database.php" target="_blank" rel="noopener"><code>dashboard/includes/usr_database.php</code></a>.</p>
     <ul>
         <li><strong>Database name</strong> = Twitch login / session username (letters, numbers, underscore only; max 64 chars).</li>
-        <li><strong>When</strong> — first successful dashboard session for that user (and again on later loads to create any missing tables / columns).</li>
-        <li><strong>What runs</strong> — <code>CREATE DATABASE</code> if the schema does not exist, then <code>CREATE TABLE IF NOT EXISTS</code> for every table below, then column checks, then default seed rows.</li>
+        <li><strong>When</strong> - first successful dashboard session for that user (and again on later loads to create any missing tables / columns).</li>
+        <li><strong>What runs</strong> - <code>CREATE DATABASE</code> if the schema does not exist, then <code>CREATE TABLE IF NOT EXISTS</code> for every table below, then column checks, then default seed rows.</li>
     </ul>
 
     <h4>Tables created in each user database</h4>
@@ -2719,19 +2719,19 @@ FLUSH PRIVILEGES;</code></pre>
     <h4 style="margin-top:1.25rem;">Default seed data (first creation)</h4>
     <p><code>usr_database.php</code> also inserts defaults when tables are empty, including:</p>
     <ul>
-        <li><strong>groups</strong> — Moderators, VIPs, Subscribers, Bots</li>
-        <li><strong>categories</strong> — Default</li>
-        <li><strong>bot_settings</strong> — point name <code>Points</code>, chat/follow/sub/cheer/raid amounts, 2× sub multiplier, excluded users include <code>botofthespecter</code> and the channel username</li>
+        <li><strong>groups</strong> - Moderators, VIPs, Subscribers, Bots</li>
+        <li><strong>categories</strong> - Default</li>
+        <li><strong>bot_settings</strong> - point name <code>Points</code>, chat/follow/sub/cheer/raid amounts, 2× sub multiplier, excluded users include <code>botofthespecter</code> and the channel username</li>
         <li><strong>point_store_settings</strong>, <strong>subathon_settings</strong>, <strong>protection</strong>, <strong>joke_settings</strong>, <strong>watch_time_excluded_users</strong>, <strong>stream_status</strong></li>
-        <li><strong>ad_notice_settings</strong> — default ad start/end/upcoming messages with variables like <code>(duration)</code> / <code>(minutes)</code></li>
-        <li><strong>streamer_preferences</strong> — welcome message defaults, music source</li>
-        <li><strong>twitch_chat_alerts</strong> — gift/prime upgrade, pay-it-forward, watch streak templates</li>
+        <li><strong>ad_notice_settings</strong> - default ad start/end/upcoming messages with variables like <code>(duration)</code> / <code>(minutes)</code></li>
+        <li><strong>streamer_preferences</strong> - welcome message defaults, music source</li>
+        <li><strong>twitch_chat_alerts</strong> - gift/prime upgrade, pay-it-forward, watch streak templates</li>
         <li><strong>task_settings</strong>, <strong>credits_overlay_settings</strong>, <strong>closed_captions_settings</strong>, <strong>avatar_settings</strong>, <strong>working_study_overlay_settings</strong>, <strong>automated_shoutout_settings</strong>, <strong>tanggle_puzzle_stats</strong>, <strong>showobs</strong></li>
     </ul>
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
-            Column definitions change over time. On each dashboard load, <code>usr_database.php</code> compares live columns to the CREATE TABLE definitions and <code>ALTER TABLE … ADD COLUMN</code> for missing ones. Always deploy the latest <code>usr_database.php</code> with the dashboard — do not copy an old SQL dump as the permanent user schema.
+            Column definitions change over time. On each dashboard load, <code>usr_database.php</code> compares live columns to the CREATE TABLE definitions and <code>ALTER TABLE … ADD COLUMN</code> for missing ones. Always deploy the latest <code>usr_database.php</code> with the dashboard - do not copy an old SQL dump as the permanent user schema.
         </div>
     </div>
 
@@ -2830,23 +2830,23 @@ S3_SECRET_KEY=
 S3_ALWAYS_UPLOAD=True</code></pre>
     <h3 style="margin-top:1rem;">Required Variables</h3>
     <ul>
-        <li><strong>SQL_*</strong> — Database connection details (must match Server 4 config)</li>
-        <li><strong>CLIENT_ID &amp; CLIENT_SECRET</strong> — Your Twitch application credentials</li>
-        <li><strong>OAUTH_TOKEN</strong> — Bot account OAuth token</li>
-        <li><strong>API_KEY</strong> — Generate a secure random key for internal service authentication</li>
+        <li><strong>SQL_*</strong> - Database connection details (must match Server 4 config)</li>
+        <li><strong>CLIENT_ID &amp; CLIENT_SECRET</strong> - Your Twitch application credentials</li>
+        <li><strong>OAUTH_TOKEN</strong> - Bot account OAuth token</li>
+        <li><strong>API_KEY</strong> - Generate a secure random key for internal service authentication</li>
     </ul>
     <h3>Optional Variables</h3>
     <ul>
-        <li><strong>WEATHER_API</strong> — For weather commands (OpenWeatherMap)</li>
-        <li><strong>SPOTIFY_*</strong> — For Spotify integration</li>
-        <li><strong>DISCORD_*</strong> — For Discord bot functionality</li>
-        <li><strong>OPENAI_KEY</strong> — For AI features</li>
-        <li><strong>S3_*</strong> — For user data exports to object storage</li>
-        <li><strong>SMTP_*</strong> — For email notifications</li>
+        <li><strong>WEATHER_API</strong> - For weather commands (OpenWeatherMap)</li>
+        <li><strong>SPOTIFY_*</strong> - For Spotify integration</li>
+        <li><strong>DISCORD_*</strong> - For Discord bot functionality</li>
+        <li><strong>OPENAI_KEY</strong> - For AI features</li>
+        <li><strong>S3_*</strong> - For user data exports to object storage</li>
+        <li><strong>SMTP_*</strong> - For email notifications</li>
     </ul>
     <h3>Server Host Variables</h3>
     <ul>
-        <li><strong>API-HOST, WEBSOCKET-HOST, etc.</strong> — Set these to the IP addresses or hostnames of your respective servers for inter-server communication</li>
+        <li><strong>API-HOST, WEBSOCKET-HOST, etc.</strong> - Set these to the IP addresses or hostnames of your respective servers for inter-server communication</li>
     </ul>
 
     <hr class="sp-divider">
@@ -2917,7 +2917,7 @@ sudo systemctl start mysql
 sudo systemctl status mysql</code></pre>
 
     <h3 style="margin-top:1rem;">Server 5: Bot Service</h3>
-    <p>The bot is controlled and started from the dashboard (Server 1). No manual startup is required on Server 5 — it is ready once the Python environment and <code>.env</code> configuration are complete.</p>
+    <p>The bot is controlled and started from the dashboard (Server 1). No manual startup is required on Server 5 - it is ready once the Python environment and <code>.env</code> configuration are complete.</p>
 
     <hr class="sp-divider">
 
@@ -2958,7 +2958,7 @@ sudo ufw allow to 10.10.10.4:3306    # Database Server</code></pre>
 
     <h2>Security Considerations</h2>
     <ul>
-        <li><strong>HTTPS/SSL:</strong> Always use SSL certificates for all services — Let's Encrypt is free</li>
+        <li><strong>HTTPS/SSL:</strong> Always use SSL certificates for all services - Let's Encrypt is free</li>
         <li><strong>Firewall:</strong> Restrict database access to only the servers that need it</li>
         <li><strong>Environment Variables:</strong> Never commit <code>.env</code> files to version control</li>
         <li><strong>Database Backups:</strong> Set up automated daily backups</li>
@@ -3124,7 +3124,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     <?php else: ?>
     <div class="sp-alert sp-alert-warning">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        <span>Command list unavailable — could not reach the commands API.</span>
+        <span>Command list unavailable - could not reach the commands API.</span>
     </div>
     <?php endif; ?>
     <div class="sp-alert sp-alert-info sp-mt-2">
@@ -3149,7 +3149,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
 
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I set up the bot for the first time?</div>
-        <div class="sp-faq-a">Follow the <a href="#" data-goto="setup">First Time Setup</a> guide — connect Twitch, mod the bot, start it from the dashboard, then configure points and custom commands.</div>
+        <div class="sp-faq-a">Follow the <a href="#" data-goto="setup">First Time Setup</a> guide - connect Twitch, mod the bot, start it from the dashboard, then configure points and custom commands.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">What main features does the bot include?</div>
@@ -3193,7 +3193,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">Can I self-host BotOfTheSpecter?</div>
-        <div class="sp-faq-a">Yes — advanced users can run Specter on their own Linux servers. See the <a href="#" data-goto="run-yourself">Run Yourself</a> guide. Support focuses on the hosted service; self-hosting requires independent troubleshooting.</div>
+        <div class="sp-faq-a">Yes - advanced users can run Specter on their own Linux servers. See the <a href="#" data-goto="run-yourself">Run Yourself</a> guide. Support focuses on the hosted service; self-hosting requires independent troubleshooting.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">Can I request a new built-in command?</div>
@@ -3230,17 +3230,17 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     <p>If commands aren't responding:</p>
     <ul>
         <li>Check that the command is enabled in the dashboard, or use <code>!enablecommand commandname</code> in chat.</li>
-        <li>Commands always use the <code>!</code> prefix — verify the bot has <strong>Moderator</strong> permissions in your channel.</li>
+        <li>Commands always use the <code>!</code> prefix - verify the bot has <strong>Moderator</strong> permissions in your channel.</li>
         <li>Double-check the spelling of the command name both in chat and in the dashboard.</li>
     </ul>
 
-    <h2>Sound Alerts / TTS / Walk-ons — Audio Issues</h2>
+    <h2>Sound Alerts / TTS / Walk-ons - Audio Issues</h2>
     <p>All Specter audio goes through the audio overlays. Make sure you're running the correct overlay, or use the <strong>All Audio</strong> overlay:</p>
     <p><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
     <ul>
         <li>Check audio device settings in OBS.</li>
         <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="obs-audio">audio monitoring is configured correctly</a>.</li>
-        <li>If you hear an echo, set Audio Monitoring to <strong>Monitor Only (mute output)</strong> and test again — everyone's audio setup differs.</li>
+        <li>If you hear an echo, set Audio Monitoring to <strong>Monitor Only (mute output)</strong> and test again - everyone's audio setup differs.</li>
         <li>Confirm you've entered the correct API key, found on your <strong>Specter Profile</strong> page in the dashboard.</li>
     </ul>
 

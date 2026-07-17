@@ -1,4 +1,4 @@
-# Cloudflare R2 — Local API Reference (BotOfTheSpecter)
+# Cloudflare R2 - Local API Reference (BotOfTheSpecter)
 
 This document is a comprehensive local reference for Cloudflare R2's S3-compatible API. It covers the full API surface relevant to this project: authentication, bucket operations, object operations, multipart uploads, presigned URLs, CORS, public access, lifecycle rules, S3 compatibility notes, and SDK usage patterns.
 
@@ -52,7 +52,7 @@ Dashboard path: R2 → (right panel) **Account Details** → **Manage API Tokens
 - Choose token type (Account or User).
 - Set permission level.
 - Optionally scope to specific buckets (object-level permissions only).
-- After creation, save the **Secret Access Key immediately** — it is shown only once. The Access Key ID remains visible.
+- After creation, save the **Secret Access Key immediately** - it is shown only once. The Access Key ID remains visible.
 
 S3 credential format after creation:
 
@@ -63,7 +63,7 @@ Secret Access Key: <sha256 hash>       (maps to SHA-256 of token value)
 
 ### 1.4 Temporary credentials
 
-R2 supports short-lived, scoped credentials derived from a parent token — issued either through the Cloudflare Temporary Credentials API or by locally signing JWTs with the parent token's secret. Useful for delegating limited, time-bounded access without issuing full API tokens.
+R2 supports short-lived, scoped credentials derived from a parent token - issued either through the Cloudflare Temporary Credentials API or by locally signing JWTs with the parent token's secret. Useful for delegating limited, time-bounded access without issuing full API tokens.
 
 ---
 
@@ -95,7 +95,7 @@ boto3 requires `s3={'addressing_style': 'virtual'}` in its `Config` to produce t
 
 ### 2.4 Region name
 
-R2's canonical region name is `auto`. SDKs also accept `us-east-1` as an alias — R2 internally maps it to `auto`. **Never set a real AWS region** (`eu-west-1`, `ap-southeast-2`, etc.) — R2 rejects those.
+R2's canonical region name is `auto`. SDKs also accept `us-east-1` as an alias - R2 internally maps it to `auto`. **Never set a real AWS region** (`eu-west-1`, `ap-southeast-2`, etc.) - R2 rejects those.
 
 ---
 
@@ -109,7 +109,7 @@ R2 supports 12 bucket-level S3 operations. None support the `x-amz-expected-buck
 - 3–63 characters.
 - Cannot start or end with a hyphen.
 - Case-sensitive (lowercase only).
-- Private by default — no listing or access without credentials.
+- Private by default - no listing or access without credentials.
 
 ### 3.2 ListBuckets
 
@@ -234,7 +234,7 @@ GET /<bucket-name>/<object-key>
 
 | Header | Description |
 | ------ | ----------- |
-| `Range` | Byte range (e.g. `bytes=0-1023`) — supported |
+| `Range` | Byte range (e.g. `bytes=0-1023`) - supported |
 | `If-Match` | Return object only if ETag matches |
 | `If-None-Match` | Return 304 if ETag matches (cache revalidation) |
 | `If-Modified-Since` | Return object only if modified after date |
@@ -270,7 +270,7 @@ Returns all response headers of GetObject but no body. Supports the same conditi
 DELETE /<bucket-name>/<object-key>
 ```
 
-Permanently removes a single object. Returns `204 No Content` on success regardless of whether the object existed. Deletion is irreversible — R2 has no object versioning or soft-delete.
+Permanently removes a single object. Returns `204 No Content` on success regardless of whether the object existed. Deletion is irreversible - R2 has no object versioning or soft-delete.
 
 **Not supported:** multi-factor authentication delete, governance retention bypass.
 
@@ -336,7 +336,7 @@ x-amz-copy-source: /<source-bucket>/<source-key>
 
 | Header | Description |
 | ------ | ----------- |
-| `x-amz-copy-source` | Source path (`/bucket/key`) — URL-encoded if needed |
+| `x-amz-copy-source` | Source path (`/bucket/key`) - URL-encoded if needed |
 | `x-amz-metadata-directive` | `COPY` (default), `REPLACE`, or `MERGE` (R2 extension: combine source with new values) |
 | `x-amz-storage-class` | Set storage class on destination object |
 | Conditional headers | `x-amz-copy-source-if-match`, `x-amz-copy-source-if-none-match`, `x-amz-copy-source-if-modified-since`, `x-amz-copy-source-if-unmodified-since` |
@@ -413,7 +413,7 @@ Request body is XML listing all parts in order:
 </CompleteMultipartUpload>
 ```
 
-Returns the final object's `ETag` — a hash of the concatenated binary MD5s of all parts, followed by `-<part-count>` (e.g. `"d8e8fca2dc0f896fd7cb4cb0031ba249-2"`). This differs from single-part ETags.
+Returns the final object's `ETag` - a hash of the concatenated binary MD5s of all parts, followed by `-<part-count>` (e.g. `"d8e8fca2dc0f896fd7cb4cb0031ba249-2"`). This differs from single-part ETags.
 
 ### 5.6 AbortMultipartUpload
 
@@ -455,7 +455,7 @@ Do not validate multipart objects by comparing ETag to an MD5 of the assembled c
 
 ### 6.1 What presigned URLs are
 
-A presigned URL embeds AWS SigV4 signature parameters directly in the query string, allowing a holder to perform a single operation against R2 without possessing API credentials. They are generated client-side — no network request to R2 is made during generation.
+A presigned URL embeds AWS SigV4 signature parameters directly in the query string, allowing a holder to perform a single operation against R2 without possessing API credentials. They are generated client-side - no network request to R2 is made during generation.
 
 ### 6.2 Expiry window
 
@@ -492,7 +492,7 @@ Tampering with any of these parameters produces `403 SignatureDoesNotMatch`.
 
 ### 6.5 Custom domain limitation
 
-**Critical:** Presigned URLs are bound to the S3 API hostname (`<ACCOUNT_ID>.r2.cloudflarestorage.com`). They **cannot** be used with custom domains (e.g. `cdn.example.com` pointing at R2). The signature covers the `host` header — a different hostname produces a 403.
+**Critical:** Presigned URLs are bound to the S3 API hostname (`<ACCOUNT_ID>.r2.cloudflarestorage.com`). They **cannot** be used with custom domains (e.g. `cdn.example.com` pointing at R2). The signature covers the `host` header - a different hostname produces a 403.
 
 For custom-domain-based access control, use Cloudflare WAF HMAC Token Authentication (requires Pro plan).
 
@@ -509,7 +509,7 @@ s3 = boto3.session.Session().client(
     aws_secret_access_key=SECRET_ACCESS_KEY,
     region_name='auto',
     config=Config(
-        signature_version='s3v4',                   # Required — never omit
+        signature_version='s3v4',                   # Required - never omit
         s3={'addressing_style': 'virtual'},          # Required for presigned URLs
     ),
 )
@@ -537,7 +537,7 @@ put_url = s3.generate_presigned_url(
 
 ### 6.7 PHP presigned URL generation
 
-Use `createPresignedRequest` — not `getObjectUrl`. `getObjectUrl` produces an unsigned URL that 403s on private buckets.
+Use `createPresignedRequest` - not `getObjectUrl`. `getObjectUrl` produces an unsigned URL that 403s on private buckets.
 
 ```php
 // GET presigned URL
@@ -575,7 +575,7 @@ R2 CORS configuration is **JSON** (not XML as AWS S3 uses via the SDK). Each rul
 
 | Field | Required | Description |
 | ----- | -------- | ----------- |
-| `AllowedOrigins` | Yes | `Access-Control-Allow-Origin` values. Must be `scheme://host[:port]` — no paths, no wildcards except `*` |
+| `AllowedOrigins` | Yes | `Access-Control-Allow-Origin` values. Must be `scheme://host[:port]` - no paths, no wildcards except `*` |
 | `AllowedMethods` | Yes | `GET`, `POST`, `PUT`, `DELETE`, `HEAD` |
 | `AllowedHeaders` | No | Headers the browser may send (`Access-Control-Allow-Headers`). Use `*` to allow all |
 | `ExposeHeaders` | No | Headers JavaScript can read from the response (default: none) |
@@ -619,7 +619,7 @@ Each bucket can be given a managed Cloudflare URL of the form:
 https://pub-<hash>.r2.dev/<object-key>
 ```
 
-**Rate limited — do not use in production.** Suitable for testing public access before configuring a custom domain. Do not create CNAME records pointing at `r2.dev` addresses — that is an unsupported access path.
+**Rate limited - do not use in production.** Suitable for testing public access before configuring a custom domain. Do not create CNAME records pointing at `r2.dev` addresses - that is an unsupported access path.
 
 ### 8.3 Custom domain (production)
 
@@ -677,7 +677,7 @@ Automate object expiration or storage class transitions.
 ### 9.3 Constraints
 
 - Maximum 1,000 rules per bucket.
-- Filter conditions: prefix-based only (no tag-based filtering — tagging not supported).
+- Filter conditions: prefix-based only (no tag-based filtering - tagging not supported).
 - Objects are typically removed within 24 hours of expiration.
 - When a storage class transition and expiration fall within the same 24-hour window, deletion takes precedence.
 - Storage class transitions incur Class A operation charges.
@@ -753,7 +753,7 @@ DELETE /<bucket>?lifecycle → DeleteBucketLifecycleConfiguration
 
 ## 11. SDK Usage Patterns
 
-### 11.1 boto3 (Python) — full client setup
+### 11.1 boto3 (Python) - full client setup
 
 ```python
 import boto3
@@ -840,13 +840,13 @@ url = s3.generate_presigned_url(
 
 ```python
 import os
-ACCOUNT_ID  = os.getenv('S3_ENDPOINT_HOSTNAME')   # No scheme — add https:// in code
+ACCOUNT_ID  = os.getenv('S3_ENDPOINT_HOSTNAME')   # No scheme - add https:// in code
 ACCESS_KEY  = os.getenv('S3_ACCESS_KEY')
 SECRET_KEY  = os.getenv('S3_SECRET_KEY')
 BUCKET      = os.getenv('S3_BUCKET_NAME', 'specterexports')
 ```
 
-### 11.2 aws-sdk-php (PHP) — full client setup
+### 11.2 aws-sdk-php (PHP) - full client setup
 
 ```php
 <?php
@@ -855,7 +855,7 @@ use Aws\S3\S3Client;
 
 $s3 = new S3Client([
     'version'     => 'latest',
-    'region'      => 'auto',           // Or 'us-east-1' — R2 accepts both
+    'region'      => 'auto',           // Or 'us-east-1' - R2 accepts both
     'endpoint'    => "https://{$account_id}.r2.cloudflarestorage.com",
     'credentials' => [
         'key'    => $access_key_id,
@@ -903,7 +903,7 @@ foreach ($result['Contents'] ?? [] as $item) {
 // Delete
 $s3->deleteObject(['Bucket' => $bucket, 'Key' => $key]);
 
-// Presigned GET — use createPresignedRequest, NOT getObjectUrl
+// Presigned GET - use createPresignedRequest, NOT getObjectUrl
 $cmd     = $s3->getCommand('GetObject', ['Bucket' => $bucket, 'Key' => $key]);
 $request = $s3->createPresignedRequest($cmd, '+7 days');
 $url     = (string) $request->getUri();
@@ -914,7 +914,7 @@ $request = $s3->createPresignedRequest($cmd, '+1 hour');
 $url     = (string) $request->getUri();
 ```
 
-**WARNING:** `$s3->getObjectUrl($bucket, $key)` returns an unsigned URL. It produces a 403 on private buckets. Always use `createPresignedRequest` for download links. (Active bug in `./dashboard/persistent_storage.php:488` — see §12.)
+**WARNING:** `$s3->getObjectUrl($bucket, $key)` returns an unsigned URL. It produces a 403 on private buckets. Always use `createPresignedRequest` for download links. (Active bug in `./dashboard/persistent_storage.php:488` - see §12.)
 
 **PHP config convention:** PHP never reads `.env`. Credentials always come from `./config/cloudflare.php` or `./config/object_storage.php` (dev) / `/var/www/config/` (server). See [`../rules/php-config.md`](../../../rules/php-config.md).
 

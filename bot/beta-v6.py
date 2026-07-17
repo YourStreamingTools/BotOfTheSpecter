@@ -366,7 +366,7 @@ async def check_cooldown(command, user_id, bucket_type, rate, time_window, send_
         # Calculate remaining cooldown time
         if send_message:
             oldest_usage = min(command_usage[key]) if command_usage[key] else current_time
-            # Never announce "0 seconds" — if we're still on cooldown, show at least 1.
+            # Never announce "0 seconds" - if we're still on cooldown, show at least 1.
             remaining_time = max(1, math.ceil(time_window - (current_time - oldest_usage)))
             await send_chat_message(f"{command} is on cooldown. Please wait {remaining_time} seconds.")
         return False  # Command on cooldown
@@ -948,7 +948,7 @@ async def subscribe_to_events(session_id):
                     events_failed_to_subscribe.append(payload['type'])
                     if result.status == 403 and payload['type'].startswith("channel.chat"):
                         twitch_logger.warning(
-                            f"Chat subscription {payload['type']} denied — broadcaster may not have granted "
+                            f"Chat subscription {payload['type']} denied - broadcaster may not have granted "
                             f"channel:bot scope. Falling back to broadcaster user token for this subscription."
                         )
                         fallback_payload = dict(payload)
@@ -1005,7 +1005,7 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
                     sub_type = sub.get('type', 'unknown')
                     sub_status = sub.get('status', 'unknown')
                     sub_id = sub.get('id', 'unknown')
-                    event_logger.error(f"EventSub subscription revoked — type={sub_type}, status={sub_status}, id={sub_id}")
+                    event_logger.error(f"EventSub subscription revoked - type={sub_type}, status={sub_status}, id={sub_id}")
                     if sub_status in ('chat_user_banned', 'user_removed') and sub_type.startswith('channel.chat'):
                         event_logger.error(f"Bot removed from chat (status={sub_status}).")
                 else:
@@ -1532,7 +1532,7 @@ async def process_twitch_eventsub_message(message):
                     if result and result.get("sound_mapping"):
                         sound_file = "twitch/" + result.get("sound_mapping")
                         create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
-                    # Specter Alerts overlay — variant matcher picks tier by level
+                    # Specter Alerts overlay - variant matcher picks tier by level
                     create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
                         "twitch-hype-level": int(level),
                         "twitch-hype-phase": "begin",
@@ -1583,7 +1583,7 @@ async def process_twitch_eventsub_message(message):
                     value_formatted = f"{donation:,.{decimal_places}f}"
                     message = f"Thank you so much {user} for your {value_formatted} {currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await send_chat_message(message)
-                    # Specter Alerts overlay — variant matcher tiers by donation value
+                    # Specter Alerts overlay - variant matcher tiers by donation value
                     create_task(websocket_notice(event="TWITCH_CHARITY", additional_data={
                         "twitch-username":       user,
                         "twitch-charity-amount": f"{value_formatted} {currency}",
@@ -2043,7 +2043,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     break
                 line = line_bytes.decode("utf-8", errors="replace").rstrip("\r\n")
                 if "NOTICE * :Login authentication failed" in line or "NOTICE * :Improperly formatted auth" in line:
-                    bot_logger.error(f"IRC Presence: Auth failed — {line}. Will refresh token on next attempt.")
+                    bot_logger.error(f"IRC Presence: Auth failed - {line}. Will refresh token on next attempt.")
                     auth_failed = True
                     break
                 if "CAP * NAK" in line:
@@ -2144,11 +2144,11 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     pass
         force_refresh = True
         if auth_failed:
-            bot_logger.info("IRC Presence: Auth failure — waiting 120s before retry...")
+            bot_logger.info("IRC Presence: Auth failure - waiting 120s before retry...")
             await sleep(120)
             reconnect_delay = 30
         elif channel_blocked:
-            bot_logger.info("IRC Presence: Channel blocked — waiting 600s before retry...")
+            bot_logger.info("IRC Presence: Channel blocked - waiting 600s before retry...")
             await sleep(600)
             reconnect_delay = 30
         elif timeout_seconds > 0:
@@ -2187,7 +2187,7 @@ async def specter_websocket():
                 websocket_logger.info(f"Reconnection attempt {consecutive_failures}, waiting {total_delay:.1f} seconds (server reboot consideration)")
                 await sleep(total_delay)
             # Attempt to connect to the WebSocket server using websocket transport directly.
-            # Hard timeout on connect() itself — prevents hanging forever when the server is
+            # Hard timeout on connect() itself - prevents hanging forever when the server is
             # mid-reboot and accepts TCP but never completes the socket.io handshake.
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
             await asyncio_wait_for(
@@ -6820,7 +6820,7 @@ class TwitchBot(commands.AutoBot):
                     return
                 username = ctx.author.name.lower()
                 if await word_replace_user_opt_out(username, True):
-                    await send_chat_message("Okay — I won't randomly word-replace your messages anymore.")
+                    await send_chat_message("Okay - I won't randomly word-replace your messages anymore.")
                 else:
                     await send_chat_message("Word replace is already off for you.")
                 add_usage('wordreplaceoff', bucket_key, settings["cooldown_bucket"])
@@ -6850,7 +6850,7 @@ class TwitchBot(commands.AutoBot):
                     return
                 username = ctx.author.name.lower()
                 if await word_replace_user_opt_out(username, False):
-                    await send_chat_message("Okay — I might randomly word-replace your messages again.")
+                    await send_chat_message("Okay - I might randomly word-replace your messages again.")
                 else:
                     await send_chat_message("Word replace is already on for you.")
                 add_usage('wordreplaceon', bucket_key, settings["cooldown_bucket"])
@@ -7352,7 +7352,7 @@ class TwitchBot(commands.AutoBot):
                     parts = content.split(' ', 1)
                     title = parts[1].strip() if len(parts) > 1 else ''
                     if not title:
-                        await send_chat_message("Usage: !task <title> — sets your current task.")
+                        await send_chat_message("Usage: !task <title> - sets your current task.")
                         return
                     title = title[:255]
                     user_id = str(ctx.author.id)
@@ -7542,7 +7542,7 @@ class TwitchBot(commands.AutoBot):
                     parts = content.split(' ', 1)
                     new_title = parts[1].strip() if len(parts) > 1 else ''
                     if not new_title:
-                        await send_chat_message("Usage: !rename <title> — renames your current task.")
+                        await send_chat_message("Usage: !rename <title> - renames your current task.")
                         return
                     new_title = new_title[:255]
                     user_id = str(ctx.author.id)
@@ -8139,7 +8139,7 @@ class TwitchBot(commands.AutoBot):
                             (user_id, user_name)
                         )
                         emit_project_update(user_id, user_name, 'clear')
-                        await send_chat_message(f"@{user_name} project cleared — you are back in the default project.")
+                        await send_chat_message(f"@{user_name} project cleared - you are back in the default project.")
                         add_usage('project', bucket_key, cooldown_bucket)
                         return
                     first_word = arg.split(' ', 1)[0].lower()
@@ -8242,9 +8242,9 @@ class TwitchBot(commands.AutoBot):
     @commands.command(name='personaltimer', aliases=['timer', 'ptimer', 'mytimer', 'focus'])
     async def personaltimer_command(self, ctx: commands.Context):
         # Three modes:
-        #   General: !timer 60 read the book           — plain countdown, no task-list link
-        #   Focus:   !timer 20 "my task here" focus    — single focus block, task list + overlay
-        #   Pomo:    !timer 60/10/4 [label]             — focus/break cycles, task list + overlay
+        #   General: !timer 60 read the book           - plain countdown, no task-list link
+        #   Focus:   !timer 20 "my task here" focus    - single focus block, task list + overlay
+        #   Pomo:    !timer 60/10/4 [label]             - focus/break cycles, task list + overlay
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9924,7 +9924,7 @@ class TwitchBot(commands.AutoBot):
                     if not await check_cooldown('puzzledone', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
                     # Manual fallback for when the Tanggle websocket misses a room.complete
-                    # event. No room data is available here, so only the stats counter moves —
+                    # event. No room data is available here, so only the stats counter moves -
                     # tanggle_room_completions is left untouched.
                     await cursor.execute(
                         """
@@ -10630,7 +10630,7 @@ def _syllablize(word):
         # Pyphen.inserted() returns the word with hyphens at every break point
         # (e.g. "remember" -> "re-mem-ber"). Words here are pure [A-Za-z], so
         # splitting on '-' is safe. (Pyphen.iterate() yields (head, tail) tuples,
-        # NOT syllable chunks — don't use it.)
+        # NOT syllable chunks - don't use it.)
         parts = [part for part in dic.inserted(word).split("-") if part]
         if len(parts) > 1:
             return parts
@@ -10669,7 +10669,7 @@ def should_random_trigger(frequency, rng=random.random):
 
 
 def is_word_replace_eligible(author, *, is_echo, channel_name, bot_username):
-    # Random echo only targets normal viewers — never the bot's own messages
+    # Random echo only targets normal viewers - never the bot's own messages
     # (echo / timed messages / alerts) or the streamer.
     if is_echo:
         return False
@@ -11146,7 +11146,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
                               "title": promoted.get('title'), "status": "active", "project": source_project, "owner": task_owner}, owner=task_owner)
         placed = f"is now active in \"{target}\"" if new_status == 'active' else f"queued at #{new_pos} in \"{target}\""
         follow_up = f" Now working on \"{promoted.get('title')}\"." if promoted else ""
-        return f"moved \"{title}\" — it {placed}.{follow_up}"
+        return f"moved \"{title}\" - it {placed}.{follow_up}"
     if selector.isdigit():
         n = int(selector)
         await cursor.execute(
@@ -11165,7 +11165,7 @@ async def project_move_subcommand(cursor, user_id, user_name, rest):
         emit_task_update({"id": task_id, "user_id": user_id, "user_name": user_name, "title": title,
                           "status": new_status, "backlog_position": new_pos, "project": target, "owner": task_owner}, owner=task_owner)
         placed = f"is now active task #{new_pos} in \"{target}\"" if new_status == 'active' else f"queued as task #{new_pos} in \"{target}\""
-        return f"moved \"{title}\" — it {placed}."
+        return f"moved \"{title}\" - it {placed}."
     return "usage: !project move <n|now> <project name>"
 
 # Function handling !project rename <old> | <new>; returns the chat reply (no @user prefix)
@@ -11183,7 +11183,7 @@ async def project_rename_subcommand(cursor, user_id, user_name, rest):
         return f"you have no project named \"{old_name}\"."
     same_ci = old_name.lower() == new_name.lower()
     if not same_ci and await user_project_exists(cursor, user_id, new_name):
-        return f"you already have a project named \"{new_name}\" — use !project move to combine tasks instead."
+        return f"you already have a project named \"{new_name}\" - use !project move to combine tasks instead."
     await register_user_project(cursor, user_id, user_name, old_name)
     await cursor.execute(
         "UPDATE user_projects SET name = %s WHERE user_id = %s AND name = %s",
@@ -11253,7 +11253,7 @@ async def project_delete_subcommand(cursor, user_id, user_name, rest):
     )
     emit_project_update(user_id, user_name, 'delete', name=name)
     if moved:
-        return f"project \"{name}\" deleted — {moved} open task(s) moved to your default project."
+        return f"project \"{name}\" deleted - {moved} open task(s) moved to your default project."
     return f"project \"{name}\" deleted."
 
 # Function to format !mytasks for Twitch's 500-char limit: active task + packed backlog titles
@@ -11363,7 +11363,7 @@ def emit_completion_messages_and_events(user_id, user_name, task_id, task_title,
             "user_name": user_name, "points_awarded": award_points, "new_total": new_total,
         }))
     if pending:
-        return f"task \"{task_title}\" completed — awaiting streamer approval for points."
+        return f"task \"{task_title}\" completed - awaiting streamer approval for points."
     elif award_points > 0:
         return f"task \"{task_title}\" done! +{award_points} points (total: {new_total})."
     else:
@@ -11634,7 +11634,7 @@ async def start_user_pomo(user_id, user_name, label, work_minutes, break_minutes
                     task_desc = f"Focus timer: {work_minutes}m"
                 else:
                     task_desc = f"Timer task: {work_minutes}m work / {break_minutes}m break, {total_cycles} cycle(s)"
-                # Per-user (or streamer-global) display number — same sequence as !task / !later.
+                # Per-user (or streamer-global) display number - same sequence as !task / !later.
                 if is_streamer:
                     await cursor.execute(
                         f"SELECT COALESCE(MAX(backlog_position), 0) AS max_pos FROM {task_table}"
@@ -11872,7 +11872,7 @@ async def run_pomo_until_done(user_id):
                 return
             rem2 = max(0, int(row.get('remaining_seconds') or 0))
             if rem2 > 0:
-                # Not expired yet (clock skew / early wake) — loop and re-wait.
+                # Not expired yet (clock skew / early wake) - loop and re-wait.
                 continue
             result = await advance_pomo_phase(row)
             if result == 'completed':
@@ -13909,7 +13909,7 @@ async def get_media_banlist(connection):
         return await cursor.fetchall()
 
 async def resolve_youtube_request(message_content):
-    """Return dict {video_id,title,uploader,duration} or None. Metadata only — no download."""
+    """Return dict {video_id,title,uploader,duration} or None. Metadata only - no download."""
     youtube_url_patterns = [
         re.compile(r'https?://(www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)'),
         re.compile(r'https?://(www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)'),
@@ -14656,7 +14656,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 if result and result.get("sound_mapping"):
                     sound_file = "twitch/" + result.get("sound_mapping")
                     create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
-                # Specter Alerts overlay + Discord — variant matcher tiers by gift count
+                # Specter Alerts overlay + Discord - variant matcher tiers by gift count
                 create_task(websocket_notice(event="TWITCH_GIFT_SUB", additional_data={
                     "twitch-username":      giftsubfrom,
                     "twitch-gift-count":    int(number_gifts),

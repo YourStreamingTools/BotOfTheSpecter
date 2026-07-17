@@ -23,6 +23,6 @@ Output format:
 - If multiple possible causes exist, list them in order of likelihood
 
 Rules:
-- Do not modify any files — report findings only
+- Do not modify any files - report findings only
 - Do not guess without reading the source first
 - If you need more context to be certain, say what you need and why

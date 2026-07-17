@@ -1,6 +1,6 @@
 <?php
 /**
- * Members Point Store — shopfront for a channel's bot-points catalog.
+ * Members Point Store - shopfront for a channel's bot-points catalog.
  * URL: https://members.botofthespecter.com/{channel}/store
  *      https://members.botofthespecter.com/store.php?user={channel}
  *
@@ -539,7 +539,7 @@ if ($isBuy) {
 // --- PAGE RENDER ---
 session_write_close();
 
-$pageTitle = store_esc($memberDisplayName) . ' — Point Store';
+$pageTitle = store_esc($memberDisplayName) . ' - Point Store';
 $activeNav = '';
 $topbarActions = '<a href="/' . rawurlencode($channel) . '" class="sp-btn sp-btn-secondary sp-btn-sm"><i class="fa-solid fa-arrow-left"></i> Channel</a>';
 

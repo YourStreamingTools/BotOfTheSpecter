@@ -5,7 +5,7 @@ IPLocate (`iplocate.io`) provides IPv4 and IPv6 geolocation, ASN data, company a
 - **Base URL:** `https://iplocate.io/api/`
 - **Protocol:** HTTPS only
 - **Response format:** JSON
-- **IPv6:** Fully supported — colons in IPv6 addresses must be URL-encoded when passed as a path segment
+- **IPv6:** Fully supported - colons in IPv6 addresses must be URL-encoded when passed as a path segment
 
 ---
 
@@ -13,7 +13,7 @@ IPLocate (`iplocate.io`) provides IPv4 and IPv6 geolocation, ASN data, company a
 
 Every authenticated request must supply an API key. Two methods are accepted:
 
-### Method 1 — HTTP header (recommended)
+### Method 1 - HTTP header (recommended)
 
 ```
 X-API-Key: {your_api_key}
@@ -21,7 +21,7 @@ X-API-Key: {your_api_key}
 
 Header auth keeps the key out of server access logs and web proxies. This is the method used by the BotOfTheSpecter dashboard.
 
-### Method 2 — Query parameter
+### Method 2 - Query parameter
 
 ```
 GET /api/lookup/{ip}?apikey={your_api_key}
@@ -58,7 +58,7 @@ GET https://iplocate.io/api/lookup/8.8.8.8
 X-API-Key: your_api_key
 ```
 
-**Example response — 8.8.8.8 (Google Public DNS):**
+**Example response - 8.8.8.8 (Google Public DNS):**
 
 ```json
 {
@@ -148,7 +148,7 @@ The response schema is identical to the single IP lookup above.
 POST /api/lookup/batch
 ```
 
-Enriches up to 1,000 IP addresses in a single HTTP call. Available on paid plans and pay-as-you-go credits only — not available on the free tier.
+Enriches up to 1,000 IP addresses in a single HTTP call. Available on paid plans and pay-as-you-go credits only - not available on the free tier.
 
 **Request headers:**
 
@@ -182,7 +182,7 @@ An object keyed by the requested IP addresses. Each value is the same schema as 
 
 ---
 
-## Response Schema — Full Field Reference
+## Response Schema - Full Field Reference
 
 All fields at the top level are always present in a successful 200 response. Nested objects (`asn`, `privacy`, `hosting`, `company`, `abuse`) may be `null` when IPLocate has no data for that category for the requested IP.
 
@@ -223,18 +223,18 @@ Autonomous System data. `null` if no ASN record is found.
 
 ### `privacy` object
 
-Threat and anonymisation detection. All fields are booleans. Never `null` — if the parent object is present, all eight flags will be present. A `false` value means no signal was detected, not that the IP is definitively clean.
+Threat and anonymisation detection. All fields are booleans. Never `null` - if the parent object is present, all eight flags will be present. A `false` value means no signal was detected, not that the IP is definitively clean.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `is_vpn` | boolean | IP is a known VPN exit node or belongs to a commercial VPN service. |
-| `is_proxy` | boolean | IP is a known open proxy, web proxy, or anonymising proxy. May fire on shared CGNAT IPs — treat as informational. |
+| `is_proxy` | boolean | IP is a known open proxy, web proxy, or anonymising proxy. May fire on shared CGNAT IPs - treat as informational. |
 | `is_tor` | boolean | IP is a Tor exit node listed in the public Tor consensus or known Tor relay lists. |
 | `is_icloud_relay` | boolean | IP belongs to Apple's iCloud Private Relay infrastructure (used by iCloud+ subscribers on Apple devices). |
-| `is_hosting` | boolean | IP belongs to a cloud provider, data centre, or hosting company. Does not imply malicious intent — many legitimate corporate and developer IPs trigger this. |
+| `is_hosting` | boolean | IP belongs to a cloud provider, data centre, or hosting company. Does not imply malicious intent - many legitimate corporate and developer IPs trigger this. |
 | `is_anonymous` | boolean | Aggregate flag that is `true` when any of `is_vpn`, `is_proxy`, `is_tor`, or `is_icloud_relay` is `true`. Useful as a single "anonymised connection" check. |
 | `is_abuser` | boolean | IP has been reported in abuse databases or blocklists for spam, scraping, brute-force, or other malicious activity. |
-| `is_bogon` | boolean | IP is a bogon address — a range that should never appear as a source address on the public internet (RFC 1918 private ranges, link-local, loopback, IANA reserved, etc.). |
+| `is_bogon` | boolean | IP is a bogon address - a range that should never appear as a source address on the public internet (RFC 1918 private ranges, link-local, loopback, IANA reserved, etc.). |
 
 ### `hosting` object
 
@@ -305,7 +305,7 @@ For 4xx and 5xx responses, the body is typically a JSON object with a single `er
 | Requests per second | Not publicly documented; well-behaved clients should not need bursting |
 | Batch API | Not available |
 | Credit card required | No |
-| Data included | All data types — same schema and accuracy as paid |
+| Data included | All data types - same schema and accuracy as paid |
 
 ### Paid tiers (credits and monthly plans)
 
@@ -319,7 +319,7 @@ For 4xx and 5xx responses, the body is typically a JSON object with a single `er
 | Throughput | Scales to 15,000+ requests/second on enterprise plans |
 | Average latency | Under 20 ms globally (documented by IPLocate) |
 
-All paid tiers return the same full response schema as the free tier — there is no premium-only data field gating.
+All paid tiers return the same full response schema as the free tier - there is no premium-only data field gating.
 
 ---
 
@@ -336,7 +336,7 @@ When displaying an organisation name to end users, prefer `hosting.provider` ove
 
 ### Caveats on privacy flags
 
-- `is_proxy` can trigger for shared CGNAT addresses (many users behind one IP) — treat it as informational, not punitive.
+- `is_proxy` can trigger for shared CGNAT addresses (many users behind one IP) - treat it as informational, not punitive.
 - `is_hosting` fires for legitimate developer and corporate egress IPs. It does not indicate malicious intent.
 - `is_bogon` should never be `true` for a real public IP. If seen, it indicates a misconfigured or spoofed request.
 - `is_anonymous` is a convenience aggregate; checking it is equivalent to `is_vpn || is_proxy || is_tor || is_icloud_relay`.
@@ -347,7 +347,7 @@ When displaying an organisation name to end users, prefer `hosting.provider` ove
 
 | File | Lines | What it does |
 | ---- | ----- | ------------ |
-| `./home/profile.php` | 16 (require), 142–176 | `bots_fetch_ip_geo(string $ip, string $apiKey): ?array` — cURL-based single IP lookup with a function-static per-request cache. Sends `X-API-Key` header. `CURLOPT_TIMEOUT=8`, `CURLOPT_HTTP_VERSION=CURL_HTTP_VERSION_1_1`. Returns `null` on empty key, empty IP, cURL error, HTTP 429, or non-200. |
+| `./home/profile.php` | 16 (require), 142–176 | `bots_fetch_ip_geo(string $ip, string $apiKey): ?array` - cURL-based single IP lookup with a function-static per-request cache. Sends `X-API-Key` header. `CURLOPT_TIMEOUT=8`, `CURLOPT_HTTP_VERSION=CURL_HTTP_VERSION_1_1`. Returns `null` on empty key, empty IP, cURL error, HTTP 429, or non-200. |
 | `./config/iplocate.php` | all | Declares `$iplocate_api_key`. Dev copy ships an empty string; production copy at `/var/www/config/iplocate.php` holds the real key. PHP never reads from `.env` per [php-config.md](../../../rules/php-config.md). |
 
 **Fields consumed by the dashboard** (`./home/profile.php` lines 225–248):
@@ -361,7 +361,7 @@ When displaying an organisation name to end users, prefer `hosting.provider` ove
 **Implementation notes:**
 
 - Per-request static cache in `bots_fetch_ip_geo` deduplicates lookups when multiple sessions share an IP. Cache is not persisted across PHP requests.
-- The self-lookup endpoint (`GET /api/lookup/` with no IP) is deliberately not used — on a server-side PHP request it would return the web server's egress IP, not the user's.
+- The self-lookup endpoint (`GET /api/lookup/` with no IP) is deliberately not used - on a server-side PHP request it would return the web server's egress IP, not the user's.
 - IPv6 session IPs are handled correctly; `urlencode()` encodes colons before passing to the URL.
 - HTTP 429 is explicitly handled: logs the event and caches `null` so remaining sessions in the same page load still render (without geo enrichment) rather than blocking.
 - No retries on 5xx or cURL timeout. The 8-second timeout is a deliberate trade-off between data completeness and page-load p95.

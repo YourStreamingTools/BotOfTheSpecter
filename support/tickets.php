@@ -21,7 +21,7 @@ $db      = support_db();
 $success = '';
 $errors  = [];
 
-// Active beta programs — fetched from website DB (authoritative source)
+// Active beta programs - fetched from website DB (authoritative source)
 $betaPrograms = [];
 $_bpWdb = website_db();
 $_bpRes = $_bpWdb->query('SELECT slug, name FROM beta_programs WHERE is_active = 1 ORDER BY name ASC');
@@ -43,7 +43,7 @@ if (!$isRegisteredUser) {
     $wdb->close();
 }
 // ----------------------------------------------------------------
-// POST: Staff — approve or decline a beta program request
+// POST: Staff - approve or decline a beta program request
 // ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])
     && in_array($_POST['_action'], ['approve_beta', 'decline_beta'], true)) {
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])
                 $wdb->close();
                 // Staff reply
                 $staffName  = $_SESSION['display_name'] ?? $_SESSION['username'] ?? 'Staff';
-                $approveMsg = "Your request for access to the \"{$bProgName}\" beta program has been approved! You now have access — head to your dashboard to get started.";
+                $approveMsg = "Your request for access to the \"{$bProgName}\" beta program has been approved! You now have access - head to your dashboard to get started.";
                 $rs = $db->prepare('INSERT INTO ticket_replies (ticket_id, author_twitch_id, author_display_name, is_staff, message) VALUES (?, ?, ?, 1, ?)');
                 $rs->bind_param('isss', $bTicketId, $_SESSION['twitch_user_id'], $staffName, $approveMsg);
                 $rs->execute();
@@ -405,7 +405,7 @@ if ($ticketId):
 
 <?php if (is_staff() && $ticket['category'] === 'beta_request' && in_array($ticket['status'], ['open','in_progress'], true)): ?>
 <div class="sp-card sp-mt-3" style="border-left:3px solid var(--accent,#7c3aed);">
-    <div class="sp-card-header"><i class="fa-solid fa-flask"></i> Beta Request — <?php echo htmlspecialchars($tProgName); ?></div>
+    <div class="sp-card-header"><i class="fa-solid fa-flask"></i> Beta Request - <?php echo htmlspecialchars($tProgName); ?></div>
     <div class="sp-card-body">
         <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
             <form method="POST" action="/tickets.php">
@@ -553,7 +553,7 @@ elseif ($action === 'new'):
             <div class="sp-form-group" id="program_group" style="display:none;">
                 <label class="sp-label" for="ticket_program">Beta Program <span class="sp-req">*</span></label>
                 <select id="ticket_program" name="program_slug" class="sp-select">
-                    <option value="">— Select a program —</option>
+                    <option value="">- Select a program -</option>
                     <?php foreach ($betaPrograms as $bp): ?>
                     <option value="<?php echo htmlspecialchars($bp['slug']); ?>"
                         <?php echo $preProgram === $bp['slug'] ? 'selected' : ''; ?>>
@@ -601,7 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
         programGroup.style.display  = isBeta ? '' : 'none';
         if (isFeedback) {
             messageLabel.innerHTML = 'Your Feedback <span class="sp-req">*</span>';
-            messageTa.placeholder  = 'Tell us what you think — what\'s working, what\'s not, or what you\'d like to see improved.';
+            messageTa.placeholder  = 'Tell us what you think - what\'s working, what\'s not, or what you\'d like to see improved.';
             submitBtn.innerHTML    = '<i class="fa-solid fa-paper-plane"></i> Submit Feedback';
         } else if (isBeta) {
             messageLabel.innerHTML = 'Why do you want access? <span class="sp-req">*</span>';

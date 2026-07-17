@@ -1274,7 +1274,7 @@ sudo a2enmod rewrite
 sudo a2enmod php8.1
 # Create Apache2 configuration
 sudo nano /etc/apache2/sites-available/botofthespecter.conf</code></pre>
-        <p class="mt-3">Configure Apache (or your web server) however you prefer. You must serve the dashboard and related assets under your domain and the following example subdomains. We don't enforce a specific VirtualHost layout — pick the configuration that matches your infrastructure and SSL setup.</p>
+        <p class="mt-3">Configure Apache (or your web server) however you prefer. You must serve the dashboard and related assets under your domain and the following example subdomains. We don't enforce a specific VirtualHost layout - pick the configuration that matches your infrastructure and SSL setup.</p>
         <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>Example DNS / subdomain names you should configure for your deployment:
 example.com
 dashboard.example.com

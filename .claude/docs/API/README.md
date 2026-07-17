@@ -6,8 +6,8 @@ API documentation split by direction: third-party services the project calls out
 
 | Folder | Purpose |
 | ------ | ------- |
-| [External/](./External/) | Local copies of upstream docs for every third-party API and library this project integrates with — Twitch, Discord, OpenAI, Spotify, StreamElements, and 25+ others. |
-| [Internal/](./Internal/) | Documentation for BotOfTheSpecter's own API surface — FastAPI server endpoints, WebSocket event catalogue, extension API. |
+| [External/](./External/) | Local copies of upstream docs for every third-party API and library this project integrates with - Twitch, Discord, OpenAI, Spotify, StreamElements, and 25+ others. |
+| [Internal/](./Internal/) | Documentation for BotOfTheSpecter's own API surface - FastAPI server endpoints, WebSocket event catalogue, extension API. |
 
 ## Finding the right file
 

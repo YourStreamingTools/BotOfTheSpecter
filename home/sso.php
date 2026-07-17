@@ -59,7 +59,7 @@ if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
 // else gets dropped so we can't be used as an open redirect.
 $safeReturn = '';
 if ($return !== '') {
-    // Local path on the consumer ("/", "/recordings", "/foo?bar=1") — must
+    // Local path on the consumer ("/", "/recordings", "/foo?bar=1") - must
     // start with one slash, never two (which would be a protocol-relative URL).
     if (strncmp($return, '/', 1) === 0 && strncmp($return, '//', 2) !== 0) {
         $safeReturn = $return;

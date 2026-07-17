@@ -2,7 +2,7 @@
 
 Shazam powers the audio-fingerprint failover path of the `!song` command. When Spotify cannot report what is currently playing (offline device, ad break, no Spotify account linked, expired refresh token, etc.) **and** the streamer has a premium tier ≥1000, the bot records ~200 KB of stream audio, transcodes to mono PCM, base64-encodes it, and POSTs that to Shazam's `/songs/v2/detect` endpoint.
 
-- **Env var:** `SHAZAM_API` (a RapidAPI key — subscribe to "Shazam by apidojo" to bind it)
+- **Env var:** `SHAZAM_API` (a RapidAPI key - subscribe to "Shazam by apidojo" to bind it)
 - **Base URL:** `https://shazam.p.rapidapi.com`
 - **Premium gating:** only invoked if streamer's premium tier is 1000, 2000, 3000, or 4000 (`./bot/bot.py:3634`)
 
@@ -10,7 +10,7 @@ Shazam powers the audio-fingerprint failover path of the `!song` command. When S
 
 ## 1. Audio capture pipeline
 
-End-to-end flow (stable bot — beta and v6 are functionally identical):
+End-to-end flow (stable bot - beta and v6 are functionally identical):
 
 1. **`shazam_song_info()`** validates the Twitch GQL OAuth token (used by Streamlink to pull the stream). `./bot/bot.py:8298`
 2. **`record_stream(outfile)`** opens the streamer's worst-quality HLS variant via Streamlink, reads ~200 KB into a `.acc` file. `./bot/bot.py:8415`
@@ -55,14 +55,14 @@ X-RapidAPI-Host: shazam.p.rapidapi.com
 ```
 
 **Query params:**
-- `timezone` — IANA TZ string (bot sends `Australia/Sydney`; Shazam uses it to localise relative date fields). Any IANA TZ accepted.
-- `locale` — locale string (bot sends `en-US`; drives genre name display strings).
+- `timezone` - IANA TZ string (bot sends `Australia/Sydney`; Shazam uses it to localise relative date fields). Any IANA TZ accepted.
+- `locale` - locale string (bot sends `en-US`; drives genre name display strings).
 
-**Body:** the **base64 encoding** of a raw PCM stream — signed-16-bit, little-endian, 44.1 kHz, mono. Sent as a literal base64 string with `Content-Type: text/plain`.
+**Body:** the **base64 encoding** of a raw PCM stream - signed-16-bit, little-endian, 44.1 kHz, mono. Sent as a literal base64 string with `Content-Type: text/plain`.
 
 Audio constraints:
-- **Mono only** — stereo doubles body size; the matcher ignores the second channel.
-- **3–10 seconds of audio is enough.** The bot reads ~200 KB (~1 second of 16-bit 44.1 kHz mono after demuxing) — empirically enough for clean matches.
+- **Mono only** - stereo doubles body size; the matcher ignores the second channel.
+- **3–10 seconds of audio is enough.** The bot reads ~200 KB (~1 second of 16-bit 44.1 kHz mono after demuxing) - empirically enough for clean matches.
 - The matcher is robust to stream chat overlays / TTS / background noise, but fails on heavily spoken content.
 
 **Response (match):**
@@ -102,7 +102,7 @@ Audio constraints:
 
 The bot only reads `track.title` and `track.subtitle`. Cover art, Apple Music / Spotify deep links, and lyrics are available in the response if a future feature needs them.
 
-**Response (no match):** HTTP 200 OK with no `track` key — often `{"matches": [], "tagid": "..."}` or `{}`. The bot detects this with `if "track" in matches.keys()` (the variable name `matches` is the full parsed JSON object, not just the `matches` array).
+**Response (no match):** HTTP 200 OK with no `track` key - often `{"matches": [], "tagid": "..."}` or `{}`. The bot detects this with `if "track" in matches.keys()` (the variable name `matches` is the full parsed JSON object, not just the `matches` array).
 
 **Callsites:**
 - `./bot/bot.py:8371` (stable)
@@ -115,35 +115,35 @@ All three are functionally identical; the only delta is how the MySQL update at 
 
 ## 4. Rate limits
 
-**RapidAPI `apidojo/shazam` plan tiers** (check RapidAPI dashboard — subject to change):
+**RapidAPI `apidojo/shazam` plan tiers** (check RapidAPI dashboard - subject to change):
 
 - **Basic (free):** ~500 requests / month, hard cap. After exceeded, every request returns HTTP 429 until the billing cycle resets.
 - **Pro / Ultra / Mega:** higher monthly caps + per-second concurrency limits.
 
 **The bot reads remaining quota from response headers on every successful detect call:**
 
-- `x-ratelimit-requests-remaining` (integer string) — remaining calls in the current billing window.
+- `x-ratelimit-requests-remaining` (integer string) - remaining calls in the current billing window.
 
 When that header is present, the bot:
 1. Writes the value to `/var/www/api/shazam.txt` (server path) for the dashboard quota widget.
 2. Updates `api_counts` in the central `website` DB: `UPDATE api_counts SET count=%s WHERE type=%s` with `type='shazam'`.
 3. If remaining count is `0`, returns: `"Sorry, no more requests for song info are available for the rest of the month. Requests reset each month on the 23rd."`
 
-The "23rd of the month" date reflects the project's current RapidAPI billing cycle rollover date — not an API-published date. Update the user-facing string at `./bot/bot.py:8395` (and matching beta/v6 lines) if the plan changes.
+The "23rd of the month" date reflects the project's current RapidAPI billing cycle rollover date - not an API-published date. Update the user-facing string at `./bot/bot.py:8395` (and matching beta/v6 lines) if the plan changes.
 
 ---
 
 ## 5. Gotchas
 
 - **`content-type: text/plain` is mandatory.** Sending `application/json` causes the RapidAPI gateway to return a 400 and `track` will be missing.
-- **Body must be base64-encoded raw PCM bytes, not a JSON-wrapped string.** `base64.b64encode(songBytes)` returns `bytes`; aiohttp serialises that as the literal ASCII base64 — that is what Shazam expects.
-- **No-match is silent.** HTTP 200 OK with no `track` field is the normal "couldn't identify" outcome. Do not retry — the match either exists in Shazam's index or it doesn't.
+- **Body must be base64-encoded raw PCM bytes, not a JSON-wrapped string.** `base64.b64encode(songBytes)` returns `bytes`; aiohttp serialises that as the literal ASCII base64 - that is what Shazam expects.
+- **No-match is silent.** HTTP 200 OK with no `track` field is the normal "couldn't identify" outcome. Do not retry - the match either exists in Shazam's index or it doesn't.
 - **Twitch GQL token is a hard prerequisite.** `record_stream()` uses a Streamlink session authenticated with the `TWITCH_GQL` OAuth token. If that token has expired, every Shazam call short-circuits with `{"error": "Twitch GQL Token Expired"}` before audio is captured. The bot logs this in `api_logger`.
-- **FFmpeg path is hard-coded** to `/usr/bin/ffmpeg`. On any non-server environment this path won't exist — this is a server-only feature.
-- **Recording artefacts must be cleaned up.** Files live under `/home/botofthespecter/logs/songs/` (server path). `delete_recorded_files()` is invoked from inside `song_command` after a Shazam call. If you add a new code path that calls `shazam_song_info()`, call `delete_recorded_files()` in the `finally` branch — leaving files around fills the disk quickly.
-- **`x-ratelimit-requests-remaining` is sometimes absent** on cached / 429 responses. The bot guards with `if "x-ratelimit-requests-remaining" in response.headers:` — keep that guard. Updating `api_counts` to "0" because the header was missing would incorrectly flag the API as exhausted.
+- **FFmpeg path is hard-coded** to `/usr/bin/ffmpeg`. On any non-server environment this path won't exist - this is a server-only feature.
+- **Recording artefacts must be cleaned up.** Files live under `/home/botofthespecter/logs/songs/` (server path). `delete_recorded_files()` is invoked from inside `song_command` after a Shazam call. If you add a new code path that calls `shazam_song_info()`, call `delete_recorded_files()` in the `finally` branch - leaving files around fills the disk quickly.
+- **`x-ratelimit-requests-remaining` is sometimes absent** on cached / 429 responses. The bot guards with `if "x-ratelimit-requests-remaining" in response.headers:` - keep that guard. Updating `api_counts` to "0" because the header was missing would incorrectly flag the API as exhausted.
 - **One key, three callsites.** Stable / beta / v6 each have their own copy of `shazam_detect_song`. Per [bot-versions.md](../../../rules/bot-versions.md), fixes to Shazam handling should land in **all three** unless the change is a v6-only refactor.
-- **Endpoint path history.** `apidojo/shazam` has had multiple endpoint paths over the years (`/songs/detect`, `/songs/v2/detect`, etc.). The bot uses **`/songs/v2/detect`**. If RapidAPI deprecates this, the entire request shape (especially body encoding) may change — re-read the RapidAPI dashboard before porting.
+- **Endpoint path history.** `apidojo/shazam` has had multiple endpoint paths over the years (`/songs/detect`, `/songs/v2/detect`, etc.). The bot uses **`/songs/v2/detect`**. If RapidAPI deprecates this, the entire request shape (especially body encoding) may change - re-read the RapidAPI dashboard before porting.
 - **Shazam is not cached.** Every `!song` Shazam-failover invocation burns one quota unit. Steam responses are cached; Shazam responses are not.
 
 ---

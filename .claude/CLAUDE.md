@@ -10,13 +10,13 @@ This is a **multi-system streaming operations platform** with a Twitch bot, API 
 
 Short, enforceable rules live in `.claude/rules/`. Check the relevant one before making changes:
 
-- **[bot-versions.md](./.claude/rules/bot-versions.md)** — Stable/beta/v6 policy, when to edit which file
-- **[paths.md](./.claude/rules/paths.md)** — `./` for repo paths, server paths labeled separately
-- **[data-flow.md](./.claude/rules/data-flow.md)** — WebSocket vs API vs direct DB decision
-- **[database.md](./.claude/rules/database.md)** — `website` vs per-user DB scoping, async aiomysql
-- **[secrets.md](./.claude/rules/secrets.md)** — No hardcoded credentials, signature verification
-- **[php-config.md](./.claude/rules/php-config.md)** — **HARD RULE:** PHP never reads `.env`; always uses `./config/{service}.php`
-- **[overlays.md](./.claude/rules/overlays.md)** — Browser-source constraints, queueing, auto-reconnect
+- **[bot-versions.md](./.claude/rules/bot-versions.md)** - Stable/beta/v6 policy, when to edit which file
+- **[paths.md](./.claude/rules/paths.md)** - `./` for repo paths, server paths labeled separately
+- **[data-flow.md](./.claude/rules/data-flow.md)** - WebSocket vs API vs direct DB decision
+- **[database.md](./.claude/rules/database.md)** - `website` vs per-user DB scoping, async aiomysql
+- **[secrets.md](./.claude/rules/secrets.md)** - No hardcoded credentials, signature verification
+- **[php-config.md](./.claude/rules/php-config.md)** - **HARD RULE:** PHP never reads `.env`; always uses `./config/{service}.php`
+- **[overlays.md](./.claude/rules/overlays.md)** - Browser-source constraints, queueing, auto-reconnect
 
 ## Memory Files (Architecture Reference)
 
@@ -190,7 +190,7 @@ Detailed system documentation lives in `.claude/memory/`:
 - Main: `./bot/bot.py` (stable), `./bot/beta.py` (testing), `./bot/beta-v6.py` (v6 rewrite)
 - Discord: `./bot/specterdiscord.py`
 - Kick.com: `./bot/kick.py`
-- Token refresh: `./bot/refresh_*.py` (custom bot, Spotify, Discord, StreamElements — Twitch refreshes in-process via bot.py background task)
+- Token refresh: `./bot/refresh_*.py` (custom bot, Spotify, Discord, StreamElements - Twitch refreshes in-process via bot.py background task)
 - Logs (server): `/home/botofthespecter/logs/logs/{log_type}/{channel}.txt`
 - AI history (server): `/home/botofthespecter/ai/chat-history/{user_id}.json`
 

@@ -5,7 +5,7 @@ ob_start();
 <?php
 $extraScripts = ob_get_clean();
 
-$pageTitle = "BotOfTheSpecter — Feedback";
+$pageTitle = "BotOfTheSpecter - Feedback";
 $pageDescription = "Feedback and bug reports have moved to the unified support ticket system.";
 
 ob_start();

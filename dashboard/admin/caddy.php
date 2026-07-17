@@ -215,7 +215,7 @@ ob_start();
             $listenSet[$l] = true;
         }
     }
-    $listenStr = !empty($listenSet) ? implode(', ', array_keys($listenSet)) : '—';
+    $listenStr = !empty($listenSet) ? implode(', ', array_keys($listenSet)) : '-';
 ?>
 <div class="sp-card">
     <div class="sp-card-header"><h2 class="sp-card-title"><?php echo t('caddy_sites_heading'); ?></h2></div>
@@ -279,8 +279,8 @@ ob_start();
 <div class="sp-card">
     <div class="sp-card-header"><h2 class="sp-card-title"><?php echo t('caddy_tls_heading'); ?></h2></div>
     <div class="sp-card-body">
-        <p><?php echo t('caddy_tls_email'); ?>: <strong><?php echo htmlspecialchars((string) ($tls['acme_email'] ?? '—')); ?></strong></p>
-        <p><?php echo t('caddy_tls_dns_provider'); ?>: <strong><?php echo htmlspecialchars((string) ($tls['dns_provider'] ?? '—')); ?></strong></p>
+        <p><?php echo t('caddy_tls_email'); ?>: <strong><?php echo htmlspecialchars((string) ($tls['acme_email'] ?? '-')); ?></strong></p>
+        <p><?php echo t('caddy_tls_dns_provider'); ?>: <strong><?php echo htmlspecialchars((string) ($tls['dns_provider'] ?? '-')); ?></strong></p>
         <p><?php echo t('caddy_tls_policies'); ?>: <strong><?php echo (int) $tls['policies']; ?></strong></p>
     </div>
 </div>

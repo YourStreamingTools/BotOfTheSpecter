@@ -8,7 +8,7 @@
 // that revokes that single session. There's also a "Log out
 // everywhere" button that drops every session for the user.
 //
-// Standard IdP feature — Google's "Devices", GitHub's "Sessions",
+// Standard IdP feature - Google's "Devices", GitHub's "Sessions",
 // Discord's "Authorized apps".
 // ----------------------------------------------------------------
 
@@ -34,7 +34,7 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf = $_SESSION['csrf_token'];
 
 // ----------------------------------------------------------------
-// POST handlers — Remove one / Remove all others / Log out everywhere.
+// POST handlers - Remove one / Remove all others / Log out everywhere.
 // All paths verify CSRF AND filter by twitchUserId so a user can never
 // touch another user's rows even if they craft session_id.
 // ----------------------------------------------------------------
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token  = $_POST['csrf']   ?? '';
     $action = $_POST['action'] ?? '';
     if (!is_string($token) || !hash_equals($csrf, $token)) {
-        $flash = ['type' => 'error', 'msg' => 'Security token mismatch — please reload and try again.'];
+        $flash = ['type' => 'error', 'msg' => 'Security token mismatch - please reload and try again.'];
     } elseif ($action === 'remove' && !empty($_POST['session_id'])) {
         $target = (string)$_POST['session_id'];
         $stmt = $bots_session_db->prepare(
@@ -149,7 +149,7 @@ function bots_humanize_ua(?string $ua): string
 function bots_fetch_ip_geo(string $ip, string $apiKey): ?array
 {
     static $cache = [];
-    if (!$apiKey || !$ip || $ip === '—') return null;
+    if (!$apiKey || !$ip || $ip === '-') return null;
     if (array_key_exists($ip, $cache)) return $cache[$ip];
     $url = 'https://iplocate.io/api/lookup/' . urlencode($ip);
     $ch = curl_init($url);
@@ -183,7 +183,7 @@ if (!$raw || $curl_err) {
 
 function bots_format_when($datetime): string
 {
-    if (!$datetime) return '—';
+    if (!$datetime) return '-';
     try {
         // created_at / last_seen_at / twitch_expires_at are written in the
         // server's local MySQL clock (CURRENT_TIMESTAMP / date()), not UTC.
@@ -198,7 +198,7 @@ function bots_format_when($datetime): string
 // Render via the home layout.
 // ----------------------------------------------------------------
 ob_start();
-$pageTitle       = 'Active Sessions — BotOfTheSpecter';
+$pageTitle       = 'Active Sessions - BotOfTheSpecter';
 $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSpecter account.';
 ?>
 <div class="sp-acct">
@@ -227,7 +227,7 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
                         <?php if ($isCurrent): ?><span class="sp-badge">This device</span><?php endif; ?>
                     </div>
                     <div class="meta">
-                        IP <code><?php echo htmlspecialchars($s['ip'] ?? '—'); ?></code>
+                        IP <code><?php echo htmlspecialchars($s['ip'] ?? '-'); ?></code>
                         <?php if ($geo): ?>
                             <?php
                                 $geoCity        = $geo['city']                    ?? '';
@@ -239,7 +239,7 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
                                 $geoLoc         = implode(', ', array_filter([$geoCity, $geoSubdivision, $geoCountry]));
                             ?>
                             <span class="sp-geo">
-                                <?php echo htmlspecialchars($geoLoc ?: '—'); ?>
+                                <?php echo htmlspecialchars($geoLoc ?: '-'); ?>
                                 <?php if ($geoOrg): ?>(<?php echo htmlspecialchars($geoOrg); ?>)<?php endif; ?>
                             </span>
                             <?php

@@ -1,17 +1,17 @@
 # Stream Bingo Reference (BotOfTheSpecter)
 
-Stream Bingo (`stream-bingo.com`) is a Twitch bingo game platform. The bot subscribes to a channel's WebSocket notification feed, listens for game lifecycle events, persists game/player/winner data to the per-user DB, announces events in chat, and emits WebSocket events to the BotOfTheSpecter overlay stack. The bot does **not** create or manage games — games are started from the Stream Bingo web dashboard.
+Stream Bingo (`stream-bingo.com`) is a Twitch bingo game platform. The bot subscribes to a channel's WebSocket notification feed, listens for game lifecycle events, persists game/player/winner data to the per-user DB, announces events in chat, and emits WebSocket events to the BotOfTheSpecter overlay stack. The bot does **not** create or manage games - games are started from the Stream Bingo web dashboard.
 
 - **WebSocket URL:** `wss://api.stream-bingo.com/games/{CHANNEL_ID}/{stream_bounty_api_key}/notifications`
-- **REST API base:** `https://api.stream-bingo.com` (JWT Bearer auth; endpoints documented below — not currently called by the bot)
+- **REST API base:** `https://api.stream-bingo.com` (JWT Bearer auth; endpoints documented below - not currently called by the bot)
 - **DB credential field:** `profile.stream_bounty_api_key` (per-user DB)
-- **Note:** The DB column is named `stream_bounty_api_key` (not `stream_bingo_api_key`) — a historical naming artefact.
+- **Note:** The DB column is named `stream_bounty_api_key` (not `stream_bingo_api_key`) - a historical naming artefact.
 
 ---
 
 ## 1. Authentication
 
-**WebSocket:** API key embedded in the URL path — no header required.
+**WebSocket:** API key embedded in the URL path - no header required.
 
 ```
 wss://api.stream-bingo.com/games/{CHANNEL_ID}/{stream_bounty_api_key}/notifications
@@ -31,15 +31,15 @@ The JWT is a separate credential from the WebSocket API key. If REST calls are a
 
 ## 2. WebSocket
 
-**Connection lifecycle (`stream_bingo_websocket()` — `./bot/beta.py:2688–2766`):**
+**Connection lifecycle (`stream_bingo_websocket()` - `./bot/beta.py:2688–2766`):**
 
 1. Fetch `stream_bounty_api_key` from the per-user `profile` table. If missing, log once (guarded by `_stream_bingo_no_creds_logged`), sleep 300 s, retry.
-2. Recover active game from `bingo_games` table (`status='active'`) into `_current_bingo_game_id` global — supports bot restart mid-game.
+2. Recover active game from `bingo_games` table (`status='active'`) into `_current_bingo_game_id` global - supports bot restart mid-game.
 3. Open WebSocket with API key in URL.
-4. Inner receive loop — parse JSON, normalise PascalCase keys to lowercase, dispatch on `type` to `process_stream_bingo_message()`.
+4. Inner receive loop - parse JSON, normalise PascalCase keys to lowercase, dispatch on `type` to `process_stream_bingo_message()`.
 5. On `WebSocketConnectionClosed` or any exception: break inner loop, sleep 10 s, re-enter outer loop.
 
-**Important:** Incoming messages use **PascalCase keys** (`"Type"`, `"Events"`, `"IsSubOnly"`) — the bot normalises them with `{k.lower(): v for k, v in data.items()}` before processing. Always handle lowercase keys in the handler.
+**Important:** Incoming messages use **PascalCase keys** (`"Type"`, `"Events"`, `"IsSubOnly"`) - the bot normalises them with `{k.lower(): v for k, v in data.items()}` before processing. Always handle lowercase keys in the handler.
 
 Stream Bingo starts **before** other integrations at startup (2-second sleep after launch before Tanggle connects).
 
@@ -48,16 +48,16 @@ Stream Bingo starts **before** other integrations at startup (2-second sleep aft
 | `type` | Fields read | Bot action | Bot WebSocket event emitted |
 | ------ | ----------- | ---------- | --------------------------- |
 | `bingo_started` / `GAME_STARTED` | `events[]`, `issubonly`, `randomcallonly` | Generate UUID for `game_id`, `INSERT INTO bingo_games`, chat announcement | `STREAM_BINGO_STARTED` |
-| `bingo_ended` / `GAME_ENDED` | — | `UPDATE bingo_games SET status='completed'`, chat announcement | `STREAM_BINGO_ENDED` |
+| `bingo_ended` / `GAME_ENDED` | - | `UPDATE bingo_games SET status='completed'`, chat announcement | `STREAM_BINGO_ENDED` |
 | `number_called` / `EVENT_CALLED` | `displaynumber`, `eventid`, `eventname` | Chat announcement | `STREAM_BINGO_EVENT_CALLED` |
-| `PLAYER_JOINED` | `playername`, `playerid` | `INSERT IGNORE INTO bingo_players` — silent, no chat | — |
+| `PLAYER_JOINED` | `playername`, `playerid` | `INSERT IGNORE INTO bingo_players` - silent, no chat | - |
 | `BINGO_REGISTERED` | `playername`, `playerid`, `rank` | `INSERT INTO bingo_winners`, chat "BINGO! @{player} got {rank} place!" | `STREAM_BINGO_WINNER` |
 | `EXTRA_CARD_WITH_BITS` | `playername`, `playerid`, `bits` | Upsert `bits_data`, chat announcement | `STREAM_BINGO_EXTRA_CARD` |
-| `VOTE_STARTED` | — | Chat announcement | `STREAM_BINGO_VOTE_STARTED` |
+| `VOTE_STARTED` | - | Chat announcement | `STREAM_BINGO_VOTE_STARTED` |
 | `EXTRA_VOTE_WITH_BITS` | `playername`, `playerid`, `bits` | Upsert `bits_data`, chat announcement | `STREAM_BINGO_EXTRA_CARD` (with `is_vote=True`) |
-| `VOTE_ENDED` | — | Chat announcement | `STREAM_BINGO_VOTE_ENDED` |
-| `ALL_EVENTS_CALLED` | — | Chat announcement | `STREAM_BINGO_ALL_CALLED` |
-| Unknown | — | Logged only | — |
+| `VOTE_ENDED` | - | Chat announcement | `STREAM_BINGO_VOTE_ENDED` |
+| `ALL_EVENTS_CALLED` | - | Chat announcement | `STREAM_BINGO_ALL_CALLED` |
+| Unknown | - | Logged only | - |
 
 BotOfTheSpecter WebSocket events are sent via `GET https://websocket.botofthespecter.com/notify?code=<key>&event=<NAME>&data=<payload>` to the overlay/dashboard stack.
 
@@ -86,7 +86,7 @@ All tables are in the per-user DB.
 | `player_name` | From `PLAYER_JOINED.playername` |
 | `player_id` | From `PLAYER_JOINED.playerid` |
 
-Uses `INSERT IGNORE` — rejoining players are silently skipped.
+Uses `INSERT IGNORE` - rejoining players are silently skipped.
 
 ### `bingo_winners`
 
@@ -103,7 +103,7 @@ Shared with the Twitch bits tracking system. `EXTRA_CARD_WITH_BITS` and `EXTRA_V
 
 ---
 
-## 4. REST endpoints (not currently called — documented for future use)
+## 4. REST endpoints (not currently called - documented for future use)
 
 Base: `https://api.stream-bingo.com`. All require `Authorization: Bearer {jwt}`.
 
@@ -138,9 +138,9 @@ Base: `https://api.stream-bingo.com`. All require `Authorization: Bearer {jwt}`.
 | Field | Notes |
 | ----- | ----- |
 | `playerCount` | Active player count |
-| `events` | `GameEventResponse[]` — all events on cards |
+| `events` | `GameEventResponse[]` - all events on cards |
 | `triggerEvents` | Events that trigger something |
-| `winners` | `WinnerResponse[]` — current winners |
+| `winners` | `WinnerResponse[]` - current winners |
 | `activeVotingRound` | `VotingRoundResponse` or null |
 | `bitsPerCard` | Null if bits not enabled |
 | `bitsPerVote` | Bits cost to vote |
@@ -151,7 +151,7 @@ Base: `https://api.stream-bingo.com`. All require `Authorization: Bearer {jwt}`.
 | `randomCallOnly` | |
 | `isEventsNumberGame` | |
 
-### Event calling (keyless — channelId + apiKey in URL path)
+### Event calling (keyless - channelId + apiKey in URL path)
 
 These use the API key directly in the path, **not** the JWT Bearer token:
 
@@ -163,7 +163,7 @@ These use the API key directly in the path, **not** the JWT Bearer token:
 | `GET/PUT/POST` | `/games/voting/{channelId}/{apiKey}/start` | Start voting round |
 | `GET` | `/games/{channelId}/{apiKey}/notifications` | WebSocket upgrade endpoint (used by the bot) |
 
-These accept GET, PUT, or POST interchangeably — useful for channel point rewards (which use GET redirects from Twitch).
+These accept GET, PUT, or POST interchangeably - useful for channel point rewards (which use GET redirects from Twitch).
 
 ### Cards
 
@@ -187,7 +187,7 @@ These accept GET, PUT, or POST interchangeably — useful for channel point rewa
 
 ### Configuration, Leaderboards, Management
 
-The spec also includes `/configuration/*`, `/leaderboards/*`, and `/management/*` groups — these are for the web dashboard UI, not the bot. Not listed in detail here.
+The spec also includes `/configuration/*`, `/leaderboards/*`, and `/management/*` groups - these are for the web dashboard UI, not the bot. Not listed in detail here.
 
 ---
 
@@ -216,10 +216,10 @@ Stream Bingo is **beta-only**. `./bot/bot.py` (stable) and `./bot/beta-v6.py` (v
 
 ## 7. Gotchas
 
-- **`stream_bounty_api_key` — misleading column name.** This is the Stream Bingo API key, not a "stream bounty" key. Historical naming. Don't create a separate `stream_bingo_api_key` column.
-- **PascalCase keys from the WebSocket.** The API sends `"Type"`, `"Events"`, `"IsSubOnly"` — not `"type"`, `"events"`, `"issubonly"`. The bot normalises with a dict comprehension before dispatch. If you add a new event handler, write against lowercase keys.
-- **`game_id` is bot-generated, not API-provided.** Stream Bingo doesn't give us a game ID over the WebSocket — the bot generates a UUID on `GAME_STARTED`. This means the game ID is local-only and can't be used to correlate with Stream Bingo's own records.
-- **REST API uses JWT, WebSocket uses API key.** These are two separate credentials. The JWT is not currently stored anywhere in the repo — if REST calls are added (e.g., to create a game via `!bingo start`), the JWT storage + refresh flow needs to be designed first.
-- **Event-calling endpoints accept GET/PUT/POST.** This is intentional — Twitch channel point reward redirects are GETs, while programmatic callers use PUT or POST. Pick PUT for new bot code.
-- **No chat commands.** There is no `!bingo` command — games are managed entirely from the Stream Bingo dashboard. If a command is added, use the REST `/games/create` or `/games` endpoints.
+- **`stream_bounty_api_key` - misleading column name.** This is the Stream Bingo API key, not a "stream bounty" key. Historical naming. Don't create a separate `stream_bingo_api_key` column.
+- **PascalCase keys from the WebSocket.** The API sends `"Type"`, `"Events"`, `"IsSubOnly"` - not `"type"`, `"events"`, `"issubonly"`. The bot normalises with a dict comprehension before dispatch. If you add a new event handler, write against lowercase keys.
+- **`game_id` is bot-generated, not API-provided.** Stream Bingo doesn't give us a game ID over the WebSocket - the bot generates a UUID on `GAME_STARTED`. This means the game ID is local-only and can't be used to correlate with Stream Bingo's own records.
+- **REST API uses JWT, WebSocket uses API key.** These are two separate credentials. The JWT is not currently stored anywhere in the repo - if REST calls are added (e.g., to create a game via `!bingo start`), the JWT storage + refresh flow needs to be designed first.
+- **Event-calling endpoints accept GET/PUT/POST.** This is intentional - Twitch channel point reward redirects are GETs, while programmatic callers use PUT or POST. Pick PUT for new bot code.
+- **No chat commands.** There is no `!bingo` command - games are managed entirely from the Stream Bingo dashboard. If a command is added, use the REST `/games/create` or `/games` endpoints.
 - **Beta-only.** Per [bot-versions.md](../../../rules/bot-versions.md), this stays beta until stable enough to backport.

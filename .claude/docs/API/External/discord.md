@@ -6,7 +6,7 @@ Last verified against Discord docs (post-Mar-2025 host migration to `docs.discor
 
 ---
 
-## 1. Overview — surfaces in use
+## 1. Overview - surfaces in use
 
 This project uses **three** distinct Discord integrations, each with its own credentials and lifecycle:
 
@@ -14,7 +14,7 @@ This project uses **three** distinct Discord integrations, each with its own cre
 | ------- | ---- | ----- | ------- |
 | **Bot user (gateway + REST)** | Bot token (`Authorization: Bot <token>`) | `./bot/specterdiscord.py` | Long-lived gateway WebSocket; receives messages, member joins, voice events; sends embeds, manages roles, plays voice. |
 | **OAuth2 (Authorization Code)** | Per-user `Bearer <access_token>` | `./dashboard/discordbot.php` | Lets a streamer link their Discord account to their BotOfTheSpecter dashboard so we can read their guild/channel/role lists for configuration UIs. |
-| **Bot REST against guild data** | Same Bot token, called from PHP | `./dashboard/discordbot.php` (`fetchGuildChannels`, `fetchGuildRoles`, `fetchGuildVoiceChannels`) | Reads channels and roles from a guild the bot is in — uses the bot token (not the user token) because user OAuth is rate-limited and lacks role visibility for non-owners. |
+| **Bot REST against guild data** | Same Bot token, called from PHP | `./dashboard/discordbot.php` (`fetchGuildChannels`, `fetchGuildRoles`, `fetchGuildVoiceChannels`) | Reads channels and roles from a guild the bot is in - uses the bot token (not the user token) because user OAuth is rate-limited and lacks role visibility for non-owners. |
 
 There is **no Discord interactions webhook (HTTP slash-command POSTs)** in use. Slash commands are delivered over the gateway connection that `specterdiscord.py` opens via `discord.py`. `DISCORD_PUBLIC_KEY` exists in `./bot/.env.example` and `./config/discord.php` but is currently unused by code (reserved for future interactions endpoint).
 
@@ -45,7 +45,7 @@ There are also **no Discord webhooks (incoming `https://discord.com/api/webhooks
 ### 2.2 OAuth2 application credentials
 
 - **Env vars (Python):** `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` (`./bot/refresh_discord_tokens.py:13-14`).
-- **PHP config (per [php-config.md](../../../rules/php-config.md) — never `.env`):** `./config/discord.php` exposes:
+- **PHP config (per [php-config.md](../../../rules/php-config.md) - never `.env`):** `./config/discord.php` exposes:
 
   ```php
   $public_key       // future use (interactions endpoint signature verify)
@@ -68,11 +68,11 @@ Decided per-flow at `./dashboard/discordbot.php:1418-1424`:
 
 Per the official docs:
 
-- `identify` — `GET /users/@me` without `email`.
-- `guilds` — `GET /users/@me/guilds`.
-- `guilds.members.read` — `GET /users/@me/guilds/{guild.id}/member`.
-- `connections` — third-party connections (currently fetched? code path exists for token validation but no UI consumer noted).
-- `bot` — bypasses code-exchange step for the bot install; combined with `permissions=...` adds the bot to the guild the user picks. The dashboard does **both** in one consent screen (user link + bot install) on first-time flow.
+- `identify` - `GET /users/@me` without `email`.
+- `guilds` - `GET /users/@me/guilds`.
+- `guilds.members.read` - `GET /users/@me/guilds/{guild.id}/member`.
+- `connections` - third-party connections (currently fetched? code path exists for token validation but no UI consumer noted).
+- `bot` - bypasses code-exchange step for the bot install; combined with `permissions=...` adds the bot to the guild the user picks. The dashboard does **both** in one consent screen (user link + bot install) on first-time flow.
 
 ### 2.4 Redirect URI
 
@@ -80,18 +80,18 @@ Per the official docs:
 - **Hard-coded in:** `./dashboard/discordbot.php:236` (token-exchange call).
 - **State param:** generated via `bin2hex(random_bytes(16))` and stored in `$_SESSION['discord_oauth_state']` (`./dashboard/discordbot.php:1414, 226-230`); validated on callback to prevent CSRF.
 
-### 2.5 Token storage — `discord_users` table (central `website` DB)
+### 2.5 Token storage - `discord_users` table (central `website` DB)
 
 Single row per BotOfTheSpecter `user_id`. Fields used:
 
 | Column | Purpose |
 | ------ | ------- |
-| `user_id` | BotOfTheSpecter internal user ID (FK to `users.id`) — primary lookup. |
+| `user_id` | BotOfTheSpecter internal user ID (FK to `users.id`) - primary lookup. |
 | `discord_id` | Discord snowflake (string). |
 | `access_token` | OAuth2 access token (used as `Bearer ...`). |
 | `refresh_token` | OAuth2 refresh token (long-lived). |
 | `discord_username`, `discord_discriminator`, `discord_avatar` | Cached profile bits for the dashboard. |
-| `expires_at` | Cached expiry (display-only — actual expiry is fetched live from `/oauth2/@me`). |
+| `expires_at` | Cached expiry (display-only - actual expiry is fetched live from `/oauth2/@me`). |
 | `reauth` | `1` when scope set was widened; forces user back through consent. |
 | `guild_id` | The streamer's selected Discord server. Used by the bot to scope all server-side features. |
 | `manual_ids` | `1` if user typed channel/role IDs manually (skip API auto-discovery). |
@@ -106,7 +106,7 @@ Rules:
 - **Never log the full `access_token` or `refresh_token`.** See [secrets.md](../../../rules/secrets.md).
 - **`bot_token` lives in `./config/discord.php` and `DISCORD_TOKEN` env, not in `discord_users`.** That table holds per-user OAuth tokens only.
 
-### 2.6 Companion table — `channel_mappings` (DB: `specterdiscordbot`)
+### 2.6 Companion table - `channel_mappings` (DB: `specterdiscordbot`)
 
 Maps a BotOfTheSpecter `channel_code` to a guild + announcement channel. Distinct from `discord_users` because one streamer can map multiple guilds, and the bot needs lookup-by-code for WebSocket events.
 
@@ -114,15 +114,15 @@ Fields: `channel_code`, `user_id`, `username`, `twitch_display_name`, `twitch_us
 
 ---
 
-## 3. Bot — discord.py setup
+## 3. Bot - discord.py setup
 
 ### 3.1 Library
 
 - `discord.py` (latest stable; pinned only as `discord.py` in `./bot/requirements.txt:40`).
 - Extensions:
-  - `discord.ext.commands` — prefix-command framework (`!quote`, `!play`, etc.).
-  - `discord.ext.voice_recv` (`discord-ext-voice-recv` package) — receive incoming voice for AI-realtime feature.
-  - `discord.app_commands` — slash-command tree.
+  - `discord.ext.commands` - prefix-command framework (`!quote`, `!play`, etc.).
+  - `discord.ext.voice_recv` (`discord-ext-voice-recv` package) - receive incoming voice for AI-realtime feature.
+  - `discord.app_commands` - slash-command tree.
 - Audio deps: `PyNaCl` (voice encryption), `yt_dlp` (YouTube extraction for `!play`).
 
 Internal `VERSION = "6.1"` in `./bot/specterdiscord.py:37`.
@@ -133,9 +133,9 @@ Defined at `./bot/specterdiscord.py:2057-2060`:
 
 ```python
 intents = discord.Intents.default()
-intents.message_content = True   # PRIVILEGED — gates Message.content access
+intents.message_content = True   # PRIVILEGED - gates Message.content access
 intents.voice_states = True      # voice channel presence
-intents.members = True           # PRIVILEGED — on_member_join, member cache
+intents.members = True           # PRIVILEGED - on_member_join, member cache
 ```
 
 Privileged intents (`message_content`, `members`) require the toggle in the **Discord Developer Portal → Bot → Privileged Gateway Intents** *and* the code line above. Without `message_content`, prefix commands break silently because `Message.content` returns empty. Without `members`, `on_member_join` never fires.
@@ -166,19 +166,19 @@ class BotOfTheSpecter(commands.Bot):
 
 `./bot/specterdiscord.py:2147-2160`:
 
-- `QuoteCog` — registers `!quote` (prefix) **and** `/quote` (slash) via `bot.tree.add_command(app_commands.Command(...))` at `:4084-4090`. This is the only slash command in the codebase.
-- `UtilityCog` — `!linktwitch`, `!unlinktwitch`, `!timestamp`/`!ts`/`!discordtime`, `!epochnow`/`!now`/`!currenttime`.
-- `TicketCog` — `!ticket`, `!setuptickets`.
-- `VoiceCog` — `!connect`/`!join`/`!summon`, `!disconnect`/`!leave`/`!dc`, `!voice_status`/`!vstatus`, `!play`, `!skip`/`!s`/`!next`, `!stop`/`!pause`, `!queue`/`!q`/`!playlist`, `!song`/`!np`/`!nowplaying`, `!volume`, `!realtime`/`!talk` (currently disabled), `!stoprealtime`.
-- `StreamerPostingCog` — `!settings`.
-- `ServerManagement` — receives WebSocket-driven posts (reaction roles, rules, schedule, custom embed).
-- `RoleHistoryCog` — `!rolehistoryinfo`, `!rolehistorycleanup`, `!rolehistoryscan`, `!rolehistorystatus` (all admin-only).
-- `RoleTrackingCog` — `!refreshreactionroles` (admin).
-- `ServerRoleManagementCog` — internal role utilities.
-- `MessageTrackingCog` — message edit/delete logging.
-- `ModerationCog` — `!purge`/`!clear`/`!delete`.
-- `AdminCog` — `!checklinked`, `!online_streams`, `!live_status` (bot-owner only, `bot_owner_id = 127783626917150720`).
-- `UserTrackingCog` — internal user activity.
+- `QuoteCog` - registers `!quote` (prefix) **and** `/quote` (slash) via `bot.tree.add_command(app_commands.Command(...))` at `:4084-4090`. This is the only slash command in the codebase.
+- `UtilityCog` - `!linktwitch`, `!unlinktwitch`, `!timestamp`/`!ts`/`!discordtime`, `!epochnow`/`!now`/`!currenttime`.
+- `TicketCog` - `!ticket`, `!setuptickets`.
+- `VoiceCog` - `!connect`/`!join`/`!summon`, `!disconnect`/`!leave`/`!dc`, `!voice_status`/`!vstatus`, `!play`, `!skip`/`!s`/`!next`, `!stop`/`!pause`, `!queue`/`!q`/`!playlist`, `!song`/`!np`/`!nowplaying`, `!volume`, `!realtime`/`!talk` (currently disabled), `!stoprealtime`.
+- `StreamerPostingCog` - `!settings`.
+- `ServerManagement` - receives WebSocket-driven posts (reaction roles, rules, schedule, custom embed).
+- `RoleHistoryCog` - `!rolehistoryinfo`, `!rolehistorycleanup`, `!rolehistoryscan`, `!rolehistorystatus` (all admin-only).
+- `RoleTrackingCog` - `!refreshreactionroles` (admin).
+- `ServerRoleManagementCog` - internal role utilities.
+- `MessageTrackingCog` - message edit/delete logging.
+- `ModerationCog` - `!purge`/`!clear`/`!delete`.
+- `AdminCog` - `!checklinked`, `!online_streams`, `!live_status` (bot-owner only, `bot_owner_id = 127783626917150720`).
+- `UserTrackingCog` - internal user activity.
 
 **Internal command names** (never overridable by user-defined custom commands): see set at `./bot/specterdiscord.py:2078-2093`.
 
@@ -198,7 +198,7 @@ Discord events route to Twitch channels via the `channel_mappings` table (DB `sp
 
 Custom decorator `@handle_rate_limit(max_retries=3)` at `./bot/specterdiscord.py:109-159` catches `discord.RateLimited` and `discord.HTTPException` with status 429, reads `Retry-After`, `X-RateLimit-Global`, and `X-RateLimit-Bucket` from the response, records to a global `RateLimitTracker` (`:78-106`), and exponentially backs off (capped at 60 s).
 
-discord.py already has its own internal rate-limit handler — this decorator layers on top for resilience and is applied to specific high-risk routes (DM sends, role mutations).
+discord.py already has its own internal rate-limit handler - this decorator layers on top for resilience and is applied to specific high-risk routes (DM sends, role mutations).
 
 ---
 
@@ -224,13 +224,13 @@ All are `application/x-www-form-urlencoded` and authenticate via HTTP Basic with
 | `GET` | `https://discord.com/api/v10/users/@me/guilds` | `guilds` | List guilds the user is in. Used to find guilds where user is **owner** (filtered at `:1517-1521`). Returns up to 200 partial guild objects (no pagination needed in practice). | `./dashboard/discordbot.php:1463` (helper `fetchUserGuilds`) |
 | `GET` | `https://discord.com/api/v10/users/@me/guilds/{guild_id}/member` | `guilds.members.read` | Get the linked user's member object in a specific guild (used for permission checks). | `./dashboard/discordbot.php:1488` (helper `checkGuildPermissions`) |
 
-### 4.3 Guild endpoints (Bot token auth — PHP)
+### 4.3 Guild endpoints (Bot token auth - PHP)
 
 These hit `Authorization: Bot <bot_token>` because (a) the user's Bearer scope can't see all roles, and (b) the bot is already in the guild so it has the privileges. Falls back to `Authorization: Bearer <access_token>` if `$bot_token` is empty (`:1539-1540`).
 
 | Method | URL | Purpose | Repo callsite |
 | ------ | --- | ------- | ------------- |
-| `GET` | `https://discord.com/api/v10/guilds/{guild_id}/channels` | List guild channels — filtered to type `0` (`GUILD_TEXT`) + `5` (`GUILD_ANNOUNCEMENT`) for text-channel pickers, or type `2` (`GUILD_VOICE`) for voice pickers. | `./dashboard/discordbot.php:1541` (`fetchGuildChannels`), `:1586` (`fetchGuildVoiceChannels`) |
+| `GET` | `https://discord.com/api/v10/guilds/{guild_id}/channels` | List guild channels - filtered to type `0` (`GUILD_TEXT`) + `5` (`GUILD_ANNOUNCEMENT`) for text-channel pickers, or type `2` (`GUILD_VOICE`) for voice pickers. | `./dashboard/discordbot.php:1541` (`fetchGuildChannels`), `:1586` (`fetchGuildVoiceChannels`) |
 | `GET` | `https://discord.com/api/v10/guilds/{guild_id}/roles` | List roles, filtered to drop `@everyone`, `managed` (bot/integration), and `tags`-bearing roles. Sorted by `position` desc. | `./dashboard/discordbot.php:1630` (`fetchGuildRoles`) |
 
 ### 4.4 Channel-type integers
@@ -250,7 +250,7 @@ From the official spec, used in PHP filters at `:1554-1557` and `:1599-1601`:
 
 ### 4.5 REST endpoints called via discord.py (gateway)
 
-All channel-message sends, role mutations, embed posts, voice connects, etc. issued from `./bot/specterdiscord.py` go through the `discord.py` REST client, which uses the same `https://discord.com/api/v10/...` base. discord.py handles auth, version, rate-limit buckets, and retries internally — we don't construct these URLs by hand. Notable cases:
+All channel-message sends, role mutations, embed posts, voice connects, etc. issued from `./bot/specterdiscord.py` go through the `discord.py` REST client, which uses the same `https://discord.com/api/v10/...` base. discord.py handles auth, version, rate-limit buckets, and retries internally - we don't construct these URLs by hand. Notable cases:
 
 - `Channel.send(content=, embed=)` → `POST /channels/{channel_id}/messages`
 - `Member.add_roles(role)` / `Member.remove_roles(role)` → `PUT/DELETE /guilds/{guild_id}/members/{user_id}/roles/{role_id}`
@@ -293,7 +293,7 @@ All channel-message sends, role mutations, embed posts, voice connects, etc. iss
        │      - redirect to discordbot.php (clean URL)                │
        │                                                              │
        │   4. Subsequent loads validate liveness via                  │
-       │      GET /api/v10/oauth2/@me — if response includes user{},  │
+       │      GET /api/v10/oauth2/@me - if response includes user{},  │
        │      mark $is_linked=true and surface expiry from the        │
        │      response's `expires` field.                             │
        │                                                              │
@@ -338,12 +338,12 @@ Discord groups endpoints into **buckets**; the same `bucket` string can span mul
 | `X-RateLimit-Remaining` | Requests left in the window |
 | `X-RateLimit-Reset` | Unix timestamp (float, seconds) when the bucket resets |
 | `X-RateLimit-Reset-After` | Seconds until reset (float) |
-| `X-RateLimit-Bucket` | Bucket identifier — **use this** as the per-bucket key, not the URL |
+| `X-RateLimit-Bucket` | Bucket identifier - **use this** as the per-bucket key, not the URL |
 | `X-RateLimit-Scope` | `user` \| `global` \| `shared` |
 | `X-RateLimit-Global` | `true` if the 429 was the global cap |
 | `Retry-After` | Seconds to wait before retrying on a 429 |
 
-**Do not hard-code limits.** Always parse headers — Discord adjusts buckets server-side without notice.
+**Do not hard-code limits.** Always parse headers - Discord adjusts buckets server-side without notice.
 
 ### 6.3 Invalid request limit
 
@@ -367,15 +367,15 @@ Pinned only as `discord.py` in `./bot/requirements.txt:40` (no version pin). Lat
 
 ### 7.2 Privileged intent gotchas
 
-- `intents.message_content = True` — required for **prefix** commands (`!play`, `!quote`). Without it, `Message.content` returns empty on guild messages and **all `commands.command(...)` handlers silently stop firing**. Bots in 100+ servers must request approval; below that, just toggle in the Developer Portal.
-- `intents.members = True` — required for `on_member_join`, accurate `Guild.members` cache, and role-add by-ID lookups. Same approval rules.
-- `intents.presences` — **not enabled here**, and don't enable it casually: it produces high event volume and gates verification.
+- `intents.message_content = True` - required for **prefix** commands (`!play`, `!quote`). Without it, `Message.content` returns empty on guild messages and **all `commands.command(...)` handlers silently stop firing**. Bots in 100+ servers must request approval; below that, just toggle in the Developer Portal.
+- `intents.members = True` - required for `on_member_join`, accurate `Guild.members` cache, and role-add by-ID lookups. Same approval rules.
+- `intents.presences` - **not enabled here**, and don't enable it casually: it produces high event volume and gates verification.
 - Failure mode: gateway closes with code `4014` (`Disallowed Intent(s)`) if you flip an intent in code without flipping it in the portal.
 
 ### 7.3 Slash commands via `CommandTree`
 
 - One global tree per bot (`bot.tree`).
-- `bot.tree.add_command(app_commands.Command(name=, description=, callback=))` registers — see `./bot/specterdiscord.py:4084-4090` for `/quote`.
+- `bot.tree.add_command(app_commands.Command(name=, description=, callback=))` registers - see `./bot/specterdiscord.py:4084-4090` for `/quote`.
 - `await bot.tree.sync()` in `setup_hook` pushes the registered commands to Discord's global slash-command list. **Global syncs propagate over up to an hour**; for fast iteration, use guild-scoped sync (`bot.tree.sync(guild=discord.Object(id=...))`).
 - Slash callbacks receive `discord.Interaction`. **You have 3 seconds to respond** before the token expires; if work will take longer, call `await interaction.response.defer(ephemeral=True)` first, then `interaction.followup.send(...)`.
 - `app_commands.AppCommandError` is the parent of all slash errors. Hook `tree.on_error` (`:2176`) to log; swallow `app_commands.CommandNotFound` to avoid noise from other bots.
@@ -384,36 +384,36 @@ Pinned only as `discord.py` in `./bot/requirements.txt:40` (no version pin). Lat
 
 `on_interaction(interaction)` (`:2186-2259`) handles **message-component** interactions (button clicks). The `custom_id` namespacing convention here:
 
-- `role_<role_id>` — toggle a self-assignable role.
-- `rules_accept_<role_id>` — accept rules and gain the entry role.
+- `role_<role_id>` - toggle a self-assignable role.
+- `rules_accept_<role_id>` - accept rules and gain the entry role.
 
 Both call `interaction.response.defer(ephemeral=True)` first (avoids the 3-second timeout while role mutations happen), then `interaction.followup.send(...)` via the helper `send_interaction_response`.
 
 ### 7.5 Voice
 
-- `discord.ext.voice_recv` (separate package) for incoming voice — used by `!realtime` (currently disabled).
+- `discord.ext.voice_recv` (separate package) for incoming voice - used by `!realtime` (currently disabled).
 - `PyNaCl` is **mandatory** for any voice features; missing it fails at connect with a cryptic libsodium error.
-- `yt_dlp` cookies file at `/home/botofthespecter/ytdl-cookies.txt` (server) — required for age-gated YouTube content in `!play`.
+- `yt_dlp` cookies file at `/home/botofthespecter/ytdl-cookies.txt` (server) - required for age-gated YouTube content in `!play`.
 
 ### 7.6 Logging
 
 The bot uses 7 loggers (see CLAUDE.md). Discord-related ones:
 
-- `discord` — discord.py library output (set per-instance to `INFO`).
-- `RateLimitTracker` — custom 429 tracker.
+- `discord` - discord.py library output (set per-instance to `INFO`).
+- `RateLimitTracker` - custom 429 tracker.
 - File output: `/home/botofthespecter/logs/specterdiscord/discordbot.txt` (server).
 
 Never log full tokens. The refresh script logs only username + last-4 on success/failure (`./bot/refresh_discord_tokens.py:79-81`).
 
 ### 7.7 Cog discovery
 
-Cogs are added in `on_ready` (not `setup_hook`). This is unconventional (the modern recommendation is `setup_hook`) but works because `tree.sync` already ran in `setup_hook` and the cogs in this codebase don't define new app commands — they only add prefix commands which don't need a re-sync.
+Cogs are added in `on_ready` (not `setup_hook`). This is unconventional (the modern recommendation is `setup_hook`) but works because `tree.sync` already ran in `setup_hook` and the cogs in this codebase don't define new app commands - they only add prefix commands which don't need a re-sync.
 
 ---
 
 ## 8. Token refresh flow
 
-`./bot/refresh_discord_tokens.py` — standalone script run on a schedule (cron on the bot host).
+`./bot/refresh_discord_tokens.py` - standalone script run on a schedule (cron on the bot host).
 
 ### 8.1 Sequence
 
@@ -423,7 +423,7 @@ Cogs are added in `on_ready` (not `setup_hook`). This is unconventional (the mod
 4. For each row, in parallel via `asyncio.gather`:
    - Build HTTP Basic header: `base64(client_id:client_secret)` (`:57`).
    - `POST https://discord.com/api/v10/oauth2/token` with `grant_type=refresh_token&refresh_token=<token>`, header `Content-Type: application/x-www-form-urlencoded` + `Authorization: Basic <b64>`.
-   - On `200 + access_token in body`: `UPDATE discord_users SET access_token=%s, refresh_token=%s WHERE user_id=%s`. Discord *may or may not* return a new `refresh_token` — fall back to the old one if absent (`:64`).
+   - On `200 + access_token in body`: `UPDATE discord_users SET access_token=%s, refresh_token=%s WHERE user_id=%s`. Discord *may or may not* return a new `refresh_token` - fall back to the old one if absent (`:64`).
    - On error: log the `error` + `error_description` and the username for ops visibility (`:79-81`). Common failure: `invalid_grant` (refresh token revoked because user removed the app or didn't reauth after a scope change → mark for relink).
 5. Print summary counts and close the pool.
 
@@ -437,7 +437,7 @@ Discord access tokens last 7 days (`expires_in: 604800`). Run the refresh script
 
 ### 8.4 Failure handling
 
-A failed refresh **does not** delete the row or null out the tokens — the user remains "linked" in the dashboard until the next page load, which calls `GET /oauth2/@me` and discovers the access token is dead, then surfaces a relink button. `reauth=1` is **not** set automatically on refresh failure; that flag is reserved for scope-set changes.
+A failed refresh **does not** delete the row or null out the tokens - the user remains "linked" in the dashboard until the next page load, which calls `GET /oauth2/@me` and discovers the access token is dead, then surfaces a relink button. `reauth=1` is **not** set automatically on refresh failure; that flag is reserved for scope-set changes.
 
 ---
 
@@ -454,7 +454,7 @@ A failed refresh **does not** delete the row or null out the tokens — the user
 | Add a new prefix command | `@commands.command(name="...")` inside a cog, then add cog in `on_ready` |
 | React to a Twitch event in Discord | Add an `@self.specterSocket.event` handler in `WebsocketListener.start()` (`./bot/specterdiscord.py:625`) |
 | Map a new guild to a Twitch channel | INSERT into `channel_mappings` (DB `specterdiscordbot`); the bot picks it up on the 5-minute refresh cycle (`:792-794`) |
-| Trigger a Discord message from the dashboard | Emit a WebSocket event (`POST_REACTION_ROLES_MESSAGE`, `POST_RULES_MESSAGE`, `POST_STREAM_SCHEDULE_MESSAGE`, `POST_CUSTOM_EMBED`) — the bot's `WebsocketListener` forwards to `ServerManagement` cog |
+| Trigger a Discord message from the dashboard | Emit a WebSocket event (`POST_REACTION_ROLES_MESSAGE`, `POST_RULES_MESSAGE`, `POST_STREAM_SCHEDULE_MESSAGE`, `POST_CUSTOM_EMBED`) - the bot's `WebsocketListener` forwards to `ServerManagement` cog |
 
 ---
 
@@ -464,12 +464,12 @@ discord.py manages the gateway internally, but knowing the protocol helps when d
 
 ### 11.1 Connection lifecycle
 
-1. **GET `/gateway/bot`** — fetch the WSS URL + `shards` + `max_concurrency` recommendation. discord.py calls this automatically.
+1. **GET `/gateway/bot`** - fetch the WSS URL + `shards` + `max_concurrency` recommendation. discord.py calls this automatically.
 2. **Connect to `wss://gateway.discord.gg/?v=10&encoding=json`** (or etf/zlib-stream).
-3. **Receive Opcode 10 Hello** — contains `heartbeat_interval` (ms).
+3. **Receive Opcode 10 Hello** - contains `heartbeat_interval` (ms).
 4. **Send Opcode 2 Identify** with bot token + intents bitmask.
-5. **Receive Opcode 0 READY** — contains `session_id`, `resume_gateway_url`, partial guild list.
-6. **Heartbeat loop** — send Opcode 1 every `heartbeat_interval` ms (first beat after `interval × random_jitter`). `d` = last received sequence number (or `null`). Expect Opcode 11 ACK back.
+5. **Receive Opcode 0 READY** - contains `session_id`, `resume_gateway_url`, partial guild list.
+6. **Heartbeat loop** - send Opcode 1 every `heartbeat_interval` ms (first beat after `interval × random_jitter`). `d` = last received sequence number (or `null`). Expect Opcode 11 ACK back.
 7. On disconnect: if resumable close code, send **Opcode 6 Resume** to `resume_gateway_url`. Otherwise re-Identify.
 
 ### 11.2 Gateway opcodes
@@ -478,7 +478,7 @@ discord.py manages the gateway internally, but knowing the protocol helps when d
 | ---- | ---- | --------- | ------- |
 | 0 | Dispatch | Receive | Event payload (MESSAGE_CREATE, etc.) |
 | 1 | Heartbeat | Send/Recv | Keepalive |
-| 2 | Identify | Send | Initial handshake — sends token + intents |
+| 2 | Identify | Send | Initial handshake - sends token + intents |
 | 6 | Resume | Send | Resume a dropped session |
 | 7 | Reconnect | Receive | Server requests clean reconnect |
 | 9 | Invalid Session | Receive | Session terminated (re-Identify or wait + re-Identify) |
@@ -489,7 +489,7 @@ discord.py manages the gateway internally, but knowing the protocol helps when d
 
 Intents gate which events the gateway delivers. Send them as a bitwise OR in the Identify payload.
 
-**Privileged — require portal toggle AND code:**
+**Privileged - require portal toggle AND code:**
 
 | Intent | Bit | Value | Events gated |
 | ------ | --- | ----- | ------------ |
@@ -512,9 +512,9 @@ Intents gate which events the gateway delivers. Send them as a bitwise OR in the
 
 ```python
 intents.default()          # GUILDS | GUILD_MODERATION | GUILD_VOICE_STATES | GUILD_MESSAGES | ...
-intents.message_content = True   # bit 15 — prefix commands need Message.content
-intents.voice_states = True      # bit 7  — already in default(), but explicit
-intents.members = True           # bit 1  — on_member_join + member cache
+intents.message_content = True   # bit 15 - prefix commands need Message.content
+intents.voice_states = True      # bit 7  - already in default(), but explicit
+intents.members = True           # bit 1  - on_member_join + member cache
 ```
 
 Calculated bitmask for Identify: `default()` + 2 (GUILD_MEMBERS) + 32768 (MESSAGE_CONTENT). If `MESSAGE_CONTENT` is off, `Message.content` is `""` in guilds and all `!prefix` commands silently stop working.
@@ -546,7 +546,7 @@ Events received as Opcode 0 Dispatch packets. The `t` field is the event name.
 | ----- | ---------- | ----- |
 | `MESSAGE_CREATE` | Message posted | Full message object + `guild_id` + partial `member`. `content` is `""` without `MESSAGE_CONTENT` intent. |
 | `MESSAGE_UPDATE` | Message edited | Same structure; `tts` always false in update. Not all fields guaranteed present. |
-| `MESSAGE_DELETE` | Message deleted | Only `id`, `channel_id`, `guild_id` — content is gone. |
+| `MESSAGE_DELETE` | Message deleted | Only `id`, `channel_id`, `guild_id` - content is gone. |
 | `MESSAGE_DELETE_BULK` | Bulk delete | `ids` (array), `channel_id`, `guild_id`. |
 
 ### 12.3 Member events
@@ -620,7 +620,7 @@ Constraints: max **25 options** per command; required options must precede optio
 | Scope | Endpoint | Propagation |
 | ----- | -------- | ----------- |
 | Global | `POST /applications/{app_id}/commands` | Up to **1 hour** to appear across all guilds |
-| Guild | `POST /applications/{app_id}/guilds/{guild_id}/commands` | **Instant** — use for testing |
+| Guild | `POST /applications/{app_id}/guilds/{guild_id}/commands` | **Instant** - use for testing |
 
 Rate limit: 200 application command creates per day, per guild.
 
@@ -661,10 +661,10 @@ Layout components (Section, Container, Separator, etc.) are only available with 
 
 - **Length:** 1–100 characters.
 - **Must be unique** per component within a message.
-- Returned verbatim in the interaction payload — use it to encode state.
+- Returned verbatim in the interaction payload - use it to encode state.
 - This bot's namespacing convention (`./bot/specterdiscord.py:2186`):
-  - `role_<role_id>` — toggle self-assignable role
-  - `rules_accept_<role_id>` — grant the entry role on rules acceptance
+  - `role_<role_id>` - toggle self-assignable role
+  - `rules_accept_<role_id>` - grant the entry role on rules acceptance
 
 ### 14.3 Limits
 
@@ -707,13 +707,13 @@ Controls which `@mentions` in a message actually ping:
 ```json
 {
   "parse": ["users", "roles", "everyone"],
-  "users": ["snowflake1", ...],   // max 100 — override parse for specific users
+  "users": ["snowflake1", ...],   // max 100 - override parse for specific users
   "roles": ["snowflake1", ...],   // max 100
   "replied_user": true
 }
 ```
 
-Default for **regular messages**: all types are parsed. Default for **interaction followups / webhooks**: only `users` are parsed — roles and `@everyone` are inert unless you add them to `parse`.
+Default for **regular messages**: all types are parsed. Default for **interaction followups / webhooks**: only `users` are parsed - roles and `@everyone` are inert unless you add them to `parse`.
 
 ### 15.3 Message flags (bitfield)
 
@@ -759,7 +759,7 @@ All permissions are stored as a string representation of a 64-bit integer. disco
 | `MANAGE_ROLES` | 28 | `0x10000000` | Restricted by role hierarchy (§16.2) |
 | `MANAGE_THREADS` | 34 | `0x400000000` | |
 
-The bot invite URL uses `permissions=581651049737302` (§2.1) — this is the bitmask sum of all permissions the bot requests on install.
+The bot invite URL uses `permissions=581651049737302` (§2.1) - this is the bitmask sum of all permissions the bot requests on install.
 
 ### 16.2 Role hierarchy rules
 
@@ -793,8 +793,8 @@ Used by `VoiceCog` in `./bot/specterdiscord.py` for `!play`, `!connect`, etc.
 
 1. **Send Gateway Opcode 4 (Voice State Update):** `{"guild_id": "...", "channel_id": "...", "self_mute": false, "self_deaf": false}`.
 2. **Receive two events from the main gateway:**
-   - `VOICE_STATE_UPDATE` — contains your `session_id`.
-   - `VOICE_SERVER_UPDATE` — contains `token`, `guild_id`, `endpoint` (WSS URL).
+   - `VOICE_STATE_UPDATE` - contains your `session_id`.
+   - `VOICE_SERVER_UPDATE` - contains `token`, `guild_id`, `endpoint` (WSS URL).
 3. **Connect to the voice gateway** (`wss://<endpoint>?v=8`). Send **Voice Opcode 0 Identify**: `{"server_id": guild_id, "user_id": ..., "session_id": ..., "token": ...}`.
 4. **Receive Voice Opcode 2 Ready:** `ssrc`, `ip`, `port`, `modes` (supported encryption).
 5. **UDP handshake:** Connect UDP to `ip:port`, run IP discovery (optional but needed through NAT), send **Voice Opcode 1 Select Protocol** with discovered `address`/`port` and chosen `mode`.
@@ -810,8 +810,8 @@ Used by `VoiceCog` in `./bot/specterdiscord.py` for `!play`, `!connect`, etc.
 | Mode | Notes |
 | ---- | ----- |
 | `aead_aes256_gcm_rtpsize` | Preferred if available |
-| `aead_xchacha20_poly1305_rtpsize` | **Required support** — always implement this |
-| Legacy modes | Removed November 18, 2024 — do not use |
+| `aead_xchacha20_poly1305_rtpsize` | **Required support** - always implement this |
+| Legacy modes | Removed November 18, 2024 - do not use |
 
 ### 17.4 DAVE end-to-end encryption
 
@@ -822,9 +822,9 @@ discord.py must support DAVE for ongoing voice functionality. Include `max_dave_
 ### 17.5 Voice gotchas
 
 - Bot users **respect voice channel user limits** unless they have `MOVE_MEMBERS` permission.
-- **Token changes** when the bot switches channels — don't reuse a previous session.
+- **Token changes** when the bot switches channels - don't reuse a previous session.
 - Send **five frames of silence** (Opus silence = `0xF8, 0xFF, 0xFE`) before stopping transmission to avoid Opus interpolation artifacts at the end of audio.
-- `PyNaCl` is **mandatory** for any voice — missing it fails at connect with a libsodium error (no helpful error message).
+- `PyNaCl` is **mandatory** for any voice - missing it fails at connect with a libsodium error (no helpful error message).
 - The `yt_dlp` cookies file at `/home/botofthespecter/ytdl-cookies.txt` (server) is required for age-gated YouTube content in `!play`.
 - `!realtime` / `!talk` (voice receive via `discord-ext-voice-recv`) is **currently disabled** in this codebase.
 
@@ -869,7 +869,7 @@ discord.py must support DAVE for ongoing voice functionality. Include `max_dave_
 | `hoist` | bool | Display separately in member list |
 | `position` | int | Hierarchy position (higher = more powerful); `@everyone` is always 0 |
 | `permissions` | string | Bitmask string |
-| `managed` | bool | Controlled by an integration (bot's own role, Twitch sub role, etc.) — **cannot be assigned manually** |
+| `managed` | bool | Controlled by an integration (bot's own role, Twitch sub role, etc.) - **cannot be assigned manually** |
 | `mentionable` | bool | |
 
 The dashboard's `fetchGuildRoles` helper (`:1630`) filters out `@everyone`, `managed=true`, and `tags`-bearing roles, then sorts descending by `position`.
@@ -881,10 +881,10 @@ GET /guilds/{guild.id}/members?limit=1000&after={last_user_id}
 ```
 
 - **Requires:** `GUILD_MEMBERS` privileged intent (both in Developer Portal and in `intents.members = True`).
-- `limit`: 1–1000 (default 1 — always specify 1000 for bulk fetches).
+- `limit`: 1–1000 (default 1 - always specify 1000 for bulk fetches).
 - `after`: snowflake cursor for pagination (use highest user ID from previous page).
 - Results ordered by user ID ascending.
-- No total-count field — paginate until result count < limit.
+- No total-count field - paginate until result count < limit.
 
 ### 18.5 Get Guild Roles endpoint
 
@@ -892,7 +892,7 @@ GET /guilds/{guild.id}/members?limit=1000&after={last_user_id}
 GET /guilds/{guild.id}/roles
 ```
 
-Returns **all roles** at once — no pagination. Used by `fetchGuildRoles` at `./dashboard/discordbot.php:1630`.
+Returns **all roles** at once - no pagination. Used by `fetchGuildRoles` at `./dashboard/discordbot.php:1630`.
 
 ### 18.6 Get Guild Channels endpoint
 
@@ -919,18 +919,18 @@ Expanded from §2.3. All scopes used or likely-needed for this project:
 
 | Scope | Purpose | Currently used? |
 | ----- | ------- | --------------- |
-| `identify` | `GET /users/@me` (no email) | Yes — captures `discord_id`, username, avatar |
+| `identify` | `GET /users/@me` (no email) | Yes - captures `discord_id`, username, avatar |
 | `email` | Adds `email` field to `/users/@me` | No |
-| `guilds` | `GET /users/@me/guilds` | Yes — owner-guild filter for server picker |
-| `guilds.members.read` | `GET /users/@me/guilds/{id}/member` | Yes — permission checks |
+| `guilds` | `GET /users/@me/guilds` | Yes - owner-guild filter for server picker |
+| `guilds.members.read` | `GET /users/@me/guilds/{id}/member` | Yes - permission checks |
 | `guilds.join` | Add user to a guild programmatically | No |
-| `connections` | Third-party connections (`/users/@me/connections`) | Yes — in scope string, no active consumer in UI |
-| `bot` | Add bot to guild during consent (combined flow) | Yes — first-time link only |
+| `connections` | Third-party connections (`/users/@me/connections`) | Yes - in scope string, no active consumer in UI |
+| `bot` | Add bot to guild during consent (combined flow) | Yes - first-time link only |
 | `applications.commands` | Register app commands in guilds | No (handled via gateway/tree.sync) |
 | `webhook.incoming` | Returns a webhook object after auth | No |
 | `role_connections.write` | Update linked-role metadata | No |
 
-**Token lifetime:** Access tokens last **7 days** (`expires_in: 604800`). Refresh tokens do not expire unless the user revokes authorization. Discord may or may not return a new refresh token on refresh — always fall back to the old one if absent (handled at `./bot/refresh_discord_tokens.py:64`).
+**Token lifetime:** Access tokens last **7 days** (`expires_in: 604800`). Refresh tokens do not expire unless the user revokes authorization. Discord may or may not return a new refresh token on refresh - always fall back to the old one if absent (handled at `./bot/refresh_discord_tokens.py:64`).
 
 **Content-Type gotcha:** The token and revocation endpoints only accept `application/x-www-form-urlencoded`. JSON bodies return `400 Bad Request`.
 
@@ -957,25 +957,25 @@ Expanded from §2.3. All scopes used or likely-needed for this project:
 | `bitrate` | int | Voice: bits per second |
 | `user_limit` | int | Voice: max concurrent users (0 = unlimited for voice, up to 10 000 for stage) |
 | `rtc_region` | string? | Voice region; null = automatic |
-| `last_message_id` | snowflake? | Last message sent — **does not update via CHANNEL_UPDATE event** |
+| `last_message_id` | snowflake? | Last message sent - **does not update via CHANNEL_UPDATE event** |
 
 ### 20.2 Channel type IDs (complete)
 
 | ID | Name | Used in this project |
 | -- | ---- | -------------------- |
 | 0 | `GUILD_TEXT` | Text channel pickers in dashboard |
-| 1 | `DM` | — |
+| 1 | `DM` | - |
 | 2 | `GUILD_VOICE` | Voice channel pickers in dashboard |
-| 3 | `GROUP_DM` | — |
+| 3 | `GROUP_DM` | - |
 | 4 | `GUILD_CATEGORY` | Filtered out of pickers |
 | 5 | `GUILD_ANNOUNCEMENT` | Treated as text in this codebase |
 | 10 | `ANNOUNCEMENT_THREAD` | Filtered out |
 | 11 | `PUBLIC_THREAD` | Filtered out |
 | 12 | `PRIVATE_THREAD` | Filtered out |
-| 13 | `GUILD_STAGE_VOICE` | — |
-| 14 | `GUILD_DIRECTORY` | — |
-| 15 | `GUILD_FORUM` | — |
-| 16 | `GUILD_MEDIA` | — |
+| 13 | `GUILD_STAGE_VOICE` | - |
+| 14 | `GUILD_DIRECTORY` | - |
+| 15 | `GUILD_FORUM` | - |
+| 16 | `GUILD_MEDIA` | - |
 
 ### 20.3 Permission overwrite object
 
@@ -1007,10 +1007,10 @@ Content-Type: application/json
 | `message_reference` | object | Reply target: `{ "message_id": "...", "type": 0 }` (0=DEFAULT, 1=FORWARD) |
 | `components` | array | Buttons, selects (§14) |
 | `sticker_ids` | array | Up to 3 sticker snowflakes |
-| `files[n]` | multipart | File uploads — requires `multipart/form-data` |
+| `files[n]` | multipart | File uploads - requires `multipart/form-data` |
 | `attachments` | array | Attachment metadata when uploading files |
-| `flags` | int | Bitfield (§15.3) — e.g. `64` for ephemeral (interactions only) |
-| `nonce` | int/string | Idempotency key — appears in MESSAGE_CREATE if set |
+| `flags` | int | Bitfield (§15.3) - e.g. `64` for ephemeral (interactions only) |
+| `nonce` | int/string | Idempotency key - appears in MESSAGE_CREATE if set |
 | `poll` | object | Creates a poll |
 
 Via discord.py: `channel.send(content=, embed=, embeds=, file=, components=, allowed_mentions=, reference=)`.
@@ -1024,8 +1024,8 @@ GET /channels/{channel.id}/messages?limit=50&before={snowflake}
 | Param | Notes |
 | ----- | ----- |
 | `limit` | 1–100 (default 50) |
-| `before` | Snowflake cursor — messages with lower IDs |
-| `after` | Snowflake cursor — messages with higher IDs |
+| `before` | Snowflake cursor - messages with lower IDs |
+| `after` | Snowflake cursor - messages with higher IDs |
 | `around` | Return messages around this ID (cannot combine with before/after) |
 
 Requires `VIEW_CHANNEL`. Requires `READ_MESSAGE_HISTORY` for history. Returns array of message objects ordered newest-first when using `before`.
@@ -1038,7 +1038,7 @@ Body: { "messages": ["id1", "id2", ...] }
 ```
 
 - 2–100 message IDs per call.
-- Messages must be **< 14 days old** — older messages silently fail or error depending on mix.
+- Messages must be **< 14 days old** - older messages silently fail or error depending on mix.
 - Requires `MANAGE_MESSAGES`.
 - Used by `ModerationCog` `!purge`/`!clear` commands in `./bot/specterdiscord.py`.
 
@@ -1054,14 +1054,14 @@ Body: { "messages": ["id1", "id2", ...] }
 | `username` | string | 2–32 chars; not platform-unique (display name may differ) |
 | `discriminator` | string | Legacy `#XXXX` tag; `"0"` for new username system users |
 | `global_name` | string? | Display name if set (newer accounts; supersedes `username` in UI) |
-| `avatar` | string? | Avatar hash — see §21.2 |
+| `avatar` | string? | Avatar hash - see §21.2 |
 | `bot` | bool? | `true` for bot/application users |
 | `system` | bool? | `true` for Discord official system account |
 | `mfa_enabled` | bool? | Only present via `/users/@me` with own token |
 | `banner` | string? | Banner hash |
 | `accent_color` | int? | RGB integer (profile accent if no banner) |
-| `locale` | string? | Language preference — only via `/users/@me` |
-| `verified` | bool? | Email verified — only via `/users/@me` with `email` scope |
+| `locale` | string? | Language preference - only via `/users/@me` |
+| `verified` | bool? | Email verified - only via `/users/@me` with `email` scope |
 | `email` | string? | Only via `/users/@me` with `email` scope |
 | `flags` | int? | Account flags bitmask (§21.3) |
 | `premium_type` | int? | 0 = None, 1 = Nitro Classic, 2 = Nitro, 3 = Nitro Basic |
@@ -1074,7 +1074,7 @@ https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png
 ```
 
 - Append `?size=256` (or 512, 1024, 2048) for specific size.
-- If `avatar_hash` starts with `a_` it is an animated GIF — replace `.png` with `.gif`.
+- If `avatar_hash` starts with `a_` it is an animated GIF - replace `.png` with `.gif`.
 - Default avatar (when `avatar` is null): `https://cdn.discordapp.com/embed/avatars/{(user_id >> 22) % 6}.png` (new system) or `discriminator % 5`.
 
 In this codebase, `discord_avatar` is stored as the raw hash in `discord_users` and used to construct the CDN URL in the dashboard.
@@ -1100,7 +1100,7 @@ In this codebase, `discord_avatar` is stored as the raw hash in `discord_users` 
 | `GET /users/@me/guilds/{guild_id}/member` | `guilds.members.read` | Guild member object for the authed user |
 | `GET /users/@me/connections` | `connections` | Array of connection objects (Twitch, Steam, Spotify, etc.) |
 
-`GET /users/@me/guilds` params: `before` (snowflake), `after` (snowflake), `limit` (1–200, default 200), `with_counts` (bool — adds `approximate_member_count` and `approximate_presence_count`).
+`GET /users/@me/guilds` params: `before` (snowflake), `after` (snowflake), `limit` (1–200, default 200), `with_counts` (bool - adds `approximate_member_count` and `approximate_presence_count`).
 
 ### 21.5 Connection object fields
 
@@ -1176,7 +1176,7 @@ Entries are retained for **45 days** maximum.
 | 41 | `ROLE_UPDATE` | |
 | 42 | `ROLE_DELETE` | |
 | 72 | `MESSAGE_DELETE` | `options.channel_id`, `options.count` |
-| 73 | `MESSAGE_BULK_DELETE` | `options.count` — fires from `!purge` / bulk-delete endpoint |
+| 73 | `MESSAGE_BULK_DELETE` | `options.count` - fires from `!purge` / bulk-delete endpoint |
 | 74 | `MESSAGE_PIN` | |
 | 75 | `MESSAGE_UNPIN` | |
 
@@ -1198,9 +1198,9 @@ Present on **every** API response:
 | `X-RateLimit-Remaining` | Requests left before hitting the limit |
 | `X-RateLimit-Reset` | Unix timestamp (float) when the bucket resets |
 | `X-RateLimit-Reset-After` | Seconds until reset (float) |
-| `X-RateLimit-Bucket` | Opaque bucket ID — use this as the cache key, NOT the URL |
+| `X-RateLimit-Bucket` | Opaque bucket ID - use this as the cache key, NOT the URL |
 | `X-RateLimit-Global` | `true` only on 429 responses that hit the global cap |
-| `X-RateLimit-Scope` | `user` \| `global` \| `shared` — present on 429 only |
+| `X-RateLimit-Scope` | `user` \| `global` \| `shared` - present on 429 only |
 
 **Do not hardcode limits.** Discord adjusts bucket windows server-side without notice. Always parse `X-RateLimit-*`.
 
@@ -1210,7 +1210,7 @@ Present on **every** API response:
 
 ### 23.3 Per-route buckets
 
-- Bucket IDs are **per top-level resource** — `/channels/111/messages` and `/channels/222/messages` are separate buckets even though they share the same route template.
+- Bucket IDs are **per top-level resource** - `/channels/111/messages` and `/channels/222/messages` are separate buckets even though they share the same route template.
 - The `X-RateLimit-Bucket` header is the authoritative key. Two different URL templates can share a bucket; two same-template URLs with different IDs have separate buckets.
 - **Emoji routes** use per-guild bucketing rather than standard per-route bucketing.
 
@@ -1225,7 +1225,7 @@ Present on **every** API response:
 }
 ```
 
-Always use `retry_after` (or the equivalent `Retry-After` header) — do not hardcode backoff values.
+Always use `retry_after` (or the equivalent `Retry-After` header) - do not hardcode backoff values.
 
 ### 23.5 Shared rate limits
 
@@ -1236,7 +1236,7 @@ Some endpoints are in a **shared bucket** across multiple routes. `X-RateLimit-S
 IP addresses that return **10 000 invalid responses (401, 403, 429) within 10 minutes** are temporarily banned at the Cloudflare layer. Shared-scope 429s are excluded from this count. Mitigate by:
 
 - Removing stale `discord_users` rows rather than letting them 401.
-- Catching `discord.Forbidden` (403) and not retrying — fix the permission issue instead.
+- Catching `discord.Forbidden` (403) and not retrying - fix the permission issue instead.
 - Respecting `Retry-After` before retrying any 429.
 - Not hammering the API with validation calls during bot startup.
 
@@ -1244,7 +1244,7 @@ IP addresses that return **10 000 invalid responses (401, 403, 429) within 10 mi
 
 - **Webhook execute:** 30 requests per minute, globally, per webhook.
 - **Interaction response token:** Rate limits apply per interaction token (§24); the 15-minute window is generous but the 3-second initial response window is hard.
-- **404 on webhook:** Indicates the webhook has been deleted — do not retry. Remove the stored webhook URL.
+- **404 on webhook:** Indicates the webhook has been deleted - do not retry. Remove the stored webhook URL.
 
 ### 23.8 How discord.py handles rate limits
 
@@ -1266,7 +1266,7 @@ Expands §13 (slash commands) and §14 (components) with the full interaction mo
 | `data` | object? | Command / component / modal data (structure varies by type) |
 | `guild_id` | snowflake? | Absent for DM interactions |
 | `channel_id` | snowflake? | |
-| `member` | Member? | Present in guilds (includes `permissions` — channel-specific computed value) |
+| `member` | Member? | Present in guilds (includes `permissions` - channel-specific computed value) |
 | `user` | User? | Present in DMs / user-install contexts |
 | `token` | string | **Valid 15 minutes.** Use for responses and followups. |
 | `version` | int | Always `1` |
@@ -1371,7 +1371,7 @@ For `STRING`, `INTEGER`, or `NUMBER` options with `autocomplete: true`, Discord 
 ```
 
 - Max **25 choices** returned.
-- Must respond within **3 seconds** — no defer available for autocomplete.
+- Must respond within **3 seconds** - no defer available for autocomplete.
 - Not currently used in this codebase but relevant if options are ever added to `/quote` or future commands.
 
 ---
@@ -1397,11 +1397,11 @@ For `STRING`, `INTEGER`, or `NUMBER` options with `autocomplete: true`, Discord 
   - Intents: `https://discordpy.readthedocs.io/en/stable/intents.html`
   - `app_commands` reference: `https://discordpy.readthedocs.io/en/stable/interactions/api.html`
 - In-repo:
-  - `./bot/specterdiscord.py` — Discord companion bot (10053 lines, v6.1)
-  - `./bot/refresh_discord_tokens.py` — OAuth refresh job
-  - `./bot/.env.example` — env-var skeleton
-  - `./bot/requirements.txt` — Python deps
-  - `./config/discord.php` — PHP config stub (real values in `/var/www/config/discord.php` on server)
-  - `./dashboard/discordbot.php` — OAuth callback + linking UI + REST helpers
-  - `./dashboard/admin/discordbot_overview.php` — admin view of every linked user's Discord config
+  - `./bot/specterdiscord.py` - Discord companion bot (10053 lines, v6.1)
+  - `./bot/refresh_discord_tokens.py` - OAuth refresh job
+  - `./bot/.env.example` - env-var skeleton
+  - `./bot/requirements.txt` - Python deps
+  - `./config/discord.php` - PHP config stub (real values in `/var/www/config/discord.php` on server)
+  - `./dashboard/discordbot.php` - OAuth callback + linking UI + REST helpers
+  - `./dashboard/admin/discordbot_overview.php` - admin view of every linked user's Discord config
   - Project rules: [php-config.md](../../../rules/php-config.md), [secrets.md](../../../rules/secrets.md), [database.md](../../../rules/database.md), [paths.md](../../../rules/paths.md)

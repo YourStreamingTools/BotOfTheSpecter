@@ -230,7 +230,7 @@ if ($username && !$notFound && $isDeceased) {
     try {
         $memDb = new mysqli($db_servername, $db_username, $db_password, $username);
         if (!$memDb->connect_error) {
-            // Top 5 lurkers — oldest start_time = longest lurking
+            // Top 5 lurkers - oldest start_time = longest lurking
             $r = $memDb->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time ASC LIMIT 5");
             if ($r) {
                 $lurkerRows = $r->fetch_all(MYSQLI_ASSOC);
@@ -254,7 +254,7 @@ if ($username && !$notFound && $isDeceased) {
             if ($r) $memorialData['watchtime'] = $r->fetch_all(MYSQLI_ASSOC);
             $memDb->close();
         }
-    } catch (Exception $e) { /* Silently fail — memorial banner still shows */ }
+    } catch (Exception $e) { /* Silently fail - memorial banner still shows */ }
 }
 session_write_close();
 
@@ -742,7 +742,7 @@ ob_start();
                     document.getElementById('local-helpline-number').textContent = h.number;
                     card.style.display = '';
                 })
-                .catch(function () { /* geolocation unavailable — card stays hidden */ });
+                .catch(function () { /* geolocation unavailable - card stays hidden */ });
         })();
         // Autocomplete
         (function () {

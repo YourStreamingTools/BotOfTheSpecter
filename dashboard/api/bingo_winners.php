@@ -5,7 +5,7 @@ ob_start();
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
-// Connect directly to the user's channel database (minimal — no heavy user_db.php queries)
+// Connect directly to the user's channel database (minimal - no heavy user_db.php queries)
 include '/var/www/config/database.php';
 $dbname = $_SESSION['username'] ?? '';
 if (empty($dbname)) {

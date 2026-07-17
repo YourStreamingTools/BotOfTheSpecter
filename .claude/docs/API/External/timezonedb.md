@@ -43,7 +43,7 @@ All requests must include the `key` query parameter containing a valid API key.
 http://api.timezonedb.com/v2.1/{endpoint}?key=YOUR_API_KEY&...
 ```
 
-API keys are obtained by registering a free account at https://timezonedb.com/register. There is no header-based authentication — the key is always a query string parameter.
+API keys are obtained by registering a free account at https://timezonedb.com/register. There is no header-based authentication - the key is always a query string parameter.
 
 **BotOfTheSpecter env var:** `TIMEZONE_API` (loaded via `os.getenv('TIMEZONE_API')`).
 
@@ -53,10 +53,10 @@ API keys are obtained by registering a free account at https://timezonedb.com/re
 
 | Tier | Cost | Rate limit | City/IP lookup | Host |
 |------|------|------------|----------------|------|
-| Free | $0 | **1 request/second** (hard cap — excess requests are blocked) | No | `api.timezonedb.com` |
+| Free | $0 | **1 request/second** (hard cap - excess requests are blocked) | No | `api.timezonedb.com` |
 | Premium | $4.20 USD/month | Unlimited | Yes | `vip.timezonedb.com` |
 
-The free tier has no monthly request cap — only the per-second rate limit applies. Exceeding the rate limit returns a failure response (see §7), not an HTTP error code.
+The free tier has no monthly request cap - only the per-second rate limit applies. Exceeding the rate limit returns a failure response (see §7), not an HTTP error code.
 
 ---
 
@@ -183,7 +183,7 @@ Returns the local time, UTC offset, DST status, and related metadata for a singl
 | `nextAbbreviation` | string | No | Zone abbreviation that will apply after the current DST period ends |
 | `timestamp` | integer | No | Local time at the given zone as a Unix timestamp |
 | `formatted` | string | No | Local time formatted as `Y-m-d H:i:s` (e.g. `"2026-05-10 22:52:12"`) |
-| `totalPage` | integer | No | Total result pages (pagination — present in error responses) |
+| `totalPage` | integer | No | Total result pages (pagination - present in error responses) |
 | `currentPage` | integer | No | Current page number (present in error responses) |
 
 `regionName` and `cityName` are present in the response schema for all tiers but are only populated on Premium. Free-tier responses leave them empty or absent.
@@ -313,8 +313,8 @@ Converts a Unix timestamp from one time zone to another and returns both the ori
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `key` | string | Yes | API key (see §2) |
-| `from` | string | Yes | Origin time zone — a valid IANA name or abbreviation |
-| `to` | string | Yes | Destination time zone — a valid IANA name or abbreviation |
+| `from` | string | Yes | Origin time zone - a valid IANA name or abbreviation |
+| `to` | string | Yes | Destination time zone - a valid IANA name or abbreviation |
 | `format` | string | No | Response format: `xml` or `json`. Default: `xml` |
 | `callback` | string | No | JSONP callback function name |
 | `fields` | string | No | Comma-separated list of response fields to include |
@@ -397,7 +397,7 @@ All endpoints share the same outer envelope regardless of format.
 }
 ```
 
-- `status` is always a string — compare with `== "OK"` or `!= "OK"`, never treat it as a boolean.
+- `status` is always a string - compare with `== "OK"` or `!= "OK"`, never treat it as a boolean.
 - `message` is always present on failure and always empty on success.
 - `zones` is only present in the failure envelope for `list-time-zone`-style responses; other endpoints omit it.
 
@@ -440,7 +440,7 @@ url = (
 )
 ```
 
-**Fields consumed:** `status`, `zoneName` only. The `formatted` and `timestamp` fields from TimezoneDB are deliberately ignored — `pytz` and Python `strftime` are the authoritative time source.
+**Fields consumed:** `status`, `zoneName` only. The `formatted` and `timestamp` fields from TimezoneDB are deliberately ignored - `pytz` and Python `strftime` are the authoritative time source.
 
 **Flow:** `!time <location>` → Nominatim geocodes the text to lat/lng → TimezoneDB resolves lat/lng to `zoneName` → `pytz.timezone(zoneName)` formats the local time.
 
@@ -457,5 +457,5 @@ url = (
 - **HTTP not HTTPS.** All callsites use `http://`. TimezoneDB accepts HTTPS but the code has not been updated.
 - **Free tier only.** `by=city` and `by=ip` are Premium features. Do not add code paths that depend on them without confirming the production key tier.
 - **No retry or backoff.** A rate-limit response surfaces to chat as "Could not retrieve time information from the API."
-- **`dst` is a string `"0"` / `"1"`.** Not an integer or boolean — don't compare with `== 1`.
+- **`dst` is a string `"0"` / `"1"`.** Not an integer or boolean - don't compare with `== 1`.
 - **Two-stage failure modes.** Nominatim can succeed but return a non-city result (road, POI). The bot filters these before calling TimezoneDB via a `valid_location_types` allowlist. Both stages must succeed.

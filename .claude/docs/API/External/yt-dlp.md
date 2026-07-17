@@ -16,7 +16,7 @@ yt-dlp is a feature-rich command-line audio/video downloader and Python library.
 ```python
 import yt_dlp
 
-# Main class — all functionality is accessed through this
+# Main class - all functionality is accessed through this
 yt_dlp.YoutubeDL(params=None, auto_init=True)
 ```
 
@@ -33,12 +33,12 @@ with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 
 1. You create a `YoutubeDL` object with an options dict (`params`).
 2. When you call `extract_info()` or `download()`, yt-dlp finds the appropriate `InfoExtractor` for the URL.
-3. The extractor fetches metadata and returns an **info dict** — a dictionary describing the video/audio, available formats, and (if download=True) download results.
+3. The extractor fetches metadata and returns an **info dict** - a dictionary describing the video/audio, available formats, and (if download=True) download results.
 4. If `download=True`, yt-dlp selects a format, downloads it, and runs any configured post-processors.
 
 ### Important API note
 
-> The return value of `YoutubeDL.extract_info` is not guaranteed to be JSON-serializable or even a plain dictionary — it is dictionary-like. To get a serializable dict, pass it through `YoutubeDL.sanitize_info(info)`.
+> The return value of `YoutubeDL.extract_info` is not guaranteed to be JSON-serializable or even a plain dictionary - it is dictionary-like. To get a serializable dict, pass it through `YoutubeDL.sanitize_info(info)`.
 
 ---
 
@@ -68,7 +68,7 @@ All options are passed as a single dict to `YoutubeDL(params)`. No options are r
 | `quiet` | bool | Suppress all messages to stdout |
 | `no_warnings` | bool | Suppress warning messages |
 | `logtostderr` | bool | Print everything to stderr instead of stdout |
-| `logger` | object | Custom logger object with `debug(msg)`, `warning(msg)`, `error(msg)` methods. Both debug and info messages go to `debug()` — debug messages are prefixed `[debug] ` |
+| `logger` | object | Custom logger object with `debug(msg)`, `warning(msg)`, `error(msg)` methods. Both debug and info messages go to `debug()` - debug messages are prefixed `[debug] ` |
 | `consoletitle` | bool | Display progress in the console window title bar |
 | `noprogress` | bool | Do not print the progress bar |
 | `forceprint` | dict/list | Dict with WHEN keys mapped to lists of templates to print to stdout. Allowed keys: `video`, or any item in `utils.POSTPROCESS_WHEN`. For compatibility, a single list is also accepted |
@@ -82,7 +82,7 @@ All options are passed as a single dict to `YoutubeDL(params)`. No options are r
 |--------|------|-------------|
 | `simulate` | bool/None | Do not download. If None (unset), simulate only if `listsubtitles`, `listformats`, or `list_thumbnails` is used |
 | `skip_download` | bool | Skip the actual download but still process and extract info |
-| `format` | str/callable | Format selector string — see Section 5. Can also be a function taking `ctx` and returning formats |
+| `format` | str/callable | Format selector string - see Section 5. Can also be a function taking `ctx` and returning formats |
 | `allow_unplayable_formats` | bool | Allow extracting and downloading unplayable formats |
 | `ignore_no_formats_error` | bool | Ignore "No video formats" error (useful for metadata-only extraction) |
 | `format_sort` | list | List of fields by which to sort video formats. See Section 5.2 |
@@ -180,7 +180,7 @@ All options are passed as a single dict to `YoutubeDL(params)`. No options are r
 | `max_sleep_interval` | float | Upper bound of random sleep range (must use with `sleep_interval`) |
 | `sleep_interval_requests` | float | Seconds to sleep between requests during extraction |
 | `sleep_interval_subtitles` | float | Seconds to sleep before each subtitle download |
-| `wait_for_video` | tuple | `(min_secs, max_secs)` — wait for scheduled streams to become available |
+| `wait_for_video` | tuple | `(min_secs, max_secs)` - wait for scheduled streams to become available |
 
 ### 2.11 Subtitles
 
@@ -291,7 +291,7 @@ These are not used by `YoutubeDL` directly but by the underlying file downloader
 
 ---
 
-## 3. `extract_info()` — Method Reference
+## 3. `extract_info()` - Method Reference
 
 ```python
 ydl.extract_info(
@@ -313,7 +313,7 @@ ydl.extract_info(
 | `process` | bool | `True` | Whether to resolve all unresolved references (URLs, playlist items). Must be `True` for download to work |
 | `ie_key` | str | `None` | Use only the extractor with this key (e.g., `'Youtube'`, `'Generic'`) |
 | `extra_info` | dict | `None` | Extra values to add to the info dict. For internal use |
-| `force_generic_extractor` | bool | `False` | Deprecated — use `ie_key='Generic'` instead |
+| `force_generic_extractor` | bool | `False` | Deprecated - use `ie_key='Generic'` instead |
 
 ### Return value
 
@@ -335,7 +335,7 @@ with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
 
 ## 4. Info Dict Fields
 
-The info dict returned by `extract_info()` contains the following fields. All fields are optional — their presence depends on the extractor and the website. Always use `.get()` with a default.
+The info dict returned by `extract_info()` contains the following fields. All fields are optional - their presence depends on the extractor and the website. Always use `.get()` with a default.
 
 ### 4.1 Core Video Identity
 
@@ -437,7 +437,7 @@ The info dict returned by `extract_info()` contains the following fields. All fi
 | `playlist_webpage_url` | str | URL of playlist webpage |
 | `n_entries` | int | Total number of extracted items in this playlist |
 
-### 4.8 Format / Quality Fields (on the info dict itself — best selected format)
+### 4.8 Format / Quality Fields (on the info dict itself - best selected format)
 
 After format selection, the info dict is updated with the fields of the chosen best format:
 
@@ -525,7 +525,7 @@ Passed as the `format` option in `ydl_opts`. The default (when `format` is not s
 | `bestvideo` / `bv` | Best video-only format (no audio) |
 | `bestaudio` / `ba` | Best audio-only format (no video) |
 | `bestvideo*` / `bv*` | Best format containing video (may also have audio) |
-| `bestaudio*` / `ba*` | Best format containing audio (may also have video) — do not use |
+| `bestaudio*` / `ba*` | Best format containing audio (may also have video) - do not use |
 | `worstvideo` / `wv` | Worst video-only format |
 | `worstaudio` / `wa` | Worst audio-only format |
 | `worstvideo*` / `wv*` | Worst format containing video |
@@ -538,8 +538,8 @@ Passed as the `format` option in `ydl_opts`. The default (when `format` is not s
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `/` | Fallback — try left side, use right if unavailable | `bestaudio/best` |
-| `+` | Merge — combine video and audio into one file (requires ffmpeg) | `bestvideo+bestaudio` |
+| `/` | Fallback - try left side, use right if unavailable | `bestaudio/best` |
+| `+` | Merge - combine video and audio into one file (requires ffmpeg) | `bestvideo+bestaudio` |
 | `,` | Download multiple formats separately | `bv,ba` |
 | `[condition]` | Filter by format field | `best[height<=720]` |
 | `(group)` | Group selectors | `(mp4,webm)[height<480]` |
@@ -775,7 +775,7 @@ The `when` field controls when the post-processor runs. Valid values (from `yt_d
 | `'after_video'` | After all formats of a video are processed |
 | `'playlist'` | After entire playlist is processed |
 
-### 7.3 FFmpegExtractAudioPP — Audio Extraction
+### 7.3 FFmpegExtractAudioPP - Audio Extraction
 
 **Key:** `'FFmpegExtractAudio'`
 
@@ -804,8 +804,8 @@ The `when` field controls when the post-processor runs. Valid values (from `yt_d
 | `'opus'` | `.opus` | `libopus` | |
 | `'vorbis'` | `.ogg` | `libvorbis` | |
 | `'flac'` | `.flac` | `flac` | |
-| `'alac'` | `.m4a` | — | Stream copy with ALAC codec |
-| `'wav'` | `.wav` | — | PCM output |
+| `'alac'` | `.m4a` | - | Stream copy with ALAC codec |
+| `'wav'` | `.wav` | - | PCM output |
 
 **Quality behavior:**
 - If `preferredquality` is `None`, codec default quality is used.
@@ -907,13 +907,13 @@ Example:
 ```
 
 Fields:
-- `domain` — domain the cookie applies to (leading dot = include subdomains)
-- `flag` — `TRUE` if valid for all machines in the domain
-- `path` — path within the domain
-- `secure` — `TRUE` if only sent over HTTPS
-- `expiry` — expiration as UNIX timestamp (`0` = session cookie)
-- `name` — cookie name
-- `value` — cookie value
+- `domain` - domain the cookie applies to (leading dot = include subdomains)
+- `flag` - `TRUE` if valid for all machines in the domain
+- `path` - path within the domain
+- `secure` - `TRUE` if only sent over HTTPS
+- `expiry` - expiration as UNIX timestamp (`0` = session cookie)
+- `name` - cookie name
+- `value` - cookie value
 
 ### 8.2 Exporting Cookies from Browsers
 
@@ -964,24 +964,24 @@ All exceptions are in `yt_dlp.utils`:
 ```
 Exception
 └── YoutubeDLError
-    ├── DownloadError            — download failed (wraps underlying error)
-    ├── ExtractorError           — info extraction failed
-    │   ├── GeoRestrictedError   — geo-restricted content
-    │   ├── RegexNotFoundError   — regex not found in page
-    │   ├── UnsupportedError     — URL not supported
-    │   └── UserNotLive          — user is not live
-    ├── PostProcessingError      — post-processor failed
-    ├── ContentTooShortError     — downloaded file too short
-    ├── SameFileError            — output paths clash
-    ├── UnavailableVideoError    — video unavailable
-    ├── ReExtractInfo            — re-extract is needed
-    │   └── ThrottledDownload    — download is throttled
-    ├── XAttrMetadataError       — extended attribute error
-    ├── XAttrUnavailableError    — xattr not available
+    ├── DownloadError            - download failed (wraps underlying error)
+    ├── ExtractorError           - info extraction failed
+    │   ├── GeoRestrictedError   - geo-restricted content
+    │   ├── RegexNotFoundError   - regex not found in page
+    │   ├── UnsupportedError     - URL not supported
+    │   └── UserNotLive          - user is not live
+    ├── PostProcessingError      - post-processor failed
+    ├── ContentTooShortError     - downloaded file too short
+    ├── SameFileError            - output paths clash
+    ├── UnavailableVideoError    - video unavailable
+    ├── ReExtractInfo            - re-extract is needed
+    │   └── ThrottledDownload    - download is throttled
+    ├── XAttrMetadataError       - extended attribute error
+    ├── XAttrUnavailableError    - xattr not available
     └── DownloadCancelled (also base for "stop" signals)
-        ├── MaxDownloadsReached  — max download count hit
-        ├── ExistingVideoReached — video already in archive
-        └── RejectedVideoReached — video rejected by filter
+        ├── MaxDownloadsReached  - max download count hit
+        ├── ExistingVideoReached - video already in archive
+        └── RejectedVideoReached - video rejected by filter
 ```
 
 `CookieLoadError` inherits from `YoutubeDLError` and is raised in `yt_dlp.cookies`.
@@ -1047,14 +1047,14 @@ YouTube actively detects and blocks automated downloads. Mitigation strategies i
    'sleep_interval_requests': 1,
    ```
 
-3. **Limit concurrent downloads** — avoid running multiple YoutubeDL instances simultaneously.
+3. **Limit concurrent downloads** - avoid running multiple YoutubeDL instances simultaneously.
 
 4. **Use `extractor_args` to skip some manifests** (reduces requests, may affect quality):
    ```python
    'extractor_args': {'youtube': {'skip': ['dash', 'hls']}}
    ```
 
-5. **PO Token (Player Token)** — YouTube increasingly requires a proof-of-origin token. If you encounter "Sign in to confirm you're not a bot" errors, check the [yt-dlp PO Token Guide wiki page](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).
+5. **PO Token (Player Token)** - YouTube increasingly requires a proof-of-origin token. If you encounter "Sign in to confirm you're not a bot" errors, check the [yt-dlp PO Token Guide wiki page](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).
 
 ### 10.2 General Rate Limiting
 
@@ -1117,14 +1117,14 @@ with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 ```
 
 **Key options:**
-- `quiet=True` — suppress all console output (important for bot processes)
-- `no_warnings=True` — suppress warnings
-- `skip_download=True` — no file is written
-- `download=False` on `extract_info` — metadata only, no download attempted
-- `cookiefile` — uses the shared bot cookie file to avoid YouTube bot detection
+- `quiet=True` - suppress all console output (important for bot processes)
+- `no_warnings=True` - suppress warnings
+- `skip_download=True` - no file is written
+- `download=False` on `extract_info` - metadata only, no download attempted
+- `cookiefile` - uses the shared bot cookie file to avoid YouTube bot detection
 
 **Fields used from info dict:**
-- `info.get('title', '')` — the video title string
+- `info.get('title', '')` - the video title string
 
 **Notes:**
 - `skip_download=True` combined with `download=False` is redundant but harmless; either alone suffices for metadata-only extraction.
@@ -1183,15 +1183,15 @@ info['requested_downloads'][0].get('filename')           # Alternative filepath 
 ```
 
 **Key options explained:**
-- `format: 'bestaudio/best'` — prefer audio-only format, fall back to best combined
-- `outtmpl` — saves to `{tmp}/bot_music_cache/{video_id}.{ext}` to allow caching by ID
-- `restrictfilenames=True` — no `&` or spaces in filenames (safe for filesystem operations)
-- `noplaylist=True` — if a playlist URL is accidentally passed, download only the first video
-- `nocheckcertificate=True` — skip SSL verification (reduces failures on some networks)
-- `ignoreerrors=False` — fail loudly on any error (so the bot can handle it)
-- `default_search='auto'` — treat non-URL strings as YouTube search queries
-- `source_address='0.0.0.0'` — let the OS choose the source IP for outbound connections
-- `cookiefile=cookies_path` — `cookies_path` comes from `config.cookies_path` (server: `/home/botofthespecter/ytdl-cookies.txt`)
+- `format: 'bestaudio/best'` - prefer audio-only format, fall back to best combined
+- `outtmpl` - saves to `{tmp}/bot_music_cache/{video_id}.{ext}` to allow caching by ID
+- `restrictfilenames=True` - no `&` or spaces in filenames (safe for filesystem operations)
+- `noplaylist=True` - if a playlist URL is accidentally passed, download only the first video
+- `nocheckcertificate=True` - skip SSL verification (reduces failures on some networks)
+- `ignoreerrors=False` - fail loudly on any error (so the bot can handle it)
+- `default_search='auto'` - treat non-URL strings as YouTube search queries
+- `source_address='0.0.0.0'` - let the OS choose the source IP for outbound connections
+- `cookiefile=cookies_path` - `cookies_path` comes from `config.cookies_path` (server: `/home/botofthespecter/ytdl-cookies.txt`)
 
 **Execution is in a thread pool** (to avoid blocking the async event loop):
 
@@ -1295,4 +1295,4 @@ with yt_dlp.YoutubeDL({'logger': NullLogger()}) as ydl:
 
 ---
 
-*Documented from yt-dlp v2025.1.26 source. For the latest upstream docs: https://github.com/yt-dlp/yt-dlp — The library is under active development; option names and behavior may change in newer versions.*
+*Documented from yt-dlp v2025.1.26 source. For the latest upstream docs: https://github.com/yt-dlp/yt-dlp - The library is under active development; option names and behavior may change in newer versions.*

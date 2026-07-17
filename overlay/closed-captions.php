@@ -21,7 +21,7 @@ $cc_settings = [
     'profanity_filter' => 0,
     'font_family' => 'Inter',
 ];
-// Caption typeface — curated Google Fonts (MUST match the dashboard's allowed list). 'Inter' is the default.
+// Caption typeface - curated Google Fonts (MUST match the dashboard's allowed list). 'Inter' is the default.
 $allowedFonts = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
 
 include '/var/www/config/database.php';
@@ -175,7 +175,7 @@ ob_end_clean();
             // Settings
             const allowedPositions = ['top', 'center', 'bottom'];
             const allowedBackgrounds = ['box', 'outline', 'none'];
-            // Curated caption fonts — MUST match the dashboard + overlay PHP allowed list.
+            // Curated caption fonts - MUST match the dashboard + overlay PHP allowed list.
             const allowedFonts = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
             // The initial font is already loaded by the server-rendered <head> link; track it so
             // we don't inject a duplicate, and lazily load any other font picked at runtime.
@@ -392,7 +392,7 @@ ob_end_clean();
                     blankBand();
                 });
                 socket.on('CLOSED_CAPTION_SETTINGS', () => {
-                    // Dashboard saved new appearance settings — reload them live (font size,
+                    // Dashboard saved new appearance settings - reload them live (font size,
                     // colour, position, background) without an OBS browser-source refresh.
                     loadSettings();
                 });

@@ -1,4 +1,4 @@
-# deep-translator — Comprehensive Library Reference
+# deep-translator - Comprehensive Library Reference
 
 **Package:** `deep-translator`  
 **PyPI:** https://pypi.org/project/deep-translator/  
@@ -8,7 +8,7 @@
 **Python:** >= 3.7, < 4.0  
 **License:** Apache 2.0
 
-`deep-translator` is a Python library that wraps multiple translation services behind a unified interface. It is **not** the official Google Cloud Translation API — the Google backend scrapes the public consumer endpoint, which is undocumented and ToS-constrained. Other backends (DeepL, Microsoft, Yandex, etc.) call their official APIs but require credentials.
+`deep-translator` is a Python library that wraps multiple translation services behind a unified interface. It is **not** the official Google Cloud Translation API - the Google backend scrapes the public consumer endpoint, which is undocumented and ToS-constrained. Other backends (DeepL, Microsoft, Yandex, etc.) call their official APIs but require credentials.
 
 ---
 
@@ -70,7 +70,7 @@ Every translator inherits from `BaseTranslator`. The abstract method is `transla
 
 ### Language codes
 
-All translators accept either a full name or an ISO code: `"english"` and `"en"` are both valid. Language sets differ per translator — call `get_supported_languages()` on the specific class to verify. Auto-detection is expressed as `source='auto'` where supported.
+All translators accept either a full name or an ISO code: `"english"` and `"en"` are both valid. Language sets differ per translator - call `get_supported_languages()` on the specific class to verify. Auto-detection is expressed as `source='auto'` where supported.
 
 ### Proxy support
 
@@ -151,7 +151,7 @@ MyMemoryTranslator(
 | `source` | Source language code/name, or `'auto'` |
 | `target` | Target language code/name |
 | `proxies` | Optional proxy dict |
-| `email` (kwarg) | Email address — increases the anonymous daily quota |
+| `email` (kwarg) | Email address - increases the anonymous daily quota |
 
 - **Authentication:** None (anonymous). Pass `email=` kwarg to raise anonymous quota.
 - **Auto-detect source:** Yes, but documented as "not as powerful as Google Translate"
@@ -185,7 +185,7 @@ DeeplTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `api_key` | DeepL API key — required |
+| `api_key` | DeepL API key - required |
 | `source` | Source language code/name |
 | `target` | Target language code/name |
 | `use_free_api` | `True` = free-tier endpoint; `False` = pro endpoint |
@@ -227,7 +227,7 @@ LibreTranslator(
 | `base_url` | LibreTranslate instance URL; swap to a self-hosted or alternative mirror |
 | `api_key` | Optional; required by some mirrors/instances |
 
-- **Authentication:** Optional — depends on the mirror. Public libretranslate.com requires an API key. Set env var `LIBRE_API_KEY`.
+- **Authentication:** Optional - depends on the mirror. Public libretranslate.com requires an API key. Set env var `LIBRE_API_KEY`.
 - **Auto-detect source:** Yes (`source='auto'`)
 - **Language set:** 17 languages (`LIBRE_LANGUAGES_TO_CODES`)
 - **Character limits:** Depends on the instance configuration.
@@ -258,12 +258,12 @@ MicrosoftTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `api_key` | Azure Cognitive Services API key — required |
+| `api_key` | Azure Cognitive Services API key - required |
 | `source` | Source language; omit or pass `None` for auto-detection |
 | `target` | Target language code/name, or a list of language codes for multi-target |
 
 - **Authentication:** Azure API key required. Set env var `MICROSOFT_API_KEY`.
-- **Auto-detect source:** Yes — omit `source` or pass `None`
+- **Auto-detect source:** Yes - omit `source` or pass `None`
 - **Language set:** Broad Microsoft Translator support
 - **Character limits:** Free tier: **2,000,000 characters/month**
 - **Rate limits:** Per Azure Cognitive Services quotas.
@@ -294,7 +294,7 @@ YandexTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `api_key` | Yandex API key — required |
+| `api_key` | Yandex API key - required |
 | `source` | Source language code/name, or `'auto'` |
 | `target` | Target language code/name |
 
@@ -303,7 +303,7 @@ YandexTranslator(
 - **Language set:** Broad Yandex support
 - **Character limits:** Per Yandex API plan
 - **Rate limits:** Per Yandex API quotas
-- **Extra method:** `detect(text: str) -> str` — returns the detected language code
+- **Extra method:** `detect(text: str) -> str` - returns the detected language code
 - **Methods:** `translate`, `translate_batch`, `translate_file`, `detect`, `get_supported_languages`
 
 ```python
@@ -331,13 +331,13 @@ ChatGptTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `api_key` | OpenAI API key — required |
+| `api_key` | OpenAI API key - required |
 | `source` | Source language; optional for auto-detection |
 | `target` | Target language code/name |
 
 - **Authentication:** OpenAI API key required. Set env var `OPEN_API_KEY` (note: library uses `OPEN_API_KEY`, not `OPENAI_API_KEY`).
 - **Extra install required:** `pip install deep-translator[ai]`
-- **Auto-detect source:** Yes — omit source
+- **Auto-detect source:** Yes - omit source
 - **Character limits:** Per OpenAI model context window; token-based billing
 - **Rate limits:** Per OpenAI tier limits
 - **Methods:** `translate`, `translate_batch`, `translate_file`
@@ -369,8 +369,8 @@ BaiduTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `appid` | Baidu App ID — required. Set env var `BAIDU_APPID`. |
-| `appkey` | Baidu App Key — required. Set env var `BAIDU_APPKEY`. |
+| `appid` | Baidu App ID - required. Set env var `BAIDU_APPID`. |
+| `appkey` | Baidu App Key - required. Set env var `BAIDU_APPKEY`. |
 | `source` | Source language code/name |
 | `target` | Target language code/name |
 
@@ -406,8 +406,8 @@ PapagoTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `client_id` | Naver Developer client ID — required |
-| `secret_key` | Naver Developer secret key — required |
+| `client_id` | Naver Developer client ID - required |
+| `secret_key` | Naver Developer secret key - required |
 | `source` | Source language code/name |
 | `target` | Target language code/name |
 
@@ -461,13 +461,13 @@ result = t.translate("good")               # returns primary translation
 synonyms = t.translate("good", return_all=True)  # returns list of all found translations
 ```
 
-**Caution:** LingueeTranslator does not call an official API — it scrapes the website. If Linguee changes their HTML structure, the translator breaks silently or raises `ElementNotFoundInGetRequest`.
+**Caution:** LingueeTranslator does not call an official API - it scrapes the website. If Linguee changes their HTML structure, the translator breaks silently or raises `ElementNotFoundInGetRequest`.
 
 ---
 
 ### PonsTranslator
 
-Scrapes the PONS dictionary website. Similar to LingueeTranslator — suited for word/phrase lookup, not full sentences.
+Scrapes the PONS dictionary website. Similar to LingueeTranslator - suited for word/phrase lookup, not full sentences.
 
 ```python
 PonsTranslator(
@@ -515,10 +515,10 @@ QcriTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `api_key` | QCRI API key — required (free). Set env var `QCRI_API_KEY`. |
+| `api_key` | QCRI API key - required (free). Set env var `QCRI_API_KEY`. |
 | `source` | Source language code/name |
 | `target` | Target language code/name |
-| `domain` | Translation domain (e.g. `'general'`, `'news'`, `'ummah'`) — required |
+| `domain` | Translation domain (e.g. `'general'`, `'news'`, `'ummah'`) - required |
 
 - **Authentication:** Free API key from https://mt.qcri.org/api/
 - **Auto-detect source:** Not supported
@@ -552,8 +552,8 @@ TencentTranslator(
 
 | Parameter | Description |
 |-----------|-------------|
-| `secret_id` | Tencent Cloud secret ID — required. Set env var `TENCENT_SECRET_ID`. |
-| `secret_key` | Tencent Cloud secret key — required. Set env var `TENCENT_SECRET_KEY`. |
+| `secret_id` | Tencent Cloud secret ID - required. Set env var `TENCENT_SECRET_ID`. |
+| `secret_key` | Tencent Cloud secret key - required. Set env var `TENCENT_SECRET_KEY`. |
 | `source` | Source language code/name |
 | `target` | Target language code/name |
 
@@ -591,14 +591,14 @@ Exception
 | Exception | When raised |
 |-----------|-------------|
 | `LanguageNotSupportedException` | The `source` or `target` language code/name is not in the translator's supported set |
-| `NotValidPayload` | Input text is invalid — empty string, non-string type, or otherwise unparseable |
+| `NotValidPayload` | Input text is invalid - empty string, non-string type, or otherwise unparseable |
 | `InvalidSourceOrTargetLanguage` | Source and target language are the same, or one is missing |
 | `TranslationNotFound` | The request succeeded but no translation was returned in the response |
 | `ElementNotFoundInGetRequest` | Expected HTML element missing from a scraped response (LingueeTranslator, PonsTranslator) |
 | `NotValidLength` | Text length is outside the min/max bounds for the translator (e.g. MyMemoryTranslator enforces max 500 chars) |
 | `ApiKeyException` | Required API key parameter was not provided |
 | `AuthorizationException` | API key was provided but rejected by the service (HTTP 401/403) |
-| `RequestError` | HTTP request failed — connection error, timeout, or unexpected HTTP error |
+| `RequestError` | HTTP request failed - connection error, timeout, or unexpected HTTP error |
 | `TooManyRequests` | Rate limit hit (HTTP 429). GoogleTranslator and MyMemoryTranslator both raise this. |
 | `ServerException` | Server returned an error status code (used by YandexTranslator) |
 | `MicrosoftAPIerror` | Microsoft Translator returned an error payload |
@@ -731,7 +731,7 @@ Translation is always to English. No target language is configurable by the user
 
 | File | Pattern | Issue |
 |------|---------|-------|
-| `./bot/kick.py:1059–1061` | `await get_event_loop().run_in_executor(None, lambda: ...)` | Correct — non-blocking |
+| `./bot/kick.py:1059–1061` | `await get_event_loop().run_in_executor(None, lambda: ...)` | Correct - non-blocking |
 | `./bot/bot.py:4426` | Inline `.translate()` in async handler | Blocks event loop 200–500 ms |
 | `./bot/beta.py:6495` | Inline `.translate()` in async handler | Blocks event loop 200–500 ms |
 | `./bot/beta-v6.py:5492` | Inline `.translate()` in async handler | Blocks event loop 200–500 ms |
@@ -748,7 +748,7 @@ if len(message.strip()) < 5:
     return
 ```
 
-Keep this guard — it prevents wasted calls and avoids `NotValidPayload` exceptions on empty/whitespace input.
+Keep this guard - it prevents wasted calls and avoids `NotValidPayload` exceptions on empty/whitespace input.
 
 ### Exception handling (current state)
 

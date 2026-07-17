@@ -21,7 +21,7 @@ $info     = 'Please wait while we connect you…';
 $hasError = false;
 
 // ----------------------------------------------------------------
-// PATH A — Handoff token from dashboard
+// PATH A - Handoff token from dashboard
 // ----------------------------------------------------------------
 if (!empty($_GET['handoff'])) {
     $token = preg_replace('/[^a-f0-9]/i', '', (string)$_GET['handoff']);
@@ -69,13 +69,13 @@ if (!empty($_GET['handoff'])) {
             $stmt->close();
         }
         $wdb->close();
-        // Token invalid / expired — fall through to StreamersConnect
+        // Token invalid / expired - fall through to StreamersConnect
         $info = 'Your session link has expired. Please log in with Twitch.';
     }
 }
 
 // ----------------------------------------------------------------
-// PATH B — StreamersConnect OAuth response
+// PATH B - StreamersConnect OAuth response
 // ----------------------------------------------------------------
 $cfg    = include '/var/www/config/main.php';
 $apiKey = $cfg['streamersconnect_api_key'] ?? '';
@@ -168,7 +168,7 @@ if ($resp && $http === 200) {
 }
 
 // ----------------------------------------------------------------
-// No auth data yet — render the login page with both SSO and the
+// No auth data yet - render the login page with both SSO and the
 // existing Twitch fallback. The SSO button is the primary path: if
 // the user is already signed in to home, support gets a handoff
 // token and they're in without re-OAuthing. Twitch stays as a
@@ -191,7 +191,7 @@ $twitchUrl = 'https://streamersconnect.com/?' . http_build_query([
     'return_url' => $scheme . '://' . $host . '/login.php',
 ]);
 if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && empty($_GET['server_token']) && empty($_GET['handoff'])) {
-    // Direct visit — show the choice.
+    // Direct visit - show the choice.
     $info = 'Sign in to access support.';
 }
 ?>
@@ -200,7 +200,7 @@ if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log In — BotOfTheSpecter Support</title>
+    <title>Log In - BotOfTheSpecter Support</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">

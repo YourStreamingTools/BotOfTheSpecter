@@ -91,7 +91,7 @@ function point_store_list_media_library($mediaPath, $extensions) {
     return $files;
 }
 
-/** Relative path under media library only — no traversal. */
+/** Relative path under media library only - no traversal. */
 function point_store_normalize_media_rel($path) {
     $path = str_replace('\\', '/', trim((string) $path));
     $path = ltrim($path, '/');
@@ -161,7 +161,7 @@ if ($pnStmt) {
     $pnStmt->close();
 }
 
-// Unified media library (media.php) — not legacy soundalerts/videoalerts paths
+// Unified media library (media.php) - not legacy soundalerts/videoalerts paths
 $storeMediaPath = $media_path ?? ('/var/www/media/' . ($_SESSION['username'] ?? ''));
 $soundFiles = point_store_list_media_library($storeMediaPath, ['mp3']);
 $videoFiles = point_store_list_media_library($storeMediaPath, ['mp4']);

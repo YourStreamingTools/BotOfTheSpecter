@@ -542,7 +542,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         <?php if (!$isLoggedIn): ?>
             <div class="yc-login-hero">
                 <h1>YourChat</h1>
-                <p>Custom Twitch chat overlay — log in to configure filters, nicknames, and chat features.</p>
+                <p>Custom Twitch chat overlay - log in to configure filters, nicknames, and chat features.</p>
             </div>
             <div class="db-login-card">
                 <h3>Sign in with Twitch</h3>
@@ -638,7 +638,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                             <input type="text" id="narrator-filter-input" class="sp-input"
                                                 placeholder="Enter words to skip (press Enter to add)"
                                                 onkeypress="handleNarratorFilterInput(event)">
-                                            <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                            <label class="narrator-phrase-mode" title="When on, match flexible wording - e.g. use \d+ for any number instead of exact text only.">
                                                 <input type="checkbox" id="narrator-filter-regex">&nbsp;Flexible pattern matching
                                             </label>
                                         </div>
@@ -653,7 +653,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                             <input type="text" id="narrator-allow-input" class="sp-input"
                                                 placeholder="e.g. ad break is coming up (press Enter to add)"
                                                 onkeypress="handleNarratorAllowInput(event)">
-                                            <label class="narrator-phrase-mode" title="When on, match flexible wording — e.g. use \d+ for any number instead of exact text only.">
+                                            <label class="narrator-phrase-mode" title="When on, match flexible wording - e.g. use \d+ for any number instead of exact text only.">
                                                 <input type="checkbox" id="narrator-allow-regex">&nbsp;Flexible pattern matching
                                             </label>
                                         </div>
@@ -1367,7 +1367,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                 }
             }
-            // Message-based presence removed — presence is provided via Helix API polling
+            // Message-based presence removed - presence is provided via Helix API polling
             function extractTextFromEvent(event) {
                 if (!event) return '';
                 // Custom reward user input
@@ -1975,7 +1975,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             return;
                         }
                     }
-                    // No textarea content — try legacy storage locations
+                    // No textarea content - try legacy storage locations
                     const legacy = tryLoadLegacyCombined();
                     if (legacy) {
                         importFiltersFromObject(legacy);
@@ -3564,7 +3564,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             narratorVoices.forEach(voice => {
                 const opt = document.createElement('option');
                 opt.value = voice.name;
-                opt.textContent = `${voice.name}${voice.lang ? ' (' + voice.lang + ')' : ''}${voice.default ? ' — default' : ''}`;
+                opt.textContent = `${voice.name}${voice.lang ? ' (' + voice.lang + ')' : ''}${voice.default ? ' - default' : ''}`;
                 sel.appendChild(opt);
             });
             // Restore the saved selection if that voice exists on this device, else default

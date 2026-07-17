@@ -1,11 +1,11 @@
-# Steam Web API — Comprehensive Local Reference (BotOfTheSpecter)
+# Steam Web API - Comprehensive Local Reference (BotOfTheSpecter)
 
 Read-only reference covering every Steam API surface used by (or relevant to) BotOfTheSpecter.  
 All research confirmed against live responses on 2026-05-11.
 
-- **Env var:** `STEAM_API` — key from `https://steamcommunity.com/dev`
+- **Env var:** `STEAM_API` - key from `https://steamcommunity.com/dev`
 - **Web API domain:** `api.steampowered.com` (authenticated + unauthenticated)
-- **Partner API domain:** `partner.steam-api.com` (publisher key only — not used here)
+- **Partner API domain:** `partner.steam-api.com` (publisher key only - not used here)
 - **Storefront API domain:** `store.steampowered.com/api` (no key)
 
 ---
@@ -113,7 +113,7 @@ GET https://api.steampowered.com/ISteamApps/GetAppList/v1/
 
 No parameters. No key required.
 
-**Response** — identical schema to v2 (see below).
+**Response** - identical schema to v2 (see below).
 
 ### 4.2 GetAppList/v2
 
@@ -145,17 +145,17 @@ GET https://api.steampowered.com/ISteamApps/GetAppList/v2/
 
 - No pagination. Returns everything in one response.
 - Typical payload: 150 000+ entries, 5–15 MB JSON.
-- Includes DLC, tools, demos, videos — not just games.
+- Includes DLC, tools, demos, videos - not just games.
 - Name matching requires exact, case-insensitive comparison; no fuzzy search.
 - **Status:** Valve considers this deprecated; prefer `IStoreService/GetAppList/v1` when a key is available.
-- Current bot code calls `http://` (not `https://`) — Steam redirects to HTTPS. New code should use `https://` directly.
+- Current bot code calls `http://` (not `https://`) - Steam redirects to HTTPS. New code should use `https://` directly.
 
 ---
 
 ## 5. IStoreService interface
 
 Base URL: `https://api.steampowered.com/IStoreService/`  
-(Not `partner.steam-api.com` — that host is for publisher-only endpoints.)
+(Not `partner.steam-api.com` - that host is for publisher-only endpoints.)
 
 ### 5.1 GetAppList/v1
 
@@ -171,12 +171,12 @@ GET https://api.steampowered.com/IStoreService/GetAppList/v1/
 
 | Parameter | Type | Required | Default | Notes |
 |-----------|------|----------|---------|-------|
-| `key` | string | Yes | — | Standard Web API key; 403 without it |
+| `key` | string | Yes | - | Standard Web API key; 403 without it |
 | `format` | string | No | `json` | `json` / `xml` / `vdf` |
 | `max_results` | uint32 | No | 10 000 | Maximum entries per page; hard cap 50 000 |
 | `last_appid` | uint32 | No | 0 | Pagination cursor: pass `response.last_appid` from previous page |
-| `if_modified_since` | uint32 | No | — | Unix timestamp; return only entries modified after this time |
-| `have_description_language` | string | No | — | BCP 47 language code; return only entries with descriptions in this language (e.g. `english`, `german`) |
+| `if_modified_since` | uint32 | No | - | Unix timestamp; return only entries modified after this time |
+| `have_description_language` | string | No | - | BCP 47 language code; return only entries with descriptions in this language (e.g. `english`, `german`) |
 | `include_games` | bool | No | `true` | Include games |
 | `include_dlc` | bool | No | `false` | Include DLC |
 | `include_software` | bool | No | `false` | Include software |
@@ -236,17 +236,17 @@ while more_results:
 
 **Advantages over `ISteamApps/GetAppList/v2`:**
 
-- Paginated — no single giant response.
+- Paginated - no single giant response.
 - Includes `last_modified` and `price_change_number` for incremental updates.
 - Filterable by content type and language.
 - Valve's actively maintained endpoint.
 
 ---
 
-## 6. Storefront API — `store.steampowered.com/api`
+## 6. Storefront API - `store.steampowered.com/api`
 
 Not part of the Web API. No key. No versioning. Undocumented officially (Valve does not publish it).  
-**Do not send `key=`** — it has no effect and may cause unexpected filtering.
+**Do not send `key=`** - it has no effect and may cause unexpected filtering.
 
 ### 6.1 storesearch
 
@@ -318,8 +318,8 @@ GET https://store.steampowered.com/api/storesearch/
 **Key behaviours:**
 
 - **Maximum 25 results.** No `page` or `offset` parameter exists. For exhaustive lookup, use the `IStoreService/GetAppList/v1` cached map.
-- **`price` is absent on free items** — always guard: `(item.get("price") or {}).get("final", 0)`.
-- **`discount_percent` may be absent** even on paid items — confirmed missing in live responses; do not rely on it.
+- **`price` is absent on free items** - always guard: `(item.get("price") or {}).get("final", 0)`.
+- **`discount_percent` may be absent** even on paid items - confirmed missing in live responses; do not rely on it.
 - `initial_formatted` and `final_formatted` are **not present** in `storesearch` responses (only in `appdetails`).
 - Results are ranked by relevance, not exact match. The first result is usually but not always the intended game.
 
@@ -339,7 +339,7 @@ GET https://store.steampowered.com/api/appdetails/
 |-----------|-------|
 | `appids` | Comma-separated AppIDs (e.g. `440,570`). Multiple IDs require `filters` that include `price_overview` or the response may omit pricing for later entries. |
 | `cc` | Country code for pricing and availability (default varies by IP). |
-| `l` | Language. **Use `english`, not `en`** — `en` does not work for `appdetails`. |
+| `l` | Language. **Use `english`, not `en`** - `en` does not work for `appdetails`. |
 | `filters` | Comma-separated field groups to return (see below). Omit for full response. |
 
 **`filters` values** (any combination, comma-separated):
@@ -504,20 +504,20 @@ If `success` is `false`, the `data` key is absent. This happens for removed apps
 
 **Field absence rules:**
 
-- `price_overview` — absent when `is_free: true`
-- `metacritic` — absent if no Metacritic score
-- `controller_support` — absent if no controller support
-- `movies` — absent if no trailers
-- `dlc` — absent if no DLC
-- `achievements` — absent if no achievements
-- `ratings` — varies by region
-- `mac_requirements`, `linux_requirements` — present even when platform not supported (contains empty object)
+- `price_overview` - absent when `is_free: true`
+- `metacritic` - absent if no Metacritic score
+- `controller_support` - absent if no controller support
+- `movies` - absent if no trailers
+- `dlc` - absent if no DLC
+- `achievements` - absent if no achievements
+- `ratings` - varies by region
+- `mac_requirements`, `linux_requirements` - present even when platform not supported (contains empty object)
 
 ---
 
 ## 7. CDN image URL patterns
 
-These URLs are stable and predictable — no API call needed if you already have the AppID.
+These URLs are stable and predictable - no API call needed if you already have the AppID.
 
 ### 7.1 Store capsule images
 
@@ -558,7 +558,7 @@ Note: `cdn.akamai.steamstatic.com/steam/apps/` (older CDN path) vs `shared.akama
 https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appid}/{hash}.jpg
 ```
 
-These are not predictable from the AppID alone — use the hash from the API response.
+These are not predictable from the AppID alone - use the hash from the API response.
 
 ---
 
@@ -585,25 +585,25 @@ Steam is not currently counted in the `api_counts` table. If rate-limit counting
 
 ## 9. Gotchas and edge cases
 
-**HTTP vs HTTPS.** `bot.py` and `beta-v6.py` call `http://api.steampowered.com/ISteamApps/GetAppList/v2` — Steam 308-redirects to HTTPS. `aiohttp` follows redirects. New code should use `https://` directly to avoid the round-trip.
+**HTTP vs HTTPS.** `bot.py` and `beta-v6.py` call `http://api.steampowered.com/ISteamApps/GetAppList/v2` - Steam 308-redirects to HTTPS. `aiohttp` follows redirects. New code should use `https://` directly to avoid the round-trip.
 
-**Response envelope mismatch.** Three completely different top-level shapes exist across the four endpoints. Never assume which one you have — always key-check before accessing nested fields.
+**Response envelope mismatch.** Three completely different top-level shapes exist across the four endpoints. Never assume which one you have - always key-check before accessing nested fields.
 
 **`is_free: true` drops `price_overview`.** The field is simply absent, not `null`. Guard every price access: `data.get("price_overview") or {}`.
 
-**`price.discount_percent` absent in `storesearch`.** The field appears inconsistently — do not rely on it. Use `appdetails` `price_overview.discount_percent` when you need a reliable discount value.
+**`price.discount_percent` absent in `storesearch`.** The field appears inconsistently - do not rely on it. Use `appdetails` `price_overview.discount_percent` when you need a reliable discount value.
 
 **`l=en` vs `l=english`.** `en` works for `storesearch` but **not** for `appdetails`. Use `english` / `us` everywhere to be safe.
 
-**`genres[].id` is a string.** `"1"` not `1`. `categories[].id` is an integer. They look similar but have different types — compare correctly.
+**`genres[].id` is a string.** `"1"` not `1`. `categories[].id` is an integer. They look similar but have different types - compare correctly.
 
-**App list includes non-games.** Both `ISteamApps/GetAppList/v2` and `IStoreService/GetAppList/v1` include DLC, tools, demos, soundtracks, and videos unless you filter with `include_*` params (IStoreService only). A name match might resolve to a DLC, not a base game — `appdetails` `type` field (`"game"`, `"dlc"`, `"demo"`, `"music"`, etc.) can disambiguate.
+**App list includes non-games.** Both `ISteamApps/GetAppList/v2` and `IStoreService/GetAppList/v1` include DLC, tools, demos, soundtracks, and videos unless you filter with `include_*` params (IStoreService only). A name match might resolve to a DLC, not a base game - `appdetails` `type` field (`"game"`, `"dlc"`, `"demo"`, `"music"`, etc.) can disambiguate.
 
 **Name matching is exact, case-insensitive.** The `the ` prefix workaround (strip leading "the " and retry) is the only fuzzy logic in the current implementation. Games with subtitle differences, trademark symbols, or edition suffixes will not match.
 
 **Empty name entries.** Both app-list endpoints include entries with empty string names. `_normalize_steam_app_list` filters them out (`if app.get("name") and app.get("appid")`).
 
-**`storesearch` max 25 results, no pagination.** For exhaustive lookup, use the locally cached `IStoreService/GetAppList/v1` map — it contains the full catalogue.
+**`storesearch` max 25 results, no pagination.** For exhaustive lookup, use the locally cached `IStoreService/GetAppList/v1` map - it contains the full catalogue.
 
 **`appdetails` multi-ID behaviour.** Passing multiple `appids` (`?appids=440,570`) returns a top-level object with one key per AppID as a string. Always parse the specific AppID key you care about, not `data` directly.
 
@@ -613,11 +613,11 @@ Steam is not currently counted in the `api_counts` table. If rate-limit counting
 
 | Concern | File | Lines | Endpoint used |
 |---------|------|-------|---------------|
-| Env var load | `./bot/bot.py` | 76 | — |
-| Env var load | `./bot/beta.py` | 104 | — |
-| Env var load | `./bot/beta-v6.py` | 98 | — |
-| Env var load | `./api/api.py` | 67 | — |
-| Env var load (as `STEAM_API_KEY`) | `./bot/kick.py` | 77 | — |
+| Env var load | `./bot/bot.py` | 76 | - |
+| Env var load | `./bot/beta.py` | 104 | - |
+| Env var load | `./bot/beta-v6.py` | 98 | - |
+| Env var load | `./api/api.py` | 67 | - |
+| Env var load (as `STEAM_API_KEY`) | `./bot/kick.py` | 77 | - |
 | `!steam` command (stable) | `./bot/bot.py` | 5340–5405 | `ISteamApps/GetAppList/v2` (file cache fallback) |
 | `!steam` command (beta) | `./bot/beta.py` | 7435–7490 | Internal `/api/steamapplist` endpoint |
 | `!steam` command (v6) | `./bot/beta-v6.py` | 6438–6505 | `ISteamApps/GetAppList/v2` (file cache fallback) |

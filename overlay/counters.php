@@ -1,24 +1,24 @@
 <?php
-// Counter overlay/API — returns the value of one custom counter for a streamer.
+// Counter overlay/API - returns the value of one custom counter for a streamer.
 //
 // URL:
 //   https://overlay.botofthespecter.com/counters.php?code=API_KEY&counter=frog
 //
 // Params:
-//   code     (required) — the streamer's API key
-//   counter  (required) — the counter command name (e.g. "frog")
-//   type     (optional) — output format. Default: html (OBS-friendly overlay).
+//   code     (required) - the streamer's API key
+//   counter  (required) - the counter command name (e.g. "frog")
+//   type     (optional) - output format. Default: html (OBS-friendly overlay).
 //                          html   → styled HTML page with auto-contrast text,
 //                                   polls for updates every 3 seconds.
 //                          text   → "frog: 5"
 //                          number → "5"
 //                          name   → "frog"
 //                          json   → {"counter":"frog","count":5}
-//   color    (optional, html only) — text colour: a hex value (with or without
+//   color    (optional, html only) - text colour: a hex value (with or without
 //                                    leading #) or a named CSS colour. If omitted,
 //                                    JS picks black or white based on the body
 //                                    background's luminance.
-//   bg       (optional, html only) — body background colour. Defaults to
+//   bg       (optional, html only) - body background colour. Defaults to
 //                                    transparent (OBS-friendly).
 
 include '/var/www/config/database.php';
@@ -41,7 +41,7 @@ function validate_color($input) {
     if (preg_match('/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $input, $m)) {
         return '#' . $m[1];
     }
-    // Common CSS named colours — whitelist to avoid CSS injection
+    // Common CSS named colours - whitelist to avoid CSS injection
     $named = [
         'white','black','red','green','blue','yellow','orange','purple','pink',
         'cyan','magenta','gray','grey','brown','transparent','aqua','lime',
@@ -129,7 +129,7 @@ $builtinCounters = [
 $count = 0;
 $counter_lower = strtolower($counter_safe);
 if (isset($builtinCounters[$counter_lower])) {
-    // Built-in counter — run the predefined query (no user input in SQL)
+    // Built-in counter - run the predefined query (no user input in SQL)
     if ($res = $user_db->query($builtinCounters[$counter_lower])) {
         $row = $res->fetch_assoc();
         if ($row) $count = (int)$row['n'];
@@ -229,7 +229,7 @@ $apiUrl = '?' . http_build_query([
             return;
         }
         var r = +m[1], g = +m[2], b = +m[3];
-        // Rec. 601 luma — good enough for picking light vs dark
+        // Rec. 601 luma - good enough for picking light vs dark
         var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
         document.body.style.color = lum > 0.6 ? '#000000' : '#ffffff';
     }
@@ -267,7 +267,7 @@ $apiUrl = '?' . http_build_query([
         new ResizeObserver(fitText).observe(document.body);
     }
 
-    // Live updates — counters tick during a stream
+    // Live updates - counters tick during a stream
     function refresh() {
         fetch(endpoint, { cache: 'no-store' })
             .then(function (r) { return r.ok ? r.json() : null; })
@@ -275,7 +275,7 @@ $apiUrl = '?' . http_build_query([
                 if (!data || data.error) return;
                 setText(label + ': ' + data.count);
             })
-            .catch(function () { /* silent — keep showing the last good value */ });
+            .catch(function () { /* silent - keep showing the last good value */ });
     }
     setInterval(refresh, 3000);
 })();

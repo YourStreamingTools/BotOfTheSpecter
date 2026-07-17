@@ -18,7 +18,7 @@
 			"syntax": ["!quote", "!quote 5"]
 		},
 		"rps": {
-			"description": "Play Rock-Paper-Scissors against Specter. Specter picks randomly — may the best hand win!",
+			"description": "Play Rock-Paper-Scissors against Specter. Specter picks randomly - may the best hand win!",
 			"syntax": "!rps"
 		},
 		"story": {
@@ -154,7 +154,7 @@
 			"syntax": "!backlog"
 		},
 		"project": {
-			"description": "Manages your Working & Study projects. !project shows your current project, !project <name> switches to it (created on first use), and !project clear returns to the default. !project move <n|now> <name> attaches backlog item #n (or your active task) to another project, !project rename <old> | <new> renames one, and !project delete <name> removes one — its tasks return to your default project. !project help and !project tutorial provide additional guidance. Names allow letters, numbers, spaces and dashes, up to 24 characters; they can't start with clear, move, rename or delete.",
+			"description": "Manages your Working & Study projects. !project shows your current project, !project <name> switches to it (created on first use), and !project clear returns to the default. !project move <n|now> <name> attaches backlog item #n (or your active task) to another project, !project rename <old> | <new> renames one, and !project delete <name> removes one - its tasks return to your default project. !project help and !project tutorial provide additional guidance. Names allow letters, numbers, spaces and dashes, up to 24 characters; they can't start with clear, move, rename or delete.",
 			"syntax": ["!project", "!project Studying", "!project clear", "!project move 2 Studying", "!project move now Studying", "!project rename Studying | Uni Work", "!project delete Uni Work", "!project help", "!project tutorial"]
 		},
 		"projects": {

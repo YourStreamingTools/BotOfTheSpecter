@@ -1,6 +1,6 @@
-# pronouns.alejo.io — Complete API Reference
+# pronouns.alejo.io - Complete API Reference
 
-Free public API that maps Twitch usernames to chat pronoun preferences. Users set their pronouns at `https://pr.alejo.io/` (the canonical URL — `pronouns.alejo.io` is a redirect alias). No account or key is required to read data.
+Free public API that maps Twitch usernames to chat pronoun preferences. Users set their pronouns at `https://pr.alejo.io/` (the canonical URL - `pronouns.alejo.io` is a redirect alias). No account or key is required to read data.
 
 The bot uses this API in `./bot/beta.py` to resolve the `(pronouns)`, `(pronouns.they)`, and `(pronouns.them)` placeholders in command responses and event alerts.
 
@@ -34,7 +34,7 @@ GET https://api.pronouns.alejo.io/v1/pronouns
 
 No query parameters. No request body.
 
-### Response — 200 OK
+### Response - 200 OK
 
 `Content-Type: application/json`
 
@@ -44,8 +44,8 @@ A flat JSON object keyed by `pronoun_id` string. Each value is a pronoun entry o
 {
   "<pronoun_id>": {
     "name":     string,   // Same as the key; the stable ID used in user records
-    "subject":  string,   // Subject pronoun, title-cased  — e.g. "She", "They"
-    "object":   string,   // Object pronoun, title-cased   — e.g. "Her", "Them"
+    "subject":  string,   // Subject pronoun, title-cased  - e.g. "She", "They"
+    "object":   string,   // Object pronoun, title-cased   - e.g. "Her", "Them"
     "singular": boolean   // true  → grammatically singular ("any", "other")
                           // false → standard plural or neopronouns
   },
@@ -77,8 +77,8 @@ The catalog has been stable for several years. New entries may appear without no
 
 ### Display string conventions
 
-- **Standard** (no `alt_pronoun_id`): `{subject}/{object}` — e.g. `She/Her`, `They/Them`
-- **With alt** (non-null `alt_pronoun_id`): `{subject}/{object}/{alt_subject}` — e.g. `She/Her/They`
+- **Standard** (no `alt_pronoun_id`): `{subject}/{object}` - e.g. `She/Her`, `They/Them`
+- **With alt** (non-null `alt_pronoun_id`): `{subject}/{object}/{alt_subject}` - e.g. `She/Her/They`
 - **Singular entries** (`singular: true`): `any` and `other` are intended as free-form labels. Display them as-is (`Any` or `Other`) rather than constructing a slash-separated string.
 
 ---
@@ -99,7 +99,7 @@ GET https://api.pronouns.alejo.io/v1/users/{username}
 
 No query parameters. No request body.
 
-### Response — 200 OK (user has pronouns set)
+### Response - 200 OK (user has pronouns set)
 
 `Content-Type: application/json`
 
@@ -115,9 +115,9 @@ No query parameters. No request body.
 | ---------------- | --------------- | ----- |
 | `channel`        | string          | Lowercased Twitch login name, echoed back from the path parameter. |
 | `pronoun_id`     | string          | Primary pronoun set. Always a key present in the `/v1/pronouns` catalog. |
-| `alt_pronoun_id` | string or null  | Secondary pronoun set, used when the user selected a combination like "She/They". `null` when no secondary is set. Also absent on some older records — treat missing and `null` identically. |
+| `alt_pronoun_id` | string or null  | Secondary pronoun set, used when the user selected a combination like "She/They". `null` when no secondary is set. Also absent on some older records - treat missing and `null` identically. |
 
-### Response — 404 Not Found (no preference set)
+### Response - 404 Not Found (no preference set)
 
 The response body is not meaningful. A 404 means one of:
 
@@ -131,8 +131,8 @@ The response body is not meaningful. A 404 means one of:
 
 The API does not document additional status codes. In practice:
 
-- `5xx` — upstream service error; fall back to cached data if available.
-- Timeouts — the upstream is occasionally slow; use a 5-second client timeout.
+- `5xx` - upstream service error; fall back to cached data if available.
+- Timeouts - the upstream is occasionally slow; use a 5-second client timeout.
 
 ---
 
@@ -211,7 +211,7 @@ On fetch failure, return the previously cached value (stale-on-error). On startu
 
 ## BotOfTheSpecter callsites
 
-### beta.py only — stable and v6 do not implement pronoun lookup
+### beta.py only - stable and v6 do not implement pronoun lookup
 
 | File | Lines | Function | Notes |
 | ---- | ----- | -------- | ----- |
@@ -232,9 +232,9 @@ On fetch failure, return the previously cached value (stale-on-error). On startu
 
 | Placeholder        | Expands to                                    | Fallback (no pronouns set) |
 | ------------------ | --------------------------------------------- | -------------------------- |
-| `(pronouns)`       | Full display string — `She/Her`, `They/Them`  | `they/them`                |
-| `(pronouns.they)`  | Subject pronoun only — `She`, `They`, `He`   | `they`                     |
-| `(pronouns.them)`  | Object pronoun only — `Her`, `Them`, `Him`   | `them`                     |
+| `(pronouns)`       | Full display string - `She/Her`, `They/Them`  | `they/them`                |
+| `(pronouns.they)`  | Subject pronoun only - `She`, `They`, `He`   | `they`                     |
+| `(pronouns.them)`  | Object pronoun only - `Her`, `Them`, `Him`   | `them`                     |
 
 ### Porting notes
 
@@ -243,6 +243,6 @@ If porting pronoun support to `./bot/bot.py` (stable) or `./bot/beta-v6.py` (v6)
 1. The two cache globals and their TTL constants (lines 323–327 in beta.py).
 2. `get_pronouns_list()`, `get_user_pronouns()`, and `_split_pronouns()` (lines 541–606).
 3. The placeholder substitution blocks at each event alert callsite.
-4. The `aiohttp.ClientTimeout(total=5)` — do not lower this value.
+4. The `aiohttp.ClientTimeout(total=5)` - do not lower this value.
 
 See [bot-versions.md](../../../rules/bot-versions.md) for the policy on which file to edit.

@@ -4,7 +4,7 @@ Comprehensive local copy of the HetrixTools API documentation, covering v1, v2, 
 
 **Base URLs:**
 - Primary: `https://api.hetrixtools.com/`
-- Relay (CloudFlare bypass): `https://relay.hetrixtools.com/api/` — identical behaviour, swap base URL only.
+- Relay (CloudFlare bypass): `https://relay.hetrixtools.com/api/` - identical behaviour, swap base URL only.
 
 ---
 
@@ -38,7 +38,7 @@ All v3 endpoints use Bearer token authentication via the `Authorization` HTTP he
 Authorization: Bearer <API_KEY>
 ```
 
-The token goes in the header — **not** the URL. Never put it in a query string or URL path for v3 endpoints.
+The token goes in the header - **not** the URL. Never put it in a query string or URL path for v3 endpoints.
 
 ### v1 / v2 (legacy)
 
@@ -58,7 +58,7 @@ Keys are managed at `https://hetrixtools.com/dashboard/account/api/`.
 - Keys can be scoped to restrict which API calls they may make via "Configure Access".
 - Keys can be regenerated; the old key stops working immediately upon regeneration.
 - Each key tracks a monthly API call counter that resets on the 1st of every month.
-- Keep keys private — treat them as passwords.
+- Keep keys private - treat them as passwords.
 
 ---
 
@@ -176,7 +176,7 @@ GET https://api.hetrixtools.com/v1/<API_TOKEN>/uptime/monitors/<PAGE>/<PER_PAGE>
 
 | Parameter | Type | Default | Max | Description |
 |-----------|------|---------|-----|-------------|
-| `PAGE` | integer | 0 | — | Zero-based page number |
+| `PAGE` | integer | 0 | - | Zero-based page number |
 | `PER_PAGE` | integer | 30 | 1024 | Items per page |
 
 **Response:** Array of monitor objects. Response schema is not fully documented in public docs; use the API Explorer in the HetrixTools dashboard to inspect live responses.
@@ -192,7 +192,7 @@ POST https://api.hetrixtools.com/v2/<API_TOKEN>/uptime/add/
 Content-Type: application/json
 ```
 
-**Request body — general parameters (all types except Server Agent unless noted):**
+**Request body - general parameters (all types except Server Agent unless noted):**
 
 | Parameter | Type | Required | Accepted values / notes |
 |-----------|------|----------|-------------------------|
@@ -213,7 +213,7 @@ Content-Type: application/json
 | `VerSSLCert` | boolean | Yes | `true` to verify SSL certificate validity. |
 | `VerSSLHost` | boolean | Yes | `true` to verify SSL hostname matches certificate. |
 
-**Request body — monitoring locations (all types except Server Agent):**
+**Request body - monitoring locations (all types except Server Agent):**
 
 Each location is a boolean field. Include at least one.
 
@@ -232,7 +232,7 @@ Each location is a boolean field. Include at least one.
 | `mba` | Mumbai, India |
 | `waw` | Warsaw, Poland |
 
-**Request body — Website-specific parameters (Type=1):**
+**Request body - Website-specific parameters (Type=1):**
 
 | Parameter | Type | Required | Accepted values / notes |
 |-----------|------|----------|-------------------------|
@@ -244,7 +244,7 @@ Each location is a boolean field. Include at least one.
 | `DomainExpiryReminder` | integer | No | Days before domain expiry to alert: `0`, `1`, `2`, `3`, `5`, `10`, `15`, `30`. `0` = disabled. |
 | `NSChangeAlert` | integer | No | `0`=disabled, `1`=alert on nameserver changes |
 
-**Request body — Ping/Service-specific parameters (Type=2):**
+**Request body - Ping/Service-specific parameters (Type=2):**
 
 | Parameter | Type | Required | Accepted values / notes |
 |-----------|------|----------|-------------------------|
@@ -252,18 +252,18 @@ Each location is a boolean field. Include at least one.
 | `DomainExpiryReminder` | integer | No | Same as Website type |
 | `NSChangeAlert` | integer | No | Same as Website type |
 
-**Request body — SMTP-specific parameters (Type=3):**
+**Request body - SMTP-specific parameters (Type=3):**
 
 | Parameter | Type | Required | Accepted values / notes |
 |-----------|------|----------|-------------------------|
 | `Port` | integer | Yes | SMTP port: `0`–`65535` |
 | `CheckAuth` | boolean | No | `true` to verify SMTP authentication |
-| `SMTPUser` | string | Conditional | SMTP username — required when `CheckAuth=true` |
-| `SMTPPass` | string | Conditional | SMTP password — required when `CheckAuth=true` |
+| `SMTPUser` | string | Conditional | SMTP username - required when `CheckAuth=true` |
+| `SMTPPass` | string | Conditional | SMTP password - required when `CheckAuth=true` |
 | `DomainExpiryReminder` | integer | No | Same as Website type |
 | `NSChangeAlert` | integer | No | Same as Website type |
 
-**Request body — Server Agent-specific parameters (Type=9):**
+**Request body - Server Agent-specific parameters (Type=9):**
 
 | Parameter | Type | Required | Accepted values / notes |
 |-----------|------|----------|-------------------------|
@@ -288,7 +288,7 @@ Each location is a boolean field. Include at least one.
 {"status": "SUCCESS", "monitor_id": "xyz", "action": "added"}
 ```
 
-For Server Agent type, `server_id` is also returned — this is the SID used in the server monitoring agent:
+For Server Agent type, `server_id` is also returned - this is the SID used in the server monitoring agent:
 
 ```json
 {"status": "SUCCESS", "monitor_id": "xyz", "server_id": "abc", "action": "added"}
@@ -384,7 +384,7 @@ GET https://api.hetrixtools.com/v2/<API_TOKEN>/maintenance/<UPTIME_MONITOR_ID>/<
 | `1` | Website | Checks an HTTP/HTTPS URL. Supports keyword detection, SSL/domain expiry alerts, redirect following, HTTP method selection, custom accepted HTTP codes. |
 | `2` | Ping / Service | Checks reachability of an IP or hostname. If a port is specified, checks TCP connectivity on that port (service monitor). If no port, uses ICMP ping. Supports domain/NS monitoring. |
 | `3` | SMTP | Connects to an SMTP server on a specified port. Optionally authenticates with credentials to verify the mail server is fully functional. |
-| `9` | Server Agent (Heartbeat) | A heartbeat monitor — the server must actively check in within the configured interval. Used with the HetrixTools server monitoring agent. Tracks CPU, RAM, disk, network metrics. |
+| `9` | Server Agent (Heartbeat) | A heartbeat monitor - the server must actively check in within the configured interval. Used with the HetrixTools server monitoring agent. Tracks CPU, RAM, disk, network metrics. |
 
 ---
 
@@ -399,7 +399,7 @@ HetrixTools does not publish a complete status enum in its public docs, but the 
 | **Maintenance** | Monitor has been deliberately placed in maintenance mode; alerts suppressed depending on mode setting |
 | **Paused** | Monitor checks are suspended |
 
-For the report endpoint (section 4.1), status is not returned directly — only `uptime` percentage and optionally per-day breakdown data are returned.
+For the report endpoint (section 4.1), status is not returned directly - only `uptime` percentage and optionally per-day breakdown data are returned.
 
 ---
 
@@ -434,7 +434,7 @@ GET https://api.hetrixtools.com/v2/<API_TOKEN>/blacklist/monitors/<PAGE>/<PER_PA
 
 | Parameter | Type | Default | Max | Description |
 |-----------|------|---------|-----|-------------|
-| `PAGE` | integer | 0 | — | Zero-based page number |
+| `PAGE` | integer | 0 | - | Zero-based page number |
 | `PER_PAGE` | integer | 30 | 1024 | Items per page |
 
 Returns all blacklist monitors and includes any RBLs on which each monitor is currently listed.
@@ -529,7 +529,7 @@ GET https://api.hetrixtools.com/v2/<API_TOKEN>/blacklist-check/domain/<DOMAIN>/
 **Notes:**
 - Real-time checks take up to 5 minutes to complete.
 - Results are cached for 30 minutes. A request hitting the cache returns immediately and costs 0 credits (but counts as 1 API call).
-- A check already in progress for the same target returns `{"status": "ERROR", "error_message": "blacklist check in progress for this ipv4"}` — retry after a few seconds.
+- A check already in progress for the same target returns `{"status": "ERROR", "error_message": "blacklist check in progress for this ipv4"}` - retry after a few seconds.
 
 ---
 
@@ -685,7 +685,7 @@ Content-Type: application/json
 ```
 
 **Path parameter:**
-- `BULK_REP_ID`: The Bulk Report ID — visible in the URL when accessing the report in the browser.
+- `BULK_REP_ID`: The Bulk Report ID - visible in the URL when accessing the report in the browser.
 
 **Request body:**
 
@@ -747,7 +747,7 @@ All v1/v2 endpoints return a consistent error envelope:
 |---------------|-------|
 | `"monitor id does not exist"` | `MID` passed to edit/delete does not exist in the account |
 | `"maximum number of monitors has been reached"` | Account plan limit for monitor count is hit |
-| `"blacklist check in progress for this ipv4"` | A real-time check is already running for this IP — retry in a few seconds |
+| `"blacklist check in progress for this ipv4"` | A real-time check is already running for this IP - retry in a few seconds |
 | `"no blacklist check credits"` | Blacklist Check Credit balance is zero |
 
 ### HTTP status codes
@@ -784,14 +784,14 @@ Authorization: Bearer <HETRIXTOOLS_API_KEY>
 | `SQL` | `HETRIX_MONITOR_SQL` |
 | `BOTS` | `HETRIX_MONITOR_BOTS` |
 
-**Auth env var:** `HETRIXTOOLS_API_KEY` — read via `os.getenv()` in `./api/api.py`. If unset, the entire HetrixTools loop is skipped and the endpoint falls back to local SSH markers and DB metrics only.
+**Auth env var:** `HETRIXTOOLS_API_KEY` - read via `os.getenv()` in `./api/api.py`. If unset, the entire HetrixTools loop is skipped and the endpoint falls back to local SSH markers and DB metrics only.
 
 **Sanitisation applied before public exposure:**
 
 1. `summary.response_time` is removed.
 2. `data.<date>.response_time` objects are removed for every day.
 3. Any nested `response_time` keys inside sub-objects under a day are also stripped.
-4. Only the most-recent day from `data` is kept — selected as `sorted(data.keys(), reverse=True)[0]` — and surfaced as `External API Metrics.latest_day`.
+4. Only the most-recent day from `data` is kept - selected as `sorted(data.keys(), reverse=True)[0]` - and surfaced as `External API Metrics.latest_day`.
 5. The sanitised `summary` object is surfaced as `External API Metrics` in the relevant section of the final response.
 
 **Where results land in the `/system/uptime` response:**
@@ -800,7 +800,7 @@ Authorization: Bearer <HETRIXTOOLS_API_KEY>
 - `WEBSOCKET` monitor → `response.WEBSOCKET["External API Metrics"]`
 - `WEB1`, `SQL`, `BOTS` → `response.<NAME>["External API Metrics"]`
 
-**Error handling:** per-monitor failures (timeout, non-200, malformed JSON) are logged via `logging.warning` / `logging.exception` and skip only that monitor — the rest of the response is returned normally. Errors are never exposed in the public response body.
+**Error handling:** per-monitor failures (timeout, non-200, malformed JSON) are logged via `logging.warning` / `logging.exception` and skip only that monitor - the rest of the response is returned normally. Errors are never exposed in the public response body.
 
 **Rate-limit mitigation:** monitors are fetched sequentially (one `aiohttp.ClientSession`, one GET at a time) within a single `aiohttp.ClientSession`. The `/system/uptime` endpoint is itself throttled per-IP via `SYSTEM_UPTIME_RATE_LIMIT_SECONDS` (default 300 seconds), limiting worst-case to 5 HetrixTools GETs per 5-minute window per IP.
 

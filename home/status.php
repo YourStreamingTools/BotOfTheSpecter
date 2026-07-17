@@ -75,7 +75,7 @@ if (isset($_GET['ajax'])) {
     $weatherData = fetchData('https://api.botofthespecter.com/api/weather');
     $weatherRequestsRemaining = $weatherData['requests_remaining'] ?? null;
 
-    // Fetch system metrics (explicit columns — only what the page displays)
+    // Fetch system metrics (explicit columns - only what the page displays)
     $metrics = [];
     $result = $conn->query("SELECT server_name, cpu_percent, ram_percent, ram_used, ram_total, disk_percent, disk_used, disk_total, net_sent, net_recv FROM system_metrics ORDER BY server_name");
     if ($result) {

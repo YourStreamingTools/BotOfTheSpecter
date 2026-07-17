@@ -1,5 +1,5 @@
 /* ============================================================
-   BotOfTheSpecter Roadmap — app.js
+   BotOfTheSpecter Roadmap - app.js
    Sidebar toggle only (modal and roadmap logic is inline in layout.php)
    ============================================================ */
 

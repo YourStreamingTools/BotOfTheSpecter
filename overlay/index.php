@@ -170,7 +170,7 @@ if ($username) {
                 const cssWeight = weightMap[config.font_weight] || '600';
                 // Load font
                 if (config.font_family) loadGoogleFont(config.font_family);
-                // Parse background color — fall back to #000000 if the stored value
+                // Parse background color - fall back to #000000 if the stored value
                 // isn't a valid #RRGGBB literal (anything else produces NaN channels
                 // and CSS silently drops the whole rgba()).
                 const hex6 = /^#[0-9a-fA-F]{6}$/;
@@ -260,7 +260,7 @@ if ($username) {
                 container.offsetHeight; // Trigger reflow
                 container.classList.add('show');
                 container.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
-                // Celebration effect — spawns over the alert's full duration
+                // Celebration effect - spawns over the alert's full duration
                 if (config.celebration_enabled == 1 && config.celebration_effect) {
                     celebration.start(
                         config.celebration_effect,
@@ -545,7 +545,7 @@ if ($username) {
                 const ty = (v === 'middle' || v === 'center') ? '-50%' : '0';
                 el.style.transform = (tx === '0' && ty === '0') ? 'none' : `translate(${tx}, ${ty})`;
             }
-            // Deaths — ported from overlay/deaths.php
+            // Deaths - ported from overlay/deaths.php
             function renderDeaths(data) {
                 const deathOverlay = document.getElementById('deathOverlay');
                 if (!deathOverlay) return;
@@ -569,7 +569,7 @@ if ($username) {
                 }, 10000);
                 setTimeout(() => { deathOverlay.style.display = 'none'; }, 11000);
             }
-            // Weather — ported from overlay/weather.php (incl. the live clock)
+            // Weather - ported from overlay/weather.php (incl. the live clock)
             let weatherTimerId = null;
             function startWeatherClock(tz) {
                 function updateTime() {
@@ -619,7 +619,7 @@ if ($username) {
                 }, 10000);
                 setTimeout(() => { weatherOverlay.style.display = 'none'; }, 11000);
             }
-            // Walk-ons — ported from overlay/walkons.php (audio-only, own queue so it
+            // Walk-ons - ported from overlay/walkons.php (audio-only, own queue so it
             // never collides with alert sounds).
             let walkonAudio = null;
             const walkonQueue = [];
@@ -767,7 +767,7 @@ if ($username) {
                     });
                 });
 
-                // Ko-fi — webhook payload comes wrapped as a JSON string in data.data
+                // Ko-fi - webhook payload comes wrapped as a JSON string in data.data
                 socket.on('KOFI', (data) => {
                     console.log('KOFI event received:', data);
                     let payload = {};
@@ -791,7 +791,7 @@ if ($username) {
                     });
                 });
 
-                // Patreon — JSON:API envelope nested in data.data; api.py forwards it
+                // Patreon - JSON:API envelope nested in data.data; api.py forwards it
                 // via urlencode(dict) so the payload may be Python-literal rather than
                 // strict JSON (mirrors what overlay/patreon.php has to deal with).
                 function _parsePatreonPayload(raw) {
@@ -841,7 +841,7 @@ if ($username) {
                     });
                 });
 
-                // Fourthwall — envelope { type, data } nested in event.data
+                // Fourthwall - envelope { type, data } nested in event.data
                 socket.on('FOURTHWALL', (data) => {
                     console.log('FOURTHWALL event received:', data);
                     const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
@@ -881,7 +881,7 @@ if ($username) {
                     });
                 });
 
-                // Stream Bingo — four sub-events, each picks its own variant
+                // Stream Bingo - four sub-events, each picks its own variant
                 socket.on('STREAM_BINGO_STARTED', (data) => {
                     console.log('STREAM_BINGO_STARTED event received:', data);
                     queueAlert('stream_bingo', {
@@ -910,13 +910,13 @@ if ($username) {
                     });
                 });
 
-                // Discord member joins — rendered as a standard alert variant
+                // Discord member joins - rendered as a standard alert variant
                 socket.on('DISCORD_JOIN', (data) => {
                     console.log('DISCORD_JOIN event received:', data);
                     queueAlert('discord_join', { username: data.member || '' });
                 });
 
-                // Legacy overlays folded in — each keeps its own theme and only fires
+                // Legacy overlays folded in - each keeps its own theme and only fires
                 // when its category has an enabled variant.
                 socket.on('DEATHS', (data) => {
                     console.log('DEATHS event received:', data);
@@ -931,10 +931,10 @@ if ($username) {
                     if (isCategoryEnabled('walkons')) handleWalkon(data);
                 });
 
-                // Dashboard "Refresh Overlay" — full page reload (meta-refresh style)
+                // Dashboard "Refresh Overlay" - full page reload (meta-refresh style)
                 // so PHP re-fetches alert configs / settings from the DB.
                 socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received — reloading browser source', data);
+                    console.log('OVERLAY_REFRESH received - reloading browser source', data);
                     const meta = document.createElement('meta');
                     meta.setAttribute('http-equiv', 'refresh');
                     meta.setAttribute('content', '0');

@@ -1,4 +1,4 @@
-# System-DB Migrations — Design Spec (Phase 3)
+# System-DB Migrations - Design Spec (Phase 3)
 
 **Date:** 2026-06-20
 **Status:** Draft
@@ -11,7 +11,7 @@ is created and altered ad-hoc, scattered across the codebase:
 
 - Defensive `CREATE TABLE IF NOT EXISTS` duplicated in both `api.py` (startup `ensure_*_table()`)
   **and** PHP admin pages (`known_bots.php`, `webhooks.php`, `feedback.php`, `admin_access.php`,
-  `system_metrics`) — run silently on startup / every page load.
+  `system_metrics`) - run silently on startup / every page load.
 - Tables that are simply **assumed to exist** (`admin_api_keys`, `bot_chat_token`) with no DDL in repo.
 - At least one migration written as a **code comment** in `users.php`
   (`ALTER TABLE users ADD COLUMN is_deceased …`) that a human must run by hand.
@@ -20,7 +20,7 @@ is created and altered ad-hoc, scattered across the codebase:
 The result is "dead code that makes a table if it doesn't exist" sprinkled through scripts and pages,
 with no single place to review or apply schema changes.
 
-> The **per-user** databases are explicitly out of scope — they remain managed by
+> The **per-user** databases are explicitly out of scope - they remain managed by
 > `dashboard/includes/usr_database.php` (107-table declarative auto-migrator). Phase 3 governs only
 > the shared/system databases.
 
@@ -31,7 +31,7 @@ with no single place to review or apply schema changes.
 | Scope | System/shared DBs only (`website`, `specterdiscordbot`, `roadmap`, `spam_pattern`, extensible). Per-user DBs untouched. |
 | Migration model | **Versioned migration files** (ordered, named, with up + down), reviewed and applied via an admin page. |
 | Tracking | **Per-DB** `schema_migrations` table (each managed DB carries its own ledger). |
-| v1 retirement scope | **`website` DB fully** — bring its tables under migrations and remove its defensive CREATEs. Other system DBs are **registered with a baseline** (tracked) but their existing creators are retired in a later pass. |
+| v1 retirement scope | **`website` DB fully** - bring its tables under migrations and remove its defensive CREATEs. Other system DBs are **registered with a baseline** (tracked) but their existing creators are retired in a later pass. |
 | Apply model | **Manual review-then-apply** via the page. Nothing auto-runs on page load or deploy. |
 | Edit access | `is_admin` (same gate as `known_bots.php` / `api_keys.php`), audited. |
 
@@ -50,7 +50,7 @@ with no single place to review or apply schema changes.
 - **Per-user DB schema** (stays in `usr_database.php`).
 - **Auto-apply on deploy / page load.** Migrations apply only on explicit admin action (review first).
 - **A free-form SQL console.** Migrations are committed files, not hand-typed SQL in the UI.
-- Retiring the existing creators of `specterdiscordbot`/`roadmap`/`spam_pattern` (later phase — v1 only
+- Retiring the existing creators of `specterdiscordbot`/`roadmap`/`spam_pattern` (later phase - v1 only
   registers + baselines them).
 - Migrating the two **foundational bootstrap tables** away from on-demand creation (see Architecture §3).
 
@@ -61,7 +61,7 @@ with no single place to review or apply schema changes.
 Migrations live at `./migrations/{db}/{YYYYMMDD}_{NNNN}_{slug}.php` (one folder per managed DB),
 deliberately **outside the public web root** (`dashboard/`). On the server that resolves to
 `/var/www/migrations/{db}/`; the runner resolves it absolutely (with a repo-root dev fallback) so the
-DDL files are never web-servable. Each file `return`s a small definition array — a `description`, an
+DDL files are never web-servable. Each file `return`s a small definition array - a `description`, an
 ordered `up` list of SQL strings, and a matching `down` list. The shape is intentionally tiny so the
 page can render it verbatim before anything runs:
 
@@ -75,7 +75,7 @@ return [
 
 A few rules fall out of that format:
 
-- `up` / `down` as **ordered arrays of SQL strings** is the common, fully-reviewable case — the page
+- `up` / `down` as **ordered arrays of SQL strings** is the common, fully-reviewable case - the page
   shows them exactly as written before applying.
 - For data backfills, renames, or conditional logic, `up` (and `down`) may instead be a
   `callable(mysqli $conn): void`. Such a migration is flagged **"procedural"** in the UI, because its
@@ -83,8 +83,8 @@ A few rules fall out of that format:
   human terms what it does.
 - Migrations are ordered by filename, and the `migration_id` is the filename stem (e.g.
   `20260620_0001_create_known_bots`).
-- Procedural migrations are handed guard helpers by the runner — `column_exists($conn,$t,$c)`,
-  `index_exists($conn,$t,$i)`, `table_exists($conn,$t)` — so guarded `ALTER`s (for example the
+- Procedural migrations are handed guard helpers by the runner - `column_exists($conn,$t,$c)`,
+  `index_exists($conn,$t,$i)`, `table_exists($conn,$t)` - so guarded `ALTER`s (for example the
   `users.is_deceased` migration) stay safe to re-run and safe to adopt.
 
 ### 2. Managed-DB registry
@@ -103,7 +103,7 @@ return [
 
 These are all the same MySQL server, different db name; credentials come from the existing
 `config/database.php` (PHP rule: config via `./config/*.php`, never `.env`). Per-user DBs are **not**
-listed here. Adding a future system DB means adding a key plus a `migrations/{db}/` folder — nothing
+listed here. Adding a future system DB means adding a key plus a `migrations/{db}/` folder - nothing
 else.
 
 ### 3. Tracking table (per DB) + foundational bootstrap
@@ -133,23 +133,23 @@ explicitly so the line is principled rather than accidental.
 
 ### 4. Runner library
 
-`./dashboard/includes/migration_runner.php` is pure logic — nothing executes just because it's
+`./dashboard/includes/migration_runner.php` is pure logic - nothing executes just because it's
 included. Its surface:
 
-- `migration_connect($db)` — mysqli to a managed DB, after validating `$db` is in the registry and the
+- `migration_connect($db)` - mysqli to a managed DB, after validating `$db` is in the registry and the
   db name matches `^[a-z0-9_]{1,64}$` (same pattern as `usr_database.php`).
-- `migration_ensure_ledger($conn)` — create `schema_migrations` if missing.
-- `migration_scan($db)` — read and parse the files in `migrations/{db}/`, returning an ordered list
+- `migration_ensure_ledger($conn)` - create `schema_migrations` if missing.
+- `migration_scan($db)` - read and parse the files in `migrations/{db}/`, returning an ordered list
   with id, description, up/down, procedural flag, and checksum.
-- `migration_status($db)` — join the scanned files against the ledger into `applied[]`, `pending[]`,
+- `migration_status($db)` - join the scanned files against the ledger into `applied[]`, `pending[]`,
   `drifted[]` (applied but the file's checksum changed), and `missing[]` (in the ledger but the file
   is gone).
-- `migration_apply($db, $migration_id, $confirmDestructive)` — run `up` in order; on any error, abort
+- `migration_apply($db, $migration_id, $confirmDestructive)` - run `up` in order; on any error, abort
   and do **not** record it; on success, insert the ledger row and write an
   `admin_audit_log('migration_apply', …)` entry.
-- `migration_rollback($db, $migration_id)` — only the **last applied** migration per DB (LIFO); run
+- `migration_rollback($db, $migration_id)` - only the **last applied** migration per DB (LIFO); run
   `down`; on success delete the ledger row and audit.
-- `migration_adopt_baseline($db)` — for an existing environment: if the ledger is empty and the
+- `migration_adopt_baseline($db)` - for an existing environment: if the ledger is empty and the
   baseline's tables already exist, record the baseline as applied **without running it**, so prod isn't
   disrupted when the defensive CREATEs are removed. Surfaced in the UI as "Adopt baseline".
 - **Destructive guard:** an `up` that contains `DROP` / `TRUNCATE` / `DELETE` (word-boundary,
@@ -157,7 +157,7 @@ included. Its surface:
 
 Nothing in here runs unless the page (or an opt-in CLI) calls it.
 
-### 5. Admin page — `./dashboard/admin/migrations.php`
+### 5. Admin page - `./dashboard/admin/migrations.php`
 
 The page clones the `known_bots.php` boot pattern exactly: `ob_start` → `session_bootstrap.php` →
 `admin_access.php` (is_admin) → i18n → `db_connect.php` → `userdata.php` → `session_write_close`.
@@ -178,17 +178,17 @@ The state changes go through AJAX POST handlers (`apply` / `rollback` / `apply_a
 `adopt_baseline`), each returning JSON then `exit`, and each written to `admin_audit_log`. The page is
 registered in `menu.php` under `$admin`, with i18n keys in en/de/fr and styles in `dashboard.css`.
 
-### 6. v1 content — `website` DB
+### 6. v1 content - `website` DB
 
 The first real content brings the `website` DB fully under migrations:
 
-- `migrations/website/20260620_0001_baseline.php` — idempotent `CREATE TABLE IF NOT EXISTS` for the
+- `migrations/website/20260620_0001_baseline.php` - idempotent `CREATE TABLE IF NOT EXISTS` for the
   current website tables: `known_bots`, `custom_webhooks`, `feedback`, `system_metrics`,
   `freestuff_games`, **and the previously-assumed** `admin_api_keys`, `bot_chat_token`. Their DDL
   finally gets written down here, and that DDL has to be confirmed against live production before this
-  ships (see the open question below). `down` is intentionally empty/guarded — we don't drop core
+  ships (see the open question below). `down` is intentionally empty/guarded - we don't drop core
   tables on rollback of a baseline.
-- `migrations/website/20260620_0002_add_users_is_deceased.php` — **procedural**, using
+- `migrations/website/20260620_0002_add_users_is_deceased.php` - **procedural**, using
   `column_exists()` to add `users.is_deceased` and `users.deceased_date` only if they're missing. This
   replaces the hand-comment in `users.php`.
 - **Retiring the website defensive CREATEs** is part of the same change: drop
@@ -196,9 +196,9 @@ The first real content brings the `website` DB fully under migrations:
   `*_TABLE_DDL` constants, and the on-demand `freestuff_games` CREATE inside `save_freestuff_game()`
   from `api.py`; and remove the defensive `CREATE TABLE IF NOT EXISTS` blocks from `known_bots.php`,
   `webhooks.php`, `feedback.php`, and the `system_metrics` creator. (`admin_audit_log` bootstrap stays
-  — see §3.)
+  - see §3.)
 - The other system DBs each get a `migrations/{specterdiscordbot,roadmap,spam_pattern}/20260620_0001_baseline.php`
-  capturing their current schema, registered and adoptable — but their existing creators (e.g.
+  capturing their current schema, registered and adoptable - but their existing creators (e.g.
   roadmap's `initializeRoadmapDatabase()`) are **not** removed in v1.
 
 ### 7. Deployment / adoption flow
@@ -226,15 +226,15 @@ fresh DB runs the baseline to create everything.
 
 ## Verification
 
-Before this ships, every new or changed PHP file — the page, the runner, `config/migrations.php`, each
-migration file, the edited admin pages, the menu, and the language files — should pass a PHP lint check,
+Before this ships, every new or changed PHP file - the page, the runner, `config/migrations.php`, each
+migration file, the edited admin pages, the menu, and the language files - should pass a PHP lint check,
 and `api/api.py` should still compile cleanly once the ensure_*/DDL/freestuff CREATE code is pulled out.
 
 The behaviour I want to see on staging confirms the design holds together:
 
 - A fresh, empty DB: applying the baseline creates every website table.
 - An existing DB: "Adopt baseline" records it as applied with no schema change.
-- `0002` adds the `is_deceased` / `deceased_date` columns idempotently — re-applying is a no-op.
+- `0002` adds the `is_deceased` / `deceased_date` columns idempotently - re-applying is a no-op.
 - The destructive-change confirmation actually blocks until it's confirmed.
 - Rolling back the last migration runs its `down`.
 - With the defensive CREATEs gone, the bot, API, and dashboard all keep working once the baseline is

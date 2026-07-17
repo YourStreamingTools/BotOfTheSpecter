@@ -8,8 +8,8 @@ Not all modules in this folder are visible in the public repository. By default,
 
 However, a channel owner may choose to make their module public. For example:
 
-- **`botofthespecter.py`** — The module for the BotOfTheSpecter channel itself is public, as there is no need to hide it.
-- **`<channel_name>.py`** — Channel-specific modules for other streamers are kept private and excluded from public commits by default.
+- **`botofthespecter.py`** - The module for the BotOfTheSpecter channel itself is public, as there is no need to hide it.
+- **`<channel_name>.py`** - Channel-specific modules for other streamers are kept private and excluded from public commits by default.
 
 If you are a channel owner and would like your custom module included in the public repository, reach out to the developer.
 
@@ -19,8 +19,8 @@ Each module is a self-contained Python file named after the channel it serves.
 
 ```text
 custom_channel_modules/
-├── botofthespecter.py   # Public — BotOfTheSpecter's own channel module
-├── <your_channel>.py    # Hidden by default — channel-specific private module
+├── botofthespecter.py   # Public - BotOfTheSpecter's own channel module
+├── <your_channel>.py    # Hidden by default - channel-specific private module
 └── ...
 ```
 

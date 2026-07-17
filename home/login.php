@@ -156,7 +156,7 @@ if ($resp && $http === 200) {
             // the row by access_token, so we MUST keep users.access_token in
             // step with $_SESSION['access_token'] or the dashboard will
             // redirect-loop. But if the sync itself blows up, the session is
-            // already authenticated above — we just log and move on.
+            // already authenticated above - we just log and move on.
             // ----------------------------------------------------------------
             try {
                 if (isset($bots_session_db) && $bots_session_db instanceof mysqli) {
@@ -205,7 +205,7 @@ if ($resp && $http === 200) {
                                 . $bots_session_db->error);
                         }
                     } else {
-                        // Brand-new user — assign an api_key and insert. Reuse
+                        // Brand-new user - assign an api_key and insert. Reuse
                         // the smallest missing id (matches dashboard/login.php).
                         $apiKey = bin2hex(random_bytes(16));
                         $bots_session_db->begin_transaction();
@@ -270,7 +270,7 @@ if ($resp && $http === 200) {
             $dest = bots_sanitize_return_url($_SESSION['post_login_redirect'] ?? null) ?? '/';
             unset($_SESSION['post_login_redirect']);
             // Force the session row to be persisted RIGHT NOW. Don't rely on
-            // the shutdown handler — if anything between here and the end of
+            // the shutdown handler - if anything between here and the end of
             // the script throws, we want the auth already on disk so the
             // user is logged in on the next request.
             session_write_close();
@@ -283,7 +283,7 @@ if ($resp && $http === 200) {
 }
 
 // ----------------------------------------------------------------
-// No auth data yet — bounce to StreamersConnect.
+// No auth data yet - bounce to StreamersConnect.
 // ----------------------------------------------------------------
 // Scope list MUST stay in sync with dashboard/login.php's $IDScope.
 // home is the SSO authority for the whole platform, so the access_token

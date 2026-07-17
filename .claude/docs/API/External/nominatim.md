@@ -8,7 +8,7 @@ Local reference for the Nominatim geocoding service as accessed via the `geopy` 
 
 1. [Overview](#1-overview)
 2. [Installation and Import](#2-installation-and-import)
-3. [Nominatim Class — Constructor](#3-nominatim-class--constructor)
+3. [Nominatim Class - Constructor](#3-nominatim-class--constructor)
 4. [geocode() Method](#4-geocode-method)
 5. [reverse() Method](#5-reverse-method)
 6. [Location Object](#6-location-object)
@@ -22,7 +22,7 @@ Local reference for the Nominatim geocoding service as accessed via the `geopy` 
 9. [Rate Limits and Usage Policy](#9-rate-limits-and-usage-policy)
 10. [RateLimiter and AsyncRateLimiter](#10-ratelimiter-and-asyncratelimiter)
 11. [OSM Place Types](#11-osm-place-types)
-12. [Address Output Fields — Complete Reference](#12-address-output-fields--complete-reference)
+12. [Address Output Fields - Complete Reference](#12-address-output-fields--complete-reference)
 13. [Common Gotchas](#13-common-gotchas)
 14. [BotOfTheSpecter Callsites](#14-botofthespecter-callsites)
 
@@ -34,12 +34,12 @@ Nominatim is OpenStreetMap's geocoding service. It converts place names and addr
 
 **Two ways to use Nominatim:**
 
-1. **Via geopy** — a Python client library that wraps the HTTP API. This is what BotOfTheSpecter uses. Import: `from geopy.geocoders import Nominatim`.
-2. **Direct HTTP** — REST calls to `https://nominatim.openstreetmap.org/search` or `/reverse`. Documented in §8 for reference.
+1. **Via geopy** - a Python client library that wraps the HTTP API. This is what BotOfTheSpecter uses. Import: `from geopy.geocoders import Nominatim`.
+2. **Direct HTTP** - REST calls to `https://nominatim.openstreetmap.org/search` or `/reverse`. Documented in §8 for reference.
 
 **Key characteristics:**
 
-- Free, no API key required (but a `user_agent` is mandatory — see §9).
+- Free, no API key required (but a `user_agent` is mandatory - see §9).
 - Powered by OpenStreetMap data, which is crowd-sourced. Coverage and accuracy vary by region.
 - Rate limited to 1 request per second on the public instance.
 - Results ranked by `importance` (computed relevance score). The highest-ranked result is returned when `exactly_one=True`.
@@ -57,7 +57,7 @@ pip install geopy
 from geopy.geocoders import Nominatim
 ```
 
-The `Nominatim` class lives in `geopy.geocoders`. No separate install for Nominatim — it is bundled with geopy.
+The `Nominatim` class lives in `geopy.geocoders`. No separate install for Nominatim - it is bundled with geopy.
 
 For rate-limiting helpers:
 
@@ -67,7 +67,7 @@ from geopy.extra.rate_limiter import RateLimiter, AsyncRateLimiter
 
 ---
 
-## 3. Nominatim Class — Constructor
+## 3. Nominatim Class - Constructor
 
 ```python
 geolocator = Nominatim(
@@ -93,7 +93,7 @@ geolocator = Nominatim(
 | `ssl_context` | ssl.SSLContext or None | `None` | Custom SSL context. Use to add a custom CA bundle or disable certificate verification. If `None`, the system default is used. |
 | `adapter_factory` | callable or None | `None` | Advanced: factory for the underlying HTTP adapter. Used for async adapters. Normally left as `None`. |
 
-### user_agent — Why It Is Required
+### user_agent - Why It Is Required
 
 The OpenStreetMap Nominatim ToS requires every client to identify itself. The server will reject requests from clients whose `user_agent` matches known scrapers or is empty. The header is sent as the HTTP `User-Agent` value. Using a unique, descriptive string (application name + version or contact) is correct practice.
 
@@ -221,7 +221,7 @@ address_str, coords = location   # coords is (lat, lon, alt)
 
 ### None Check
 
-`geocode()` returns `None` when no result is found — always check before accessing attributes:
+`geocode()` returns `None` when no result is found - always check before accessing attributes:
 
 ```python
 location = geolocator.geocode("NonExistentPlace,ZZ", addressdetails=True)
@@ -247,12 +247,12 @@ These fields are always present (using the default `jsonv2` format):
 | `osm_type` | str | OpenStreetMap object type: `"node"`, `"way"`, or `"relation"`. |
 | `osm_id` | int | OpenStreetMap object ID. Stable within OSM, but the same real-world place can have its OSM ID change if redrawn. Use `osm_type` + `osm_id` + `class` together for cross-server consistency. |
 | `place_rank` | int | Nominatim's internal rank for the place (1–30). Lower numbers are broader (country = 4, city = 16, street = 26, building = 30). |
-| `address_rank` | int | Address rank — how the place is treated for address composition. |
+| `address_rank` | int | Address rank - how the place is treated for address composition. |
 | `category` | str | OSM tag key (e.g. `"place"`, `"boundary"`, `"highway"`, `"amenity"`). This is what geopy calls the `class` field; `jsonv2` renames it to `category`. |
 | `type` | str | OSM tag value under the category/class key (e.g. `"city"`, `"administrative"`, `"residential"`). Together with `category`, this gives the full OSM tag: `category=type`. |
 | `importance` | float | Computed relevance score. Higher is more important. Nominatim uses Wikipedia article counts, link density, and place rank to compute this. A national capital scores near 1.0; a small hamlet scores near 0.1. |
 | `display_name` | str | Full address as a human-readable comma-separated string. Same value as `location.address`. |
-| `lat` | str | Latitude as a string (not a float — same value as `location.latitude` but string-typed in `raw`). |
+| `lat` | str | Latitude as a string (not a float - same value as `location.latitude` but string-typed in `raw`). |
 | `lon` | str | Longitude as a string (same as `location.longitude` but string-typed in `raw`). |
 | `boundingbox` | list[str] | Four-element list: `[min_lat, max_lat, min_lon, max_lon]`. Values are strings. The bounding box of the matched feature's geometry. |
 | `licence` | str | Attribution text for OSM data (e.g. `"Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright"`). |
@@ -269,39 +269,39 @@ These fields are always present (using the default `jsonv2` format):
 
 When `addressdetails=True` is passed to `geocode()`, `location.raw['address']` is populated with a flat dict of address components. The specific keys present depend on what Nominatim could determine for that location. Not all keys appear for all places.
 
-**Administrative hierarchy — always try these in order:**
+**Administrative hierarchy - always try these in order:**
 
 | Key | When present | Example |
 |-----|-------------|---------|
-| `continent` | Very rarely — large ocean/regional queries | `"Europe"` |
+| `continent` | Very rarely - large ocean/regional queries | `"Europe"` |
 | `country` | Almost always | `"Australia"` |
 | `country_code` | Almost always | `"au"` (always lowercase) |
 | `region` | Some countries (non-standard administrative level) | `"South-East Queensland"` |
 | `state` | Most countries | `"New South Wales"` |
 | `state_district` | Some countries | `"Greater Sydney"` |
 | `county` | Many countries (county / district / shire) | `"Cumberland County"` |
-| `municipality` | Some countries — similar level to city | `"City of Sydney"` |
+| `municipality` | Some countries - similar level to city | `"City of Sydney"` |
 | `city` | Major cities and urban areas | `"Sydney"` |
 | `town` | Towns smaller than cities | `"Katoomba"` |
 | `village` | Rural settlements | `"Leura"` |
 | `hamlet` | Very small settlements | `"Medlow Bath"` |
 | `suburb` | Suburb within a city | `"Darlinghurst"` |
 | `city_district` | Administrative district within a city | `"Inner West"` |
-| `district` | District (alternate to city_district in some regions) | — |
+| `district` | District (alternate to city_district in some regions) | - |
 | `borough` | Borough (especially in US/UK) | `"Brooklyn"` |
 | `neighbourhood` | Neighbourhood (alternate spelling: `neighborhood` rare) | `"Surry Hills"` |
-| `quarter` | Quarter within a city | — |
-| `allotments` | Land allotment area | — |
-| `croft` | Small farm unit | — |
-| `isolated_dwelling` | Single isolated building | — |
-| `subdivision` | Subdivision | — |
-| `residential` | Residential area name | — |
-| `commercial` | Commercial area name | — |
-| `industrial` | Industrial area name | — |
-| `retail` | Retail area name | — |
-| `farm` | Farm name | — |
-| `farmyard` | Farmyard name | — |
-| `city_block` | City block | — |
+| `quarter` | Quarter within a city | - |
+| `allotments` | Land allotment area | - |
+| `croft` | Small farm unit | - |
+| `isolated_dwelling` | Single isolated building | - |
+| `subdivision` | Subdivision | - |
+| `residential` | Residential area name | - |
+| `commercial` | Commercial area name | - |
+| `industrial` | Industrial area name | - |
+| `retail` | Retail area name | - |
+| `farm` | Farm name | - |
+| `farmyard` | Farmyard name | - |
+| `city_block` | City block | - |
 
 **ISO administrative level codes:**
 
@@ -347,7 +347,7 @@ When `addressdetails=True` is passed to `geocode()`, `location.raw['address']` i
 | `tunnel` | Tunnel name |
 | `waterway` | River, stream, canal name |
 
-**Practical note — settlement key priority:**
+**Practical note - settlement key priority:**
 
 For city/town/place lookups, the most specific populated settlement key wins. The order Nominatim uses internally:
 
@@ -372,7 +372,7 @@ display_location = (
 
 ## 8. Nominatim HTTP API
 
-This section documents the underlying HTTP API directly. geopy wraps this API — you do not need to call it directly when using geopy. This section is reference material for debugging raw responses or building non-geopy integrations.
+This section documents the underlying HTTP API directly. geopy wraps this API - you do not need to call it directly when using geopy. This section is reference material for debugging raw responses or building non-geopy integrations.
 
 ### 8.1 Search endpoint
 
@@ -384,7 +384,7 @@ This section documents the underlying HTTP API directly. geopy wraps this API �
 
 #### Query parameters
 
-**Input — choose one mode:**
+**Input - choose one mode:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -654,9 +654,9 @@ Nominatim results include `category` (geopy: `class`) and `type` fields that des
 
 ---
 
-## 12. Address Output Fields — Complete Reference
+## 12. Address Output Fields - Complete Reference
 
-Complete alphabetical list of keys that may appear in `location.raw['address']` when `addressdetails=True`. Nominatim only includes keys it can determine — the list for any given result is typically a subset.
+Complete alphabetical list of keys that may appear in `location.raw['address']` when `addressdetails=True`. Nominatim only includes keys it can determine - the list for any given result is typically a subset.
 
 | Key | Level / category | Notes |
 |-----|-----------------|-------|
@@ -727,8 +727,8 @@ Complete alphabetical list of keys that may appear in `location.raw['address']` 
 
 Many place names exist in multiple countries. Without a country code, Nominatim picks the highest-importance result globally:
 
-- `"Springfield"` — returns Springfield, Missouri, US (most important by Wikipedia score), not the many other Springfields.
-- `"Newcastle"` — could be Newcastle, Australia or Newcastle-upon-Tyne, UK.
+- `"Springfield"` - returns Springfield, Missouri, US (most important by Wikipedia score), not the many other Springfields.
+- `"Newcastle"` - could be Newcastle, Australia or Newcastle-upon-Tyne, UK.
 
 **Fix:** Always append a country code: `"Newcastle,AU"` or use `country_codes=["au"]` parameter.
 
@@ -749,8 +749,8 @@ Nominatim can return a road as the top result when the query is ambiguous. For e
 
 ### The `address` dict vs `raw['address']` confusion
 
-`location.address` (no brackets) is the `display_name` string — the full comma-separated address.
-`location.raw['address']` is the address breakdown dict — the granular components.
+`location.address` (no brackets) is the `display_name` string - the full comma-separated address.
+`location.raw['address']` is the address breakdown dict - the granular components.
 
 These are two completely different things. The breakdown dict only exists when `addressdetails=True`.
 
@@ -760,7 +760,7 @@ These are two completely different things. The breakdown dict only exists when `
 
 ### lat and lon in raw are strings
 
-`location.raw['lat']` and `location.raw['lon']` are string-typed (e.g. `"-33.8688197"`), not floats. Use `location.latitude` and `location.longitude` (the `Location` object attributes) for numeric access — geopy converts them to floats.
+`location.raw['lat']` and `location.raw['lon']` are string-typed (e.g. `"-33.8688197"`), not floats. Use `location.latitude` and `location.longitude` (the `Location` object attributes) for numeric access - geopy converts them to floats.
 
 ### boundingbox values are also strings
 
@@ -828,7 +828,7 @@ pytz.timezone("Australia/Sydney")
     → current local time formatted as "Sunday, May 11, 2026 and the time is: 10:30 AM"
 ```
 
-### Kick bot — different approach
+### Kick bot - different approach
 
 `./bot/kick.py` imports `Nominatim` at line 27 but its `cmd_time` function (lines 1039–1052) does **not** use it. The Kick `!time` command accepts a raw IANA timezone string directly from the user (e.g. `!time Australia/Sydney`) and passes it straight to `pytz.timezone()`. Nominatim is not called.
 
@@ -839,7 +839,7 @@ pytz.timezone("Australia/Sydney")
 | `./bot/bot.py` | 3177–3205 | `city`, `town`, `village`, `state`, `country`, `county`, `municipality` |
 | `./bot/beta.py` | 5112–5140 | `city`, `town`, `village`, `state`, `country`, `county`, `municipality` |
 | `./bot/beta-v6.py` | 4208–4236 | `city`, `town`, `village`, `state`, `country`, `county`, `municipality` |
-| `./bot/kick.py` | 27 (import only) | N/A — `cmd_time` bypasses Nominatim entirely |
+| `./bot/kick.py` | 27 (import only) | N/A - `cmd_time` bypasses Nominatim entirely |
 
 ### Exact code pattern (identical in all three Twitch bot versions)
 
@@ -888,8 +888,8 @@ display_location = (
 
 - A new `Nominatim` instance is created on every `!time` invocation. This is safe (there is no persistent connection to maintain) but means no HTTP connection reuse across calls.
 - The `user_agent="BotOfTheSpecter"` is hardcoded as a string literal in all three bot files.
-- `addressdetails=True` is always passed — the bot needs the `address` dict to validate the result type and build `display_location`.
-- No timeout is explicitly passed to `geocode()` — the constructor default of 1 second applies.
+- `addressdetails=True` is always passed - the bot needs the `address` dict to validate the result type and build `display_location`.
+- No timeout is explicitly passed to `geocode()` - the constructor default of 1 second applies.
 - The call is synchronous (blocking). The Twitch bot event loop is blocked for the duration of the HTTP request. See §13 "Synchronous geocode in async context" if this becomes a problem.
 - The `valid_location_types` allowlist (`city`, `town`, `village`, `state`, `country`, `county`, `municipality`) effectively acts as a `featuretype` filter applied after the fact. Passing `featuretype="settlement"` to `geocode()` could achieve a similar result at the API level, though it would exclude `state` and `country` results.
 

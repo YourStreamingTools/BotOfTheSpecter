@@ -1,4 +1,4 @@
-# Ko-fi Webhooks — API Reference
+# Ko-fi Webhooks - API Reference
 
 Ko-fi sends a webhook POST to a configured URL for every monetised interaction on a creator's page: one-off tips, recurring subscriptions, commissions, and shop orders.
 
@@ -11,7 +11,7 @@ Ko-fi sends a webhook POST to a configured URL for every monetised interaction o
 | Field | What to enter |
 | ----- | ------------- |
 | **Webhook URL** | `https://api.botofthespecter.com/kofi?api_key=<USER_API_KEY>` |
-| **Verification Token** | Shown on this same page — a UUID-style string. Copy it; Ko-fi embeds it in every payload (there is no header). |
+| **Verification Token** | Shown on this same page - a UUID-style string. Copy it; Ko-fi embeds it in every payload (there is no header). |
 
 Click **Send Test** after saving. Ko-fi fires a synthetic `Donation` event with zeroed-out amounts so the endpoint can confirm receipt without real money.
 
@@ -50,7 +50,7 @@ Ko-fi's authentication model uses an **in-body token**, not an HMAC signature or
 
 - The JSON payload always contains `"verification_token": "<UUID>"`.
 - The UUID is the static secret shown on the creator's `ko-fi.com/manage/webhooks` page.
-- Verification is a constant-time equality check — there is no HMAC and no timestamp to validate.
+- Verification is a constant-time equality check - there is no HMAC and no timestamp to validate.
 
 ```python
 import hmac
@@ -62,7 +62,7 @@ if not hmac.compare_digest(received, expected):
 ```
 
 **Security notes:**
-- The token travels inside the form-encoded body. Any logging of the raw request body exposes it — mask `verification_token` in all logging paths.
+- The token travels inside the form-encoded body. Any logging of the raw request body exposes it - mask `verification_token` in all logging paths.
 - Without this check, anyone who learns a user's API key can spoof Ko-fi events against their endpoint.
 - The current BotOfTheSpecter implementation does **not** enforce the token (only the `api_key` query param is checked). That gap is documented in the callsites section.
 
@@ -90,15 +90,15 @@ Every event type shares this base envelope. All fields are always present unless
 | `timestamp` | `string` (ISO 8601) | UTC transaction completion time. Always has a `Z` suffix (e.g. `"2024-11-22T13:23:35Z"`). |
 | `type` | `string` (enum) | `"Donation"`, `"Subscription"`, `"Commission"`, or `"Shop Order"`. |
 | `is_public` | `boolean` | `true` if the supporter ticked "show on public feed". Consider gating overlay display on this. |
-| `from_name` | `string` | Display name chosen by the supporter. User-controlled — XSS-sanitize before rendering. |
+| `from_name` | `string` | Display name chosen by the supporter. User-controlled - XSS-sanitize before rendering. |
 | `message` | `string` \| `null` | Free-text message from the supporter. May be an empty string or `null`. |
-| `amount` | `string` (decimal) | **Major currency units** — e.g. `"5.00"`, not cents. Always a string; parse with `Decimal`, not `float`. Guard against `""` and `null` on some Shop Order edge cases. |
+| `amount` | `string` (decimal) | **Major currency units** - e.g. `"5.00"`, not cents. Always a string; parse with `Decimal`, not `float`. Guard against `""` and `null` on some Shop Order edge cases. |
 | `url` | `string` | Ko-fi receipt URL for this transaction. |
 | `email` | `string` | Supporter's email address. Treat as PII; do not log or expose. |
 | `currency` | `string` (ISO 4217) | `"USD"`, `"GBP"`, `"EUR"`, `"AUD"`, etc. |
 | `is_subscription_payment` | `boolean` | `true` for any payment that is part of a subscription (both first and renewals). `false` for all other types. |
 | `is_first_subscription_payment` | `boolean` | `true` only for the very first payment in a subscription. Always `false` for non-subscription events. |
-| `kofi_transaction_id` | `string` (UUID) | Ko-fi's internal transaction identifier. Stable across retry deliveries of the same transaction — use for deduplication when persisting. |
+| `kofi_transaction_id` | `string` (UUID) | Ko-fi's internal transaction identifier. Stable across retry deliveries of the same transaction - use for deduplication when persisting. |
 | `shop_items` | `array` \| `null` | Populated only for `Shop Order`; `null` for all other types. See §6.4. |
 | `tier_name` | `string` \| `null` | Populated only for `Subscription` events where the creator has configured membership tiers; otherwise `null`. |
 | `shipping` | `object` \| `null` | Populated only for `Shop Order` events for **physical goods** that require shipping; otherwise `null`. See §6.4. |
@@ -209,15 +209,15 @@ Note: Commissions are often private (`is_public: false`). The overlay should res
 
 A Ko-fi Shop purchase. Always has a populated `shop_items` array. Physical goods that require delivery also populate `shipping`; digital-only orders have `shipping: null`.
 
-**shop_items array — each element:**
+**shop_items array - each element:**
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `direct_link_code` | `string` | Ko-fi's short code identifying the specific shop listing. |
-| `variation_name` | `string` | The variation/variant the buyer selected (e.g. `"Sticker — Large"`, `"Red / Medium"`). Empty string `""` if the product has no variations. |
+| `variation_name` | `string` | The variation/variant the buyer selected (e.g. `"Sticker - Large"`, `"Red / Medium"`). Empty string `""` if the product has no variations. |
 | `quantity` | `integer` | Number of units ordered. Always a positive integer. |
 
-**shipping object — all fields:**
+**shipping object - all fields:**
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -251,7 +251,7 @@ A Ko-fi Shop purchase. Always has a populated `shop_items` array. Physical goods
   "shop_items": [
     {
       "direct_link_code": "abc123",
-      "variation_name": "Sticker — Large",
+      "variation_name": "Sticker - Large",
       "quantity": 2
     },
     {
@@ -280,13 +280,13 @@ A Ko-fi Shop purchase. Always has a populated `shop_items` array. Physical goods
 
 ## 7. Response requirements
 
-Ko-fi requires an HTTP `2xx` response. Return `200 OK` as quickly as possible — ideally before doing any heavy processing. A non-2xx response causes Ko-fi to mark the delivery as failed.
+Ko-fi requires an HTTP `2xx` response. Return `200 OK` as quickly as possible - ideally before doing any heavy processing. A non-2xx response causes Ko-fi to mark the delivery as failed.
 
 ```python
 return {"status": "success", "message": "Kofi event forwarded to WebSocket server"}
 ```
 
-Do **not** return a `500` from internal handler errors — catch exceptions, log them, and still return `200`. A persistent `500` triggers Ko-fi retries indefinitely.
+Do **not** return a `500` from internal handler errors - catch exceptions, log them, and still return `200`. A persistent `500` triggers Ko-fi retries indefinitely.
 
 ---
 
@@ -297,7 +297,7 @@ Ko-fi retries failed deliveries (non-2xx responses) with exponential back-off. T
 - Retries carry the same `message_id` and `kofi_transaction_id`.
 - Use `kofi_transaction_id` to deduplicate when persisting transactions to a database.
 - Use `message_id` as the idempotency key when the delivery itself must be processed exactly once.
-- Always return `200` even if a duplicate is detected — do not return `409` or similar.
+- Always return `200` even if a duplicate is detected - do not return `409` or similar.
 
 ---
 
@@ -312,8 +312,8 @@ Ko-fi retries failed deliveries (non-2xx responses) with exponential back-off. T
 
 | Gotcha | Detail |
 | ------ | ------ |
-| `amount` is a string | Never cast directly to `float` — use `Decimal("5.00")` for financial arithmetic. Guard against `""` and `null` on some shop edge cases before parsing. |
-| `from_name` and `message` are user-controlled | XSS-sanitize before injecting into HTML. The overlay uses `escapeHtml()` — keep it. |
+| `amount` is a string | Never cast directly to `float` - use `Decimal("5.00")` for financial arithmetic. Guard against `""` and `null` on some shop edge cases before parsing. |
+| `from_name` and `message` are user-controlled | XSS-sanitize before injecting into HTML. The overlay uses `escapeHtml()` - keep it. |
 | `verification_token` is in the body | Any logging of the raw request body exposes this secret. Mask it in all log paths. |
 | Commission alerts | Dedicated branch: icon 🎨, label “Ko-fi Commission”, headline from `from_name`, amount + message. |
 | `is_public: false` events are rendered anyway | The overlay currently displays all events regardless of `is_public`. Consider gating on `eventData.is_public !== false` to hide private commissions and quiet donations. |
@@ -332,7 +332,7 @@ Ko-fi retries failed deliveries (non-2xx responses) with exponential back-off. T
 | `verification_token` check | **Not currently enforced** | Only the `api_key` query param is checked. The Ko-fi token is not validated. Anyone with a valid user API key can spoof events. |
 | WebSocket routing | `./websocket/server.py` | `elif event == "KOFI": await self.handle_kofi_event(code, data)` |
 | WebSocket delegation | `./websocket/server.py` | Delegates to `self.donation_handler.handle_kofi_event(code, data)` |
-| Event broadcaster | `./websocket/donation_handler.py` | `broadcast_with_globals("KOFI", data, code)` — fans out to all clients registered under the channel code. |
+| Event broadcaster | `./websocket/donation_handler.py` | `broadcast_with_globals("KOFI", data, code)` - fans out to all clients registered under the channel code. |
 | Overlay (live browser source) | `./overlay/kofi.php` | Socket.io 4.8.3 client. Registers as `{ code, channel: 'Overlay', name: 'Ko-Fi' }`. On `KOFI`, parses payload and **queues visual alerts** via `alertQueue` / `enqueueAlert()`; each alert stays visible for `ALERT_DURATION = 7000 ms`. Includes `parseKofiData()` JSON + Python-dict fallback parser. |
 | Alert rendering | `./overlay/kofi.php:buildAlertElement()` | Dedicated branches: `Donation` (💰), `Subscription` (⭐ first vs renewal), `Shop Order` (🛒 with item list), `Commission` (🎨); unknown types → generic ☕ fallback. XSS-safe via `escapeHtml()`. |
 | Reconnect logic | `./overlay/kofi.php:attemptReconnect()` | Exponential back-off up to 30 s cap (`Math.min(5000 * attempts, 30000)`). |

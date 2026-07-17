@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -53,7 +53,7 @@ $autoRecordEnabled = 0;
 $remoteFileSections = [];
 $remoteFileError = null;
 
-// Feature flag — flip to false once the recorder server bug is fixed. While
+// Feature flag - flip to false once the recorder server bug is fixed. While
 // true, the page skips ALL SSH attempts (which otherwise hang and slow the
 // page down when the recorder host is offline) and shows a single notice
 // instead of the file listing.

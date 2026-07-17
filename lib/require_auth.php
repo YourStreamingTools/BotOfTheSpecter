@@ -20,7 +20,7 @@ if (!isset($_SESSION['access_token'])) {
 
     // session_bootstrap may have just destroyed the session row (Twitch
     // validate returned 401). After session_destroy, writes to $_SESSION
-    // go nowhere — no storage row to persist them. Restart explicitly so
+    // go nowhere - no storage row to persist them. Restart explicitly so
     // redirect_after_login actually survives to the next request.
     @session_unset();
     @session_destroy();

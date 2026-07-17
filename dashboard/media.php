@@ -167,7 +167,7 @@ foreach ($channelPointRewards as $reward) {
     $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
 }
 
-// Available twitch events (kept inline — same list the old UI used)
+// Available twitch events (kept inline - same list the old UI used)
 $allTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
 
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
@@ -209,7 +209,7 @@ function ajax_respond_mappings($file, $db, $isAjax) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mediaType = $_POST['media_type'] ?? '';
     $action    = $_POST['action'] ?? '';
-    // Sound alert (channel point reward) — add / remove
+    // Sound alert (channel point reward) - add / remove
     if ($mediaType === 'sound_alert_mapping') {
         $file     = $_POST['sound_file'] ?? '';
         $rewardId = $_POST['reward_id']  ?? '';
@@ -228,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
-    // Video alert (channel point reward) — add / remove
+    // Video alert (channel point reward) - add / remove
     if ($mediaType === 'video_alert_mapping') {
         $file     = $_POST['video_file'] ?? '';
         $rewardId = $_POST['reward_id']  ?? '';
@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
-    // Twitch event — add / remove
+    // Twitch event - add / remove
     if ($mediaType === 'twitch_event_mapping') {
         $file    = $_POST['sound_file']      ?? '';
         $eventId = $_POST['twitch_alert_id'] ?? '';
@@ -338,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    // File deletion — safety-gated. A file that's still linked to a reward,
+    // File deletion - safety-gated. A file that's still linked to a reward,
     // event, walkon, or alert variant is refused; the user must unlink it
     // first so an accidental delete can't silently break their overlays.
     if (isset($_POST['delete_files']) && is_array($_POST['delete_files'])) {
@@ -776,7 +776,7 @@ $(document).ready(function () {
         return data.reward_titles[id] || I18N.unknown_reward;
     }
     // Available rewards: not currently mapped to ANY file via sound OR video.
-    // (A reward triggers one sound — if it's already used elsewhere, hide it.)
+    // (A reward triggers one sound - if it's already used elsewhere, hide it.)
     function availableRewards(currentRewardIds) {
         var used = new Set(data.reward_used_sound.concat(data.reward_used_video));
         // Allow the rewards already attached to THIS file to stay selectable as remove targets
@@ -828,7 +828,7 @@ $(document).ready(function () {
                         : type === 'image' ? I18N.header_image.replace('%s', ext.toUpperCase())
                         : I18N.header_file;
         html += '<div class="media-modal-fileinfo">' + escapeHtml(headerLabel) + '</div>';
-        // Image files are alert-builder territory only — no channel-points,
+        // Image files are alert-builder territory only - no channel-points,
         // events or walkons. Render just the read-only usage chips.
         if (type === 'image') {
             if (isPreviewableImage(file)) {
@@ -872,7 +872,7 @@ $(document).ready(function () {
             addReward += '</select>';
         }
         html += renderSection(type === 'video' ? I18N.section_rewards_video : I18N.section_rewards, rewardChips, addReward, false);
-        // Twitch events (audio only — no MP4 events today)
+        // Twitch events (audio only - no MP4 events today)
         if (type !== 'video') {
             var availEvents = availableEvents(events);
             var eventChips = events.map(function (eid) {
@@ -889,7 +889,7 @@ $(document).ready(function () {
             }
             html += renderSection(I18N.section_events, eventChips, addEvent, false);
         }
-        // Walkons — audio: sound only or sound + picture & name; video: video alert
+        // Walkons - audio: sound only or sound + picture & name; video: video alert
         if (type === 'audio' || type === 'video') {
             var walkonChips = walkons.map(function (w) {
                 var m = w.mode || 'sound';
@@ -977,7 +977,7 @@ $(document).ready(function () {
         var r = (data.sound_alerts[file] || []).length + (data.video_alerts[file] || []).length;
         var e = (data.twitch_events[file] || []).length;
         var w = (data.walkons[file] || []).length;
-        // Alert builder count is managed in alerts.php — keep what the row was rendered with
+        // Alert builder count is managed in alerts.php - keep what the row was rendered with
         var a = parseInt(row.dataset.alertCount || '0', 10);
         var total = r + e + w + a;
         var parts = [];
@@ -1187,7 +1187,7 @@ $(document).ready(function () {
         var checked = $('.media-file-check:checked').length;
         $('.media-delete-selected-btn').prop('disabled', checked < 1);
     });
-    // Delete selected (bulk) — refuse if any selection is still linked
+    // Delete selected (bulk) - refuse if any selection is still linked
     $(document).on('click', '.media-delete-selected-btn', function () {
         var form = $('#mediaDeleteForm');
         var checked = form.find('.media-file-check:checked');
@@ -1203,7 +1203,7 @@ $(document).ready(function () {
             }
         });
         if (locked.length > 0) {
-            var list = locked.map(function (l) { return '<li><strong>' + l.file + '</strong> — ' + l.summary + '</li>'; }).join('');
+            var list = locked.map(function (l) { return '<li><strong>' + l.file + '</strong> - ' + l.summary + '</li>'; }).join('');
             Swal.fire({
                 icon: 'warning',
                 title: I18N.bulk_in_use_title,
@@ -1234,7 +1234,7 @@ $(document).ready(function () {
             }
         });
     });
-    // Locked file delete — explain why and point to the right place to unlink
+    // Locked file delete - explain why and point to the right place to unlink
     $(document).on('click', '.media-delete-locked', function () {
         var fileName = $(this).data('file');
         var summary = $(this).data('summary');
@@ -1252,7 +1252,7 @@ $(document).ready(function () {
         var paramName = type === 'video' ? 'video' : 'sound';
         sendStreamEvent(eventType, paramName, file);
     });
-    // Migration button — wire it up to migrate_media.php
+    // Migration button - wire it up to migrate_media.php
     $('#media-migrate-btn').on('click', function () {
         var btn = $(this);
         Swal.fire({

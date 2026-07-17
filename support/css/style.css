@@ -1,5 +1,5 @@
 /* ============================================================
-   BotOfTheSpecter Support Portal — style.css
+   BotOfTheSpecter Support Portal - style.css
    Custom dark theme, no external CSS framework
    ============================================================ */
 
@@ -53,7 +53,7 @@
 }
 
 /* ----------------------------------------------------------
-   Light theme token overrides — applied when <html data-theme="light">.
+   Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
    ---------------------------------------------------------- */
 [data-theme="light"] {
@@ -173,7 +173,7 @@ hr {
 
 
 /* ----------------------------------------------------------
-   2. Layout — Sidebar + Main
+   2. Layout - Sidebar + Main
    ---------------------------------------------------------- */
 .sp-layout {
     display: flex;
@@ -1090,7 +1090,7 @@ hr {
 
 
 /* ----------------------------------------------------------
-   13. Doc content — rendered help articles
+   13. Doc content - rendered help articles
    ---------------------------------------------------------- */
 .sp-doc-content h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
 .sp-doc-content h2 { font-size: 1.2rem; margin: 1.5rem 0 0.6rem; }

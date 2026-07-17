@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------
 // Members now shares the .botofthespecter.com cookie + web_sessions
 // row with home/dashboard/support, so session_destroy() drives
-// WebSessionHandler::destroy() which DELETEs the row — a single
+// WebSessionHandler::destroy() which DELETEs the row - a single
 // logout signs the user out of every *.botofthespecter.com app at
 // once. Single login, single logout, by design.
 // ----------------------------------------------------------------

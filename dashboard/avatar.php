@@ -328,7 +328,7 @@ ob_start();
             </label>
             <p class="av-help-text"><?= t('avatar_enabled_help') ?></p>
 
-            <p class="av-help-text" style="margin-top:0;"><strong><?= t('avatar_images_title') ?></strong> — <?= t('avatar_images_help') ?></p>
+            <p class="av-help-text" style="margin-top:0;"><strong><?= t('avatar_images_title') ?></strong> - <?= t('avatar_images_help') ?></p>
             <div class="av-form-grid av-frame-grid">
                 <?php
                 $frameUploadFields = [

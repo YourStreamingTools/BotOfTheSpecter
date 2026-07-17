@@ -1,41 +1,41 @@
-# Kick.com API — BotOfTheSpecter Reference
+# Kick.com API - BotOfTheSpecter Reference
 
 Self-contained reference for how this project integrates with Kick.com. Combines the official Kick public API surface (verified at `https://docs.kick.com/`, May 2026) with the actual call sites in this repo.
 
 Repo touch points:
 
-- `./bot/kick.py` — Kick chat bot (~1,894 lines). Owns all Kick REST calls and OAuth refresh.
-- `./api/api.py` — `POST /kick/{username}` webhook receiver, signature verification, public-key cache, and event-name mapping.
-- `./dashboard/profile.php`, `./dashboard/recording.php` — UI surfaces (recording forwarder destination + profile badge). No Kick API calls happen in PHP.
-- `./dashboard/lang/{en,fr,de}.php` — translation strings only.
+- `./bot/kick.py` - Kick chat bot (~1,894 lines). Owns all Kick REST calls and OAuth refresh.
+- `./api/api.py` - `POST /kick/{username}` webhook receiver, signature verification, public-key cache, and event-name mapping.
+- `./dashboard/profile.php`, `./dashboard/recording.php` - UI surfaces (recording forwarder destination + profile badge). No Kick API calls happen in PHP.
+- `./dashboard/lang/{en,fr,de}.php` - translation strings only.
 
 There is **no `./config/kick.php`** today. Kick credentials are passed to `./bot/kick.py` as CLI args at process spawn time and persisted in MySQL (`website.kick_bot_tokens`). The bot reads no Kick env vars.
 
 ---
 
-## 1. Overview — what this project actually uses
+## 1. Overview - what this project actually uses
 
 | Surface | Used? | Where |
 | --- | --- | --- |
 | OAuth 2.1 token refresh (`grant_type=refresh_token`) | Yes | `./bot/kick.py` `refresh_kick_token()` |
-| OAuth 2.1 authorize / PKCE / app access token / introspect / revoke | No (bot starts with already-issued tokens) | — |
+| OAuth 2.1 authorize / PKCE / app access token / introspect / revoke | No (bot starts with already-issued tokens) | - |
 | `GET /public/v1/channels` (lookup by `broadcaster_user_id` or `slug`) | Yes | `./bot/kick.py` `get_channel_info()`, `get_kick_user_id()` |
 | `PATCH /public/v1/channels` (set title / category) | Yes | `./bot/kick.py` `update_channel_info()` (used by `!settitle`, `!setgame`) |
 | `GET /public/v1/livestreams` | Yes | `./bot/kick.py` `get_livestream_info()` (uptime / live check) |
-| `GET /public/v1/livestreams/stats` | No | — |
+| `GET /public/v1/livestreams/stats` | No | - |
 | `GET /public/v2/categories` (search) | Yes | `./bot/kick.py` (game/category search for `!setgame`) |
-| `GET /public/v1/categories` / `/{id}` (deprecated v1) | No | — |
+| `GET /public/v1/categories` / `/{id}` (deprecated v1) | No | - |
 | `POST /public/v1/chat` (send as bot) | Yes | `./bot/kick.py` `send_chat_message()` |
 | `DELETE /public/v1/chat/{message_id}` | Yes | `./bot/kick.py` `delete_chat_message()` |
 | `POST /public/v1/moderation/bans` | Yes | `./bot/kick.py` `ban_user()` |
 | `DELETE /public/v1/moderation/bans` | Yes | `./bot/kick.py` `unban_user()` |
 | `GET /public/v1/public-key` | Yes | `./api/api.py` `_get_kick_public_key()` (cached 1h) |
-| `POST /public/v1/events/subscriptions` (subscribe to webhooks) | **Not in repo** — see flag below | — |
-| Pusher / undocumented chat WebSocket | **No** — bot does not connect to Kick directly | — |
+| `POST /public/v1/events/subscriptions` (subscribe to webhooks) | **Not in repo** - see flag below | - |
+| Pusher / undocumented chat WebSocket | **No** - bot does not connect to Kick directly | - |
 
 **Real-time data path:** Kick → HTTPS webhook → `./api/api.py` `POST /kick/{username}` → forwards to internal WebSocket server (`https://websocket.botofthespecter.com/notify?...`) → `./bot/kick.py` (Socket.IO client) receives the remapped event. The bot does **not** speak Pusher / Kick's chat WebSocket directly. All inbound events are webhooks.
 
-**Flag — webhook subscription is not provisioned in code.** Kick's official API requires a `POST /public/v1/events/subscriptions` call (with `events:subscribe` scope) per channel before it will deliver webhooks. No code in this repo currently calls that endpoint, so subscriptions are presumably created out-of-band (manually via the Kick developer portal, or via a script not present in the repo). If a new streamer onboards, this is the missing step.
+**Flag - webhook subscription is not provisioned in code.** Kick's official API requires a `POST /public/v1/events/subscriptions` call (with `events:subscribe` scope) per channel before it will deliver webhooks. No code in this repo currently calls that endpoint, so subscriptions are presumably created out-of-band (manually via the Kick developer portal, or via a script not present in the repo). If a new streamer onboards, this is the missing step.
 
 ---
 
@@ -95,9 +95,9 @@ Granted by the streamer when they authorize the BotOfTheSpecter Kick app:
 
 Scopes the project does **not** currently request (skip unless the feature is added):
 
-- `channel:rewards:read` / `channel:rewards:write` — channel-points reward management.
-- `streamkey:read` — only needed if we automate stream-key ingestion.
-- `kicks:read` — KICKs leaderboards.
+- `channel:rewards:read` / `channel:rewards:write` - channel-points reward management.
+- `streamkey:read` - only needed if we automate stream-key ingestion.
+- `kicks:read` - KICKs leaderboards.
 
 ### 2.5 Request headers
 
@@ -122,14 +122,14 @@ KICK_API_BASE  = https://api.kick.com/public/v1
 KICK_AUTH_BASE = https://id.kick.com
 ```
 
-Defined in `./bot/kick.py:67-68`. Exception: `GET /public/v2/categories` is on **v2**, called by passing `/v2/categories` to `kick_get()`, which produces `https://api.kick.com/public/v1/v2/categories` — **see §3.10 for the bug this likely is.**
+Defined in `./bot/kick.py:67-68`. Exception: `GET /public/v2/categories` is on **v2**, called by passing `/v2/categories` to `kick_get()`, which produces `https://api.kick.com/public/v1/v2/categories` - **see §3.10 for the bug this likely is.**
 
 The bot's HTTP helpers (`./bot/kick.py:294-343`):
 
-- `kick_get(path, params=None)` — GET, returns parsed JSON or `None`.
-- `kick_post(path, payload)` — POST JSON, returns `(status, body)`.
-- `kick_delete(path, params=None)` — DELETE, returns status code.
-- `kick_patch(path, payload)` — PATCH JSON, returns `(status, body)`.
+- `kick_get(path, params=None)` - GET, returns parsed JSON or `None`.
+- `kick_post(path, payload)` - POST JSON, returns `(status, body)`.
+- `kick_delete(path, params=None)` - DELETE, returns status code.
+- `kick_patch(path, payload)` - PATCH JSON, returns `(status, body)`.
 
 All four use a shared aiohttp session (`get_http_session()`), 10-second timeout.
 
@@ -140,8 +140,8 @@ Get channel info for a broadcaster.
 - **Scope:** `channel:read`
 - **Params:** `broadcaster_user_id` (array, ≤50) **OR** `slug` (array, ≤50)
 - **Repo callsites:**
-  - `./bot/kick.py:377` `get_channel_info()` — lookup by `broadcaster_user_id`.
-  - `./bot/kick.py:1677` `get_kick_user_id(slug)` — lookup by `slug`. **Returns `data[0].broadcaster_user_id`** — used to resolve another user's ID for moderation, shoutouts, etc.
+  - `./bot/kick.py:377` `get_channel_info()` - lookup by `broadcaster_user_id`.
+  - `./bot/kick.py:1677` `get_kick_user_id(slug)` - lookup by `slug`. **Returns `data[0].broadcaster_user_id`** - used to resolve another user's ID for moderation, shoutouts, etc.
 - **Response shape used:** `data[0].category.name`, `data[0].stream_title`, `data[0].broadcaster_user_id`.
 
 ### 3.2 `PATCH /public/v1/channels`
@@ -150,7 +150,7 @@ Update livestream metadata.
 
 - **Scope:** `channel:write`
 - **Body:** `broadcaster_user_id` (int, required by repo convention), `stream_title` (string, optional), `category_id` (int, optional), `custom_tags[]` (max 10, not used here).
-- **Repo callsite:** `./bot/kick.py:389` `update_channel_info(title, category_id)` — invoked by `!settitle <text>` and `!setgame <name>` mod commands.
+- **Repo callsite:** `./bot/kick.py:389` `update_channel_info(title, category_id)` - invoked by `!settitle <text>` and `!setgame <name>` mod commands.
 
 ### 3.3 `GET /public/v1/livestreams`
 
@@ -158,7 +158,7 @@ List active streams.
 
 - **Scope:** none.
 - **Params:** `broadcaster_user_id[]` (≤50), `category_id`, `language`, `limit` (1–100), `sort` (`viewer_count`|`started_at`).
-- **Repo callsite:** `./bot/kick.py:383` `get_livestream_info()` — single-broadcaster filter; returns `data[0]` with fields `is_live`, `started_at`, `category`. Used by `!uptime`, the startup live-check, and the periodic stream-status loop.
+- **Repo callsite:** `./bot/kick.py:383` `get_livestream_info()` - single-broadcaster filter; returns `data[0]` with fields `is_live`, `started_at`, `category`. Used by `!uptime`, the startup live-check, and the periodic stream-status loop.
 
 ### 3.4 `GET /public/v2/categories` (search)
 
@@ -166,7 +166,7 @@ Search game/category by name.
 
 - **Scope:** none.
 - **Params:** `cursor` (pagination), `limit` (1–1000), `name[]`, `tag[]`, `id[]`.
-- **Repo callsite:** `./bot/kick.py:1339` — invoked by `!setgame <query>`. Uses query-style `q` and `limit` params, which **looks like leftover v1 syntax mistakenly hitting v2** (see §3.10).
+- **Repo callsite:** `./bot/kick.py:1339` - invoked by `!setgame <query>`. Uses query-style `q` and `limit` params, which **looks like leftover v1 syntax mistakenly hitting v2** (see §3.10).
 
 ### 3.5 `POST /public/v1/chat`
 
@@ -188,7 +188,7 @@ Remove a chat message.
 
 - **Scope:** `moderation:chat_message:manage`
 - **Success:** 204.
-- **Repo callsite:** `./bot/kick.py:373` `delete_chat_message(message_id)`. Wired but no command currently triggers it as of writing — kept for moderation tooling.
+- **Repo callsite:** `./bot/kick.py:373` `delete_chat_message(message_id)`. Wired but no command currently triggers it as of writing - kept for moderation tooling.
 
 ### 3.7 `POST /public/v1/moderation/bans`
 
@@ -211,7 +211,7 @@ Unban / lift timeout.
 Fetch the RSA public key used to sign webhooks.
 
 - **Scope:** none (public).
-- **Response:** `{ "public_key": "<base64-DER>" }` — repo also accepts `key` field as a fallback.
+- **Response:** `{ "public_key": "<base64-DER>" }` - repo also accepts `key` field as a fallback.
 - **Repo callsite:** `./api/api.py:2078` `_get_kick_public_key()`.
 - **Caching:** 1-hour in-process cache (`_KICK_PUBKEY_CACHE_TTL = 3600`).
 - **Failure mode (current):** if the fetch fails, `_verify_kick_signature()` returns `True` (**fail-open**) so events still flow. There's a TODO comment to tighten this.
@@ -248,21 +248,21 @@ The bot's Socket.IO event handlers (`./bot/kick.py:510-557`) listen for the **in
 
 Heartbeat/poll loops still exist on the bot side because webhooks aren't perfectly reliable:
 
-- `check_stream_online_loop()` — periodically calls `GET /livestreams` to re-sync `stream_online` if the `livestream.status.updated` webhook is missed.
+- `check_stream_online_loop()` - periodically calls `GET /livestreams` to re-sync `stream_online` if the `livestream.status.updated` webhook is missed.
 
 ---
 
-## 5. Webhooks — what we accept
+## 5. Webhooks - what we accept
 
 ### 5.1 Receiver
 
-`./api/api.py:2144` — `POST /kick/{username}`.
+`./api/api.py:2144` - `POST /kick/{username}`.
 
 `{username}` is the streamer's **internal** identifier (= their Twitch username, also their per-user MySQL DB name). It's **not** the Kick slug. The route:
 
 1. Reads the raw body (`await request.body()`).
 2. Reads four headers (see §5.2).
-3. If `Kick-Event-Signature` is present, verifies it. **If absent, the request is accepted unverified** — webhooks without a signature header will pass through. Tighten if Kick guarantees the header.
+3. If `Kick-Event-Signature` is present, verifies it. **If absent, the request is accepted unverified** - webhooks without a signature header will pass through. Tighten if Kick guarantees the header.
 4. Parses JSON.
 5. Maps the event-type header to an internal event name via `_KICK_EVENT_MAP`.
 6. Looks up the user's `api_key` in `users` (central DB) by `username`.
@@ -276,7 +276,7 @@ Heartbeat/poll loops still exist on the bot side because webhooks aren't perfect
 | `Kick-Event-Message-Id` (ULID) | `Kick-Event-Message-Id` ✓ | Idempotency key. |
 | `Kick-Event-Subscription-Id` (ULID) | not read | Subscription identifier; safe to ignore. |
 | `Kick-Event-Signature` (base64) | `Kick-Event-Signature` ✓ | RSA-SHA256 / PKCS1v15. |
-| `Kick-Event-Message-Timestamp` (RFC3339) | **`Kick-Event-Timestamp`** ✗ | **Header name mismatch — see §5.5 bug note.** |
+| `Kick-Event-Message-Timestamp` (RFC3339) | **`Kick-Event-Timestamp`** ✗ | **Header name mismatch - see §5.5 bug note.** |
 | `Kick-Event-Type` (string) | `Kick-Event-Type` ✓ | Event name. |
 | `Kick-Event-Version` (string) | not read | Always `"1"` today. |
 
@@ -284,15 +284,15 @@ Heartbeat/poll loops still exist on the bot side because webhooks aren't perfect
 
 Algorithm (Kick docs):
 
-1. Concatenate: `<message_id> + "." + <timestamp> + "." + <raw_body_bytes>` — note: the dot-separators stay as ASCII; the body is appended verbatim.
+1. Concatenate: `<message_id> + "." + <timestamp> + "." + <raw_body_bytes>` - note: the dot-separators stay as ASCII; the body is appended verbatim.
 2. Hash with SHA-256.
 3. Verify with RSA-PKCS#1 v1.5 against the public key from `GET /public/v1/public-key`.
 
-Repo implementation: `./api/api.py:2097` `_verify_kick_signature()` — uses `cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15()` and `hashes.SHA256()`. The public key is loaded as DER (`serialization.load_der_public_key`).
+Repo implementation: `./api/api.py:2097` `_verify_kick_signature()` - uses `cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15()` and `hashes.SHA256()`. The public key is loaded as DER (`serialization.load_der_public_key`).
 
 ### 5.4 Event-type mapping
 
-`./api/api.py:2131` — every Kick event name is rewritten to a `KICK_*` internal name before being forwarded over the WebSocket:
+`./api/api.py:2131` - every Kick event name is rewritten to a `KICK_*` internal name before being forwarded over the WebSocket:
 
 | Kick event type (header) | Internal event name | Bot handler (`./bot/kick.py`) |
 | --- | --- | --- |
@@ -323,20 +323,20 @@ So the practical fields-per-event the bot reads are:
 - **channel.subscription.gifts**: `gifter { slug }`, `gifts_count`.
 - **channel.reward.redemption.updated**: `redeemer { slug }`, `reward { title }`.
 - **livestream.status.updated**: `is_live` (bool).
-- **livestream.metadata.updated**: full `metadata` (title, language, has_mature_content, category) — currently only logged.
+- **livestream.metadata.updated**: full `metadata` (title, language, has_mature_content, category) - currently only logged.
 - **moderation.banned**: `banned_user { slug }`, `moderator { slug }`.
 - **kicks.gifted**: `gifter { slug }`, `amount`.
 
-Note: Kick's official payload schema uses `broadcaster`, `subscriber`, `follower`, etc. as top-level objects under `data`. Repo code uses some variant field names (`user_id`/`username` flat for follow events; `subscriber.id`/`subscriber.slug` for subs). If a payload arrives in a different shape than expected, the helpers fall back to `"someone"`/`"Anonymous"`/`0` — they will not crash, but messages may be generic.
+Note: Kick's official payload schema uses `broadcaster`, `subscriber`, `follower`, etc. as top-level objects under `data`. Repo code uses some variant field names (`user_id`/`username` flat for follow events; `subscriber.id`/`subscriber.slug` for subs). If a payload arrives in a different shape than expected, the helpers fall back to `"someone"`/`"Anonymous"`/`0` - they will not crash, but messages may be generic.
 
 ### 5.6 Bug: header name discrepancy
 
 `./api/api.py:2159` reads `request.headers.get("Kick-Event-Timestamp", "")`. Kick's documented header is `Kick-Event-Message-Timestamp`. Today this is masked because:
 
 - The current verifier is **fail-open** when the public key fetch fails (§3.9), and
-- HTTP headers are case-insensitive but **not name-insensitive** — `Kick-Event-Timestamp` and `Kick-Event-Message-Timestamp` are distinct strings.
+- HTTP headers are case-insensitive but **not name-insensitive** - `Kick-Event-Timestamp` and `Kick-Event-Message-Timestamp` are distinct strings.
 
-In practice this means the timestamp passed into `signed_bytes` is empty, so any signed verification attempt fails — but `_verify_kick_signature()` returns `False` on failure, which → `403 Invalid Kick webhook signature`. If signatures are currently being verified successfully, it's worth confirming Kick is also sending the legacy `Kick-Event-Timestamp` form. **Action item:** read both header names and prefer `Kick-Event-Message-Timestamp`.
+In practice this means the timestamp passed into `signed_bytes` is empty, so any signed verification attempt fails - but `_verify_kick_signature()` returns `False` on failure, which → `403 Invalid Kick webhook signature`. If signatures are currently being verified successfully, it's worth confirming Kick is also sending the legacy `Kick-Event-Timestamp` form. **Action item:** read both header names and prefer `Kick-Event-Message-Timestamp`.
 
 ### 5.7 Subscribing to webhooks (out of band today)
 
@@ -395,21 +395,21 @@ Unofficial / observed:
 | Refresh frequency | Bot.py background task; access tokens ~4 h | Bot.py background task; **3 h preemptive refresh** (`kick_token_refresh_loop`). |
 | Channel IDs | Numeric `broadcaster_user_id` | Numeric `broadcaster_user_id` **and** human-readable `slug`. The bot tracks `TWITCH_USERNAME` (slug) ≠ `KICK_CHANNEL` (slug) ≠ `CHANNEL_ID` (numeric). |
 | Send chat | `POST /helix/chat/messages` | `POST /public/v1/chat` with `type: "bot"` (the bot's identity is implicit in the OAuth token). |
-| Bans | `POST /helix/moderation/bans` | `POST /public/v1/moderation/bans` — same shape, different field names. |
+| Bans | `POST /helix/moderation/bans` | `POST /public/v1/moderation/bans` - same shape, different field names. |
 | Webhook signing | HMAC-SHA256 (shared secret) | **RSA-SHA256 (PKCS#1 v1.5) public-key**, signed bytes are `<msg_id>.<ts>.<raw_body>`. |
 | Webhook verification key | shared secret per subscription | **single global key** at `GET /public/v1/public-key`. Repo caches 1 h. |
-| Subscription model | One subscription per event per channel; auto-renewing | Same shape, but **must be created via the REST API** — there is no "subscribe at install time" UX yet, and the repo does not provision them. |
+| Subscription model | One subscription per event per channel; auto-renewing | Same shape, but **must be created via the REST API** - there is no "subscribe at install time" UX yet, and the repo does not provision them. |
 | Replies | `reply_parent_message_id` on `POST /helix/chat/messages` | `reply_to_message_id` on `POST /public/v1/chat`. |
 | Categories ID | `game_id` | `category_id` (search via `GET /public/v2/categories`). |
-| Free chat events | mod actions surfaced via EventSub | `moderation.banned` only — no `moderation.unbanned` event today, no `chat.message.deleted`, no raid/host equivalents. |
-| Moderator badge detection | scopes / role flag | `sender.identity.badges[].type` — bot reads `"moderator"` and `"broadcaster"` strings. |
+| Free chat events | mod actions surfaced via EventSub | `moderation.banned` only - no `moderation.unbanned` event today, no `chat.message.deleted`, no raid/host equivalents. |
+| Moderator badge detection | scopes / role flag | `sender.identity.badges[].type` - bot reads `"moderator"` and `"broadcaster"` strings. |
 | Chat command surface | Same builtin set | The **same** builtin command list as Twitch (see `builtin_commands` in `./bot/kick.py:82`), minus features without a Kick equivalent (e.g., raids). |
-| OBS / overlays | Existing overlays use `channel_code` from the user's API key | **Same WebSocket bus** — Kick events join the same WS channel via the `KICK_*` event names, so overlays can branch on event prefix to render Kick-specific assets. |
-| MySQL scope | Per-user DB = Twitch username | **Same per-user DB** — Kick events write to `followers_data`, `subscription_data` with `source='Kick'` to disambiguate. |
+| OBS / overlays | Existing overlays use `channel_code` from the user's API key | **Same WebSocket bus** - Kick events join the same WS channel via the `KICK_*` event names, so overlays can branch on event prefix to render Kick-specific assets. |
+| MySQL scope | Per-user DB = Twitch username | **Same per-user DB** - Kick events write to `followers_data`, `subscription_data` with `source='Kick'` to disambiguate. |
 
 ---
 
-## 8. Quick reference — file/line index
+## 8. Quick reference - file/line index
 
 | Concern | Path:Line |
 | --- | --- |

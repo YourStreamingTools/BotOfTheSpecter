@@ -5,7 +5,7 @@ $redirectURI = 'https://members.botofthespecter.com/login.php';
 // Scope superset shared with home/login.php, support/login.php, and
 // dashboard/login.php. The .botofthespecter.com session is shared across
 // all four apps, so the access_token minted here must satisfy dashboard's
-// mod/chat/channel API calls — otherwise dashboard pages (e.g. bot.php)
+// mod/chat/channel API calls - otherwise dashboard pages (e.g. bot.php)
 // false-negative on mod-status checks even though the user is logged in.
 $IDScope = 'openid channel:bot moderator:manage:chat_messages user:read:moderated_channels moderator:read:blocked_terms moderator:read:chat_settings moderator:read:vips moderator:read:moderators moderator:read:unban_requests moderator:read:banned_users moderator:read:chat_messages moderator:read:warnings user:bot channel:read:goals channel:moderate channel:manage:moderators user:edit:broadcast channel:manage:redemptions channel:manage:polls channel:manage:predictions moderator:manage:automod moderator:read:suspicious_users channel:read:hype_train channel:manage:broadcast channel:manage:raids channel:read:charity user:read:email user:read:chat user:write:chat user:read:follows chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips user:read:subscriptions channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule channel:manage:clips editor:manage:clips clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users';
 
@@ -31,7 +31,7 @@ if (isset($_SESSION['access_token'])) {
 }
 
 // ----------------------------------------------------------------
-// PATH A — Handoff token from home/sso.php (target='members')
+// PATH A - Handoff token from home/sso.php (target='members')
 // Members has its own session-key convention (snake_case + user_email)
 // so we translate the handoff_tokens columns into members' shape and
 // look up email from website.users (the handoff_tokens row doesn't
@@ -73,7 +73,7 @@ if (!empty($_GET['handoff'])) {
                         $eStmt->close();
                     }
                     $wdb->close();
-                    // Set members session — members reads snake_case keys
+                    // Set members session - members reads snake_case keys
                     $_SESSION['access_token']      = $at;
                     $_SESSION['refresh_token']     = $rt;
                     $_SESSION['user_email']        = $userEmail;
@@ -98,7 +98,7 @@ if (!empty($_GET['handoff'])) {
             }
             $wdb->close();
         }
-        // Token invalid / expired — fall through to login page
+        // Token invalid / expired - fall through to login page
         $info = 'Your session link has expired. Please sign in again.';
     }
 }
@@ -173,7 +173,7 @@ if ($response && $http === 200) {
             $_SESSION['twitch_user_id'] = $twitchUserId;
             $_SESSION['profile_image_url'] = $profileImageUrl;
             $_SESSION['display_name'] = $twitchDisplayName;
-            // StreamersConnect just minted this token — skip the bootstrap's
+            // StreamersConnect just minted this token - skip the bootstrap's
             // immediate id.twitch.tv revalidate on the next page load.
             $expiresIn = isset($decoded['expires_in']) ? (int)$decoded['expires_in'] : 14400;
             $_SESSION['twitch_expires_at'] = time() + $expiresIn;

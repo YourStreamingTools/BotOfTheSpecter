@@ -9,13 +9,13 @@
 // Sweeps, in order:
 //
 //   1. web_sessions where last_seen_at < NOW() - 4h, OR last_seen_at
-//      IS NULL. NULL is treated as "ancient" — it shows up on rows
+//      IS NULL. NULL is treated as "ancient" - it shows up on rows
 //      whose schema doesn't default last_seen_at to CURRENT_TIMESTAMP
 //      and which haven't yet been touched by the ON DUPLICATE KEY
 //      UPDATE branch in the session handler.
 //
 //   2. web_sessions where access_token IS NULL or empty AND the row
-//      is older than the StreamersConnect grace window (or NULL —
+//      is older than the StreamersConnect grace window (or NULL -
 //      same logic). These are sessions where the user got a cookie
 //      but never finished auth. They pile up over time.
 //
@@ -25,10 +25,10 @@
 // Token expiry (twitch_expires_at) is intentionally NOT swept here.
 // Twitch id.twitch.tv/oauth2/validate (session_bootstrap) is the only
 // authority that may destroy an authenticated session. The denormalized
-// column is a display / re-validate hint only — deleting on it caused
+// column is a display / re-validate hint only - deleting on it caused
 // false logouts when the clock face did not match MySQL NOW().
 //
-// Refuses to run from a webserver — cron-only by design. Outputs
+// Refuses to run from a webserver - cron-only by design. Outputs
 // before/after counts to stdout for cron-mail / log capture.
 //
 // Flags:
@@ -83,7 +83,7 @@ printf(
 );
 
 // ----------------------------------------------------------------
-// Sweep 1 — stale by lifetime.
+// Sweep 1 - stale by lifetime.
 // NULL last_seen_at is treated as ancient.
 // ----------------------------------------------------------------
 $sql1 = "DELETE FROM web_sessions
@@ -91,9 +91,9 @@ $sql1 = "DELETE FROM web_sessions
              OR last_seen_at < NOW() - INTERVAL ? HOUR";
 
 // ----------------------------------------------------------------
-// Sweep 2 — never-finished-auth rows. access_token blank AND row is
+// Sweep 2 - never-finished-auth rows. access_token blank AND row is
 // older than the SC grace window (or has no last_seen_at at all).
-// With --purge-empty the age guard is dropped entirely — every
+// With --purge-empty the age guard is dropped entirely - every
 // empty-token row goes, regardless of how recently it was touched.
 // ----------------------------------------------------------------
 if ($purgeEmpty) {
@@ -107,7 +107,7 @@ if ($purgeEmpty) {
 }
 
 // ----------------------------------------------------------------
-// Sweep 3 — old handoff_tokens.
+// Sweep 3 - old handoff_tokens.
 // ----------------------------------------------------------------
 $sql3 = "DELETE FROM handoff_tokens
           WHERE expires_at < NOW() - INTERVAL ? DAY";

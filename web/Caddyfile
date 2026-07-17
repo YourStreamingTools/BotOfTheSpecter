@@ -1,4 +1,4 @@
-# BotOfTheSpecter — Caddy config for the web server.
+# BotOfTheSpecter - Caddy config for the web server.
 #
 # Covers all 14 surfaces (11 PHP frontends + 3 static asset hosts).
 # Caddy auto-issues + auto-renews Let's Encrypt certs.
@@ -184,10 +184,10 @@ yourchat.botofthespecter.com {
     }
 }
 
-# YourLinks.click — the apex is the app/dashboard, served normally. The wildcard
+# YourLinks.click - the apex is the app/dashboard, served normally. The wildcard
 # subdomains (username.yourlinks.click) are public profiles + short links, all
 # dispatched through redirect.php, which reads the username from the Host header.
-# This replaces the app's Apache .htaccess mod_rewrite rules — Caddy never reads
+# This replaces the app's Apache .htaccess mod_rewrite rules - Caddy never reads
 # .htaccess, which is why every subdomain was falling through to index.php.
 yourlinks.click {
     root * /var/www/yourlinks.click
@@ -316,7 +316,7 @@ videoalerts.botofthespecter.com {
 }
 
 # Wildcard catch-all for botofthespecter.com subdomains that don't have their
-# own block above (e.g. web1 — the server's own hostname). Exact-host blocks
+# own block above (e.g. web1 - the server's own hostname). Exact-host blocks
 # always win; only unmatched subdomains land here. The wildcard cert is issued
 # via the global Cloudflare DNS-01 config (wildcards require DNS-01).
 *.botofthespecter.com {

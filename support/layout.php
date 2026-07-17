@@ -16,7 +16,7 @@ $config           = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'] ?? '4.1.0';
 
 if (!isset($pageTitle))       $pageTitle       = 'Support';
-if (!isset($pageDescription)) $pageDescription = 'BotOfTheSpecter Support Portal — documentation, guides, and support tickets for your streaming bot.';
+if (!isset($pageDescription)) $pageDescription = 'BotOfTheSpecter Support Portal - documentation, guides, and support tickets for your streaming bot.';
 if (!isset($topbarTitle))     $topbarTitle     = $pageTitle;
 
 // Session state (layout calls session_start via helpers if available)
@@ -49,17 +49,17 @@ $v = uuidv4();
             } catch (e) {}
         })();
     </script>
-    <title><?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Support</title>
+    <title><?php echo htmlspecialchars($pageTitle); ?> - BotOfTheSpecter Support</title>
     <meta name="description" content="<?php echo htmlspecialchars($pageDescription); ?>">
     <!-- Open Graph -->
-    <meta property="og:title"       content="<?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Support">
+    <meta property="og:title"       content="<?php echo htmlspecialchars($pageTitle); ?> - BotOfTheSpecter Support">
     <meta property="og:description" content="<?php echo htmlspecialchars($pageDescription); ?>">
     <meta property="og:image"       content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <meta property="og:type"        content="website">
     <!-- Twitter card -->
     <meta name="twitter:card"        content="summary_large_image">
     <meta name="twitter:site"        content="@Tools4Streaming">
-    <meta name="twitter:title"       content="<?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Support">
+    <meta name="twitter:title"       content="<?php echo htmlspecialchars($pageTitle); ?> - BotOfTheSpecter Support">
     <meta name="twitter:description" content="<?php echo htmlspecialchars($pageDescription); ?>">
     <meta name="twitter:image"       content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <!-- Favicon -->

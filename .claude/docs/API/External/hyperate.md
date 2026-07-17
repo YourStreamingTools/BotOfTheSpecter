@@ -1,4 +1,4 @@
-# HypeRate API — Comprehensive Reference
+# HypeRate API - Comprehensive Reference
 
 > Source: HypeRate official DevDocs (https://github.com/HypeRate/DevDocs), HypeRate marketing pages
 > (https://www.hyperate.io/api), and reverse-engineering of the official C# / Godot / Elixir SDKs.
@@ -6,7 +6,7 @@
 
 HypeRate is a heart-rate-as-a-service platform. Wearable fitness devices push BPM data to the
 HypeRate cloud, which re-publishes that data to subscribers in real time over a Phoenix WebSocket.
-There is no polling REST API for live data — WebSocket is the only channel for BPM updates.
+There is no polling REST API for live data - WebSocket is the only channel for BPM updates.
 
 ---
 
@@ -26,7 +26,7 @@ wss://app.hyperate.io/socket/websocket?token=<WEBSOCKET-KEY>
 - Obtained by requesting access at https://www.hyperate.io/api
 - Never expires passively; revoked only on plan change or terms breach
 - Scoped to the **application**, not to an individual streamer
-- Must be kept secret — it authenticates your whole integration, not a single user
+- Must be kept secret - it authenticates your whole integration, not a single user
 
 ### 1.2 Per-streamer channel code (channel-level)
 
@@ -35,7 +35,7 @@ This value is set by the streamer themselves in the HypeRate mobile/desktop app.
 
 - Format: an alphanumeric string chosen by the streamer (e.g. `abc123`, `streamername`)
 - Used to form the Phoenix topic: `hr:<channel_code>` (e.g. `hr:abc123`)
-- Not a secret — it is an identifier, not a credential. Knowing it lets you subscribe; it does not
+- Not a secret - it is an identifier, not a credential. Knowing it lets you subscribe; it does not
   let you impersonate the streamer or write to their account
 - Test value: `internal-testing` (see §5)
 
@@ -72,7 +72,7 @@ No HTTP headers beyond standard WebSocket handshake headers are required.
 ### 3.2 Protocol
 
 The server runs the **Phoenix Framework** channel transport. This is **not** Socket.IO, Engine.IO,
-or any other wrapper. Do not use a Socket.IO client — the framing is incompatible.
+or any other wrapper. Do not use a Socket.IO client - the framing is incompatible.
 
 Phoenix messages are plain JSON objects with four fields:
 
@@ -237,7 +237,7 @@ Payload schema:
 `ref` is always `null` for server-pushed events (not a response to a client message).
 
 **The `hr: null` case is significant.** When `hr` is `null`, the streamer's device has stopped
-sending data. This is a clean termination signal — not an error — and clients should treat it as
+sending data. This is a clean termination signal - not an error - and clients should treat it as
 "monitoring ended". No further `hr_update` events will arrive until the device reconnects and the
 streamer resumes sending.
 
@@ -352,7 +352,7 @@ async def main():
             if msg.get("event") == "hr_update":
                 hr = msg["payload"].get("hr")
                 if hr is None:
-                    print("Device offline — stopping")
+                    print("Device offline - stopping")
                     break
                 print(f"Heart rate: {hr} BPM")
             # phx_reply, phx_close, etc. can be safely ignored for basic use
@@ -367,7 +367,7 @@ asyncio.run(main())
 - **Wrong keepalive topic.** The heartbeat must go to topic `"phoenix"`, not `"hr:<id>"`. Phoenix
   tracks keepalives at the socket level; channel-level messages do not satisfy it
 - **`hr: null` is not an error.** It is the server's way of saying the device disconnected cleanly.
-  Do not retry the connection immediately — the device is offline and reconnecting will simply yield
+  Do not retry the connection immediately - the device is offline and reconnecting will simply yield
   the same null immediately
 - **Phoenix is not Socket.IO.** Socket.IO clients add a negotiation layer (Engine.IO transport
   handshake, namespace packets) that Phoenix does not speak. Use a plain WebSocket library
@@ -388,7 +388,7 @@ specification.
 
 | Item | Location | Notes |
 |---|---|---|
-| Developer key env var | `HYPERATE_API_KEY` in `(server) /home/botofthespecter/.env` | Misleadingly named — it is the application-level WebSocket key, not a per-user key |
+| Developer key env var | `HYPERATE_API_KEY` in `(server) /home/botofthespecter/.env` | Misleadingly named - it is the application-level WebSocket key, not a per-user key |
 | Per-streamer channel code storage | `users.heartrate_code` in the central `website` DB | One row per registered user; empty string = not configured |
 | Dashboard UI for code entry | `./dashboard/profile.php:85-92, 222-249, 884-900` | Reads from `profile` table for display; writes to `users` table on save |
 

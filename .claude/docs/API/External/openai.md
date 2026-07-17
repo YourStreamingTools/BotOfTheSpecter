@@ -1,4 +1,4 @@
-# OpenAI API — BotOfTheSpecter Reference
+# OpenAI API - BotOfTheSpecter Reference
 
 Local reference for how this project uses the OpenAI API. Covers Twitch/Discord/Kick chat replies, ad-break commentary, the bot's own home-channel chat AI, OpenAI TTS in the WebSocket server, and the dashboard admin usage/billing widget.
 
@@ -10,12 +10,12 @@ This is a **reference doc**, not a tutorial. It maps each call site to the SDK m
 
 OpenAI is invoked from three runtimes:
 
-1. **Twitch bot** (`./bot/bot.py`, `./bot/beta.py`, `./bot/beta-v6.py`) — chat reply AI for users with premium tier ≥ 2000, plus AI-driven ad-break commentary.
-2. **Discord bot** (`./bot/specterdiscord.py`) — DM and guild-channel reply AI, with both non-streaming and streaming variants.
-3. **Kick bot** (`./bot/kick.py`) — `!story` command only (one-shot text generation).
-4. **WebSocket server** (`./websocket/tts_handler.py`) — OpenAI TTS (`gpt-4o-mini-tts`) used to synthesise alert / chat TTS audio for overlays.
-5. **Custom-channel module** (`./bot/custom_channel_modules/botofthespecter.py`) — extra AI flow when the bot runs in its own home channel `botofthespecter`.
-6. **Dashboard admin** (`./dashboard/admin/index.php`) — read-only panel that calls `https://api.openai.com/v1/organization/usage/completions` to display token usage and dollar cost.
+1. **Twitch bot** (`./bot/bot.py`, `./bot/beta.py`, `./bot/beta-v6.py`) - chat reply AI for users with premium tier ≥ 2000, plus AI-driven ad-break commentary.
+2. **Discord bot** (`./bot/specterdiscord.py`) - DM and guild-channel reply AI, with both non-streaming and streaming variants.
+3. **Kick bot** (`./bot/kick.py`) - `!story` command only (one-shot text generation).
+4. **WebSocket server** (`./websocket/tts_handler.py`) - OpenAI TTS (`gpt-4o-mini-tts`) used to synthesise alert / chat TTS audio for overlays.
+5. **Custom-channel module** (`./bot/custom_channel_modules/botofthespecter.py`) - extra AI flow when the bot runs in its own home channel `botofthespecter`.
+6. **Dashboard admin** (`./dashboard/admin/index.php`) - read-only panel that calls `https://api.openai.com/v1/organization/usage/completions` to display token usage and dollar cost.
 
 There are **two distinct flows** to be aware of:
 
@@ -54,24 +54,24 @@ Repo callsites (one client per process, module-level):
 - `./bot/beta.py:254`
 - `./bot/beta-v6.py:233`
 - `./bot/specterdiscord.py` (loaded via `OPENAI_API_KEY = os.getenv('OPENAI_KEY')`)
-- `./bot/kick.py` — same pattern
+- `./bot/kick.py` - same pattern
 - `./websocket/tts_handler.py:25` (`self.openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_KEY'))`)
 
 > **Rule:** Never hardcode an OpenAI key. Never log the key. Never echo it back to a Twitch/Discord channel or webhook. See `.claude/rules/secrets.md`.
 
-The `bot.py` token-reload paths re-read `OPENAI_KEY` on demand — see `./bot/bot.py:13943`, `./bot/beta.py:13943` (handler in `globals()` block), `./bot/beta-v6.py:11373`. The `AsyncOpenAI` client object is **not** re-instantiated; only the cached env var is. If you ever rotate the key on a live process, restart the bot to pick it up at the SDK level.
+The `bot.py` token-reload paths re-read `OPENAI_KEY` on demand - see `./bot/bot.py:13943`, `./bot/beta.py:13943` (handler in `globals()` block), `./bot/beta-v6.py:11373`. The `AsyncOpenAI` client object is **not** re-instantiated; only the cached env var is. If you ever rotate the key on a live process, restart the bot to pick it up at the SDK level.
 
 ### PHP runtime (dashboard)
 
-- Loaded from `./config/openai.php` (dev) / `/var/www/config/openai.php` (server). PHP **never** uses `.env` — see `.claude/rules/php-config.md`.
+- Loaded from `./config/openai.php` (dev) / `/var/www/config/openai.php` (server). PHP **never** uses `.env` - see `.claude/rules/php-config.md`.
 - `./config/openai.php` returns an array with `admin_key`, `organization_id`, `project_id`, plus a `pricing_per_million` map used for cost estimation (see §5).
-- The admin key is sent as `Authorization: Bearer <admin_key>` to `https://api.openai.com/v1/organization/usage/*`. This is a **separate** key from the chat-completions key used by the bot — it must be a key with `api.usage.read` scope on the organization.
+- The admin key is sent as `Authorization: Bearer <admin_key>` to `https://api.openai.com/v1/organization/usage/*`. This is a **separate** key from the chat-completions key used by the bot - it must be a key with `api.usage.read` scope on the organization.
 
 ---
 
 ## 3. Endpoints used
 
-The project only ever uses the **Chat Completions** API (`POST /v1/chat/completions`) for text, plus the **Audio Speech** API for TTS, plus the **Organization Usage** API for the admin dashboard. The Responses API is **not** used. The Realtime API is referenced in `./bot/specterdiscord.py:6463` (URL only — `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview`) but the integration is dormant.
+The project only ever uses the **Chat Completions** API (`POST /v1/chat/completions`) for text, plus the **Audio Speech** API for TTS, plus the **Organization Usage** API for the admin dashboard. The Responses API is **not** used. The Realtime API is referenced in `./bot/specterdiscord.py:6463` (URL only - `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview`) but the integration is dormant.
 
 ### 3.1 Chat Completions
 
@@ -84,13 +84,13 @@ The project only ever uses the **Chat Completions** API (`POST /v1/chat/completi
 
 **Required parameters used everywhere:**
 
-- `model` — see §5.
-- `messages` — list of `{role: 'system'|'user'|'assistant', content: str}`.
+- `model` - see §5.
+- `messages` - list of `{role: 'system'|'user'|'assistant', content: str}`.
 
 **Parameters NOT set anywhere in this project (left at SDK defaults):**
 
 - `temperature`, `top_p`, `n`, `stop`, `presence_penalty`, `frequency_penalty`, `response_format`, `tools`, `tool_choice`, `seed`, `user`.
-- `max_completion_tokens` is set in **only one place**: `./bot/kick.py:1540` (`max_completion_tokens=200` for `!story`). Every other call relies on the model's default cap — which is why each flow injects a `system` message instructing the model to stay under `MAX_CHAT_MESSAGE_LENGTH` (500 chars). Kick uses `max_completion_tokens` (not `max_tokens`) because `gpt-5.4-mini` is a GPT-5-family reasoning model — see §5.3.
+- `max_completion_tokens` is set in **only one place**: `./bot/kick.py:1540` (`max_completion_tokens=200` for `!story`). Every other call relies on the model's default cap - which is why each flow injects a `system` message instructing the model to stay under `MAX_CHAT_MESSAGE_LENGTH` (500 chars). Kick uses `max_completion_tokens` (not `max_tokens`) because `gpt-5.4-mini` is a GPT-5-family reasoning model - see §5.3.
 
 **Sample request (mirrors `Bot.get_ai_response`):**
 
@@ -201,7 +201,7 @@ PHP-side, not used by the bot. Hits:
 - Walks pagination via `openai_get_all_pages()` in `./dashboard/admin/index.php` (max 20 pages).
 - Output is reduced into per-model token totals → multiplied by `pricing_per_million` to estimate dollar cost.
 
-This is the **only** PHP code path that talks to OpenAI. Don't add chat-completions calls in PHP — PHP is the wrong runtime for that here.
+This is the **only** PHP code path that talks to OpenAI. Don't add chat-completions calls in PHP - PHP is the wrong runtime for that here.
 
 ---
 
@@ -209,7 +209,7 @@ This is the **only** PHP code path that talks to OpenAI. Don't add chat-completi
 
 ### 4.1 The `/chat-instructions` API endpoint
 
-System prompts are not in code — they live in JSON files on the server and are served by the FastAPI endpoint:
+System prompts are not in code - they live in JSON files on the server and are served by the FastAPI endpoint:
 
 ```
 GET https://api.botofthespecter.com/chat-instructions
@@ -236,7 +236,7 @@ through to the default `ai.json`; only if *that* is also absent does it return 4
 
 **Staleness guard:** if the deployed server copy is older than the repo-shipped
 copy (i.e. the repo was edited but never re-deployed), the endpoint logs a
-`WARNING` naming the file. This is the "Stream Team" failure mode made visible —
+`WARNING` naming the file. This is the "Stream Team" failure mode made visible -
 the rule was corrected in the repo but the server file was never updated. Push
 the repo copies to the server with `./api/deploy-ai-instructions.sh`; bots
 refresh within `INSTRUCTIONS_CACHE_TTL` (5 min), no restart needed.
@@ -267,9 +267,9 @@ refresh within `INSTRUCTIONS_CACHE_TTL` (5 min), no restart needed.
 
 Each bot caches the parsed instructions for `INSTRUCTIONS_CACHE_TTL` seconds (300 s = 5 min):
 
-- `_cached_instructions` — default flow.
-- `_cached_ad_instructions` — `?ad_messages=true`.
-- `_cached_home_instructions` — `?home_ai=true`.
+- `_cached_instructions` - default flow.
+- `_cached_ad_instructions` - `?ad_messages=true`.
+- `_cached_home_instructions` - `?home_ai=true`.
 
 Discord uses the same `_cached_instructions` slot but appends `?discord=true` to the URL (slight inconsistency: a Twitch-bot fetch and a Discord-bot fetch will not happen in the same process, so this is fine in practice).
 
@@ -315,7 +315,7 @@ Order matters. The bot constructs:
 1. System prompt(s) from `/chat-instructions` (one or more `system` messages).
 2. **User-context system message** (`./bot/beta.py:4384`): `"You are speaking to Twitch user 'Foo' (id: 12345). Address them by their display name @Foo and tailor the response to them. Keep responses concise and suitable for Twitch chat."`
 3. **Length-limit system message** (`./bot/beta.py:4388`): `"Important: Keep your final reply under 500 characters total..."`
-4. Recent history — last 8 turns from `chat-history/{user_id}.json`.
+4. Recent history - last 8 turns from `chat-history/{user_id}.json`.
 5. Current user message as the final `user` turn.
 
 ### 4.5 Token budget
@@ -326,7 +326,7 @@ There is no explicit token budget enforcement. The implicit budget comes from:
 - History trimmed to last 8 (Twitch) / 12 (home channel) turns.
 - File cap: 200 entries hard-trimmed on write.
 
-If you change the model, **recheck the system-message length-cap instructions** — they're written for a 500-char Twitch response and 2000-char Discord response. Reference: `MAX_CHAT_MESSAGE_LENGTH` in each bot file.
+If you change the model, **recheck the system-message length-cap instructions** - they're written for a 500-char Twitch response and 2000-char Discord response. Reference: `MAX_CHAT_MESSAGE_LENGTH` in each bot file.
 
 ### 4.6 Post-processing filter
 
@@ -346,9 +346,9 @@ No post-processing filter on the AI response. A previous version substituted "Ch
 | `./bot/specterdiscord.py:163` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
 | `./bot/kick.py:154` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
 | `./bot/custom_channel_modules/botofthespecter.py:10` | `OPENAI_MODEL` | `'gpt-5.4-mini'` |
-| `./websocket/tts_handler.py:11` | `MODEL_NAME` | `'gpt-4o-mini-tts'` (TTS — separate family, unchanged) |
+| `./websocket/tts_handler.py:11` | `MODEL_NAME` | `'gpt-4o-mini-tts'` (TTS - separate family, unchanged) |
 
-`gpt-5.4-mini` is the **unified chat model across all five bots** (set 2026-06-08). It replaced the previous mix of `gpt-5.4-nano` (beta/Discord), `gpt-5-nano` (stable/v6/home channel), and `gpt-4o-mini` (Kick). As of 2026-06-08 **every** bot file (and the home-channel module) defines its own module-level `OPENAI_MODEL` constant and every `model=` callsite references it — so changing the model is a **one-line edit per process**, mirroring the pattern that already existed in `beta.py`/`specterdiscord.py`. The six constants are independent literals (the bots run as separate processes, so there is no shared global); if you want them env-overridable from one place, change each to `OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini')`.
+`gpt-5.4-mini` is the **unified chat model across all five bots** (set 2026-06-08). It replaced the previous mix of `gpt-5.4-nano` (beta/Discord), `gpt-5-nano` (stable/v6/home channel), and `gpt-4o-mini` (Kick). As of 2026-06-08 **every** bot file (and the home-channel module) defines its own module-level `OPENAI_MODEL` constant and every `model=` callsite references it - so changing the model is a **one-line edit per process**, mirroring the pattern that already existed in `beta.py`/`specterdiscord.py`. The six constants are independent literals (the bots run as separate processes, so there is no shared global); if you want them env-overridable from one place, change each to `OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.4-mini')`.
 
 ### 5.2 Pricing reference
 
@@ -370,15 +370,15 @@ o3                input $2.00 / output $8.00
 o4-mini           input $1.10 / output $4.40
 ```
 
-`gpt-5.4-mini` is **not** in this table — pricing falls back to the `default` row (`$2.50 / $10.00`). The dashboard cost estimate for the bots' AI usage will therefore be inaccurate until a `gpt-5.4-mini` row (real input/output per-million pricing) is added to `./config/openai.php` **and** the duplicate pricing map in `./dashboard/admin/index.php`.
+`gpt-5.4-mini` is **not** in this table - pricing falls back to the `default` row (`$2.50 / $10.00`). The dashboard cost estimate for the bots' AI usage will therefore be inaccurate until a `gpt-5.4-mini` row (real input/output per-million pricing) is added to `./config/openai.php` **and** the duplicate pricing map in `./dashboard/admin/index.php`.
 
 ### 5.3 Swapping models
 
 To change the model fleet-wide:
 
-1. Update the `OPENAI_MODEL` constant in each of the six files in §5.1 — every `model=` callsite already references it, so that constant is the only line to touch per process.
+1. Update the `OPENAI_MODEL` constant in each of the six files in §5.1 - every `model=` callsite already references it, so that constant is the only line to touch per process.
 2. If the new model has a different price, add it to `./config/openai.php` `pricing_per_million` (and the duplicate map in `./dashboard/admin/index.php`).
-3. Verify the TTS model (`gpt-4o-mini-tts`) separately — TTS is a different model family and is **not** governed by `OPENAI_MODEL`.
+3. Verify the TTS model (`gpt-4o-mini-tts`) separately - TTS is a different model family and is **not** governed by `OPENAI_MODEL`.
 4. GPT-5 / `o1` / `o3` reasoning models require **`max_completion_tokens` instead of `max_tokens`** on Chat Completions. `./bot/kick.py` already uses `max_completion_tokens=200` (the only callsite that caps tokens) since the fleet moved to `gpt-5.4-mini`; if you add a token cap elsewhere on a GPT-5-family model, use `max_completion_tokens`, not the deprecated `max_tokens`.
 
 ---
@@ -389,10 +389,10 @@ OpenAI rate limits are tier-based (RPM = requests/minute, TPM = tokens/minute, R
 
 This project does **not** implement client-side rate limiting against OpenAI. The expected mitigations are:
 
-1. **Premium gating** — Twitch-bot AI replies are tier-gated (`premium_tier in (2000, 3000, 4000)` — see `./bot/beta.py:4346`). Random viewers cannot trigger AI calls.
-2. **Cooldowns** — bot commands have per-user / per-bucket cooldowns enforced in MySQL.
-3. **Length cap via system message** — keeps per-call token cost low (mostly < 500 output tokens).
-4. **Instructions caching** — `/chat-instructions` is cached for 5 min, but this is to relieve the API server, not OpenAI.
+1. **Premium gating** - Twitch-bot AI replies are tier-gated (`premium_tier in (2000, 3000, 4000)` - see `./bot/beta.py:4346`). Random viewers cannot trigger AI calls.
+2. **Cooldowns** - bot commands have per-user / per-bucket cooldowns enforced in MySQL.
+3. **Length cap via system message** - keeps per-call token cost low (mostly < 500 output tokens).
+4. **Instructions caching** - `/chat-instructions` is cached for 5 min, but this is to relieve the API server, not OpenAI.
 
 If 429s start to appear:
 
@@ -443,7 +443,7 @@ if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.c
 # if streaming yielded nothing, fall back to non-stream chat.completions.create
 ```
 
-The fallback to non-stream is intentional — if the SDK ever drops the `.stream()` async context manager, the bot doesn't go silent.
+The fallback to non-stream is intentional - if the SDK ever drops the `.stream()` async context manager, the bot doesn't go silent.
 
 ### 7.2 Why we don't use `stream=True` parameter
 
@@ -490,7 +490,7 @@ except Exception as e:
     return ["An error occurred while contacting the AI chat service."]
 ```
 
-This is intentional — Twitch chat is not a place to leak SDK error class names. The error is logged to the per-channel `api.txt` log for debugging.
+This is intentional - Twitch chat is not a place to leak SDK error class names. The error is logged to the per-channel `api.txt` log for debugging.
 
 ### 8.3 Retries
 
@@ -499,7 +499,7 @@ The SDK retries automatically (default 2 retries) on:
 - `APIConnectionError`
 - HTTP 408 (request timeout)
 - HTTP 409 (conflict, lock-related)
-- HTTP 429 (rate limit) — respects `Retry-After`
+- HTTP 429 (rate limit) - respects `Retry-After`
 - HTTP 5xx (server errors)
 
 This project does **not** override `max_retries` or `timeout` on the client. Defaults are:
@@ -507,7 +507,7 @@ This project does **not** override `max_retries` or `timeout` on the client. Def
 - `max_retries=2`
 - `timeout=600.0` (10 min)
 
-For Twitch chat replies, 10 min is too long — a viewer's `!chat` will time out from their perspective long before. Consider lowering this if 5xx storms cause hangs:
+For Twitch chat replies, 10 min is too long - a viewer's `!chat` will time out from their perspective long before. Consider lowering this if 5xx storms cause hangs:
 
 ```python
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, max_retries=1, timeout=20.0)
@@ -522,14 +522,14 @@ openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, max_retries=1, timeout=20.0)
 | `[AI] Error calling chat completion API: AuthenticationError` | Missing or rotated `OPENAI_KEY` | Update `/home/botofthespecter/.env` and restart bot |
 | `[AI] Error calling chat completion API: BadRequestError ... model ... does not exist` | `gpt-5.4-mini` is not exposed to this org | Confirm the `gpt-5.4-mini` alias is enabled on the org, or change to a model your org has access to |
 | `[AI] Error calling chat completion API: RateLimitError` | TPM/RPM exceeded | Wait; SDK retries. If persistent, request limit increase or downgrade model |
-| `[AI] Chat completion returned no usable text: <resp>` | Response shape unexpected; choices[] empty | Check `finish_reason` — content_filter blocked? |
-| `[AI] No compatible chat completions method found on openai_client` | SDK version mismatch — neither `chat.completions` nor `chat_completions` exists | `pip install -U openai` |
+| `[AI] Chat completion returned no usable text: <resp>` | Response shape unexpected; choices[] empty | Check `finish_reason` - content_filter blocked? |
+| `[AI] No compatible chat completions method found on openai_client` | SDK version mismatch - neither `chat.completions` nor `chat_completions` exists | `pip install -U openai` |
 | `[TTS] OPENAI_API_KEY not set` | `OPENAI_KEY` env var missing on websocket server | Set it on the websocket host's `.env` |
 | `Text too long: NNNN characters (max 4096)` | TTS input over 4096 chars | Caller must chunk before submitting |
 
 ### 8.5 PHP error handling (dashboard)
 
-The PHP usage call uses a multi-cURL helper (`openai_multi_curl`) and pages through results. Failures are surfaced into the admin page with `$openai_debug_info`. There's no automatic retry on the PHP side — a transient 5xx will simply show "—" in the AI Stats card.
+The PHP usage call uses a multi-cURL helper (`openai_multi_curl`) and pages through results. Failures are surfaced into the admin page with `$openai_debug_info`. There's no automatic retry on the PHP side - a transient 5xx will simply show "-" in the AI Stats card.
 
 ---
 
@@ -537,11 +537,11 @@ The PHP usage call uses a multi-cURL helper (`openai_multi_curl`) and pages thro
 
 ### 9.1 Version
 
-The bot's `requirements.txt` pins `openai` (check the file for the current pin). The code is written defensively against minor SDK changes — it probes for `client.chat.completions.create` first and falls back to `client.chat_completions.create` if the attribute layout ever differs. This dual-path is dead in current SDKs but kept for safety.
+The bot's `requirements.txt` pins `openai` (check the file for the current pin). The code is written defensively against minor SDK changes - it probes for `client.chat.completions.create` first and falls back to `client.chat_completions.create` if the attribute layout ever differs. This dual-path is dead in current SDKs but kept for safety.
 
 ### 9.2 Single client per process
 
-Each bot constructs **one** module-level `AsyncOpenAI` client. Don't construct a client per request — connection pooling lives inside the SDK's HTTPX client and you'll lose it.
+Each bot constructs **one** module-level `AsyncOpenAI` client. Don't construct a client per request - connection pooling lives inside the SDK's HTTPX client and you'll lose it.
 
 ### 9.3 No `OPENAI_API_KEY` env var pickup
 
@@ -558,7 +558,7 @@ async with self.openai_client.audio.speech.with_streaming_response.create(
     await response.stream_to_file(filepath)
 ```
 
-This is the right pattern. **Don't** switch to `client.audio.speech.create(...).content` — that buffers the whole file.
+This is the right pattern. **Don't** switch to `client.audio.speech.create(...).content` - that buffers the whole file.
 
 ### 9.5 The `chat_completions` (underscore) attribute
 
@@ -570,11 +570,11 @@ This project never calls `openai.ChatCompletion.create(...)` (the pre-1.0 module
 
 ### 9.7 Discord streaming consumes async generators carefully
 
-In `./bot/specterdiscord.py:2713`, the `on_message` handler awaits `async for delta in self.get_ai_response_stream(...)` inside `async with channel.typing()`. Don't refactor this to materialise the full response first — it defeats the typing-indicator UX.
+In `./bot/specterdiscord.py:2713`, the `on_message` handler awaits `async for delta in self.get_ai_response_stream(...)` inside `async with channel.typing()`. Don't refactor this to materialise the full response first - it defeats the typing-indicator UX.
 
-### 9.8 Dashboard PHP — separate admin key
+### 9.8 Dashboard PHP - separate admin key
 
-The dashboard's OpenAI key (`./config/openai.php` → `admin_key`) **must be a different key** from the one the bot uses, with `api.usage.read` scope. Don't paste the bot's chat key here — it will work for chat completions but won't have org-usage access.
+The dashboard's OpenAI key (`./config/openai.php` → `admin_key`) **must be a different key** from the one the bot uses, with `api.usage.read` scope. Don't paste the bot's chat key here - it will work for chat completions but won't have org-usage access.
 
 ---
 
@@ -611,14 +611,14 @@ PHP usage endpoint .... https://api.openai.com/v1/organization/usage/completions
 
 ## 11. Things that are NOT used (don't add without discussion)
 
-- **Responses API** (`/v1/responses`) — newer endpoint, not adopted here. All text generation goes through Chat Completions.
-- **Assistants API / Threads / Runs** — not used. The conversation state is project-managed JSON files, not OpenAI-managed threads.
-- **Function calling / tools** — not used. The bot's "tools" are Twitch/Discord/Kick command handlers, not OpenAI tool calls.
-- **Embeddings API** (`/v1/embeddings`) — `OPENAI_VECTOR_ID` exists in `.env.example` but no embedding code exists in the repo currently. If you add RAG, this is where it'd land.
-- **Moderation API** (`/v1/moderations`) — no automated content moderation on output. Content rules (forbidden phrases, tone, viewer-address style) live in the AI instructions JSON (`api/ai.ad_messages.json` etc.) so the model avoids them at generation time rather than being patched after the fact.
-- **Realtime API** — referenced in `./bot/specterdiscord.py:6463` but the integration is dormant.
-- **Image generation** (`/v1/images`) — not used.
-- **Vision input** — Discord bot accepts text attachments only, not image inputs.
+- **Responses API** (`/v1/responses`) - newer endpoint, not adopted here. All text generation goes through Chat Completions.
+- **Assistants API / Threads / Runs** - not used. The conversation state is project-managed JSON files, not OpenAI-managed threads.
+- **Function calling / tools** - not used. The bot's "tools" are Twitch/Discord/Kick command handlers, not OpenAI tool calls.
+- **Embeddings API** (`/v1/embeddings`) - `OPENAI_VECTOR_ID` exists in `.env.example` but no embedding code exists in the repo currently. If you add RAG, this is where it'd land.
+- **Moderation API** (`/v1/moderations`) - no automated content moderation on output. Content rules (forbidden phrases, tone, viewer-address style) live in the AI instructions JSON (`api/ai.ad_messages.json` etc.) so the model avoids them at generation time rather than being patched after the fact.
+- **Realtime API** - referenced in `./bot/specterdiscord.py:6463` but the integration is dormant.
+- **Image generation** (`/v1/images`) - not used.
+- **Vision input** - Discord bot accepts text attachments only, not image inputs.
 
 If the user asks for any of the above, treat it as new work and confirm scope before implementing.
 
@@ -637,8 +637,8 @@ If the user asks for any of the above, treat it as new work and confirm scope be
 | Change TTS model | `MODEL_NAME` in `./websocket/tts_handler.py:11`. |
 | Change premium gate | `if premium_tier in (2000, 3000, 4000)` in each `get_ai_response`. |
 | Add a new instructions flow | Extend `./api/api.py:2749` (`chat_instructions`) with a new query flag and a new JSON file path. |
-| Add a content rule (forbidden phrase, tone, viewer-address style) | Edit the AI instructions JSON (`api/ai.ad_messages.json` or sibling) so the model avoids it at generation time. Avoid post-processing string-replace filters — they substitute one wrong output for another. |
+| Add a content rule (forbidden phrase, tone, viewer-address style) | Edit the AI instructions JSON (`api/ai.ad_messages.json` or sibling) so the model avoids it at generation time. Avoid post-processing string-replace filters - they substitute one wrong output for another. |
 
 ---
 
-**Last checked against repo:** 2026-06-08. Bot file line numbers are accurate as of this date but will drift — re-grep with `OPENAI_MODEL`, `chat.completions`, or `get_ai_response` to find current locations.
+**Last checked against repo:** 2026-06-08. Bot file line numbers are accurate as of this date but will drift - re-grep with `OPENAI_MODEL`, `chat.completions`, or `get_ai_response` to find current locations.

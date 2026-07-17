@@ -4,7 +4,7 @@
 #
 # Target: fresh Ubuntu 26.04 LTS install. Installs Caddy + PHP-FPM 8.5,
 # lays out /var/www/ docroots for all PHP frontends and media directories,
-# drops the Caddyfile, enables services. Caddy handles SSL automatically —
+# drops the Caddyfile, enables services. Caddy handles SSL automatically -
 # no certbot, no vhosts.
 #
 # Run as root:
@@ -58,7 +58,7 @@ mkdir -p /var/www/{config,home,html,dashboard,members,overlay,support,roadmap,sp
 mkdir -p /var/log/caddy
 chown -R www-data:www-data /var/www
 find /var/www -type d -exec chmod 2755 {} \;
-chmod 2750 /var/www/config            # shared secrets — tighter perms
+chmod 2750 /var/www/config            # shared secrets - tighter perms
 chown caddy:caddy /var/log/caddy
 
 echo "==> Writing Caddy env file (placeholder for CF_API_TOKEN)..."
@@ -69,7 +69,7 @@ cat > /etc/caddy/caddy.env <<'EOF'
 #
 # Create the token at https://dash.cloudflare.com/profile/api-tokens with:
 #   Permissions: Zone:Read + DNS:Edit
-#   Zone Resources: include the four zones — botofthespecter.com,
+#   Zone Resources: include the four zones - botofthespecter.com,
 #                   botspecter.com, yourlinks.click, specterbot.app
 #
 # After filling this in: systemctl restart caddy

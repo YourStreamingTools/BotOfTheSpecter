@@ -6,7 +6,7 @@ if (!function_exists('support_session_start')) {
     function support_session_start() {
         // Now backed by the shared web_sessions row scoped to .botofthespecter.com,
         // so signing in on home/dashboard auto-authenticates the user here too.
-        // The bootstrap include is idempotent — calling this function from
+        // The bootstrap include is idempotent - calling this function from
         // multiple includes is safe.
         require_once '/var/www/lib/session_bootstrap.php';
     }
@@ -69,7 +69,7 @@ if (!function_exists('require_login')) {
                     return; // refreshed successfully
                 }
             }
-            // Refresh failed — destroy session and redirect
+            // Refresh failed - destroy session and redirect
             $_SESSION = [];
             session_destroy();
             header('Location: /login.php?reason=session_expired');

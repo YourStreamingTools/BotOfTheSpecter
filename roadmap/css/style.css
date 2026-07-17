@@ -1,5 +1,5 @@
 /* ============================================================
-   BotOfTheSpecter Roadmap — style.css
+   BotOfTheSpecter Roadmap - style.css
    Custom dark theme (sp-* base system + roadmap-specific)
    ============================================================ */
 
@@ -59,7 +59,7 @@
 }
 
 /* ----------------------------------------------------------
-   Light theme token overrides — applied when <html data-theme="light">.
+   Light theme token overrides - applied when <html data-theme="light">.
    Components reading the colour tokens above follow automatically.
    ---------------------------------------------------------- */
 [data-theme="light"] {
@@ -182,7 +182,7 @@ hr {
 }
 
 /* ----------------------------------------------------------
-   2. Layout — Sidebar + Main
+   2. Layout - Sidebar + Main
    ---------------------------------------------------------- */
 .sp-layout {
     display: flex;

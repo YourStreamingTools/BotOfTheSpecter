@@ -56,7 +56,7 @@ This prevents key leakage into URL logs. The bot does not use this form, but it 
 | Business | Higher quota | Yes (from 1990) | Yes | Once per UTC day |
 | Volume | Highest quota | Yes (from 1990) | Yes | Once per UTC day |
 
-- **Quota reset:** Resets on the anniversary of the day you signed up — not necessarily the 1st of the month. The `refresh_day_of_month` field in the quota endpoint tells you the exact day.
+- **Quota reset:** Resets on the anniversary of the day you signed up - not necessarily the 1st of the month. The `refresh_day_of_month` field in the quota endpoint tells you the exact day.
 - **Reporting delay:** Usage may take 5–60 minutes to appear in the `/quota` endpoint after calls are made.
 - **No per-second rate limit** is documented for any tier.
 - **Cache hint:** `time_next_update_unix` tells you the earliest moment rates can change. No call before that timestamp will return different rates.
@@ -67,7 +67,7 @@ BotOfTheSpecter is on the **Free plan**: 1,500 requests/month, no historical or 
 
 ## 3. Error Response (all endpoints)
 
-Every endpoint returns the same error envelope when a request fails. HTTP status codes are not relied upon — always check `result`.
+Every endpoint returns the same error envelope when a request fails. HTTP status codes are not relied upon - always check `result`.
 
 ```json
 {
@@ -83,11 +83,11 @@ A 200 HTTP response can carry `"result": "error"`. Always check `result` before 
 | `error-type` | Meaning |
 | ------------ | ------- |
 | `unsupported-code` | One or both currency codes are not in the supported list. |
-| `malformed-request` | URL structure is broken — typically a missing path segment or wrong segment order. |
+| `malformed-request` | URL structure is broken - typically a missing path segment or wrong segment order. |
 | `invalid-key` | API key is wrong or has been revoked. |
 | `inactive-account` | Account email has not been confirmed after sign-up. |
 | `quota-reached` | Monthly request quota is exhausted. |
-| `no-data-available` | Historical endpoint only — no exchange rate record exists for the requested date. |
+| `no-data-available` | Historical endpoint only - no exchange rate record exists for the requested date. |
 | `plan-upgrade-required` | Endpoint requires a higher-tier plan (e.g., enriched data on Free or Pro). |
 
 ---
@@ -175,7 +175,7 @@ GET /v6/{KEY}/history/{BASE_CODE}/{YEAR}/{MONTH}/{DAY}/{AMOUNT}
 | 2021-01-01 to present | All ~165 supported currencies |
 | 1990-01-01 to 2020-12-31 | 35 major currencies only (AUD, BRL, CAD, CHF, CNY, EUR, GBP, JPY, USD, and others) |
 
-**Success response — without amount:**
+**Success response - without amount:**
 
 ```json
 {
@@ -194,7 +194,7 @@ GET /v6/{KEY}/history/{BASE_CODE}/{YEAR}/{MONTH}/{DAY}/{AMOUNT}
 }
 ```
 
-**Success response — with amount:**
+**Success response - with amount:**
 
 ```json
 {
@@ -223,15 +223,15 @@ GET /v6/{KEY}/history/{BASE_CODE}/{YEAR}/{MONTH}/{DAY}/{AMOUNT}
 | `month` | integer | Month of the requested date (no leading zero) |
 | `day` | integer | Day of the requested date (no leading zero) |
 | `base_code` | string | Base currency code |
-| `conversion_rates` | object | *(without amount)* Map of `{ "CODE": rate }` — rate relative to 1 unit of base |
+| `conversion_rates` | object | *(without amount)* Map of `{ "CODE": rate }` - rate relative to 1 unit of base |
 | `requested_amount` | number | *(with amount)* The amount supplied in the request |
-| `conversion_amounts` | object | *(with amount)* Map of `{ "CODE": converted_amount }` — pre-computed for the requested amount |
+| `conversion_amounts` | object | *(with amount)* Map of `{ "CODE": converted_amount }` - pre-computed for the requested amount |
 
 Additional error-type specific to this endpoint: `no-data-available` (no rate record exists for the requested date).
 
 ---
 
-### 4.3 Pair Conversion — Without Amount
+### 4.3 Pair Conversion - Without Amount
 
 Returns the exchange rate between exactly two currencies. Produces a smaller, faster response than the standard endpoint. Available on all plans including Free.
 
@@ -277,7 +277,7 @@ GET /v6/{KEY}/pair/{BASE_CODE}/{TARGET_CODE}
 
 ---
 
-### 4.4 Pair Conversion — With Amount
+### 4.4 Pair Conversion - With Amount
 
 Same as 4.3 but includes a pre-computed `conversion_result` for the supplied amount. Available on all plans including Free. **This is the endpoint BotOfTheSpecter uses.**
 
@@ -379,7 +379,7 @@ GET /v6/{KEY}/enriched/{BASE_CODE}/{TARGET_CODE}
 | `base_code` | string | Source currency code |
 | `target_code` | string | Target currency code |
 | `conversion_rate` | number | How many units of `target_code` equal 1 unit of `base_code` |
-| `target_data` | object | Enriched metadata about the target currency — see below |
+| `target_data` | object | Enriched metadata about the target currency - see below |
 
 **`target_data` fields:**
 
@@ -389,7 +389,7 @@ GET /v6/{KEY}/enriched/{BASE_CODE}/{TARGET_CODE}
 | `two_letter_code` | string | ISO 3166-1 alpha-2 country code (e.g., `"JP"`) |
 | `currency_name` | string | Full currency name (e.g., `"Japanese Yen"`) |
 | `currency_name_short` | string | Abbreviated currency name (e.g., `"Yen"`) |
-| `display_symbol` | string | Comma-delimited Unicode hex codepoints for the currency symbol (e.g., `"00A5"` for ¥). Render as `&#x{HEX};` — e.g., `&#x00A5;` — to display the symbol in HTML. |
+| `display_symbol` | string | Comma-delimited Unicode hex codepoints for the currency symbol (e.g., `"00A5"` for ¥). Render as `&#x{HEX};` - e.g., `&#x00A5;` - to display the symbol in HTML. |
 | `flag_url` | string | Absolute URL to a country flag image hosted by ExchangeRate-API |
 
 Additional error-type specific to this endpoint: `plan-upgrade-required` (account is not on Business or Volume plan).
@@ -470,7 +470,7 @@ GET /v6/{KEY}/quota
 | `requests_remaining` | integer | Requests remaining until quota reset |
 | `refresh_day_of_month` | integer | Day of the month the quota resets (anniversary of sign-up date, not necessarily the 1st) |
 
-**Reporting delay:** Usage takes 5–60 minutes to appear here after calls are made. Do not rely on this for real-time counting — the local `api_counts` table in `website` DB is more current.
+**Reporting delay:** Usage takes 5–60 minutes to appear here after calls are made. Do not rely on this for real-time counting - the local `api_counts` table in `website` DB is more current.
 
 ---
 
@@ -481,7 +481,7 @@ The API supports approximately 165 currencies. Retrieve the live list programmat
 Notable exceptions and caveats:
 
 - **KPW (North Korean Won)** is not supported due to sanctions and lack of international trade activity.
-- **Volatile currencies** — the API uses rates published by the respective central banks for these, which may differ substantially from market/parallel rates: ARS, LYD, SSP, SYP, VES, YER, ZWL.
+- **Volatile currencies** - the API uses rates published by the respective central banks for these, which may differ substantially from market/parallel rates: ARS, LYD, SSP, SYP, VES, YER, ZWL.
 - ISO 4217 codes can be deprecated and replaced over time. Always validate against the live `/codes` endpoint rather than a hardcoded list.
 
 ---
@@ -501,7 +501,7 @@ All four share the same single `EXCHANGE_RATE_API` env var and therefore the sam
 
 ### Internal proxy endpoint
 
-`./api/api.py:2814–2838` — `GET /api/exchangerate`
+`./api/api.py:2814–2838` - `GET /api/exchangerate`
 
 Returns the local cached count from `website.api_counts` (`type='exchangerate'`). Not a live call upstream. Used by the dashboard to display "X of 1500 requests remaining; resets in N days." The monthly reset background task is at `./api/api.py:580–597`.
 
