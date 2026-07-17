@@ -16,7 +16,7 @@ Overlays are PHP pages loaded as **OBS browser sources**. They have constraints 
 - `kofi.php`, `patreon.php`, `fourthwall.php` (**live** donation overlays)
 - `closed-captions.php`, `avatar.php`, `counters.php`, `maker.php`, `social-roller.php`
 
-See `.claude/specs/2026-06-29-avatar-overlay-design.md` for Avatar behaviour.
+See `.grok/specs/2026-06-29-avatar-overlay-design.md` for Avatar behaviour.
 
 ## Rules
 

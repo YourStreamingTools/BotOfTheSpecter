@@ -16,8 +16,8 @@ Project context:
 - Premium features gated via Twitch subscription to gfaUnDead
 
 TwitchIO reference docs (read these before answering TwitchIO questions):
-- `.claude/docs/API/External/TwitchIO-Stable.md` - TwitchIO 3.x used by `./bot/beta-v6.py`
-- `.claude/docs/API/External/TwitchIO-Historical.md` - TwitchIO 2.10.0 used by `./bot/bot.py` and `./bot/beta.py`
+- `.grok/docs/API/External/TwitchIO-Stable.md` - TwitchIO 3.x used by `./bot/beta-v6.py`
+- `.grok/docs/API/External/TwitchIO-Historical.md` - TwitchIO 2.10.0 used by `./bot/bot.py` and `./bot/beta.py`
 
 TwitchIO version map:
 | File | TwitchIO version |

@@ -271,14 +271,14 @@ The Twitch alert engine picks animations dynamically from JS based on user setti
 
 ### Recipe: adding a new overlay
 
-1. **Don't add casually.** Most "new overlay" requests are better as a configuration toggle in `all.php` (the master overlay). Confirm with the user first - see [`./.claude/rules/overlays.md`](../../rules/overlays.md).
+1. **Don't add casually.** Most "new overlay" requests are better as a configuration toggle in `all.php` (the master overlay). Confirm with the user first - see [`./.grok/rules/overlays.md`](../../rules/overlays.md).
 2. Create `./overlay/{name}.php`. Follow the auth/Socket.io scaffolding from a similar existing overlay.
 3. Add styles to `./overlay/index.css` in a new `/* ===== {Name} Overlay ===== */` section.
 4. Use `{name}-overlay-page-{element}` naming. Don't reuse another overlay's namespace.
 5. Reuse existing keyframes from `overlay/index.css`; don't invent new ones.
 6. Brand colours: match the upstream service. Neutral chrome: `rgba(0, 0, 0, 0.8)` panel + `#ffffff` text + 1px translucent white border + 6–10px radius.
 7. Always pair `.show` / `.hide` with keyframe animations - never just toggle `display: none`. OBS sources look jarring otherwise.
-8. Auto-reconnect on WebSocket drop, queue audio/visual events, respect timezone - see `./.claude/rules/overlays.md`.
+8. Auto-reconnect on WebSocket drop, queue audio/visual events, respect timezone - see `./.grok/rules/overlays.md`.
 
 ### Cross-stylesheet boundaries
 
