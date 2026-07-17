@@ -581,6 +581,9 @@ ob_start();
                 <button class="sp-btn sp-btn-primary" id="test-alert-btn" disabled>
                     <i class="fas fa-paper-plane"></i> <?= t('alerts_trigger_live_test') ?>
                 </button>
+                <button type="button" class="sp-btn sp-btn-secondary" id="refresh-overlay-btn" title="<?= htmlspecialchars(t('alerts_refresh_overlay_help')) ?>">
+                    <i class="fas fa-sync-alt"></i> <?= t('alerts_refresh_overlay') ?>
+                </button>
             </div>
             <div class="alerts-preview-area alerts-pos-canvas" id="preview-area">
                 <div class="alerts-no-selection" id="preview-placeholder">
@@ -1104,6 +1107,9 @@ $(document).ready(function() {
         testSentTitle: <?php echo json_encode(t('alerts_test_sent_title')); ?>,
         testSentText: <?php echo json_encode(t('alerts_test_sent_text')); ?>,
         testSendFailed: <?php echo json_encode(t('alerts_test_send_failed')); ?>,
+        refreshOverlayTitle: <?php echo json_encode(t('alerts_refresh_overlay_title')); ?>,
+        refreshOverlayText: <?php echo json_encode(t('alerts_refresh_overlay_text')); ?>,
+        refreshOverlayFailed: <?php echo json_encode(t('alerts_refresh_overlay_failed')); ?>,
         copied: <?php echo json_encode(t('alerts_copied')); ?>,
         editMultipleTitle: <?php echo json_encode(t('alerts_edit_multiple_title')); ?>,
         editMultipleText: <?php echo json_encode(t('alerts_edit_multiple_text')); ?>,
@@ -2043,6 +2049,33 @@ $(document).ready(function() {
         setTimeout(function() {
             $box.css('animation', animOut + ' ' + animOutDur + 's forwards');
         }, duration);
+    });
+    // Tell the live OBS browser source (overlay/index.php) to hard-reload so
+    // it re-fetches alert configs from PHP/DB without the streamer touching OBS.
+    $('#refresh-overlay-btn').on('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $.post('/api/notify_event.php', { event: 'OVERLAY_REFRESH', api_key: apiKey }, function(resp) {
+            if (resp && resp.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: i18n.refreshOverlayTitle,
+                    text: i18n.refreshOverlayText,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: i18n.errorTitle,
+                    text: (resp && resp.message) || i18n.refreshOverlayFailed
+                });
+            }
+        }, 'json').fail(function() {
+            Swal.fire({ icon: 'error', title: i18n.errorTitle, text: i18n.refreshOverlayFailed });
+        }).always(function() {
+            $btn.prop('disabled', false);
+        });
     });
     $('#test-alert-btn').on('click', function() {
         if (!currentAlertId) return;
