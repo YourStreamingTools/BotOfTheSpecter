@@ -62,8 +62,9 @@ global_listeners = [
    - Events: SPECTER_TIMER_CONTROL, SPECTER_TIMER_COMMAND, SPECTER_TIMER_STATE, SPECTER_TIMER_UPDATE, SPECTER_SETTINGS_UPDATE, SPECTER_PHASE, SPECTER_TASKLIST*, SPECTER_STATS_REQUEST
 
 3. **`broadcast_to_task_clients_only(event_name, data, source_sid)`**
-   - Sends to task-aware clients (Dashboard + Overlay with "task" in name)
-   - Events: TASK_CREATE, TASK_UPDATE, TASK_COMPLETE, TASK_APPROVE, TASK_REJECT, TASK_DELETE, TASK_SETTINGS_UPDATE, TASK_REWARD_CONFIRM
+   - Sends to task-aware clients under the channel code (Working & Study dashboard/overlay + bot-registered clients on that code)
+   - Events: `TASK_CREATE`, `TASK_UPDATE`, `TASK_COMPLETE`, `TASK_APPROVE`, `TASK_REJECT`, `TASK_DELETE`, `TASK_SETTINGS_UPDATE`, `TASK_REWARD_CONFIRM`, **`PROJECT_UPDATE`**, and personal timer fan-out **`USER_POMO_START` / `USER_POMO_CANCEL` / `USER_POMO_UPDATE` / `USER_POMO_PHASE` / `USER_POMO_COMPLETE`**
+   - Bot is authoritative for chat-started timers: `/notify` only fans out `USER_POMO_*` (does not own timer schedule)
 
 ## Complete Event Types (177 total)
 
@@ -125,27 +126,37 @@ global_listeners = [
 - `SPECTER_STATS_REQUEST` - Request stats
 
 **Task System**:
-- `TASK_CREATE` - New task
+- `TASK_CREATE` - New task (payload may include `backlog_position`, `task_type`, `project`, owner)
 - `TASK_UPDATE` - Property update
 - `TASK_COMPLETE` - Mark done (triggers reward if require_approval=false)
 - `TASK_APPROVE` - Approve completed task (triggers reward)
 - `TASK_REJECT` - Reject, back to incomplete
 - `TASK_DELETE` - Remove
-- `TASK_REWARD_TRIGGER` - Emit to bot for reward processing
+- `TASK_REWARD_TRIGGER` - Server → bot only (points)
 - `TASK_REWARD_CONFIRM` - Confirm reward applied
 - `TASK_SETTINGS_UPDATE` - Settings change
+- `PROJECT_UPDATE` - Project registry change
+
+**Personal timers (Working & Study)**:
+- `USER_POMO_START` - Start/replace timer (handlers: `handle_user_pomo_start`)
+- `USER_POMO_CANCEL` - Cancel / replaced
+- `USER_POMO_UPDATE` - Countdown tick (~10s interval when server-assisted)
+- `USER_POMO_PHASE` - Focus ↔ break phase change
+- `USER_POMO_COMPLETE` - Finished
+- Handlers: `handle_user_pomo_start`, `handle_user_pomo_cancel`, `handle_user_pomo_outbound` → `broadcast_to_task_clients_only`
 
 **Chat/Overlay**:
 - `CHAT_MESSAGE` - Chat relay to overlay
 - `CHAT_CLEAR` - Clear chat
 - `CHAT_MESSAGE_DELETE` - Delete specific message
+- **`OVERLAY_REFRESH`** - Dashboard requests full browser-source reload (no dedicated handler; falls through generic `/notify` emit to registered clients). Consumed by `overlay/index.php` (meta refresh). Trigger: `dashboard/api/notify_event.php` event `OVERLAY_REFRESH`.
 
 **Stream Bingo** (game):
 - `STREAM_BINGO_STARTED`, `_ENDED`, `_EVENT_CALLED`, `_WINNER`, `_EXTRA_CARD`, `_VOTE_STARTED`, `_VOTE_ENDED`, `_ALL_CALLED`
 
 **Special Routes**:
-- `/notify?code=X&event=Y&text=Z` - HTTP API to trigger events
-- `/system-update` - Admin-only full system broadcast
+- `/notify?code=X&event=Y&…` - HTTP API to trigger/broadcast events (IP whitelist; used by dashboard `notify_event.php` and API server)
+- `/system-update` - Admin-only full system broadcast (`SYSTEM_UPDATE`)
 - `/clients` - List all clients (IP-restricted)
 - `/heartbeat` - Health check
 
@@ -222,18 +233,21 @@ global_listeners = [
 ## Task System Architecture
 
 **Task Workflow**:
-1. **Create**: Dashboard → `TASK_CREATE` → broadcast to task clients
-2. **Update**: Dashboard → `TASK_UPDATE` → broadcast status/title changes
-3. **Complete**: Dashboard → `TASK_COMPLETE` with `require_approval` flag
-   - If false: immediately call `emit_task_reward_trigger()` to bot
+1. **Create**: Dashboard or bot → `TASK_CREATE` → `broadcast_to_task_clients_only`
+2. **Update**: `TASK_UPDATE` (title/status/project/backlog_position)
+3. **Complete**: `TASK_COMPLETE` with `require_approval` flag
+   - If false: `emit_task_reward_trigger()` to bot
    - If true: wait for manual approval
-4. **Approve**: Dashboard → `TASK_APPROVE` → `emit_task_reward_trigger()` → bot processes points
-5. **Reject**: Dashboard → `TASK_REJECT` → broadcast, task remains incomplete
+4. **Approve**: `TASK_APPROVE` → reward trigger
+5. **Reject**: `TASK_REJECT`
+6. **Projects**: `PROJECT_UPDATE` for rename/delete/switch
+
+**Chat path**: Bot writes MySQL (`user_tasks` / `streamer_tasks`, `user_timers`) then notifies via HTTP `/notify` with `TASK_*` / `USER_POMO_*`. Overlay badges must show **`backlog_position`** (per-user sequence), not DB autoincrement `id`.
 
 **Reward Trigger** (`emit_task_reward_trigger()`):
 - Finds bot client (channel != dashboard/overlay)
-- Emits `TASK_REWARD_TRIGGER` with: user_id, user_name, task_id, points, task_title
-- Bot receives and processes reward (points, achievements, etc.)
+- Emits `TASK_REWARD_TRIGGER` with user_id, user_name, task_id, points, task_title
+- Bot applies points and may emit `TASK_REWARD_CONFIRM`
 
 **Initial Sync**: Task-aware clients receive `TASK_LIST_SYNC` with empty arrays on connect
 
@@ -327,6 +341,8 @@ Forward to "obs" client → Plugin executes
 - `/home/botofthespecter/music-settings/{code}.json` - Per-channel music prefs
 - `/etc/letsencrypt/live/websocket.botofthespecter.com/` - SSL certs
 
-## Why:** The WebSocket server is the real-time nervous system, enabling instant event distribution across all connected systems. Specialized handlers (music, TTS, OBS, donations, tasks) manage distinct subsystems. Dual-registration model (code-based + global listeners) supports both channel-specific and system-wide communication.
+## Why:** Real-time nervous system for dashboards, overlays, bots, OBS, TTS, music, donations, tasks, and timers. Dual registration (per-code + global listeners) covers channel-specific and system-wide consumers.
 
-## How to apply:** When adding real-time events, register handlers in `setup_event_handlers()`, use appropriate broadcast method (code-only vs global), implement handler logic in appropriate module. For persistent data, use SettingsManager. For external operations (SSH, DB), use managers. Remember TTS and OBS have specialized bidirectional flows.
+## How to apply:** Register handlers in `setup_event_handlers()`. Pick broadcast method carefully (`broadcast_event_with_globals` vs timer-only vs task-only). Unknown `/notify` events still fan out to registered clients (used by **`OVERLAY_REFRESH`**). Task/timer events go through `broadcast_to_task_clients_only`. TTS/OBS keep their specialized bidirectional flows.
+
+**Last verified**: 2026-07-17 (USER_POMO_*, PROJECT_UPDATE, OVERLAY_REFRESH, backlog_position on tasks)

@@ -11,10 +11,11 @@ MySQL via `aiomysql`. Two database scopes exist; mixing them up will leak data b
    - `system_metrics`, `freestuff_games`, `bot_chat_token`, `twitch_bot_access`, `handoff_tokens`
 
 2. **Per-user database** - one MySQL DB **per username** (DB name = username).
-   - `custom_commands`, `builtin_commands`, `custom_user_commands`
+   - `custom_commands`, `builtin_commands` (includes **cooldown_rate / cooldown_time / cooldown_bucket**), `custom_user_commands`
    - `bot_points`, `chat_history`, `tipping`, `seen_today`
    - `game_deaths`, `per_stream_deaths`, `stored_redeems`, `bits_data`
    - `typos`, `lurkers`, `hugs`, `kisses`, `highfives`, `counts`, `watch_time`, `todos`
+   - Working & Study: `user_tasks`, `streamer_tasks` (**`backlog_position`** per-user display order; `task_type` task|timer), `user_timers`, project tables
 
 ## Rules
 

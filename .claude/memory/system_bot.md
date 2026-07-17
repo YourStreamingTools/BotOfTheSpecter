@@ -32,29 +32,41 @@ Plus companion bots (separate platforms, share databases/integrations):
 
 ## Command System
 
-**Command Categories**:
-1. **Builtin Commands (65+)**: Hardcoded system commands
-   - Examples: commands, bot, quote, rps, story, roulette, songrequest, songqueue, watchtime, timer, points, slots, game, joke, ping, weather, time, song, translate, steam, schedule, lurk, uptime, gamble
-2. **Mod Commands (14)**: Moderation only
-   - Examples: addcommand, removecommand, editcommand, addpoints, removepoints, permit, shoutout, marker, checkupdate, startlotto, drawlotto, skipsong, wsstatus, obs
-3. **Aliases (13)**: Command shortcuts
-   - Examples: cmds, back, so, typocount, death+, death-, mysub, sr, lurkleader, skip
-4. **Custom Commands**: User-created commands stored in database with response templating
+**Command Categories** (sets in `beta.py` / `beta-v6.py`):
+1. **Builtin Commands (80+)**: Hardcoded system commands in `builtin_commands` set
+   - Core: commands, bot, quote, rps, story, roulette, songrequest, songqueue, watchtime, points, slots, game, joke, ping, weather, time, song, translate, steam, schedule, lurk, uptime, gamble, clip, convert, subathon, …
+   - **Working & Study / task list**: `task`, `done`, `rename`, `remove`, `taskclear`, `mytasks`, `now`, `later`, `soon`, `backlog`, `project`, `projects`, `taskhelp`
+   - **Personal timers**: `personaltimer` (primary), `checktimer`, `tasktimer`, `timerhelp` (no `!pomo` alias)
+2. **Mod Commands**: Moderation + channel control
+   - Examples: addcommand, removecommand, editcommand, addpoints, removepoints, permit, shoutout, marker, settitle, setgame, deathadd, createraffle, startraffle, obs, forceoffline, …
+3. **Aliases**: Shortcuts mapped onto builtins/mods
+   - Examples: cmds, back, so, typocount, death+, death-, mysub, sr, lurkleader, skip, rafflejoin, **ttimer/stimer/ptimer/mytimer/timer/focus/ctimer/thelp** → personal timer / timerhelp
+4. **Custom Commands**: User-created commands stored in DB with response templating
 5. **Custom User Commands**: Per-user commands with custom responses
 
 **Command Processing**:
 - `event_message()` intercepts all chat messages
-- Validates prefix ('!'), checks against sets
+- Validates prefix (`!`), checks against sets
 - Fetches custom commands from database
-- Supports dynamic response templating with variables: (count), (user), (random.*), (math.*), (customapi.*), (game)
+- Supports dynamic response templating: `(count)`, `(user)`, `(random.*)`, `(math.*)`, `(customapi.*)`, `(game)`
 
-**Cooldown System**:
-- Per-command tracking by bucket type: 'default' (global), 'mods', 'user' (individual)
-- `check_cooldown()` validates rate/time_window
-- `command_usage` dict stores timestamps for clean-up and enforcement
+**Cooldown System** (always loaded from `builtin_commands` DB rows):
+
+| Function | Role |
+| -------- | ---- |
+| `load_builtin_command_settings(cursor, command_name)` | SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket |
+| `parse_builtin_cooldown_row(result)` | Normalize rate/time/bucket; map legacy `mods` → `mod` |
+| `resolve_cooldown_bucket_key(cooldown_bucket, author)` | `default` → key `"global"`; `mod` → `"mod"` if author is mod; else `str(author.id)` |
+| `check_cooldown(command, user_id, bucket_type, rate, time_window, …)` | Key `(command, bucket_type, user_id)`; rate/time ≤0 always allow; remaining time announced as `max(1, ceil(…))` (never "0 seconds") |
+| `add_usage(command, user_id, bucket_type)` | Append timestamp for the same key shape |
+
+**Bucket policy** (enforced in `builtin_commands_creation()` on bot ready):
+- **`per_user_cooldown_commands`**: social/self (`hug`, `highfive`, `kiss`, lurk family, `points`, `watchtime`, gamble/slots/rps/roulette, task cmds, …) → migrate `cooldown_bucket='user'`
+- **Global channel-wide** stay/restore `default`: `clip`, `joke`, `ping` (one-at-a-time / shared limit)
+- **Task/timer cmds forced to zero cooldown** every ready: `task`, `done`, `rename`, `remove`, `taskclear`, `mytasks`, `now`, `later`, `soon`, `backlog`, `project`, `projects`, `personaltimer`, `checktimer`, `tasktimer`, `taskhelp`, `timerhelp` (`UPDATE … SET cooldown_rate=0, cooldown_time=0`). Dashboard can show non-zero; bot wipes on reboot. Intentional.
 
 **Permissions**:
-- Command-level permissions from database: 'everyone', 'mod', 'vip', 'sub', 'broadcaster'
+- Command-level permissions from database: `everyone`, `mod`, `vip`, `sub`, `broadcaster`
 - Premium features gated by user tier (2000/3000/4000)
 
 ## Event Handling
@@ -146,13 +158,15 @@ Plus companion bots (separate platforms, share databases/integrations):
 - Special databases: "website" (global), "spam_pattern" (spam rules)
 
 **Key Tables**:
-- `builtin_commands`, `custom_commands`, `custom_user_commands` - Command management
+- `builtin_commands` - Enable/disable + **cooldown_rate / cooldown_time / cooldown_bucket** for every builtin
+- `custom_commands`, `custom_user_commands` - Command management
 - `bot_points` - User point balances
 - `chat_history` - Raw chat messages
 - `tipping` - Donation records
 - `seen_today` - First-seen tracking
+- `user_tasks`, `streamer_tasks`, `user_timers`, project tables - Working & Study
 - `spotify_tokens`, `streamelements_tokens`, `discord_users` - OAuth credentials
-- `twitch_bot_access` - Bot's Twitch token
+- `twitch_bot_access` - Bot's Twitch token (website DB for shared bot token)
 - `link_blacklist`, `link_whitelist` - URL protection
 - `protection` - Channel settings
 - `twitch_sound_alerts`, `twitch_chat_alerts` - Alert mappings
@@ -163,7 +177,7 @@ Plus companion bots (separate platforms, share databases/integrations):
 - Socket.io AsyncClient to `https://websocket.botofthespecter.com`
 - Registration with API_TOKEN and channel name
 - `specter_websocket()` background task with 60-second reconnection delay
-- Events emitted: STREAM_ONLINE, STREAM_OFFLINE, WEATHER_DATA, FOURTHWALL, KOFI, PATREON, SYSTEM_UPDATE, OBS_EVENT_RECEIVED, SOUND_ALERT
+- Events emitted include: STREAM_ONLINE, STREAM_OFFLINE, WEATHER_DATA, FOURTHWALL, KOFI, PATREON, SYSTEM_UPDATE, OBS_EVENT_RECEIVED, SOUND_ALERT, **TASK_***, **USER_POMO_***, PROJECT_UPDATE
 
 ## Background Tasks (11+ on ready)
 
@@ -181,6 +195,37 @@ Plus companion bots (separate platforms, share databases/integrations):
 12. `known_users()` - Track regular viewers
 
 ## Special Features
+
+### Working & Study - Task List + Personal Timers (beta + beta-v6)
+
+**Ownership**: Bot is source of truth for chat-driven tasks/timers. Overlay/dashboard consume WebSocket fan-out.
+
+**DB (per-user channel DB)**:
+- `user_tasks` / `streamer_tasks` - rows with `status` (`active`/`pending`/…), `task_type` (`task`|`timer`), **`backlog_position`** (per-user 1…N display id, not global autoincrement)
+- `user_timers` - active personal timer state (phase, cycles, linked `task_id`)
+- `user_active_project` / project registry for `!project`
+
+**Task commands** (handlers on Bot cog):
+- `!task` - set/replace active task (assigns next `backlog_position`)
+- `!done` / `!rename` / `!remove` / `!taskclear`
+- `!later` / `!soon` / `!now` - backlog queue ops
+- `!backlog` - list queue
+- `!mytasks` - active + packed backlog in **one** chat line (`format_mytasks_chat_message()`, ≤ `MAX_CHAT_MESSAGE_LENGTH` 500) with `+ N more`
+- `!project` / `!projects` - project context
+- `!taskhelp`
+
+**Important `!mytasks` query**: `status='active' AND task_type='task'` for active; pending backlog ordered by `backlog_position`. Do **not** require `backlog_position IS NULL` (create always sets a position).
+
+**Personal timer** - `personaltimer_command` (`!timer` / `!ptimer` / `!mytimer` / `!focus` / …):
+1. **General**: `!timer <mins> <title>` - countdown only, **no** task-list row (`link_task=False`)
+2. **Focus**: `!timer <mins> "title" focus` - single focus block + task/overlay row (`link_task=True`, `task_type='timer'`)
+3. **Cycles**: `!timer <work>/<break>/<cycles> [label]` - multi-cycle focus/break on list/overlay
+- `!timer` / `!checktimer` - remaining time; `!timer stop` - cancel
+- `!timerhelp` / `!thelp` - usage text
+- Core: `start_user_pomo(..., link_task=)`, cancel/replace single active timer, assign next `backlog_position` for timer tasks
+- Emits WebSocket: `USER_POMO_START|CANCEL|UPDATE|PHASE|COMPLETE`, plus `TASK_*` when linked
+
+**Helpers**: `format_mytasks_chat_message`, `promote_backlog_head`, `emit_pomo_event`, `cancel_pomo_routine`, `websocket_notice`
 
 **Shoutout System**:
 - 2-min global cooldown, 60-min per-user cooldown
@@ -208,43 +253,35 @@ Plus companion bots (separate platforms, share databases/integrations):
 
 ## Version Differences
 
-**bot.py vs beta.py**:
-- Beta adds custom channel module support (dynamically imported)
-- Beta supports `-custom` mode for non-botofthespecter channels
-- Beta supports `-self` mode (broadcaster uses their own account)
-- Beta increases MAX_CHAT_MESSAGE_LENGTH from 240 to 500 chars
-- Beta has expanded AI instructions caching
+**bot.py (stable) vs beta.py**:
+- Stable: critical bug fixes only; do not add features
+- Beta: custom channel modules (`./bot/custom_channel_modules/`), `-custom` / `-self` modes
+- Beta: `MAX_CHAT_MESSAGE_LENGTH` = 500 (stable lower)
+- Beta: full Working & Study task list + personal timers, cooldown normalization above
 
 **beta.py vs beta-v6.py**:
-- v6.0 uses TwitchIO 3.2.2 with native EventSub support
-- v6.0 adds raffle/puzzle commands
-- v6.0 has improved moderation tracking and error handling
+- v6 uses TwitchIO 3.2.2 with native EventSub (API differs - do not paste 2.x handlers blindly)
+- Task list + personal timer + cooldown helpers are ported for parity; re-check TwitchIO message/ctx APIs when changing either file
+- Raffle/puzzle and other v6-only surfaces as implemented in that file
 
 ## Logging
 
-**7 Logger Types** (RotatingFileHandler, 10MB max, 5 backups):
-1. bot_logger - General operations, startup, errors
-2. chat_logger - Chat processing, commands
-3. twitch_logger - Twitch API operations, token refresh
-4. api_logger - API responses, AI calls, external service errors
-5. chat_history_logger - Raw chat message recording
-6. event_logger - EventSub events, subscriptions, moderation
-7. websocket_logger - WebSocket connection status, messages
+**Logger types** (RotatingFileHandler; dirs under `log_types`):
+`bot`, `chat`, `twitch`, `api`, `chat_history`, `event_log`, `websocket`, plus `system`, `integrations`
 
-**Path**: `/home/botofthespecter/logs/logs/{log_type}/{CHANNEL_NAME}.txt`
-**Format**: `[timestamp] - [level] - [message]`
+**Path (server)**: `/home/botofthespecter/logs/logs/{log_type}/{CHANNEL_NAME}.txt`
 
 ## Configuration Files
 
-- **Main Entry**: `./bot/bot.py` (~10,600 lines)
-- **Beta Variants**: `./bot/beta.py` (~15,500 lines), `./bot/beta-v6.py` (~12,800 lines)
+- **Main Entry**: `./bot/bot.py` (~10.4k lines, STABLE)
+- **Beta**: `./bot/beta.py` (~18.7k lines), `./bot/beta-v6.py` (~16.9k lines)
 - **Custom Modules**: `./bot/custom_channel_modules/*.py`
-- **Token Refresh Scripts**: `./bot/refresh_custom_bot_tokens.py`, `./bot/refresh_spotify_tokens.py`, `./bot/refresh_streamelements_tokens.py`, `./bot/refresh_discord_tokens.py` (Twitch token refresh is handled in-process by bot.py's `twitch_token_refresh()` background task, not a standalone script)
+- **Token Refresh Scripts**: `./bot/refresh_custom_bot_tokens.py`, `./bot/refresh_spotify_tokens.py`, `./bot/refresh_streamelements_tokens.py`, `./bot/refresh_discord_tokens.py` (Twitch refresh is **in-process** `twitch_token_refresh()` - there is no `refresh_twitch_tokens.py`)
 - **Auxiliary Scripts**: `./bot/setup.py`, `./bot/status.py`, `./bot/status_monitor.py`, `./bot/running_bots.py`, `./bot/export_queue_worker.py`, `./bot/export_user_data.py`, `./bot/sync-channel-rewards.py`, `./bot/system_boot_marker.py`
 - **Discord Bot**: `./bot/specterdiscord.py`
 - **Kick.com Bot**: `./bot/kick.py`
-- **AI History Storage**: `/home/botofthespecter/ai/chat-history/{user_id}.json`
-- **Logs**: `/home/botofthespecter/logs/logs/{log_type}/{channel}.txt`
+- **AI History Storage (server)**: `/home/botofthespecter/ai/chat-history/{user_id}.json`
+- **Logs (server)**: `/home/botofthespecter/logs/logs/{log_type}/{channel}.txt`
 
 ## Key Environment Variables
 
@@ -255,6 +292,8 @@ Plus companion bots (separate platforms, share databases/integrations):
 - `HYPERATE_API_KEY` - Heart rate integration
 - SSH_* - SSH credentials for remote operations
 
-## Why:** The bot is the core streaming companion, handling chat interactions, event processing, token management, and integration with 13+ external services. Three versions allow stable production operation while developing and testing new features safely.
+## Why:** The bot is the core streaming companion: chat, EventSub, cooldowns, Working & Study tasks/timers, tokens, and 13+ external integrations. Three versions keep production stable while beta/v6 take features.
 
-## How to apply:** When modifying bot behavior, understand which version you're targeting (stable gets only critical bug fixes; beta is testing; v6 is the future). Check if your change needs database schema updates or token refresh modifications. Remember the bot talks to the WebSocket server for real-time events and the API server for data queries.
+## How to apply:** Target **beta.py** (or beta-v6 for TwitchIO 3.x) for features; stable only for critical bugs. Cooldowns must go through `load_builtin_command_settings` + `check_cooldown`/`add_usage`. Task/timer work must keep `backlog_position` per-user and WebSocket `TASK_*` / `USER_POMO_*` in sync with overlays. Port carefully across TwitchIO versions.
+
+**Last verified**: 2026-07-17 (cooldown helpers, task/timer parity, !mytasks packing, force-zero task cooldowns)
