@@ -53,14 +53,14 @@ Detailed system documentation lives in `.claude/memory/`:
   │              │        │             │        │              │
   │ Real-time    │        │ On-demand   │        │ User config  │
   │ events       │        │ data access │        │ Bot control  │
-  │ 177 events   │        │ 50+ endpoints        │ Media mgmt   │
+  │ events hub   │        │ 50+ endpoints        │ Media mgmt   │
   └───────┬──────┘        └─────────────┘        └──────────────┘
           │
           └─────────────────┬──────────────────────┐
                             │                      │
                      ┌──────▼──────┐      ┌────────▼────────┐
                      │  OVERLAYS   │      │ STREAM SERVER   │
-                     │  20 variants│      │ Custom RTMPS    │
+                     │  ~28 pages  │      │ Custom RTMPS    │
                      │ (PHP/JS)    │      │ Multi-region    │
                      │ WebSocket   │      │ Recording       │
                      │ client      │      │ Forwarding      │
@@ -74,10 +74,12 @@ Detailed system documentation lives in `.claude/memory/`:
 ### Bot System
 
 - **Three versions**: stable (never changes except critical bugs), beta (testing), v6 (rewrite with TwitchIO 3.2.2)
-- **Commands**: 65+ builtin, 14 mod-only, 13 aliases, custom commands from database
+- **Commands**: 80+ builtin (incl. task list + personal timers), mod set, aliases, custom commands from DB
+- **Cooldowns**: Always from `builtin_commands` (rate/time/bucket); helpers `load_builtin_command_settings` / `check_cooldown`; social = per-user; clip/joke/ping = global; task/timer cmds forced 0 cooldown on ready
+- **Working & Study**: `!task`/`!mytasks`/`!timer` modes (general / focus / cycles); `start_user_pomo`; WS `TASK_*` + `USER_POMO_*`
 - **Integrations**: OpenAI, Spotify, StreamElements, Discord, YouTube, Shazam, Steam, Weather, HypeRate, Stream Bingo, etc.
-- **Token Refresh**: Automatic via background tasks for Twitch, Spotify, Discord, StreamElements
-- **Logging**: 7 separate loggers (bot, chat, twitch, api, chat_history, event_log, websocket)
+- **Token Refresh**: In-process Twitch refresh; standalone scripts for Spotify/Discord/StreamElements/custom bot (no `refresh_twitch_tokens.py`)
+- **Logging**: bot, chat, twitch, api, chat_history, event_log, websocket (+ system, integrations dirs)
 
 ### API Server
 
@@ -106,8 +108,9 @@ Detailed system documentation lives in `.claude/memory/`:
 
 - **Purpose**: Browser sources for OBS showing live stream events
 - **Tech**: PHP (auth/prefs) + JavaScript (Socket.io client) + HTML/CSS
-- **20 Variants**: all.php (master), music.php, tts.php, deaths.php, weather.php, chat.php, walkons.php, credits.php, working-or-study.php, plus others
-- **Real-time**: All receive events from WebSocket server
+- **~28 pages**: all.php (master), index.php (Specter Alerts), music/tts/deaths/weather/chat/walkons/credits, working-or-study.php, kofi/patreon/fourthwall (live), plus others
+- **Real-time**: WebSocket events; Specter Alerts also handles **OVERLAY_REFRESH** (full page reload from dashboard)
+- **Task badges**: use `backlog_position`, not global task id
 
 ### Stream Server
 
@@ -291,6 +294,6 @@ Stream Server
 
 ---
 
-**Last Updated**: 2026-05-09 (memory verification pass: corrected overlay count, walkons.php naming, removed nonexistent refresh_twitch_tokens.py reference, fixed bot.py line counts, normalized Windows path formatting)  
+**Last Updated**: 2026-07-17 (memory refresh: cooldowns, task/timer functions, OVERLAY_REFRESH, donation overlays live, overlay inventory ~28, backlog_position)  
 **Created By**: Multi-agent code analysis (bot-analyzer, api-analyzer, websocket-analyzer, secondary-analyzer)  
 **Memory Files**: See `.claude/memory/MEMORY.md`

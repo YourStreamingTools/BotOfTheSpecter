@@ -23,12 +23,12 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - Curl (external API integration)
 
 **Architecture** - Modular PHP application organized by feature:
-- **Authentication**: login.php, logout.php, relink.php, session_bootstrap.php (shared domain auth across .botofthespecter.com)
+- **Authentication**: login.php, logout.php, relink.php; shared `./lib/session_bootstrap.php` (cross-subdomain auth on `.botofthespecter.com`)
 - **Core Pages**: dashboard.php (landing), index.php (redirects to login)
-- **Feature Pages**: overlays.php, media.php, bot.php, custom_commands.php, notifications.php, recordings.php, etc.
-- **API Layer**: /admin/, /api/ subdirectories for webhooks and internal APIs
-- **Libraries**: userdata.php, bot_control.php, mod_access.php, user_db.php, storage_used.php, file_paths.php
-- **Config**: `./config/` (dev) / `/var/www/config/` (server) for database.php, db_connect.php, twitch.php (OAuth tokens)
+- **Feature Pages** (selected): overlays.php, **alerts.php** (Specter Alerts configurator), media.php, bot.php, **builtin.php** (builtin command enable + cooldown_rate/time/bucket), custom_commands.php, **working-or-study.php** (task list admin UI), notifications.php, recording.php, sound-alerts.php, video-alerts.php, walkons.php, …
+- **API Layer**: `./dashboard/api/` (e.g. **notify_event.php** → WebSocket `/notify`), `./dashboard/admin/`
+- **Libraries**: includes/userdata.php, bot_control.php, mod_access.php, user_db.php, storage_used.php, file_paths.php
+- **Config**: `./config/` (dev) / `/var/www/config/` (server) - PHP never reads `.env`
 
 **Integration Points**:
 - **Twitch OAuth**: User login via Twitch, OAuth tokens in sessions
@@ -49,24 +49,23 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 **Key Features**:
 1. User Management (profile settings, API key regen, admin access control)
 2. Bot Control (enable/disable, connection status, action commands)
-3. Command System (create/edit custom commands with aliases and responses)
-4. Rewards System (Twitch channel point rewards, redemption tracking)
-5. Notifications/EventSub (configure Twitch event subscriptions, webhooks)
-6. Media Management (upload/organize sound alerts, video alerts, walkons, music)
-7. Overlays (configure stream overlays, per-overlay settings)
-8. Integrations (Discord bot, Streamlabs/StreamElements webhooks, Hyperchat sync)
-9. Modules (enable/disable bot modules, module-specific config)
-10. Moderator Access (role-based control for mods/managers)
-11. Logs & Monitoring (server metrics, WebSocket client monitoring, activity logs)
-12. Admin Panel (/admin/ for service administration, API key management, system control)
+3. Command System (custom commands + **builtin.php** cooldown/permission UI)
+4. **Specter Alerts** (`alerts.php`) - per-variant visuals for Twitch/donation/bingo events; live test via `notify_event.php`; **Refresh Overlay** posts `OVERLAY_REFRESH`
+5. Rewards System (Twitch channel point rewards, redemption tracking)
+6. Notifications/EventSub
+7. Media Management (unified media library / sound / video / walkons)
+8. Overlays page (browser-source URLs + settings)
+9. Working & Study dashboard (`working-or-study.php`) - streamer/user tasks, projects; display ids use **`backlog_position`**
+10. Integrations (Discord, Streamlabs/StreamElements, etc.)
+11. Moderator Access, Logs, Admin panel
 
 **Configuration**:
-- Session cookies scoped to `.botofthespecter.com` (shared login across subdomains)
-- Settings stored in user's personal database
-- API keys in website.users table
-- Admin credentials in website.admin_api_keys table
+- Session cookies scoped to `.botofthespecter.com`
+- Settings in per-user DB; API keys in `website.users`; admin keys in `website.admin_api_keys`
 
-**Current Status**: COMPLETE and actively maintained, multiple language support (EN, DE, FR)
+**i18n**: `./dashboard/lang/` - EN, DE, FR, ES, ZH via `i18n.php`
+
+**Current Status**: COMPLETE and actively maintained
 
 ---
 
@@ -82,57 +81,38 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - JavaScript (WebSocket client via Socket.io 4.8.3)
 - Socket.io 4.8.3 (real-time event streaming)
 
-**Architecture** - 20 individual PHP files serve as separate overlay pages, each handling WebSocket events:
-- **index.php / all.php** - Master overlay (combines all elements: deaths, weather, discord, alerts)
-- **alert.php** - Focused visual alerts (redemptions, donations)
-- **sound-alert.php** - Audio-only overlay
-- **tts.php** - Text-to-speech audio playback
-- **music.php** - Background music player (system or user tracks)
-- **walkons.php** - Entrance music + visual
-- **chat.php** - Live chat display
-- **video-alert.php** - Video playback alerts
-- **deaths.php** - Death counter/display
-- **weather.php** - Real-time weather
-- **discord.php** - Discord join notifications
-- **credits.php** - End-of-stream credits roll
-- **subathon.php** - Subscription countdown timer
-- **todolist.php** - Task list display
-- **twitch.php** - General Twitch events
-- **working-or-study.php** - Pomodoro / focus session overlay
-- **patreon.php, kofi.php, fourthwall.php** - Platform-specific alerts
+**Architecture** - Separate PHP browser-source pages under `./overlay/` (**28** `.php` files). Prefer adding options to existing pages over new files.
+
+| File | Role |
+| ---- | ---- |
+| **index.php** | **Specter Alerts** overlay (Twitch follow/sub/bits/raid/…, channel points, Ko-fi/Patreon/Fourthwall, stream bingo, deaths/weather/walkons when enabled). Configured via `dashboard/alerts.php`. Listens for **`OVERLAY_REFRESH`** → injects meta refresh `content=0` (full page reload so PHP re-reads alert configs) |
+| **all.php** | Master / recommended multi-feature overlay |
+| alert.php, sound-alert.php, video-alert.php | Focused alert media |
+| tts.php, music.php, mediaplayer.php, spotify.php, spotify_nowplaying.php | Audio / now playing |
+| walkons.php, chat.php, deaths.php, weather.php, discord.php | Classic widgets |
+| credits.php, subathon.php, todolist.php | End credits, subathon, todos |
+| **working-or-study.php** | Task list + personal timers; badge numbers use **`backlog_position`**, never global `task.id` |
+| **kofi.php, patreon.php, fourthwall.php** | Platform-specific donation overlays (**live**, not "coming soon") |
+| closed-captions.php, avatar.php, counters.php, maker.php, social-roller.php | Specialized surfaces |
 
 **Integration Points**:
-- **WebSocket Server**: Connects to `wss://websocket.botofthespecter.com` via Socket.io
-- **Dashboard**: Users configure overlay URLs with API key
-- **User Database**: Fetches per-user settings (timezone, preferences, media sources)
-- **Media Servers**:
-  - `https://walkons.botofthespecter.com/` for walkon audio
-  - `https://music.botspecter.com/{username}/` for user music
-  - `/cdn/` for system music
-  - TTS audio from bot-generated cache
-- **Authentication**: API key as `?code=API_KEY` URL parameter
-
-**Data Storage**: Stateless (all preferences fetched on page load from user DB)
+- **WebSocket**: `wss://websocket.botofthespecter.com` (Socket.io 4.8.3), REGISTER with `?code=` API key
+- **Dashboard**: Overlay URLs; alerts live-test + refresh via `./dashboard/api/notify_event.php` → WS `/notify`
+- **User DB**: Prefs/timezone on page load only (stateless after that)
+- **Media**: walkons / media CDN / TTS cache as configured
 
 **Key Features**:
-1. Real-time event streaming via WebSocket with auto-reconnection
-2. Audio queueing (multiple events queued and played sequentially)
-3. Visual elements (deaths counter, weather widget, discord joins, donation alerts)
-4. Music integration (system DMCA-free + user uploads)
-5. TTS support (receives TTS audio URLs)
-6. Chat display (real-time chat streaming)
-7. Responsive design (works at any resolution as browser source)
-8. Timezone awareness (displays in streamer's timezone)
-9. Modal/banner animations (slide animations for alerts)
+1. Real-time WebSocket + auto-reconnect
+2. Alert/audio queueing (sequential, not stacked)
+3. Specter Alerts variants + drag position from dashboard
+4. Donation platforms (Ko-fi / Patreon / Fourthwall) via webhook → API → WS → overlay
+5. Working & Study overlay synced to bot `USER_POMO_*` / `TASK_*`
+6. Timezone-aware clocks/timers
+7. **Remote refresh**: dashboard **Refresh Overlay** → event `OVERLAY_REFRESH` → meta refresh on `index.php`
 
-**Configuration**:
-- Per-overlay customization via dashboard UI
-- Credits: scroll speed, text color, font family, loop toggle
-- Music: system vs user source toggle, volume control
-- TTS: volume level (30% default)
-- Each overlay requires unique browser source with API key
+**Configuration**: Per-overlay dashboard settings; TTS default volume **30%**; API key only auth in URL.
 
-**Current Status**: ACTIVE with ongoing improvements, recommended primary overlay: all.php (20 total .php variants in /overlay/)
+**Current Status**: ACTIVE. Specter Alerts path: `alerts.php` + `overlay/index.php`.
 
 ---
 
@@ -350,7 +330,7 @@ These are managed via the Dashboard UI (`media.php`) and configured through over
    │  (JS/PHP)    │  │  (Python)    │  │  (JS)           │
    │              │  │              │  │                 │
    │ WebSocket    │  │ RTMPS Port   │  │ Twitch Panel    │
-   │ 21 variants  │  │ 1935         │  │ API calls       │
+   │ ~28 overlays │  │ 1935         │  │ API calls       │
    │              │  │              │  │                 │
    │ Port: 443    │  │ Web UI: 8080 │  │ Auth: OAuth     │
    └──────────────┘  └──────────────┘  └─────────────────┘
@@ -376,6 +356,8 @@ These are managed via the Dashboard UI (`media.php`) and configured through over
 
 ---
 
-## Why:** Secondary systems provide user-facing interfaces (dashboard, overlays, extension) and specialized services (RTMPS streaming, recording). They all depend on the core BOT/API/WebSocket architecture for real-time events, data storage, and communication.
+## Why:** Secondary systems are the user-facing surface (dashboard, overlays, extension) plus RTMPS recording. They depend on BOT/API/WebSocket for data and live events.
 
-## How to apply:** Dashboard changes affect user configuration options; overlay changes affect visual display; Stream Server changes affect recording/forwarding; Extension changes affect Twitch panel display. All integrate through API endpoints and WebSocket events. New features typically need changes across multiple systems.
+## How to apply:** Dashboard config → often API write + optional WS notify. Overlays are browser sources: Socket.io only for live data; use `OVERLAY_REFRESH` when full PHP reload is required. Task/timer UI must use `backlog_position`. Donation overlays are live end-to-end (webhook → API → WS). Prefer extending `alerts.php` / `index.php` over new overlay files.
+
+**Last verified**: 2026-07-17 (alerts refresh, donation overlays live, overlay inventory, backlog_position)

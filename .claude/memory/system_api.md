@@ -59,13 +59,14 @@ FastAPI-based HTTPS server (port 443) serving as the central data backbone for B
 
 **Per-User Tables** (username DB):
 - `custom_commands` - User-defined commands
-- `builtin_commands` - Enabled/disabled status for built-in commands
+- `builtin_commands` - Enable/disable + **cooldown_rate**, **cooldown_time**, **cooldown_bucket** (`default`|`user`|`mod`) for each builtin (dashboard `builtin.php`; bot may force-zero task/timer cooldowns on ready)
 - `custom_user_commands` - Commands for other users
 - `bot_points` - User points/currency system
 - `game_deaths`, `per_stream_deaths` - Death count tracking
 - `stored_redeems` - Channel reward redemptions
 - `bits_data` - Cheered bits leaderboard
 - `typos`, `lurkers`, `hugs`, `kisses`, `highfives`, `counts`, `watch_time`, `todos` - Various tracking
+- Working & Study: `user_tasks`, `streamer_tasks`, `user_timers` (+ project tables); display ids use **`backlog_position`**
 
 ## Authentication & Authorization
 
@@ -137,12 +138,13 @@ Valid permissions: `everyone`, `vip`, `all-subs`, `t1-sub`, `t2-sub`, `t3-sub`, 
 - `GET /freestuff/latest` - Latest free game
 
 ### Webhook Endpoints (External service auth)
-- `POST /fourthwall` - Fourthwall donation webhook
-- `POST /kofi` - Ko-fi donation webhook
-- `POST /patreon` - Patreon webhook
+- `POST /fourthwall` - Fourthwall donation webhook → fan-out to WebSocket `FOURTHWALL` (overlays live)
+- `POST /kofi` - Ko-fi donation webhook → WebSocket `KOFI`
+- `POST /patreon` - Patreon webhook → WebSocket `PATREON`
 - `POST /github` - GitHub webhook with signature verification
 - `POST /freestuff` - FreeStuff game availability webhook
 - `POST /kick/{username}` - Kick.com webhook with signature verification
+- Note: Ko-fi/Patreon/Fourthwall signature verification may still be incomplete - do not regress checks where they exist
 
 ### User Account Endpoints (Requires user API key)
 - `GET /account` - Full account info (tokens, settings)
@@ -331,4 +333,6 @@ STEAM_APP_LIST_CACHE_TTL_SECONDS - Default 3600
 
 ## Why:** The API server is the central data backbone providing fast, on-demand data access (faster than WebSocket for non-real-time queries). It handles authentication, user database isolation, webhook processing, command management, and integration with external services.
 
-## How to apply:** When adding new endpoints, consider whether data is real-time (use WebSocket) or on-demand (use API). Use per-user databases for command/settings isolation. Handle API counting for rate-limited external services. Implement proper authentication (user key or admin key with service check).
+## How to apply:** When adding new endpoints, consider whether data is real-time (use WebSocket) or on-demand (use API). Use per-user databases for command/settings isolation. Handle API counting for rate-limited external services. Implement proper authentication (user key or admin key with service check). Dashboard live overlay triggers often go through `dashboard/api/notify_event.php` → WebSocket `/notify` (not always through this FastAPI process).
+
+**Last verified**: 2026-07-17 (builtin cooldown columns, task tables, donation webhooks → overlay path)
