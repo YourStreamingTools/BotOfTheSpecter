@@ -1,6 +1,6 @@
-# Project Rules for Claude
+# Project Rules (Grok)
 
-Short, project-specific rules that override generic defaults. Read the file matching the area you're working in before making changes.
+Short, project-specific rules under `.grok/rules/`. Grok auto-loads every `*.md` here. Read the matching rule before making changes in that area.
 
 | Rule | When it applies |
 | ---- | --------------- |
@@ -12,4 +12,4 @@ Short, project-specific rules that override generic defaults. Read the file matc
 | [php-config.md](./php-config.md) | **HARD RULE.** Any PHP file that needs configuration or credentials |
 | [overlays.md](./overlays.md) | Adding or modifying browser-source overlays |
 
-Rules in this folder are concise on purpose. Detailed architecture lives in `.claude/memory/`.
+Rules in this folder are concise on purpose. Detailed architecture lives in `.grok/memory/`.

@@ -7,7 +7,7 @@ description: Use when calling, extending, or debugging ExchangeRate-API v6 - the
 
 JSON REST API for currency conversion. Base URL `https://v6.exchangerate-api.com`, all paths prefixed `/v6/`. HTTPS only.
 
-This file documents the API surface. For BotOfTheSpecter-specific integration detail (every callsite, the `api_counts` local counter, the monthly-reset background task, key-loading lines), see `./.claude/docs/API/External/exchangerate.md`.
+This file documents the API surface. For BotOfTheSpecter-specific integration detail (every callsite, the `api_counts` local counter, the monthly-reset background task, key-loading lines), see `./.grok/docs/API/External/exchangerate.md`.
 
 ## When to use this skill
 

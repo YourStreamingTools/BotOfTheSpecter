@@ -7,7 +7,7 @@ description: Use when calling, extending, or debugging OpenWeatherMap One Call A
 
 Reference for One Call API 3.0 - OpenWeatherMap's proprietary unified weather endpoint. Five endpoints under `https://api.openweathermap.org/data/3.0/onecall/*` plus an AI assistant under `https://api.openweathermap.org/assistant/*`. Subscription is **"One Call by Call"** (separate from the legacy 2.5 plans): 1,000 free calls/day by default, pay-per-call beyond.
 
-This file documents the API surface. For BotOfTheSpecter-specific integration (proxy at `./api/api.py:3782`, MySQL quota counter in `api_counts`, bot/overlay flow, WeatherAPI.com fallback for Kick), see `./.claude/docs/API/External/weather.md`.
+This file documents the API surface. For BotOfTheSpecter-specific integration (proxy at `./api/api.py:3782`, MySQL quota counter in `api_counts`, bot/overlay flow, WeatherAPI.com fallback for Kick), see `./.grok/docs/API/External/weather.md`.
 
 ## When to use this skill
 

@@ -12,7 +12,7 @@ Documentation for BotOfTheSpecter's own API surface. This folder is currently em
 
 ## Existing high-level references
 
-While the detailed endpoint docs haven't been written yet, high-level architecture references exist in `.claude/memory/`:
+While the detailed endpoint docs haven't been written yet, high-level architecture references exist in `.grok/memory/`:
 
 - [`system_api.md`](../../../memory/system_api.md) - FastAPI server architecture, auth system, endpoint categories
 - [`system_websocket.md`](../../../memory/system_websocket.md) - WebSocket server architecture, event types, handler modules

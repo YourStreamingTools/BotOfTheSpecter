@@ -42,10 +42,10 @@ Each doc covers: overview, authentication (env var names + token storage), endpo
 
 ## Project rules to remember when editing integrations
 
-- **PHP never reads `.env`** - credentials always live in `./config/{service}.php` (`./.claude/rules/php-config.md`).
-- **Webhook signatures are mandatory** where upstream supports them (`./.claude/rules/secrets.md`). Several inbound webhook handlers currently violate this; see [patreon.md](./API/External/patreon.md), [kofi.md](./API/External/kofi.md), [fourthwall.md](./API/External/fourthwall.md), [freestuff.md](./API/External/freestuff.md), and [github.md](./API/External/github.md).
-- **Per-user vs central database** - pick the right scope (`./.claude/rules/database.md`). Most bot integrations write to per-user DBs; OAuth tokens live in the central `website` DB.
-- **Bot version policy** - features go into `./bot/beta.py` first; `./bot/bot.py` is critical-fix-only; `./bot/beta-v6.py` is the TwitchIO 3.x rewrite (`./.claude/rules/bot-versions.md`).
+- **PHP never reads `.env`** - credentials always live in `./config/{service}.php` (`./.grok/rules/php-config.md`).
+- **Webhook signatures are mandatory** where upstream supports them (`./.grok/rules/secrets.md`). Several inbound webhook handlers currently violate this; see [patreon.md](./API/External/patreon.md), [kofi.md](./API/External/kofi.md), [fourthwall.md](./API/External/fourthwall.md), [freestuff.md](./API/External/freestuff.md), and [github.md](./API/External/github.md).
+- **Per-user vs central database** - pick the right scope (`./.grok/rules/database.md`). Most bot integrations write to per-user DBs; OAuth tokens live in the central `website` DB.
+- **Bot version policy** - features go into `./bot/beta.py` first; `./bot/bot.py` is critical-fix-only; `./bot/beta-v6.py` is the TwitchIO 3.x rewrite (`./.grok/rules/bot-versions.md`).
 
 ## Hardening backlog surfaced by this docs pass
 

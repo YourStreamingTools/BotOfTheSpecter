@@ -8,30 +8,30 @@ This is a **multi-system streaming operations platform** with a Twitch bot, API 
 
 ## Project Rules (Read Before Editing!)
 
-Short, enforceable rules live in `.claude/rules/`. Check the relevant one before making changes:
+Short, enforceable rules live in `.grok/rules/`. Check the relevant one before making changes:
 
-- **[bot-versions.md](./.claude/rules/bot-versions.md)** - Stable/beta/v6 policy, when to edit which file
-- **[paths.md](./.claude/rules/paths.md)** - `./` for repo paths, server paths labeled separately
-- **[data-flow.md](./.claude/rules/data-flow.md)** - WebSocket vs API vs direct DB decision
-- **[database.md](./.claude/rules/database.md)** - `website` vs per-user DB scoping, async aiomysql
-- **[secrets.md](./.claude/rules/secrets.md)** - No hardcoded credentials, signature verification
-- **[php-config.md](./.claude/rules/php-config.md)** - **HARD RULE:** PHP never reads `.env`; always uses `./config/{service}.php`
-- **[overlays.md](./.claude/rules/overlays.md)** - Browser-source constraints, queueing, auto-reconnect
+- **[bot-versions.md](./.grok/rules/bot-versions.md)** - Stable/beta/v6 policy, when to edit which file
+- **[paths.md](./.grok/rules/paths.md)** - `./` for repo paths, server paths labeled separately
+- **[data-flow.md](./.grok/rules/data-flow.md)** - WebSocket vs API vs direct DB decision
+- **[database.md](./.grok/rules/database.md)** - `website` vs per-user DB scoping, async aiomysql
+- **[secrets.md](./.grok/rules/secrets.md)** - No hardcoded credentials, signature verification
+- **[php-config.md](./.grok/rules/php-config.md)** - **HARD RULE:** PHP never reads `.env`; always uses `./config/{service}.php`
+- **[overlays.md](./.grok/rules/overlays.md)** - Browser-source constraints, queueing, auto-reconnect
 
 ## Memory Files (Architecture Reference)
 
-Detailed system documentation lives in `.claude/memory/`:
+Detailed system documentation lives in `.grok/memory/`:
 
-- **[system_bot.md](./.claude/memory/system_bot.md)** - Twitch chat bot (3 versions: stable/beta/v6)
+- **[system_bot.md](./.grok/memory/system_bot.md)** - Twitch chat bot (3 versions: stable/beta/v6)
   - Use this when: adding bot commands, modifying event handling, integrating external services
   
-- **[system_api.md](./.claude/memory/system_api.md)** - FastAPI data server (HTTPS, port 443)
+- **[system_api.md](./.grok/memory/system_api.md)** - FastAPI data server (HTTPS, port 443)
   - Use this when: adding/modifying endpoints, handling authentication, managing databases
   
-- **[system_websocket.md](./.claude/memory/system_websocket.md)** - Real-time event hub (SocketIO, port 443)
+- **[system_websocket.md](./.grok/memory/system_websocket.md)** - Real-time event hub (SocketIO, port 443)
   - Use this when: adding new event types, modifying broadcasters, working with handlers
   
-- **[system_secondary.md](./.claude/memory/system_secondary.md)** - Dashboard, overlays, stream server, extension
+- **[system_secondary.md](./.grok/memory/system_secondary.md)** - Dashboard, overlays, stream server, extension
   - Use this when: modifying UI, adding overlays, working with stream recording
 
 ## System Architecture Overview
@@ -130,14 +130,14 @@ Detailed system documentation lives in `.claude/memory/`:
 
 ### Adding a New Bot Command
 
-1. Read [system_bot.md](./.claude/memory/system_bot.md) - Command System section
+1. Read [system_bot.md](./.grok/memory/system_bot.md) - Command System section
 2. Add to builtin_commands dict or create custom command in database
 3. Implement handler in bot.py event message processing
 4. Add help text to builtin_commands info
 
 ### Adding a New API Endpoint
 
-1. Read [system_api.md](./.claude/memory/system_api.md) - API Endpoints section
+1. Read [system_api.md](./.grok/memory/system_api.md) - API Endpoints section
 2. Determine if public, authenticated (user/admin key), or webhook
 3. Create Pydantic model for request/response validation
 4. Implement endpoint with proper error handling
@@ -145,7 +145,7 @@ Detailed system documentation lives in `.claude/memory/`:
 
 ### Adding a New WebSocket Event
 
-1. Read [system_websocket.md](./.claude/memory/system_websocket.md) - Event Types section
+1. Read [system_websocket.md](./.grok/memory/system_websocket.md) - Event Types section
 2. Decide: code-specific, timer-specific, or task-specific broadcast
 3. Create handler in appropriate module (EventHandler, etc.)
 4. Register in setup_event_handlers()
@@ -153,7 +153,7 @@ Detailed system documentation lives in `.claude/memory/`:
 
 ### Adding a New Overlay
 
-1. Read [system_secondary.md](./.claude/memory/system_secondary.md) - Overlay System section
+1. Read [system_secondary.md](./.grok/memory/system_secondary.md) - Overlay System section
 2. Create new PHP file in /overlay/ directory
 3. Connect to WebSocket with Socket.io client
 4. Handle relevant events and render visually
@@ -161,7 +161,7 @@ Detailed system documentation lives in `.claude/memory/`:
 
 ### Modifying Stream Recording
 
-1. Read [system_secondary.md](./.claude/memory/system_secondary.md) - Stream System section
+1. Read [system_secondary.md](./.grok/memory/system_secondary.md) - Stream System section
 2. Changes likely needed in stream.py, FFmpeg forwarding, or storage paths
 3. Test with operator web UI (port 8080) first
 4. Remember: FLV is temporary, MP4 is final storage
@@ -296,4 +296,4 @@ Stream Server
 
 **Last Updated**: 2026-07-17 (memory refresh: cooldowns, task/timer functions, OVERLAY_REFRESH, donation overlays live, overlay inventory ~28, backlog_position)  
 **Created By**: Multi-agent code analysis (bot-analyzer, api-analyzer, websocket-analyzer, secondary-analyzer)  
-**Memory Files**: See `.claude/memory/MEMORY.md`
+**Memory Files**: See `.grok/memory/MEMORY.md`

@@ -57,13 +57,13 @@ Repo callsites (one client per process, module-level):
 - `./bot/kick.py` - same pattern
 - `./websocket/tts_handler.py:25` (`self.openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_KEY'))`)
 
-> **Rule:** Never hardcode an OpenAI key. Never log the key. Never echo it back to a Twitch/Discord channel or webhook. See `.claude/rules/secrets.md`.
+> **Rule:** Never hardcode an OpenAI key. Never log the key. Never echo it back to a Twitch/Discord channel or webhook. See `.grok/rules/secrets.md`.
 
 The `bot.py` token-reload paths re-read `OPENAI_KEY` on demand - see `./bot/bot.py:13943`, `./bot/beta.py:13943` (handler in `globals()` block), `./bot/beta-v6.py:11373`. The `AsyncOpenAI` client object is **not** re-instantiated; only the cached env var is. If you ever rotate the key on a live process, restart the bot to pick it up at the SDK level.
 
 ### PHP runtime (dashboard)
 
-- Loaded from `./config/openai.php` (dev) / `/var/www/config/openai.php` (server). PHP **never** uses `.env` - see `.claude/rules/php-config.md`.
+- Loaded from `./config/openai.php` (dev) / `/var/www/config/openai.php` (server). PHP **never** uses `.env` - see `.grok/rules/php-config.md`.
 - `./config/openai.php` returns an array with `admin_key`, `organization_id`, `project_id`, plus a `pricing_per_million` map used for cost estimation (see §5).
 - The admin key is sent as `Authorization: Bearer <admin_key>` to `https://api.openai.com/v1/organization/usage/*`. This is a **separate** key from the chat-completions key used by the bot - it must be a key with `api.usage.read` scope on the organization.
 

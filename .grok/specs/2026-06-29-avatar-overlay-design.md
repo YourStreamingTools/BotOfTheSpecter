@@ -1,7 +1,7 @@
 # Avatar Overlay (PNG-tuber) - Design Spec
 
 **Date:** 2026-06-29  
-**Status:** Shipped (MVP). Replaces the draft plan in `.claude/plans/png-vtuber-tools.md`.  
+**Status:** Shipped (MVP). Replaces the draft plan in `.grok/plans/png-vtuber-tools.md`.  
 **Product name:** **Avatar** (not “pngtuber” in URLs or tables).
 
 ## Summary

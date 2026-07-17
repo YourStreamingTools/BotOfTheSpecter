@@ -460,7 +460,7 @@ MVP may keep checkout in members PHP + bot only without new public purchase API.
 
 | Area | Likely paths |
 | ---- | ------------ |
-| Spec (this doc) | `./.claude/specs/2026-07-09-point-store-scope.md` |
+| Spec (this doc) | `./.grok/specs/2026-07-09-point-store-scope.md` |
 | Dashboard | `./dashboard/point_store.php` (or similar), menu entry, user DB provision |
 | Members | `./members/store.php` (+ rewrite), buy endpoint, `style.css` as needed |
 | Bot | `./bot/beta.py` (`!store`, `STORE` handler); later `./bot/beta-v6.py` |

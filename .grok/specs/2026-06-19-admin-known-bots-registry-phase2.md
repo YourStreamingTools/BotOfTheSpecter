@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-19
 **Status:** Draft
-**Depends on:** Phase 1 (`.claude/specs/2026-06-19-admin-known-bots-registry.md`) - the `website.known_bots` table + admin page must exist.
+**Depends on:** Phase 1 (`.grok/specs/2026-06-19-admin-known-bots-registry.md`) - the `website.known_bots` table + admin page must exist.
 
 ## Problem
 

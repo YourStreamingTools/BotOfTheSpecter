@@ -47,7 +47,7 @@ This project uses the **Authorization Code** grant. **PKCE is not used.** The cl
 | PHP config (`./config/spotify.php`, server: `/var/www/config/spotify.php`) | Used by the dashboard OAuth grant page | `$client_id`, `$client_secret`, `$redirect_uri` |
 | Per-user override | Stored in MySQL when user enables "own client" | `spotify_tokens.client_id`, `spotify_tokens.client_secret` |
 
-PHP must NEVER read `.env` (project rule, see `./.claude/rules/php-config.md`). The Spotify config in PHP lives at `./config/spotify.php`:
+PHP must NEVER read `.env` (project rule, see `./.grok/rules/php-config.md`). The Spotify config in PHP lives at `./config/spotify.php`:
 
 ```php
 $client_secret = '';                                                // server-side only

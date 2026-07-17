@@ -1,4 +1,4 @@
-# .claude/docs - Documentation Library
+# .grok/docs - Documentation Library
 
 Local reference documentation for the BotOfTheSpecter project. Read these files instead of fetching upstream docs during development.
 
@@ -27,6 +27,6 @@ docs/
 
 ## Project rules that apply everywhere
 
-- PHP never reads `.env` - see `.claude/rules/php-config.md`
-- Secrets stay in env vars or `./config/*.php` - see `.claude/rules/secrets.md`
-- Bot version policy (stable/beta/v6) - see `.claude/rules/bot-versions.md`
+- PHP never reads `.env` - see `.grok/rules/php-config.md`
+- Secrets stay in env vars or `./config/*.php` - see `.grok/rules/secrets.md`
+- Bot version policy (stable/beta/v6) - see `.grok/rules/bot-versions.md`
