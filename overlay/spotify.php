@@ -85,6 +85,7 @@ $host = $username !== '' ? $username : 'specter';
     </div>
 </div>
 <?php endif; ?>
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
 (function () {
     const params = new URLSearchParams(location.search);
@@ -170,6 +171,33 @@ $host = $username !== '' ? $username : 'specter';
     // Resize only needs to re-fit zoom; the pill is a fixed width so the
     // marquee decision can't change - don't restart the scroll on every resize.
     window.addEventListener('resize', () => layout(false));
+
+    // WebSocket - listen for dashboard refresh signal
+    (function () {
+        if (!code) return;
+        var socket;
+        var reconnectAttempts = 0;
+        function connectWS() {
+            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
+            socket.on('connect', function () {
+                reconnectAttempts = 0;
+                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Spotify' });
+            });
+            socket.on('OVERLAY_REFRESH', function (data) {
+                var meta = document.createElement('meta');
+                meta.setAttribute('http-equiv', 'refresh');
+                meta.setAttribute('content', '0');
+                document.head.appendChild(meta);
+            });
+            socket.on('disconnect', scheduleReconnect);
+            socket.on('connect_error', scheduleReconnect);
+        }
+        function scheduleReconnect() {
+            reconnectAttempts++;
+            setTimeout(connectWS, Math.min(5000 * reconnectAttempts, 30000));
+        }
+        connectWS();
+    })();
 })();
 </script>
 </body>

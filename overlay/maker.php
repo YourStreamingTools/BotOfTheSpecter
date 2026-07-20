@@ -407,6 +407,14 @@ document.addEventListener('DOMContentLoaded', function () {
         socket.on('disconnect', attemptReconnect);
         socket.on('connect_error', attemptReconnect);
         socket.on('MAKER_UPDATE', function () { refetch(); });
+        // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+        socket.on('OVERLAY_REFRESH', function (data) {
+            console.log('OVERLAY_REFRESH received - reloading', data);
+            var meta = document.createElement('meta');
+            meta.setAttribute('http-equiv', 'refresh');
+            meta.setAttribute('content', '0');
+            document.head.appendChild(meta);
+        });
     }
     function attemptReconnect() {
         reconnectAttempts++;

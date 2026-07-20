@@ -129,6 +129,15 @@
                     enqueueVideo(data.video);
                 });
 
+                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                socket.on('OVERLAY_REFRESH', (data) => {
+                    console.log('OVERLAY_REFRESH received - reloading', data);
+                    const meta = document.createElement('meta');
+                    meta.setAttribute('http-equiv', 'refresh');
+                    meta.setAttribute('content', '0');
+                    document.head.appendChild(meta);
+                });
+
                 // Log all events
                 socket.onAny((event, ...args) => {
                     console.log(`[onAny] Event: ${event}`, ...args);

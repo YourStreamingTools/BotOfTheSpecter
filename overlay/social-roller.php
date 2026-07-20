@@ -68,39 +68,90 @@ $platformInfo = [
     <meta charset="UTF-8">
     <title>Social Overlay Roller</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@iconfu/svg-inject@1.2.3/dist/svg-inject.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // ── Social roller rotation ──────────────────────────────────────────
             const items = document.querySelectorAll('.social-roller-item');
-            if (items.length === 0) return;
-            
-            let currentIndex = 0;
-            const displayDuration = 7000; // 7 seconds
-            const transitionDuration = 1000; // Time it takes to animate out
-            
-            function showNextItem() {
-                // Hide current
-                const currentItem = items[currentIndex];
-                currentItem.classList.remove('active');
-                currentItem.classList.add('leaving');
-                
-                setTimeout(() => {
-                    currentItem.classList.remove('leaving');
-                    
-                    // Show next
-                    currentIndex = (currentIndex + 1) % items.length;
-                    items[currentIndex].classList.add('active');
-                    
-                }, transitionDuration);
+            if (items.length > 0) {
+                let currentIndex = 0;
+                const displayDuration = 7000; // 7 seconds
+                const transitionDuration = 1000; // Time it takes to animate out
+
+                function showNextItem() {
+                    const currentItem = items[currentIndex];
+                    currentItem.classList.remove('active');
+                    currentItem.classList.add('leaving');
+                    setTimeout(() => {
+                        currentItem.classList.remove('leaving');
+                        currentIndex = (currentIndex + 1) % items.length;
+                        items[currentIndex].classList.add('active');
+                    }, transitionDuration);
+                }
+
+                // Show first item immediately
+                items[0].classList.add('active');
+
+                // Start rotation if there's more than 1
+                if (items.length > 1) {
+                    setInterval(showNextItem, displayDuration + transitionDuration);
+                }
             }
 
-            // Show first item immediately
-            items[0].classList.add('active');
-            
-            // Start rotation if there's more than 1
-            if (items.length > 1) {
-                setInterval(showNextItem, displayDuration + transitionDuration);
+            // ── WebSocket connection ────────────────────────────────────────────
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (!code) return;
+
+            let socket;
+            let reconnectAttempts = 0;
+            const retryInterval = 5000;
+
+            function connectWebSocket() {
+                socket = io('wss://websocket.botofthespecter.com', {
+                    reconnection: false
+                });
+
+                socket.on('connect', () => {
+                    console.log('[SocialRoller] Connected to WebSocket server');
+                    reconnectAttempts = 0;
+                    socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Social Roller' });
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('[SocialRoller] Disconnected from WebSocket server');
+                    attemptReconnect();
+                });
+
+                socket.on('connect_error', (error) => {
+                    console.error('[SocialRoller] Connection error:', error);
+                    attemptReconnect();
+                });
+
+                socket.on('WELCOME', (data) => {
+                    console.log('[SocialRoller] Server says:', data.message);
+                });
+
+                // Reload the page when the dashboard sends a refresh signal so
+                // PHP re-fetches the latest socials (order, handles, active state).
+                socket.on('OVERLAY_REFRESH', (data) => {
+                    console.log('[SocialRoller] OVERLAY_REFRESH received - reloading', data);
+                    const meta = document.createElement('meta');
+                    meta.setAttribute('http-equiv', 'refresh');
+                    meta.setAttribute('content', '0');
+                    document.head.appendChild(meta);
+                });
             }
+
+            function attemptReconnect() {
+                reconnectAttempts++;
+                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
+                console.log(`[SocialRoller] Reconnecting in ${delay / 1000}s...`);
+                setTimeout(connectWebSocket, delay);
+            }
+
+            connectWebSocket();
         });
     </script>
 </head>

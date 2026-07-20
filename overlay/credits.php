@@ -223,6 +223,7 @@ $buildStatus = $status;
             </div>
         </section>
     </div>
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var creditsConfig = {
@@ -312,6 +313,35 @@ document.addEventListener('DOMContentLoaded', function () {
     })();
     }); // end rAF
 });
+
+// WebSocket - listen for dashboard refresh signal
+(function () {
+    var params = new URLSearchParams(location.search);
+    var code = params.get('code');
+    if (!code) return;
+    var socket;
+    var reconnectAttempts = 0;
+    function connectWS() {
+        socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
+        socket.on('connect', function () {
+            reconnectAttempts = 0;
+            socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Credits' });
+        });
+        socket.on('OVERLAY_REFRESH', function (data) {
+            var meta = document.createElement('meta');
+            meta.setAttribute('http-equiv', 'refresh');
+            meta.setAttribute('content', '0');
+            document.head.appendChild(meta);
+        });
+        socket.on('disconnect', scheduleReconnect);
+        socket.on('connect_error', scheduleReconnect);
+    }
+    function scheduleReconnect() {
+        reconnectAttempts++;
+        setTimeout(connectWS, Math.min(5000 * reconnectAttempts, 30000));
+    }
+    connectWS();
+})();
 </script>
 </body>
 </html>
