@@ -215,6 +215,7 @@ if ($username) {
 
                 // Log all events
                 socket.onAny((event, ...args) => {
+                    if (event.startsWith('CLOSED_CAPTION')) return;
                     console.log(`Event: ${event}`, args);
                 });
             }
