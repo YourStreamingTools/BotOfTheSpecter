@@ -361,6 +361,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             if (urlParams.has('debug')) {
                 socket.onAny((event, ...args) => {
+                    if (event.startsWith('CLOSED_CAPTION')) return;
                     console.log('Event:', event, ...args);
                 });
             }
