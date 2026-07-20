@@ -183,5 +183,35 @@ ob_end_flush();
     ?>
 <?php endif; ?>
 <?php if ($theme): ?></div><?php endif; ?>
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script>
+(function () {
+    var params = new URLSearchParams(location.search);
+    var code = params.get('code');
+    if (!code) return;
+    var socket;
+    var reconnectAttempts = 0;
+    function connectWS() {
+        socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
+        socket.on('connect', function () {
+            reconnectAttempts = 0;
+            socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Todo List' });
+        });
+        socket.on('OVERLAY_REFRESH', function (data) {
+            var meta = document.createElement('meta');
+            meta.setAttribute('http-equiv', 'refresh');
+            meta.setAttribute('content', '0');
+            document.head.appendChild(meta);
+        });
+        socket.on('disconnect', scheduleReconnect);
+        socket.on('connect_error', scheduleReconnect);
+    }
+    function scheduleReconnect() {
+        reconnectAttempts++;
+        setTimeout(connectWS, Math.min(5000 * reconnectAttempts, 30000));
+    }
+    connectWS();
+})();
+</script>
 </body>
 </html>

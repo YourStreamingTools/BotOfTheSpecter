@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_socials'])) {
     $success = true;
     $db->begin_transaction();
     try {
-        foreach ($platforms as $platform) {
+        foreach ($platforms as $displayOrder => $platform) {
             $handle = trim($_POST[$platform . '_handle'] ?? '');
             $isActive = isset($_POST[$platform . '_active']) ? 1 : 0;
             
@@ -40,8 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_socials'])) {
                 $stmt->execute();
                 $stmt->close();
             } else {
-                $stmt = $db->prepare("INSERT INTO user_socials (platform, handle, is_active) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE handle = VALUES(handle), is_active = VALUES(is_active)");
-                $stmt->bind_param("ssi", $platform, $handle, $isActive);
+                $stmt = $db->prepare("INSERT INTO user_socials (platform, handle, is_active, display_order) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE handle = VALUES(handle), is_active = VALUES(is_active), display_order = VALUES(display_order)");
+                $stmt->bind_param("ssii", $platform, $handle, $isActive, $displayOrder);
                 $stmt->execute();
                 $stmt->close();
             }

@@ -97,6 +97,14 @@ if ($stmt) {
             socket.on('MEDIA_VOLUME', (d) => { volume = Math.max(0, Math.min(100, Number(d.value))); if (ready) player.setVolume(volume); });
             socket.on('disconnect', scheduleReconnect);
             socket.on('connect_error', scheduleReconnect);
+            // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+            socket.on('OVERLAY_REFRESH', (data) => {
+                console.log('OVERLAY_REFRESH received - reloading', data);
+                const meta = document.createElement('meta');
+                meta.setAttribute('http-equiv', 'refresh');
+                meta.setAttribute('content', '0');
+                document.head.appendChild(meta);
+            });
         }
         if (code) connect();
     </script>
