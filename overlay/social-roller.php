@@ -50,12 +50,12 @@ $platformInfo = [
     'facebook'  => ['icon' => 'facebook', 'color' => '#1877F2'],
     'reddit'    => ['icon' => 'reddit', 'color' => '#FF4500'],
     'linkedin'  => ['icon' => 'linkedin', 'color' => '#0A66C2'],
-    'snapchat'  => ['icon' => 'snapchat', 'color' => '#FFFC00'],
+    'snapchat'  => ['icon' => 'snapchat', 'color' => '#FFFC00', 'darkIcon' => true],
     'pinterest' => ['icon' => 'pinterest', 'color' => '#BD081C'],
     'threads'   => ['icon' => 'threads', 'color' => '#000000'],
     'bluesky'   => ['icon' => 'bluesky', 'color' => '#0285FF'],
     'mastodon'  => ['icon' => 'mastodon', 'color' => '#6364FF'],
-    'kick'      => ['icon' => 'kick', 'color' => '#53FC18'],
+    'kick'      => ['icon' => 'kick', 'color' => '#53FC18', 'darkIcon' => true],
     'github'    => ['icon' => 'github', 'color' => '#181717'],
     'spotify'   => ['icon' => 'spotify', 'color' => '#1DB954'],
     'steam'     => ['icon' => 'steam', 'color' => '#000000'],
@@ -165,11 +165,12 @@ $platformInfo = [
                 $platform = strtolower($social['platform']);
                 $handle = htmlspecialchars($social['handle']);
                 $info = $platformInfo[$platform] ?? ['icon' => $platform, 'color' => '#FFFFFF'];
-                $iconUrl = "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/{$info['icon']}.svg";
+                $iconUrl = "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/{$info['icon']}.svg";
+                $iconStyle = !empty($info['darkIcon']) ? 'filter: brightness(0);' : '';
             ?>
             <div class="social-roller-item">
                 <div class="social-roller-icon-wrapper" style="background-color: <?= $info['color'] ?>;">
-                    <img src="<?= $iconUrl ?>" alt="<?= $platform ?>" class="social-roller-icon" onload="SVGInject(this)">
+                    <img src="<?= $iconUrl ?>" alt="<?= $platform ?>" class="social-roller-icon" style="<?= $iconStyle ?>" onload="SVGInject(this)">
                 </div>
                 <div class="social-roller-handle-wrapper">
                     <span class="social-roller-handle"><?= $handle ?></span>
