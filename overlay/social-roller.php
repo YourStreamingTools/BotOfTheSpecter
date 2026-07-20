@@ -27,7 +27,7 @@ if ($username) {
         $tableExists = $db->query("SHOW TABLES LIKE 'user_socials'")->rowCount() > 0;
         
         if ($tableExists) {
-            $stmt = $db->prepare("SELECT platform, handle FROM user_socials WHERE is_active = 1 ORDER BY display_order ASC, id ASC");
+            $stmt = $db->prepare("SELECT platform, handle FROM user_socials WHERE is_active = 1 ORDER BY display_order ASC, FIELD(platform, 'twitch', 'twitter', 'x', 'youtube', 'instagram', 'tiktok', 'discord', 'facebook', 'reddit', 'linkedin', 'snapchat', 'pinterest', 'threads', 'bluesky', 'mastodon', 'kick', 'github', 'spotify', 'steam', 'patreon', 'kofi') ASC, id ASC");
             $stmt->execute();
             $socials = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
@@ -41,7 +41,8 @@ if ($username) {
 // Map platforms to Simple-Icons names and brand colors
 $platformInfo = [
     'twitch'    => ['icon' => 'twitch', 'color' => '#9146FF'],
-    'twitter'   => ['icon' => 'twitter', 'color' => '#1DA1F2'], // Can also use 'x' for X
+    'twitter'   => ['icon' => 'x', 'color' => '#000000'],
+    'x'         => ['icon' => 'x', 'color' => '#000000'],
     'youtube'   => ['icon' => 'youtube', 'color' => '#FF0000'],
     'instagram' => ['icon' => 'instagram', 'color' => '#E4405F'],
     'tiktok'    => ['icon' => 'tiktok', 'color' => '#000000'],
@@ -164,7 +165,7 @@ $platformInfo = [
                 $platform = strtolower($social['platform']);
                 $handle = htmlspecialchars($social['handle']);
                 $info = $platformInfo[$platform] ?? ['icon' => $platform, 'color' => '#FFFFFF'];
-                $iconUrl = "https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/{$info['icon']}.svg";
+                $iconUrl = "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/{$info['icon']}.svg";
             ?>
             <div class="social-roller-item">
                 <div class="social-roller-icon-wrapper" style="background-color: <?= $info['color'] ?>;">

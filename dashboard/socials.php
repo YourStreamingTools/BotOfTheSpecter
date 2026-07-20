@@ -107,6 +107,7 @@ ob_start();
                 <?php foreach ($platforms as $platform): ?>
                     <?php 
                         $platformLabel = ucfirst($platform);
+                        if ($platform === 'twitter') $platformLabel = 'X / Twitter';
                         if ($platform === 'youtube') $platformLabel = 'YouTube';
                         if ($platform === 'tiktok') $platformLabel = 'TikTok';
                         if ($platform === 'linkedin') $platformLabel = 'LinkedIn';
