@@ -3311,14 +3311,28 @@ class BotOfTheSpecter(commands.Bot):
 
     async def update_presence(self):
         server_count = len(self.guilds)  # Get the number of servers the bot is in
-        await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{server_count} servers"))
-        self.logger.info(f"Updated presence to 'Watching {server_count} servers'.")
+        try:
+            await self.change_presence(
+                status=discord.Status.online,
+                activity=discord.CustomActivity(name=f"🤖 Serving {server_count} servers | !help")
+            )
+            self.logger.info(f"Updated presence to 'Serving {server_count} servers | !help'.")
+        except Exception as e:
+            self.logger.error(f"Error updating presence: {e}")
 
     async def periodic_presence_update(self):
         await self.wait_until_ready()  # Wait until the bot is ready
         while not self.is_closed():
             await self.update_presence()  # Update the presence
             await asyncio.sleep(300)  # Wait for 5 minutes (300 seconds)
+
+    async def on_guild_join(self, guild: discord.Guild):
+        self.logger.info(f"Joined guild: {guild.name} ({guild.id})")
+        await self.update_presence()
+
+    async def on_guild_remove(self, guild: discord.Guild):
+        self.logger.info(f"Left guild: {guild.name} ({guild.id})")
+        await self.update_presence()
 
     async def _send_message_with_fallback(self, channel, embed=None, fallback_text="", content=None, logger_context=""):
         max_retries = 3
