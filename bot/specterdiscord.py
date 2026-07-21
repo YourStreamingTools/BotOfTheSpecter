@@ -5862,74 +5862,79 @@ class MusicPlayer:
                 self.logger.info(f"[PLAY_NEXT] Not connected to voice for guild {guild_id}, stopping")
                 self.is_playing[guild_id] = False
                 return
-            queue = self.queues.get(guild_id, [])
-            if not queue:
-                self.logger.info(f"[PLAY_NEXT] Queue empty for guild {guild_id}")
-                # Reset flag so add_to_queue won't spin
-                self.is_playing[guild_id] = False
-                # Only play random CDN if not already playing one
-                current_track = self.current_track.get(guild_id)
-                if not (current_track and current_track.get('user') == 'CDN' and self.is_playing[guild_id]):
-                    self.logger.info(f"[PLAY_NEXT] Starting random CDN music for guild {guild_id}")
-                    await self.play_random_cdn_mp3(ctx)
-                return
-            self.logger.info(f"[PLAY_NEXT] Processing queue for guild {guild_id}, {len(queue)} songs remaining")
-            self.is_playing[guild_id] = True
-            track_info = queue.pop(0)
-            self.current_track[guild_id] = track_info
-            query = track_info['query']
             source = None
-            # Robust file_path handling for YouTube
-            if track_info['is_youtube']:
-                # Check if file is already downloaded from add_to_queue
-                file_path = track_info.get('file_path')
-                if file_path and os.path.exists(file_path):
-                    self.logger.info(f"[YT-DLP] Using pre-downloaded file: {file_path}")
-                else:
-                    # File not downloaded or doesn't exist, download now
-                    self.logger.info(f"[YT-DLP] File not pre-downloaded, downloading now: {query}")
-                    file_path, info = await self.predownload_youtube(query)
-                    if info and 'title' in info:
-                        track_info['title'] = info['title']
-                    track_info['file_path'] = file_path
-                if not file_path or not os.path.exists(file_path):
-                    # Could not download, skip to next
-                    self.logger.error(f"[YT-DLP] Could not download file for {query}, skipping.")
-                    return await self._play_next(ctx)
-                self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
-                source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
-                # Try to get duration
-                try:
-                    self.logger.info(f"[FFMPEG] ffprobe for duration: {file_path}")
-                    result = subprocess.run([
-                        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                        '-of', 'default=noprint_wrappers=1:nokey=1', file_path
-                    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                    duration = int(float(result.stdout)) if result.stdout else None
-                except Exception as e:
-                    self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-                    duration = None
-            else:
-                path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
-                if not os.path.exists(path):
-                    self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
+            track_info = None
+            duration = None
+            while True:
+                queue = self.queues.get(guild_id, [])
+                if not queue:
+                    self.logger.info(f"[PLAY_NEXT] Queue empty for guild {guild_id}")
+                    # Reset flag so add_to_queue won't spin
+                    self.is_playing[guild_id] = False
+                    # Only play random CDN if not already playing one
+                    current_track = self.current_track.get(guild_id)
+                    if not (current_track and current_track.get('user') == 'CDN' and self.is_playing[guild_id]):
+                        self.logger.info(f"[PLAY_NEXT] Starting random CDN music for guild {guild_id}")
+                        await self.play_random_cdn_mp3(ctx)
+                    return
+                self.logger.info(f"[PLAY_NEXT] Processing queue for guild {guild_id}, {len(queue)} songs remaining")
+                self.is_playing[guild_id] = True
+                track_info = queue.pop(0)
+                self.current_track[guild_id] = track_info
+                query = track_info['query']
+                # Robust file_path handling for YouTube
+                if track_info['is_youtube']:
+                    # Check if file is already downloaded from add_to_queue
+                    file_path = track_info.get('file_path')
+                    if file_path and os.path.exists(file_path):
+                        self.logger.info(f"[YT-DLP] Using pre-downloaded file: {file_path}")
+                    else:
+                        # File not downloaded or doesn't exist, download now
+                        self.logger.info(f"[YT-DLP] File not pre-downloaded, downloading now: {query}")
+                        file_path, info = await self.predownload_youtube(query)
+                        if info and 'title' in info:
+                            track_info['title'] = info['title']
+                        track_info['file_path'] = file_path
+                    if not file_path or not os.path.exists(file_path):
+                        # Could not download, skip to the next queued track.
+                        self.logger.error(f"[YT-DLP] Could not download file for {query}, skipping.")
+                        continue
+                    self.logger.info(f"[FFMPEG] Playing YouTube file: {file_path}")
+                    source = discord.FFmpegPCMAudio(file_path, options=self.ffmpeg_options.get('options'))
+                    # Try to get duration
                     try:
-                        await ctx.send(f"Song skipped, can't play '{query}'.")
-                    except Exception:
-                        pass
-                    return await self._play_next(ctx)  # Skip to next track
-                self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
-                source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
-                try:
-                    self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
-                    result = subprocess.run([
-                        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                        '-of', 'default=noprint_wrappers=1:nokey=1', path
-                    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                    duration = int(float(result.stdout)) if result.stdout else None
-                except Exception as e:
-                    self.logger.error(f"[FFMPEG] Error getting duration: {e}")
-                    duration = None
+                        self.logger.info(f"[FFMPEG] ffprobe for duration: {file_path}")
+                        result = subprocess.run([
+                            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                            '-of', 'default=noprint_wrappers=1:nokey=1', file_path
+                        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                        duration = int(float(result.stdout)) if result.stdout else None
+                    except Exception as e:
+                        self.logger.error(f"[FFMPEG] Error getting duration: {e}")
+                        duration = None
+                else:
+                    path = os.path.join(config.music_directory, query if query.endswith('.mp3') else f'{query}.mp3')
+                    if not os.path.exists(path):
+                        self.logger.error(f"[FFMPEG] CDN file not found: {path}. Skipping track.")
+                        try:
+                            await ctx.send(f"Song skipped, can't play '{query}'.")
+                        except Exception:
+                            pass
+                        continue  # Skip to the next queued track.
+                    self.logger.info(f"[FFMPEG] Playing CDN file: {path}")
+                    source = discord.FFmpegPCMAudio(path, options=self.ffmpeg_options.get('options'))
+                    try:
+                        self.logger.info(f"[FFMPEG] ffprobe for duration: {path}")
+                        result = subprocess.run([
+                            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                            '-of', 'default=noprint_wrappers=1:nokey=1', path
+                        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                        duration = int(float(result.stdout)) if result.stdout else None
+                    except Exception as e:
+                        self.logger.error(f"[FFMPEG] Error getting duration: {e}")
+                        duration = None
+                # We have a playable source; leave the selection loop.
+                break
             self.track_duration[guild_id] = duration
             self.track_start[guild_id] = time.time()
             vc = ctx.voice_client
@@ -5950,27 +5955,46 @@ class MusicPlayer:
                             os.remove(track_info['file_path'])
                         except Exception as e:
                             self.logger.error(f"[FFMPEG] Error cleaning up file: {e}")
-                # Always call _play_next to ensure music continues
-                coro = self._play_next(ctx)
-                fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+                def _schedule_done(fut):
+                    try:
+                        fut.result()
+                    except Exception as e:
+                        self.logger.error(f"[FFMPEG] Error in after_play: {e}")
                 try:
-                    fut.result()
+                    fut = asyncio.run_coroutine_threadsafe(self._play_next(ctx), self.bot.loop)
+                    fut.add_done_callback(_schedule_done)
                 except Exception as e:
-                    self.logger.error(f"[FFMPEG] Error in after_play: {e}")
-            # Don't stop if this is being called while nothing should be playing
-            if vc.is_playing():
-                current_track = self.current_track.get(guild_id)
-                if current_track:
-                    current_user = current_track.get('user', 'Unknown')
-                    current_title = current_track.get('title', 'Unknown')
+                    self.logger.error(f"[FFMPEG] Error scheduling next track: {e}")
+            if not vc or not vc.is_connected():
+                self.logger.warning(f"[PLAY_NEXT] Voice not connected at play time for guild {guild_id}; aborting")
+                self.is_playing[guild_id] = False
+                try:
+                    source.cleanup()
+                except Exception:
+                    pass
+                return
+            try:
+                # Don't stop if this is being called while nothing should be playing
+                if vc.is_playing():
+                    current_track = self.current_track.get(guild_id)
+                    if current_track:
+                        current_user = current_track.get('user', 'Unknown')
+                        current_title = current_track.get('title', 'Unknown')
+                    else:
+                        current_user = 'Unknown'
+                        current_title = 'Unknown'
+                    self.logger.info(f"[PLAY_NEXT] Stopping current track '{current_title}' by {current_user} to play '{track_info['title']}' by {track_info['user']}")
+                    vc.stop()
                 else:
-                    current_user = 'Unknown'
-                    current_title = 'Unknown'
-                self.logger.info(f"[PLAY_NEXT] Stopping current track '{current_title}' by {current_user} to play '{track_info['title']}' by {track_info['user']}")
-                vc.stop()
-            else:
-                self.logger.info(f"[PLAY_NEXT] Starting '{track_info['title']}' by {track_info['user']} (nothing was playing)")
-            vc.play(source, after=after_play)
+                    self.logger.info(f"[PLAY_NEXT] Starting '{track_info['title']}' by {track_info['user']} (nothing was playing)")
+                vc.play(source, after=after_play)
+            except Exception as e:
+                self.is_playing[guild_id] = False
+                self.logger.error(f"[PLAY_NEXT] Failed to start playback for guild {guild_id}: {e}")
+                try:
+                    source.cleanup()
+                except Exception:
+                    pass
 
     async def skip(self, ctx):
         vc = ctx.voice_client
@@ -6177,12 +6201,17 @@ class MusicPlayer:
                 self.logger.error(f"[CDN] Playback error: {error}")
             else:
                 self.logger.info(f"[CDN] CDN track '{random_mp3}' finished for guild {ctx.guild.id}")
-            coro = self._play_next(ctx)
-            fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+            # Schedule the next track without blocking discord's audio player thread.
+            def _schedule_done(fut):
+                try:
+                    fut.result()
+                except Exception as e:
+                    self.logger.error(f"[CDN] Error in after_play: {e}")
             try:
-                fut.result()
+                fut = asyncio.run_coroutine_threadsafe(self._play_next(ctx), self.bot.loop)
+                fut.add_done_callback(_schedule_done)
             except Exception as e:
-                self.logger.error(f"[CDN] Error in after_play: {e}")
+                self.logger.error(f"[CDN] Error scheduling next track: {e}")
         # Set playing state before starting playback to avoid race conditions
         self.is_playing[ctx.guild.id] = True
         self.current_track[ctx.guild.id] = {
@@ -6523,7 +6552,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             embed.add_field(name="Latency", value=latency_display, inline=True)
             # Create fallback text
             fallback_text = f"🔊 **Voice Status**\n**Connected To:** {channel.name}\n**Channel Members:** {member_count}\n**Latency:** {latency_display}"
-            success = await self._send_message_with_fallback(
+            success = await self.bot._send_message_with_fallback(
                 channel=ctx.channel,
                 embed=embed,
                 fallback_text=fallback_text,
@@ -6535,7 +6564,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                 description="Not connected to any voice channel in this server.",
                 color=discord.Color.red()
             )
-            success = await self._send_message_with_fallback(
+            success = await self.bot._send_message_with_fallback(
                 channel=ctx.channel,
                 embed=embed,
                 fallback_text="🔇 **Voice Status**\nNot connected to any voice channel in this server.",
@@ -6624,6 +6653,31 @@ class VoiceCog(commands.Cog, name='Voice'):
                 return True
         # If no linked text channel, allow everywhere (legacy behavior)
         return True
+
+    async def _handle_connect(self, ctx, channel):
+        guild_id = ctx.guild.id
+        existing_vc = self.voice_clients.get(guild_id)
+        if existing_vc and existing_vc.is_connected():
+            return existing_vc
+        # Drop a stale (disconnected) client before reconnecting.
+        if existing_vc:
+            try:
+                await existing_vc.disconnect(force=True)
+            except Exception:
+                pass
+            self.voice_clients.pop(guild_id, None)
+        lock = self._connect_locks.get(guild_id)
+        if not lock:
+            lock = asyncio.Lock()
+            self._connect_locks[guild_id] = lock
+        async with lock:
+            # Re-check under the lock in case another task connected meanwhile.
+            existing_vc = self.voice_clients.get(guild_id)
+            if existing_vc and existing_vc.is_connected():
+                return existing_vc
+            voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
+            self.voice_clients[guild_id] = voice_client
+            return voice_client
 
     @commands.command(name="play")
     async def play_music(self, ctx, *, query: str):
