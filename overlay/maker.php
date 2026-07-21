@@ -170,6 +170,15 @@ if ($type === 'json') {
 document.addEventListener('DOMContentLoaded', function () {
     var urlParams = new URLSearchParams(window.location.search);
     var code = urlParams.get('code');
+    var username = <?php echo json_encode($username); ?>;
+    if (!code) {
+        showOverlayError('No code provided in the URL', 'danger');
+        return;
+    }
+    if (!username) {
+        showOverlayError('Invalid code provided in the URL', 'danger');
+        return;
+    }
     var jsonUrl = 'maker.php?code=' + encodeURIComponent(code || '') + '&type=json';
 
     var el = document.getElementById('makerOverlay');
@@ -419,13 +428,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         status.textContent = text;
         status.dataset.state = state;
-    }
-
-    var username = <?php echo json_encode($username); ?>;
-    if (!code) {
-        showOverlayError('No code provided in the URL', 'danger');
-    } else if (!username) {
-        showOverlayError('Invalid code provided in the URL', 'danger');
     }
 
     var socket;

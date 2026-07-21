@@ -87,9 +87,9 @@ $host = $username !== '' ? $username : 'specter';
 <?php endif; ?>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
+const params = new URLSearchParams(location.search);
+const code = params.get('code');
 (function () {
-    const params = new URLSearchParams(location.search);
-    const code = params.get('code');
     const root = document.getElementById('sp-root');
     if (!code || !root) return;
     const endpoint = 'spotify_nowplaying.php?code=' + encodeURIComponent(code);
