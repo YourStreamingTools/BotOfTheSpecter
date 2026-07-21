@@ -157,9 +157,6 @@ ob_end_flush();
 </head>
 <body>
 <?php if ($theme): ?><div class="todolist-overlay-page-theme-box"><?php endif; ?>
-<?php if ($error_html): ?>
-    <?php echo $error_html; ?>
-<?php else: ?>
     <h1><?php echo htmlspecialchars($category); ?> List:</h1>
     <?php
     if (empty($tasks)) {
@@ -181,7 +178,6 @@ ob_end_flush();
         echo "</$listType>";
     }
     ?>
-<?php endif; ?>
 <?php if ($theme): ?></div><?php endif; ?>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
@@ -216,8 +212,13 @@ ob_end_flush();
 
     var params = new URLSearchParams(location.search);
     var code = params.get('code');
+    var username = <?php echo json_encode($username ?? ''); ?>;
     if (!code) {
         showOverlayError('No code provided in the URL', 'danger');
+        return;
+    }
+    if (!username) {
+        showOverlayError('Invalid code provided in the URL', 'danger');
         return;
     }
 

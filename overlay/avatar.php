@@ -152,22 +152,15 @@ ob_end_clean();
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="avatar-overlay-page">
-    <?php if ($error_html): ?>
-        <div class="avatar-overlay-page-error-screen">
-            <h1>Overlay unavailable</h1>
-            <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
+    <div class="avatar-overlay-page-status" id="connectionStatus" data-state="connecting">Connecting&hellip;</div>
+    <div class="avatar-overlay-page-root" id="avatarRoot" data-enabled="false" data-state="idle" data-position="bottom-right">
+        <div class="avatar-overlay-page-stage" id="avatarStage">
+            <img class="avatar-overlay-page-img is-visible" id="avatarFrame" alt="" decoding="async">
         </div>
-    <?php else: ?>
-        <div class="avatar-overlay-page-status" id="connectionStatus" data-state="connecting">Connecting&hellip;</div>
-        <div class="avatar-overlay-page-root" id="avatarRoot" data-enabled="false" data-state="idle" data-position="bottom-right">
-            <div class="avatar-overlay-page-stage" id="avatarStage">
-                <img class="avatar-overlay-page-img is-visible" id="avatarFrame" alt="" decoding="async">
-            </div>
-        </div>
-    <?php endif; ?>
+    </div>
     <script>
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
-        const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
+        const overlayUserName = <?php echo json_encode($username ?? null); ?>;
 
         function showOverlayError(message, type) {
             let banner = document.getElementById('overlayErrorBanner');
@@ -182,12 +175,12 @@ ob_end_clean();
         }
 
         (function () {
-            if (overlayErrorMessage) {
-                showOverlayError(overlayErrorMessage.replace(/<[^>]*>/g, ''), 'danger');
-                return;
-            }
             if (!overlayApiKey) {
                 showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
+            if (!overlayUserName) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
             }
 

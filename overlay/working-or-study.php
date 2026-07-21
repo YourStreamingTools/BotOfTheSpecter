@@ -199,12 +199,6 @@ ob_end_clean();
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="study-overlay-page">
-    <?php if ($error_html): ?>
-        <div class="study-overlay-page-error-screen">
-            <h1>Overlay unavailable</h1>
-            <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
-        </div>
-    <?php else: ?>
         <?php
             $is_unified = ($list_view_mode === 'unified');
             $show_unified_panel = $has_tasklist_query && $is_unified;
@@ -287,10 +281,9 @@ ob_end_clean();
             </section>
             <div id="taskRewardPopups"></div>
         </div>
-    <?php endif; ?>
     <script>
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
-        const overlayUserName = <?php echo json_encode($username ?? 'Specter User'); ?>;
+        const overlayUserName = <?php echo json_encode($username ?? null); ?>;
         const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
         const hasTimerQuery = <?php echo $has_timer_query ? 'true' : 'false'; ?>;
         const hasTasklistQuery = <?php echo $has_tasklist_query ? 'true' : 'false'; ?>;
@@ -309,12 +302,12 @@ ob_end_clean();
         }
 
         (function () {
-            if (overlayErrorMessage) {
-                showOverlayError(overlayErrorMessage.replace(/<[^>]*>/g, ''), 'danger');
-                return;
-            }
             if (!overlayApiKey) {
                 showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
+            if (!overlayUserName) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
             }
             const overlayRoot = document.getElementById('overlayRoot');

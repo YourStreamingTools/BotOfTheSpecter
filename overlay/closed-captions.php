@@ -132,25 +132,18 @@ ob_end_clean();
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="closed-captions-overlay-page">
-    <?php if ($error_html): ?>
-        <div class="closed-captions-overlay-page-error-screen">
-            <h1>Overlay unavailable</h1>
-            <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
-        </div>
-    <?php else: ?>
-        <div class="closed-captions-overlay-page-status" id="connectionStatus" data-state="connecting">Connecting&hellip;</div>
-        <div class="closed-captions-overlay-page-root" id="ccRoot" data-position="bottom" data-background="box">
-            <div class="closed-captions-overlay-page-band" id="ccBand">
-                <div class="closed-captions-overlay-page-content" id="ccContent">
-                    <div class="closed-captions-overlay-page-lines" id="ccLines"></div>
-                    <div class="closed-captions-overlay-page-interim" id="ccInterim"></div>
-                </div>
+    <div class="closed-captions-overlay-page-status" id="connectionStatus" data-state="connecting">Connecting&hellip;</div>
+    <div class="closed-captions-overlay-page-root" id="ccRoot" data-position="bottom" data-background="box">
+        <div class="closed-captions-overlay-page-band" id="ccBand">
+            <div class="closed-captions-overlay-page-content" id="ccContent">
+                <div class="closed-captions-overlay-page-lines" id="ccLines"></div>
+                <div class="closed-captions-overlay-page-interim" id="ccInterim"></div>
             </div>
         </div>
-    <?php endif; ?>
+    </div>
     <script>
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
-        const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
+        const overlayUserName = <?php echo json_encode($username ?? null); ?>;
         const overlayInitialFont = <?php echo json_encode(in_array($cc_settings['font_family'], $allowedFonts, true) ? $cc_settings['font_family'] : 'Inter'); ?>;
 
         function showOverlayError(message, type) {
@@ -166,12 +159,12 @@ ob_end_clean();
         }
 
         (function () {
-            if (overlayErrorMessage) {
-                showOverlayError(overlayErrorMessage.replace(/<[^>]*>/g, ''), 'danger');
-                return;
-            }
             if (!overlayApiKey) {
                 showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
+            if (!overlayUserName) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
             }
             const ccRoot = document.getElementById('ccRoot');

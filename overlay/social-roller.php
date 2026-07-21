@@ -5,16 +5,14 @@ $primary_db_name = 'website';
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
 $api_key = $_GET['code'] ?? '';
 
-if (empty($api_key)) {
-    die("No code provided in the URL.");
+if (!empty($api_key)) {
+    $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
+    $stmt->bind_param("s", $api_key);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $user = $result->fetch_assoc();
+    $username = $user['username'] ?? '';
 }
-
-$stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
-$stmt->bind_param("s", $api_key);
-$stmt->execute();
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
-$username = $user['username'] ?? '';
 
 $socials = [];
 
@@ -34,8 +32,6 @@ if ($username) {
     } catch (PDOException $e) {
         error_log("Social Roller DB Error: " . $e->getMessage());
     }
-} else {
-    die("Invalid code provided.");
 }
 
 // Map platforms to Simple-Icons names and brand colors
@@ -131,8 +127,13 @@ $platformInfo = [
             // ── WebSocket connection ────────────────────────────────────────────
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+            const username = <?php echo json_encode($username ?? ''); ?>;
             if (!code) {
                 showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
+            if (!username) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
             }
 

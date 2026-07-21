@@ -158,8 +158,11 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         }
 
         const hasCode = !!urlParams.get('code');
+        const username = <?php echo json_encode($username); ?>;
         if (!hasCode) {
             showOverlayError('No code provided in the URL', 'danger');
+        } else if (!username) {
+            showOverlayError('Invalid code provided in the URL', 'danger');
         }
         if (showNowPlaying) {
             nowPlayingDiv.style.display = 'block';
