@@ -10,16 +10,18 @@ $injectedSettings = [
     'nicknames'         => (object)[],
 ];
 
+$username = '';
 if ($code !== '') {
     // Suppress connection error - overlay still works without settings
     $conn = @new mysqli($db_servername, $db_username, $db_password, 'website');
     if (!$conn->connect_error) {
-        $stmt = $conn->prepare("SELECT twitch_user_id FROM users WHERE api_key = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT username, twitch_user_id FROM users WHERE api_key = ? LIMIT 1");
         if ($stmt) {
             $stmt->bind_param('s', $code);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
+                $username = $row['username'] ?? '';
                 // Twitch user IDs are numeric - sanitise before using in a file path
                 $twitchUserId = preg_replace('/[^0-9]/', '', (string)$row['twitch_user_id']);
                 if ($twitchUserId !== '') {
@@ -251,8 +253,14 @@ $badgeCacheJson = json_encode(
             status.dataset.state = state;
         }
 
+        const username = <?php echo json_encode($username); ?>;
+
         if (!code) {
             showOverlayError('No code provided in the URL', 'danger');
+            return;
+        }
+        if (!username) {
+            showOverlayError('Invalid code provided in the URL', 'danger');
             return;
         }
         const container = document.getElementById('chat-overlay-page-container');

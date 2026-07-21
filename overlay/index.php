@@ -73,6 +73,10 @@ if ($username) {
             }
             const alertConfigs = <?php echo json_encode($alertConfigs); ?>;
             const username = <?php echo json_encode($username); ?>;
+            if (!username) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
+                return;
+            }
             const weatherTimezone = <?php echo json_encode($timezone); ?>;
             const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
             const alertQueue = [];
