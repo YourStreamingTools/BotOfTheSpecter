@@ -100,33 +100,68 @@ $platformInfo = [
                 }
             }
 
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
+            }
+
+            function setConnectionStatus(text, state) {
+                let status = document.getElementById('overlayConnectionStatus');
+                if (!status) {
+                    status = document.createElement('div');
+                    status.id = 'overlayConnectionStatus';
+                    status.className = 'overlay-connection-status';
+                    document.body.appendChild(status);
+                }
+                status.textContent = text;
+                status.dataset.state = state;
+            }
+
             // ── WebSocket connection ────────────────────────────────────────────
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
-            if (!code) return;
+            if (!code) {
+                showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
 
             let socket;
             let reconnectAttempts = 0;
             const retryInterval = 5000;
 
             function connectWebSocket() {
+                setConnectionStatus('Connecting…', 'connecting');
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
                 });
 
                 socket.on('connect', () => {
                     console.log('[SocialRoller] Connected to WebSocket server');
+                    setConnectionStatus('Connected', 'connected');
                     reconnectAttempts = 0;
                     socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Social Roller' });
                 });
 
                 socket.on('disconnect', () => {
                     console.log('[SocialRoller] Disconnected from WebSocket server');
+                    setConnectionStatus('Disconnected', 'error');
                     attemptReconnect();
                 });
 
                 socket.on('connect_error', (error) => {
                     console.error('[SocialRoller] Connection error:', error);
+                    setConnectionStatus('Connection error', 'error');
                     attemptReconnect();
                 });
 
@@ -149,6 +184,7 @@ $platformInfo = [
                 reconnectAttempts++;
                 const delay = Math.min(retryInterval * reconnectAttempts, 30000);
                 console.log(`[SocialRoller] Reconnecting in ${delay / 1000}s...`);
+                setConnectionStatus('Reconnecting…', 'connecting');
                 setTimeout(connectWebSocket, delay);
             }
 

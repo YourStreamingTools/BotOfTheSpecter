@@ -168,9 +168,28 @@ ob_end_clean();
     <script>
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
         const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
+
+        function showOverlayError(message, type) {
+            let banner = document.getElementById('overlayErrorBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'overlayErrorBanner';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+            banner.style.display = 'block';
+        }
+
         (function () {
-            if (overlayErrorMessage) return;
-            if (!overlayApiKey) return;
+            if (overlayErrorMessage) {
+                showOverlayError(overlayErrorMessage.replace(/<[^>]*>/g, ''), 'danger');
+                return;
+            }
+            if (!overlayApiKey) {
+                showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
 
             const root = document.getElementById('avatarRoot');
             const stage = document.getElementById('avatarStage');

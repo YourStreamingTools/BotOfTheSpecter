@@ -1945,6 +1945,47 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     border-bottom: 3px solid #b8860b;
 }
 
+/* ===== Shared Overlay Connection Indicator ===== */
+
+.overlay-connection-status {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 99990;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.75);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #ffffff;
+    transition: opacity 400ms ease, transform 400ms ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.overlay-connection-status[data-state="connected"] {
+    border-color: #32d486;
+    color: #32d486;
+    opacity: 0;
+    transform: translateY(-4px);
+}
+.overlay-connection-status[data-state="connecting"] {
+    border-color: rgba(246, 196, 81, 0.5);
+    color: #f6c451;
+    opacity: 1;
+}
+.overlay-connection-status[data-state="error"] {
+    border-color: rgba(255, 101, 85, 0.5);
+    color: #ff6555;
+    opacity: 1;
+}
+
 /* ===== Makers & Crafting Overlay ===== */
 
 .maker-overlay-page {

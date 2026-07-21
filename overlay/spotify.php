@@ -172,14 +172,48 @@ $host = $username !== '' ? $username : 'specter';
     // marquee decision can't change - don't restart the scroll on every resize.
     window.addEventListener('resize', () => layout(false));
 
+    function showOverlayError(message, type) {
+        var banner = document.getElementById('overlayErrorBanner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'overlayErrorBanner';
+            document.body.appendChild(banner);
+        }
+        banner.textContent = message;
+        banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+        banner.style.display = 'block';
+        if (type === 'warn') {
+            clearTimeout(banner._timeoutId);
+            banner._timeoutId = setTimeout(function () { banner.style.display = 'none'; }, 6000);
+        }
+    }
+
+    function setConnectionStatus(text, state) {
+        var status = document.getElementById('overlayConnectionStatus');
+        if (!status) {
+            status = document.createElement('div');
+            status.id = 'overlayConnectionStatus';
+            status.className = 'overlay-connection-status';
+            document.body.appendChild(status);
+        }
+        status.textContent = text;
+        status.dataset.state = state;
+    }
+
+    if (!code) {
+        showOverlayError('No code provided in the URL', 'danger');
+    }
+
     // WebSocket - listen for dashboard refresh signal
     (function () {
         if (!code) return;
         var socket;
         var reconnectAttempts = 0;
         function connectWS() {
+            setConnectionStatus('Connecting…', 'connecting');
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             socket.on('connect', function () {
+                setConnectionStatus('Connected', 'connected');
                 reconnectAttempts = 0;
                 socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Spotify' });
             });
@@ -189,11 +223,18 @@ $host = $username !== '' ? $username : 'specter';
                 meta.setAttribute('content', '0');
                 document.head.appendChild(meta);
             });
-            socket.on('disconnect', scheduleReconnect);
-            socket.on('connect_error', scheduleReconnect);
+            socket.on('disconnect', function () {
+                setConnectionStatus('Disconnected', 'error');
+                scheduleReconnect();
+            });
+            socket.on('connect_error', function () {
+                setConnectionStatus('Connection error', 'error');
+                scheduleReconnect();
+            });
         }
         function scheduleReconnect() {
             reconnectAttempts++;
+            setConnectionStatus('Reconnecting…', 'connecting');
             setTimeout(connectWS, Math.min(5000 * reconnectAttempts, 30000));
         }
         connectWS();

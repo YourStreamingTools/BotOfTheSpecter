@@ -32,6 +32,18 @@
                 }
             }
 
+            function setConnectionStatus(text, state) {
+                let status = document.getElementById('overlayConnectionStatus');
+                if (!status) {
+                    status = document.createElement('div');
+                    status.id = 'overlayConnectionStatus';
+                    status.className = 'overlay-connection-status';
+                    document.body.appendChild(status);
+                }
+                status.textContent = text;
+                status.dataset.state = state;
+            }
+
             if (!code) {
                 showOverlayError('No code provided in the URL', 'danger');
                 return;
@@ -169,20 +181,24 @@
                 enqueueAlert(parsed);
             }
             function connectWebSocket() {
+                setConnectionStatus('Connecting…', 'connecting');
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
                 });
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
+                    setConnectionStatus('Connected', 'connected');
                     reconnectAttempts = 0;
                     socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Ko-Fi' });
                 });
                 socket.on('disconnect', () => {
                     console.log('Disconnected from WebSocket server');
+                    setConnectionStatus('Disconnected', 'error');
                     attemptReconnect();
                 });
                 socket.on('connect_error', (error) => {
                     console.error('Connection error:', error);
+                    setConnectionStatus('Connection error', 'error');
                     attemptReconnect();
                 });
                 socket.on('WELCOME', (data) => {
@@ -211,6 +227,7 @@
                 reconnectAttempts++;
                 const delay = Math.min(retryInterval * reconnectAttempts, 30000);
                 console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
+                setConnectionStatus('Reconnecting…', 'connecting');
                 setTimeout(connectWebSocket, delay);
             }
             connectWebSocket();
