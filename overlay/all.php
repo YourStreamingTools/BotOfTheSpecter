@@ -65,6 +65,8 @@ if ($username) {
                 status.dataset.state = state;
             }
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
             const username = <?php echo json_encode($username); ?>;
 
             if (!code) {
