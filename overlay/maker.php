@@ -393,19 +393,59 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(function () { /* keep last good state */ });
     }
 
+    function showOverlayError(message, type) {
+        var banner = document.getElementById('overlayErrorBanner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'overlayErrorBanner';
+            document.body.appendChild(banner);
+        }
+        banner.textContent = message;
+        banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+        banner.style.display = 'block';
+        if (type === 'warn') {
+            clearTimeout(banner._timeoutId);
+            banner._timeoutId = setTimeout(function () { banner.style.display = 'none'; }, 6000);
+        }
+    }
+
+    function setConnectionStatus(text, state) {
+        var status = document.getElementById('overlayConnectionStatus');
+        if (!status) {
+            status = document.createElement('div');
+            status.id = 'overlayConnectionStatus';
+            status.className = 'overlay-connection-status';
+            document.body.appendChild(status);
+        }
+        status.textContent = text;
+        status.dataset.state = state;
+    }
+
+    if (!code) {
+        showOverlayError('No code provided in the URL', 'danger');
+    }
+
     var socket;
     var retryInterval = 5000;
     var reconnectAttempts = 0;
 
     function connect() {
         if (!code) { return; }
+        setConnectionStatus('Connecting…', 'connecting');
         socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
         socket.on('connect', function () {
+            setConnectionStatus('Connected', 'connected');
             reconnectAttempts = 0;
             socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Makers' });
         });
-        socket.on('disconnect', attemptReconnect);
-        socket.on('connect_error', attemptReconnect);
+        socket.on('disconnect', function () {
+            setConnectionStatus('Disconnected', 'error');
+            attemptReconnect();
+        });
+        socket.on('connect_error', function () {
+            setConnectionStatus('Connection error', 'error');
+            attemptReconnect();
+        });
         socket.on('MAKER_UPDATE', function () { refetch(); });
         // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
         socket.on('OVERLAY_REFRESH', function (data) {
@@ -419,6 +459,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function attemptReconnect() {
         reconnectAttempts++;
         var delay = Math.min(retryInterval * reconnectAttempts, 30000);
+        setConnectionStatus('Reconnecting…', 'connecting');
         setTimeout(connect, delay);
     }
 

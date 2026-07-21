@@ -295,16 +295,26 @@ ob_end_clean();
         const hasTimerQuery = <?php echo $has_timer_query ? 'true' : 'false'; ?>;
         const hasTasklistQuery = <?php echo $has_tasklist_query ? 'true' : 'false'; ?>;
         const streamerFilterParam = <?php echo json_encode($streamer_filter_param); ?>;
+
+        function showOverlayError(message, type) {
+            let banner = document.getElementById('overlayErrorBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'overlayErrorBanner';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+            banner.style.display = 'block';
+        }
+
         (function () {
             if (overlayErrorMessage) {
-                const errorNode = document.getElementById('overlayErrorMessage');
-                if (errorNode) {
-                    errorNode.innerHTML = overlayErrorMessage;
-                }
+                showOverlayError(overlayErrorMessage.replace(/<[^>]*>/g, ''), 'danger');
                 return;
             }
             if (!overlayApiKey) {
-                console.warn('Overlay missing API key.');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
             const overlayRoot = document.getElementById('overlayRoot');

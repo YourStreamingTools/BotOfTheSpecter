@@ -79,14 +79,45 @@ if ($stmt) {
             if (ready && pendingVideo) loadVideo(pendingVideo);
         });
 
+        function showOverlayError(message, type) {
+            let banner = document.getElementById('overlayErrorBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'overlayErrorBanner';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+            banner.style.display = 'block';
+            if (type === 'warn') {
+                clearTimeout(banner._timeoutId);
+                banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+            }
+        }
+
+        function setConnectionStatus(text, state) {
+            let status = document.getElementById('overlayConnectionStatus');
+            if (!status) {
+                status = document.createElement('div');
+                status.id = 'overlayConnectionStatus';
+                status.className = 'overlay-connection-status';
+                document.body.appendChild(status);
+            }
+            status.textContent = text;
+            status.dataset.state = state;
+        }
+
         // 3) WebSocket
         function scheduleReconnect() {
+            setConnectionStatus('Reconnecting…', 'connecting');
             if (reconnectTimer !== null) return;
             reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 5000);
         }
         function connect() {
+            setConnectionStatus('Connecting…', 'connecting');
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             socket.on('connect', () => {
+                setConnectionStatus('Connected', 'connected');
                 if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
                 if (!code) return;
                 socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Media Player' });
@@ -95,8 +126,8 @@ if ($stmt) {
             socket.on('MEDIA_PLAY', (v) => loadVideo(v));
             socket.on('MEDIA_STOP', () => { if (player && ready) player.stopVideo(); currentVideoId = null; if (showNP) npDiv.style.display = 'none'; });
             socket.on('MEDIA_VOLUME', (d) => { volume = Math.max(0, Math.min(100, Number(d.value))); if (ready) player.setVolume(volume); });
-            socket.on('disconnect', scheduleReconnect);
-            socket.on('connect_error', scheduleReconnect);
+            socket.on('disconnect', () => { setConnectionStatus('Disconnected', 'error'); scheduleReconnect(); });
+            socket.on('connect_error', () => { setConnectionStatus('Connection error', 'error'); scheduleReconnect(); });
             // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
             socket.on('OVERLAY_REFRESH', (data) => {
                 console.log('OVERLAY_REFRESH received - reloading', data);
@@ -106,7 +137,11 @@ if ($stmt) {
                 document.head.appendChild(meta);
             });
         }
-        if (code) connect();
+        if (code) {
+            connect();
+        } else {
+            showOverlayError('No code provided in the URL', 'danger');
+        }
     </script>
 </body>
 </html>

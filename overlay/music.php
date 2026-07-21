@@ -145,6 +145,18 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             }
         }
 
+        function setConnectionStatus(text, state) {
+            let status = document.getElementById('overlayConnectionStatus');
+            if (!status) {
+                status = document.createElement('div');
+                status.id = 'overlayConnectionStatus';
+                status.className = 'overlay-connection-status';
+                document.body.appendChild(status);
+            }
+            status.textContent = text;
+            status.dataset.state = state;
+        }
+
         const hasCode = !!urlParams.get('code');
         if (!hasCode) {
             showOverlayError('No code provided in the URL', 'danger');
@@ -187,6 +199,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             audioPlayer.volume = (volume / 100) * VOLUME_SCALE;
         }
         function scheduleReconnect() {
+            setConnectionStatus('Reconnecting…', 'connecting');
             if (reconnectTimer !== null) return;
             reconnectTimer = setTimeout(() => {
                 reconnectTimer = null;
@@ -358,6 +371,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             playNextSong();
         });
         function connectWebSocket() {
+            setConnectionStatus('Connecting…', 'connecting');
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             if (urlParams.has('debug')) {
                 socket.onAny((event, ...args) => {
@@ -366,6 +380,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 });
             }
             socket.on('connect', () => {
+                setConnectionStatus('Connected', 'connected');
                 if (reconnectTimer !== null) {
                     clearTimeout(reconnectTimer);
                     reconnectTimer = null;
@@ -377,9 +392,11 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 tryAutoStartFirstSong();
             });
             socket.on('disconnect', () => {
+                setConnectionStatus('Disconnected', 'error');
                 scheduleReconnect();
             });
             socket.on('connect_error', () => {
+                setConnectionStatus('Connection error', 'error');
                 scheduleReconnect();
             });
             socket.on('SUCCESS', () => {

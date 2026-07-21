@@ -42,8 +42,36 @@ if ($username) {
             let timerIntervalId = null;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
+            }
+
+            function setConnectionStatus(text, state) {
+                let status = document.getElementById('overlayConnectionStatus');
+                if (!status) {
+                    status = document.createElement('div');
+                    status.id = 'overlayConnectionStatus';
+                    status.className = 'overlay-connection-status';
+                    document.body.appendChild(status);
+                }
+                status.textContent = text;
+                status.dataset.state = state;
+            }
+
             if (!code) {
-                console.error('No code provided in the URL');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
 
@@ -57,23 +85,27 @@ if ($username) {
             }
 
             function connectWebSocket() {
+                setConnectionStatus('Connecting…', 'connecting');
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
                 });
 
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
+                    setConnectionStatus('Connected', 'connected');
                     reconnectAttempts = 0;
                     socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Weather' });
                 });
 
                 socket.on('disconnect', () => {
                     console.log('Disconnected from WebSocket server');
+                    setConnectionStatus('Disconnected', 'error');
                     attemptReconnect();
                 });
 
                 socket.on('connect_error', (error) => {
                     console.error('Connection error:', error);
+                    setConnectionStatus('Connection error', 'error');
                     attemptReconnect();
                 });
 
@@ -113,6 +145,7 @@ if ($username) {
                 reconnectAttempts++;
                 const delay = Math.min(retryInterval * reconnectAttempts, 30000);
                 console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
+                setConnectionStatus('Reconnecting…', 'connecting');
                 setTimeout(() => {
                     connectWebSocket();
                 }, delay);

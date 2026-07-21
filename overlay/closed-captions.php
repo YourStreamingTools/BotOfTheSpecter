@@ -152,16 +152,26 @@ ob_end_clean();
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
         const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
         const overlayInitialFont = <?php echo json_encode(in_array($cc_settings['font_family'], $allowedFonts, true) ? $cc_settings['font_family'] : 'Inter'); ?>;
+
+        function showOverlayError(message, type) {
+            let banner = document.getElementById('overlayErrorBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'overlayErrorBanner';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+            banner.style.display = 'block';
+        }
+
         (function () {
             if (overlayErrorMessage) {
-                const errorNode = document.getElementById('overlayErrorMessage');
-                if (errorNode) {
-                    errorNode.innerHTML = overlayErrorMessage;
-                }
+                showOverlayError(overlayErrorMessage.replace(/<[^>]*>/g, ''), 'danger');
                 return;
             }
             if (!overlayApiKey) {
-                console.warn('[CC Overlay] Missing API key.');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
             const ccRoot = document.getElementById('ccRoot');

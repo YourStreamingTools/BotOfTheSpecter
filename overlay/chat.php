@@ -239,6 +239,18 @@ $badgeCacheJson = json_encode(
             }
         }
 
+        function setConnectionStatus(text, state) {
+            let status = document.getElementById('overlayConnectionStatus');
+            if (!status) {
+                status = document.createElement('div');
+                status.id = 'overlayConnectionStatus';
+                status.className = 'overlay-connection-status';
+                document.body.appendChild(status);
+            }
+            status.textContent = text;
+            status.dataset.state = state;
+        }
+
         if (!code) {
             showOverlayError('No code provided in the URL', 'danger');
             return;
@@ -469,13 +481,21 @@ $badgeCacheJson = json_encode(
         });
         // WebSocket connection
         function connectWebSocket() {
+            setConnectionStatus('Connecting…', 'connecting');
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             socket.on('connect', () => {
+                setConnectionStatus('Connected', 'connected');
                 reconnectAttempts = 0;
                 socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Chat Overlay ' + instanceId });
             });
-            socket.on('disconnect',    () => attemptReconnect());
-            socket.on('connect_error', () => attemptReconnect());
+            socket.on('disconnect', () => {
+                setConnectionStatus('Disconnected', 'error');
+                attemptReconnect();
+            });
+            socket.on('connect_error', () => {
+                setConnectionStatus('Connection error', 'error');
+                attemptReconnect();
+            });
             socket.on('CHAT_MESSAGE', data => addMessage(data, false));
             socket.on('CHAT_CLEAR', () => clearChatAndHistory());
             socket.on('CHAT_MESSAGE_DELETE', data => {
@@ -496,6 +516,7 @@ $badgeCacheJson = json_encode(
         function attemptReconnect() {
             reconnectAttempts++;
             const delay = Math.min(5000 * reconnectAttempts, 30000);
+            setConnectionStatus('Reconnecting…', 'connecting');
             if (socket) {
                 socket.removeAllListeners();
                 socket = null;
