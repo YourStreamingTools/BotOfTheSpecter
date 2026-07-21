@@ -65,8 +65,14 @@ if ($username) {
                 status.dataset.state = state;
             }
 
+            const username = <?php echo json_encode($username); ?>;
+
             if (!code) {
                 showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
+            if (!username) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
             }
             function escapeHtml(str) {

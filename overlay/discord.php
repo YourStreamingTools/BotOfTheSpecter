@@ -1,3 +1,21 @@
+<?php
+include '/var/www/config/database.php';
+$primary_db_name = 'website';
+$conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
+$api_key = $_GET['code'] ?? '';
+$username = '';
+if (!empty($api_key) && !$conn->connect_error) {
+    $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
+    if ($stmt) {
+        $stmt->bind_param("s", $api_key);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result ? $result->fetch_assoc() : null;
+        $username = $user['username'] ?? '';
+        $stmt->close();
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,6 +31,7 @@
 
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+            const username = <?php echo json_encode($username); ?>;
 
             function showOverlayError(message, type) {
                 let banner = document.getElementById('overlayErrorBanner');
@@ -44,6 +63,10 @@
 
             if (!code) {
                 showOverlayError('No code provided in the URL', 'danger');
+                return;
+            }
+            if (!username) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
             }
 

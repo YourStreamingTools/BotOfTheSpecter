@@ -166,18 +166,18 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 }
                 $user_db->close();
             } else {
-                $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, there was a problem accessing your data. Please try again later.</h2></div></section>";
+                $status = "";
             }
         } else {
-            $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, we couldn't find your data in our system. Please make sure you're using the correct API key.</h2></div></section>";
+            $status = "";
         }
         $stmt->close();
     } else {
-        $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, there was an issue connecting to our system. Please try again later.</h2></div></section>";
+        $status = "";
     }
     $conn->close();
 } else {
-    $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, we can't display your data without your API key. You can find your API Key on your <a class='has-text-link' href='https://dashboard.botofthespecter.com/profile.php'>profile page</a>.</h2></div></section>";
+    $status = "";
 }
 $buildStatus = $status;
 ?>
@@ -346,8 +346,13 @@ function setConnectionStatus(text, state) {
 (function () {
     var params = new URLSearchParams(location.search);
     var code = params.get('code');
+    var username = <?php echo json_encode($username ?? ''); ?>;
     if (!code) {
         showOverlayError('No code provided in the URL', 'danger');
+        return;
+    }
+    if (!username) {
+        showOverlayError('Invalid code provided in the URL', 'danger');
         return;
     }
     var socket;

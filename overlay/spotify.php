@@ -200,8 +200,11 @@ $host = $username !== '' ? $username : 'specter';
         status.dataset.state = state;
     }
 
+    const username = <?php echo json_encode($username); ?>;
     if (!code) {
         showOverlayError('No code provided in the URL', 'danger');
+    } else if (!username) {
+        showOverlayError('Invalid code provided in the URL', 'danger');
     }
 
     // WebSocket - listen for dashboard refresh signal

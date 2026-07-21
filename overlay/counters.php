@@ -185,6 +185,7 @@ $apiUrl = '?' . http_build_query([
 <head>
 <meta charset="utf-8">
 <title>Counter: <?php echo htmlspecialchars($counterLabel); ?></title>
+<link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 <style>
     html, body { margin: 0; padding: 0; height: 100vh; width: 100vw; }
     body {
@@ -310,8 +311,11 @@ $apiUrl = '?' . http_build_query([
 
     var params = new URLSearchParams(location.search);
     var code = params.get('code');
+    var username = <?php echo json_encode($username ?? ''); ?>;
     if (!code) {
         showOverlayError('No code provided in the URL', 'danger');
+    } else if (!username) {
+        showOverlayError('Invalid code provided in the URL', 'danger');
     }
 
     // WebSocket - listen for dashboard refresh signal

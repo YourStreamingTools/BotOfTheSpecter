@@ -2,18 +2,17 @@
 include '/var/www/config/database.php';
 $primary_db_name = 'website';
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
-$api_key = $_GET['code'] ?? '';
-if ($api_key === '' || !preg_match('/^[A-Za-z0-9_-]+$/', $api_key)) { http_response_code(400); exit; }
-if ($conn->connect_error) { http_response_code(500); exit; }
 $username = '';
-$stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
-if ($stmt) {
-    $stmt->bind_param("s", $api_key);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result ? $result->fetch_assoc() : null;
-    $username = $user['username'] ?? '';
-    $stmt->close();
+if (!empty($api_key) && preg_match('/^[A-Za-z0-9_-]+$/', $api_key) && !$conn->connect_error) {
+    $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
+    if ($stmt) {
+        $stmt->bind_param("s", $api_key);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result ? $result->fetch_assoc() : null;
+        $username = $user['username'] ?? '';
+        $stmt->close();
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -21,6 +20,7 @@ if ($stmt) {
 <head>
     <meta charset="UTF-8">
     <title>Media Player Overlay</title>
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <style>
         html,body{margin:0;background:transparent;overflow:hidden}
@@ -137,10 +137,15 @@ if ($stmt) {
                 document.head.appendChild(meta);
             });
         }
-        if (code) {
-            connect();
-        } else {
+        if (!code) {
             showOverlayError('No code provided in the URL', 'danger');
+        } else {
+            const username = <?php echo json_encode($username ?? ''); ?>;
+            if (!username) {
+                showOverlayError('Invalid code provided in the URL', 'danger');
+            } else {
+                connect();
+            }
         }
     </script>
 </body>
