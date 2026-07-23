@@ -2,6 +2,7 @@
 import ast
 import asyncio
 import base64
+import collections
 import functools
 import io
 import json
@@ -197,9 +198,11 @@ def ensure_directory_exists(directory_path, description=""):
         return False
 
 def _safe_eval_math(expression: str):
+    if len(expression) > 200:
+        raise ValueError("Expression too long")
     _ALLOWED_NODES = (
         ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant,
-        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod,
         ast.UAdd, ast.USub,
     )
     try:
@@ -804,7 +807,7 @@ class ChannelMapping:
         self.mappings = {}  # Memory cache: channel_code -> full mapping data
         self._refresh_task = None
         self._ready = asyncio.Event()
-        asyncio.create_task(self._init_and_start_refresh())
+        self._init_task = asyncio.create_task(self._init_and_start_refresh())
 
     async def _init_and_start_refresh(self):
         await self.refresh_mappings(is_initial_load=True)
@@ -2225,12 +2228,9 @@ class BotOfTheSpecter(commands.Bot):
             # Twitch link commands
             'linktwitch', 'unlinktwitch'
         }
-        # Ensure the log directory and file exist
-        messages_dir = os.path.dirname(self.processed_messages_file)
-        if not os.path.exists(messages_dir):
-            os.makedirs(messages_dir)
-        if not os.path.exists(self.processed_messages_file):
-            open(self.processed_messages_file, 'w').close()
+        self._processed_message_ids = set()
+        self._processed_message_order = collections.deque()
+        self._processed_messages_max = 10000
         self.stream_status_file_template = config.stream_status_file
 
     def read_stream_status(self, channel_name):
@@ -2250,6 +2250,18 @@ class BotOfTheSpecter(commands.Bot):
         else:
             return False
 
+    def _is_message_processed(self, message_id) -> bool:
+        return message_id in self._processed_message_ids
+
+    def _mark_message_processed(self, message_id) -> None:
+        if message_id in self._processed_message_ids:
+            return
+        if len(self._processed_message_order) >= self._processed_messages_max:
+            oldest = self._processed_message_order.popleft()
+            self._processed_message_ids.discard(oldest)
+        self._processed_message_order.append(message_id)
+        self._processed_message_ids.add(message_id)
+
     def _is_message_directed_at_bot(self, message) -> bool:
         # Check if bot is mentioned
         if self.user in message.mentions:
@@ -2265,6 +2277,13 @@ class BotOfTheSpecter(commands.Bot):
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
+        if getattr(self, '_ready_setup_done', False):
+            try:
+                await self.update_presence()
+            except Exception as e:
+                self.logger.error(f"Failed to refresh presence on reconnect: {e}")
+            return
+        self._ready_setup_done = True
         # Update the global version file for dashboard display
         try:
             os.makedirs(os.path.dirname(config.discord_version_file), exist_ok=True)
@@ -2797,15 +2816,9 @@ class BotOfTheSpecter(commands.Bot):
             channel_name = str(message.author.id)  # Use user ID for DMs
             # Use the message ID to track if it's already been processed
             message_id = str(message.id)
-            try:
-                with open(self.processed_messages_file, 'r') as file:
-                    processed_messages = file.read().splitlines()
-                if message_id in processed_messages:
-                    self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
-                    return
-            except FileNotFoundError:
-                self.logger.info("Processed messages file not found, creating new one")
-                processed_messages = []
+            if self._is_message_processed(message_id):
+                self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
+                return
             try:
                 # If the message includes attachments, attempt to fetch small text attachments
                 attachment_info = ""
@@ -2878,9 +2891,8 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.error(f"Failed to send message: {e}")
             except Exception as e:
                 self.logger.error(f"Unexpected error in on_message: {e}")
-            # Mark the message as processed by appending the message ID to the file
-            with open(self.processed_messages_file, 'a') as file:
-                file.write(message_id + os.linesep)
+            # Mark the message as processed (bounded in-memory recent-ID cache).
+            self._mark_message_processed(message_id)
         # If the message is in a server channel (text or voice), check for tickets first, then custom commands
         elif isinstance(message.channel, (discord.TextChannel, discord.VoiceChannel)):
             try:
@@ -2915,14 +2927,9 @@ class BotOfTheSpecter(commands.Bot):
                     guild_id = message.guild.id
                     # Track if message was already processed to avoid duplicates
                     message_id = str(message.id)
-                    try:
-                        with open(self.processed_messages_file, 'r') as file:
-                            processed_messages = file.read().splitlines()
-                        if message_id in processed_messages:
-                            self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
-                            return
-                    except FileNotFoundError:
-                        processed_messages = []
+                    if self._is_message_processed(message_id):
+                        self.logger.info(f"Message ID {message_id} has already been processed. Skipping.")
+                        return
                     user_input_for_ai = message.content or ""
                     self.logger.info(f"Processing AI request from {message.author} in server {message.guild.name}: {message.content} (streaming)")
                     # Show typing indicator
@@ -2957,9 +2964,8 @@ class BotOfTheSpecter(commands.Bot):
                                         await message.reply(ai_response, mention_author=False)
                                     else:
                                         self.logger.error("AI response chunk was empty, not sending.")
-                    # Mark the message as processed
-                    with open(self.processed_messages_file, 'a') as file:
-                        file.write(message_id + os.linesep)
+                    # Mark the message as processed (bounded in-memory recent-ID cache).
+                    self._mark_message_processed(message_id)
                     return
                 except discord.HTTPException as e:
                     self.logger.error(f"Failed to send message: {e}")
@@ -3093,9 +3099,8 @@ class BotOfTheSpecter(commands.Bot):
                         else:
                             self.logger.error(f"Follow-up command '{follow_command}' not found in database")
                     self.logger.info(f"Executed custom command '{command_name}' for {database_name} in guild {message.guild.name} (ID: {guild_id})")
-                    # Mark the message as processed
-                    with open(self.processed_messages_file, 'a') as file:
-                        file.write(str(message.id) + os.linesep)
+                    # Mark the message as processed (bounded in-memory recent-ID cache).
+                    self._mark_message_processed(str(message.id))
                     return True  # Custom command was executed successfully
                 else:
                     self.logger.info(f"Custom command '{command_name}' is disabled for {database_name}")
@@ -4458,11 +4463,13 @@ class QuoteCog(commands.Cog, name='Quote'):
             ctx = ctx_or_interaction
         else:
             ctx = await commands.Context.from_interaction(ctx_or_interaction)
-        url = f"{config.api_base_url}/quotes?api_key={self.api_token}"
+        # Send the API key via the X-API-KEY header (the API's /v2 layer) rather than a
+        # ?api_key= query string, which would leak the credential into access/proxy logs.
+        url = f"{config.api_base_url}/v2/quotes"
         try:
             async with aiohttp.ClientSession() as session:
                 async with ctx.typing():
-                    async with session.get(url) as response:
+                    async with session.get(url, headers={"X-API-KEY": self.api_token}) as response:
                         if response.status == 200:
                             quote_data = await response.json()
                             if "quote" in quote_data and "author" in quote_data:
@@ -4675,6 +4682,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         self.bot = bot
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.pool = None
+        self.mysql_helper = MySQLHelper(self.logger)
 
     async def validate_ticket_command_channel(self, ctx, action):
         if action != "create":
@@ -4994,25 +5002,34 @@ class TicketCog(commands.Cog, name='Tickets'):
                 support_role = None
                 if settings and settings.get('support_role_id'):
                     support_role = ctx.guild.get_role(int(settings['support_role_id']))
-                    if support_role and support_role not in ctx.author.roles:
-                        # Send closure message in channel
-                        embed = discord.Embed(
-                            title="Ticket Closure Notice",
-                            description=(
-                                "Only the support team can close tickets." + os.linesep +
-                                "If you need further assistance, please provide more details in this ticket channel" + os.linesep +
-                                "before a support team member closes this ticket for you." +
-                                os.linesep + os.linesep +
-                                "The support team has been notified that you wish to close this ticket." + os.linesep +
-                                "When we close tickets, this ticket will be marked as closed and archived." + os.linesep + os.linesep +
-                                "If you need further assistance in the future, please create a new ticket."
-                            ),
-                            color=discord.Color.yellow()
-                        )
-                        await ctx.send(embed=embed)
-                        # Notify support team with a plain text message
+                if support_role is not None:
+                    authorized = support_role in ctx.author.roles
+                else:
+                    authorized = (
+                        ctx.author.guild_permissions.manage_guild
+                        or ctx.author.guild_permissions.administrator
+                        or bool(settings and settings.get('owner_id') and str(ctx.author.id) == str(settings.get('owner_id')))
+                    )
+                if not authorized:
+                    # Send closure message in channel
+                    embed = discord.Embed(
+                        title="Ticket Closure Notice",
+                        description=(
+                            "Only the support team can close tickets." + os.linesep +
+                            "If you need further assistance, please provide more details in this ticket channel" + os.linesep +
+                            "before a support team member closes this ticket for you." +
+                            os.linesep + os.linesep +
+                            "The support team has been notified that you wish to close this ticket." + os.linesep +
+                            "When we close tickets, this ticket will be marked as closed and archived." + os.linesep + os.linesep +
+                            "If you need further assistance in the future, please create a new ticket."
+                        ),
+                        color=discord.Color.yellow()
+                    )
+                    await ctx.send(embed=embed)
+                    # Notify the support team if one is configured.
+                    if support_role:
                         await ctx.channel.send(f"{support_role.mention} requested ticket closure.")
-                        return
+                    return
                 await self.close_ticket(ticket_id, ctx.channel.id, ctx.author.id, str(ctx.author), reason, ctx.guild.id)
                 self.logger.info(f"Ticket #{ticket_id} closed by {ctx.author} with reason: {reason}")
             except Exception as e:
@@ -5561,7 +5578,8 @@ class TicketCog(commands.Cog, name='Tickets'):
                         f"{message.author.mention} This channel is for ticket commands only. "
                         "Please use `!ticket create` to open a ticket."
                     )
-                    await self.mysql_helper.track_message('discordbot')                    # Set a delay before deleting the warning message
+                    await self.mysql_helper.track_message('discordbot')
+                    # Set a delay before deleting the warning message
                     await asyncio.sleep(10)  # Wait for 10 seconds
                     await warning.delete()  # Delete the warning message after the delay
                     self.logger.info(f"Deleted ticket create command from {message.author} in ticket-info channel")
@@ -7519,64 +7537,7 @@ class RoleButton(discord.ui.Button):
         self.logger = logger
 
     async def callback(self, interaction: discord.Interaction):
-        try:
-            member = interaction.user
-            guild_name = interaction.guild.name if interaction.guild else "DM"
-            self.logger.info(f"[ROLE_BUTTON] Role button clicked by {member.name}#{member.discriminator} ({member.id}) for role '{self.role.name}' in {guild_name}")
-            self.logger.info(f"[ROLE_BUTTON] Interaction ID: {interaction.id}, Guild ID: {interaction.guild_id}, Channel ID: {interaction.channel_id}")
-            self.logger.info(f"[ROLE_BUTTON] Bot permissions in channel: {interaction.app_permissions if interaction.app_permissions else 'Unknown'}")
-            self.logger.info(f"[ROLE_BUTTON] Role hierarchy - Target role position: {self.role.position}, Bot top role position: {interaction.guild.me.top_role.position}")
-            # Defer the interaction immediately to prevent timeout
-            await interaction.response.defer(ephemeral=True)
-            self.logger.info(f"[ROLE_BUTTON] Interaction deferred successfully")
-            if self.role in member.roles:
-                try:
-                    self.logger.info(f"[ROLE_BUTTON] User has role, attempting to remove...")
-                    await member.remove_roles(self.role, reason="Role button - user requested removal")
-                    self.logger.info(f"[ROLE_BUTTON] Role removed, sending followup response...")
-                    await interaction.followup.send(f"✅ Removed role **{self.role.name}**", ephemeral=True)
-                    self.logger.info(f"[ROLE_BUTTON] Response sent - Successfully removed role '{self.role.name}' from {member.name}#{member.discriminator}")
-                except discord.Forbidden as e:
-                    self.logger.error(f"[ROLE_BUTTON] Forbidden error when removing role: {e}")
-                    await interaction.followup.send("❌ I don't have permission to remove this role. Please contact a server administrator.", ephemeral=True)
-                    self.logger.error(f"[ROLE_BUTTON] Missing permissions to remove role '{self.role.name}' from {member.name}#{member.discriminator}")
-                    await interaction.client._send_failure_dm(interaction.guild, "Role removal", f"Role '{self.role.name}' from {member.name}", f"Permission denied - bot cannot remove role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
-                except Exception as e:
-                    self.logger.error(f"[ROLE_BUTTON] Exception when removing role: {type(e).__name__} - {e}")
-                    self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
-                    await interaction.followup.send("❌ An error occurred while removing the role. Please try again or contact a server administrator.", ephemeral=True)
-                    self.logger.error(f"[ROLE_BUTTON] Error removing role '{self.role.name}' from {member.name}#{member.discriminator}: {e}")
-                    await interaction.client._send_failure_dm(interaction.guild, "Role removal", f"Role '{self.role.name}' from {member.name}", f"Unexpected error ({type(e).__name__}): {e}")
-            else:
-                try:
-                    self.logger.info(f"[ROLE_BUTTON] User doesn't have role, attempting to add...")
-                    await member.add_roles(self.role, reason="Role button - user requested assignment")
-                    self.logger.info(f"[ROLE_BUTTON] Role added, sending followup response...")
-                    await interaction.followup.send(f"✅ Added role **{self.role.name}**", ephemeral=True)
-                    self.logger.info(f"[ROLE_BUTTON] Response sent - Successfully added role '{self.role.name}' to {member.name}#{member.discriminator}")
-                except discord.Forbidden as e:
-                    self.logger.error(f"[ROLE_BUTTON] Forbidden error when adding role: {e}")
-                    await interaction.followup.send("❌ I don't have permission to assign this role. Please contact a server administrator.", ephemeral=True)
-                    self.logger.error(f"[ROLE_BUTTON] Missing permissions to assign role '{self.role.name}' to {member.name}#{member.discriminator}")
-                    await interaction.client._send_failure_dm(interaction.guild, "Role assignment", f"Role '{self.role.name}' to {member.name}", f"Permission denied - bot cannot assign role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
-                except Exception as e:
-                    self.logger.error(f"[ROLE_BUTTON] Exception when adding role: {type(e).__name__} - {e}")
-                    self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
-                    await interaction.followup.send("❌ An error occurred while assigning the role. Please try again or contact a server administrator.", ephemeral=True)
-                    self.logger.error(f"[ROLE_BUTTON] Error assigning role '{self.role.name}' to {member.name}#{member.discriminator}: {e}")
-                    await interaction.client._send_failure_dm(interaction.guild, "Role assignment", f"Role '{self.role.name}' to {member.name}", f"Unexpected error ({type(e).__name__}): {e}")
-        except Exception as e:
-            self.logger.error(f"[ROLE_BUTTON] Unexpected error in RoleButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
-            self.logger.error(f"[ROLE_BUTTON] Full traceback: {traceback.format_exc()}")
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.defer(ephemeral=True)
-                await interaction.followup.send("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
-                self.logger.info(f"[ROLE_BUTTON] Error response sent successfully")
-            except discord.InteractionResponded:
-                self.logger.warning(f"[ROLE_BUTTON] Interaction already responded for role button error with {interaction.user.name}#{interaction.user.discriminator}")
-            except Exception as response_error:
-                self.logger.error(f"[ROLE_BUTTON] Failed to send error response for role button: {type(response_error).__name__} - {response_error}")
+        return
 
 class RoleButtonView(discord.ui.View):
     def __init__(self):
@@ -7595,64 +7556,7 @@ class RulesAcceptButton(discord.ui.Button):
         self.logger = logger
 
     async def callback(self, interaction: discord.Interaction):
-        try:
-            user = interaction.user
-            guild_name = interaction.guild.name if interaction.guild else "DM"
-            self.logger.info(f"[RULES_ACCEPT] Rules accept button clicked by {user.name}#{user.discriminator} ({user.id}) for role '{self.role.name}' in {guild_name}")
-            self.logger.info(f"[RULES_ACCEPT] Interaction ID: {interaction.id}, Guild ID: {interaction.guild_id}, Channel ID: {interaction.channel_id}")
-            self.logger.info(f"[RULES_ACCEPT] Bot permissions in channel: {interaction.app_permissions if interaction.app_permissions else 'Unknown'}")
-            self.logger.info(f"[RULES_ACCEPT] Role hierarchy - Target role position: {self.role.position}, Bot top role position: {interaction.guild.me.top_role.position}")
-            # Defer the interaction immediately to prevent timeout
-            await interaction.response.defer(ephemeral=True)
-            self.logger.info(f"[RULES_ACCEPT] Interaction deferred successfully")
-            # Check if user already has the role
-            if self.role in user.roles:
-                self.logger.info(f"[RULES_ACCEPT] User already has role, sending followup response...")
-                await interaction.followup.send(
-                    "✅ You have already accepted the rules!",
-                    ephemeral=True
-                )
-                self.logger.info(f"[RULES_ACCEPT] Response sent successfully - User {user.name}#{user.discriminator} tried to accept rules again - already has role '{self.role.name}'")
-                return
-            # Assign the role
-            try:
-                self.logger.info(f"[RULES_ACCEPT] Attempting to add role '{self.role.name}' to user...")
-                await user.add_roles(self.role, reason="Accepted server rules via button")
-                self.logger.info(f"[RULES_ACCEPT] Role added successfully, sending followup response...")
-                await interaction.followup.send(
-                    "✅ Thank you for accepting the rules! You now have access to the server. 🎉",
-                    ephemeral=True
-                )
-                self.logger.info(f"[RULES_ACCEPT] Response sent successfully - assigned rules acceptance role '{self.role.name}' to {user.name}#{user.discriminator}")
-            except discord.Forbidden as e:
-                self.logger.error(f"[RULES_ACCEPT] Forbidden error when assigning role: {e}")
-                await interaction.followup.send(
-                    "❌ I don't have permission to assign roles. Please contact a server administrator.",
-                    ephemeral=True
-                )
-                self.logger.error(f"[RULES_ACCEPT] Missing permissions to assign rules role '{self.role.name}' to {user.name}#{user.discriminator}")
-                await interaction.client._send_failure_dm(interaction.guild, "Rules role assignment", f"Role '{self.role.name}' to {user.name}", f"Permission denied - bot cannot assign rules acceptance role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
-            except Exception as e:
-                self.logger.error(f"[RULES_ACCEPT] Exception when assigning role: {type(e).__name__} - {e}")
-                self.logger.error(f"[RULES_ACCEPT] Traceback: {traceback.format_exc()}")
-                await interaction.followup.send(
-                    "❌ An error occurred while assigning your role. Please contact a server administrator.",
-                    ephemeral=True
-                )
-                self.logger.error(f"[RULES_ACCEPT] Error assigning rules role '{self.role.name}' to {user.name}#{user.discriminator}: {e}")
-                await interaction.client._send_failure_dm(interaction.guild, "Rules role assignment", f"Role '{self.role.name}' to {user.name}", f"Unexpected error ({type(e).__name__}): {e}")
-        except Exception as e:
-            self.logger.error(f"[RULES_ACCEPT] Unexpected error in RulesAcceptButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
-            self.logger.error(f"[RULES_ACCEPT] Full traceback: {traceback.format_exc()}")
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.defer(ephemeral=True)
-                await interaction.followup.send("❌ An unexpected error occurred. Please try again or contact a server administrator.", ephemeral=True)
-                self.logger.info(f"[RULES_ACCEPT] Error response sent successfully")
-            except discord.InteractionResponded:
-                self.logger.warning(f"[RULES_ACCEPT] Interaction already responded for rules button error with {interaction.user.name}#{interaction.user.discriminator}")
-            except Exception as response_error:
-                self.logger.error(f"[RULES_ACCEPT] Failed to send error response for rules button: {type(response_error).__name__} - {response_error}")
+        return
 
 class RulesButtonView(discord.ui.View):
     def __init__(self, role: discord.Role, logger=None):
@@ -8633,7 +8537,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
             channel_code = data.get('channel_code')
             try:
                 if channel_code:
-                    self.logger.info(f"Using channel_code from data: {channel_code}")
+                    self.logger.info(f"Looking up Twitch user for schedule via provided channel_code (guild {server_id})")
                     user_row = await self.mysql.fetchone(
                         "SELECT username, twitch_user_id FROM users WHERE api_key = %s",
                         (channel_code,),
@@ -8645,7 +8549,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                         twitch_user_id = user_row.get('twitch_user_id')
                         self.logger.info(f"Found Twitch username: {twitch_username} for guild {server_id}")
                     else:
-                        self.logger.warning(f"No user found with api_key: {channel_code}")
+                        self.logger.warning(f"No user found for schedule channel_code lookup (guild {server_id})")
                 else:
                     self.logger.warning("No channel_code provided in data for fetching Twitch username")
             except Exception as e:
@@ -9073,8 +8977,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     self.logger.warning(f"Welcome channel with ID {welcome_channel_id} not found in guild {member.guild.name}")
                     return False
                 # Determine the message text
-                if use_default == 1:
-                    # Default welcome message
+                if use_default == 1 or not custom_message:
                     message_text = f"Welcome {member.name} to our server, we're so glad you joined us!"
                 else:
                     message_text = custom_message.replace("{user}", member.name)
@@ -10175,19 +10078,6 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
             if settings['track_avatar'] and before.avatar != after.avatar:
                 changes.append("Avatar: Profile picture was changed")
                 await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'avatar_changed')
-            # Track status changes (only manual status updates, not bot presence)
-            if settings['track_status'] and before.status != after.status:
-                status_map = {
-                    discord.Status.online: "Online",
-                    discord.Status.idle: "Idle",
-                    discord.Status.dnd: "Do Not Disturb",
-                    discord.Status.offline: "Offline",
-                    discord.Status.invisible: "Invisible"
-                }
-                before_status = status_map.get(before.status, str(before.status))
-                after_status = status_map.get(after.status, str(after.status))
-                changes.append(f"Status: **{before_status}** → **{after_status}**")
-                await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'status_changed')
             # If there are changes, send a log message
             if changes:
                 embed = discord.Embed(
@@ -10203,6 +10093,38 @@ class UserTrackingCog(commands.Cog, name='User Tracking'):
                 await self._send_log_message(after.guild, settings['log_channel_id'], embed)
         except Exception as e:
             self.logger.error(f"Error in on_member_update: {e}")
+
+    @commands.Cog.listener()
+    async def on_presence_update(self, before: discord.Member, after: discord.Member):
+        try:
+            if before.status == after.status:
+                return
+            settings = await self._get_settings(str(after.guild.id))
+            if not settings['enabled'] or not settings['log_channel_id'] or not settings['track_status']:
+                return
+            status_map = {
+                discord.Status.online: "Online",
+                discord.Status.idle: "Idle",
+                discord.Status.dnd: "Do Not Disturb",
+                discord.Status.offline: "Offline",
+                discord.Status.invisible: "Invisible"
+            }
+            before_status = status_map.get(before.status, str(before.status))
+            after_status = status_map.get(after.status, str(after.status))
+            await self._log_user_event(str(after.guild.id), str(after.id), after.name, 'status_changed')
+            embed = discord.Embed(
+                title="User Profile Updated",
+                description=f"**{after.mention}** updated their profile",
+                color=discord.Color.cyan(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_author(name=after.name, icon_url=after.avatar.url if after.avatar else None)
+            embed.add_field(name="User ID", value=str(after.id), inline=True)
+            embed.add_field(name="Changes", value=f"Status: **{before_status}** → **{after_status}**", inline=False)
+            embed.set_footer(text=after.guild.name)
+            await self._send_log_message(after.guild, settings['log_channel_id'], embed)
+        except Exception as e:
+            self.logger.error(f"Error in on_presence_update: {e}")
 
     def cog_unload(self):
         self.logger.info("UserTrackingCog cog unloaded")
@@ -10230,10 +10152,14 @@ class ModerationCog(commands.Cog, name='Moderation'):
         retry_count = 0
         backoff = 1
         deleted = []
+        try:
+            await ctx.message.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
+        except discord.HTTPException as e:
+            self.logger.warning(f"Could not delete purge command message: {e}")
         while retry_count < max_retries:
             try:
-                # Delete the command message first
-                await ctx.message.delete()
                 # Delete the specified number of messages
                 deleted = await ctx.channel.purge(limit=amount)
                 # Send confirmation message that auto-deletes after 5 seconds
@@ -10622,13 +10548,14 @@ class DiscordChannelResolver:
         self.mysql = mysql_helper or MySQLHelper(logger)
 
     async def get_user_id_from_api_key(self, api_key):
-        self.logger.info(f"Looking up user_id for api_key/code: {api_key}")
+        # Do not log the api_key/code itself -- it is a reusable auth credential.
+        self.logger.info("Looking up user_id for provided api_key/code")
         row = await self.mysql.fetchone(
             "SELECT id, username FROM users WHERE api_key = %s", (api_key,), database_name='website')
         if row:
-            self.logger.info(f"Query result for api_key/code {api_key}: user_id={row[0]}, username={row[1]}")
+            self.logger.info(f"Resolved api_key/code to user_id={row[0]}, username={row[1]}")
         else:
-            self.logger.warning(f"No user found for api_key/code {api_key}")
+            self.logger.warning("No user found for provided api_key/code")
         return row[0] if row else None
 
     async def get_discord_info_from_user_id(self, user_id):
