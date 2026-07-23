@@ -4667,7 +4667,10 @@ class TwitchBot(commands.AutoBot):
                             location = await get_streamer_weather()
                         if location:
                             async with httpClientSession() as session:
-                                response = await session.get(f"https://api.botofthespecter.com/weather?api_key={API_TOKEN}&location={location}")
+                                response = await session.get(
+                                    f"https://api.botofthespecter.com/v2/weather?location={location}",
+                                    headers={"X-API-KEY": API_TOKEN}
+                                )
                                 result = await response.json()
                                 if "detail" in result and "404: Location" in result["detail"]:
                                     await send_chat_message(f"Error: The location '{location}' was not found.")
@@ -9287,7 +9290,10 @@ class TwitchBot(commands.AutoBot):
             if not await check_cooldown('kill', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
             async with httpClientSession() as session:
-                async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
+                async with session.get(
+                    "https://api.botofthespecter.com/v2/kill",
+                    headers={"X-API-KEY": API_TOKEN}
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
                         kill_message = data.get("killcommand", {})
@@ -15482,9 +15488,9 @@ async def generate_user_lotto_numbers(user_name):
             await connection.release()
 
 async def tell_fortune():
-    url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
+    url = "https://api.botofthespecter.com/v2/fortune"
     async with httpClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get(url, headers={"X-API-KEY": API_TOKEN}) as response:
             if response.status == 200:
                 fortune_data = await response.json()
                 if fortune_data and "fortune" in fortune_data:
