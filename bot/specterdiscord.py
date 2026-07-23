@@ -1690,42 +1690,11 @@ class LiveChannelManager:
                         self.logger.error(f"Fallback: Failed to update voice channel to offline for {username}: {voice_error}")
                 return
             except Exception as e:
-                # fallback to old get_stream_info if Helix call fails
-                self.logger.debug(f"Helix call failed in fallback_check_and_mark: {e}")
-                game, stream_title = await self.bot.get_stream_info(username)
-                details = {'game': game}
-                await self.mark_online(channel_code, username=username, twitch_user_id=None, stream_id=None, started_at=None, details=details)
-            else:
-                # Not live, remove any existing record
-                self.logger.info(f"Fallback (legacy method) detected stream is OFFLINE on channel_code {channel_code}. Updating status.")
-                await self.mark_offline(channel_code)
-                # Also try to remove any live_notifications row (safely)
-                try:
-                    row = await self.mysql.fetchone("SELECT guild_id, username FROM channel_mappings WHERE channel_code = %s", (channel_code,), database_name='specterdiscordbot', dict_cursor=True)
-                    if row:
-                        guild_id = row.get('guild_id')
-                        username = row.get('username')
-                        if guild_id and username:
-                            await self.mysql.execute("DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s", (guild_id, str(username).lower()), database_name='specterdiscordbot')
-                except Exception:
-                    pass
-                # Update voice channel to show offline status
-                try:
-                    mapping = await self.bot.channel_mapping.get_mapping(channel_code)
-                    if mapping and mapping.get("guild_id") and mapping.get("channel_id"):
-                        guild = self.bot.get_guild(int(mapping["guild_id"]))
-                        if guild:
-                            channel = guild.get_channel(int(mapping["channel_id"]))
-                            if channel:
-                                offline_text = mapping.get("offline_text") or "Stream is now OFFLINE"
-                                channel_update = f"🔴 {offline_text}"
-                                if channel.name != channel_update:
-                                    await channel.edit(name=channel_update, reason="Stream status update (fallback offline)")
-                                    self.logger.info(f"Fallback (legacy): Updated voice channel name to '{channel_update}' for stream")
-                                else:
-                                    self.logger.debug(f"Voice channel already shows offline status for channel_code {channel_code}")
-                except Exception as voice_error:
-                    self.logger.error(f"Fallback (legacy): Failed to update voice channel to offline for {channel_code}: {voice_error}")
+                self.logger.warning(
+                    f"Unexpected error in fallback_check_and_mark for {channel_code}, "
+                    f"skipping status update this cycle: {e}",
+                    exc_info=True
+                )
         except Exception as e:
             self.logger.error(f"Error in fallback_check_and_mark for {channel_code}: {e}")
 
