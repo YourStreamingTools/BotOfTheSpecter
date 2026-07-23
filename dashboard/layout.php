@@ -83,11 +83,14 @@ $devStreamOnline = false;
 try {
     include '/var/www/config/admin_actions.php';
     if (!empty($admin_key)) {
-        $apiUrl = "https://api.botofthespecter.com/streamonline?api_key=" . urlencode($admin_key) . "&channel=gfaundead";
+        $apiUrl = "https://api.botofthespecter.com/v2/streamonline?channel=gfaundead";
         $ch = curl_init($apiUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'X-API-KEY: ' . $admin_key,
+        ]);
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         if ($httpCode === 200 && $response) {
