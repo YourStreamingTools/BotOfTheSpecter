@@ -2391,7 +2391,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then((result) => {
           if (result.isConfirmed) {
             onlineBtn.disabled = true;
-            fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_online?api_key=' + encodeURIComponent(apiKey), {}, 8000)
+            fetchWithTimeout('https://api.botofthespecter.com/v2/websocket/stream_online', { headers: { 'X-API-KEY': apiKey } }, 8000)
               .then(r => r.json())
               .then(data => {
                 showNotification(<?php echo json_encode(t('bot_channel_forced_online')); ?>, 'success');
@@ -2418,7 +2418,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then((result) => {
           if (result.isConfirmed) {
             offlineBtn.disabled = true;
-            fetchWithTimeout('https://api.botofthespecter.com/websocket/stream_offline?api_key=' + encodeURIComponent(apiKey), {}, 8000)
+            fetchWithTimeout('https://api.botofthespecter.com/v2/websocket/stream_offline', { headers: { 'X-API-KEY': apiKey } }, 8000)
               .then(r => r.json())
               .then(data => {
                 showNotification(<?php echo json_encode(t('bot_channel_forced_offline')); ?>, 'success');

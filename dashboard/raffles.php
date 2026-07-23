@@ -181,10 +181,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             foreach ($winners as $winner) {
                                 $raffle_name_encoded = urlencode($raffle['name']);
                                 $winner_encoded = urlencode($winner['username']);
-                                $url = "https://api.botofthespecter.com/websocket/raffle_winner?api_key=" . urlencode($api_key_to_use) . "&raffle_name={$raffle_name_encoded}&winner={$winner_encoded}";
+                                $url = "https://api.botofthespecter.com/v2/websocket/raffle_winner?raffle_name={$raffle_name_encoded}&winner={$winner_encoded}";
                                 $ch = curl_init($url);
                                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                                 curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                    'X-API-KEY: ' . $api_key_to_use,
+                                ]);
                                 $resp = curl_exec($ch);
                                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 if ($httpCode !== 200) {
