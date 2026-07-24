@@ -1,3 +1,9 @@
+# Stable (bot.py) and Beta (beta.py) Twitch bots — TwitchIO 2.10
+# Install into separate venvs so pip upgrades never clash:
+#   (server) venvs/stable  → requirements.txt
+#   (server) venvs/beta    → requirements.txt
+# v6 uses v6_requirements.txt (TwitchIO 3.x) in venvs/v6 — never mix.
+#
 # Async Twitch API client
 # Core library for interacting with Twitch chat and APIs using asyncio
 twitchio==2.10.0

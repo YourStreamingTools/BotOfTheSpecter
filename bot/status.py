@@ -8,8 +8,8 @@ parser.add_argument(
     "-system",
     dest="system",
     required=True,
-    choices=["stable", "beta", "custom", "kick"],
-    help="System to check (stable, beta, custom, kick)"
+    choices=["stable", "beta", "v6", "custom", "kick"],
+    help="System to check (stable, beta, v6, custom, kick)"
 )
 parser.add_argument("-channel", dest="channel_username", required=True, help="Channel username to check")
 args = parser.parse_args()
@@ -62,6 +62,9 @@ for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
                 match = True
         elif requested_system == 'beta':
             if script_name == 'beta.py':
+                match = True
+        elif requested_system == 'v6':
+            if script_name in ('beta-v6.py', 'beta_v6.py'):
                 match = True
         elif requested_system == 'kick':
             if script_name == 'kick.py':

@@ -8,6 +8,28 @@ include_once "/var/www/config/ssh.php";
 require_once "/var/www/config/db_connect.php";
 
 /**
+ * Absolute path to the bot-host Python for a given process family.
+ * Each family has its own venv under (server) /home/botofthespecter/venvs/<name>
+ * so TwitchIO 2/3 and Discord/Kick deps never clobber each other.
+ *
+ * @param string $botType stable|beta|v6|discord|kick|status (status uses stable venv tools)
+ * @return string full path to the venv python binary
+ */
+function botHostPython($botType = 'stable') {
+    $map = [
+        'stable'  => '/home/botofthespecter/venvs/stable/bin/python',
+        'beta'    => '/home/botofthespecter/venvs/beta/bin/python',
+        'v6'      => '/home/botofthespecter/venvs/v6/bin/python',
+        'discord' => '/home/botofthespecter/venvs/discord/bin/python',
+        'kick'    => '/home/botofthespecter/venvs/kick/bin/python',
+        // status.py / running_bots.py need psutil; live in the stable requirements set
+        'status'  => '/home/botofthespecter/venvs/stable/bin/python',
+        'custom'  => '/home/botofthespecter/venvs/beta/bin/python',
+    ];
+    return $map[$botType] ?? $map['stable'];
+}
+
+/**
  * Sanitize raw SSH command output to remove any appended exit-code markers
  * or internal markers injected by the SSH connection manager. This ensures
  * downstream parsing (numeric checks, exact string matches) isn't broken
@@ -84,7 +106,8 @@ function checkBotRunning($username, $botType = 'stable') {
         // SSH connection successful - now check bot status
         $result['success'] = true;
         // Get PID of the running bot
-        $command = "python $statusScriptPath -system $botType -channel $username";
+        $statusPython = botHostPython('status');
+        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $botType -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
         $statusOutput = sanitizeSSHOutput($statusOutput);
         if ($statusOutput !== false && $statusOutput !== null) {
@@ -99,7 +122,7 @@ function checkBotRunning($username, $botType = 'stable') {
                 // No process found for the specific bot type
                 // If checking beta, also check custom mode (for -custom or -self flags)
                 if ($botType === 'beta') {
-                    $customCommand = "python $statusScriptPath -system custom -channel $username";
+                    $customCommand = escapeshellarg($statusPython) . " $statusScriptPath -system custom -channel $username";
                     $customStatusOutput = SSHConnectionManager::executeCommand($connection, $customCommand);
                     $customStatusOutput = sanitizeSSHOutput($customStatusOutput);
                     if ($customStatusOutput !== false && $customStatusOutput !== null) {
@@ -231,7 +254,8 @@ function performBotAction($action, $botType, $params) {
             throw new Exception('Operation timed out during connection setup.');
         }
         // Check current bot status
-        $command = "python $statusScriptPath -system $botType -channel $username";
+        $statusPython = botHostPython('status');
+        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $botType -channel $username";
     $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
     $statusOutput = sanitizeSSHOutput($statusOutput);
     if ($statusOutput === false || $statusOutput === null) { throw new Exception('Unable to check bot status. Please try again later.'); }
@@ -243,7 +267,7 @@ function performBotAction($action, $botType, $params) {
             $currentPid = intval($matches[1]);
         } else if ($botType === 'beta') {
             // If checking beta and found nothing, also check custom mode
-            $customCommand = "python $statusScriptPath -system custom -channel $username";
+            $customCommand = escapeshellarg($statusPython) . " $statusScriptPath -system custom -channel $username";
             $customStatusOutput = SSHConnectionManager::executeCommand($connection, $customCommand);
             $customStatusOutput = sanitizeSSHOutput($customStatusOutput);
             if ($customStatusOutput !== false && $customStatusOutput !== null) {
@@ -263,7 +287,7 @@ function performBotAction($action, $botType, $params) {
                 foreach ($otherTypes as $ot) {
                     if ($ot === $botType) continue; // skip the bot we're about to start
                     // Build the correct command to check status for the other bot type
-                    $otherCommand = "python $statusScriptPath -system $ot -channel $username";
+                    $otherCommand = escapeshellarg($statusPython) . " $statusScriptPath -system $ot -channel $username";
                     $otherStatusOutput = SSHConnectionManager::executeCommand($connection, $otherCommand);
                     $otherStatusOutput = sanitizeSSHOutput($otherStatusOutput);
                     if ($otherStatusOutput !== false && $otherStatusOutput !== null) {
@@ -300,9 +324,9 @@ function performBotAction($action, $botType, $params) {
                     }
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     // Use escapeshellarg for safety on dynamic fields
-                    // V6 uses venv, beta and others use regular python
+                    // Each bot type has its own venv (see botHostPython / setup_venvs.sh)
                     // -u flag: force unbuffered stdout/stderr so output appears immediately
-                    $pythonCmd = ($botType === 'v6') ? '/home/botofthespecter/beta_env/bin/python -u' : 'python -u';
+                    $pythonCmd = escapeshellarg(botHostPython($botType)) . ' -u';
                     $botArgs = $pythonCmd . " " . escapeshellarg($botScriptPath) .
                                     " -channel " . escapeshellarg($username) .
                                     " -channelid " . escapeshellarg($twitchUserId) .

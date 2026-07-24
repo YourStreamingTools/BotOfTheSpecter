@@ -1,3 +1,7 @@
+# DEPRECATED filename: this file is the TwitchIO 3.x set used by beta-v6.py.
+# Prefer ./bot/v6_requirements.txt and the venvs/v6 virtualenv.
+# Beta (v5.8 / beta.py) uses ./bot/requirements.txt (TwitchIO 2.10) in venvs/beta.
+#
 # Async Twitch API client
 # Core library for interacting with Twitch chat and APIs using asyncio
 twitchio==3.1.0

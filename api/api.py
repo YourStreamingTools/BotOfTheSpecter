@@ -288,13 +288,26 @@ async def _get_twitch_profile_images(logins) -> dict:
     return result
 
 # Bot launch / control helpers
+# Each bot family uses its own venv on the bot host (see bot/setup_venvs.sh).
+BOT_VENV_ROOT = "/home/botofthespecter/venvs"
+BOT_PYTHON_PATHS = {
+    "stable": f"{BOT_VENV_ROOT}/stable/bin/python",
+    "beta": f"{BOT_VENV_ROOT}/beta/bin/python",
+    "v6": f"{BOT_VENV_ROOT}/v6/bin/python",
+    "discord": f"{BOT_VENV_ROOT}/discord/bin/python",
+    "kick": f"{BOT_VENV_ROOT}/kick/bin/python",
+}
+# status.py / running_bots.py (psutil) live in the stable requirements set
+BOT_STATUS_PYTHON = BOT_PYTHON_PATHS["stable"]
 BOT_SCRIPT_PATHS = {
     "stable": "/home/botofthespecter/bot.py",
     "beta": "/home/botofthespecter/beta.py",
+    "v6": "/home/botofthespecter/beta-v6.py",
 }
 BOT_VERSION_FILE_TEMPLATES = {
     "stable": "/home/botofthespecter/logs/version/{username}_version_control.txt",
     "beta": "/home/botofthespecter/logs/version/beta/{username}_beta_version_control.txt",
+    "v6": "/home/botofthespecter/logs/version/v6/{username}_v6_version_control.txt",
 }
 BOT_STATUS_SCRIPT = "/home/botofthespecter/status.py"
 
@@ -382,7 +395,7 @@ async def _ensure_fresh_twitch_token(twitch_user_id: str, access_token: str, ref
 
 async def _check_bot_pid(conn, bot_type: str, username: str, command_timeout: int) -> int | None:
     result = await asyncio.wait_for(
-        conn.run(f"python {BOT_STATUS_SCRIPT} -system {bot_type} -channel {username}"),
+        conn.run(f"{BOT_STATUS_PYTHON} {BOT_STATUS_SCRIPT} -system {bot_type} -channel {username}"),
         timeout=command_timeout,
     )
     output = (result.stdout or "").strip()
@@ -6138,11 +6151,13 @@ async def get_bot_status_via_ssh(username: str) -> dict:
     version_files = {
         "stable": f"{version_base}/{username}_version_control.txt",
         "beta": f"{version_base}/beta/{username}_beta_version_control.txt",
+        "v6": f"{version_base}/v6/{username}_v6_version_control.txt",
         "custom": f"{version_base}/custom/{username}_custom_version_control.txt",
     }
     latest_version_map = {
         "stable": latest_versions.get("stable_version"),
         "beta": latest_versions.get("beta_version"),
+        "v6": latest_versions.get("v6_version") or latest_versions.get("beta_version"),
         "custom": latest_versions.get("stable_version"),
     }
     connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
@@ -6160,10 +6175,10 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             logging.info(f"[bot_status] SSH connected in {_time.monotonic()-t0:.2f}s")
             found_type = None
             found_pid = None
-            for bot_type in ["stable", "beta", "custom"]:
+            for bot_type in ["stable", "beta", "v6", "custom"]:
                 t1 = _time.monotonic()
                 result = await asyncio.wait_for(
-                    conn.run(f"python {status_script} -system {bot_type} -channel {username}"),
+                    conn.run(f"{BOT_STATUS_PYTHON} {status_script} -system {bot_type} -channel {username}"),
                     timeout=command_timeout,
                 )
                 output = result.stdout.strip()
@@ -6362,8 +6377,9 @@ async def start_bot(
                     version=version,
                     message=f"{other_msg}Bot is already running (PID {running_pid}). No action taken.",
                 )
+            python_bin = BOT_PYTHON_PATHS.get(bot_type, BOT_PYTHON_PATHS["stable"])
             args = [
-                "python", "-u",
+                shlex.quote(python_bin), "-u",
                 shlex.quote(bot_script),
                 "-channel", shlex.quote(username),
                 "-channelid", shlex.quote(creds["twitch_user_id"]),

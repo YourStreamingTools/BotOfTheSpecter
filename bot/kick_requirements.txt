@@ -1,0 +1,28 @@
+# BotOfTheSpecter Kick.com bot (kick.py)
+# Install into (server): /home/botofthespecter/venvs/kick
+#   venvs/kick/bin/pip install -r kick_requirements.txt
+
+# Async HTTP client
+aiohttp
+
+# WebSocket client (internal Specter hub)
+python-socketio
+
+# Async MySQL
+aiomysql
+
+# Environment
+python-dotenv
+
+# Timezones / geo / units
+pytz
+geopy
+pint
+
+# Translation / jokes / AI
+deep_translator
+jokeapi
+openai
+
+# Process tooling (status helpers if shared)
+psutil
