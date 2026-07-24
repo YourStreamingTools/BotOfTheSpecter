@@ -1171,7 +1171,7 @@ function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
     try {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         if ($connection) {
-            $output = SSHConnectionManager::executeCommand($connection, "python3 /home/botofthespecter/running_bots.py 2>&1");
+            $output = SSHConnectionManager::executeCommand($connection, "/home/botofthespecter/venvs/stable/bin/python /home/botofthespecter/running_bots.py 2>&1");
         }
     } catch (Exception $e) {
         $output = "Error fetching bot status: " . $e->getMessage();

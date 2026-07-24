@@ -2501,15 +2501,20 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 // updateApiLimits();
 </script>
-<!-- 
+<!--
+Per-bot venvs on the bot host (see bot/setup_venvs.sh):
+  stable  → /home/botofthespecter/venvs/stable/bin/python
+  beta    → /home/botofthespecter/venvs/beta/bin/python
+  v6      → /home/botofthespecter/venvs/v6/bin/python  (compat: beta_env → venvs/v6)
+
 For Stable Bot:
-python /home/botofthespecter/bot.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
+/home/botofthespecter/venvs/stable/bin/python -u /home/botofthespecter/bot.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 For Beta Bot:
-python /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
+/home/botofthespecter/venvs/beta/bin/python -u /home/botofthespecter/beta.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 For Version 6 Bot:
-/home/botofthespecter/beta_env/bin/python /home/botofthespecter/beta-v6.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
+/home/botofthespecter/venvs/v6/bin/python -u /home/botofthespecter/beta-v6.py -channel <?php echo htmlspecialchars($username); ?> -channelid <?php echo htmlspecialchars($twitchUserId); ?> -token <?php echo htmlspecialchars($authToken); ?> -refresh <?php echo htmlspecialchars($refreshToken); ?> -apitoken <?php echo htmlspecialchars($api_key); ?>
 
 -->
 <?php

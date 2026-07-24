@@ -58,7 +58,8 @@ function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
     if (!extension_loaded('ssh2')) { return "<div class='status-message error'>Status: SSH2 extension not available</div>"; }
     try {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $command = "python $statusScriptPath -system $system -channel $username";
+        $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
+        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $system -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
         if ($statusOutput === false || $statusOutput === null) { return "<div class='status-message error'>Status: SSH command execution failed</div>"; }
         if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
@@ -79,7 +80,8 @@ function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
     if (!extension_loaded('ssh2')) { return false; }
     try {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $command = "python $statusScriptPath -system $system -channel $username";
+        $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
+        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $system -channel $username";
         $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
         if ($statusOutput === false || $statusOutput === null) { return false; }
         if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
