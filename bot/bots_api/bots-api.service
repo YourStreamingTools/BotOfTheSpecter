@@ -1,0 +1,23 @@
+[Unit]
+Description=BotOfTheSpecter bot-host control API (private)
+After=network.target
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+WorkingDirectory=/home/botofthespecter/bots_api
+# Prefer a dedicated tools venv if present; fall back to stable (has psutil after setup_venvs).
+EnvironmentFile=-/home/botofthespecter/.env
+Environment=BOT_HOME=/home/botofthespecter
+Environment=BOTS_API_HOST=127.0.0.1
+Environment=BOTS_API_PORT=8090
+ExecStart=/home/botofthespecter/venvs/stable/bin/python /home/botofthespecter/bots_api/server.py
+Restart=on-failure
+RestartSec=3
+
+# TLS terminates at Caddy/nginx → reverse-proxy to 127.0.0.1:8090
+# Public URL: https://bots.botofthespecter.com
+
+[Install]
+WantedBy=multi-user.target

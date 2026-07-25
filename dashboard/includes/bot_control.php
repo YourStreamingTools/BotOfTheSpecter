@@ -52,49 +52,63 @@ try {
     $v6BotSystemStatus = false;
 }
 
-// Utility function to get bot status message
+// Utility function to get bot status message (private bots control API)
 function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!extension_loaded('ssh2')) { return "<div class='status-message error'>Status: SSH2 extension not available</div>"; }
+    if (!function_exists('bots_api_bot_status')) {
+        require_once __DIR__ . '/bots_api_client.php';
+    }
     try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
-        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $system -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false || $statusOutput === null) { return "<div class='status-message error'>Status: SSH command execution failed</div>"; }
-        if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
-        else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
-        $statusOutput = trim($statusOutput);
-        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
-            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-            $pid = intval($matches[1]);
-        } else { $pid = 0; }
-        if ($pid > 0) { return "<div class='status-message'>Status: PID $pid.</div>"; }
-        else { return "<div class='status-message error'>Status: NOT RUNNING</div>"; }
-    } catch (Exception $e) { return "<div class='status-message error'>Status: Error - " . $e->getMessage() . "</div>"; }
+        $resp = bots_api_bot_status($username, $system);
+        if (!$resp['ok'] && $system === 'beta') {
+            $resp = bots_api_bot_status($username, null);
+        }
+        if (!$resp['ok']) {
+            return "<div class='status-message error'>Status: " . htmlspecialchars((string)$resp['error']) . "</div>";
+        }
+        $data = is_array($resp['data']) ? $resp['data'] : [];
+        $running = !empty($data['running']);
+        $foundType = $data['bot_type'] ?? null;
+        if ($running && $system) {
+            $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
+            if (!$match && $foundType !== null) {
+                $running = false;
+            }
+        }
+        $pid = $running ? intval($data['pid'] ?? 0) : 0;
+        if ($pid > 0) {
+            return "<div class='status-message'>Status: PID $pid.</div>";
+        }
+        return "<div class='status-message error'>Status: NOT RUNNING</div>";
+    } catch (Exception $e) {
+        return "<div class='status-message error'>Status: Error - " . htmlspecialchars($e->getMessage()) . "</div>";
+    }
 }
 
 // Check if a bot is running (returns boolean)
 function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!extension_loaded('ssh2')) { return false; }
+    if (!function_exists('bots_api_bot_status')) {
+        require_once __DIR__ . '/bots_api_client.php';
+    }
     try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
-        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $system -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false || $statusOutput === null) { return false; }
-        if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
-        else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
-        $statusOutput = trim($statusOutput);
-        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) || 
-            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-            $pid = intval($matches[1]);
-        } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-            $pid = intval($matches[1]);
-        } else { $pid = 0; }
-        return ($pid > 0);
-    } catch (Exception $e) { return false; }
+        $resp = bots_api_bot_status($username, $system);
+        if (!$resp['ok'] && $system === 'beta') {
+            $resp = bots_api_bot_status($username, null);
+        }
+        if (!$resp['ok']) {
+            return false;
+        }
+        $data = is_array($resp['data']) ? $resp['data'] : [];
+        if (empty($data['running'])) {
+            return false;
+        }
+        $foundType = $data['bot_type'] ?? null;
+        if ($system) {
+            return ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
+        }
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
 }
 
 // Get the version currently running from version control file

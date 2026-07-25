@@ -19,6 +19,13 @@ fi
 echo "Creating/updating bot virtualenvs (stable, beta, v6, discord, kick)..."
 ./setup_venvs.sh "$@"
 
+# Private bots control API deps (into stable venv — has psutil + used by bots-api.service)
+if [[ -f bots_api/requirements.txt && -x venvs/stable/bin/pip ]]; then
+  echo "Installing bots control API requirements into venvs/stable..."
+  venvs/stable/bin/pip install -r bots_api/requirements.txt
+fi
+
 echo
 echo "Do NOT pip install -r requirements.txt into system Python on the bot host."
 echo "Always use: venvs/<name>/bin/pip install -r <matching requirements file>"
+echo "Bots control API: enable systemd unit bots_api/bots-api.service and proxy bots.botofthespecter.com → 127.0.0.1:8090"
