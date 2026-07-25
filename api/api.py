@@ -57,9 +57,10 @@ WEBSOCKET_SSH_HOST = os.getenv('WEBSOCKET-HOST')
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 # Private bot-host control API (no SSH for start/stop/status)
-# e.g. https://bots.botofthespecter.com — key must match BOTS_CONTROL_KEY on the bot host
+# Auth: admin_api_keys row with service "bots" (Admin → API Keys). Env is break-glass only.
 BOTS_API_BASE = (os.getenv('BOTS_API_BASE') or os.getenv('BOTS_API_URL') or 'https://bots.botofthespecter.com').rstrip('/')
-BOTS_CONTROL_KEY = (os.getenv('BOTS_CONTROL_KEY') or os.getenv('ADMIN_KEY') or '').strip()
+BOTS_ADMIN_SERVICE = (os.getenv('BOTS_ADMIN_SERVICE') or 'bots').strip()
+BOTS_CONTROL_KEY_ENV = (os.getenv('BOTS_CONTROL_KEY') or '').strip()
 BOTS_API_TIMEOUT = float(os.getenv('BOTS_API_TIMEOUT', '20'))
 
 # Validate required database environment variables
@@ -299,6 +300,27 @@ BOT_SCRIPT_PATHS = {
     "v6": "beta-v6.py",
 }
 
+async def _get_bots_control_key() -> str:
+    """Admin API key for service=bots (dashboard Admin → API Keys), else env fallback."""
+    key = await _get_admin_key_for_service(BOTS_ADMIN_SERVICE)
+    if key:
+        return key
+    # Case-insensitive service match (admin page allows any casing)
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT api_key FROM admin_api_keys WHERE LOWER(service) = LOWER(%s) LIMIT 1",
+                (BOTS_ADMIN_SERVICE,),
+            )
+            row = await cur.fetchone()
+            if row and row[0]:
+                return row[0]
+    finally:
+        conn.close()
+    return BOTS_CONTROL_KEY_ENV
+
+
 async def _bots_api_request(
     method: str,
     path: str,
@@ -306,13 +328,17 @@ async def _bots_api_request(
     params: dict | None = None,
     json_body: dict | None = None,
 ) -> dict:
-    """HTTP call to the private bot-host control API (service key, not user key)."""
-    if not BOTS_CONTROL_KEY:
-        raise HTTPException(status_code=500, detail="BOTS_CONTROL_KEY is not configured")
+    """HTTP call to the private bot-host control API (admin key service=bots, not user key)."""
+    control_key = await _get_bots_control_key()
+    if not control_key:
+        raise HTTPException(
+            status_code=500,
+            detail=f'No admin API key for service "{BOTS_ADMIN_SERVICE}" — create one under Admin → API Keys',
+        )
     url = f"{BOTS_API_BASE}{path}"
     headers = {
-        "X-API-KEY": BOTS_CONTROL_KEY,
-        "X-BOTS-CONTROL-KEY": BOTS_CONTROL_KEY,
+        "X-API-KEY": control_key,
+        "X-BOTS-CONTROL-KEY": control_key,
         "Accept": "application/json",
     }
     try:

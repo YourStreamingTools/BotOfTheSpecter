@@ -3,7 +3,10 @@
 Private bot-host control API.
 
 Runs on the bot server only. Trusted backends (public API, dashboard) call it
-with BOTS_CONTROL_KEY — never expose user API keys here.
+with an admin API key created on the dashboard Admin → API Keys page.
+
+Create a key with service name:  bots
+(super-admin service "admin" is also accepted)
 
 Public surface (behind TLS at bots.botofthespecter.com):
   GET  /health
@@ -13,7 +16,8 @@ Public surface (behind TLS at bots.botofthespecter.com):
   POST /api/bot/stop
   POST /api/bot/restart
 
-Auth: header X-API-KEY or X-BOTS-CONTROL-KEY must equal BOTS_CONTROL_KEY from env.
+Auth: header X-API-KEY (or X-BOTS-CONTROL-KEY) must be a row in
+website.admin_api_keys with service "bots" or "admin".
 """
 from __future__ import annotations
 
@@ -23,6 +27,7 @@ import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
+import aiomysql
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -37,23 +42,56 @@ logging.basicConfig(
 )
 log = logging.getLogger("bots_api")
 
-CONTROL_KEY = (os.getenv("BOTS_CONTROL_KEY") or os.getenv("ADMIN_KEY") or "").strip()
+# Canonical admin_api_keys.service name (create this on Admin → API Keys)
+BOTS_ADMIN_SERVICE = (os.getenv("BOTS_ADMIN_SERVICE") or "bots").strip().lower()
+# Optional env fallback while migrating; prefer DB admin key with service=bots
+ENV_FALLBACK_KEY = (os.getenv("BOTS_CONTROL_KEY") or "").strip()
+
+SQL_HOST = os.getenv("SQL_HOST")
+SQL_USER = os.getenv("SQL_USER")
+SQL_PASSWORD = os.getenv("SQL_PASSWORD")
+SQL_PORT = int(os.getenv("SQL_PORT") or "3306")
+
 HOST = os.getenv("BOTS_API_HOST", "0.0.0.0")
 PORT = int(os.getenv("BOTS_API_PORT", "8090"))
+
+_pool: aiomysql.Pool | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    if not CONTROL_KEY:
-        log.warning("BOTS_CONTROL_KEY (or ADMIN_KEY) is empty — all requests will be rejected")
+    global _pool
+    if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
+        log.warning("SQL_* not fully set — admin_api_keys lookup will fail (env fallback only)")
     else:
-        log.info("bots control API ready (key configured, len=%s)", len(CONTROL_KEY))
+        _pool = await aiomysql.create_pool(
+            host=SQL_HOST,
+            user=SQL_USER,
+            password=SQL_PASSWORD,
+            db="website",
+            port=SQL_PORT,
+            autocommit=True,
+            minsize=1,
+            maxsize=5,
+        )
+        log.info(
+            "bots control API ready (auth: admin_api_keys service=%r or admin; env fallback=%s)",
+            BOTS_ADMIN_SERVICE,
+            "yes" if ENV_FALLBACK_KEY else "no",
+        )
     yield
+    if _pool is not None:
+        _pool.close()
+        await _pool.wait_closed()
+        _pool = None
 
 
 app = FastAPI(
     title="BotOfTheSpecter Bot Host Control API",
-    description="Private process-control API for the bot server. Not for end users.",
+    description=(
+        "Private process-control API for the bot server. Not for end users. "
+        f"Authenticate with an admin API key (service={BOTS_ADMIN_SERVICE!r} or admin)."
+    ),
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -61,15 +99,48 @@ app = FastAPI(
 )
 
 
-def require_control_key(
+async def _admin_key_allowed(api_key: str) -> bool:
+    """True if key is super-admin or scoped to the bots service."""
+    if not api_key or _pool is None:
+        return False
+    try:
+        async with _pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT service FROM admin_api_keys WHERE api_key = %s LIMIT 1",
+                    (api_key,),
+                )
+                row = await cur.fetchone()
+        if not row:
+            return False
+        key_service = (row.get("service") or "").strip().lower()
+        if key_service == "admin":
+            return True
+        return key_service == BOTS_ADMIN_SERVICE
+    except Exception as e:
+        log.error("admin_api_keys lookup failed: %s", e)
+        return False
+
+
+async def require_control_key(
     x_api_key: str | None = Header(None, alias="X-API-KEY"),
     x_bots_key: str | None = Header(None, alias="X-BOTS-CONTROL-KEY"),
 ) -> None:
-    if not CONTROL_KEY:
-        raise HTTPException(status_code=503, detail="BOTS_CONTROL_KEY not configured on bot host")
     provided = (x_bots_key or x_api_key or "").strip()
-    if not provided or not secrets.compare_digest(provided, CONTROL_KEY):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid control key")
+    if not provided:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-API-KEY (use admin key with service=bots)",
+        )
+    if await _admin_key_allowed(provided):
+        return
+    # Optional env fallback (legacy / break-glass)
+    if ENV_FALLBACK_KEY and secrets.compare_digest(provided, ENV_FALLBACK_KEY):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=f"Invalid key — create service '{BOTS_ADMIN_SERVICE}' on Admin → API Keys",
+    )
 
 
 class StartBody(BaseModel):
