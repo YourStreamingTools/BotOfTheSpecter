@@ -1,7 +1,7 @@
 <?php
 /**
  * HTTP client for the private bot-host control API (bots.botofthespecter.com).
- * Server-side only — never expose control_key to the browser.
+ * Server-side only — uses admin API key service "bots" from admin_api_keys.
  */
 
 function bots_api_config(): array {
@@ -19,6 +19,7 @@ function bots_api_config(): array {
     }
     $cfg = [
         'base_url' => rtrim($loaded['base_url'] ?? 'https://bots.botofthespecter.com', '/'),
+        'admin_service' => strtolower(trim((string)($loaded['admin_service'] ?? 'bots'))),
         'control_key' => (string)($loaded['control_key'] ?? ''),
         'timeout' => (int)($loaded['timeout'] ?? 15),
     ];
@@ -26,12 +27,63 @@ function bots_api_config(): array {
 }
 
 /**
+ * Resolve the bots control key from website.admin_api_keys (service=bots),
+ * then optional config override. Super-admin "admin" is not used as the
+ * outbound caller key — create a dedicated service=bots key.
+ */
+function bots_api_resolve_control_key(): string {
+    static $resolved = null;
+    if ($resolved !== null) {
+        return $resolved;
+    }
+    $cfg = bots_api_config();
+    if ($cfg['control_key'] !== '') {
+        $resolved = $cfg['control_key'];
+        return $resolved;
+    }
+    $service = $cfg['admin_service'] ?: 'bots';
+    global $conn;
+    if (!isset($conn) || !$conn) {
+        // Lazy-load DB if dashboard has not already
+        $dbPath = '/var/www/config/db_connect.php';
+        if (!is_file($dbPath)) {
+            $dbPath = __DIR__ . '/../../config/db_connect.php';
+        }
+        if (is_file($dbPath)) {
+            require_once $dbPath;
+        }
+    }
+    if (isset($conn) && $conn) {
+        $stmt = $conn->prepare("SELECT api_key FROM admin_api_keys WHERE LOWER(service) = LOWER(?) LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $service);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if ($row && !empty($row['api_key'])) {
+                $resolved = (string)$row['api_key'];
+                return $resolved;
+            }
+        }
+    }
+    $resolved = '';
+    return $resolved;
+}
+
+/**
  * @return array{ok:bool,status:int,data:mixed,error?:string}
  */
 function bots_api_request(string $method, string $path, ?array $jsonBody = null, ?array $query = null): array {
     $cfg = bots_api_config();
-    if ($cfg['control_key'] === '') {
-        return ['ok' => false, 'status' => 0, 'data' => null, 'error' => 'bots_api control_key not configured'];
+    $key = bots_api_resolve_control_key();
+    if ($key === '') {
+        return [
+            'ok' => false,
+            'status' => 0,
+            'data' => null,
+            'error' => 'No bots control key — create service "' . ($cfg['admin_service'] ?: 'bots') . '" under Admin → API Keys',
+        ];
     }
     $url = $cfg['base_url'] . $path;
     if ($query) {
@@ -40,8 +92,8 @@ function bots_api_request(string $method, string $path, ?array $jsonBody = null,
     $ch = curl_init($url);
     $headers = [
         'Accept: application/json',
-        'X-API-KEY: ' . $cfg['control_key'],
-        'X-BOTS-CONTROL-KEY: ' . $cfg['control_key'],
+        'X-API-KEY: ' . $key,
+        'X-BOTS-CONTROL-KEY: ' . $key,
     ];
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
