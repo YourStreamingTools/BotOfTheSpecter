@@ -1167,6 +1167,39 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
 
 // Function to get bot status
 function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
+    // Prefer private bots control API (no SSH)
+    $client = __DIR__ . '/../includes/bots_api_client.php';
+    if (is_file($client)) {
+        require_once $client;
+        $resp = bots_api_running_bots();
+        if ($resp['ok'] && is_array($resp['data'])) {
+            $data = $resp['data'];
+            $lines = [];
+            $bots = $data['bots'] ?? [];
+            foreach (['stable' => 'Stable', 'beta' => 'Beta', 'v6' => 'V6', 'custom' => 'Custom', 'kick' => 'Kick'] as $key => $label) {
+                $list = $bots[$key] ?? [];
+                $lines[] = "{$label} bots running:";
+                if (!$list) {
+                    $lines[] = "None";
+                } else {
+                    foreach ($list as $b) {
+                        $ch = $b['channel'] ?? '?';
+                        $pid = $b['pid'] ?? '?';
+                        $ver = $b['version'] ?? 'Unknown';
+                        $lines[] = "- Channel: {$ch}, PID: {$pid}, Version: {$ver}";
+                    }
+                    $lines[] = "Total: " . count($list);
+                }
+                $lines[] = "";
+            }
+            $lines[] = "Total all: " . intval($data['total'] ?? 0);
+            return implode("\n", $lines);
+        }
+        if (!empty($resp['error'])) {
+            return "Error fetching bot status via bots API: " . $resp['error'];
+        }
+    }
+    // Legacy SSH fallback
     $output = '';
     try {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
