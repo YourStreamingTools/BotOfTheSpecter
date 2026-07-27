@@ -304,7 +304,7 @@ if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && 
     <title>Sign in &mdash; BotOfTheSpecter</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
 </head>
 <body style="font-family: ui-sans-serif, system-ui, sans-serif; background:#0e1116; color:#e6edf3; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0;">
     <div style="max-width:420px; padding:32px; background:#161b22; border-radius:8px; text-align:center;">

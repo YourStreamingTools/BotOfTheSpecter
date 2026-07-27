@@ -173,7 +173,7 @@ $twitchUrl = 'https://streamersconnect.com/?' . http_build_query([
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - BotOfTheSpecter Roadmap</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
