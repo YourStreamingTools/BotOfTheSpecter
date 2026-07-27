@@ -1614,8 +1614,8 @@ try {
             async_log('Error adding trigger_type column to timed_messages: ' . $usrDBconn->error);
         }
     } else {
-        // Expand enum to include 'both' for existing installations
-        $usrDBconn->query("ALTER TABLE timed_messages MODIFY trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'");
+        // Expand enum to include 'both' and 'scheduled' for existing installations
+        $usrDBconn->query("ALTER TABLE timed_messages MODIFY trigger_type ENUM('timer', 'chat_lines', 'both', 'scheduled') NOT NULL DEFAULT 'timer'");
     }
 
     // Migration: Ensure chat_line_trigger allows NULL values
@@ -1635,6 +1635,16 @@ try {
             if ($usrDBconn->query("ALTER TABLE timed_messages MODIFY interval_count INT NULL") === TRUE) {
                 async_log('Modified interval_count to allow NULL values.');
             }
+        }
+    }
+
+    // Migration: add scheduled_time column to timed_messages (scheduled trigger feature)
+    $check_scheduled_time = $usrDBconn->query("SHOW COLUMNS FROM timed_messages LIKE 'scheduled_time'");
+    if ($check_scheduled_time && $check_scheduled_time->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE timed_messages ADD scheduled_time TIME DEFAULT NULL") === TRUE) {
+            async_log('Added scheduled_time column to timed_messages table.');
+        } else {
+            async_log('Error adding scheduled_time column to timed_messages: ' . $usrDBconn->error);
         }
     }
 

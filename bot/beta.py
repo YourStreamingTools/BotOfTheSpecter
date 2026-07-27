@@ -14898,7 +14898,7 @@ async def update_timed_messages():
         connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Fetch all enabled messages
-            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger, trigger_type FROM timed_messages WHERE status = 1")
+            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger, trigger_type, scheduled_time FROM timed_messages WHERE status = 1")
             current_messages = await cursor.fetchall()
             if not current_messages:
                 return
@@ -14929,7 +14929,8 @@ async def update_timed_messages():
                 if (current_row["message"] != active_row["message"] or
                     current_row["interval_count"] != active_row["interval_count"] or
                     current_row["chat_line_trigger"] != active_row["chat_line_trigger"] or
-                    current_row.get("trigger_type", "timer") != active_row.get("trigger_type", "timer")):
+                    current_row.get("trigger_type", "timer") != active_row.get("trigger_type", "timer") or
+                    current_row.get("scheduled_time") != active_row.get("scheduled_time")):
                     # Restart the message with new settings
                     await stop_timed_message(message_id)
                     await start_timed_message(message_id, current_row)
@@ -14951,7 +14952,7 @@ async def start_timed_message(message_id, row):
     if trigger_type in ("timer", "both"):
         # Timer-based: fire on a fixed minute interval
         if interval and int(interval) > 0:
-            interval_mins = max(5, min(60, int(interval)))
+            interval_mins = max(5, min(480, int(interval)))
             wait_time = interval_mins * 60
             task = create_task(send_interval_message(message_id, message, wait_time))
             message_tasks[message_id] = task
@@ -14966,6 +14967,22 @@ async def start_timed_message(message_id, row):
                 "last_trigger_count": chat_line_count
             }
             chat_logger.info(f"[TIMED MESSAGE] Started chat-lines message ID: {message_id} - trigger after {chat_line_trigger} chat lines")
+    if trigger_type == "scheduled":
+        # Scheduled: fire once at a specific clock time in the streamer's timezone, daily
+        scheduled_time_str = row.get("scheduled_time")
+        if scheduled_time_str:
+            # MySQL TIME columns return timedelta objects; convert to HH:MM string
+            if hasattr(scheduled_time_str, 'seconds'):
+                total_seconds = int(scheduled_time_str.total_seconds())
+                scheduled_time_str = f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}"
+            else:
+                scheduled_time_str = str(scheduled_time_str)[:5]  # trim to HH:MM
+            task = create_task(send_scheduled_message(message_id, message, scheduled_time_str))
+            message_tasks[message_id] = task
+            scheduled_tasks.add(task)
+            chat_logger.info(f"[TIMED MESSAGE] Started scheduled message ID: {message_id} at {scheduled_time_str} (streamer timezone)")
+        else:
+            bot_logger.warning(f"[TIMED MESSAGE] Scheduled message ID: {message_id} has no scheduled_time — skipping")
 
 async def stop_timed_message(message_id):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
@@ -15047,6 +15064,44 @@ async def send_interval_message(message_id, message, interval_seconds):
             await send_timed_message(message_id, message, 0)
         else:
             break
+
+async def send_scheduled_message(message_id, message, scheduled_time_str):
+    """Fire a timed message once per day at a specific clock time in the streamer's timezone."""
+    global stream_online
+    while stream_online:
+        connection = None
+        try:
+            connection = await mysql_connection()
+            async with connection.cursor() as cursor:
+                await cursor.execute("SELECT timezone FROM profile")
+                result = await cursor.fetchone()
+            tz_str = (result[0] if result and result[0] else None) or 'UTC'
+        except Exception as e:
+            bot_logger.error(f"[TIMED MESSAGE] Could not read timezone for scheduled message {message_id}: {e}")
+            tz_str = 'UTC'
+        finally:
+            if connection:
+                await connection.close()
+        try:
+            tz = pytz_timezone(tz_str)
+        except Exception:
+            tz = set_timezone.UTC
+        now = datetime.now(tz)
+        parts = scheduled_time_str.split(':')
+        h, m = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        wait_secs = (target - now).total_seconds()
+        chat_logger.info(f"[TIMED MESSAGE] Scheduled message ID: {message_id} fires in {wait_secs:.0f}s (at {scheduled_time_str} {tz_str})")
+        await sleep(wait_secs)
+        if stream_online:
+            await send_timed_message(message_id, message, 0)
+            chat_logger.info(f"[TIMED MESSAGE] Sent scheduled message ID: {message_id}")
+        else:
+            break
+        # Wait a short buffer before re-computing next day's target to avoid double-firing
+        await sleep(60)
 
 async def send_timed_message(message_id, message, delay):
     global stream_online, last_message_time
