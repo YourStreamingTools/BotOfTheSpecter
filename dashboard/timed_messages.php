@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -63,10 +63,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if the form was submitted for adding a new message
     if (isset($_POST['message']) && isset($_POST['trigger_type'])) {
         $message = $_POST['message'];
-        $trigger_type = in_array($_POST['trigger_type'], ['timer', 'chat_lines', 'both']) ? $_POST['trigger_type'] : 'timer';
+        $trigger_type = in_array($_POST['trigger_type'], ['timer', 'chat_lines', 'both', 'scheduled']) ? $_POST['trigger_type'] : 'timer';
         $has_shoutout_var = (bool)preg_match('/\(shoutout\.\w+\)/', $message);
         $interval = null;
         $chat_line_trigger = null;
+        $scheduled_time = null;
         if ($trigger_type === 'timer' || $trigger_type === 'both') {
             $int_min = $has_shoutout_var ? 60 : 5;
             $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => $int_min, "max_range" => 480)));
@@ -82,6 +83,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $errorMessage = t('timed_messages_err_chat_line_min');
             }
         }
+        if (empty($errorMessage) && $trigger_type === 'scheduled') {
+            $raw_time = isset($_POST['scheduled_time']) ? trim($_POST['scheduled_time']) : '';
+            if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $raw_time)) {
+                $errorMessage = t('timed_messages_err_scheduled_time') ?: 'Please enter a valid time (HH:MM).';
+            } else {
+                $scheduled_time = $raw_time . ':00'; // store as HH:MM:SS for MySQL TIME
+            }
+        }
         if (empty($errorMessage)) {
             try {
                 $status = 1;
@@ -94,26 +103,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $nextId = ($gapResult && ($gapRow = $gapResult->fetch_assoc())) ? (int)$gapRow['next_id'] : null;
                 if ($trigger_type === 'timer') {
                     if ($nextId) {
-                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, NULL, ?, ?, ?)');
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (?, ?, NULL, NULL, ?, ?, ?)');
                         $stmt->bind_param("iisis", $nextId, $interval, $message, $status, $trigger_type);
                     } else {
-                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, ?, ?)');
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (?, NULL, NULL, ?, ?, ?)');
                         $stmt->bind_param("isis", $interval, $message, $status, $trigger_type);
                     }
                 } elseif ($trigger_type === 'chat_lines') {
                     if ($nextId) {
-                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, ?, ?, ?)');
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, NULL, ?, ?, ?)');
                         $stmt->bind_param("iisis", $nextId, $chat_line_trigger, $message, $status, $trigger_type);
                     } else {
-                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (NULL, ?, ?, ?, ?)');
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (NULL, ?, NULL, ?, ?, ?)');
                         $stmt->bind_param("isis", $chat_line_trigger, $message, $status, $trigger_type);
+                    }
+                } elseif ($trigger_type === 'scheduled') {
+                    if ($nextId) {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (?, NULL, NULL, ?, ?, ?, ?)');
+                        $stmt->bind_param("issis", $nextId, $scheduled_time, $message, $status, $trigger_type);
+                    } else {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (NULL, NULL, ?, ?, ?, ?)');
+                        $stmt->bind_param("ssis", $scheduled_time, $message, $status, $trigger_type);
                     }
                 } else {
                     if ($nextId) {
-                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, ?, ?, ?)');
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, NULL, ?, ?, ?)');
                         $stmt->bind_param("iiisis", $nextId, $interval, $chat_line_trigger, $message, $status, $trigger_type);
                     } else {
-                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, ?, ?)');
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `scheduled_time`, `message`, `status`, `trigger_type`) VALUES (?, ?, NULL, ?, ?, ?)');
                         $stmt->bind_param("iisis", $interval, $chat_line_trigger, $message, $status, $trigger_type);
                     }
                 }
@@ -122,6 +139,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $modeLabel = t('timed_messages_mode_both', ['interval' => $interval, 'chat' => $chat_line_trigger]);
                 } elseif ($trigger_type === 'timer') {
                     $modeLabel = t('timed_messages_mode_timer', [$interval]);
+                } elseif ($trigger_type === 'scheduled') {
+                    // Strip seconds from stored HH:MM:SS for display
+                    $dispTime = substr($scheduled_time, 0, 5);
+                    $modeLabel = t('timed_messages_mode_scheduled') ? t('timed_messages_mode_scheduled', [$dispTime]) : "Scheduled: {$dispTime}";
                 } else {
                     $modeLabel = t('timed_messages_mode_chat_lines', [$chat_line_trigger]);
                 }
@@ -157,10 +178,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $edit_message_id = $_POST['edit_message'];
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
-        $edit_trigger_type = in_array($_POST['edit_trigger_type'], ['timer', 'chat_lines', 'both']) ? $_POST['edit_trigger_type'] : 'timer';
+        $edit_trigger_type = in_array($_POST['edit_trigger_type'], ['timer', 'chat_lines', 'both', 'scheduled']) ? $_POST['edit_trigger_type'] : 'timer';
         $edit_has_shoutout_var = (bool)preg_match('/\(shoutout\.\w+\)/', $edit_message_content);
         $edit_interval = null;
         $edit_chat_line_trigger = null;
+        $edit_scheduled_time = null;
         if ($edit_trigger_type === 'timer' || $edit_trigger_type === 'both') {
             $edit_int_min = $edit_has_shoutout_var ? 60 : 5;
             $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => $edit_int_min, "max_range" => 480)));
@@ -176,6 +198,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $errorMessage = t('timed_messages_err_chat_line_min');
             }
         }
+        if (empty($errorMessage) && $edit_trigger_type === 'scheduled') {
+            $raw_edit_time = isset($_POST['edit_scheduled_time']) ? trim($_POST['edit_scheduled_time']) : '';
+            if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $raw_edit_time)) {
+                $errorMessage = t('timed_messages_err_scheduled_time') ?: 'Please enter a valid time (HH:MM).';
+            } else {
+                $edit_scheduled_time = $raw_edit_time . ':00';
+            }
+        }
         if (empty($errorMessage)) {
             // Check if the edit_message_id exists in the timed_messages table
             $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
@@ -188,13 +218,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 try {
                     $status_int = ($edit_status === 'True') ? 1 : 0;
                     if ($edit_trigger_type === 'timer') {
-                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `chat_line_trigger` = NULL, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `chat_line_trigger` = NULL, `scheduled_time` = NULL, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
                         $stmt->bind_param("isisi", $edit_interval, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
                     } elseif ($edit_trigger_type === 'chat_lines') {
-                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = NULL, `chat_line_trigger` = ?, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = NULL, `chat_line_trigger` = ?, `scheduled_time` = NULL, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
                         $stmt->bind_param("isisi", $edit_chat_line_trigger, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
+                    } elseif ($edit_trigger_type === 'scheduled') {
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = NULL, `chat_line_trigger` = NULL, `scheduled_time` = ?, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt->bind_param("ssisi", $edit_scheduled_time, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
                     } else {
-                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `chat_line_trigger` = ?, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `chat_line_trigger` = ?, `scheduled_time` = NULL, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
                         $stmt->bind_param("iisisi", $edit_interval, $edit_chat_line_trigger, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
                     }
                     $stmt->execute();
@@ -302,6 +335,7 @@ ob_start();
                                 <option value="timer"><?php echo t('timed_messages_trigger_timer'); ?></option>
                                 <option value="chat_lines"><?php echo t('timed_messages_trigger_chat_lines'); ?></option>
                                 <option value="both"><?php echo t('timed_messages_trigger_both'); ?></option>
+                                <option value="scheduled"><?php echo t('timed_messages_trigger_scheduled') ?: 'Scheduled (Time of Day)'; ?></option>
                             </select>
                             <small class="sp-help"><?php echo t('timed_messages_trigger_help'); ?></small>
                         </div>
@@ -314,6 +348,11 @@ ob_start();
                             <label class="sp-label" for="chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
                             <input class="sp-input" type="number" name="chat_line_trigger" id="chat_line_trigger" min="5" value="5" oninput="toggleAddButton();">
                             <small id="chatLineTriggerError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_chat_line_trigger_error'); ?></small>
+                        </div>
+                        <div class="sp-form-group" id="add_scheduled_field" style="display:none;">
+                            <label class="sp-label" for="scheduled_time"><?php echo t('timed_messages_scheduled_time_label') ?: 'Send At (streamer time)'; ?></label>
+                            <input class="sp-input" type="time" name="scheduled_time" id="scheduled_time" oninput="toggleAddButton();">
+                            <small class="sp-help"><?php echo t('timed_messages_scheduled_time_help') ?: 'Message sends once daily at this time while the stream is live.'; ?></small>
                         </div>
                         <div style="flex-grow:1"></div>
                         <button type="submit" id="addMessageButton" class="sp-btn sp-btn-primary" style="width:100%; margin-top:auto;" disabled><?php echo t('timed_messages_add_btn'); ?></button>
@@ -347,6 +386,7 @@ ob_start();
                                 <option value="timer"><?php echo t('timed_messages_trigger_timer'); ?></option>
                                 <option value="chat_lines"><?php echo t('timed_messages_trigger_chat_lines'); ?></option>
                                 <option value="both"><?php echo t('timed_messages_trigger_both'); ?></option>
+                                <option value="scheduled"><?php echo t('timed_messages_trigger_scheduled') ?: 'Scheduled (Time of Day)'; ?></option>
                             </select>
                         </div>
                         <div class="sp-form-group" id="edit_interval_field">
@@ -356,6 +396,11 @@ ob_start();
                         <div class="sp-form-group" id="edit_chat_line_field" style="display:none;">
                             <label class="sp-label" for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
                             <input class="sp-input" type="number" name="edit_chat_line_trigger" id="edit_chat_line_trigger" min="5" oninput="toggleEditButton();">
+                        </div>
+                        <div class="sp-form-group" id="edit_scheduled_field" style="display:none;">
+                            <label class="sp-label" for="edit_scheduled_time"><?php echo t('timed_messages_scheduled_time_label') ?: 'Send At (streamer time)'; ?></label>
+                            <input class="sp-input" type="time" name="edit_scheduled_time" id="edit_scheduled_time" oninput="toggleEditButton();">
+                            <small class="sp-help"><?php echo t('timed_messages_scheduled_time_help') ?: 'Message sends once daily at this time while the stream is live.'; ?></small>
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
@@ -441,6 +486,9 @@ ob_start();
                                         echo '<span class="sp-badge sp-badge-blue">' . t('timed_messages_badge_chat_lines') . ': ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
                                     } elseif ($triggerType === 'both') {
                                         echo '<span class="sp-badge sp-badge-amber">' . t('timed_messages_badge_timer') . ': ' . htmlspecialchars($msg['interval_count']) . ' ' . t('timed_messages_badge_min') . ' &amp; ' . t('timed_messages_badge_chat_lines') . ': ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                    } elseif ($triggerType === 'scheduled') {
+                                        $dispTime = $msg['scheduled_time'] ? substr($msg['scheduled_time'], 0, 5) : '--:--';
+                                        echo '<span class="sp-badge sp-badge-purple">' . (t('timed_messages_badge_scheduled') ?: 'Scheduled') . ': ' . htmlspecialchars($dispTime) . '</span>';
                                     } else {
                                         echo '<span class="sp-badge sp-badge-accent">' . t('timed_messages_badge_timer') . ': ' . htmlspecialchars($msg['interval_count']) . ' ' . t('timed_messages_badge_min') . '</span>';
                                     }
@@ -538,6 +586,12 @@ function showResponse() {
         editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
         if (editStatus) editStatus.value = (messageData.status == 1) ? 'True' : 'False';
         if (editTriggerType) editTriggerType.value = messageData.trigger_type || 'timer';
+        var editScheduledTimeInput = document.getElementById('edit_scheduled_time');
+        if (editScheduledTimeInput) {
+            // MySQL TIME stored as HH:MM:SS — strip seconds for <input type="time">
+            var rawTime = messageData.scheduled_time || '';
+            editScheduledTimeInput.value = rawTime ? rawTime.substring(0, 5) : '';
+        }
         updateCharCount('edit_message_content', 'editCharCount');
         updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint');
         toggleEditTriggerType();
@@ -547,6 +601,8 @@ function showResponse() {
         editChatLineTriggerInput.value = '';
         if (editStatus) editStatus.value = '';
         if (editTriggerType) editTriggerType.value = 'timer';
+        var editScheduledTimeInput = document.getElementById('edit_scheduled_time');
+        if (editScheduledTimeInput) editScheduledTimeInput.value = '';
         document.getElementById('editCharCount').textContent = '0/255 ' + TM_I18N.charactersSuffix;
         document.getElementById('editCharCount').className = 'sp-help';
         updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint');
@@ -592,6 +648,7 @@ function toggleAddTriggerType() {
     var triggerType = document.getElementById('trigger_type').value;
     document.getElementById('add_interval_field').style.display = (triggerType === 'timer' || triggerType === 'both') ? '' : 'none';
     document.getElementById('add_chat_line_field').style.display = (triggerType === 'chat_lines' || triggerType === 'both') ? '' : 'none';
+    document.getElementById('add_scheduled_field').style.display = (triggerType === 'scheduled') ? '' : 'none';
 }
 
 // Show/hide edit form fields based on trigger type
@@ -599,8 +656,10 @@ function toggleEditTriggerType() {
     var triggerType = document.getElementById('edit_trigger_type') ? document.getElementById('edit_trigger_type').value : 'timer';
     var intervalField = document.getElementById('edit_interval_field');
     var chatLineField = document.getElementById('edit_chat_line_field');
+    var scheduledField = document.getElementById('edit_scheduled_field');
     if (intervalField) intervalField.style.display = (triggerType === 'timer' || triggerType === 'both') ? '' : 'none';
     if (chatLineField) chatLineField.style.display = (triggerType === 'chat_lines' || triggerType === 'both') ? '' : 'none';
+    if (scheduledField) scheduledField.style.display = (triggerType === 'scheduled') ? '' : 'none';
     toggleEditButton();
 }
 
@@ -618,6 +677,10 @@ function toggleAddButton() {
     if (triggerType === 'chat_lines' || triggerType === 'both') {
         var chatLine = document.getElementById('chat_line_trigger').value;
         valid = valid && chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5;
+    }
+    if (triggerType === 'scheduled') {
+        var scheduledTime = document.getElementById('scheduled_time').value;
+        valid = valid && scheduledTime !== "";
     }
     addBtn.disabled = !valid;
 }
@@ -639,6 +702,10 @@ function toggleEditButton() {
     if (editTriggerType === 'chat_lines' || editTriggerType === 'both') {
         var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
         valid = valid && editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5;
+    }
+    if (editTriggerType === 'scheduled') {
+        var editScheduledTime = document.getElementById('edit_scheduled_time') ? document.getElementById('edit_scheduled_time').value : '';
+        valid = valid && editScheduledTime !== "";
     }
     editBtn.disabled = !valid;
 }

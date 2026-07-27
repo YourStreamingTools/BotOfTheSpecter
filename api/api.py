@@ -3581,10 +3581,12 @@ async def delete_custom_command(
 import re as _re
 
 _SHOUTOUT_VAR_RE = _re.compile(r"\(shoutout\.\w+\)")
-VALID_TRIGGER_TYPES = {"timer", "chat_lines", "both"}
+VALID_TRIGGER_TYPES = {"timer", "chat_lines", "both", "scheduled"}
 
-def _validate_timer_fields(trigger_type: str, message: str, interval_count, chat_line_trigger):
-    # Returns (interval_count|None, chat_line_trigger|None) or raises HTTPException(400).
+_TIME_RE = _re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+def _validate_timer_fields(trigger_type: str, message: str, interval_count, chat_line_trigger, scheduled_time=None):
+    # Returns (interval_count|None, chat_line_trigger|None, scheduled_time|None) or raises HTTPException(400).
     if trigger_type not in VALID_TRIGGER_TYPES:
         raise HTTPException(status_code=400, detail=f"trigger_type must be one of: {', '.join(sorted(VALID_TRIGGER_TYPES))}")
     if not message or not message.strip():
@@ -3592,6 +3594,7 @@ def _validate_timer_fields(trigger_type: str, message: str, interval_count, chat
     has_shoutout = bool(_SHOUTOUT_VAR_RE.search(message))
     interval_out = None
     chat_out = None
+    scheduled_out = None
     if trigger_type in ("timer", "both"):
         if interval_count is None:
             raise HTTPException(status_code=400, detail="interval_count is required for this trigger_type")
@@ -3607,7 +3610,13 @@ def _validate_timer_fields(trigger_type: str, message: str, interval_count, chat
         if chat_line_trigger < 5:
             raise HTTPException(status_code=400, detail="chat_line_trigger must be at least 5")
         chat_out = chat_line_trigger
-    return interval_out, chat_out
+    if trigger_type == "scheduled":
+        if not scheduled_time:
+            raise HTTPException(status_code=400, detail="scheduled_time (HH:MM) is required for trigger_type 'scheduled'")
+        if not _TIME_RE.match(scheduled_time.strip()):
+            raise HTTPException(status_code=400, detail="scheduled_time must be in HH:MM format (e.g. 22:00)")
+        scheduled_out = scheduled_time.strip() + ":00"  # store as HH:MM:SS
+    return interval_out, chat_out, scheduled_out
 
 @app.get(
     "/timers",
@@ -3626,7 +3635,7 @@ async def get_timers(api_key: str = Query(...), channel: str = Query(None)):
         try:
             async with connection.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
-                    "SELECT id, interval_count, chat_line_trigger, message, status, trigger_type FROM timed_messages ORDER BY id ASC"
+                    "SELECT id, interval_count, chat_line_trigger, scheduled_time, message, status, trigger_type FROM timed_messages ORDER BY id ASC"
                 )
                 rows = await cursor.fetchall()
             timers = []
@@ -3634,11 +3643,19 @@ async def get_timers(api_key: str = Query(...), channel: str = Query(None)):
                 # status is stored as 1/0 (legacy default 'True'); normalize to a bool.
                 raw_status = row['status']
                 enabled = str(raw_status).strip().lower() in ('1', 'true')
+                # scheduled_time is a timedelta from MySQL TIME; convert to HH:MM string
+                sched = row['scheduled_time']
+                if sched is not None and hasattr(sched, 'seconds'):
+                    total = int(sched.total_seconds())
+                    sched = f"{total // 3600:02d}:{(total % 3600) // 60:02d}"
+                elif sched is not None:
+                    sched = str(sched)[:5]
                 timers.append({
                     "id": row['id'],
                     "trigger_type": row['trigger_type'],
                     "interval_count": row['interval_count'],
                     "chat_line_trigger": row['chat_line_trigger'],
+                    "scheduled_time": sched,
                     "message": row['message'],
                     "enabled": enabled,
                 })
@@ -3661,16 +3678,17 @@ async def get_timers(api_key: str = Query(...), channel: str = Query(None)):
 async def add_timer(
     api_key: str = Query(...),
     message: str = Query(..., description="The message the bot will post", max_length=500),
-    trigger_type: str = Query("timer", description="timer | chat_lines | both"),
+    trigger_type: str = Query("timer", description="timer | chat_lines | both | scheduled"),
     interval_count: int = Query(None, description="Minutes between posts (5-480)", ge=1),
     chat_line_trigger: int = Query(None, description="Chat lines between posts (>=5)", ge=1),
+    scheduled_time: str = Query(None, description="Time of day to send message, HH:MM (for trigger_type='scheduled')"),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
-    interval_out, chat_out = _validate_timer_fields(trigger_type, message, interval_count, chat_line_trigger)
+    interval_out, chat_out, scheduled_out = _validate_timer_fields(trigger_type, message, interval_count, chat_line_trigger, scheduled_time)
     try:
         connection = await get_mysql_connection_user(username)
         try:
@@ -3685,16 +3703,16 @@ async def add_timer(
                 next_id = gap_row['next_id'] if gap_row and gap_row.get('next_id') else None
                 if next_id:
                     await cursor.execute(
-                        "INSERT INTO timed_messages (id, interval_count, chat_line_trigger, message, status, trigger_type) "
-                        "VALUES (%s, %s, %s, %s, 1, %s)",
-                        (next_id, interval_out, chat_out, message, trigger_type),
+                        "INSERT INTO timed_messages (id, interval_count, chat_line_trigger, scheduled_time, message, status, trigger_type) "
+                        "VALUES (%s, %s, %s, %s, %s, 1, %s)",
+                        (next_id, interval_out, chat_out, scheduled_out, message, trigger_type),
                     )
                     new_id = next_id
                 else:
                     await cursor.execute(
-                        "INSERT INTO timed_messages (interval_count, chat_line_trigger, message, status, trigger_type) "
-                        "VALUES (%s, %s, %s, 1, %s)",
-                        (interval_out, chat_out, message, trigger_type),
+                        "INSERT INTO timed_messages (interval_count, chat_line_trigger, scheduled_time, message, status, trigger_type) "
+                        "VALUES (%s, %s, %s, %s, 1, %s)",
+                        (interval_out, chat_out, scheduled_out, message, trigger_type),
                     )
                     new_id = cursor.lastrowid
                 await connection.commit()
@@ -3720,9 +3738,10 @@ async def update_timer(
     api_key: str = Query(...),
     id: int = Query(..., description="Timer id to update"),
     message: str = Query(..., description="The message the bot will post", max_length=500),
-    trigger_type: str = Query(..., description="timer | chat_lines | both"),
+    trigger_type: str = Query(..., description="timer | chat_lines | both | scheduled"),
     interval_count: int = Query(None, description="Minutes between posts (5-480)", ge=1),
     chat_line_trigger: int = Query(None, description="Chat lines between posts (>=5)", ge=1),
+    scheduled_time: str = Query(None, description="Time of day to send message, HH:MM (for trigger_type='scheduled')"),
     enabled: bool = Query(True, description="Whether the timer is active"),
     channel: str = Query(None),
 ):
@@ -3730,15 +3749,15 @@ async def update_timer(
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
-    interval_out, chat_out = _validate_timer_fields(trigger_type, message, interval_count, chat_line_trigger)
+    interval_out, chat_out, scheduled_out = _validate_timer_fields(trigger_type, message, interval_count, chat_line_trigger, scheduled_time)
     status_int = 1 if enabled else 0
     try:
         connection = await get_mysql_connection_user(username)
         try:
             async with connection.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
-                    "UPDATE timed_messages SET interval_count = %s, chat_line_trigger = %s, message = %s, status = %s, trigger_type = %s WHERE id = %s",
-                    (interval_out, chat_out, message, status_int, trigger_type, id),
+                    "UPDATE timed_messages SET interval_count = %s, chat_line_trigger = %s, scheduled_time = %s, message = %s, status = %s, trigger_type = %s WHERE id = %s",
+                    (interval_out, chat_out, scheduled_out, message, status_int, trigger_type, id),
                 )
                 await connection.commit()
                 if cursor.rowcount <= 0:
