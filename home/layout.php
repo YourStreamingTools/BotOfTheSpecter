@@ -29,7 +29,7 @@ $currentFile = basename($_SERVER['SCRIPT_NAME']);
         })();
     </script>
     <title><?= htmlspecialchars($pageTitle) ?></title>
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <link rel="stylesheet" type="text/css" href="style.css?v=<?php echo uuidv4(); ?>">
     <script src="navbar.js?v=<?= htmlspecialchars($dashboardVersion) ?>" defer></script>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">

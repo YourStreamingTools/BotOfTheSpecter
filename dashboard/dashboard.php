@@ -602,7 +602,7 @@ if ($isLoggedIn) {
             })();
         </script>
         <title>BotOfTheSpecter - <?php echo $pageTitle; ?></title>
-        <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+        <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
         <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo filemtime(__DIR__ . '/css/dashboard.css'); ?>">
         <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
         <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">

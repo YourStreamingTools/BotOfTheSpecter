@@ -518,7 +518,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="stylesheet" href="style.css?v=<?php echo $cssVersion; ?>">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <!-- Theme bootstrap: apply saved/OS theme before first paint -->

@@ -64,7 +64,7 @@ $v = uuidv4();
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <!-- Font Awesome (self-hosted CDN) -->
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <!-- Custom stylesheet -->
     <link rel="stylesheet" href="/css/style.css?v=<?php echo $v; ?>">
     <?php if (!empty($extraHead)) echo $extraHead; ?>

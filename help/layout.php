@@ -1,4 +1,10 @@
 <?php
+// ==============================================================================
+// ⚠️ RETIRED & DEPRECATED DIRECTORY ⚠️
+// DO NOT EDIT OR AUDIT THIS FILE OR ANY FILES IN ./help/
+// This directory is retired and no longer deployed.
+// All documentation and help articles live in ./support/ (Support Portal CMS).
+// ==============================================================================
 // help/layout.php
 if (!isset($pageTitle)) $pageTitle = "BotOfTheSpecter Help & Wiki";
 if (!isset($pageDescription)) $pageDescription = "Comprehensive help and documentation for BotOfTheSpecter, your ultimate streaming bot for Twitch, Discord, and beyond.";

@@ -38,7 +38,7 @@ $v = uuidv4();
     <meta property="og:title" content="<?php echo htmlspecialchars($pageTitle); ?> - BotOfTheSpecter Roadmap">
     <meta property="og:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <link rel="stylesheet" href="/css/style.css?v=<?php echo $v; ?>">
     <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->

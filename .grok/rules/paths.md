@@ -14,3 +14,4 @@ The dev environment (Windows, this machine) and the production servers (Linux) l
 3. **Dashboard config is split:** `./config/` exists in the repo for development; production reads from `/var/www/config/`. Never commit secrets into `./config/` files (see [secrets.md](./secrets.md)).
 4. **In code, never assume an absolute path that hardcodes `P:\`, `C:\`, or a specific user home.** Use environment variables or relative paths.
 5. **Logs are server-only.** Don't write code that expects `/home/botofthespecter/logs/` to exist locally - the dev box doesn't have it.
+6. **Retired directory `./help/`:** The `./help/` folder is retired and non-deployed legacy code. Do **NOT** edit, audit, or add features to files in `./help/`. Use `./support/` instead.

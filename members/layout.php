@@ -38,7 +38,7 @@ $_cssV = file_exists(__DIR__ . '/style.css') ? filemtime(__DIR__ . '/style.css')
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <link rel="stylesheet" href="/style.css?v=<?php echo $_cssV; ?>">
     <?php if ($extraHead) echo $extraHead; ?>
 </head>

@@ -130,7 +130,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     </script>
     <title>BotOfTheSpecter - <?php echo isset($pageTitle) ? $pageTitle : 'Dashboard'; ?></title>
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <!-- Dashboard CSS -->
     <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo filemtime(__DIR__ . '/css/dashboard.css'); ?>">
     <?php if ($isAdminCssPage): ?>

@@ -195,7 +195,7 @@ if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && 
     <title>Log In - BotOfTheSpecter Support</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
     <link rel="stylesheet" href="/css/style.css?v=<?php echo bin2hex(random_bytes(4)); ?>">
 </head>
 <body>
