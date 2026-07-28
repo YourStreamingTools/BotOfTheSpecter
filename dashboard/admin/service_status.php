@@ -93,6 +93,12 @@ $serviceMap = [
         'ssh_username' => $bots_ssh_username ?? '',
         'ssh_password' => $bots_ssh_password ?? ''
     ],
+    'bots_api' => [
+        'service_name' => 'bots-api.service',
+        'ssh_host' => $bots_ssh_host ?? '',
+        'ssh_username' => $bots_ssh_username ?? '',
+        'ssh_password' => $bots_ssh_password ?? ''
+    ],
     'fastapi' => [
         'service_name' => 'fastapi.service',
         'ssh_host' => $api_server_host ?? '',
