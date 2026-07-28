@@ -1206,7 +1206,6 @@ ob_start();
         restartIssuesFailed: <?php echo json_encode(t('admin_start_bots_restart_all_issues_failed')); ?>
     };
     let runningBots = [];
-    let refreshTimer = null; // Debounce timer for refresh operations
     function hasCustomBotEnabled(row) {
         return row && row.getAttribute('data-custom-enabled') === '1';
     }
@@ -1327,17 +1326,6 @@ ob_start();
         });
     }
 
-    // Debounced refresh - delays the actual refresh to avoid multiple rapid calls
-    function scheduleRefresh(delayMs = 2000) {
-        // Clear any pending refresh
-        if (refreshTimer) {
-            clearTimeout(refreshTimer);
-        }
-        // Schedule a new refresh
-        refreshTimer = setTimeout(() => {
-            refreshBotStatus();
-        }, delayMs);
-    }
     // Simple %s placeholder substitution for injected translation strings
     function sbFormat(str) {
         const args = Array.prototype.slice.call(arguments, 1);
@@ -2028,8 +2016,21 @@ ob_start();
                 // Non-blocking toast notification only
                 const startedTypeLabel = botType === 'beta' ? SB_I18N.typeBeta : (botType === 'custom' ? SB_I18N.typeCustom : SB_I18N.typeStable);
                 Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: sbFormat(SB_I18N.startedTypeToast, startedTypeLabel, username), showConfirmButton: false, timer: 1500 });
-                // Schedule a debounced refresh to verify actual status (non-blocking)
-                scheduleRefresh(2000);
+                // Verify just THIS user's status once the process has had time to come up.
+                // Deliberately scoped to one channel (check_one_bot) instead of the
+                // all-users refreshBotStatus()/refreshRunningStatus() - starting one
+                // bot must not touch anyone else's row.
+                setTimeout(async () => {
+                    try {
+                        const chkResp = await fetch('?check_one_bot=1&username=' + encodeURIComponent(username) + '&bot_type=' + encodeURIComponent(botType));
+                        const chk = await chkResp.json();
+                        if (chk && chk.success && chk.running && chk.pid) {
+                            runningBots = runningBots.filter(bot => bot.username !== username);
+                            runningBots.push({ username: username, bot_type: botType, pid: chk.pid });
+                            botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(sbFormat(SB_I18N.runningPid, chk.pid)) + '</span>';
+                        }
+                    } catch (e) { /* keep the optimistic "running" state on verification failure */ }
+                }, 2000);
             } else {
                 botTag.className = 'sp-badge sp-badge-red bot-status-tag';
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.startFailed) + '</span>';

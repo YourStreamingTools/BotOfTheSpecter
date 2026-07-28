@@ -26,7 +26,14 @@ import aiomysql
 import discord
 import websockets
 from discord.ext import commands
-from discord.ext import voice_recv
+try:
+    from discord.ext import voice_recv
+except ImportError:
+    # discord-ext-voice-recv isn't installed yet (planned feature, not shipped).
+    # connect_voice()/_handle_connect() fall back to the standard VoiceClient;
+    # the realtime/listen commands that actually need receive are already
+    # disabled at the top of their functions regardless.
+    voice_recv = None
 from discord import app_commands
 from dotenv import load_dotenv
 import pytz
@@ -6374,7 +6381,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                     except KeyError:
                         pass
                 try:
-                    voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
+                    voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient if voice_recv else discord.VoiceClient)
                 except discord.errors.ConnectionClosed as e:
                     # update attempts info on failure
                     attempt_info = self._connect_attempts.get(guild_id, {'count': 0, 'first_attempt': now})
@@ -6662,7 +6669,7 @@ class VoiceCog(commands.Cog, name='Voice'):
             existing_vc = self.voice_clients.get(guild_id)
             if existing_vc and existing_vc.is_connected():
                 return existing_vc
-            voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
+            voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient if voice_recv else discord.VoiceClient)
             self.voice_clients[guild_id] = voice_client
             return voice_client
 
