@@ -54,6 +54,15 @@ except ImportError:
 from dotenv import load_dotenv
 load_dotenv()
 
+# Python 3.12+ removed the implicit auto-create-if-none-running fallback in
+# asyncio.get_event_loop(); TwitchIO 2.10.0 still calls it that way internally
+# when constructing the Bot. Ensure a loop exists for the main thread so that
+# call succeeds exactly like it did on older Python versions.
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
 from custom_channel_modules import gfaundead as gfaundead_module

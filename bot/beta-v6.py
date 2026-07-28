@@ -48,6 +48,16 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
+# Python 3.12+ removed the implicit auto-create-if-none-running fallback in
+# asyncio.get_event_loop(). TwitchIO 3.x is written for modern asyncio and
+# likely doesn't need this, but bot.py/beta.py do (TwitchIO 2.10.0 still
+# calls it internally) - applying the same harmless guard here for
+# consistency across all three bot versions per the stable/beta/v6 fix policy.
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
 from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
