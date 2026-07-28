@@ -102,41 +102,60 @@ function checkBotRunning($username, $botType = 'stable') {
     } catch (Exception $e) {
         // Fall through to SSH fallback
     }
-    // --- Fallback: SSH + status.py (used while bots API is not yet deployed) ---
+    // --- Fallback: direct SSH ps scan (used while bots API is not yet deployed) ---
+    // Uses the same technique as admin/start_bots.php which already works correctly.
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!extension_loaded('ssh2')) {
-        $result['message'] = 'SSH2 extension not available';
+    if (!extension_loaded('ssh2') || empty($bots_ssh_host)) {
+        $result['message'] = 'SSH not available';
         return $result;
     }
-    $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
-    $statusScriptPath = '/home/botofthespecter/status.py';
     try {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $botType -channel $username";
-        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
-        if ($statusOutput === false || $statusOutput === null) {
-            $result['message'] = 'SSH command execution failed';
+        $output = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
+        if ($output === false || $output === null) {
+            $result['message'] = 'SSH ps command failed';
             return $result;
         }
-        if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
-        else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
-        $statusOutput = trim($statusOutput);
+        if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
+        $username_lower = strtolower($username);
         $pid = 0;
-        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) ||
-            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
-            $pid = intval($matches[1]);
-        } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
-            $pid = intval($matches[1]);
+        foreach (preg_split('/\r?\n/', (string)$output) as $line) {
+            $line = trim($line);
+            if ($line === '') continue;
+            if (!preg_match('/^(\d+)\s+(.*)$/', $line, $m)) continue;
+            $linePid = (int)$m[1];
+            $args    = $m[2];
+            // Must be a python process running one of the known bot scripts
+            if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $args, $sm)) continue;
+            $script = $sm[2]; // 'bot' | 'beta-v6' | 'beta'
+            // Must have -channel <username> for this user
+            if (!preg_match('/-channel\s+(\S+)/i', $args, $cm)) continue;
+            if (strtolower($cm[1]) !== $username_lower) continue;
+            // Map script name → bot_type
+            if ($script === 'bot') {
+                $foundType = 'stable';
+            } elseif ($script === 'beta-v6') {
+                $foundType = 'v6';
+            } else {
+                $foundType = preg_match('/(^|\s)-custom(\s|$)/', $args) ? 'custom' : 'beta';
+            }
+            // Confirm the found type matches what was requested
+            $match = ($foundType === $botType)
+                || ($botType === 'beta' && in_array($foundType, ['beta', 'custom'], true));
+            if (!$match) continue;
+            $pid = $linePid;
+            break;
         }
         $result['success'] = true;
         $result['running'] = ($pid > 0);
-        $result['pid'] = $pid;
+        $result['pid']     = $pid;
         $result['message'] = $pid > 0 ? 'Bot status retrieved successfully (SSH)' : 'Bot is not running';
     } catch (Exception $e) {
         $result['message'] = $e->getMessage();
     }
     return $result;
 }
+
 
 /**
     * Perform an action on the bot (start, stop) via private bots control API
