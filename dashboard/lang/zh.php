@@ -5429,6 +5429,7 @@ return [
     'admin_start_bots_err_bot_token_not_found' => '未找到用户的机器人访问令牌',
     'admin_start_bots_err_user_not_found' => '未找到用户',
     'admin_start_bots_err_restart_generic' => '重新启动机器人时出错：%s',
+    'admin_start_bots_err_restart_stop_failed' => '重启前无法停止正在运行的机器人：%s',
     'admin_start_bots_msg_start_success' => '机器人启动成功',
     'admin_start_bots_err_db_token_lookup' => '准备令牌查找时数据库出错',
     'admin_start_bots_err_missing_params' => '缺少必需参数：%s',

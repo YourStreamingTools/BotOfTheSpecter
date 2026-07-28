@@ -292,8 +292,10 @@ async def _run(cmd: str | list[str], *, shell: bool = False) -> tuple[int, str, 
     return proc.returncode or 0, out_b.decode(errors="replace"), err_b.decode(errors="replace")
 
 
-def _kill_pids(pids: list[int]) -> list[int]:
+def _kill_pids(pids: list[int]) -> tuple[list[int], list[int]]:
+    """Returns (killed_pids, permission_denied_pids)."""
     killed: list[int] = []
+    denied: list[int] = []
     for pid in pids:
         try:
             os.kill(pid, signal.SIGKILL)
@@ -301,8 +303,8 @@ def _kill_pids(pids: list[int]) -> list[int]:
         except ProcessLookupError:
             continue
         except PermissionError:
-            continue
-    return killed
+            denied.append(pid)
+    return killed, denied
 
 
 async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
@@ -330,10 +332,41 @@ async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
             "channel": channel,
         }
 
-    killed = _kill_pids(pids)
+    killed, denied = _kill_pids(pids)
     await _run(f"screen -S {session} -X quit 2>/dev/null; true", shell=True)
     await _run(f"tmux kill-session -t {session} 2>/dev/null; true", shell=True)
-    await asyncio.sleep(0.3)
+
+    def _still_running() -> list[int]:
+        remaining = find_pids(bot_type, channel)
+        if bot_type == "beta":
+            remaining = list(dict.fromkeys(remaining + find_pids("custom", channel)))
+        return remaining
+
+    # A denied kill can't be retried into working, so skip the poll and fail fast.
+    still_alive = _still_running()
+    if not denied:
+        for _ in range(3):
+            if not still_alive:
+                break
+            await asyncio.sleep(0.3)
+            still_alive = _still_running()
+
+    if still_alive:
+        message = f"Failed to stop bot: PID(s) {', '.join(str(p) for p in still_alive)} still running"
+        if denied:
+            message += f" (permission denied killing {', '.join(str(p) for p in denied)} - likely started outside the bots-api control plane, e.g. directly as root)"
+        return {
+            "success": False,
+            "state": "error",
+            "running": True,
+            "pid": still_alive[0],
+            "bot_type": bot_type,
+            "version": None,
+            "message": message,
+            "channel": channel,
+            "killed_pids": killed,
+        }
+
     return {
         "success": True,
         "state": "stopped",
@@ -397,7 +430,7 @@ async def start_bot(
         if other == "beta":
             other_pids = list(dict.fromkeys(other_pids + find_pids("custom", channel)))
         if other_pids:
-            killed = _kill_pids(other_pids)
+            killed, _denied = _kill_pids(other_pids)
             other_msg += f"Stopped {other} bot (PIDs: {', '.join(str(p) for p in killed)}). "
             await asyncio.sleep(0.4)
 
@@ -497,6 +530,10 @@ async def restart_bot(**kwargs: Any) -> dict[str, Any]:
     channel = kwargs.get("channel", "")
     bot_type = kwargs.get("bot_type", "stable")
     stop_res = await stop_bot(channel, bot_type)
+    # Only start once the stop is confirmed - otherwise it just no-ops against the old process.
+    if not stop_res.get("success"):
+        stop_res["restarted_from"] = stop_res.get("state")
+        return stop_res
     await asyncio.sleep(0.5)
     start_res = await start_bot(**kwargs)
     start_res["restarted_from"] = stop_res.get("state")
