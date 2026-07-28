@@ -52,63 +52,117 @@ try {
     $v6BotSystemStatus = false;
 }
 
-// Utility function to get bot status message (private bots control API)
+// Utility function to get bot status message.
+// Tries the private bots control API first; falls back to SSH + status.py
+// when the API service is not yet deployed or is unreachable.
 function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
     if (!function_exists('bots_api_bot_status')) {
         require_once __DIR__ . '/bots_api_client.php';
     }
+    // --- Attempt 1: bots control API ---
     try {
         $resp = bots_api_bot_status($username, $system);
         if (!$resp['ok'] && $system === 'beta') {
             $resp = bots_api_bot_status($username, null);
         }
-        if (!$resp['ok']) {
-            return "<div class='status-message error'>Status: " . htmlspecialchars((string)$resp['error']) . "</div>";
-        }
-        $data = is_array($resp['data']) ? $resp['data'] : [];
-        $running = !empty($data['running']);
-        $foundType = $data['bot_type'] ?? null;
-        if ($running && $system) {
-            $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
-            if (!$match && $foundType !== null) {
-                $running = false;
+        // Only use API result when the call actually reached the server (status > 0).
+        // A curl error (status === 0) means the service is not yet running; fall through to SSH.
+        if ($resp['status'] > 0) {
+            if (!$resp['ok']) {
+                return "<div class='status-message error'>Status: " . htmlspecialchars((string)$resp['error']) . "</div>";
             }
+            $data = is_array($resp['data']) ? $resp['data'] : [];
+            $running = !empty($data['running']);
+            $foundType = $data['bot_type'] ?? null;
+            if ($running && $system) {
+                $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
+                if (!$match && $foundType !== null) {
+                    $running = false;
+                }
+            }
+            $pid = $running ? intval($data['pid'] ?? 0) : 0;
+            if ($pid > 0) {
+                return "<div class='status-message'>Status: PID $pid.</div>";
+            }
+            return "<div class='status-message error'>Status: NOT RUNNING</div>";
         }
-        $pid = $running ? intval($data['pid'] ?? 0) : 0;
-        if ($pid > 0) {
-            return "<div class='status-message'>Status: PID $pid.</div>";
+    } catch (Exception $e) {
+        // Fall through to SSH fallback
+    }
+    // --- Fallback: SSH + status.py (used while bots API is not yet deployed) ---
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    if (!extension_loaded('ssh2')) {
+        return "<div class='status-message error'>Status: SSH2 extension not available</div>";
+    }
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
+        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $system -channel $username";
+        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+        if ($statusOutput === false || $statusOutput === null) {
+            return "<div class='status-message error'>Status: SSH command execution failed</div>";
         }
+        if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+        else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+        $statusOutput = trim($statusOutput);
+        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) ||
+            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+            $pid = intval($matches[1]);
+        } else { $pid = 0; }
+        if ($pid > 0) { return "<div class='status-message'>Status: PID $pid.</div>"; }
         return "<div class='status-message error'>Status: NOT RUNNING</div>";
     } catch (Exception $e) {
         return "<div class='status-message error'>Status: Error - " . htmlspecialchars($e->getMessage()) . "</div>";
     }
 }
 
-// Check if a bot is running (returns boolean)
+// Check if a bot is running (returns boolean).
+// Tries the private bots control API first; falls back to SSH + status.py
+// when the API service is not yet deployed or is unreachable.
 function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
     if (!function_exists('bots_api_bot_status')) {
         require_once __DIR__ . '/bots_api_client.php';
     }
+    // --- Attempt 1: bots control API ---
     try {
         $resp = bots_api_bot_status($username, $system);
         if (!$resp['ok'] && $system === 'beta') {
             $resp = bots_api_bot_status($username, null);
         }
-        if (!$resp['ok']) {
-            return false;
+        // Only trust result when the call reached the server (status > 0).
+        if ($resp['status'] > 0) {
+            if (!$resp['ok']) { return false; }
+            $data = is_array($resp['data']) ? $resp['data'] : [];
+            if (empty($data['running'])) { return false; }
+            $foundType = $data['bot_type'] ?? null;
+            if ($system) {
+                return ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
+            }
+            return true;
         }
-        $data = is_array($resp['data']) ? $resp['data'] : [];
-        if (empty($data['running'])) {
-            return false;
-        }
-        $foundType = $data['bot_type'] ?? null;
-        if ($system) {
-            return ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
-        }
-        return true;
     } catch (Exception $e) {
-        return false;
+        // Fall through to SSH fallback
     }
+    // --- Fallback: SSH + status.py (used while bots API is not yet deployed) ---
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+    if (!extension_loaded('ssh2')) { return false; }
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        $statusPython = function_exists('botHostPython') ? botHostPython('status') : '/home/botofthespecter/venvs/stable/bin/python';
+        $command = escapeshellarg($statusPython) . " $statusScriptPath -system $system -channel $username";
+        $statusOutput = SSHConnectionManager::executeCommand($connection, $command);
+        if ($statusOutput === false || $statusOutput === null) { return false; }
+        if (function_exists('sanitizeSSHOutput')) { $statusOutput = sanitizeSSHOutput($statusOutput); }
+        else { $statusOutput = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$statusOutput); }
+        $statusOutput = trim($statusOutput);
+        if (preg_match('/Bot is running with process ID:\s*(\d+)/i', $statusOutput, $matches) ||
+            preg_match('/process ID:\s*(\d+)/i', $statusOutput, $matches)) {
+            $pid = intval($matches[1]);
+        } elseif (preg_match('/PID\s+(\d+)/i', $statusOutput, $matches)) {
+            $pid = intval($matches[1]);
+        } else { $pid = 0; }
+        return ($pid > 0);
+    } catch (Exception $e) { return false; }
 }
 
 // Get the version currently running from version control file
