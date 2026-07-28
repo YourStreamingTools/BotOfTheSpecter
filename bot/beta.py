@@ -203,11 +203,11 @@ mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
-    "puzzledone"
+    "puzzledone", "warn"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "focus", "ctimer", "thelp"
+    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "focus", "ctimer", "thelp", "warning"
 }
 
 # Logs
@@ -5736,6 +5736,92 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"[PERMIT] An error occurred during the execution of the permit command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='warn', aliases=['warning'])
+    async def warn_command(self, ctx, target_user: str = None, *, reason: str = None):
+        """Issue a formal warning to a viewer. Mods and the broadcaster only.
+        Usage: !warn @username Reason for the warning here
+        Alias: !warning
+        """
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("warn",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    await send_chat_message("The warn command is not configured yet. Please try again after a bot restart.")
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('warn', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    chat_logger.info(f"[WARN] {ctx.author.name} tried to use warn but lacked permissions.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                if not target_user:
+                    await send_chat_message("Usage: !warn @username Reason for the warning here")
+                    return
+                target_user = target_user.lstrip('@').strip()
+                if not target_user:
+                    await send_chat_message("Usage: !warn @username Reason for the warning here")
+                    return
+                reason = (reason or "").strip()
+                if not reason:
+                    await send_chat_message("Please provide a reason for the warning. Usage: !warn @username Reason here")
+                    return
+                # Resolve Twitch user so we store a stable user_id (usernames can change)
+                target_user_name = target_user.lower()
+                try:
+                    user_info = await self.fetch_users(names=[target_user_name])
+                except Exception as fetch_err:
+                    chat_logger.warning(f"[WARN] Could not fetch Twitch user for {target_user_name}: {fetch_err}")
+                    user_info = None
+                if not user_info:
+                    await send_chat_message(f"User {target_user_name} not found.")
+                    return
+                target_user_id = str(user_info[0].id)
+                target_user_name = user_info[0].name.lower()
+                warned_by_id = str(ctx.author.id) if getattr(ctx.author, "id", None) is not None else None
+                warned_by_name = ctx.author.name
+                await cursor.execute(
+                    "INSERT INTO warnings (user_id, user_name, warned_by_id, warned_by_name, reason) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (target_user_id, target_user_name, warned_by_id, warned_by_name, reason),
+                )
+                await connection.commit()
+                warning_id = cursor.lastrowid
+                await cursor.execute(
+                    "SELECT COUNT(*) AS warning_count FROM warnings WHERE user_id = %s OR user_name = %s",
+                    (target_user_id, target_user_name),
+                )
+                count_row = await cursor.fetchone()
+                warning_count = int(count_row.get("warning_count") or 0) if count_row else 1
+                chat_logger.info(
+                    f"[WARN] #{warning_id} {warned_by_name} warned {target_user_name} "
+                    f"(id={target_user_id}): {reason} | total={warning_count}"
+                )
+                await send_chat_message(
+                    f"@{target_user_name} has been warned by @{warned_by_name} "
+                    f"(warning #{warning_count}): {reason}"
+                )
+                add_usage('warn', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[WARN] An error occurred during the execution of the warn command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             if connection:
