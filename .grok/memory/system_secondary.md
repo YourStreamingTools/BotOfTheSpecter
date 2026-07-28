@@ -48,7 +48,7 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 
 **Key Features**:
 1. User Management (profile settings, API key regen, admin access control)
-2. Bot Control (enable/disable, connection status, action commands)
+2. **Bot Control** (start/stop/status via **bots API**, not SSH — see below)
 3. Command System (custom commands + **builtin.php** cooldown/permission UI)
 4. **Specter Alerts** (`alerts.php`) - per-variant visuals for Twitch/donation/bingo events; live test via `notify_event.php`; **Refresh Overlay** posts `OVERLAY_REFRESH`
 5. Rewards System (Twitch channel point rewards, redemption tracking)
@@ -64,6 +64,31 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - Settings in per-user DB; API keys in `website.users`; admin keys in `website.admin_api_keys`
 
 **i18n**: `./dashboard/lang/` - EN, DE, FR, ES, ZH via `i18n.php`
+
+### Bot process control (dashboard → bots host)
+
+Dashboard **does not SSH** to start/stop chat bots. Flow:
+
+1. UI (`bot.php`, admin `start_bots.php`, admin running list) →
+2. `./dashboard/includes/bot_control_functions.php` (`checkBotRunning`, `performBotAction`) →
+3. `./dashboard/includes/bots_api_client.php` → HTTPS `https://bots.botofthespecter.com/api/...`
+4. Auth: admin key `website.admin_api_keys` service **`bots`** (loaded server-side; config `./config/bots_api.php`)
+
+**Helpers**: `bots_api_start_bot`, `bots_api_stop_bot`, `bots_api_bot_status`, `bots_api_running_bots`, `bots_api_stop_all_for_channel`.
+
+### Twitch username rename on login
+
+When a returning user logs in and their Twitch **login** differs from `website.users.username` for the same `twitch_user_id`:
+
+1. **Stop** any bot still running under the **old** channel name (`bots_api_stop_all_for_channel`) — processes match `-channel`, not user id
+2. Rename per-user MySQL schema (old login → new login)
+3. Rename username-keyed media/cache dirs on the web host
+4. Update secondary website rows (`restricted_users`, `discord_twitch_links`)
+5. Update `website.users.username` / display name (caller in `login.php`)
+
+Implementation: `./dashboard/includes/username_rename.php` (called from both StreamersConnect and OAuth paths in `login.php`). Does **not** auto-start under the new name.
+
+Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 
 **Current Status**: COMPLETE and actively maintained
 

@@ -101,7 +101,7 @@ Valid permissions: `everyone`, `vip`, `all-subs`, `t1-sub`, `t2-sub`, `t3-sub`, 
 ## SSH Integration
 
 **Remote Hosts**:
-- BOTS_SSH_HOST: Bot server
+- BOTS_SSH_HOST: Bot server (file/uptime ops only — **not** bot process start/stop)
 - WEB1_SSH_HOST: Website server
 - SQL_SSH_HOST: SQL server
 - WEBSOCKET_SSH_HOST: WebSocket server
@@ -121,6 +121,8 @@ Valid permissions: `everyone`, `vip`, `all-subs`, `t1-sub`, `t2-sub`, `t3-sub`, 
    - SSH exec: Lists files in `/var/www/walkons/{username}`
    - Filters for `.mp3` and `.mp4` files
    - Returns array with filename, URL, viewer username
+
+**Bot process control is NOT SSH** — use `_bots_api_request` / bots host (see Bot process control section).
 
 ## API Endpoints
 
@@ -153,6 +155,20 @@ Valid permissions: `everyone`, `vip`, `all-subs`, `t1-sub`, `t2-sub`, `t3-sub`, 
 - `GET /streamonline` - Check stream status
 - `GET /deaths` - Get death counts
 - `GET /authorizedusers` - (Admin) List beta access users
+
+### Bot process control (user key → private bots host)
+These accept the **user** API key, then the public API calls the private bots control API with the **admin `service=bots` key** (never the user key).
+
+- `GET /bot/status` - Running?, PID, version, bot_type, outdated vs published versions
+- `POST /bot/start` - Query: `bot_type` (stable|beta|v6), optional `custom`/`self` (beta only); refreshes Twitch token first; body built for bots host
+- `POST /bot/stop` - Query: `bot_type`; proxies `POST {BOTS_API_BASE}/api/bot/stop`
+
+**Internal helpers** (`./api/api.py`):
+- `_get_bots_control_key()` — `admin_api_keys` service `bots`, else env `BOTS_CONTROL_KEY`
+- `_bots_api_request(method, path, …)` — HTTP to `BOTS_API_BASE` (default `https://bots.botofthespecter.com`)
+- `get_bot_status_via_bots_api(username)`
+
+**Do not** start/stop bots via SSH from this process. Full bots-host surface: `./bot/bots_api/`, rule `.grok/rules/bots-api.md`.
 
 ### Command Management
 **Custom Commands**:
@@ -302,6 +318,13 @@ Valid permissions: `everyone`, `vip`, `all-subs`, `t1-sub`, `t2-sub`, `t3-sub`, 
 - V2: `/v2/docs`, `/v2/openapi.json`, `/v2/redoc`
 - Custom schemas: ValidationError, HTTPValidationError
 - Tags: 8 categories (Public, Commands, User Account, Webhooks, WebSocket, Admin, Extension, Channel)
+
+## Bots host env (public API side)
+
+- `BOTS_API_BASE` — default `https://bots.botofthespecter.com`
+- `BOTS_API_TIMEOUT` — HTTP timeout to bots host
+- `BOTS_ADMIN_SERVICE` — default `bots` (admin_api_keys.service name)
+- `BOTS_CONTROL_KEY` — optional fallback if no DB key (prefer Admin → API Keys)
 
 ## Key Configuration
 

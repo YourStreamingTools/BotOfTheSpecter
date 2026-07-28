@@ -13,6 +13,11 @@ Three transport layers exist. Picking the wrong one creates lag, duplicated logi
 **Is this a bot reading or writing its own per-channel state?** (custom commands, points, watch time)
 → **Direct MySQL** via `aiomysql` against the per-user database. See [database.md](./database.md).
 
+## Bot process control (special case)
+
+**Is this start / stop / status / inventory of a chat bot process?**
+→ **Bots API** (`https://bots.botofthespecter.com`, code `./bot/bots_api/`). Dashboard uses `bots_api_client.php`; public API proxies user `/bot/*` with the admin `service=bots` key. **Not SSH.** See [bots-api.md](./bots-api.md).
+
 ## Rules
 
 1. **Never call the API from the WebSocket server, or vice versa, when a direct DB query would do.** Both already have MySQL connections.

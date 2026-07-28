@@ -121,6 +121,10 @@ if ($response && $http === 200) {
             $_SESSION['last_validated_at'] = time();
             // Database connect
             require_once "/var/www/config/db_connect.php";
+            require_once __DIR__ . '/includes/username_rename.php';
+            // Twitch logins are always lowercase; normalise so schema names stay consistent
+            $twitchUsername = strtolower((string) $twitchUsername);
+            $_SESSION['username'] = $twitchUsername;
             // Check if the user is in the restricted list
             $restrictedQuery = "SELECT * FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
             $stmt = mysqli_prepare($conn, $restrictedQuery);
@@ -171,11 +175,28 @@ if ($response && $http === 200) {
                 mysqli_stmt_close($stmt);
                 $_SESSION['user_id'] = $userId;
                 $_SESSION['api_key'] = $apiKey;
+                // If Twitch login changed, rename per-user MySQL DB + media paths first
+                // (keyed by login name). Identity is always twitch_user_id.
+                $renameResult = bots_handle_username_change_on_login($conn, $twitchUserId, $twitchUsername);
+                $usernameForUpdate = $twitchUsername;
+                if (!empty($renameResult['changed']) && empty($renameResult['apply_username_update'])) {
+                    // DB rename failed — keep website.users.username on the old login
+                    // so the session still opens the existing schema with data.
+                    $usernameForUpdate = $renameResult['old_username'] ?: $twitchUsername;
+                    $_SESSION['username'] = $usernameForUpdate;
+                    error_log(
+                        "login.php (streamersconnect): username change blocked for twitch_user_id=$twitchUserId; "
+                        . "kept username=$usernameForUpdate (db: "
+                        . (($renameResult['db']['message'] ?? 'n/a')) . ')'
+                    );
+                } elseif (!empty($renameResult['changed'])) {
+                    $_SESSION['username'] = $usernameForUpdate;
+                }
                 // Update user information
                 $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, username = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE twitch_user_id = ?";
                 $stmt = mysqli_prepare($conn, $updateQuery);
                 $last_login = date('Y-m-d H:i:s');
-                mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
+                mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $usernameForUpdate, $twitchDisplayName, $last_login, $email, $twitchUserId);
                 if (mysqli_stmt_execute($stmt)) {
                     $loginRedirect = 'dashboard.php';
                     if (!empty($_SESSION['redirect_after_login'])) {
@@ -329,12 +350,15 @@ $userInfo = json_decode($userInfoResponse, true);
         $profileImageUrl = $userInfo['data'][0]['profile_image_url'];
         $twitchUserId = $userInfo['data'][0]['id'];
         $email = $userInfo['data'][0]['email'] ?? '';
+        // Twitch logins are always lowercase; normalise so schema names stay consistent
+        $twitchUsername = strtolower((string) $twitchUsername);
         $_SESSION['username'] = $twitchUsername;
         $_SESSION['twitchUserId'] = $twitchUserId;
         $_SESSION['profile_image'] = $profileImageUrl;
         $_SESSION['display_name'] = $twitchDisplayName;
         // Database connect
         require_once "/var/www/config/db_connect.php";
+        require_once __DIR__ . '/includes/username_rename.php';
         // Fetch language preference if exists
         $langQuery = "SELECT language FROM users WHERE twitch_user_id = ?";
         $langStmt = mysqli_prepare($conn, $langQuery);
@@ -374,19 +398,28 @@ $userInfo = json_decode($userInfoResponse, true);
             mysqli_stmt_close($stmt);
             $_SESSION['user_id'] = $userId;
             $_SESSION['api_key'] = $apiKey;
-            // Check if the user has renamed their Twitch account
-            $checkUsernameQuery = "SELECT username FROM users WHERE twitch_user_id = ?";
-            $stmt = mysqli_prepare($conn, $checkUsernameQuery);
-            mysqli_stmt_bind_param($stmt, 's', $twitchUserId);
-            mysqli_stmt_execute($stmt);
-            mysqli_stmt_bind_result($stmt, $existingUsername);
-            mysqli_stmt_fetch($stmt);
-            mysqli_stmt_close($stmt);
+            // If Twitch login changed, rename per-user MySQL DB + media paths first
+            // (keyed by login name). Identity is always twitch_user_id.
+            $renameResult = bots_handle_username_change_on_login($conn, $twitchUserId, $twitchUsername);
+            $usernameForUpdate = $twitchUsername;
+            if (!empty($renameResult['changed']) && empty($renameResult['apply_username_update'])) {
+                // DB rename failed — keep website.users.username on the old login
+                // so the session still opens the existing schema with data.
+                $usernameForUpdate = $renameResult['old_username'] ?: $twitchUsername;
+                $_SESSION['username'] = $usernameForUpdate;
+                error_log(
+                    "login.php (oauth): username change blocked for twitch_user_id=$twitchUserId; "
+                    . "kept username=$usernameForUpdate (db: "
+                    . (($renameResult['db']['message'] ?? 'n/a')) . ')'
+                );
+            } elseif (!empty($renameResult['changed'])) {
+                $_SESSION['username'] = $usernameForUpdate;
+            }
             // Update user information
             $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, username = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE twitch_user_id = ?";
             $stmt = mysqli_prepare($conn, $updateQuery);
             $last_login = date('Y-m-d H:i:s');
-            mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
+            mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $usernameForUpdate, $twitchDisplayName, $last_login, $email, $twitchUserId);
             if (mysqli_stmt_execute($stmt)) {
                 $loginRedirect = 'dashboard.php';
                 if (!empty($_SESSION['redirect_after_login'])) {

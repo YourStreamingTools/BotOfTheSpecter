@@ -154,3 +154,74 @@ function bots_api_stop_bot(string $channel, string $botType = 'stable'): array {
         'bot_type' => $botType,
     ]);
 }
+
+/**
+ * Stop every Twitch bot variant that might be running for a channel.
+ * Used when the Twitch login renames so processes launched with -channel oldname die.
+ *
+ * Order: prefer the type reported by status, then sweep stable/beta/v6/custom.
+ * Kick/discord are separate processes and are not stopped here.
+ *
+ * @return array{
+ *   ok:bool,
+ *   channel:string,
+ *   stopped:array<int,string>,
+ *   already_stopped:array<int,string>,
+ *   errors:array<int,string>,
+ *   details:array<string,array>
+ * }
+ */
+function bots_api_stop_all_for_channel(string $channel): array {
+    $channel = strtolower(trim($channel));
+    $out = [
+        'ok' => true,
+        'channel' => $channel,
+        'stopped' => [],
+        'already_stopped' => [],
+        'errors' => [],
+        'details' => [],
+    ];
+    if ($channel === '' || !preg_match('/^[a-zA-Z0-9_]{1,64}$/', $channel)) {
+        $out['ok'] = false;
+        $out['errors'][] = 'invalid channel';
+        return $out;
+    }
+
+    $typesToTry = [];
+    $status = bots_api_bot_status($channel, null);
+    if ($status['ok'] && is_array($status['data'])) {
+        $running = !empty($status['data']['running']);
+        $foundType = isset($status['data']['bot_type']) ? (string) $status['data']['bot_type'] : '';
+        if ($running && $foundType !== '') {
+            $typesToTry[] = $foundType;
+        }
+    }
+    foreach (['stable', 'beta', 'v6', 'custom'] as $t) {
+        if (!in_array($t, $typesToTry, true)) {
+            $typesToTry[] = $t;
+        }
+    }
+
+    foreach ($typesToTry as $botType) {
+        $resp = bots_api_stop_bot($channel, $botType);
+        $out['details'][$botType] = $resp;
+        if (!$resp['ok']) {
+            // "not running" style responses still come back 200 with state already_stopped.
+            // Non-2xx is a real failure (auth, network, hard kill fail).
+            $out['ok'] = false;
+            $err = is_string($resp['error'] ?? null) ? $resp['error'] : 'stop failed';
+            $out['errors'][] = "$botType: $err";
+            continue;
+        }
+        $data = is_array($resp['data']) ? $resp['data'] : [];
+        $state = (string) ($data['state'] ?? '');
+        if ($state === 'stopped') {
+            $out['stopped'][] = $botType;
+        } else {
+            // already_stopped, or success with no process
+            $out['already_stopped'][] = $botType;
+        }
+    }
+
+    return $out;
+}
