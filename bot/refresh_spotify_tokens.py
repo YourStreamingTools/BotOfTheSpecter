@@ -87,7 +87,7 @@ async def refresh_spotify_token(session, pool, user_id, refresh_token, own_clien
                         async with conn.cursor() as cur:
                             await cur.execute(
                                 "UPDATE spotify_tokens SET access_token = '', refresh_token = '', "
-                                "auth = 0, has_access = 0, needs_reauth = 1 WHERE user_id = %s",
+                                "auth = 0, needs_reauth = 1 WHERE user_id = %s",
                                 (user_id,)
                             )
                             await conn.commit()

@@ -5,6 +5,9 @@
 discord.py>=2.6.0
 # discord-ext-voice-recv   # Temp removed
 
+# WebSocket client (imported directly by specterdiscord.py)
+websockets
+
 # Async HTTP client
 aiohttp>=3.9.0
 

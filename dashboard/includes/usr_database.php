@@ -261,7 +261,8 @@ try {
                 chat_line_trigger INT DEFAULT NULL,
                 message TEXT,
                 status VARCHAR(10) DEFAULT True,
-                trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'
+                trigger_type ENUM('timer', 'chat_lines', 'both', 'scheduled') NOT NULL DEFAULT 'timer',
+                scheduled_time TIME DEFAULT NULL
             ) ENGINE=InnoDB",
         'profile' => "
             CREATE TABLE IF NOT EXISTS profile (
