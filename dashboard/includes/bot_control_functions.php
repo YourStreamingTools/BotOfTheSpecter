@@ -286,46 +286,38 @@ function performBotAction($action, $botType, $params) {
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
 
         if ($action === 'run') {
-            // --- Stop any other bot type already running for this channel ---
+            // --- Stop any other bot process running for this channel first ---
             $psOut = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
             if ($psOut && function_exists('sanitizeSSHOutput')) { $psOut = sanitizeSSHOutput($psOut); }
             $uLower = strtolower($username);
             foreach (preg_split('/\r?\n/', (string)$psOut) as $psLine) {
                 $psLine = trim($psLine);
                 if (!preg_match('/^(\d+)\s+(.*)$/', $psLine, $pm)) continue;
-                $otherPid = (int)$pm[1]; $otherArgs = $pm[2];
-                if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $otherArgs)) continue;
-                if (!preg_match('/-channel\s+(\S+)/i', $otherArgs, $cm)) continue;
+                if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $pm[2])) continue;
+                if (!preg_match('/-channel\s+(\S+)/i', $pm[2], $cm)) continue;
                 if (strtolower($cm[1]) !== $uLower) continue;
-                // Kill the conflicting process
-                SSHConnectionManager::executeCommand($connection, "kill -9 $otherPid 2>/dev/null; true");
-                usleep(400000);
+                SSHConnectionManager::executeCommand($connection, "kill -9 {$pm[1]} 2>/dev/null; true");
+                usleep(300000);
             }
             SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSession) . " -X quit 2>/dev/null; true");
 
-            // --- Build argv ---
-            $sh = function($s) { return "'" . str_replace("'", "'\"'\"'", $s) . "'"; };
-            $argv = [
-                $sh($pythonBin), '-u', $sh($botScriptPath),
-                '-channel', $sh($username),
-                '-channelid', $sh($twitchUserId),
-                '-token', $sh($authToken),
-                '-refresh', $sh($refreshToken),
-                '-apitoken', $sh($apiKey),
-            ];
+            // --- Build the screen start command (no bash -c to avoid nested quoting) ---
+            // screen -dmS <name> <program> <arg1> <arg2> ... passes args directly to the program
+            $startCmd  = "screen -dmS " . escapeshellarg($screenSession);
+            $startCmd .= " " . escapeshellarg($pythonBin) . " -u " . escapeshellarg($botScriptPath);
+            $startCmd .= " -channel " . escapeshellarg($username);
+            $startCmd .= " -channelid " . escapeshellarg($twitchUserId);
+            $startCmd .= " -token " . escapeshellarg($authToken);
+            $startCmd .= " -refresh " . escapeshellarg($refreshToken);
+            $startCmd .= " -apitoken " . escapeshellarg($apiKey);
             if ($useCustomBot && $botType === 'beta' && $customBotUsername) {
-                $argv[] = '-custom';
-                $argv[] = '-botusername';
-                $argv[] = $sh($customBotUsername);
+                $startCmd .= " -custom -botusername " . escapeshellarg($customBotUsername);
             }
             if ($useSelf && $botType === 'beta') {
-                $argv[] = '-self';
+                $startCmd .= " -self";
             }
-            $inner    = implode(' ', $argv);
-            $teeCmd   = "$inner 2>&1 | tee -a " . $sh($crashLog);
-            $startCmd = "mkdir -p " . $sh(dirname($crashLog)) . "; screen -dmS " . $sh($screenSession) . " bash -c " . $sh($teeCmd);
             SSHConnectionManager::executeCommand($connection, $startCmd);
-            usleep(600000); // wait 0.6s for process to appear
+            usleep(700000); // 0.7s for process to appear in ps
 
             // --- Verify it started ---
             $psOut2 = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
@@ -341,8 +333,7 @@ function performBotAction($action, $botType, $params) {
             }
             // Write version file
             if ($version) {
-                $vDir = dirname($versionFilePath);
-                SSHConnectionManager::executeCommand($connection, "mkdir -p " . escapeshellarg($vDir));
+                SSHConnectionManager::executeCommand($connection, "mkdir -p " . escapeshellarg(dirname($versionFilePath)));
                 SSHConnectionManager::executeCommand($connection, "echo " . escapeshellarg($version) . " > " . escapeshellarg($versionFilePath));
             }
             $result['success'] = true;
