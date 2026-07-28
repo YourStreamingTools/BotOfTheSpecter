@@ -238,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
                     'pid' => (int) ($entry['pid'] ?? 0),
                     'bot_type' => $entry['bot_type'] ?? $botType,
                     'version' => $entry['version'] ?? '',
-                    'uptime_seconds' => null,
+                    'uptime_seconds' => isset($entry['uptime_seconds']) ? (int) $entry['uptime_seconds'] : null,
                     'uptime_human' => null
                 ];
             }

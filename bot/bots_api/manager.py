@@ -10,6 +10,7 @@ import asyncio
 import os
 import re
 import signal
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -166,7 +167,8 @@ def list_running_bots() -> dict[str, Any]:
     }
     seen: set[tuple[str, str, int]] = set()
 
-    for proc in psutil.process_iter(attrs=["pid", "cmdline"]):
+    now = time.time()
+    for proc in psutil.process_iter(attrs=["pid", "cmdline", "create_time"]):
         try:
             cmdline = _cmdline_list(proc)
             if not cmdline:
@@ -180,6 +182,8 @@ def list_running_bots() -> dict[str, Any]:
                 continue
             custom = _is_custom(cmdline)
             pid = proc.pid
+            create_time = proc.info.get("create_time")
+            uptime_seconds = int(now - create_time) if create_time else None
 
             if script == "kick.py":
                 ch = _channel_from_cmdline(cmdline, kick=True)
@@ -195,6 +199,7 @@ def list_running_bots() -> dict[str, Any]:
                         "pid": pid,
                         "version": read_version("kick", ch),
                         "bot_type": "kick",
+                        "uptime_seconds": uptime_seconds,
                     }
                 )
                 continue
@@ -225,6 +230,7 @@ def list_running_bots() -> dict[str, Any]:
                     "version": read_version(btype if btype != "custom" else "custom", ch),
                     "bot_type": btype,
                     "custom": custom,
+                    "uptime_seconds": uptime_seconds,
                 }
             )
         except (psutil.AccessDenied, psutil.NoSuchProcess):
