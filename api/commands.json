@@ -59,6 +59,7 @@
 		"addpoints":	"Awards a specified number of bot points to a mentioned user.",
 		"removepoints":	"Deducts a specified number of bot points from a mentioned user.",
 		"permit":		"Grants a user a temporary permission bypass for link posting or other restricted actions.",
+		"warn":			"Issues a formal channel warning to a viewer. Mods and the broadcaster only. Warnings are stored and can be reviewed on the Channel Moderation dashboard page.",
 		"removequote":	"Permanently deletes a specific quote from the quote list by its number.",
 		"quoteadd":		"Adds a new quote to the channel's quote list.",
 		"settitle":		"Updates the stream title to the provided text.",

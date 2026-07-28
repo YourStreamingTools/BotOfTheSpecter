@@ -373,6 +373,12 @@
 			"description": "Grants a user a temporary permission bypass for link posting or other restricted actions.",
 			"syntax": "!permit @botofthespecter"
 		},
+		"warn": {
+			"description": "Issues a formal channel warning to a viewer. Mods and the broadcaster only. Warnings are stored in the channel database and can be reviewed or cleared on the Channel Moderation dashboard page (Analytics).",
+			"aliases": ["warning"],
+			"force_level": "mod",
+			"syntax": "!warn @username Reason for the warning here"
+		},
 		"removequote": {
 			"description": "Permanently deletes a specific quote from the quote list by its number.",
 			"syntax": "!removequote 5"
