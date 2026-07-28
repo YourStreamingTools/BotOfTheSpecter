@@ -351,7 +351,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'bots-api.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
+    // Some allowed "service" identifiers are dashboard-only aliases so the same real unit name
+    // (e.g. caddy.service) can be routed to different hosts; map alias -> actual systemd unit here.
+    $serviceUnitOverrides = ['bots-caddy.service' => 'caddy.service'];
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
@@ -376,6 +379,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $recorder_ssh_host ?? '';
                 $ssh_username = $recorder_ssh_username ?? '';
                 $ssh_password = $recorder_ssh_password ?? '';
+            } elseif ($service == 'caddy.service') {
+                // The web host's Caddy instance - separate box from the bots host
+                $ssh_host = $web_ssh_host ?? '';
+                $ssh_username = $web_ssh_username ?? '';
+                $ssh_password = $web_ssh_password ?? '';
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if (!$connection) {
@@ -383,7 +391,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $success = false;
             } else {
                 // Use non-interactive sudo (-n) so the command fails quickly if a password is required
-                $command = "sudo -n systemctl $action $service";
+                $actualUnit = $serviceUnitOverrides[$service] ?? $service;
+                $command = "sudo -n systemctl $action $actualUnit";
                 $output = SSHConnectionManager::executeCommand($connection, $command);
                 // If executeCommand returned false, it likely timed out or failed to run
                 if ($output === false) {
@@ -414,11 +423,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                         $serviceNames = [
                             'discordbot.service' => 'Discord Bot',
                             'bots-api.service' => 'Bots API',
+                            'bots-caddy.service' => 'Caddy (Bots Host)',
                             'fastapi.service' => 'FastAPI',
                             'websocket.service' => 'WebSocket',
                             'mysql.service' => 'MySQL',
                             'export_queue_worker.service' => 'Export Queue Worker',
                             'twitch-recorder.service' => 'Twitch Recorder',
+                            'caddy.service' => 'Caddy (Web Host)',
                         ];
                         $actionLabels = ['start' => 'started', 'stop' => 'stopped', 'restart' => 'restarted'];
                         $svcLabel = $serviceNames[$service] ?? $service;
@@ -1798,6 +1809,36 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Caddy (Bots Host) Service -->
+        <div>
+            <div class="admin-service-card">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon sp-text-info">
+                            <i class="fas fa-shield-alt fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <span class="admin-heading"><?php echo t('admin_index_svc_bots_caddy'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="bots-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="sp-badge sp-badge-grey" id="bots-caddy-pid">PID: ...</span>
+                    </div>
+                </div>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="bots-caddy-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-caddy.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('bots-caddy.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('bots-caddy.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- API Server Service -->
         <div>
             <div class="admin-service-card">
@@ -1943,6 +1984,36 @@ ob_start();
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
                     <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('twitch-recorder.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Caddy (Web Host) Service -->
+        <div>
+            <div class="admin-service-card">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon sp-text-warning">
+                            <i class="fas fa-shield-alt fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <span class="admin-heading"><?php echo t('admin_index_svc_web_caddy'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="web-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="sp-badge sp-badge-grey" id="web-caddy-pid">PID: ...</span>
+                    </div>
+                </div>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="web-caddy-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('caddy.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('caddy.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('caddy.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
@@ -2244,11 +2315,13 @@ document.addEventListener('DOMContentLoaded', function() {
         serviceLabels: <?php echo json_encode([
             'discordbot.service' => t('admin_index_svc_discord_bot'),
             'bots-api.service' => t('admin_index_svc_bots_api'),
+            'bots-caddy.service' => t('admin_index_svc_bots_caddy'),
             'fastapi.service' => 'FastAPI',
             'websocket.service' => 'WebSocket',
             'mysql.service' => 'MySQL',
             'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
-            'twitch-recorder.service' => t('admin_index_svc_twitch_recorder')
+            'twitch-recorder.service' => t('admin_index_svc_twitch_recorder'),
+            'caddy.service' => t('admin_index_svc_web_caddy')
         ]); ?>,
         actionLabels: <?php echo json_encode([
             'start' => t('admin_index_action_started'),
@@ -2395,11 +2468,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviceConfig = {
         'discordbot.service': { statusKey: 'discordbot', statusId: 'discord-status', pidId: 'discord-pid', buttonsId: 'discord-buttons' },
         'bots-api.service': { statusKey: 'bots_api', statusId: 'bots-api-status', pidId: 'bots-api-pid', buttonsId: 'bots-api-buttons' },
+        'bots-caddy.service': { statusKey: 'bots_caddy', statusId: 'bots-caddy-status', pidId: 'bots-caddy-pid', buttonsId: 'bots-caddy-buttons' },
         'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
         'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
         'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' },
         'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
-        'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' }
+        'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' },
+        'caddy.service': { statusKey: 'web_caddy', statusId: 'web-caddy-status', pidId: 'web-caddy-pid', buttonsId: 'web-caddy-buttons' }
     };
     function scheduleStatusRefresh(meta) {
         if (!meta) return;
@@ -2774,11 +2849,13 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateServiceStatus('discordbot', 'discord-status', 'discord-pid', 'discord-buttons');
         updateServiceStatus('bots_api', 'bots-api-status', 'bots-api-pid', 'bots-api-buttons');
+        updateServiceStatus('bots_caddy', 'bots-caddy-status', 'bots-caddy-pid', 'bots-caddy-buttons');
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
         updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');
+        updateServiceStatus('web_caddy', 'web-caddy-status', 'web-caddy-pid', 'web-caddy-buttons');
     }, 100);
     // Refresh all server overview statuses
     window.refreshServerOverview = function() {

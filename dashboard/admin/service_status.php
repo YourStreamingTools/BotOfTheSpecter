@@ -99,6 +99,12 @@ $serviceMap = [
         'ssh_username' => $bots_ssh_username ?? '',
         'ssh_password' => $bots_ssh_password ?? ''
     ],
+    'bots_caddy' => [
+        'service_name' => 'caddy.service',
+        'ssh_host' => $bots_ssh_host ?? '',
+        'ssh_username' => $bots_ssh_username ?? '',
+        'ssh_password' => $bots_ssh_password ?? ''
+    ],
     'fastapi' => [
         'service_name' => 'fastapi.service',
         'ssh_host' => $api_server_host ?? '',
@@ -128,6 +134,12 @@ $serviceMap = [
         'ssh_host' => $recorder_ssh_host ?? '',
         'ssh_username' => $recorder_ssh_username ?? '',
         'ssh_password' => $recorder_ssh_password ?? ''
+    ],
+    'web_caddy' => [
+        'service_name' => 'caddy.service',
+        'ssh_host' => $web_ssh_host ?? '',
+        'ssh_username' => $web_ssh_username ?? '',
+        'ssh_password' => $web_ssh_password ?? ''
     ]
 ];
 
