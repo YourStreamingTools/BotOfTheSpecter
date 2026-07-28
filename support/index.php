@@ -2417,6 +2417,12 @@ System.out.println(resp.body());</code></pre>
                     The 2+ cores / 4 GB RAM spec is for running many bots for multiple users. If you're only running a <strong>single bot</strong> for personal use, 1 core and 1 GB RAM is sufficient.
                 </div>
             </div>
+            <div class="sp-alert sp-alert-warning" style="margin-top:0.75rem;font-size:0.9rem;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>Running multiple bots on one server:</strong> budget roughly <strong>150-200 MB of RAM per additional bot</strong> on top of the base 1 GB - memory use is cumulative across every bot running on that host. A server sized for "many bots, many users" needs meaningfully more RAM than the minimum above; undersizing it risks the Linux OOM killer terminating bot processes outright (including ones unrelated to whichever bot triggered the spike) instead of a clean, contained failure. Configuring a swap file is strongly recommended as a safety margin against memory spikes, even if you don't expect to hit these numbers day-to-day.
+                </div>
+            </div>
         </div>
     </div>
     <h3 style="margin-top:1.25rem;">Common Software Requirements (All Servers)</h3>
