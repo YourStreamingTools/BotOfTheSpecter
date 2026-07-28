@@ -296,6 +296,7 @@ if (isset($_GET['ajax'])) {
                     <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages">Loading...</span></div>
                     <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages">Loading...</span></div>
                     <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages">Loading...</span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Messages/min:</span> <span id="overall-msg-rate">—</span></div>
                 </div>
             </div>
         </div>
@@ -365,6 +366,10 @@ function renderServiceStatus(name, statusData) {
     }
 }
 
+// Track previous message counts for per-minute rate calculation
+let prevMsgCounts = {};
+let prevMsgTimestamp = null;
+
 // Fetch and update data every 60 seconds
 function fetchAndUpdateStatus() {
     // Add a cache-busting timestamp so each fetch returns fresh data
@@ -405,10 +410,36 @@ function fetchAndUpdateStatus() {
             document.getElementById('weather-requests').textContent = formatNumber(data.weatherRequestsRemaining);
             // Update message counts if present
             if (data.botMessageCounts) {
-                document.getElementById('discord-messages').textContent = (data.botMessageCounts['discordbot'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['discordbot']);
-                document.getElementById('stable-messages').textContent = (data.botMessageCounts['twitch_stable'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_stable']);
-                document.getElementById('beta-messages').textContent = (data.botMessageCounts['twitch_beta'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_beta']);
-                document.getElementById('custom-messages').textContent = (data.botMessageCounts['twitch_custom'] ?? 0) == 0 ? 'Not Counting Yet' : formatNumber(data.botMessageCounts['twitch_custom']);
+                const nowMs = Date.now();
+                const msgSystems = [
+                    { key: 'discordbot',    elMsg: 'discord-messages' },
+                    { key: 'twitch_stable', elMsg: 'stable-messages'  },
+                    { key: 'twitch_beta',   elMsg: 'beta-messages'    },
+                    { key: 'twitch_custom', elMsg: 'custom-messages'  }
+                ];
+                let totalNow = 0, totalPrev = 0, havePrev = false;
+                msgSystems.forEach(({ key, elMsg }) => {
+                    const count = data.botMessageCounts[key] ?? 0;
+                    document.getElementById(elMsg).textContent = count == 0 ? 'Not Counting Yet' : formatNumber(count);
+                    totalNow += count;
+                    if (prevMsgCounts[key] !== undefined) {
+                        totalPrev += prevMsgCounts[key];
+                        havePrev = true;
+                    }
+                    prevMsgCounts[key] = count;
+                });
+                // Compute and display overall messages/min
+                const rateEl = document.getElementById('overall-msg-rate');
+                if (havePrev && prevMsgTimestamp !== null && totalNow > 0) {
+                    const elapsedMin = (nowMs - prevMsgTimestamp) / 60000;
+                    const delta = totalNow - totalPrev;
+                    rateEl.textContent = (elapsedMin > 0 && delta >= 0)
+                        ? (delta / elapsedMin).toFixed(1) + '/min'
+                        : '—';
+                } else {
+                    rateEl.textContent = totalNow > 0 ? '—' : 'N/A';
+                }
+                prevMsgTimestamp = nowMs;
             }
             // Update signup data if present
             if (data.totalUsers !== undefined) {
