@@ -28,6 +28,10 @@ function pingServer($host, $port) {
     return $status;
 }
 
+$mainConfig = include '/var/www/config/main.php';
+$maintenanceMode = $mainConfig['maintenanceMode'] ?? false;
+$maintenanceMessage = $mainConfig['maintenanceMessage'] ?? '';
+
 // JSON endpoint for the JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
@@ -119,6 +123,8 @@ if (isset($_GET['ajax'])) {
     }
 
     $data = [
+        'maintenanceMode' => $maintenanceMode,
+        'maintenanceMessage' => $maintenanceMessage,
         'apiServiceStatus' => $apiServiceStatus,
         'databaseServiceStatus' => $databaseServiceStatus,
         'notificationServiceStatus' => $notificationServiceStatus,
@@ -163,6 +169,8 @@ if (isset($_GET['ajax'])) {
         body { display: block; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 8px; font-size: 16px; line-height: 1.45; }
         .container { width: 100%; max-width: 100%; margin: 0; }
         .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .maintenance-banner { display: flex; align-items: center; gap: 8px; background: rgba(255,193,7,0.12); border: 1px solid #ffc107; color: #ffe08a; border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.95em; }
+        .maintenance-banner .icon { font-size: 1.1em; }
         .columns { margin-bottom: 0; }
         h1 { text-align: left; margin-bottom: 0; font-size: 1.6em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
         .section { background: #292929; border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(10px); margin: 0; }
@@ -224,6 +232,10 @@ if (isset($_GET['ajax'])) {
 </head>
 <body>
 <div class="container">
+    <div class="maintenance-banner" id="maintenance-banner" <?php echo $maintenanceMode ? '' : 'hidden'; ?>>
+        <span class="icon" aria-hidden="true">🛠️</span>
+        <span id="maintenance-banner-text"><?php echo $maintenanceMessage; ?></span>
+    </div>
     <div class="title-row">
         <h1>BotOfTheSpecter System Status</h1>
         <div class="last-updated" id="last-updated">Time right now: <span id="current-time">--:--:--</span> &nbsp;|&nbsp; Last updated: <span id="update-time">Loading...</span></div>
@@ -380,6 +392,14 @@ function fetchAndUpdateStatus() {
             return res.json();
         })
         .then(data => {
+            // Update maintenance banner
+            const banner = document.getElementById('maintenance-banner');
+            if (banner) {
+                banner.hidden = !data.maintenanceMode;
+                if (data.maintenanceMode) {
+                    document.getElementById('maintenance-banner-text').innerHTML = data.maintenanceMessage || '';
+                }
+            }
             // Update service statuses
             // Use an explicit array to control the order of displayed services
             const serviceOrder = [

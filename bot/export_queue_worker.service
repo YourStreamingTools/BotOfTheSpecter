@@ -1,0 +1,20 @@
+[Unit]
+Description=BotOfTheSpecter user-data export queue worker
+After=network.target
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+WorkingDirectory=/home/botofthespecter
+EnvironmentFile=-/home/botofthespecter/.env
+# export_queue_worker.py launches export_user_data.py via bare `python3` (subprocess,
+# not an explicit venv path) — put venvs/stable/bin first on PATH so that resolves
+# into the venv that actually has aiomysql/psutil/boto3/requests installed.
+Environment=PATH=/home/botofthespecter/venvs/stable/bin:/usr/bin:/bin
+ExecStart=/home/botofthespecter/venvs/stable/bin/python /home/botofthespecter/export_queue_worker.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

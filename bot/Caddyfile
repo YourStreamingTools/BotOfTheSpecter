@@ -1,0 +1,39 @@
+# BotOfTheSpecter - Caddy config for the bots host.
+#
+# Terminates TLS for bots.botofthespecter.com and reverse-proxies to the
+# private bot-host control API (bots_api/server.py, systemd unit
+# bots-api.service, bound to 127.0.0.1:8090 — see bots_api/README.md).
+#
+# Single exact host, no wildcard, so plain HTTP-01 automatic HTTPS is used --
+# no Cloudflare DNS plugin or API token needed (unlike web/Caddyfile, which
+# needs DNS-01 for its *.specterbot.app / *.yourlinks.click wildcards, and
+# runs a custom xcaddy build with the Cloudflare module compiled in; a plain
+# `apt install caddy` binary does not have that module).
+# Requires port 80 reachable from the internet for the ACME challenge --
+# fine here since this domain is Cloudflare DNS-only (grey-clouded), so the
+# challenge reaches the origin directly.
+#
+# Reload with:   systemctl reload caddy
+# Watch logs:    journalctl -fu caddy
+
+{
+    email admin@botofthespecter.com
+}
+
+(security) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+        -X-Powered-By
+    }
+}
+
+bots.botofthespecter.com {
+    reverse_proxy 127.0.0.1:8090
+    import security
+    log {
+        output file /var/log/caddy/bots.log
+    }
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=BotOfTheSpecter Discord bot (specterdiscord.py)
+After=network.target
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+WorkingDirectory=/home/botofthespecter
+EnvironmentFile=-/home/botofthespecter/.env
+ExecStart=/home/botofthespecter/venvs/discord/bin/python /home/botofthespecter/specterdiscord.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

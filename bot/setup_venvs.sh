@@ -116,9 +116,26 @@ for name in "${ONLY[@]}"; do
     rm -rf "${venv_dir}"
   fi
 
+  # A venv dir can exist but be half-built (e.g. `python3 -m venv` failed partway
+  # through because ensurepip/python3-venv wasn't installed) — bin/pip never got
+  # written. Treat that as broken rather than "existing" so the next run self-heals
+  # instead of failing later at `pip install` with a confusing "No such file".
+  if [[ -d "${venv_dir}" && ! -x "${venv_dir}/bin/pip" ]]; then
+    echo "==> ${name} exists but has no bin/pip (broken/partial venv) — removing and recreating"
+    rm -rf "${venv_dir}"
+  fi
+
   if [[ ! -d "${venv_dir}" ]]; then
     echo "==> creating venv ${name}"
     "${PYTHON_BIN}" -m venv "${venv_dir}"
+    if [[ ! -x "${venv_dir}/bin/pip" ]]; then
+      PYVER="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "3")"
+      echo "ERROR: venv created but bin/pip is still missing for '${name}'." >&2
+      echo "       The matching venv/ensurepip system package is likely missing. Try:" >&2
+      echo "         sudo apt install python${PYVER}-venv" >&2
+      echo "       or: sudo ./install.sh --system-packages" >&2
+      exit 1
+    fi
   else
     echo "==> using existing venv ${name}"
   fi

@@ -55,13 +55,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now bots-api
 ```
 
-### Reverse proxy (Caddy example)
+### Reverse proxy (Caddy)
 
-```caddy
-bots.botofthespecter.com {
-    reverse_proxy 127.0.0.1:8090
-}
-```
+`../Caddyfile` (i.e. `bot/Caddyfile`) is the tracked template — copy it to `/etc/caddy/Caddyfile`
+on the bots host. Unlike `web/Caddyfile` (which needs a custom xcaddy build with the
+Cloudflare DNS plugin for its wildcard certs), this one is a single exact host and uses
+plain HTTP-01, so a stock `apt install caddy` binary works — no plugin, no API token,
+just port 80 reachable for the ACME challenge.
 
 Bind the app to `127.0.0.1` only; TLS on the edge.
 
