@@ -298,25 +298,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
             ob_end_clean();
         }
         ob_start();
-        // Check if SSH config is available
-        if (!isset($bots_ssh_host) || !isset($bots_ssh_username) || !isset($bots_ssh_password)) {
-            echo json_encode(['success' => false, 'message' => 'SSH configuration not available', 'bots' => []]);
-            exit;
-        }
-        // Single SSH `ps` call returns every running bot at once. This used to be an
-        // O(N users x several SSH calls) loop over status.py -- the main slowness.
         require_once __DIR__ . '/../includes/bot_control_functions.php';
         $running_bots = [];
-        $scanned = scan_running_bots_via_ps();
-        foreach ($scanned as $scanUname => $scanInfo) {
-            $running_bots[] = [
-                'username' => $scanUname,
-                'pid' => $scanInfo['pid'],
-                'bot_type' => $scanInfo['bot_type'],
-                'version' => '',
-                'uptime_seconds' => $scanInfo['uptime_seconds'],
-                'uptime_human' => $scanInfo['uptime_human']
-            ];
+        $usedApi = false;
+        // --- Attempt 1: private bots control API (no SSH needed; no uptime data) ---
+        // Unlike start/stop, a failed read here (any reason - unreachable or rejected)
+        // just falls back to SSH rather than surfacing an error, since this is a
+        // passive listing and SSH can still serve it.
+        try {
+            $resp = bots_api_running_bots();
+            if ($resp['status'] > 0 && $resp['ok']) {
+                $data = is_array($resp['data']) ? $resp['data'] : [];
+                $buckets = is_array($data['bots'] ?? null) ? $data['bots'] : [];
+                foreach (['stable', 'beta', 'v6', 'custom'] as $botType) {
+                    foreach ((array) ($buckets[$botType] ?? []) as $entry) {
+                        $running_bots[] = [
+                            'username' => $entry['channel'] ?? '',
+                            'pid' => (int) ($entry['pid'] ?? 0),
+                            'bot_type' => $entry['bot_type'] ?? $botType,
+                            'version' => $entry['version'] ?? '',
+                            'uptime_seconds' => null,
+                            'uptime_human' => null
+                        ];
+                    }
+                }
+                $usedApi = true;
+            }
+        } catch (Exception $e) {
+            // Fall through to SSH
+        }
+        // --- Fallback: direct SSH ps scan (also used if the API call failed for any reason) ---
+        if (!$usedApi) {
+            if (!isset($bots_ssh_host) || !isset($bots_ssh_username) || !isset($bots_ssh_password)) {
+                echo json_encode(['success' => false, 'message' => 'SSH configuration not available', 'bots' => []]);
+                exit;
+            }
+            // Single SSH `ps` call returns every running bot at once. This used to be an
+            // O(N users x several SSH calls) loop over status.py -- the main slowness.
+            $scanned = scan_running_bots_via_ps();
+            foreach ($scanned as $scanUname => $scanInfo) {
+                $running_bots[] = [
+                    'username' => $scanUname,
+                    'pid' => $scanInfo['pid'],
+                    'bot_type' => $scanInfo['bot_type'],
+                    'version' => '',
+                    'uptime_seconds' => $scanInfo['uptime_seconds'],
+                    'uptime_human' => $scanInfo['uptime_human']
+                ];
+            }
         }
         $debug = ob_get_clean();
         echo json_encode(['success' => true, 'bots' => $running_bots, 'debug' => $debug]);
@@ -337,26 +366,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['check_one_bot'])) {
     try {
         require_once __DIR__ . '/../includes/bot_control_functions.php';
         $uname = trim($_GET['username'] ?? '');
+        $botType = trim($_GET['bot_type'] ?? 'stable');
         if ($uname === '') {
             echo json_encode(['success' => false, 'message' => 'Missing username', 'pid' => 0]);
             exit;
         }
-        $scanned = scan_running_bots_via_ps($uname);
-        $entry = null;
-        foreach ($scanned as $info) {
-            $entry = $info; // filtered set, at most one
-            break;
-        }
-        if ($entry) {
-            echo json_encode([
-                'success' => true,
-                'running' => true,
-                'pid' => $entry['pid'],
-                'bot_type' => $entry['bot_type']
-            ]);
-        } else {
-            echo json_encode(['success' => true, 'running' => false, 'pid' => 0]);
-        }
+        // checkBotRunning() tries the bots control API first, falling back to an SSH
+        // ps scan only if the API is unreachable — same pattern as start/stop.
+        $status = checkBotRunning($uname, $botType);
+        echo json_encode([
+            'success' => true,
+            'running' => $status['running'],
+            'pid' => $status['pid'],
+            'bot_type' => $botType
+        ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'pid' => 0]);
     }
@@ -751,6 +774,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
     ob_start();
     header('Content-Type: application/json');
     $username = trim($_POST['username'] ?? '');
+    $botType = trim($_POST['bot_type'] ?? 'stable');
     $pid = intval($_POST['pid'] ?? 0);
     $success = false;
     $message = '';
@@ -759,26 +783,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
     } elseif ($pid <= 0) {
         $message = t('admin_start_bots_err_no_pid');
     } else {
-        try {
-            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-            if ($connection) {
-                SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                $screenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
-                SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($screenSession) . ' -X quit 2>/dev/null; true');
-                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($screenSession) . ' 2>/dev/null; true');
-                $success = true;
-                $message = t('admin_start_bots_msg_stop_success');
-            } else {
-                $message = t('admin_start_bots_err_connect');
-            }
-        } catch (Exception $e) {
-            $message = t('admin_start_bots_err_stop_generic', [$e->getMessage()]);
-        }
+        // Same bots-API-first, SSH-fallback path used by the user-facing stop button
+        // (performBotAction) instead of a hand-rolled SSH-only kill.
+        $result = performBotAction('stop', $botType, ['username' => $username]);
+        $success = (bool) ($result['success'] ?? false);
+        $message = $result['message'] ?: ($success ? t('admin_start_bots_msg_stop_success') : t('admin_start_bots_err_connect'));
     }
     admin_audit_log(
         'start_bots_stop_bot',
         $success ? 'success' : 'failed',
-        ['username' => $username, 'pid' => $pid, 'message' => $message],
+        ['username' => $username, 'bot_type' => $botType, 'pid' => $pid, 'message' => $message],
         'username',
         $username
     );
@@ -828,21 +842,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $tokenData = $tokenResult->fetch_assoc();
                     $botAccessToken = $tokenData['twitch_access_token'];
                     client_console_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
-                    // Step 1: Stop the bot if it's running
+                    // Step 1: Stop the bot if it's running — same bots-API-first,
+                    // SSH-fallback path as the standalone Stop button, instead of a
+                    // hand-rolled SSH-only kill. $botType (not the beta-remapped
+                    // $actionBotType below) so a running "custom" process is matched
+                    // precisely rather than broadened to all beta-family processes.
                     if ($pid > 0) {
                         client_console_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
                         try {
-                            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-                            if ($connection) {
-                                SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                                client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
-                                // Clean up screen session (and any leftover tmux session from before migration)
-                                $restartScreenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
-                                SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($restartScreenSession) . ' -X quit 2>/dev/null; true');
-                                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($restartScreenSession) . ' 2>/dev/null; true');
-                                // Give it a moment to stop
-                                sleep(1);
-                            }
+                            $stopResult = performBotAction('stop', $botType, ['username' => $username]);
+                            client_console_log("RESTART DEBUG - Stop result: " . json_encode($stopResult));
+                            // Give it a moment to stop
+                            sleep(1);
                         } catch (Exception $e) {
                             client_console_log("Error stopping bot during restart: " . $e->getMessage());
                         }
@@ -1530,7 +1541,7 @@ ob_start();
                             if (stopBotBtn) {
                                 stopBotBtn.style.display = 'inline-flex';
                                 stopBotBtn.disabled = false;
-                                stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this)`);
+                                stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this, '${runningType}')`);
                             }
                             // Show attach console button
                             const attachConsoleBtn = row.querySelector('.attach-console-btn');
@@ -1704,7 +1715,7 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
-                            if (stopBotBtn) { stopBotBtn.style.display = 'inline-flex'; stopBotBtn.disabled = false; stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this)`); }
+                            if (stopBotBtn) { stopBotBtn.style.display = 'inline-flex'; stopBotBtn.disabled = false; stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this, '${runningType}')`); }
                             const attachConsoleBtnR = row.querySelector('.attach-console-btn');
                             if (attachConsoleBtnR) { attachConsoleBtnR.style.display = 'inline-flex'; attachConsoleBtnR.disabled = false; }
                             if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? SB_I18N.switchToStable : (isBetaFamily ? SB_I18N.switchToStable : SB_I18N.switchToBeta); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); setCompactButtonLabel(switchBtn, btnText); }
@@ -2319,7 +2330,7 @@ ob_start();
             }
         });
     };
-    window.stopBot = function(username, pid, element) {
+    window.stopBot = function(username, pid, element, botType) {
         Swal.fire({
             title: SB_I18N.stopConfirmTitle,
             text: sbFormat(SB_I18N.stopConfirmText, username),
@@ -2341,6 +2352,7 @@ ob_start();
                 const formData = new FormData();
                 formData.append('stop_bot', '1');
                 formData.append('username', username);
+                formData.append('bot_type', botType || 'stable');
                 formData.append('pid', pid);
                 fetch(window.location.href, {
                     method: 'POST',
