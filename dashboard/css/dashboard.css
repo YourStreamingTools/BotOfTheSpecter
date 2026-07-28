@@ -929,11 +929,7 @@ ul { list-style: none; margin: 0; padding: 0; }
    All JS-updated elements remain in DOM; we just hide columns + secondary buttons.
  */
 
-/* Reserve room for the action buttons wrapping to a 2nd line (e.g. "Start Custom
-   Bot" wrapping under "Start Stable"/"Start Beta") so a row's height stays constant
-   when it flips between not-running (3 buttons) and running (2 buttons) - otherwise
-   every bot that starts/stops shifts every row below it, making buttons jump under
-   the cursor mid-click. */
+/* Reserve 2-line height so switching button sets (running vs not) doesn't shift rows */
 .start-bots-table .col-actions .sp-btn-group {
     min-height: 5.5rem;
     align-content: flex-start;

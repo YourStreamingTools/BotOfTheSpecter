@@ -737,21 +737,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $tokenData = $tokenResult->fetch_assoc();
                     $botAccessToken = $tokenData['twitch_access_token'];
                     client_console_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
-                    // Step 1: Stop the bot if it's running — same performBotAction() path
-                    // as the standalone Stop button. $botType (not the beta-remapped
-                    // $actionBotType below) so a running "custom" process is matched
-                    // precisely rather than broadened to all beta-family processes.
-                    if ($pid > 0) {
-                        client_console_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
-                        try {
-                            $stopResult = performBotAction('stop', $botType, ['username' => $username]);
-                            client_console_log("RESTART DEBUG - Stop result: " . json_encode($stopResult));
-                            // Give it a moment to stop
-                            sleep(1);
-                        } catch (Exception $e) {
-                            client_console_log("Error stopping bot during restart: " . $e->getMessage());
-                        }
+                    // Step 1: Stop the bot. $botType (not $actionBotType) so "custom" is matched
+                    // precisely. Always attempted regardless of the client-supplied $pid, which
+                    // is only used for logging - stop_bot() does its own live process scan.
+                    client_console_log("RESTART DEBUG - Stopping (client-reported PID={$pid}, should be {$botType} bot)");
+                    $stopResult = null;
+                    try {
+                        $stopResult = performBotAction('stop', $botType, ['username' => $username]);
+                        client_console_log("RESTART DEBUG - Stop result: " . json_encode($stopResult));
+                    } catch (Exception $e) {
+                        client_console_log("Error stopping bot during restart: " . $e->getMessage());
                     }
+                    // Only proceed to start once the stop is actually confirmed stopped.
+                    if (empty($stopResult['success'])) {
+                        $success = false;
+                        $message = t('admin_start_bots_err_restart_stop_failed', [$stopResult['message'] ?? 'Unknown error']);
+                        $stmt2->close();
+                        $stmt->close();
+                        $debug = ob_get_clean();
+                        admin_audit_log(
+                            'start_bots_restart_bot',
+                            'failed',
+                            ['username' => $username, 'bot_type' => $botType, 'pid' => $pid, 'message' => $message],
+                            'username',
+                            $username
+                        );
+                        echo json_encode(['success' => false, 'message' => $message, 'pid' => 0, 'bot_type' => $botType, 'debug' => $debug]);
+                        exit;
+                    }
+                    sleep(1);
                     // Step 2: Start the bot with correct tokens
                     $params = [
                         'username' => $username,

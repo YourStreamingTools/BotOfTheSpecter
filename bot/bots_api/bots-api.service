@@ -15,11 +15,8 @@ Environment=BOTS_API_PORT=8090
 ExecStart=/home/botofthespecter/venvs/stable/bin/python /home/botofthespecter/bots_api/server.py
 Restart=on-failure
 RestartSec=3
-# Bot processes are spawned as detached `screen` sessions from inside this
-# service (bots_api/manager.py) and share this unit's cgroup. The default
-# KillMode=control-group would SIGKILL every running bot whenever this
-# service stops/restarts for ANY reason (OOM kill, crash, manual restart).
-# KillMode=process limits systemd's kill signal to the tracked main PID only.
+# Bots share this unit's cgroup (manager.py spawns them from here); process-only
+# kill mode stops a restart of this service from also killing every running bot.
 KillMode=process
 
 # TLS terminates at Caddy/nginx → reverse-proxy to 127.0.0.1:8090
