@@ -156,15 +156,17 @@ function checkBotRunning($username, $botType = 'stable') {
     return $result;
 }
 
-
 /**
-    * Perform an action on the bot (start, stop) via private bots control API
+    * Perform an action on the bot (start, stop) via private bots control API,
+    * with fallback to direct SSH when the API service is not yet deployed.
     * @param string $action - The action to perform (run, stop)
     * @param string $botType - The type of bot to control (stable, beta, v6)
     * @param array $params - Additional parameters including username, tokens, etc.
     * @return array - Result of the operation
 */
 function performBotAction($action, $botType, $params) {
+    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+
     $username          = $params['username'] ?? '';
     $twitchUserId      = $params['twitch_user_id'] ?? '';
     $authToken         = $params['auth_token'] ?? '';
@@ -174,71 +176,202 @@ function performBotAction($action, $botType, $params) {
     $customBotUsername = $params['custom_bot_username'] ?? null;
     $useSelf           = $params['use_self'] ?? false;
 
+    // Version lookup
     $versionsUrl  = 'https://api.botofthespecter.com/versions';
     $versionsData = json_decode(@file_get_contents($versionsUrl), true);
     $version = '';
     if ($versionsData) {
-        if ($botType === 'stable') {
-            $version = $versionsData['stable_version'] ?? '';
-        } elseif ($botType === 'beta') {
-            $version = $versionsData['beta_version'] ?? '';
-        } elseif ($botType === 'v6') {
-            $version = $versionsData['v6_version'] ?? '6.0';
-        } else {
-            $version = $versionsData['stable_version'] ?? '';
-        }
+        if ($botType === 'stable')     { $version = $versionsData['stable_version'] ?? ''; }
+        elseif ($botType === 'beta')   { $version = $versionsData['beta_version']   ?? ''; }
+        elseif ($botType === 'v6')     { $version = $versionsData['v6_version']      ?? '6.0'; }
+        else                           { $version = $versionsData['stable_version'] ?? ''; }
     }
+
     $result = [
         'success' => false,
         'action'  => $action,
         'bot'     => $botType,
         'message' => '',
         'pid'     => 0,
-        'version' => $version
+        'version' => $version,
     ];
+
+    // ---------------------------------------------------------------
+    // Attempt 1: private bots control API
+    // ---------------------------------------------------------------
+    if (!function_exists('bots_api_start_bot')) {
+        require_once __DIR__ . '/bots_api_client.php';
+    }
     try {
-        switch ($action) {
-            case 'run':
-                if (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
-                    $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
-                    break;
-                }
-                $payload = [
-                    'channel'     => $username,
-                    'bot_type'    => $botType,
-                    'channel_id'  => $twitchUserId,
-                    'token'       => $authToken,
-                    'refresh'     => $refreshToken,
-                    'apitoken'    => $apiKey,
-                    'custom'      => (bool)($useCustomBot && $botType === 'beta'),
-                    'botusername' => ($useCustomBot && $botType === 'beta') ? $customBotUsername : null,
-                    'self'        => (bool)($useSelf && $botType === 'beta'),
-                    'version'     => $version,
-                ];
-                $resp = bots_api_start_bot($payload);
+        if ($action === 'run') {
+            if (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
+                $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
+                return $result;
+            }
+            $payload = [
+                'channel'     => $username,
+                'bot_type'    => $botType,
+                'channel_id'  => $twitchUserId,
+                'token'       => $authToken,
+                'refresh'     => $refreshToken,
+                'apitoken'    => $apiKey,
+                'custom'      => (bool)($useCustomBot && $botType === 'beta'),
+                'botusername' => ($useCustomBot && $botType === 'beta') ? $customBotUsername : null,
+                'self'        => (bool)($useSelf && $botType === 'beta'),
+                'version'     => $version,
+            ];
+            $resp = bots_api_start_bot($payload);
+            // status > 0 means the server responded — use its answer authoritatively
+            if ($resp['status'] > 0) {
                 if (!$resp['ok']) {
                     $result['message'] = is_string($resp['error']) ? $resp['error'] : 'Failed to start bot via bots API';
-                    break;
+                    return $result;
                 }
                 $data = is_array($resp['data']) ? $resp['data'] : [];
                 $result['success'] = !empty($data['success']) || in_array($data['state'] ?? '', ['started', 'already_running', 'start_pending'], true);
                 $result['pid']     = intval($data['pid'] ?? 0);
                 $result['version'] = $data['version'] ?? $version;
                 $result['message'] = $data['message'] ?? 'Bot start requested';
-                break;
-            case 'stop':
-                $resp = bots_api_stop_bot($username, $botType);
+                return $result;
+            }
+            // status === 0 → curl error, API not deployed yet → fall through to SSH
+        } elseif ($action === 'stop') {
+            $resp = bots_api_stop_bot($username, $botType);
+            if ($resp['status'] > 0) {
                 if (!$resp['ok']) {
                     $result['message'] = is_string($resp['error']) ? $resp['error'] : 'Failed to stop bot via bots API';
-                    break;
+                    return $result;
                 }
                 $data = is_array($resp['data']) ? $resp['data'] : [];
                 $result['success'] = true;
                 $result['pid']     = 0;
                 $result['message'] = $data['message'] ?? 'Bot stop requested';
-                break;
-            default:
-                $result['message'] = 'Unknown action';
+                return $result;
+            }
+            // status === 0 → fall through to SSH
+        } else {
+            $result['message'] = 'Unknown action';
+            return $result;
+        }
+    } catch (Exception $e) {
+        // Fall through to SSH fallback
+    }
+
+    // ---------------------------------------------------------------
+    // Fallback: direct SSH (used while bots API is not yet deployed)
+    // ---------------------------------------------------------------
+    if (!extension_loaded('ssh2') || empty($bots_ssh_host)) {
+        $result['message'] = 'SSH not available and bots API is unreachable';
+        return $result;
+    }
+
+    // Bot script & version-file paths
+    if ($botType === 'beta') {
+        $botScriptPath  = '/home/botofthespecter/beta.py';
+        $versionFilePath = "/home/botofthespecter/logs/version/beta/{$username}_beta_version_control.txt";
+        $pythonBin      = function_exists('botHostPython') ? botHostPython('beta') : '/home/botofthespecter/venvs/beta/bin/python';
+    } elseif ($botType === 'v6') {
+        $botScriptPath  = '/home/botofthespecter/beta-v6.py';
+        $versionFilePath = "/home/botofthespecter/logs/version/v6/{$username}_v6_version_control.txt";
+        $pythonBin      = function_exists('botHostPython') ? botHostPython('v6') : '/home/botofthespecter/venvs/v6/bin/python';
+    } else {
+        $botScriptPath  = '/home/botofthespecter/bot.py';
+        $versionFilePath = "/home/botofthespecter/logs/version/{$username}_version_control.txt";
+        $pythonBin      = function_exists('botHostPython') ? botHostPython('stable') : '/home/botofthespecter/venvs/stable/bin/python';
+    }
+    $screenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
+    $crashLog      = "/home/botofthespecter/logs/crash/{$username}.log";
+
+    try {
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+
+        if ($action === 'run') {
+            // --- Stop any other bot type already running for this channel ---
+            $psOut = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
+            if ($psOut && function_exists('sanitizeSSHOutput')) { $psOut = sanitizeSSHOutput($psOut); }
+            $uLower = strtolower($username);
+            foreach (preg_split('/\r?\n/', (string)$psOut) as $psLine) {
+                $psLine = trim($psLine);
+                if (!preg_match('/^(\d+)\s+(.*)$/', $psLine, $pm)) continue;
+                $otherPid = (int)$pm[1]; $otherArgs = $pm[2];
+                if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $otherArgs)) continue;
+                if (!preg_match('/-channel\s+(\S+)/i', $otherArgs, $cm)) continue;
+                if (strtolower($cm[1]) !== $uLower) continue;
+                // Kill the conflicting process
+                SSHConnectionManager::executeCommand($connection, "kill -9 $otherPid 2>/dev/null; true");
+                usleep(400000);
+            }
+            SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSession) . " -X quit 2>/dev/null; true");
+
+            // --- Build argv ---
+            $sh = function($s) { return "'" . str_replace("'", "'\"'\"'", $s) . "'"; };
+            $argv = [
+                $sh($pythonBin), '-u', $sh($botScriptPath),
+                '-channel', $sh($username),
+                '-channelid', $sh($twitchUserId),
+                '-token', $sh($authToken),
+                '-refresh', $sh($refreshToken),
+                '-apitoken', $sh($apiKey),
+            ];
+            if ($useCustomBot && $botType === 'beta' && $customBotUsername) {
+                $argv[] = '-custom';
+                $argv[] = '-botusername';
+                $argv[] = $sh($customBotUsername);
+            }
+            if ($useSelf && $botType === 'beta') {
+                $argv[] = '-self';
+            }
+            $inner    = implode(' ', $argv);
+            $teeCmd   = "$inner 2>&1 | tee -a " . $sh($crashLog);
+            $startCmd = "mkdir -p " . $sh(dirname($crashLog)) . "; screen -dmS " . $sh($screenSession) . " bash -c " . $sh($teeCmd);
+            SSHConnectionManager::executeCommand($connection, $startCmd);
+            usleep(600000); // wait 0.6s for process to appear
+
+            // --- Verify it started ---
+            $psOut2 = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
+            if ($psOut2 && function_exists('sanitizeSSHOutput')) { $psOut2 = sanitizeSSHOutput($psOut2); }
+            $newPid = 0;
+            foreach (preg_split('/\r?\n/', (string)$psOut2) as $psLine) {
+                $psLine = trim($psLine);
+                if (!preg_match('/^(\d+)\s+(.*)$/', $psLine, $pm)) continue;
+                if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $pm[2])) continue;
+                if (!preg_match('/-channel\s+(\S+)/i', $pm[2], $cm)) continue;
+                if (strtolower($cm[1]) !== $uLower) continue;
+                $newPid = (int)$pm[1]; break;
+            }
+            // Write version file
+            if ($version) {
+                $vDir = dirname($versionFilePath);
+                SSHConnectionManager::executeCommand($connection, "mkdir -p " . escapeshellarg($vDir));
+                SSHConnectionManager::executeCommand($connection, "echo " . escapeshellarg($version) . " > " . escapeshellarg($versionFilePath));
+            }
+            $result['success'] = true;
+            $result['pid']     = $newPid;
+            $result['message'] = $newPid > 0
+                ? "Bot started successfully (v{$version})"
+                : "Bot start command sent. Status will update shortly.";
+
+        } elseif ($action === 'stop') {
+            // Find and kill all matching processes
+            $psOut = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
+            if ($psOut && function_exists('sanitizeSSHOutput')) { $psOut = sanitizeSSHOutput($psOut); }
+            $uLower = strtolower($username);
+            $killed = [];
+            foreach (preg_split('/\r?\n/', (string)$psOut) as $psLine) {
+                $psLine = trim($psLine);
+                if (!preg_match('/^(\d+)\s+(.*)$/', $psLine, $pm)) continue;
+                if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $pm[2])) continue;
+                if (!preg_match('/-channel\s+(\S+)/i', $pm[2], $cm)) continue;
+                if (strtolower($cm[1]) !== $uLower) continue;
+                SSHConnectionManager::executeCommand($connection, "kill -9 {$pm[1]} 2>/dev/null; true");
+                $killed[] = $pm[1];
+            }
+            SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSession) . " -X quit 2>/dev/null; true");
+            $result['success'] = true;
+            $result['pid']     = 0;
+            $result['message'] = !empty($killed)
+                ? 'Bot stopped successfully (PIDs: ' . implode(', ', $killed) . ')'
+                : 'Bot is not running.';
         }
     } catch (Exception $e) {
         $result['message'] = $e->getMessage();
