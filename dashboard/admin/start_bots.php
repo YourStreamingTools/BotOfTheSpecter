@@ -7,7 +7,6 @@ require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
-require_once "/var/www/config/ssh.php";
 include '/var/www/config/twitch.php';
 $pageTitle = t('admin_start_bots_page_title');
 
@@ -129,82 +128,6 @@ function get_admin_beta_mode_params($conn, $channelLookupId, $useCustom = false,
     return $params;
 }
 
-function format_admin_elapsed_seconds($seconds) {
-    if (!is_numeric($seconds) || $seconds < 0)
-        return t('admin_start_bots_label_unknown');
-    $seconds = (int) $seconds;
-    if ($seconds < 60)
-        return $seconds . 's';
-    $days = intdiv($seconds, 86400);
-    $hours = intdiv($seconds % 86400, 3600);
-    $minutes = intdiv($seconds % 3600, 60);
-    if ($days > 0)
-        return $days . 'd ' . $hours . 'h ' . $minutes . 'm';
-    if ($hours > 0)
-        return $hours . 'h ' . $minutes . 'm';
-    return $minutes . 'm';
-}
-
-function scan_running_bots_via_ps($filterUsername = null) {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    $bots = [];
-    if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password) || !class_exists('SSHConnectionManager')) {
-        return $bots;
-    }
-    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-    if (!$connection) {
-        return $bots;
-    }
-    $output = SSHConnectionManager::executeCommand($connection, "ps -ww -eo pid=,etimes=,args=");
-    if (function_exists('sanitizeSSHOutput')) {
-        $output = sanitizeSSHOutput($output);
-    }
-    if ($output === false || $output === null) {
-        return $bots;
-    }
-    foreach (preg_split('/\r?\n/', (string) $output) as $line) {
-        $line = trim($line);
-        if ($line === '') {
-            continue;
-        }
-        // Columns: <pid> <etimes> <args...>
-        if (!preg_match('/^(\d+)\s+(\d+)\s+(.*)$/', $line, $m)) {
-            continue;
-        }
-        $pid = (int) $m[1];
-        $etimes = (int) $m[2];
-        $args = $m[3];
-        if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $args, $sm)) {
-            continue;
-        }
-        $script = $sm[2]; // 'bot' | 'beta-v6' | 'beta'
-        if (!preg_match('/-channel\s+(\S+)/', $args, $cm)) {
-            continue;
-        }
-        $uname = $cm[1];
-        if ($filterUsername !== null && strcasecmp($uname, $filterUsername) !== 0) {
-            continue;
-        }
-        if ($script === 'bot') {
-            $botType = 'stable';
-        } elseif ($script === 'beta-v6') {
-            $botType = 'v6';
-        } else {
-            $botType = preg_match('/(^|\s)-custom(\s|$)/', $args) ? 'custom' : 'beta';
-        }
-        // One bot per channel is expected; first match wins.
-        if (!isset($bots[$uname])) {
-            $bots[$uname] = [
-                'pid' => $pid,
-                'bot_type' => $botType,
-                'uptime_seconds' => $etimes,
-                'uptime_human' => format_admin_elapsed_seconds($etimes)
-            ];
-        }
-    }
-    return $bots;
-}
-
 // Lightweight wrapper to provide a start_bot_for_user() function when missing.
 // This uses the central performBotAction() implementation in dashboard/bot_control_functions.php.
 if (!function_exists('start_bot_for_user')) {
@@ -300,50 +223,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
         ob_start();
         require_once __DIR__ . '/../includes/bot_control_functions.php';
         $running_bots = [];
-        $usedApi = false;
-        // --- Attempt 1: private bots control API (no SSH needed; no uptime data) ---
-        // Unlike start/stop, a failed read here (any reason - unreachable or rejected)
-        // just falls back to SSH rather than surfacing an error, since this is a
-        // passive listing and SSH can still serve it.
-        try {
-            $resp = bots_api_running_bots();
-            if ($resp['status'] > 0 && $resp['ok']) {
-                $data = is_array($resp['data']) ? $resp['data'] : [];
-                $buckets = is_array($data['bots'] ?? null) ? $data['bots'] : [];
-                foreach (['stable', 'beta', 'v6', 'custom'] as $botType) {
-                    foreach ((array) ($buckets[$botType] ?? []) as $entry) {
-                        $running_bots[] = [
-                            'username' => $entry['channel'] ?? '',
-                            'pid' => (int) ($entry['pid'] ?? 0),
-                            'bot_type' => $entry['bot_type'] ?? $botType,
-                            'version' => $entry['version'] ?? '',
-                            'uptime_seconds' => null,
-                            'uptime_human' => null
-                        ];
-                    }
-                }
-                $usedApi = true;
-            }
-        } catch (Exception $e) {
-            // Fall through to SSH
+        $resp = bots_api_running_bots();
+        if (!$resp['ok']) {
+            $debug = ob_get_clean();
+            echo json_encode(['success' => false, 'message' => is_string($resp['error']) ? $resp['error'] : 'Bots API request failed', 'bots' => [], 'debug' => $debug]);
+            exit;
         }
-        // --- Fallback: direct SSH ps scan (also used if the API call failed for any reason) ---
-        if (!$usedApi) {
-            if (!isset($bots_ssh_host) || !isset($bots_ssh_username) || !isset($bots_ssh_password)) {
-                echo json_encode(['success' => false, 'message' => 'SSH configuration not available', 'bots' => []]);
-                exit;
-            }
-            // Single SSH `ps` call returns every running bot at once. This used to be an
-            // O(N users x several SSH calls) loop over status.py -- the main slowness.
-            $scanned = scan_running_bots_via_ps();
-            foreach ($scanned as $scanUname => $scanInfo) {
+        $data = is_array($resp['data']) ? $resp['data'] : [];
+        $buckets = is_array($data['bots'] ?? null) ? $data['bots'] : [];
+        foreach (['stable', 'beta', 'v6', 'custom'] as $botType) {
+            foreach ((array) ($buckets[$botType] ?? []) as $entry) {
                 $running_bots[] = [
-                    'username' => $scanUname,
-                    'pid' => $scanInfo['pid'],
-                    'bot_type' => $scanInfo['bot_type'],
-                    'version' => '',
-                    'uptime_seconds' => $scanInfo['uptime_seconds'],
-                    'uptime_human' => $scanInfo['uptime_human']
+                    'username' => $entry['channel'] ?? '',
+                    'pid' => (int) ($entry['pid'] ?? 0),
+                    'bot_type' => $entry['bot_type'] ?? $botType,
+                    'version' => $entry['version'] ?? '',
+                    'uptime_seconds' => null,
+                    'uptime_human' => null
                 ];
             }
         }
@@ -357,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
 }
 
 // Lightweight single-bot status check (used by Restart All to verify ONE bot without
-// re-scanning every user). One SSH `ps` call, filtered to this channel.
+// re-scanning every user). One bots-API status call, filtered to this channel.
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['check_one_bot'])) {
     while (ob_get_level()) {
         ob_end_clean();
@@ -783,8 +679,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
     } elseif ($pid <= 0) {
         $message = t('admin_start_bots_err_no_pid');
     } else {
-        // Same bots-API-first, SSH-fallback path used by the user-facing stop button
-        // (performBotAction) instead of a hand-rolled SSH-only kill.
+        // Same performBotAction() path used by the user-facing stop button.
         $result = performBotAction('stop', $botType, ['username' => $username]);
         $success = (bool) ($result['success'] ?? false);
         $message = $result['message'] ?: ($success ? t('admin_start_bots_msg_stop_success') : t('admin_start_bots_err_connect'));
@@ -842,9 +737,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $tokenData = $tokenResult->fetch_assoc();
                     $botAccessToken = $tokenData['twitch_access_token'];
                     client_console_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
-                    // Step 1: Stop the bot if it's running — same bots-API-first,
-                    // SSH-fallback path as the standalone Stop button, instead of a
-                    // hand-rolled SSH-only kill. $botType (not the beta-remapped
+                    // Step 1: Stop the bot if it's running — same performBotAction() path
+                    // as the standalone Stop button. $botType (not the beta-remapped
                     // $actionBotType below) so a running "custom" process is matched
                     // precisely rather than broadened to all beta-family processes.
                     if ($pid > 0) {

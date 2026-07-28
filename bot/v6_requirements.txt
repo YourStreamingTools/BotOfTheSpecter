@@ -39,6 +39,10 @@ discord.py
 # Joke API
 jokeapi
 
+# jokeapi imports this at runtime but doesn't declare it as an install
+# dependency, so pip never pulls it in on its own.
+simplejson
+
 # Translation
 deep_translator
 

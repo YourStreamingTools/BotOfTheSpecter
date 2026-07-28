@@ -5,7 +5,7 @@ from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
-from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec
+from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, new_event_loop, set_event_loop
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 from logging import getLogger
@@ -43,6 +43,15 @@ from openai import AsyncOpenAI
 # Load environment variables from .env file
 from dotenv import load_dotenv
 load_dotenv()
+
+# Python 3.12+ removed the implicit auto-create-if-none-running fallback in
+# get_event_loop(); TwitchIO 2.10.0 still calls it that way internally when
+# constructing the Bot. Ensure a loop exists for the main thread so that call
+# succeeds exactly like it did on older Python versions.
+try:
+    get_event_loop()
+except RuntimeError:
+    set_event_loop(new_event_loop())
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")

@@ -53,6 +53,10 @@ discord-ext-voice-recv
 # Fetches jokes from JokeAPI
 jokeapi
 
+# jokeapi imports this at runtime but doesn't declare it as an install
+# dependency, so pip never pulls it in on its own.
+simplejson
+
 # Translation
 # Text translation across multiple services
 deep_translator

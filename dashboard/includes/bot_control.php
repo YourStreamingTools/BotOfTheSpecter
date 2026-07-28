@@ -2,9 +2,6 @@
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
 
-// SSH Connection parameters
-include_once "/var/www/config/ssh.php";
-
 // Define the versions for the bots
 $remoteVersionFile = "/home/botofthespecter/logs/version";
 $versionFilePath = "{$remoteVersionFile}/{$username}_version_control.txt";
@@ -36,6 +33,48 @@ if ($versionApiData !== false) {
 }
 
 // Get bot status and check if it's running - Used for initial page load only
+if (!function_exists('bots_api_bot_status')) {
+    require_once __DIR__ . '/bots_api_client.php';
+}
+
+// Fetch each bot type's status once and cache it, since getBotsStatus(),
+// checkBotsRunning(), and getRunningVersion() below all need the same
+// underlying bots-API response (running state, pid, and version together).
+$__botStatusCache = [];
+function fetchBotStatusData($username, $system) {
+    global $__botStatusCache;
+    $cacheKey = $system ?? '';
+    if (array_key_exists($cacheKey, $__botStatusCache)) {
+        return $__botStatusCache[$cacheKey];
+    }
+    $resp = bots_api_bot_status($username, $system);
+    if (!$resp['ok'] && $system === 'beta') {
+        $resp = bots_api_bot_status($username, null);
+    }
+    if (!$resp['ok']) {
+        $result = ['ok' => false, 'error' => is_string($resp['error']) ? $resp['error'] : 'Bots API status request failed'];
+        $__botStatusCache[$cacheKey] = $result;
+        return $result;
+    }
+    $data = is_array($resp['data']) ? $resp['data'] : [];
+    $running = !empty($data['running']);
+    $foundType = $data['bot_type'] ?? null;
+    if ($running && $system) {
+        $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
+        if (!$match && $foundType !== null) {
+            $running = false;
+        }
+    }
+    $result = [
+        'ok' => true,
+        'running' => $running,
+        'pid' => $running ? intval($data['pid'] ?? 0) : 0,
+        'version' => $running ? (string)($data['version'] ?? '') : '',
+    ];
+    $__botStatusCache[$cacheKey] = $result;
+    return $result;
+}
+
 try {
     $statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
     $botSystemStatus = checkBotsRunning($statusScriptPath, $username, 'stable');
@@ -44,160 +83,41 @@ try {
     $v6StatusOutput = getBotsStatus($statusScriptPath, $username, 'v6');
     $v6BotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'v6');
 } catch (Exception $e) {
-    $statusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $statusOutput = "<div class='status-message error'>Status: Bots API error</div>";
     $botSystemStatus = false;
-    $betaStatusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $betaStatusOutput = "<div class='status-message error'>Status: Bots API error</div>";
     $betaBotSystemStatus = false;
-    $v6StatusOutput = "<div class='status-message error'>Status: SSH connection error</div>";
+    $v6StatusOutput = "<div class='status-message error'>Status: Bots API error</div>";
     $v6BotSystemStatus = false;
 }
 
-// Utility function to get bot status message.
-// Tries the private bots control API first; falls back to a direct SSH ps scan
-// when the API service is not yet deployed or is unreachable.
+// Utility function to get bot status message via the private bots control API.
 function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
-    if (!function_exists('bots_api_bot_status')) {
-        require_once __DIR__ . '/bots_api_client.php';
+    $status = fetchBotStatusData($username, $system);
+    if (!$status['ok']) {
+        return "<div class='status-message error'>Status: " . htmlspecialchars($status['error']) . "</div>";
     }
-    // --- Attempt 1: bots control API ---
-    try {
-        $resp = bots_api_bot_status($username, $system);
-        if (!$resp['ok'] && $system === 'beta') {
-            $resp = bots_api_bot_status($username, null);
-        }
-        // Only use API result when the call actually reached the server (status > 0).
-        // A curl error (status === 0) means the service is not yet running; fall through to SSH.
-        if ($resp['status'] > 0) {
-            if (!$resp['ok']) {
-                return "<div class='status-message error'>Status: " . htmlspecialchars((string)$resp['error']) . "</div>";
-            }
-            $data = is_array($resp['data']) ? $resp['data'] : [];
-            $running = !empty($data['running']);
-            $foundType = $data['bot_type'] ?? null;
-            if ($running && $system) {
-                $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
-                if (!$match && $foundType !== null) {
-                    $running = false;
-                }
-            }
-            $pid = $running ? intval($data['pid'] ?? 0) : 0;
-            if ($pid > 0) {
-                return "<div class='status-message'>Status: PID $pid.</div>";
-            }
-            return "<div class='status-message error'>Status: NOT RUNNING</div>";
-        }
-    } catch (Exception $e) {
-        // Fall through to SSH fallback
+    if ($status['pid'] > 0) {
+        return "<div class='status-message'>Status: PID {$status['pid']}.</div>";
     }
-    // --- Fallback: direct SSH ps scan (status.py no longer exists) ---
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!extension_loaded('ssh2') || empty($bots_ssh_host)) {
-        return "<div class='status-message error'>Status: SSH2 extension not available</div>";
-    }
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $output = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
-        if ($output === false || $output === null) {
-            return "<div class='status-message error'>Status: SSH command execution failed</div>";
-        }
-        if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
-        $username_lower = strtolower($username);
-        $pid = 0;
-        foreach (preg_split('/\r?\n/', (string)$output) as $line) {
-            $line = trim($line);
-            if ($line === '') continue;
-            if (!preg_match('/^(\d+)\s+(.*)$/', $line, $m)) continue;
-            $linePid = (int)$m[1]; $args = $m[2];
-            if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $args, $sm)) continue;
-            $script = $sm[2];
-            if (!preg_match('/-channel\s+(\S+)/i', $args, $cm)) continue;
-            if (strtolower($cm[1]) !== $username_lower) continue;
-            if ($script === 'bot') { $foundType = 'stable'; }
-            elseif ($script === 'beta-v6') { $foundType = 'v6'; }
-            else { $foundType = preg_match('/(^|\s)-custom(\s|$)/', $args) ? 'custom' : 'beta'; }
-            $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
-            if (!$match) continue;
-            $pid = $linePid; break;
-        }
-        if ($pid > 0) { return "<div class='status-message'>Status: PID $pid.</div>"; }
-        return "<div class='status-message error'>Status: NOT RUNNING</div>";
-    } catch (Exception $e) {
-        return "<div class='status-message error'>Status: Error - " . htmlspecialchars($e->getMessage()) . "</div>";
-    }
+    return "<div class='status-message error'>Status: NOT RUNNING</div>";
 }
 
-// Check if a bot is running (returns boolean).
-// Tries the private bots control API first; falls back to a direct SSH ps scan
-// when the API service is not yet deployed or is unreachable.
+// Check if a bot is running (returns boolean) via the private bots control API.
 function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
-    if (!function_exists('bots_api_bot_status')) {
-        require_once __DIR__ . '/bots_api_client.php';
-    }
-    // --- Attempt 1: bots control API ---
-    try {
-        $resp = bots_api_bot_status($username, $system);
-        if (!$resp['ok'] && $system === 'beta') {
-            $resp = bots_api_bot_status($username, null);
-        }
-        // Only trust result when the call reached the server (status > 0).
-        if ($resp['status'] > 0) {
-            if (!$resp['ok']) { return false; }
-            $data = is_array($resp['data']) ? $resp['data'] : [];
-            if (empty($data['running'])) { return false; }
-            $foundType = $data['bot_type'] ?? null;
-            if ($system) {
-                return ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
-            }
-            return true;
-        }
-    } catch (Exception $e) {
-        // Fall through to SSH fallback
-    }
-    // --- Fallback: direct SSH ps scan (status.py no longer exists) ---
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!extension_loaded('ssh2') || empty($bots_ssh_host)) { return false; }
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $output = SSHConnectionManager::executeCommand($connection, 'ps -ww -eo pid=,args=');
-        if ($output === false || $output === null) { return false; }
-        if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
-        $username_lower = strtolower($username);
-        foreach (preg_split('/\r?\n/', (string)$output) as $line) {
-            $line = trim($line);
-            if ($line === '') continue;
-            if (!preg_match('/^(\d+)\s+(.*)$/', $line, $m)) continue;
-            $args = $m[2];
-            if (!preg_match('#(^|/)python[0-9.]*\s+(?:-u\s+)?(?:\S*/)?(bot|beta-v6|beta)\.py(\s|$)#', $args, $sm)) continue;
-            $script = $sm[2];
-            if (!preg_match('/-channel\s+(\S+)/i', $args, $cm)) continue;
-            if (strtolower($cm[1]) !== $username_lower) continue;
-            if ($script === 'bot') { $foundType = 'stable'; }
-            elseif ($script === 'beta-v6') { $foundType = 'v6'; }
-            else { $foundType = preg_match('/(^|\s)-custom(\s|$)/', $args) ? 'custom' : 'beta'; }
-            $match = ($foundType === $system) || ($system === 'beta' && in_array($foundType, ['beta', 'custom'], true));
-            if ($match) { return true; }
-        }
-        return false;
-    } catch (Exception $e) { return false; }
+    $status = fetchBotStatusData($username, $system);
+    return $status['ok'] && $status['running'];
 }
 
-// Get the version currently running from version control file
+// Get the version currently running, via the same bots control API response
+// (no separate round-trip needed - the status endpoint already returns it).
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        $versionCmd = "cat " . escapeshellarg($versionFilePath);
-        $output = SSHConnectionManager::executeCommand($connection, $versionCmd);
-        if ($output !== false && $output !== null) {
-            if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
-            else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
-            return trim($output);
-        } else {
-            return $newVersion;
-        }
-    } catch (Exception $e) {
-        return $newVersion;
+    global $username;
+    $status = fetchBotStatusData($username, $type ?: 'stable');
+    if ($status['ok'] && $status['running'] && $status['version'] !== '') {
+        return $status['version'];
     }
+    return $newVersion;
 }
 
 // Set running versions if bots are running
@@ -211,27 +131,5 @@ if ($betaBotSystemStatus) {
 
 if ($v6BotSystemStatus) {
     $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
-}
-
-// Function to test SSH connectivity
-function testSSHConnection() {
-    global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-    if (!extension_loaded('ssh2')) {
-        return ['success' => false, 'message' => 'SSH2 extension not available'];
-    }
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        return ['success' => true, 'message' => 'SSH connection successful'];
-    } catch (Exception $e) {
-        return ['success' => false, 'message' => 'SSH connection failed: ' . $e->getMessage()];
-    }
-}
-
-// Handle SSH test request
-if (isset($_GET['test_ssh']) && $_GET['test_ssh'] == '1') {
-    $result = testSSHConnection();
-    header('Content-Type: application/json');
-    echo json_encode($result);
-    exit();
 }
 ?>
