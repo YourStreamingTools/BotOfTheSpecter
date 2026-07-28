@@ -351,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service'];
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
@@ -413,6 +413,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                     if ($success && empty(trim($output))) {
                         $serviceNames = [
                             'discordbot.service' => 'Discord Bot',
+                            'bots-api.service' => 'Bots API',
                             'fastapi.service' => 'FastAPI',
                             'websocket.service' => 'WebSocket',
                             'mysql.service' => 'MySQL',
@@ -1767,6 +1768,36 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Bots API Service -->
+        <div>
+            <div class="admin-service-card">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon sp-text-accent">
+                            <i class="fas fa-server fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <span class="admin-heading"><?php echo t('admin_index_svc_bots_api'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="bots-api-status"><?php echo t('admin_index_status_loading'); ?></span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="sp-badge sp-badge-grey" id="bots-api-pid">PID: ...</span>
+                    </div>
+                </div>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="bots-api-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-api.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('bots-api.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('bots-api.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- API Server Service -->
         <div>
             <div class="admin-service-card">
@@ -2212,6 +2243,7 @@ document.addEventListener('DOMContentLoaded', function() {
         netErrorPrefix: <?php echo json_encode(t('admin_index_net_error_prefix')); ?>,
         serviceLabels: <?php echo json_encode([
             'discordbot.service' => t('admin_index_svc_discord_bot'),
+            'bots-api.service' => t('admin_index_svc_bots_api'),
             'fastapi.service' => 'FastAPI',
             'websocket.service' => 'WebSocket',
             'mysql.service' => 'MySQL',
@@ -2362,6 +2394,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const serviceConfig = {
         'discordbot.service': { statusKey: 'discordbot', statusId: 'discord-status', pidId: 'discord-pid', buttonsId: 'discord-buttons' },
+        'bots-api.service': { statusKey: 'bots_api', statusId: 'bots-api-status', pidId: 'bots-api-pid', buttonsId: 'bots-api-buttons' },
         'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
         'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
         'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' },
@@ -2740,6 +2773,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load service statuses after page load
     setTimeout(() => {
         updateServiceStatus('discordbot', 'discord-status', 'discord-pid', 'discord-buttons');
+        updateServiceStatus('bots_api', 'bots-api-status', 'bots-api-pid', 'bots-api-buttons');
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
