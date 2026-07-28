@@ -107,7 +107,7 @@ try {
         sse_send(json_encode(['success' => false]), 'done');
         exit;
     }
-    $cmd = "cd /home/botofthespecter && python3 " . escapeshellarg($script);
+    $cmd = "cd /home/botofthespecter && venvs/stable/bin/python " . escapeshellarg($script);
     $streams = SSHConnectionManager::executeCommandStream($connection, $cmd);
     if (!$streams || !isset($streams['stdout'])) {
         admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => 'Failed to start remote command'], 'script', $script);
@@ -141,7 +141,10 @@ try {
     // Final summary
     admin_audit_log('stream_command', 'success', ['script' => $script], 'script', $script);
     sse_send(json_encode(['success' => true]), 'done');
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    // Throwable (not just Exception) - a fatal error escaping uncaught would kill the
+    // connection outright, and the browser's EventSource then reports its own generic,
+    // data-less "error" event instead of the specific message below.
     admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => $e->getMessage()], 'script', $script);
     sse_send(t('admin_stream_command_exception', [$e->getMessage()]), 'error');
     sse_send(json_encode(['success' => false]), 'done');
