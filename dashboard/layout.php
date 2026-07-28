@@ -77,6 +77,7 @@ if ($layoutMode === 'admin' || $layoutMode === 'todolist') {
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
+$maintenanceMessage = $config['maintenanceMessage'] ?? '';
 
 // Check if dev stream is online
 $devStreamOnline = false;
@@ -224,7 +225,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                         <span class="sp-topbar-tag sp-topbar-tag-act-as"><i class="fas fa-user-secret"></i> <?= t('layout_topbar_viewing_as') ?> <strong><?php echo $actingAsLabel; ?></strong> &mdash; <a href="<?php echo $stopActAsHref; ?>"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a></span>
                     <?php endif; ?>
                     <?php if ($maintenanceMode): ?>
-                        <span class="sp-topbar-tag sp-topbar-tag-maintenance"><i class="fas fa-tools"></i> <?= t('layout_topbar_maintenance_in_progress') ?></span>
+                        <span class="sp-topbar-tag sp-topbar-tag-maintenance"><i class="fas fa-tools"></i> <?= $maintenanceMessage ?></span>
                     <?php endif; ?>
                 </div>
                 <div class="sp-topbar-actions">
@@ -247,8 +248,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                         <button class="db-modal-close" aria-label="<?php echo htmlspecialchars(t('layout_close')); ?>" onclick="closeMaintenanceModal()"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="db-modal-body">
-                        <p><?= t('layout_maintenance_body_intro') ?></p>
-                        <p><?= t('layout_maintenance_body_detail') ?></p>
+                        <p><strong><?= $maintenanceMessage ?></strong></p>
                         <p><?= t('layout_maintenance_what_to_expect') ?></p>
                         <ul>
                             <li><?= t('layout_maintenance_expect_dashboard') ?></li>
