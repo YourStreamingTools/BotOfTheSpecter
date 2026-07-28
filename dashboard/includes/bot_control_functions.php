@@ -106,91 +106,91 @@ function checkBotRunning($username, $botType = 'stable') {
 
 /**
     * Perform an action on the bot (start, stop) via private bots control API
-    * @param string \ - The action to perform (run, stop)
-    * @param string \ - The type of bot to control (stable, beta, v6)
-    * @param array \ - Additional parameters including username, tokens, etc.
+    * @param string $action - The action to perform (run, stop)
+    * @param string $botType - The type of bot to control (stable, beta, v6)
+    * @param array $params - Additional parameters including username, tokens, etc.
     * @return array - Result of the operation
 */
-function performBotAction(\, \, \) {
-    \ = \['username'] ?? '';
-    \ = \['twitch_user_id'] ?? '';
-    \ = \['auth_token'] ?? '';
-    \ = \['refresh_token'] ?? '';
-    \ = \['api_key'] ?? '';
-    \ = \['use_custom_bot'] ?? false;
-    \ = \['custom_bot_username'] ?? null;
-    \ = \['use_self'] ?? false;
+function performBotAction($action, $botType, $params) {
+    $username          = $params['username'] ?? '';
+    $twitchUserId      = $params['twitch_user_id'] ?? '';
+    $authToken         = $params['auth_token'] ?? '';
+    $refreshToken      = $params['refresh_token'] ?? '';
+    $apiKey            = $params['api_key'] ?? '';
+    $useCustomBot      = $params['use_custom_bot'] ?? false;
+    $customBotUsername = $params['custom_bot_username'] ?? null;
+    $useSelf           = $params['use_self'] ?? false;
 
-    \ = 'https://api.botofthespecter.com/versions';
-    \ = json_decode(@file_get_contents(\), true);
-    \ = '';
-    if (\) {
-        if (\ === 'stable') {
-            \ = \['stable_version'] ?? '';
-        } elseif (\ === 'beta') {
-            \ = \['beta_version'] ?? '';
-        } elseif (\ === 'v6') {
-            \ = \['v6_version'] ?? '6.0';
+    $versionsUrl  = 'https://api.botofthespecter.com/versions';
+    $versionsData = json_decode(@file_get_contents($versionsUrl), true);
+    $version = '';
+    if ($versionsData) {
+        if ($botType === 'stable') {
+            $version = $versionsData['stable_version'] ?? '';
+        } elseif ($botType === 'beta') {
+            $version = $versionsData['beta_version'] ?? '';
+        } elseif ($botType === 'v6') {
+            $version = $versionsData['v6_version'] ?? '6.0';
         } else {
-            \ = \['stable_version'] ?? '';
+            $version = $versionsData['stable_version'] ?? '';
         }
     }
-    \ = [
+    $result = [
         'success' => false,
-        'action' => \,
-        'bot' => \,
+        'action'  => $action,
+        'bot'     => $botType,
         'message' => '',
-        'pid' => 0,
-        'version' => \
+        'pid'     => 0,
+        'version' => $version
     ];
     try {
-        switch (\) {
+        switch ($action) {
             case 'run':
-                if (empty(\) || empty(\) || empty(\) || empty(\) || empty(\)) {
-                    \['message'] = 'Missing required bot parameters (username, tokens, etc.)';
+                if (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
+                    $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
                     break;
                 }
-                \ = [
-                    'channel' => \,
-                    'bot_type' => \,
-                    'channel_id' => \,
-                    'token' => \,
-                    'refresh' => \,
-                    'apitoken' => \,
-                    'custom' => (bool)(\ && \ === 'beta'),
-                    'botusername' => (\ && \ === 'beta') ? \ : null,
-                    'self' => (bool)(\ && \ === 'beta'),
-                    'version' => \,
+                $payload = [
+                    'channel'     => $username,
+                    'bot_type'    => $botType,
+                    'channel_id'  => $twitchUserId,
+                    'token'       => $authToken,
+                    'refresh'     => $refreshToken,
+                    'apitoken'    => $apiKey,
+                    'custom'      => (bool)($useCustomBot && $botType === 'beta'),
+                    'botusername' => ($useCustomBot && $botType === 'beta') ? $customBotUsername : null,
+                    'self'        => (bool)($useSelf && $botType === 'beta'),
+                    'version'     => $version,
                 ];
-                \ = bots_api_start_bot(\);
-                if (!\['ok']) {
-                    \['message'] = is_string(\['error']) ? \['error'] : 'Failed to start bot via bots API';
+                $resp = bots_api_start_bot($payload);
+                if (!$resp['ok']) {
+                    $result['message'] = is_string($resp['error']) ? $resp['error'] : 'Failed to start bot via bots API';
                     break;
                 }
-                \ = is_array(\['data']) ? \['data'] : [];
-                \['success'] = !empty(\['success']) || in_array(\['state'] ?? '', ['started', 'already_running', 'start_pending'], true);
-                \['pid'] = intval(\['pid'] ?? 0);
-                \['version'] = \['version'] ?? \;
-                \['message'] = \['message'] ?? 'Bot start requested';
+                $data = is_array($resp['data']) ? $resp['data'] : [];
+                $result['success'] = !empty($data['success']) || in_array($data['state'] ?? '', ['started', 'already_running', 'start_pending'], true);
+                $result['pid']     = intval($data['pid'] ?? 0);
+                $result['version'] = $data['version'] ?? $version;
+                $result['message'] = $data['message'] ?? 'Bot start requested';
                 break;
             case 'stop':
-                \ = bots_api_stop_bot(\, \);
-                if (!\['ok']) {
-                    \['message'] = is_string(\['error']) ? \['error'] : 'Failed to stop bot via bots API';
+                $resp = bots_api_stop_bot($username, $botType);
+                if (!$resp['ok']) {
+                    $result['message'] = is_string($resp['error']) ? $resp['error'] : 'Failed to stop bot via bots API';
                     break;
                 }
-                \ = is_array(\['data']) ? \['data'] : [];
-                \['success'] = true;
-                \['pid'] = 0;
-                \['message'] = \['message'] ?? 'Bot stop requested';
+                $data = is_array($resp['data']) ? $resp['data'] : [];
+                $result['success'] = true;
+                $result['pid']     = 0;
+                $result['message'] = $data['message'] ?? 'Bot stop requested';
                 break;
             default:
-                \['message'] = 'Unknown action';
+                $result['message'] = 'Unknown action';
         }
-    } catch (Exception \) {
-        \['message'] = \->getMessage();
+    } catch (Exception $e) {
+        $result['message'] = $e->getMessage();
     }
-    return \;
+    return $result;
 }
 
 function ensure_remote_path_exists($path, $isFile = false) {
