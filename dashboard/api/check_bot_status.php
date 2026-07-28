@@ -85,6 +85,15 @@ if ($bot === 'stable') {
   $remoteVersionFile .= "beta/{$username}_beta_version_control.txt";
 }
 
+// The bot script file's own mtime - "Last Updated" means "when did the code on
+// disk last change", i.e. whether a restart would pick up newer code. This is
+// distinct from $remoteVersionFile above, which tracks when the bot last started.
+$remoteBotScript = match ($bot) {
+  'beta' => '/home/botofthespecter/beta.py',
+  'v6' => '/home/botofthespecter/beta-v6.py',
+  default => '/home/botofthespecter/bot.py',
+};
+
 // Function to get remote file mtime via SSH with timeout protection
 function getRemoteFileMTime($remoteFile) {
   global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $operationStart;
@@ -143,6 +152,7 @@ function extractSemver($text) {
 }
 
 $lastRunTimestamp = getRemoteFileMTime($remoteVersionFile);
+$scriptMTime = getRemoteFileMTime($remoteBotScript);
 
 // Try to read the remote version file contents and extract a version string
 $remoteFileContents = getRemoteFileContents($remoteVersionFile);
@@ -166,7 +176,7 @@ $response = [
   'lastRunVersion' => $remoteFileVersion ?: null,
   'latestVersion' => $latestVersion,
   'updateAvailable' => !empty($preferredVersion) && !empty($latestVersion) && version_compare($preferredVersion, $latestVersion, '<'),
-  'lastModified' => isset($botStatus['lastModified']) && $botStatus['lastModified'] ? formatTimeAgo($botStatus['lastModified']) : t('bot_value_unknown'),
+  'lastModified' => $scriptMTime ? formatTimeAgo($scriptMTime) : t('bot_value_unknown'),
   'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : t('bot_value_never')
 ];
 
