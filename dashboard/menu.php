@@ -36,6 +36,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_subscribers'), 'icon' => 'fas fa-star', 'href' => 'subscribers.php' ],
             [ 'label' => t('navbar_moderators'), 'icon' => 'fas fa-user-shield', 'href' => 'mods.php' ],
             [ 'label' => t('navbar_vips'), 'icon' => 'fas fa-crown', 'href' => 'vips.php' ],
+            [ 'label' => t('navbar_channel_moderation'), 'icon' => 'fas fa-gavel', 'href' => 'moderation.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_raids'), 'icon' => 'fas fa-bullhorn', 'href' => 'raids.php' ],
             [ 'label' => t('menu_stream_watch_streaks'), 'icon' => 'fas fa-fire', 'href' => 'stream_streak.php' ],

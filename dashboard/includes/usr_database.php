@@ -1154,6 +1154,19 @@ try {
                 type ENUM('video_id','keyword') NOT NULL,
                 value VARCHAR(255) NOT NULL,
                 added_by VARCHAR(255) DEFAULT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'warnings' => "
+            CREATE TABLE IF NOT EXISTS warnings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(255) DEFAULT NULL,
+                user_name VARCHAR(255) NOT NULL,
+                warned_by_id VARCHAR(255) DEFAULT NULL,
+                warned_by_name VARCHAR(255) NOT NULL,
+                reason TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_user_name (user_name),
+                INDEX idx_user_id (user_id),
+                INDEX idx_created_at (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
