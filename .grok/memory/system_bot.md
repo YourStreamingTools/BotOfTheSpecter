@@ -250,6 +250,53 @@ Plus companion bots (separate platforms, share databases/integrations):
 **SSH Tunnel Management**:
 - `SSHConnectionManager` class for multiple SSH connections
 - Hosts: API, WEBSOCKET, BOT-SRV, SQL, STREAM (3 regions), WEB, BILLING
+- **Not used for bot process lifecycle** — start/stop/status use the bots API (below)
+
+## Bot Host Control API (process control)
+
+**Purpose**: Own start / stop / restart / inventory of Twitch bot processes on the bot server over HTTP. Replaces SSH + `pgrep` / `status.py` for lifecycle.
+
+**Location**: `./bot/bots_api/`
+- `server.py` — FastAPI, auth against `website.admin_api_keys`
+- `manager.py` — psutil PID match on `-channel`, `screen` sessions (`specter_{channel}`), multi-venv launch
+- `bots-api.service` — systemd unit; **must use `KillMode=process`** so restarting the API does not SIGKILL the whole bot fleet
+- `README.md` — deploy notes
+
+**Runtime (server)**:
+- URL: `https://bots.botofthespecter.com` (Caddy → `127.0.0.1:8090`)
+- Units: `bots-api.service`, plus companion `discordbot.service`, `export_queue_worker.service`
+- Venvs: `/home/botofthespecter/venvs/{stable,beta,v6,discord,kick}/`
+- Env: `SQL_*` (validate admin keys), `BOT_HOME`, `BOTS_API_HOST/PORT`, optional `BOTS_CONTROL_KEY` break-glass
+
+**Auth**:
+- Header `X-API-KEY` or `X-BOTS-CONTROL-KEY`
+- Allowed: `admin_api_keys.service = bots` (or super-admin `admin`)
+- Callers resolve key from MySQL — do not put user API keys on this service
+
+**Endpoints**:
+| Method | Path | Role |
+| ------ | ---- | ---- |
+| GET | `/health` | Liveness (no auth) |
+| GET | `/api/running_bots` | Full local inventory |
+| GET | `/api/bot/status?channel=&bot_type=` | One channel |
+| POST | `/api/bot/start` | Launch (body includes tokens + channel_id) |
+| POST | `/api/bot/stop` | `{ channel, bot_type }` |
+| POST | `/api/bot/restart` | Stop then start |
+
+**`bot_type`**: `stable` | `beta` | `v6` (status/stop also understand `custom` for `-custom` beta processes).
+
+**Channel identity**: processes are matched by Twitch **login** (`-channel`), not `twitch_user_id`. If a user renames on Twitch, stop the **old** login name before renaming the per-user DB.
+
+**Callers**:
+1. **Dashboard** — `./dashboard/includes/bots_api_client.php` + `bot_control_functions.php`; config `./config/bots_api.php`
+2. **Public API** — `./api/api.py` `_bots_api_request`; user-facing `/bot/status`, `/bot/start`, `/bot/stop` (user API key → resolve username → bots host)
+3. **Admin** — running-bots list on admin index / start_bots via `bots_api_running_bots()`
+
+**PHP helpers**: `bots_api_start_bot`, `bots_api_stop_bot`, `bots_api_bot_status`, `bots_api_running_bots`, `bots_api_stop_all_for_channel` (all variants — used on username rename at login).
+
+**Still SSH (not bots API)**: log tails, some admin systemctl cards, token refresh scripts, file/mtime checks, Attach Console.
+
+See also: `.grok/rules/bots-api.md`
 
 ## Version Differences
 
@@ -277,6 +324,7 @@ Plus companion bots (separate platforms, share databases/integrations):
 - **Beta**: `./bot/beta.py` (~18.7k lines), `./bot/beta-v6.py` (~16.9k lines)
 - **Custom Modules**: `./bot/custom_channel_modules/*.py`
 - **Token Refresh Scripts**: `./bot/refresh_custom_bot_tokens.py`, `./bot/refresh_spotify_tokens.py`, `./bot/refresh_streamelements_tokens.py`, `./bot/refresh_discord_tokens.py` (Twitch refresh is **in-process** `twitch_token_refresh()` - there is no `refresh_twitch_tokens.py`)
+- **Bots control API**: `./bot/bots_api/` (private process control on bot host)
 - **Auxiliary Scripts**: `./bot/setup.py`, `./bot/status.py`, `./bot/status_monitor.py`, `./bot/running_bots.py`, `./bot/export_queue_worker.py`, `./bot/export_user_data.py`, `./bot/sync-channel-rewards.py`, `./bot/system_boot_marker.py`
 - **Discord Bot**: `./bot/specterdiscord.py`
 - **Kick.com Bot**: `./bot/kick.py`
@@ -296,4 +344,4 @@ Plus companion bots (separate platforms, share databases/integrations):
 
 ## How to apply:** Target **beta.py** (or beta-v6 for TwitchIO 3.x) for features; stable only for critical bugs. Cooldowns must go through `load_builtin_command_settings` + `check_cooldown`/`add_usage`. Task/timer work must keep `backlog_position` per-user and WebSocket `TASK_*` / `USER_POMO_*` in sync with overlays. Port carefully across TwitchIO versions.
 
-**Last verified**: 2026-07-17 (cooldown helpers, task/timer parity, !mytasks packing, force-zero task cooldowns)
+**Last verified**: 2026-07-29 (bots-api process control documented; username rename stops old channel)
