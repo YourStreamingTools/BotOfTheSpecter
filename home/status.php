@@ -32,6 +32,11 @@ $mainConfig = include '/var/www/config/main.php';
 $maintenanceMode = $mainConfig['maintenanceMode'] ?? false;
 $maintenanceMessage = $mainConfig['maintenanceMessage'] ?? '';
 
+// Never let a browser or intermediary proxy cache this page or its AJAX
+// response - maintenance state must always reflect the live config.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 // JSON endpoint for the JS polling
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
@@ -170,6 +175,7 @@ if (isset($_GET['ajax'])) {
         .container { width: 100%; max-width: 100%; margin: 0; }
         .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
         .maintenance-banner { display: flex; align-items: center; gap: 8px; background: rgba(255,193,7,0.12); border: 1px solid #ffc107; color: #ffe08a; border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.95em; }
+        .maintenance-banner[hidden] { display: none; }
         .maintenance-banner .icon { font-size: 1.1em; }
         .columns { margin-bottom: 0; }
         h1 { text-align: left; margin-bottom: 0; font-size: 1.6em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
@@ -386,7 +392,7 @@ let prevMsgTimestamp = null;
 function fetchAndUpdateStatus() {
     // Add a cache-busting timestamp so each fetch returns fresh data
     let url = window.location.pathname + '?ajax=1&_=' + Date.now();
-    fetch(url)
+    fetch(url, { cache: 'no-store' })
         .then(res => {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             return res.json();
