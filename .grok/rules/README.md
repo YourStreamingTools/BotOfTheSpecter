@@ -12,5 +12,7 @@ Short, project-specific rules under `.grok/rules/`. Grok auto-loads every `*.md`
 | [php-config.md](./php-config.md) | **HARD RULE.** Any PHP file that needs configuration or credentials |
 | [overlays.md](./overlays.md) | Adding or modifying browser-source overlays |
 | [bots-api.md](./bots-api.md) | Start/stop/status bots — HTTP bots API only (no SSH lifecycle) |
+| [sql-api.md](./sql-api.md) | SpecterBotApp / tenant data — SQL data API with user API keys (no shared MySQL on app host) |
 
 Rules in this folder are concise on purpose. Detailed architecture lives in `.grok/memory/`.
+
