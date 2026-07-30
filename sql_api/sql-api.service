@@ -1,0 +1,24 @@
+[Unit]
+Description=BotOfTheSpecter SQL data API (tenant-scoped)
+After=network.target mysql.service mariadb.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+WorkingDirectory=/home/botofthespecter/sql_api
+EnvironmentFile=-/home/botofthespecter/.env
+Environment=SQL_API_HOST=127.0.0.1
+Environment=SQL_API_PORT=8091
+# Prefer SQL_HOST=127.0.0.1 when this unit runs on the SQL box itself.
+ExecStart=/home/botofthespecter/venvs/sql_api/bin/python /home/botofthespecter/sql_api/server.py
+Restart=on-failure
+RestartSec=3
+KillMode=mixed
+
+# TLS terminates at Caddy → reverse-proxy to 127.0.0.1:8091
+# Public URL: https://sql.botofthespecter.com
+
+[Install]
+WantedBy=multi-user.target

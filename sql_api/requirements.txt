@@ -1,0 +1,6 @@
+# SQL-host tenant data API (private FastAPI on sql.botofthespecter.com)
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0
+python-dotenv>=1.0.0
+aiomysql>=0.2.0

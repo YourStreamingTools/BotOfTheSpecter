@@ -18,6 +18,11 @@ Three transport layers exist. Picking the wrong one creates lag, duplicated logi
 **Is this start / stop / status / inventory of a chat bot process?**
 → **Bots API** (`https://bots.botofthespecter.com`, code `./bot/bots_api/`). Dashboard uses `bots_api_client.php`; public API proxies user `/bot/*` with the admin `service=bots` key. **Not SSH.** See [bots-api.md](./bots-api.md).
 
+## SpecterBotApp / multi-tenant custom PHP (special case)
+
+**Is this a SpecterBotApp module (or other multi-tenant PHP) reading a streamer's DB?**
+→ **SQL data API** (`https://sql.botofthespecter.com`, code `./sql_api/`). Authenticate with the **user** API key (`X-API-KEY`). Tenant is derived from the key, never from Host alone. PHP client: `specterbotapp/sql_api_client.php`. **Do not** give SpecterBotApp shared MySQL credentials. See [sql-api.md](./sql-api.md).
+
 ## Rules
 
 1. **Never call the API from the WebSocket server, or vice versa, when a direct DB query would do.** Both already have MySQL connections.

@@ -13,17 +13,41 @@ function jsval($v) {
     return json_encode($v, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 }
 
-// Database connection
+// Tenant data bootstrap (SQL API preferred; legacy mysqli only if allow_legacy_mysql)
 require '/var/www/specterbotapp/database.php';
 $redirectURI = 'https://specterbot.app/index.php';
 
 $userDatabaseExists = "";
+/**
+ * True if this Twitch login has a SpecterBotApp key file and/or a tenant DB
+ * visible via the SQL API. Falls back to website.users only under legacy MySQL.
+ */
 function userDatabaseExists($username)
 {
+    $username = strtolower(trim((string)$username));
+    if ($username === '' || $username === 'guest_user') {
+        return false;
+    }
+    // Prefer: key file present + /api/v1/me says user DB exists
+    if (function_exists('sql_api_load_user_key') && function_exists('sql_api_request')) {
+        $key = sql_api_load_user_key($username);
+        if ($key !== '') {
+            $res = sql_api_request('GET', '/api/v1/me', $key);
+            if (!empty($res['ok']) && is_array($res['data'])) {
+                return !empty($res['data']['databases']['user']['exists']);
+            }
+            // Key file exists even if API is temporarily down
+            return true;
+        }
+    }
+    // Legacy: website.users row
     global $conn;
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return false;
+    }
     $stmt = $conn->prepare('SELECT COUNT(*) FROM users WHERE username = ?');
     if (!$stmt) {
-        die('Prepare failed: ' . $conn->error);
+        return false;
     }
     $stmt->bind_param('s', $username);
     $stmt->execute();
@@ -189,15 +213,19 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
                 <h3 class="title is-4">Key Features</h3>
                 <ul>
                     <li>Custom subdomains for users</li>
-                    <li>Direct Access to your own database that Specter uses.</li>
-                    <li>You can use <code>database.php</code> in your PHP files to auto-connect to your database.
+                    <li>Tenant-scoped access to <strong>your</strong> channel data via the SQL data API (your API key) — not shared MySQL credentials.</li>
+                    <li>Include <code>database.php</code> to bootstrap your tenant key and helpers.
                         <br>Example:
                         <pre><code class="language-php">&lt;?php
-require '/var/www/specterbotapp/database.php';</code></pre>
-                        This provides two connection variables:
+require '/var/www/specterbotapp/database.php';
+// Preferred: sql_api_select / sql_api_insert / sql_api_update / sql_api_delete
+// Scope "user" = your channel DB; "modules" = {username}_custom_modules
+$rows = sql_api_select('user', 'custom_commands', ['limit' => 20]);</code></pre>
+                        Your API key is loaded server-side from a key file for this subdomain (never put MySQL passwords in module code).
                         <ul>
-                            <li><code>$conn</code> &mdash; Your main channel database connection (always available).</li>
-                            <li><code>$conn_module</code> &mdash; Connection to your custom modules database (<code>{username}_custom_modules</code>), if it exists. This will be <code>null</code> if no custom module database has been created for your channel.</li>
+                            <li><code>$sql_api_mode</code> / <code>$sql_api_ok</code> &mdash; true when the SQL API key loaded successfully.</li>
+                            <li><code>sql_api_*</code> helpers &mdash; all reads/writes go to <code>sql.botofthespecter.com</code> scoped to your key.</li>
+                            <li>Legacy <code>$conn</code> / <code>$conn_module</code> mysqli may exist only during migration if enabled in config.</li>
                         </ul>
                     </li>
                 </ul>
