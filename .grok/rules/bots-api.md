@@ -27,7 +27,7 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 | ------ | ---- | ----- |
 | GET | `/health` | No auth |
 | GET | `/api/running_bots` | Full local inventory |
-| GET | `/api/bot/status?channel=&bot_type=` | One channel; omit `bot_type` to find any |
+| GET | `/api/bot/status?channel=&bot_type=` | One channel; omit `bot_type` to find any. Also returns `script_mtime`, `last_run_mtime`, `code_update_available` (update notice; no SSH). |
 | POST | `/api/bot/start` | JSON body: channel, bot_type, channel_id, token, refresh, apitoken, custom?, botusername?, self?, version? |
 | POST | `/api/bot/stop` | JSON: `{ "channel", "bot_type" }` |
 | POST | `/api/bot/restart` | Same body as start |
@@ -46,7 +46,7 @@ bots_api_stop_all_for_channel($channel); // all variants — use on username ren
 
 ## Rules
 
-1. **Start/stop/status go through bots API only.** SSH remains for logs, token scripts, admin systemctl, file checks — not process lifecycle.
+1. **Start/stop/status go through bots API only.** SSH remains for logs, token scripts, admin systemctl — **not** process lifecycle and **not** bot update-notice mtimes (script / version-control file times come from `GET /api/bot/status` as `script_mtime` / `last_run_mtime`).
 2. **Processes are keyed by Twitch login** (`-channel`), not `twitch_user_id`. If login renames, stop the **old** channel name first (`bots_api_stop_all_for_channel`).
 3. **Do not auto-start** after a rename unless product explicitly asks; user restarts from dashboard under the new login.
 4. **systemd**: `bots-api.service` must use `KillMode=process` so restarting the API does not kill the fleet (bots spawn under `screen` in the same cgroup).

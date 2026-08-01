@@ -28,7 +28,7 @@ The public API and dashboard **load the `bots` key from MySQL automatically** â€
 |--------|------|---------|
 | GET | `/health` | Liveness (no auth) |
 | GET | `/api/running_bots` | Full local inventory (admin) |
-| GET | `/api/bot/status?channel=&bot_type=` | One channel |
+| GET | `/api/bot/status?channel=&bot_type=` | One channel (+ `script_mtime`, `last_run_mtime`, `code_update_available` for update notice) |
 | POST | `/api/bot/start` | Start (body has tokens) |
 | POST | `/api/bot/stop` | Stop |
 | POST | `/api/bot/restart` | Stop then start |

@@ -1621,7 +1621,7 @@ document.addEventListener('DOMContentLoaded', function() {
               lastModified: data.lastModified,
               lastRun: data.lastRun
             });
-            // Check for version updates
+            // Check for version updates and code-on-disk newer than last run
             const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : selectedBot === 'v6' ? window.latestV6Version : window.latestStableVersion;
             // Normalize versions to compare (strip whitespace / leading 'v')
             function normalizeVersion(v) {
@@ -1631,24 +1631,47 @@ document.addEventListener('DOMContentLoaded', function() {
             const normalizedLatest = normalizeVersion(latestVersion);
             const normalizedRunning = normalizeVersion(data.version);
             let hasUpdate = false;
-            let isBetaCodeUpdate = false;
-            if (data.version && normalizedRunning !== normalizedLatest && latestVersion !== 'N/A') {
-              // Always show update notification when there's an update available
-              showNotification(<?php echo json_encode(t('bot_new_version_available', [':bot' => ':bot', ':current' => ':current', ':latest' => ':latest'])); ?>.replace(':bot', selectedBot).replace(':current', data.version).replace(':latest', latestVersion), 'update');
+            let isCodeUpdate = false;
+            // Prefer server-computed flags + raw mtimes (locale-safe); fall back to ago strings
+            const codeUpdateFromApi = data.codeUpdateAvailable === true
+              || (data.scriptMtime && data.lastRunMtime && Number(data.scriptMtime) > Number(data.lastRunMtime));
+            const neverLabel = txtNever;
+            const codeUpdateFromAgo = !!(
+              data.lastModified && data.lastRun
+              && data.lastRun !== 'Never' && data.lastRun !== neverLabel
+              && data.lastModified !== 'Unknown' && data.lastModified !== txtUnknown
+              && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)
+            );
+            const codeUpdate = codeUpdateFromApi || codeUpdateFromAgo;
+            const versionOutdated = data.versionOutdated === true
+              || (data.version && normalizedRunning !== normalizedLatest && latestVersion && latestVersion !== 'N/A');
+            if (versionOutdated) {
+              showNotification(<?php echo json_encode(t('bot_new_version_available', [':bot' => ':bot', ':current' => ':current', ':latest' => ':latest'])); ?>.replace(':bot', selectedBot).replace(':current', data.version || '?').replace(':latest', latestVersion), 'update');
               hasUpdate = true;
-            } else if (selectedBot === 'beta' && data.running && data.lastModified && data.lastRun && data.lastRun !== 'Never' && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)) {
-              // Check for beta code changes only if bot is currently running
-              showNotification(<?php echo json_encode(t('bot_beta_code_updated_notice')); ?>, 'update');
+            } else if (codeUpdate && data.running) {
+              // Script on bot host is newer than last start — restart to pick up code
+              showNotification(
+                selectedBot === 'beta'
+                  ? <?php echo json_encode(t('bot_beta_code_updated_notice')); ?>
+                  : <?php echo json_encode(t('bot_code_update_available')); ?>,
+                'update'
+              );
               hasUpdate = true;
-              isBetaCodeUpdate = true;
+              isCodeUpdate = true;
+            } else if (codeUpdate && !data.running) {
+              // Offline but code is newer than last run — show badge only (no spammy toast)
+              hasUpdate = true;
+              isCodeUpdate = true;
             }
             if (hasUpdate) {
               // Show update indicator in version card
               const updateIndicator = document.getElementById('version-update-indicator');
               if (updateIndicator) {
-                const tag = updateIndicator.querySelector('.tag');
+                const tag = updateIndicator.querySelector('.sp-badge, .tag');
                 if (tag) {
-                  tag.textContent = selectedBot === 'beta' ? <?php echo json_encode(t('bot_code_update_available')); ?> : <?php echo json_encode(t('bot_update_available')); ?>;
+                  tag.textContent = isCodeUpdate
+                    ? <?php echo json_encode(t('bot_code_update_available')); ?>
+                    : <?php echo json_encode(t('bot_update_available')); ?>;
                 }
                 updateIndicator.style.display = 'block';
               }
