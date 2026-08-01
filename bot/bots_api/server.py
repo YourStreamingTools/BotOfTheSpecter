@@ -11,7 +11,7 @@ Create a key with service name:  bots
 Public surface (behind TLS at bots.botofthespecter.com):
   GET  /health
   GET  /api/running_bots
-  GET  /api/bot/status?channel=&bot_type=
+  GET  /api/bot/status?channel=&bot_type=  (includes script_mtime / last_run_mtime)
   POST /api/bot/start
   POST /api/bot/stop
   POST /api/bot/restart

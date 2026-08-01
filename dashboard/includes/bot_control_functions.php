@@ -44,6 +44,10 @@ function checkBotRunning($username, $botType = 'stable') {
         'version' => '',
         'lastModified' => null,
         'lastRun' => null,
+        // Update-notice fields from bots API (local file mtimes on bot host)
+        'script_mtime' => null,
+        'last_run_mtime' => null,
+        'code_update_available' => false,
         'message' => ''
     ];
     $resp = bots_api_bot_status($username, $botType);
@@ -68,7 +72,19 @@ function checkBotRunning($username, $botType = 'stable') {
     }
     $result['running'] = $running;
     $result['pid'] = $running ? intval($data['pid'] ?? 0) : 0;
-    $result['version'] = $running ? (string)($data['version'] ?? '') : '';
+    // Version-control file contents (last run version) — available even when offline
+    $result['version'] = isset($data['version']) && $data['version'] !== null && $data['version'] !== ''
+        ? (string)$data['version']
+        : '';
+    $result['script_mtime'] = isset($data['script_mtime']) && $data['script_mtime'] !== null
+        ? (int)$data['script_mtime']
+        : null;
+    $result['last_run_mtime'] = isset($data['last_run_mtime']) && $data['last_run_mtime'] !== null
+        ? (int)$data['last_run_mtime']
+        : null;
+    $result['code_update_available'] = !empty($data['code_update_available']);
+    $result['lastModified'] = $result['script_mtime'];
+    $result['lastRun'] = $result['last_run_mtime'];
     $result['message'] = 'Bot status retrieved successfully';
     return $result;
 }

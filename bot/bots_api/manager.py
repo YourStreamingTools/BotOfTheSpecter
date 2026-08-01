@@ -49,6 +49,14 @@ VERSION_FILE_BY_TYPE = {
     "kick": lambda ch: VERSION_DIR / "kick" / f"{ch}_kick_version_control.txt",
 }
 
+# Map process/control type → on-disk script whose mtime is "Last Updated"
+SCRIPT_TYPE_FOR_MTIME = {
+    "stable": "stable",
+    "beta": "beta",
+    "v6": "v6",
+    "custom": "beta",  # custom flag runs beta.py
+}
+
 
 def screen_session_name(channel: str) -> str:
     return "specter_" + re.sub(r"[^a-zA-Z0-9_]", "_", channel.lower())
@@ -126,6 +134,25 @@ def find_pids(bot_type: str, channel: str) -> list[int]:
     return pids
 
 
+def _file_mtime(path: Path) -> int | None:
+    """Unix mtime seconds, or None if the path is missing/unreadable."""
+    try:
+        return int(path.stat().st_mtime)
+    except OSError:
+        return None
+
+
+def script_path_for_type(bot_type: str) -> Path | None:
+    """Resolved path to the bot .py script for a control type."""
+    key = SCRIPT_TYPE_FOR_MTIME.get(bot_type, bot_type if bot_type in SCRIPT_BY_TYPE else None)
+    if not key:
+        return None
+    name = SCRIPT_BY_TYPE.get(key)
+    if not name:
+        return None
+    return BOT_HOME / name
+
+
 def read_version(bot_type: str, channel: str) -> str | None:
     fn = VERSION_FILE_BY_TYPE.get(bot_type)
     if not fn:
@@ -136,6 +163,21 @@ def read_version(bot_type: str, channel: str) -> str | None:
         return text or None
     except OSError:
         return None
+
+
+def version_file_mtime(bot_type: str, channel: str) -> int | None:
+    """mtime of the per-channel version-control file (= last successful start / last run)."""
+    fn = VERSION_FILE_BY_TYPE.get(bot_type)
+    if not fn:
+        return None
+    return _file_mtime(fn(channel.lower()))
+
+
+def script_mtime_for_type(bot_type: str) -> int | None:
+    path = script_path_for_type(bot_type)
+    if path is None:
+        return None
+    return _file_mtime(path)
 
 
 def write_version(bot_type: str, channel: str, version: str) -> None:
@@ -245,6 +287,15 @@ def list_running_bots() -> dict[str, Any]:
 
 
 def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, Any]:
+    """
+    Process status plus update-notice metadata (local files only — no SSH).
+
+    Always returns when possible:
+      - script_mtime: mtime of the bot .py on this host (code "Last Updated")
+      - last_run_mtime: mtime of the channel version-control file ("Last Run")
+      - version: contents of that version-control file (even if not running)
+      - code_update_available: True when script is newer than last run
+    """
     channel = channel.lower()
     types = [bot_type] if bot_type else list(BOT_TYPES) + ["custom"]
     found_type = None
@@ -257,20 +308,32 @@ def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, A
             found_type = t
             found_pid = pids[0]
             break
-    if not found_type:
-        return {
-            "running": False,
-            "pid": None,
-            "bot_type": None,
-            "version": None,
-            "channel": channel,
-        }
+
+    # Meta is for the running type if any, else the requested type, else stable.
+    meta_type = found_type or bot_type or "stable"
+    if meta_type not in VERSION_FILE_BY_TYPE and meta_type not in SCRIPT_TYPE_FOR_MTIME:
+        meta_type = "stable"
+
+    script_mtime = script_mtime_for_type(meta_type)
+    last_run_mtime = version_file_mtime(meta_type, channel)
+    version = read_version(meta_type, channel)
+    code_update = (
+        script_mtime is not None
+        and last_run_mtime is not None
+        and script_mtime > last_run_mtime
+    )
+
     return {
-        "running": True,
+        "running": bool(found_type),
         "pid": found_pid,
         "bot_type": found_type,
-        "version": read_version(found_type, channel),
+        "version": version,
         "channel": channel,
+        "requested_bot_type": bot_type,
+        "meta_bot_type": meta_type,
+        "script_mtime": script_mtime,
+        "last_run_mtime": last_run_mtime,
+        "code_update_available": code_update,
     }
 
 

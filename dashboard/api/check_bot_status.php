@@ -8,9 +8,6 @@ ob_start();
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
-// Track operation start time for timeout management
-$operationStart = microtime(true);
-
 require_once '/var/www/lib/require_auth_ajax.php';
 
 // Load translations so user-facing JSON messages are localized.
@@ -35,7 +32,7 @@ if (!isset($_GET['bot'])) {
 }
 
 $bot = $_GET['bot'];
-if (!in_array($bot, ['stable', 'beta', 'v6'])) {
+if (!in_array($bot, ['stable', 'beta', 'v6'], true)) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => t('bot_action_invalid_bot_type')]);
   exit();
@@ -51,9 +48,11 @@ if (empty($username)) {
   exit();
 }
 
+// Process status + file mtimes come from the bots control API (local on bot host).
+// No SSH — see bots-api.md.
 $botStatus = checkBotRunning($username, $bot);
 
-// Only fetch version info from API
+// Latest published version from public API (not bot-host filesystem)
 $versionApiUrl = 'https://api.botofthespecter.com/versions';
 $versionApiData = @file_get_contents($versionApiUrl);
 $latestVersion = '';
@@ -76,71 +75,6 @@ if ($versionApiData !== false) {
   }
 }
 
-// Determine the version control file path for last run (on the bot server)
-$remoteVersionFile = "/home/botofthespecter/logs/version/";
-if ($bot === 'stable') {
-  // Stable bot writes to the top-level version directory
-  $remoteVersionFile .= "{$username}_version_control.txt";
-} elseif ($bot === 'beta') {
-  $remoteVersionFile .= "beta/{$username}_beta_version_control.txt";
-}
-
-// The bot script file's own mtime - "Last Updated" means "when did the code on
-// disk last change", i.e. whether a restart would pick up newer code. This is
-// distinct from $remoteVersionFile above, which tracks when the bot last started.
-$remoteBotScript = match ($bot) {
-  'beta' => '/home/botofthespecter/beta.py',
-  'v6' => '/home/botofthespecter/beta-v6.py',
-  default => '/home/botofthespecter/bot.py',
-};
-
-// Function to get remote file mtime via SSH with timeout protection
-function getRemoteFileMTime($remoteFile) {
-  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $operationStart;
-  // Check if we're running out of time (1.5 second buffer)
-  if ((microtime(true) - $operationStart) > 6.5) {
-    error_log("Timeout protection: skipping getRemoteFileMTime - operation time exceeded");
-    return null;
-  }
-  try {
-    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-    $cmd = "stat -c %Y " . escapeshellarg($remoteFile);
-    $output = SSHConnectionManager::executeCommand($connection, $cmd);
-    if ($output !== false && $output !== null) {
-      if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
-      else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
-      $output = trim($output);
-      if (is_numeric($output)) return (int)$output;
-    }
-  } catch (Exception $e) {
-    error_log("Failed to get remote file mtime: " . $e->getMessage());
-  }
-  return null;
-}
-
-// Function to get remote file contents via SSH with timeout protection
-function getRemoteFileContents($remoteFile) {
-  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password, $operationStart;
-  // Check if we're running out of time (1.5 second buffer)
-  if ((microtime(true) - $operationStart) > 6.5) {
-    error_log("Timeout protection: skipping getRemoteFileContents - operation time exceeded");
-    return null;
-  }
-  try {
-    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-    $cmd = "cat " . escapeshellarg($remoteFile) . " 2>/dev/null";
-    $output = SSHConnectionManager::executeCommand($connection, $cmd);
-    if ($output !== false && $output !== null) {
-      if (function_exists('sanitizeSSHOutput')) { $output = sanitizeSSHOutput($output); }
-      else { $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output); }
-      return trim($output);
-    }
-  } catch (Exception $e) {
-    error_log("Failed to get remote file contents: " . $e->getMessage());
-  }
-  return null;
-}
-
 // Helper: try to extract a semantic version number from arbitrary text
 function extractSemver($text) {
   if (!$text) return '';
@@ -148,42 +82,58 @@ function extractSemver($text) {
   if (preg_match('/v?(\d+\.\d+(?:\.\d+)?)/', $text, $m)) {
     return $m[1];
   }
-  return trim($text);
+  return trim((string)$text);
 }
 
-$lastRunTimestamp = getRemoteFileMTime($remoteVersionFile);
-$scriptMTime = getRemoteFileMTime($remoteBotScript);
+$scriptMTime = isset($botStatus['script_mtime']) && $botStatus['script_mtime'] !== null
+  ? (int)$botStatus['script_mtime']
+  : null;
+$lastRunTimestamp = isset($botStatus['last_run_mtime']) && $botStatus['last_run_mtime'] !== null
+  ? (int)$botStatus['last_run_mtime']
+  : null;
 
-// Try to read the remote version file contents and extract a version string
-$remoteFileContents = getRemoteFileContents($remoteVersionFile);
-$remoteFileVersion = extractSemver($remoteFileContents);
-
-// If we were able to extract a version from the remote file, prefer that as the "version" value
+$remoteFileVersion = extractSemver($botStatus['version'] ?? '');
 $preferredVersion = '';
 if (!empty($remoteFileVersion)) {
   $preferredVersion = $remoteFileVersion;
 } elseif (!empty($botStatus['version'])) {
-  $preferredVersion = $botStatus['version'];
+  $preferredVersion = (string)$botStatus['version'];
+}
+
+// Version string outdated (published latest > last-run version)
+$versionOutdated = !empty($preferredVersion) && !empty($latestVersion)
+  && version_compare($preferredVersion, $latestVersion, '<');
+
+// Code on disk newer than last start (mtime of .py vs version-control file)
+$codeUpdateAvailable = !empty($botStatus['code_update_available']);
+if (!$codeUpdateAvailable && $scriptMTime !== null && $lastRunTimestamp !== null) {
+  $codeUpdateAvailable = $scriptMTime > $lastRunTimestamp;
 }
 
 $response = [
-  'success' => $botStatus['success'],
+  'success' => !empty($botStatus['success']),
   'bot' => $bot,
-  'running' => isset($botStatus['running']) ? $botStatus['running'] : false,
-  'pid' => isset($botStatus['pid']) ? $botStatus['pid'] : 0,
-  // 'version' is the version the user last ran on the remote server (preferred), fallback to botStatus
+  'running' => !empty($botStatus['running']),
+  'pid' => isset($botStatus['pid']) ? (int)$botStatus['pid'] : 0,
+  // Version the user last ran (from version-control file on bot host)
   'version' => $preferredVersion,
   'lastRunVersion' => $remoteFileVersion ?: null,
   'latestVersion' => $latestVersion,
-  'updateAvailable' => !empty($preferredVersion) && !empty($latestVersion) && version_compare($preferredVersion, $latestVersion, '<'),
+  'updateAvailable' => $versionOutdated || $codeUpdateAvailable,
+  'codeUpdateAvailable' => $codeUpdateAvailable,
+  'versionOutdated' => $versionOutdated,
+  // Formatted for the version card
   'lastModified' => $scriptMTime ? formatTimeAgo($scriptMTime) : t('bot_value_unknown'),
-  'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : t('bot_value_never')
+  'lastRun' => $lastRunTimestamp ? formatTimeAgo($lastRunTimestamp) : t('bot_value_never'),
+  // Raw unix timestamps for client-side compare (locale-safe)
+  'scriptMtime' => $scriptMTime,
+  'lastRunMtime' => $lastRunTimestamp,
 ];
 
-// Add status message - show helpful messages even when SSH succeeds
-if (isset($botStatus['message']) && !empty($botStatus['message'])) {
+if (isset($botStatus['message']) && $botStatus['message'] !== '') {
   $response['message'] = $botStatus['message'];
 }
+
 while (ob_get_level()) { ob_end_clean(); }
 header('Content-Type: application/json');
 echo json_encode($response);
@@ -192,7 +142,10 @@ exit();
 function formatTimeAgo($timestamp) {
   if (!$timestamp) return t('bot_value_never');
   $current = time();
-  $diff = $current - $timestamp;
+  $diff = $current - (int)$timestamp;
+  if ($diff < 0) {
+    $diff = 0;
+  }
   if ($diff < 60) {
     return t('time_seconds_ago', ['count' => $diff]);
   } elseif ($diff < 3600) {
