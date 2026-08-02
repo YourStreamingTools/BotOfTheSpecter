@@ -14327,16 +14327,30 @@ async def cleanup_expired_shoutouts():
             twitch_logger.error(f"[SHOUTOUT] Error in cleanup_expired_shoutouts: {e}")
             await sleep(60)  # Wait a minute before retrying on error
 
-# Enqueue shoutout requests
+# Enqueue shoutout requests.
+# Per-user cooldown only suppresses the Twitch API shoutout — chat messages still send.
 async def add_shoutout(user_to_shoutout, user_id, is_automated=True, shoutout_message=None, source="unknown", trigger_api=True):
     in_cooldown, cooldown_minutes, remaining_minutes = await get_shoutout_cooldown_state(user_id)
-    if in_cooldown:
+    if in_cooldown and trigger_api:
         twitch_logger.info(
-            f"[SHOUTOUT] Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - within {cooldown_minutes} minute cooldown, {remaining_minutes} minute(s) remaining. [source={source}]"
+            f"[SHOUTOUT] Per-user cooldown active for {user_to_shoutout} (user_id: {user_id}) - "
+            f"skipping Twitch API only ({cooldown_minutes} min window, {remaining_minutes} min remaining); "
+            f"chat message will still send if present. [source={source}]"
         )
+        trigger_api = False
+    if not trigger_api and not shoutout_message:
+        # Nothing left to do (API already off and no chat line)
+        if in_cooldown:
+            twitch_logger.info(
+                f"[SHOUTOUT] Skipping shoutout for {user_to_shoutout} (user_id: {user_id}) - "
+                f"within cooldown and no chat message to send. [source={source}]"
+            )
         return False
     await shoutout_queue.put((user_to_shoutout, user_id, is_automated, shoutout_message, source, trigger_api))
-    twitch_logger.info(f"[SHOUTOUT] Added shoutout request for {user_to_shoutout} to the queue. [source={source}]")
+    twitch_logger.info(
+        f"[SHOUTOUT] Added shoutout request for {user_to_shoutout} to the queue. "
+        f"[source={source}, trigger_api={trigger_api}]"
+    )
     return True
 
 # Worker to process shoutout queue
@@ -14347,11 +14361,19 @@ async def shoutout_worker():
         shoutout_in_flight = True
         try:
             now = time_right_now()
-            # Check per-user cooldown FIRST (before waiting for global cooldown)
+            # Per-user cooldown only blocks the Twitch API call — chat message still goes out.
             in_cooldown, cooldown_minutes, remaining_minutes = await get_shoutout_cooldown_state(user_id)
-            if in_cooldown:
+            if in_cooldown and trigger_api:
                 twitch_logger.info(
-                    f"[SHOUTOUT] Skipping shoutout for {user_to_shoutout}. User cooldown in effect ({cooldown_minutes} minute window, {remaining_minutes} minute(s) remaining). [source={source}]"
+                    f"[SHOUTOUT] Skipping Twitch API for {user_to_shoutout} - user cooldown in effect "
+                    f"({cooldown_minutes} minute window, {remaining_minutes} minute(s) remaining); "
+                    f"chat message will still send if present. [source={source}]"
+                )
+                trigger_api = False
+            if not trigger_api and not shoutout_message:
+                twitch_logger.info(
+                    f"[SHOUTOUT] Nothing to process for {user_to_shoutout} "
+                    f"(API off, no chat message). [source={source}]"
                 )
                 continue
             # Global cooldown only matters when we're calling the Twitch API; chat-only items skip the wait.
@@ -14371,10 +14393,11 @@ async def shoutout_worker():
                     twitch_logger.info(f"[SHOUTOUT] Twitch API shoutout failed for {user_to_shoutout}; still sending chat message. [source={source}]")
             if shoutout_message:
                 await send_chat_message(shoutout_message)
-            twitch_logger.info(f"[SHOUTOUT] Shoutout processed for {user_to_shoutout}. [source={source}]")
-            # Record shoutout for per-user cooldown tracking regardless of source
-            await record_automated_shoutout(user_id, user_to_shoutout)
-            # Persist to the shoutout history log for all-time counts (5.8+)
+            twitch_logger.info(f"[SHOUTOUT] Shoutout processed for {user_to_shoutout}. [source={source}, trigger_api={trigger_api}]")
+            # Record per-user cooldown only when we actually hit the Twitch API (chat-only does not extend it)
+            if trigger_api:
+                await record_automated_shoutout(user_id, user_to_shoutout)
+            # Persist to the shoutout history log for all-time counts (5.8+) — chat-only still counts
             await log_shoutout_history(user_id, user_to_shoutout, source)
             # Only bump the global cooldown when we actually called the Twitch API
             if trigger_api:
