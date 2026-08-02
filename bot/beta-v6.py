@@ -14811,9 +14811,19 @@ async def websocket_notice(
                 }
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
+                    # Build a small set of filename stems to probe. Twitch logins are
+                    # case-insensitive; uploads are almost always lowercased.
+                    _walkon_stems = []
+                    for _stem in (str(user).lower(), str(user)):
+                        if _stem and _stem not in _walkon_stems:
+                            _walkon_stems.append(_stem)
+                    walkon_resolved = False
                     if MEDIA_MIGRATED:
-                        # Unified library: look up the walkon by twitch_user_id in the
-                        # walkons table. Overlay constructs the URL from media_file.
+                        # Unified library: prefer the walkons table (user_id → media_file).
+                        # If no row, fall back to the conventional {login}.mp3/.mp4 in
+                        # /var/www/media/{channel}/ (and then the legacy walkons dir).
+                        # Without a real file we must NOT emit WALKON — overlays would
+                        # get channel/user undefined and try to play a broken URL.
                         walkon_media_file = None
                         walkon_mode = 'sound'
                         if user_id:
@@ -14830,6 +14840,44 @@ async def websocket_notice(
                                             walkon_mode = walkon_row.get('mode') or 'sound'
                             except Exception as e:
                                 websocket_logger.error(f"WALKON lookup failed for user_id {user_id}: {e}")
+                        if not walkon_media_file:
+                            for _stem in _walkon_stems:
+                                for ext in ['.mp3', '.mp4']:
+                                    media_path = f"/var/www/media/{CHANNEL_NAME}/{_stem}{ext}"
+                                    try:
+                                        if await ssh_manager.file_exists('WEB', media_path):
+                                            walkon_media_file = f"{_stem}{ext}"
+                                            walkon_mode = 'video' if ext == '.mp4' else 'sound'
+                                            websocket_logger.info(
+                                                f"WALKON for {user} (id={user_id}): no walkons row; "
+                                                f"using media file {_stem}{ext}"
+                                            )
+                                            break
+                                    except Exception as e:
+                                        websocket_logger.error(f"Error checking walkon media file {media_path}: {e}")
+                                if walkon_media_file:
+                                    break
+                        if not walkon_media_file:
+                            # Last resort: legacy dir still has the file (migration
+                            # copied incompletely, or streamer uploaded via old page).
+                            for _stem in _walkon_stems:
+                                for ext in ['.mp3', '.mp4']:
+                                    walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{_stem}{ext}"
+                                    try:
+                                        if await ssh_manager.file_exists('WEB', walkon_file_path):
+                                            params['channel'] = CHANNEL_NAME
+                                            params['user'] = _stem
+                                            params['ext'] = ext
+                                            walkon_resolved = True
+                                            websocket_logger.info(
+                                                f"WALKON for {user} (id={user_id}): no walkons row; "
+                                                f"using legacy file {walkon_file_path}"
+                                            )
+                                            break
+                                    except Exception as e:
+                                        websocket_logger.error(f"Error checking walkon file {walkon_file_path}: {e}")
+                                if walkon_resolved:
+                                    break
                         if walkon_media_file:
                             params['channel'] = CHANNEL_NAME
                             params['user'] = user
@@ -14842,26 +14890,42 @@ async def websocket_notice(
                                 params['display_name'] = wk_name or user
                                 if wk_avatar:
                                     params['avatar_url'] = wk_avatar
-                            websocket_logger.info(f"WALKON triggered for {user} (id={user_id}): file={walkon_media_file}, mode={walkon_mode}")
-                        else:
-                            websocket_logger.info(f"WALKON triggered for {user} (id={user_id}), but no walkons row matched")
+                            walkon_resolved = True
+                            websocket_logger.info(
+                                f"WALKON triggered for {user} (id={user_id}): "
+                                f"file={walkon_media_file}, mode={walkon_mode}"
+                            )
+                        elif not walkon_resolved:
+                            websocket_logger.info(
+                                f"WALKON skipped for {user} (id={user_id}): "
+                                f"no walkons row and no {', '.join(_walkon_stems)}.mp3/.mp4 in media or walkons"
+                            )
+                            return
                     else:
                         # Legacy: probe the WEB host for /var/www/walkons/{channel}/{user}.{ext}
-                        found = False
-                        for ext in ['.mp3', '.mp4']:
-                            walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
-                            try:
-                                if await ssh_manager.file_exists('WEB', walkon_file_path):
-                                    params['channel'] = CHANNEL_NAME
-                                    params['user'] = user
-                                    params['ext'] = ext
-                                    websocket_logger.info(f"WALKON triggered for {user}: found file {walkon_file_path} on WEB server")
-                                    found = True
-                                    break
-                            except Exception as e:
-                                websocket_logger.error(f"Error checking walkon file {walkon_file_path} on WEB server: {e}")
-                        if not found:
-                            websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
+                        for _stem in _walkon_stems:
+                            for ext in ['.mp3', '.mp4']:
+                                walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{_stem}{ext}"
+                                try:
+                                    if await ssh_manager.file_exists('WEB', walkon_file_path):
+                                        params['channel'] = CHANNEL_NAME
+                                        params['user'] = _stem
+                                        params['ext'] = ext
+                                        walkon_resolved = True
+                                        websocket_logger.info(
+                                            f"WALKON triggered for {user}: found file {walkon_file_path} on WEB server"
+                                        )
+                                        break
+                                except Exception as e:
+                                    websocket_logger.error(f"Error checking walkon file {walkon_file_path} on WEB server: {e}")
+                            if walkon_resolved:
+                                break
+                        if not walkon_resolved:
+                            websocket_logger.info(
+                                f"WALKON skipped for {user}: no walk-on file in "
+                                f"/var/www/walkons/{CHANNEL_NAME}/"
+                            )
+                            return
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game

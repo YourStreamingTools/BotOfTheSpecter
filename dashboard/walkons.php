@@ -18,13 +18,22 @@ include "includes/mod_access.php";
 include 'includes/user_db.php';
 include 'includes/storage_used.php';
 session_write_close();
-$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
 $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
+$media_migrated = (bool)($channelData['media_migrated'] ?? false);
 $stmt->close();
 date_default_timezone_set($timezone);
+
+// Unified media library channels manage walk-ons via media.php (walkons table +
+// /var/www/media/). The legacy page still writes to /var/www/walkons/ only and
+// never creates walkons rows, so the bot cannot resolve files after migration.
+if ($media_migrated) {
+    header('Location: media.php?from=walkons');
+    exit;
+}
 
 // Define empty variable for status
 $status = '';
