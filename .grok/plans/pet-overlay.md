@@ -1,7 +1,7 @@
 # Pet Overlay - Feature Specification & Implementation Plan
 
-> Status: **Draft**. See §7 for risks and §6 for roadmap decisions.
-> Owner: TBD. Last revised 2026-05-30.
+> Status: **Draft — product decisions locked** (2026-08-02). Ready for Stage 0 scaffolding.
+> Owner: TBD. Last revised 2026-08-02.
 > Inspiration: Triiibe (formerly Kappamon) - a cute interactive pet/avatar browser source that reacts to chat and stream events to drive engagement.
 
 **Confirmed product decisions**:
@@ -9,7 +9,14 @@
 1. **Sprite sheets / frame-PNG animation.** Pet states are PNG frame sequences / sprite sheets animated client-side. Lightweight, smooth in OBS, swappable art.
 2. **Custom upload at MVP.** Streamers upload their own pet art from day one (no locked-in character). Operator templates are a later nicety, not a blocker.
 3. **Reactive *and* stateful at MVP.** The pet both reacts to triggers (animations) and carries persistent per-channel stats (happiness / hunger / energy / level) that viewers grow.
-4. **Reuse the existing `?code=API_KEY` overlay URL.** Same per-channel browser-source auth as the other 20 overlays - no new token infra. (A scoped/revocable overlay-token system is a separate cross-overlay project, noted as future work.)
+4. **Reuse the existing `?code=API_KEY` overlay URL.** Same per-channel browser-source auth as other overlays - no new token infra. (A scoped/revocable overlay-token system is a separate cross-overlay project, noted as future work.)
+5. **Stat set.** Happiness, hunger, energy (0–100) + level/XP.
+6. **Sprite subdir.** `/var/www/media/{user}/pet/` → `https://media.botofthespecter.com/{user}/pet/{file}`.
+7. **Overlay file name.** `./overlay/pet.php`.
+8. **Default seeded triggers on enable.** Small default set (follow/sub/raid/cheer → generic hype, `!feed` → eat) so the pet does something immediately.
+9. **Greeting scope.** Once per viewer per stream via existing `FIRST_CHAT` only (not every chat return).
+10. **Reaction queue policy.** **Never drop.** If many actions arrive, keep only **unique** reactions (duplicates collapse into one pending play). Queue length is unbounded in uniqueness terms — spam of the same reaction still plays once; distinct reactions all play, sequentially.
+11. **Queue uniqueness key.** Coalesce by **animation name** for ordinary reactions. **Greetings / personalized “Hi …” bubbles stay distinct** — two different people each getting “Hi {user}!” both enqueue and play (that is fine). Same person / same bubble text still coalesces.
 
 ---
 
@@ -83,7 +90,7 @@ Priority tags: **[MVP]**, **[P2]** (Phase 2), **[L]** (Later).
 
 ### 2d. Twitch Event Reactions
 - **[MVP]** Reactions to **follow / sub / raid / cheer** - the bot already fires these (`websocket_notice("TWITCH_*")`); the same handlers also resolve the pet reaction and emit `PET_REACT`.
-- **[MVP]** **Greeting** on `FIRST_CHAT` (already emitted) - pet waves + speech bubble "Hi {user}!".
+- **[MVP]** **Greeting** on `FIRST_CHAT` only (once per viewer per stream; already emitted) - pet waves + speech bubble "Hi {user}!".
 - **[P2]** Scale reactions by magnitude (bigger cheer → bigger hype; raid size → longer celebration).
 - **MVP done:** a follow/sub/raid/cheer each triggers its mapped animation + bubble on the overlay.
 
@@ -95,7 +102,7 @@ Priority tags: **[MVP]**, **[P2]** (Phase 2), **[L]** (Later).
 
 ### 2f. Overlay Frontend & Browser Source Delivery
 - **[MVP]** Single browser source `https://overlay.botofthespecter.com/pet.php?code=API_KEY`.
-- **[MVP]** Sprite animation engine (frame stepping, fps, loop, one-shot reactions returning to idle), **reaction queue** (overlay rule 3 - sequential, not overlapping), auto-reconnect (rule 4), resolution-independent (rule 7), transparent background.
+- **[MVP]** Sprite animation engine (frame stepping, fps, loop, one-shot reactions returning to idle), **reaction queue** (overlay rule 3 - sequential, not overlapping; **unique-only, never drop** — ordinary reactions coalesce by animation; personalized “Hi …” greetings for different users stay distinct), auto-reconnect (rule 4), resolution-independent (rule 7), transparent background.
 - **[MVP]** Stat bars + level rendered from `PET_STATE`, with **client-side decay interpolation** (no polling).
 - **MVP done:** the overlay survives OBS reload showing live state, plays queued reactions smoothly, and reconnects after a WebSocket drop.
 
@@ -180,7 +187,7 @@ Four tables, all living in the channel's own per-user DB. House style throughout
 
 **Real-time push.** Reuse the WebSocket server (SocketIO, `channel_code` routing). New `PET_*` events need no server code (generic `else` branch). Chat-keyword reactions are resolved in the bot, so the overlay does **not** subscribe to the full `CHAT_MESSAGE` firehose - it only receives targeted `PET_REACT`s, keeping overlay bandwidth tiny.
 
-**OBS browser source performance.** Preload all sprite frames on page load; animate via `requestAnimationFrame` with a frame accumulator (not per-frame `setInterval`); use GPU-friendly `transform`/`opacity` only; transparent body; one active reaction at a time with a bounded queue (drop or coalesce if the queue exceeds ~5 to survive raid spam); cap sprite-sheet dimensions (e.g. ≤ 4096px) and frame count at upload time.
+**OBS browser source performance.** Preload all sprite frames on page load; animate via `requestAnimationFrame` with a frame accumulator (not per-frame `setInterval`); use GPU-friendly `transform`/`opacity` only; transparent body; one active reaction at a time with a **unique-only queue** (never drop: coalesce by animation name for ordinary reactions; personalized greetings / “Hi {user}!” for different people stay distinct and all play sequentially); cap sprite-sheet dimensions (e.g. ≤ 4096px) and frame count at upload time.
 
 **Security & isolation.** `channel_code` routing prevents cross-channel reaction leakage; the overlay PHP reads only the DB matching its `?code=`. Uploaded sprites are validated server-side: MIME + extension allowlist (`png`, `webp`), max dimensions, max file size, and re-encoded/stripped of metadata to neutralize malicious payloads. Bubble text is escaped on render (overlay XSS). Trigger values are length-capped and typed.
 
@@ -231,7 +238,7 @@ Four tables, all living in the channel's own per-user DB. House style throughout
 | Risk | Mitigation |
 |---|---|
 | **Chat keyword matching adds load** (highest-volume event path) | Resolve in-bot against an **in-memory cached** trigger dict (refresh on `PET_SETTINGS_UPDATE`); per-trigger cooldowns via the existing bucket system; never ship the chat firehose to the overlay. |
-| **Reaction spam during raids** (overlapping animations, jank) | Single active reaction + bounded queue (coalesce/drop beyond ~5); cooldowns; magnitude coalescing in Phase 2. |
+| **Reaction spam during raids** (overlapping animations, jank) | Single active reaction + **unique-only queue** (never drop: same animation coalesces; personalized “Hi” greetings for different users still queue separately); per-trigger cooldowns; magnitude scaling still Phase 2. |
 | **Setup too hard for non-artists** (custom upload at MVP) | Live sprite-sheet preview; sensible default frame values; sane default triggers seeded on enable; operator templates as a fast-follow (Phase 2) so art isn't a hard prerequisite. |
 | **Malicious / oversized uploads** | Server-side MIME + extension allowlist, dimension/size caps, re-encode + metadata strip, frame-count cap. |
 | **Cross-channel leakage** | Structural per-DB isolation + `channel_code` routing (already enforced); overlay reads only its `?code=` DB. |
@@ -252,11 +259,16 @@ Four tables, all living in the channel's own per-user DB. House style throughout
 
 ---
 
-## 9. Open decisions
+## 9. Product decisions (locked 2026-08-02)
 
-1. **Stat set.** Proposed happiness / hunger / energy + level/xp. Trim to just happiness + level for a leaner MVP, or keep all three bars? Recommendation: keep three (richer, cheap given lazy decay).
-2. **Sprite subdir.** `/var/www/media/{user}/pet/` (recommended, isolates pet art) vs the flat media dir shared with alert sounds.
-3. **Overlay file name.** `pet.php` (recommended) vs `pet-overlay.php`.
-4. **Default seeded triggers on enable.** Ship a small default set (follow/sub/raid/cheer → generic hype, `!feed` → eat) so a streamer sees life immediately, or start empty? Recommendation: seed defaults.
-5. **Greeting scope.** Greet on `FIRST_CHAT` only (recommended - once per viewer per stream) vs every returning viewer.
-6. **Reaction queue overflow policy.** Drop oldest vs coalesce identical reactions during spam. Recommendation: coalesce identical, then drop oldest beyond cap.
+| # | Topic | Decision |
+|---|--------|----------|
+| 1 | **Stat set** | Happiness / hunger / energy (0–100) + level/XP. |
+| 2 | **Sprite subdir** | `/var/www/media/{user}/pet/` (isolates pet art; same pattern as Avatar `avatar/`). |
+| 3 | **Overlay file name** | `pet.php`. |
+| 4 | **Default seeded triggers on enable** | Seed a small set: follow/sub/raid/cheer → generic hype; `!feed` → eat. |
+| 5 | **Greeting scope** | **Once per viewer per stream** via `FIRST_CHAT` only. |
+| 6 | **Reaction queue** | **Never drop.** If many actions arrive, keep only **unique** ones; play all distinct reactions sequentially. |
+| 7 | **Queue uniqueness key** | Coalesce by **animation name** for ordinary reactions. **Personalized greetings (“Hi …”) for different people stay distinct** — two viewers both getting a hi is fine and both play. Same bubble text / same person still coalesces. |
+
+No open product decisions remain for MVP.
