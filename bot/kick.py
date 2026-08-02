@@ -45,11 +45,9 @@ parser.add_argument("-clientsecret",   dest="client_secret",     required=True, 
 parser.add_argument("-apitoken",       dest="api_token",         required=False, help="BotOfTheSpecter internal API token")
 args = parser.parse_args()
 
-# TWITCH_USERNAME: the streamer's Twitch username.
-#   Used for: MySQL database name, WebSocket REGISTER channel, webhook URL path in api.py.
+# TWITCH_USERNAME: the streamer's Twitch username. Used for: MySQL database name, WebSocket REGISTER channel, webhook URL path in api.py.
 TWITCH_USERNAME     = args.twitch_username.lower()
-# KICK_CHANNEL: the streamer's Kick channel slug.
-#   Used for: all Kick REST API calls (send message, ban, channel info, etc.).
+# KICK_CHANNEL: the streamer's Kick channel slug. Used for: all Kick REST API calls (send message, ban, channel info, etc.).
 KICK_CHANNEL        = args.kick_username.lower()
 CHANNEL_ID          = int(args.channel_id)
 CHATROOM_ID         = int(args.chatroom_id)
@@ -437,8 +435,7 @@ async def specter_websocket():
                 )
                 await sleep(reconnect_delay + jitter)
             bot_logger.info(f"[WS] Connecting to {specter_uri} (attempt {consecutive_failures + 1})")
-            # Hard timeout on connect() - prevents hanging when the server is mid-reboot
-            # and accepts TCP but never completes the socket.io handshake.
+            # Hard timeout on connect() - prevents hanging when the server is mid-reboot and accepts TCP but never completes the socket.io handshake.
             await asyncio_wait_for(
                 specterSocket.connect(specter_uri, transports=['websocket']),
                 timeout=30
