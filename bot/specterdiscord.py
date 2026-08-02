@@ -29,10 +29,7 @@ from discord.ext import commands
 try:
     from discord.ext import voice_recv
 except ImportError:
-    # discord-ext-voice-recv isn't installed yet (planned feature, not shipped).
-    # connect_voice()/_handle_connect() fall back to the standard VoiceClient;
-    # the realtime/listen commands that actually need receive are already
-    # disabled at the top of their functions regardless.
+    # discord-ext-voice-recv isn't installed yet (planned feature, not shipped). connect_voice()/_handle_connect() fall back to the standard VoiceClient; the realtime/listen commands that actually need receive are already disabled at the top of their functions regardless.
     voice_recv = None
 from discord import app_commands
 from dotenv import load_dotenv
@@ -630,10 +627,7 @@ class WebsocketListener:
         self.specterSocket = None
 
     async def start(self):
-        # This listener has NO manual reconnect loop - it relies entirely on
-        # python-socketio's built-in reconnection (single authority). Do NOT set
-        # reconnection=False here or the Discord bot would never reconnect.
-        # Keep infinite attempts but bound the delay for the ~2 min internal-server reboot.
+        # This listener has NO manual reconnect loop - it relies entirely on python-socketio's built-in reconnection (single authority). Do NOT set reconnection=False here or the Discord bot would never reconnect. Keep infinite attempts but bound the delay for the ~2 min internal-server reboot.
         self.specterSocket = socketio.AsyncClient(
             logger=False, engineio_logger=False,
             reconnection=True, reconnection_attempts=0,
@@ -1585,8 +1579,7 @@ class LiveChannelManager:
                 )
                 if user_row:
                     username = username or user_row.get('username')
-                # If still missing, perform API check by username if known
-            # If we have a username and bot, verify via bot.get_stream_info
+                # If still missing, perform API check by username if known If we have a username and bot, verify via bot.get_stream_info
             if username and self.bot:
                 # use bot.get_stream_info which returns (game_name, stream_title) or ('Unknown Game', 'No Title')
                 try:
@@ -1738,8 +1731,7 @@ class LiveChannelManager:
                         live_logins = {s['user_login'].lower(): s for s in head}
                         # Mark or unmark
                         for uname in chunk:
-                            # The record_map maps username -> online_stream row
-                            # We'll verify live presence and mark online/offline by username
+                            # The record_map maps username -> online_stream row We'll verify live presence and mark online/offline by username
                             if uname in live_logins:
                                 s = live_logins[uname.lower()]
                                 # Persist online state by username only
@@ -1883,8 +1875,7 @@ class LiveChannelManager:
             prevented_duplicates = 0
             new_notifications = 0
             cleaned_stale = 0
-            # Process each channel mapping by code so every guild is handled independently,
-            # even when multiple guilds track the same streamer.
+            # Process each channel mapping by code so every guild is handled independently, even when multiple guilds track the same streamer.
             for code, mapping in mappings.items():
                 try:
                     username = mapping.get('username')
@@ -1955,8 +1946,7 @@ class LiveChannelManager:
                                     stream_age_minutes = (datetime.now(timezone.utc) - started_at_dt).total_seconds() / 60
                                 except Exception:
                                     pass
-                            # If the stream started more than 5 minutes ago, the bot restarted mid-stream.
-                            # Mark as online in our state but do NOT re-announce to avoid spamming.
+                            # If the stream started more than 5 minutes ago, the bot restarted mid-stream. Mark as online in our state but do NOT re-announce to avoid spamming.
                             if stream_age_minutes is not None and stream_age_minutes > 5:
                                 self.logger.info(
                                     f"Stream is live for {username_lower} (started {stream_age_minutes:.0f}m ago) "
@@ -1981,8 +1971,7 @@ class LiveChannelManager:
                                 except Exception as e:
                                     self.logger.error(f"Error sending stream notification for {username_lower}: {e}")
                     else:
-                        # Stream is offline
-                        # Clean up online_streams if present
+                        # Stream is offline Clean up online_streams if present
                         if online_stream:
                             await self.mark_offline_by_username(username_lower)
                         # Clean up live_notifications if present
@@ -2499,8 +2488,7 @@ class BotOfTheSpecter(commands.Bot):
                 messages.append({'role': 'system', 'content': limiter})
             except Exception as e:
                 self.logger.debug(f"Failed to build user context for AI: {e}")
-            # Load per-channel/user chat history and insert as prior messages
-            # If guild_id is provided, use guild_id_user_id.json format, otherwise use channel_name.json
+            # Load per-channel/user chat history and insert as prior messages If guild_id is provided, use guild_id_user_id.json format, otherwise use channel_name.json
             try:
                 if guild_id:
                     history_filename = f"{guild_id}_{channel_name}.json"
@@ -2817,8 +2805,7 @@ class BotOfTheSpecter(commands.Bot):
                 # Process as a command
                 await self.process_commands(message)
                 return
-            # Not a command, process as AI chat
-            # Determine the "channel_name" based on the source of the message
+            # Not a command, process as AI chat Determine the "channel_name" based on the source of the message
             channel = message.channel
             channel_name = str(message.author.id)  # Use user ID for DMs
             # Use the message ID to track if it's already been processed
@@ -3476,8 +3463,7 @@ class BotOfTheSpecter(commands.Bot):
                 try:
                     if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
                         await self.live_channel_manager.mark_offline(channel_code)
-                        # clear_live_notifications_for_channel already clears ALL guilds for this username
-                        # so we don't need the per-guild delete below
+                        # clear_live_notifications_for_channel already clears ALL guilds for this username so we don't need the per-guild delete below
                         await self.live_channel_manager.clear_live_notifications_for_channel(channel_code)
                         self.logger.debug(f"Cleared all live notifications for channel_code {channel_code} across all guilds")
                 except Exception as e:
@@ -3666,8 +3652,7 @@ class BotOfTheSpecter(commands.Bot):
                 color = discord.Color.blurple()
             embed = discord.Embed(title=title, description=desc, color=color)
         elif event_type == "PATREON":
-            # Patreon JSON:API envelope arrives in data.data - same Python-literal
-            # tolerance as overlay/patreon.php since api.py uses urlencode(dict).
+            # Patreon JSON:API envelope arrives in data.data - same Python-literal tolerance as overlay/patreon.php since api.py uses urlencode(dict).
             payload = {}
             raw = data.get("data") if isinstance(data, dict) else None
             if isinstance(raw, str):
@@ -3990,8 +3975,7 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             self.logger.error(f"❌ Failed to send status message to #{channel.name}: {type(e).__name__}: {e}")
             await self._send_failure_dm(guild, "Stream status update", channel.name, f"Unexpected error ({type(e).__name__}) posting to #{channel.name}: {e}")
-        # Send notification to stream_channel_id for online events
-        # Always check database first to ensure we have the latest channel settings
+        # Send notification to stream_channel_id for online events Always check database first to ensure we have the latest channel settings
         databases_checked = []
         # Check cache value first (for logging comparison)
         cached_channel_id = mapping.get("stream_channel_id")
@@ -4470,8 +4454,7 @@ class QuoteCog(commands.Cog, name='Quote'):
             ctx = ctx_or_interaction
         else:
             ctx = await commands.Context.from_interaction(ctx_or_interaction)
-        # Send the API key via the X-API-KEY header (the API's /v2 layer) rather than a
-        # ?api_key= query string, which would leak the credential into access/proxy logs.
+        # Send the API key via the X-API-KEY header (the API's /v2 layer) rather than a ?api_key= query string, which would leak the credential into access/proxy logs.
         url = f"{config.api_base_url}/v2/quotes"
         try:
             async with aiohttp.ClientSession() as session:
@@ -5551,8 +5534,7 @@ class TicketCog(commands.Cog, name='Tickets'):
         if message.author.bot:
             return
         try:
-            # Check if this is a ticket-info channel
-            # Guard: message.guild can be None for DMs or system messages
+            # Check if this is a ticket-info channel Guard: message.guild can be None for DMs or system messages
             if message.guild is None:
                 return
             settings = await self.get_settings(message.guild.id)
@@ -6325,8 +6307,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                         pass
                     self.logger.info(f"Moved voice connection from {current_channel.name} to {channel.name} in {ctx.guild.name}")
                     return
-            # Connect to the voice channel
-            # Prevent concurrent connect attempts per guild using a per-guild lock
+            # Connect to the voice channel Prevent concurrent connect attempts per guild using a per-guild lock
             guild_id = ctx.guild.id
             now = time.time()
             attempt_info = self._connect_attempts.get(guild_id)
@@ -6985,8 +6966,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                         elif event_type == "error":
                             self.logger.error(f"[REALTIME] OpenAI error: {data.get('error', {})}")
                 async def listener_guardian():
-                    # Poll every second so a crashed PacketRouter is detected and
-                    # restarted within ~1 s rather than up to 5 s.
+                    # Poll every second so a crashed PacketRouter is detected and restarted within ~1 s rather than up to 5 s.
                     while True:
                         await asyncio.sleep(1)
                         audio_reader = getattr(vc, '_reader', None)
@@ -6996,10 +6976,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                         router_thread = getattr(audio_reader, '_router', None)
                         if router_thread is None or router_thread.is_alive():
                             continue
-                        # Thread is dead (OpusError: corrupted stream).
-                        # NOTE: do NOT check vc.is_listening() here - when the PacketRouter
-                        # crashes, voice_recv tears down the listener internally, so
-                        # is_listening() returns False and we'd incorrectly skip the restart.
+                        # Thread is dead (OpusError: corrupted stream). NOTE: do NOT check vc.is_listening() here - when the PacketRouter crashes, voice_recv tears down the listener internally, so is_listening() returns False and we'd incorrectly skip the restart.
                         self.logger.warning(
                             "[REALTIME] PacketRouter thread died (OpusError: corrupted stream) "
                             "- restarting listener"
@@ -7035,8 +7012,7 @@ class VoiceCog(commands.Cog, name='Voice'):
         return struct.pack(f"<{len(decimated)}h", *decimated)
 
     def _play_pcm_in_vc(self, vc, pcm_24k_mono: bytes):
-        # If already playing, wait for it to finish then play this chunk.
-        # Discord's vc.play() is not re-entrant; calling it while playing raises an error.
+        # If already playing, wait for it to finish then play this chunk. Discord's vc.play() is not re-entrant; calling it while playing raises an error.
         def _after(_error):
             if _error:
                 self.logger.error(f"[REALTIME] Playback error: {_error}")
@@ -7045,10 +7021,7 @@ class VoiceCog(commands.Cog, name='Voice'):
         source = discord.FFmpegPCMAudio(
             io.BytesIO(pcm_24k_mono),
             pipe=True,
-            # Tell ffmpeg the exact format of the raw PCM bytes coming from OpenAI
-            # (signed 16-bit LE, 24 kHz, mono) so it can correctly resample to
-            # Discord's expected 48 kHz stereo output.  Without these options
-            # ffmpeg has to guess the format and produces a corrupted stream.
+            # Tell ffmpeg the exact format of the raw PCM bytes coming from OpenAI (signed 16-bit LE, 24 kHz, mono) so it can correctly resample to Discord's expected 48 kHz stereo output. Without these options ffmpeg has to guess the format and produces a corrupted stream.
             before_options="-f s16le -ar 24000 -ac 1",
         )
         vc.play(source, after=_after)
@@ -7150,8 +7123,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 if not channel_name or not twitch_user_id:
                     self.logger.warning(f"Guild {guild_id} ({guild.name}): Missing user configuration")
                     continue
-                # Note: auth_token not needed here anymore as check_streams_for_guild fetches bot token directly
-                # Get member streams to monitor
+                # Note: auth_token not needed here anymore as check_streams_for_guild fetches bot token directly Get member streams to monitor
                 users = await self.mysql.fetchall(
                     "SELECT username, stream_url FROM member_streams",
                     database_name=channel_name, dict_cursor=True
@@ -7362,8 +7334,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
     async def process_guild_streams(self, guild_id, guild_data):
         current_streams = await self.check_streams_for_guild(guild_id, guild_data)
         discord_channel_id = guild_data['member_streams_id']
-        # Get currently live users for this guild from DB
-        # Fetch all live notifications for this guild
+        # Get currently live users for this guild from DB Fetch all live notifications for this guild
         conn = await self.mysql.get_connection('specterdiscordbot')
         guild_live_users = {}
         if conn:
@@ -7428,8 +7399,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         previously_live = set(guild_live_users.keys())
         went_offline = previously_live - current_live_usernames
         for username in went_offline:
-            # Before marking offline, check if the stream was just marked online recently
-            # This prevents false offline detections due to API lag or race conditions
+            # Before marking offline, check if the stream was just marked online recently This prevents false offline detections due to API lag or race conditions
             try:
                 if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                     existing = await self.bot.live_channel_manager.get_online_stream_by_username(username)
@@ -8990,8 +8960,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                     message_text = custom_message.replace("{user}", member.name)
                 # Send as embed or plain text based on configuration
                 if use_embed == 1:
-                    # Send as rich embed with custom colour
-                    # Convert hex colour to integer
+                    # Send as rich embed with custom colour Convert hex colour to integer
                     try:
                         colour_hex = embed_colour if embed_colour else "#00d1b2"
                         colour_int = int(colour_hex.replace("#", ""), 16)
@@ -9116,8 +9085,7 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
                 self.logger.debug(f"No roles to save for user {user_id} in server {server_id}")
                 return
             role_ids_json = json.dumps(role_ids)
-            # Use UPSERT to insert or update the record
-            # last_checked will be updated to CURRENT_TIMESTAMP automatically
+            # Use UPSERT to insert or update the record last_checked will be updated to CURRENT_TIMESTAMP automatically
             query = """
                 INSERT INTO role_history (server_id, user_id, role_ids)
                 VALUES (%s, %s, %s) AS new
@@ -9165,8 +9133,7 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
 
     async def _cleanup_expired_roles(self):
         try:
-            # Try to use per-server retention settings if available, otherwise use 30-day default
-            # This query checks if role_history_configuration exists in server_management table
+            # Try to use per-server retention settings if available, otherwise use 30-day default This query checks if role_history_configuration exists in server_management table
             query = """
                 DELETE rh FROM role_history rh
                 WHERE TIMESTAMPDIFF(DAY, rh.last_checked, NOW()) > COALESCE(

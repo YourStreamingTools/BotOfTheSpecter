@@ -44,10 +44,7 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-# Python 3.12+ removed the implicit auto-create-if-none-running fallback in
-# get_event_loop(); TwitchIO 2.10.0 still calls it that way internally when
-# constructing the Bot. Ensure a loop exists for the main thread so that call
-# succeeds exactly like it did on older Python versions.
+# Python 3.12+ removed the implicit auto-create-if-none-running fallback in get_event_loop(); TwitchIO 2.10.0 still calls it that way internally when constructing the Bot. Ensure a loop exists for the main thread so that call succeeds exactly like it did on older Python versions.
 try:
     get_event_loop()
 except RuntimeError:
@@ -80,8 +77,7 @@ CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
 TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
-# Specter chat credentials are sourced from the website DB (bot_chat_token) with a short
-# cache; the env values above are only used as a fallback if the DB is unavailable.
+# Specter chat credentials are sourced from the website DB (bot_chat_token) with a short cache; the env values above are only used as a fallback if the DB is unavailable.
 WEBSITE_TWITCH_CREDS_CACHE_TTL = 60  # seconds
 _website_twitch_creds_cache = {
     "loaded_at": 0.0,
@@ -1195,8 +1191,7 @@ async def specter_websocket():
         try:
             # Ensure clean state before connection attempt
             websocket_connected = False
-            # Always force a clean disconnect first so we recover from any
-            # indeterminate socket state (do not gate on .connected).
+            # Always force a clean disconnect first so we recover from any indeterminate socket state (do not gate on .connected).
             try:
                 await specterSocket.disconnect()
             except Exception:
@@ -1208,9 +1203,7 @@ async def specter_websocket():
                 total_delay = reconnect_delay + jitter
                 websocket_logger.info(f"Reconnection attempt {consecutive_failures}, waiting {total_delay:.1f} seconds (server reboot consideration)")
                 await sleep(total_delay)
-            # Attempt to connect to the WebSocket server using websocket transport directly.
-            # Hard timeout on connect() itself - prevents hanging forever when the server is
-            # mid-reboot and accepts TCP but never completes the socket.io handshake.
+            # Attempt to connect to the WebSocket server using websocket transport directly. Hard timeout on connect() itself - prevents hanging forever when the server is mid-reboot and accepts TCP but never completes the socket.io handshake.
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
             await asyncio_wait_for(
                 specterSocket.connect(specter_websocket_uri, transports=['websocket']),
@@ -1837,8 +1830,7 @@ class TwitchBot(commands.Bot):
         # Verify source-room-id matches expected channel
         if hasattr(message, 'tags') and message.tags:
             source_room_id = message.tags.get('source-room-id')
-            # source-room-id indicates the originating channel (where the user is from)
-            # We only accept messages from users in the running bot channel
+            # source-room-id indicates the originating channel (where the user is from) We only accept messages from users in the running bot channel
             if source_room_id and source_room_id != str(CHANNEL_ID):
                 return
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
@@ -3776,8 +3768,7 @@ class TwitchBot(commands.Bot):
                         if not video_title:
                             await send_chat_message("Could not extract title from the YouTube video.")
                             return
-                        # Clean up the title for better Spotify search results
-                        # Remove common YouTube suffixes and prefixes
+                        # Clean up the title for better Spotify search results Remove common YouTube suffixes and prefixes
                         cleanup_patterns = [
                             r'\s*\[.*?\]\s*',  # Remove [Official Video], [Lyrics], etc.
                             r'\s*\(.*?\)\s*',  # Remove (Official Video), (Lyrics), etc.
@@ -9486,8 +9477,7 @@ async def tell_fortune():
                     return fortune_data["fortune"]
             return "Unable to retrieve your fortune at this time."
 
-# Functions for the ToDo List
-# ToDo List Function - Add Task
+# Functions for the ToDo List ToDo List Function - Add Task
 async def add_task(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
@@ -9646,8 +9636,7 @@ async def start_subathon(ctx):
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
                     create_task(subathon_countdown())
-                    # Send websocket notice - end_timestamp_ms lets the overlay tick against an
-                    # absolute target so it doesn't accumulate setInterval drift.
+                    # Send websocket notice - end_timestamp_ms lets the overlay tick against an absolute target so it doesn't accumulate setInterval drift.
                     additional_data = {
                         'starting_minutes': starting_minutes,
                         'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
@@ -9686,8 +9675,7 @@ async def pause_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                # Seconds precision - flooring to minutes here would lose up to 59 seconds
-                # per pause/resume cycle.
+                # Seconds precision - flooring to minutes here would lose up to 59 seconds per pause/resume cycle.
                 remaining_seconds_float = (subathon_state["end_time"] - time_right_now()).total_seconds()
                 remaining_seconds = max(0, int(remaining_seconds_float))
                 remaining_minutes = remaining_seconds // 60
@@ -9714,8 +9702,7 @@ async def resume_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and subathon_state["paused"]:
-                # remaining_seconds was added after launch; fall back to minutes for rows that
-                # paused before the migration.
+                # remaining_seconds was added after launch; fall back to minutes for rows that paused before the migration.
                 stored_seconds = subathon_state.get("remaining_seconds") or 0
                 if stored_seconds <= 0:
                     stored_seconds = int(subathon_state["remaining_minutes"]) * 60
@@ -10529,9 +10516,7 @@ def _first_present_key(row, candidates):
             return candidate
     return None
 
-# Pull the botofthespecter chat credentials (access token + client ID) from the website DB
-# (bot_chat_token table), cache them briefly, and fall back to the environment variables if
-# the DB row is missing or unavailable.
+# Pull the botofthespecter chat credentials (access token + client ID) from the website DB (bot_chat_token table), cache them briefly, and fall back to the environment variables if the DB row is missing or unavailable.
 async def get_website_twitch_app_credentials(force_refresh=False):
     global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID, _website_twitch_creds_cache
     now_ts = time.time()

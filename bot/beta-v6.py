@@ -48,11 +48,7 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-# Python 3.12+ removed the implicit auto-create-if-none-running fallback in
-# asyncio.get_event_loop(). TwitchIO 3.x is written for modern asyncio and
-# likely doesn't need this, but bot.py/beta.py do (TwitchIO 2.10.0 still
-# calls it internally) - applying the same harmless guard here for
-# consistency across all three bot versions per the stable/beta/v6 fix policy.
+# Python 3.12+ removed the implicit auto-create-if-none-running fallback in asyncio.get_event_loop(). TwitchIO 3.x is written for modern asyncio and likely doesn't need this, but bot.py/beta.py do (TwitchIO 2.10.0 still calls it internally) - applying the same harmless guard here for consistency across all three bot versions per the stable/beta/v6 fix policy.
 try:
     asyncio.get_event_loop()
 except RuntimeError:
@@ -183,8 +179,7 @@ builtin_commands = {
     "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
     "wordreplaceoff", "wordreplaceon"
 }
-# Commands that must use a per-user cooldown bucket (not global 'default').
-# A global bucket lets one viewer's use lock the command for every other viewer.
+# Commands that must use a per-user cooldown bucket (not global 'default'). A global bucket lets one viewer's use lock the command for every other viewer.
 per_user_cooldown_commands = {
     # Task list / personal timer
     "task", "done", "rename", "remove", "mytasks",
@@ -1221,8 +1216,7 @@ async def process_message(message, source):
     try:
         # For StreamLabs, strip Socket.IO frame type prefix (e.g., "0", "40", "42")
         if source == "StreamLabs":
-            # Socket.IO messages start with a frame type number, strip it
-            # Frame types: 0=open, 1=close, 2=ping, 3=pong, 4=message, 40=connect, 41=disconnect, 42=event
+            # Socket.IO messages start with a frame type number, strip it Frame types: 0=open, 1=close, 2=ping, 3=pong, 4=message, 40=connect, 41=disconnect, 42=event
             message_str = str(message)
             # Find where the JSON starts (after the leading digits)
             json_start = 0
@@ -2183,8 +2177,7 @@ async def specter_websocket():
         try:
             # Ensure clean state before connection attempt
             websocket_connected = False
-            # Always force a clean disconnect first so we recover from any
-            # indeterminate socket state (do not gate on .connected).
+            # Always force a clean disconnect first so we recover from any indeterminate socket state (do not gate on .connected).
             try:
                 await specterSocket.disconnect()
             except Exception:
@@ -2196,9 +2189,7 @@ async def specter_websocket():
                 total_delay = reconnect_delay + jitter
                 websocket_logger.info(f"Reconnection attempt {consecutive_failures}, waiting {total_delay:.1f} seconds (server reboot consideration)")
                 await sleep(total_delay)
-            # Attempt to connect to the WebSocket server using websocket transport directly.
-            # Hard timeout on connect() itself - prevents hanging forever when the server is
-            # mid-reboot and accepts TCP but never completes the socket.io handshake.
+            # Attempt to connect to the WebSocket server using websocket transport directly. Hard timeout on connect() itself - prevents hanging forever when the server is mid-reboot and accepts TCP but never completes the socket.io handshake.
             bot_logger.info(f"Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
             await asyncio_wait_for(
                 specterSocket.connect(specter_websocket_uri, transports=['websocket']),
@@ -3185,8 +3176,7 @@ class TwitchBot(commands.AutoBot):
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
         global CHANNEL_NAME, CHANNEL_ID
-        # In v3 EventSub, source_broadcaster is set when a message was forwarded via shared chat
-        # (originated from a different channel). Ignore such messages.
+        # In v3 EventSub, source_broadcaster is set when a message was forwarded via shared chat (originated from a different channel). Ignore such messages.
         if message.source_broadcaster is not None and message.source_broadcaster.id != str(CHANNEL_ID):
             return
         chat_history_logger.info(f"Chat message from {message.chatter.name}: {message.text}")
@@ -3576,8 +3566,7 @@ class TwitchBot(commands.AutoBot):
                 else:
                     bot_logger.error(f"An error occurred in event_message: {e}")
             finally:
-                # Run the message counting / welcome / points / grouping flow for this message.
-                # Done in `finally` so it still runs after early returns from spam, command, or URL handling.
+                # Run the message counting / welcome / points / grouping flow for this message. Done in `finally` so it still runs after early returns from spam, command, or URL handling.
                 try:
                     if messageAuthor and messageAuthor != "":
                         await self.message_counting_and_welcome_messages(
@@ -3717,8 +3706,7 @@ class TwitchBot(commands.AutoBot):
 
     async def safe_walkon(self, user, user_id=None):
         try:
-            # user_id is passed through so the migrated walkon path can look
-            # up the file in the walkons table (keyed by twitch_user_id).
+            # user_id is passed through so the migrated walkon path can look up the file in the walkons table (keyed by twitch_user_id).
             await websocket_notice(event="WALKON", user=user, user_id=user_id)
             chat_logger.info(f"Sent WALKON notice for {user}")
         except Exception as e:
@@ -5449,8 +5437,7 @@ class TwitchBot(commands.AutoBot):
                         if not video_title:
                             await send_chat_message("Could not extract title from the YouTube video.")
                             return
-                        # Clean up the title for better Spotify search results
-                        # Remove common YouTube suffixes and prefixes
+                        # Clean up the title for better Spotify search results Remove common YouTube suffixes and prefixes
                         cleanup_patterns = [
                             r'\s*\[.*?\]\s*',  # Remove [Official Video], [Lyrics], etc.
                             r'\s*\(.*?\)\s*',  # Remove (Official Video), (Lyrics), etc.
@@ -6505,8 +6492,7 @@ class TwitchBot(commands.AutoBot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        # Compute the lurk duration BEFORE the DELETE so we still
-                        # have the start_time value for the chat reply.
+                        # Compute the lurk duration BEFORE the DELETE so we still have the start_time value for the chat reply.
                         time_string = None
                         if timer_enabled:
                             try:
@@ -8254,10 +8240,7 @@ class TwitchBot(commands.AutoBot):
 
     @commands.command(name='personaltimer', aliases=['timer', 'ptimer', 'mytimer', 'focus'])
     async def personaltimer_command(self, ctx: commands.Context):
-        # Three modes:
-        #   General: !timer 60 read the book           - plain countdown, no task-list link
-        #   Focus:   !timer 20 "my task here" focus    - single focus block, task list + overlay
-        #   Pomo:    !timer 60/10/4 [label]             - focus/break cycles, task list + overlay
+        # Three modes: General: !timer 60 read the book - plain countdown, no task-list link Focus: !timer 20 "my task here" focus - single focus block, task list + overlay Pomo: !timer 60/10/4 [label] - focus/break cycles, task list + overlay
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9939,9 +9922,7 @@ class TwitchBot(commands.AutoBot):
                     bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('puzzledone', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    # Manual fallback for when the Tanggle websocket misses a room.complete
-                    # event. No room data is available here, so only the stats counter moves -
-                    # tanggle_room_completions is left untouched.
+                    # Manual fallback for when the Tanggle websocket misses a room.complete event. No room data is available here, so only the stats counter moves - tanggle_room_completions is left untouched.
                     await cursor.execute(
                         """
                         INSERT INTO tanggle_puzzle_stats (id, completed_count)
@@ -10595,11 +10576,7 @@ class TwitchBot(commands.AutoBot):
             if connection:
                 await connection.release()
 
-# Word Replacer (random syllable swap)
-# Occasionally re-posts a viewer's chat line with random syllables swapped for a
-# streamer-set word (default "fun"). Configured per channel via the `protection`
-# table plus the word_replace_ignored_users / word_replace_ignored_words tables.
-# Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
+# Word Replacer (random syllable swap) Occasionally re-posts a viewer's chat line with random syllables swapped for a streamer-set word (default "fun"). Configured per channel via the `protection` table plus the word_replace_ignored_users / word_replace_ignored_words tables. Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
 try:
     import pyphen
 except ImportError:
@@ -10641,10 +10618,7 @@ def _get_hyphenator():
 def _syllablize(word):
     dic = _get_hyphenator()
     if dic is not None:
-        # Pyphen.inserted() returns the word with hyphens at every break point
-        # (e.g. "remember" -> "re-mem-ber"). Words here are pure [A-Za-z], so
-        # splitting on '-' is safe. (Pyphen.iterate() yields (head, tail) tuples,
-        # NOT syllable chunks - don't use it.)
+        # Pyphen.inserted() returns the word with hyphens at every break point (e.g. "remember" -> "re-mem-ber"). Words here are pure [A-Za-z], so splitting on '-' is safe. (Pyphen.iterate() yields (head, tail) tuples, NOT syllable chunks - don't use it.)
         parts = [part for part in dic.inserted(word).split("-") if part]
         if len(parts) > 1:
             return parts
@@ -10683,8 +10657,7 @@ def should_random_trigger(frequency, rng=random.random):
 
 
 def is_word_replace_eligible(author, *, is_echo, channel_name, bot_username):
-    # Random echo only targets normal viewers - never the bot's own messages
-    # (echo / timed messages / alerts) or the streamer.
+    # Random echo only targets normal viewers - never the bot's own messages (echo / timed messages / alerts) or the streamer.
     if is_echo:
         return False
     name = (author or "").strip().lower()
@@ -10972,15 +10945,12 @@ async def word_replace_maybe_echo(author, content, is_echo=False):
         chat_logger.info(f"[WORD_REPLACE] Echoed for {author}: {content[:80]}")
 
 
-# Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the
-# per-channel exclusion lists for watch-time, points, and welcome/shoutout.
+# Global known-bots registry (website.known_bots), cached. Phase 2: unioned into the per-channel exclusion lists for watch-time, points, and welcome/shoutout.
 KNOWN_BOTS_CACHE_TTL = 300  # seconds
 _known_bots_cache = {"loaded_at": 0.0, "bots": frozenset()}
 
 async def get_known_bots():
-    # Returns a lowercased set of active global bot logins from website.known_bots.
-    # Lazy TTL cache; on any error returns the last good cache (or empty set) so callers
-    # degrade gracefully to per-channel-only exclusion (i.e. today's behaviour).
+    # Returns a lowercased set of active global bot logins from website.known_bots. Lazy TTL cache; on any error returns the last good cache (or empty set) so callers degrade gracefully to per-channel-only exclusion (i.e. today's behaviour).
     global _known_bots_cache
     now = time.time()
     if _known_bots_cache["loaded_at"] and (now - _known_bots_cache["loaded_at"]) < KNOWN_BOTS_CACHE_TTL:
@@ -10997,8 +10967,7 @@ async def get_known_bots():
         bot_logger.error(f"[KNOWN BOTS] Failed to load known_bots from website DB: {e}")
     return set(bots)
 
-# Working & Study task & pomo command helpers
-# Function to resolve the chatter's current project string (None for the default context)
+# Working & Study task & pomo command helpers Function to resolve the chatter's current project string (None for the default context)
 async def resolve_active_project(cursor, user_id):
     await cursor.execute("SELECT project FROM user_active_project WHERE user_id = %s LIMIT 1", (user_id,))
     row = await cursor.fetchone()
@@ -11408,10 +11377,7 @@ def parse_pomo_spec(spec):
     return (work, 0, 1)
 
 def parse_timer_start_args(arg):
-    # Parse !timer start args into mode + timing + label.
-    #   focus:  !timer 20 "my task here" focus  |  !timer 20 focus "title"  |  !timer 20 focus
-    #   pomo:   !timer 25/5/4 [label]
-    #   general:!timer 20 plain title here
+    # Parse !timer start args into mode + timing + label. focus: !timer 20 "my task here" focus | !timer 20 focus "title" | !timer 20 focus pomo: !timer 25/5/4 [label] general:!timer 20 plain title here
     arg = (arg or '').strip()
     if not arg:
         return None
@@ -11550,8 +11516,7 @@ async def fetch_pomo_by_id(pomo_id):
             await connection.close()
 
 def is_pomo_row(row):
-    # Task-linked focus/pomo timers (not plain general countdowns).
-    # Focus-only is break=0/cycles=1 but has task_id; full pomo has break or multi-cycle.
+    # Task-linked focus/pomo timers (not plain general countdowns). Focus-only is break=0/cycles=1 but has task_id; full pomo has break or multi-cycle.
     if not row:
         return False
     if row.get('task_id'):
@@ -11982,8 +11947,7 @@ async def get_display_name(user_id):
             else:
                 return None
 
-# Fetch both the display name and avatar (profile image) for a user id in one Helix call.
-# Used by the WALKON "sound + overlay" mode to show the joining viewer's picture and name.
+# Fetch both the display name and avatar (profile image) for a user id in one Helix call. Used by the WALKON "sound + overlay" mode to show the joining viewer's picture and name.
 async def get_user_display_and_avatar(user_id):
     global CLIENT_ID, CHANNEL_AUTH
     url = f"https://api.twitch.tv/helix/users?id={user_id}"
@@ -13908,9 +13872,7 @@ async def send_timed_message(message_id, message, delay):
     else:
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
-# Media-player song request helpers (non-Spotify fallback)
-# The per-user media tables (media_queue / media_request_settings / media_banlist) are
-# created centrally by dashboard/usr_database.php, like every other per-user table.
+# Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
         await cursor.execute("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume FROM media_request_settings WHERE id=1")
@@ -14811,19 +14773,14 @@ async def websocket_notice(
                 }
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
-                    # Build a small set of filename stems to probe. Twitch logins are
-                    # case-insensitive; uploads are almost always lowercased.
+                    # Build a small set of filename stems to probe. Twitch logins are case-insensitive; uploads are almost always lowercased.
                     _walkon_stems = []
                     for _stem in (str(user).lower(), str(user)):
                         if _stem and _stem not in _walkon_stems:
                             _walkon_stems.append(_stem)
                     walkon_resolved = False
                     if MEDIA_MIGRATED:
-                        # Unified library: prefer the walkons table (user_id → media_file).
-                        # If no row, fall back to the conventional {login}.mp3/.mp4 in
-                        # /var/www/media/{channel}/ (and then the legacy walkons dir).
-                        # Without a real file we must NOT emit WALKON — overlays would
-                        # get channel/user undefined and try to play a broken URL.
+                        # Unified library: prefer the walkons table (user_id → media_file). If no row, fall back to the conventional {login}.mp3/.mp4 in /var/www/media/{channel}/ (and then the legacy walkons dir). Without a real file we must NOT emit WALKON — overlays would get channel/user undefined and try to play a broken URL.
                         walkon_media_file = None
                         walkon_mode = 'sound'
                         if user_id:
@@ -14858,8 +14815,7 @@ async def websocket_notice(
                                 if walkon_media_file:
                                     break
                         if not walkon_media_file:
-                            # Last resort: legacy dir still has the file (migration
-                            # copied incompletely, or streamer uploaded via old page).
+                            # Last resort: legacy dir still has the file (migration copied incompletely, or streamer uploaded via old page).
                             for _stem in _walkon_stems:
                                 for ext in ['.mp3', '.mp4']:
                                     walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{_stem}{ext}"
@@ -14883,8 +14839,7 @@ async def websocket_notice(
                             params['user'] = user
                             params['media_file'] = walkon_media_file
                             params['mode'] = walkon_mode
-                            # "sound + overlay" mode shows the viewer's picture and name,
-                            # so enrich the payload with their Twitch profile.
+                            # "sound + overlay" mode shows the viewer's picture and name, so enrich the payload with their Twitch profile.
                             if walkon_mode == 'sound_overlay' and user_id:
                                 wk_name, wk_avatar = await get_user_display_and_avatar(user_id)
                                 params['display_name'] = wk_name or user
@@ -15029,10 +14984,7 @@ async def websocket_notice(
         if connection:
             await connection.release()
 
-# Load the unified-media-library flag from website.users.new_media. The flag
-# was moved out of the per-user profile.media_migrated column so the bot,
-# overlays, and API can all route on it without hopping to each per-user DB
-# on every event.
+# Load the unified-media-library flag from website.users.new_media. The flag was moved out of the per-user profile.media_migrated column so the bot, overlays, and API can all route on it without hopping to each per-user DB on every event.
 async def load_media_settings():
     global MEDIA_MIGRATED
     try:
@@ -15097,8 +15049,7 @@ async def builtin_commands_creation():
             task_placeholders = ', '.join(['%s'] * len(task_cmds))
             await cursor.execute(f"UPDATE builtin_commands SET cooldown_rate = 0, cooldown_time = 0 WHERE command IN ({task_placeholders})", tuple(task_cmds))
             await connection.commit()
-            # Migrate existing rows still stuck on global default for per-user commands
-            # (e.g. !hug must not share one channel-wide cooldown).
+            # Migrate existing rows still stuck on global default for per-user commands (e.g. !hug must not share one channel-wide cooldown).
             per_user_list = sorted(per_user_cooldown_commands)
             if per_user_list:
                 per_user_ph = ', '.join(['%s'] * len(per_user_list))
@@ -15573,8 +15524,7 @@ async def tell_fortune():
                     return fortune_data["fortune"]
             return "Unable to retrieve your fortune at this time."
 
-# Functions for the ToDo List
-# ToDo List Function - Add Task
+# Functions for the ToDo List ToDo List Function - Add Task
 async def add_task(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
