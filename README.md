@@ -86,6 +86,18 @@ The main parts of BotOfTheSpecter are free and open source, so everyone can use 
 
 By helping with this project, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md). This code helps make sure everyone is treated with respect. If you see someone behaving badly, please let us know at <code@botofthespecter.com>.
 
+## AI use on this project
+
+BotOfTheSpecter is **human-written and human-maintained**. We do **not** use AI to write or maintain production code.
+
+What AI *is* used for here is limited to:
+
+* **Debugging** — understanding failures, tracing issues, and talking through root causes
+* **Brainstorming** — exploring ideas for features and improvements
+* **Planning** — design notes and implementation plans for new work in this ecosystem
+
+The project keeps those brainstorming and planning notes under [`.grok/`](.grok/) (memory, plans, specs, and related AI config). That folder is not an automated code-generation pipeline; it is a working area for thinking and planning. Actual code changes are made and owned by people.
+
 ## Contributing Guidelines
 
 We're so glad you want to help make BotOfTheSpecter even better! Whether you want to tell us about a problem, suggest a new feature, or even write code, we appreciate your help. Here's how you can contribute:
