@@ -83,10 +83,13 @@ help/search_index.json
 *.exe
 *test*
 bot/export_user_data.log
-# Project AI assistant config lives in .grok/ (committed: rules, memory, docs, skills, agents).
+# Project AI assistant config lives only in .grok/ (committed: rules, memory, docs, skills, agents, plans, specs).
 # Keep local machine overrides out of git:
 .grok/settings.local.json
-.claude/settings.local.json
+# Retired AI folders — ignore if recreated so they never get committed again:
+/.claude/
+/.codex/
+/.agents/
 bot/custom_channel_modules/.gitattributes
 bot/custom_channel_modules/.gitignore
 
@@ -130,6 +133,4 @@ app/__pycache__/
 *.pyd
 *.pyw
 *.pyz
-/.codex
-/.agents
 AGENTS.md
