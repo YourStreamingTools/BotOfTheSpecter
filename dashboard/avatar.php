@@ -184,19 +184,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_save'])) {
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
-    $enabled = !empty($_POST['enabled']) ? 1 : 0;
+    // Checkbox fields always post "0" or "1" from the form/JS (never rely on empty() for "0").
+    $enabled = ((int) ($_POST['enabled'] ?? 0)) === 1 ? 1 : 0;
     $position = in_array($_POST['position'] ?? '', $allowedPositions, true) ? $_POST['position'] : 'bottom-right';
     $posX = max(0, min(4000, (int) ($_POST['pos_x'] ?? 0)));
     $posY = max(0, min(4000, (int) ($_POST['pos_y'] ?? 0)));
     $scale = max(0.1, min(5.0, (float) ($_POST['scale'] ?? 1)));
-    $flip = !empty($_POST['flip']) ? 1 : 0;
+    $flip = ((int) ($_POST['flip'] ?? 0)) === 1 ? 1 : 0;
     $threshold = max(0.001, min(1.0, (float) ($_POST['mic_threshold'] ?? 0.08)));
     $attackMs = max(0, min(2000, (int) ($_POST['attack_ms'] ?? 40)));
     $releaseMs = max(0, min(5000, (int) ($_POST['release_ms'] ?? 180)));
-    $blinkEnabled = !empty($_POST['blink_enabled']) ? 1 : 0;
+    $blinkEnabled = ((int) ($_POST['blink_enabled'] ?? 0)) === 1 ? 1 : 0;
     $blinkMin = max(1, min(60, (int) ($_POST['blink_interval_min'] ?? 3)));
     $blinkMax = max($blinkMin, min(120, (int) ($_POST['blink_interval_max'] ?? 6)));
-    $bounceEnabled = !empty($_POST['bounce_enabled']) ? 1 : 0;
+    $bounceEnabled = ((int) ($_POST['bounce_enabled'] ?? 0)) === 1 ? 1 : 0;
     $bounceIntensity = max(0, min(10, (int) ($_POST['bounce_intensity'] ?? 5)));
 
     $saveStmt = $db->prepare(
@@ -213,7 +214,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_save'])) {
         echo json_encode(['success' => false, 'error' => $db->error]);
         exit;
     }
-    $saveStmt->bind_param(
+    // Types: enabled i, position s, pos_x i, pos_y i, scale d, flip i, mic_threshold d,
+    // attack_ms i, release_ms i, blink_enabled i, blink_min i, blink_max i, bounce_enabled i, bounce_intensity i
+    if (!$saveStmt->bind_param(
         'isiididiiiiiii',
         $enabled,
         $position,
@@ -229,9 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_save'])) {
         $blinkMax,
         $bounceEnabled,
         $bounceIntensity
-    );
+    )) {
+        echo json_encode(['success' => false, 'error' => $saveStmt->error ?: 'bind_param failed']);
+        $saveStmt->close();
+        exit;
+    }
     if ($saveStmt->execute()) {
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'blink_enabled' => $blinkEnabled]);
     } else {
         echo json_encode(['success' => false, 'error' => $saveStmt->error]);
     }
@@ -323,7 +330,8 @@ ob_start();
         </div>
         <div class="sp-card-body">
             <label class="sp-checkbox-label">
-                <input type="checkbox" id="avEnabled" name="enabled" value="1" <?= !empty($av['enabled']) ? 'checked' : '' ?>>
+                <input type="hidden" name="enabled" value="0">
+                <input type="checkbox" id="avEnabled" name="enabled" value="1" <?= ((int) ($av['enabled'] ?? 0)) === 1 ? 'checked' : '' ?>>
                 <?= t('avatar_enabled_label') ?>
             </label>
             <p class="av-help-text"><?= t('avatar_enabled_help') ?></p>
@@ -375,7 +383,8 @@ ob_start();
                 </div>
             </div>
             <label class="sp-checkbox-label">
-                <input type="checkbox" id="avFlip" name="flip" value="1" <?= !empty($av['flip']) ? 'checked' : '' ?>>
+                <input type="hidden" name="flip" value="0">
+                <input type="checkbox" id="avFlip" name="flip" value="1" <?= ((int) ($av['flip'] ?? 0)) === 1 ? 'checked' : '' ?>>
                 <?= t('avatar_flip_label') ?>
             </label>
 
@@ -400,7 +409,8 @@ ob_start();
             <div class="av-form-grid">
                 <div>
                     <label class="sp-checkbox-label">
-                        <input type="checkbox" id="avBlink" name="blink_enabled" value="1" <?= !empty($av['blink_enabled']) ? 'checked' : '' ?>>
+                        <input type="hidden" name="blink_enabled" value="0">
+                        <input type="checkbox" id="avBlink" name="blink_enabled" value="1" <?= ((int) ($av['blink_enabled'] ?? 0)) === 1 ? 'checked' : '' ?>>
                         <?= t('avatar_blink_enabled_label') ?>
                     </label>
                 </div>
@@ -414,7 +424,8 @@ ob_start();
                 </div>
                 <div>
                     <label class="sp-checkbox-label">
-                        <input type="checkbox" id="avBounce" name="bounce_enabled" value="1" <?= !empty($av['bounce_enabled']) ? 'checked' : '' ?>>
+                        <input type="hidden" name="bounce_enabled" value="0">
+                        <input type="checkbox" id="avBounce" name="bounce_enabled" value="1" <?= ((int) ($av['bounce_enabled'] ?? 0)) === 1 ? 'checked' : '' ?>>
                         <?= t('avatar_bounce_enabled_label') ?>
                     </label>
                 </div>
@@ -571,16 +582,36 @@ ob_start();
         }
     };
 
+    const stopPreviewBlink = () => {
+        if (blinkPreviewTimer) {
+            clearTimeout(blinkPreviewTimer);
+            blinkPreviewTimer = null;
+        }
+        if (isBlinking) {
+            isBlinking = false;
+            updatePreviewFrame();
+        }
+    };
+
     const schedulePreviewBlink = () => {
         if (blinkPreviewTimer) clearTimeout(blinkPreviewTimer);
+        blinkPreviewTimer = null;
         const blinkOn = document.getElementById('avBlink');
-        if (!blinkOn || !blinkOn.checked) return;
+        if (!blinkOn || !blinkOn.checked) {
+            stopPreviewBlink();
+            return;
+        }
         const min = parseInt(document.getElementById('avBlinkMin')?.value || '3', 10);
         const max = parseInt(document.getElementById('avBlinkMax')?.value || '6', 10);
         const lo = Math.max(1, min);
         const hi = Math.max(lo, max);
         const delay = (lo + Math.random() * (hi - lo)) * 1000;
         blinkPreviewTimer = setTimeout(() => {
+            const stillOn = document.getElementById('avBlink');
+            if (!stillOn || !stillOn.checked) {
+                stopPreviewBlink();
+                return;
+            }
             isBlinking = true;
             updatePreviewFrame();
             setTimeout(() => {
@@ -745,15 +776,32 @@ ob_start();
 
     const form = document.getElementById('avSettingsForm');
     const saveStatus = document.getElementById('avSaveStatus');
+    const avBlinkEl = document.getElementById('avBlink');
+    const avBlinkMinEl = document.getElementById('avBlinkMin');
+    const avBlinkMaxEl = document.getElementById('avBlinkMax');
+    if (avBlinkEl) {
+        avBlinkEl.addEventListener('change', () => {
+            if (avBlinkEl.checked) {
+                schedulePreviewBlink();
+            } else {
+                stopPreviewBlink();
+            }
+        });
+    }
+    if (avBlinkMinEl) avBlinkMinEl.addEventListener('change', () => schedulePreviewBlink());
+    if (avBlinkMaxEl) avBlinkMaxEl.addEventListener('change', () => schedulePreviewBlink());
+
     if (form) {
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             const fd = new FormData(form);
-            fd.append('avatar_save', '1');
-            fd.set('enabled', document.getElementById('avEnabled').checked ? '1' : '0');
-            fd.set('flip', document.getElementById('avFlip').checked ? '1' : '0');
-            fd.set('blink_enabled', document.getElementById('avBlink').checked ? '1' : '0');
-            fd.set('bounce_enabled', document.getElementById('avBounce').checked ? '1' : '0');
+            // FormData keeps both hidden "0" and checkbox "1" for the same name when checked.
+            // Always set a single canonical value so PHP receives exactly one field.
+            fd.set('avatar_save', '1');
+            fd.set('enabled', document.getElementById('avEnabled')?.checked ? '1' : '0');
+            fd.set('flip', document.getElementById('avFlip')?.checked ? '1' : '0');
+            fd.set('blink_enabled', document.getElementById('avBlink')?.checked ? '1' : '0');
+            fd.set('bounce_enabled', document.getElementById('avBounce')?.checked ? '1' : '0');
             vadConfig.threshold = parseFloat(document.getElementById('avThreshold').value);
             vadConfig.attackMs = parseInt(document.getElementById('avAttack').value, 10);
             vadConfig.releaseMs = parseInt(document.getElementById('avRelease').value, 10);
@@ -763,6 +811,10 @@ ob_start();
                 .then(data => {
                     if (data && data.success && socket && socketReady) {
                         socket.emit('AVATAR_SETTINGS_UPDATE', { code: apiKey });
+                    }
+                    if (data && data.success) {
+                        // Keep live preview in sync with what we just saved (esp. blink on/off).
+                        schedulePreviewBlink();
                     }
                     if (!saveStatus) return;
                     if (data && data.success) {
