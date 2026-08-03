@@ -4255,10 +4255,17 @@ class TwitchBot(commands.Bot):
         if not stream_online:
             return False
         try:
-            if message_author and (
-                message_author.is_mod
-                or (message_author.name or "").lower() == (CHANNEL_NAME or "").lower()
-                or (message_author.name or "").lower() == (bot_owner or "").lower()
+            author_name = ""
+            if message_author is not None:
+                author_name = (getattr(message_author, "name", None) or messageAuthor or "").lower()
+            else:
+                author_name = (messageAuthor or "").lower()
+            # getattr: EventSub MockAuthor (and partial chatters) must not AttributeError here
+            author_is_mod = bool(getattr(message_author, "is_mod", False)) if message_author is not None else False
+            if message_author is not None and (
+                author_is_mod
+                or author_name == (CHANNEL_NAME or "").lower()
+                or author_name == (bot_owner or "").lower()
             ):
                 return False
             if messageAuthor and messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -19180,22 +19187,143 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
             "error": str(e)
         }
 
+# EventSub badge list -> set of lowercased set_ids
+def _eventsub_badge_set_ids(badges_list) -> set:
+    out = set()
+    if not badges_list:
+        return out
+    for badge in badges_list:
+        if not isinstance(badge, dict):
+            continue
+        set_id = str(badge.get("set_id") or badge.get("setId") or "").strip().lower()
+        if set_id:
+            out.add(set_id)
+    return out
+
+# TwitchIO 2.x IRC websocket lives on Client._connection; Context needs author._ws
+def _bot_irc_websocket(bot):
+    if bot is None:
+        return None
+    return getattr(bot, "_connection", None) or getattr(bot, "_ws", None)
+
+# Stand-in when TwitchIO IRC is not connected yet
+class _StubWS:
+    def __init__(self, nick=None):
+        self._cache = {}
+        self.nick = (nick or BOT_USERNAME or "botofthespecter").lower()
+        self.user_id = None
+        self._client = None
+
+# Channel-like object for EventSub command dispatch (TwitchIO Context)
 class MockChannel:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, name, websocket=None):
+        self.name = (name or CHANNEL_NAME or "").lower()
+        self._name = self.name
+        self._ws = websocket
+        self._message = None
+    def _fetch_channel(self):
+        return self
+    def _fetch_websocket(self):
+        return self._ws
+    def _bot_is_mod(self):
+        return False
 
+# Chatter-like author for EventSub: needs _ws + is_mod/is_vip/is_subscriber for handle_commands
 class MockAuthor:
-    def __init__(self, name, id):
-        self.name = name
-        self.id = id
+    def __init__(self, name, user_id, *, badges_list=None, display_name=None, color=None, websocket=None, channel=None):
+        self._name = (name or "").strip()
+        self.name = self._name
+        self.id = str(user_id) if user_id is not None else ""
+        self._id = self.id
+        self._display_name = display_name or self._name
+        self.display_name = self._display_name
+        self._colour = color or ""
+        self.colour = self._colour
+        self.color = self._colour
+        self._ws = websocket
+        self._channel = channel
+        self.channel = channel
+        self._message = None
+        badge_ids = _eventsub_badge_set_ids(badges_list)
+        login_l = self._name.lower()
+        channel_l = (CHANNEL_NAME or "").lower()
+        # Broadcaster badge or login match
+        self._is_broadcaster = ("broadcaster" in badge_ids) or (login_l != "" and login_l == channel_l)
+        self._is_mod = self._is_broadcaster or ("moderator" in badge_ids)
+        self._is_vip = "vip" in badge_ids
+        self._is_subscriber = ("subscriber" in badge_ids) or ("founder" in badge_ids)
+        self._is_turbo = "turbo" in badge_ids or "premium" in badge_ids
+        # Badge map shaped like TwitchIO Chatter.badges (set_id -> version id)
+        self._cached_badges = {}
+        for badge in badges_list or []:
+            if not isinstance(badge, dict):
+                continue
+            set_id = str(badge.get("set_id") or badge.get("setId") or "").strip()
+            ver = str(badge.get("id") or "1")
+            if set_id:
+                self._cached_badges[set_id] = ver
+    @property
+    def is_mod(self) -> bool:
+        return bool(self._is_mod)
+    @property
+    def is_vip(self) -> bool:
+        return bool(self._is_vip)
+    @property
+    def is_subscriber(self) -> bool:
+        return bool(self._is_subscriber)
+    @property
+    def is_broadcaster(self) -> bool:
+        return bool(self._is_broadcaster)
+    @property
+    def is_turbo(self) -> bool:
+        return bool(self._is_turbo)
+    @property
+    def badges(self) -> dict:
+        return dict(self._cached_badges)
+    @property
+    def mention(self) -> str:
+        return f"@{self._display_name}"
+    def _fetch_channel(self):
+        return self._channel or self
+    def _fetch_websocket(self):
+        return self._ws
+    def _fetch_message(self):
+        return self._message
+    def _bot_is_mod(self):
+        return False
 
+# Message-like object so EventSub chat can reuse event_message / handle_commands
 class MockMessage:
-    def __init__(self, author, content, tags=None):
+    def __init__(self, author, content, tags=None, channel=None):
         self.author = author
         self.content = content
         self.tags = tags or {}
         self.echo = False
-        self.channel = MockChannel(CHANNEL_NAME)
+        self.first = str(self.tags.get("first-msg", "0")) == "1"
+        self.channel = channel or MockChannel(CHANNEL_NAME)
+        self.id = self.tags.get("id")
+        self._id = self.id
+        # Link author to this message (TwitchIO PartialChatter pattern)
+        try:
+            author._message = self
+            if getattr(author, "channel", None) is None:
+                author.channel = self.channel
+                author._channel = self.channel
+        except Exception:
+            pass
+    # No-op-safe delete; TwitchIO 2.10 Message has no delete, prefer Helix helper if present
+    async def delete(self):
+        try:
+            msg_id = self.id or (self.tags or {}).get("id")
+            if not msg_id:
+                return
+            deleter = globals().get("delete_chat_message") or globals().get("delete_message")
+            if callable(deleter):
+                result = deleter(msg_id)
+                if hasattr(result, "__await__"):
+                    await result
+        except Exception as e:
+            chat_logger.debug(f"[EVENT MESSAGE] MockMessage.delete skipped: {e}")
 
 async def process_chat_message_event(user_id: str, user_name: str, message: str = "", event_data: dict = None):
     try:
@@ -19208,19 +19336,42 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
         await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
         if event_data:
             msg_id = event_data.get("message_id", "")
+            badges_list = event_data.get("badges", []) or []
+            badge_ids = _eventsub_badge_set_ids(badges_list)
+            is_mod_badge = "moderator" in badge_ids or "broadcaster" in badge_ids
+            is_sub_badge = "subscriber" in badge_ids or "founder" in badge_ids
+            is_vip_badge = "vip" in badge_ids
             tags = {
-                'id': msg_id,
-                'source-room-id': CHANNEL_ID,
-                'display-name': event_data.get('chatter_user_name', user_name),
-                'color': event_data.get('color', ''),
+                "id": msg_id,
+                "source-room-id": CHANNEL_ID,
+                "room-id": str(CHANNEL_ID) if CHANNEL_ID is not None else "",
+                "user-id": str(user_id) if user_id is not None else "",
+                "display-name": event_data.get("chatter_user_name", user_name),
+                "color": event_data.get("color", "") or "",
+                "mod": "1" if is_mod_badge else "0",
+                "subscriber": "1" if is_sub_badge else "0",
+                "vip": "1" if is_vip_badge else "0",
+                "turbo": "0",
             }
-            badges_list = event_data.get('badges', [])
             if badges_list:
-                badge_strs = [f"{b.get('set_id', '')}/{b.get('id', '')}" for b in badges_list]
-                tags['badges'] = ','.join(badge_strs)
-            
-            author = MockAuthor(user_name, user_id)
-            mock_message = MockMessage(author, message, tags)
+                badge_strs = [f"{b.get('set_id', '')}/{b.get('id', '')}" for b in badges_list if isinstance(b, dict)]
+                tags["badges"] = ",".join(badge_strs)
+            ws = _bot_irc_websocket(get_function_from)
+            if ws is None:
+                # Context only needs a _ws attr; Helix send path still works without live IRC
+                ws = _StubWS(nick=getattr(get_function_from, "nick", None))
+                event_logger.warning("[EVENT MESSAGE] TwitchIO IRC websocket unavailable; using stub _ws for EventSub command dispatch")
+            channel = MockChannel(CHANNEL_NAME, websocket=ws)
+            author = MockAuthor(
+                user_name,
+                user_id,
+                badges_list=badges_list,
+                display_name=event_data.get("chatter_user_name", user_name),
+                color=event_data.get("color", "") or "",
+                websocket=ws,
+                channel=channel,
+            )
+            mock_message = MockMessage(author, message, tags, channel=channel)
             await get_function_from.event_message(mock_message)
     except Exception as e:
         event_logger.error(f"[EVENT MESSAGE] Error processing chat message event for {user_name}: {e}", exc_info=True)
