@@ -29,9 +29,10 @@ $githubReleasesUrl = "https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-
 $downloadUrl = "https://cdn.botofthespecter.com/app-builds/OBSConnector/BotOfTheSpecter-OBS-Connector-v{$obsconnectorVersion}.exe";
 $docsUrl = "https://app.botofthespecter.com";
 
-// StreamDeck Plugin version and download information
-$streamdeckVersion = "1.0.0.1";
+// Stream Deck Plugin version and download information (matches plugin manifest Version)
+$streamdeckVersion = "1.0.0.2";
 $streamdeckDownloadUrl = "https://cdn.botofthespecter.com/app-builds/StreamDeck/BotOfTheSpecter-$streamdeckVersion.streamDeckPlugin";
+$streamdeckProfileUrl = "profile.php";
 
 ob_start();
 ?>
@@ -229,7 +230,7 @@ ob_start();
             <p style="font-size:1.05rem;font-weight:600;color:var(--text-primary);margin-bottom:0.75rem;">
                 <?php echo t('streamdeck_banner_title'); ?>
             </p>
-            <p style="max-width:700px;margin:0 auto;line-height:1.6;color:var(--text-secondary);">
+            <p style="max-width:720px;margin:0 auto;line-height:1.6;color:var(--text-secondary);">
                 <?php echo t('streamdeck_banner_p1'); ?>
             </p>
         </div>
@@ -249,14 +250,19 @@ ob_start();
                     </div>
                 </div>
                 <!-- Trigger Custom Commands -->
-                <div class="sp-card" style="margin-bottom:0;position:relative;">
-                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
-                        <span class="sp-badge sp-badge-blue"><?php echo t('streamdeck_feature_customcommands_badge'); ?></span>
-                    </div>
+                <div class="sp-card" style="margin-bottom:0;">
                     <div class="sp-card-body">
                         <div style="font-size:2rem;color:var(--blue);margin-bottom:0.75rem;"><i class="fas fa-terminal"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_customcommands_title'); ?></p>
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_customcommands_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Global API Key -->
+                <div class="sp-card" style="margin-bottom:0;">
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--accent-hover);margin-bottom:0.75rem;"><i class="fas fa-key"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_apikey_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_apikey_desc'); ?></p>
                     </div>
                 </div>
                 <!-- Trigger Video Alerts (coming soon) -->
@@ -294,6 +300,29 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Quick setup -->
+        <div style="max-width:800px;margin:0 auto 1.5rem;padding:0 0.5rem;">
+            <p style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.75rem;">
+                <i class="fas fa-list-ol" style="margin-right:0.35rem;color:var(--accent-hover);"></i>
+                <?php echo t('streamdeck_setup_title'); ?>
+            </p>
+            <ol style="margin:0;padding-left:1.25rem;font-size:0.8rem;color:var(--text-muted);line-height:1.65;">
+                <li><?php echo t('streamdeck_setup_step1'); ?></li>
+                <li><?php echo t('streamdeck_setup_step2'); ?></li>
+                <li><?php echo t('streamdeck_setup_step3'); ?></li>
+                <li><?php echo t('streamdeck_setup_step4'); ?></li>
+            </ol>
+        </div>
+        <!-- Requirements -->
+        <div style="max-width:800px;margin:0 auto 1.5rem;padding:0 0.5rem;">
+            <p style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">
+                <i class="fas fa-info-circle" style="margin-right:0.35rem;color:var(--accent-hover);"></i>
+                <?php echo t('streamdeck_requirements_title'); ?>
+            </p>
+            <p style="font-size:0.8rem;color:var(--text-muted);line-height:1.55;margin:0;">
+                <?php echo t('streamdeck_requirements_note'); ?>
+            </p>
+        </div>
         <!-- Download section -->
         <div class="sp-card" style="margin-bottom:0;max-width:800px;margin-left:auto;margin-right:auto;">
             <div class="sp-card-body" style="text-align:center;">
@@ -308,6 +337,10 @@ ob_start();
                     <a href="<?php echo htmlspecialchars($streamdeckDownloadUrl, ENT_QUOTES, 'UTF-8'); ?>" class="sp-btn sp-btn-success">
                         <i class="fas fa-download"></i>
                         <span><?php echo sprintf(t('streamdeck_download_button'), $streamdeckVersion); ?></span>
+                    </a>
+                    <a href="<?php echo htmlspecialchars($streamdeckProfileUrl, ENT_QUOTES, 'UTF-8'); ?>" class="sp-btn sp-btn-secondary">
+                        <i class="fas fa-user-cog"></i>
+                        <span><?php echo t('streamdeck_profile_link'); ?></span>
                     </a>
                 </div>
             </div>
