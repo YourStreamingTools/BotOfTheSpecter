@@ -136,6 +136,14 @@ function bots_api_running_bots(): array {
     return bots_api_request('GET', '/api/running_bots');
 }
 
+/**
+ * Durable last-seen inventory (crash / OOM recovery). Prefer bots_api_running_bots()
+ * which already embeds snapshot; this hits the dedicated endpoint when needed.
+ */
+function bots_api_running_bots_snapshot(): array {
+    return bots_api_request('GET', '/api/running_bots/snapshot');
+}
+
 function bots_api_bot_status(string $channel, ?string $botType = null): array {
     $q = ['channel' => $channel];
     if ($botType) {

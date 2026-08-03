@@ -26,7 +26,8 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 | Method | Path | Notes |
 | ------ | ---- | ----- |
 | GET | `/health` | No auth |
-| GET | `/api/running_bots` | Full local inventory |
+| GET | `/api/running_bots` | Full local inventory + durable **snapshot** (`last_seen_at`, `snapshot.missing` for crash/OOM recovery) |
+| GET | `/api/running_bots/snapshot` | Snapshot view only (refresh + expected / missing) |
 | GET | `/api/bot/status?channel=&bot_type=` | One channel; omit `bot_type` to find any. Also returns `script_mtime`, `last_run_mtime`, `code_update_available` (update notice; no SSH). |
 | POST | `/api/bot/start` | JSON body: channel, bot_type, channel_id, token, refresh, apitoken, custom?, botusername?, self?, version? |
 | POST | `/api/bot/stop` | JSON: `{ "channel", "bot_type" }` |
@@ -37,7 +38,8 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 ## PHP helpers (prefer these)
 
 ```php
-bots_api_running_bots();
+bots_api_running_bots();           // includes snapshot for crash recovery
+bots_api_running_bots_snapshot();  // snapshot-only endpoint if needed
 bots_api_bot_status($channel, $botType = null);
 bots_api_start_bot($body);
 bots_api_stop_bot($channel, $botType = 'stable');
@@ -51,3 +53,4 @@ bots_api_stop_all_for_channel($channel); // all variants — use on username ren
 3. **Do not auto-start** after a rename unless product explicitly asks; user restarts from dashboard under the new login.
 4. **systemd**: `bots-api.service` must use `KillMode=process` so restarting the API does not kill the fleet (bots spawn under `screen` in the same cgroup).
 5. **PHP never reads `.env`** for this — use `./config/bots_api.php` + DB admin key ([php-config.md](./php-config.md)).
+6. **Crash recovery snapshot** (server): `/home/botofthespecter/logs/bots_running_snapshot.json` — refreshed ~15s and on inventory GET. Intentional stop removes a row; process death does not. Admin Start Bots shows amber “Was running · {time_ago}” from `snapshot.missing`.
