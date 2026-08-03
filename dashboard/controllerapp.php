@@ -22,10 +22,12 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Controller App version and download information
-$obsconnectorVersion = "1.1";
+// BotOfTheSpecter Desktop (Controller App) — Electron rewrite v2.x
+// Installer name matches electron-builder artifactName: ${name}-${version}-setup.${ext}
+$obsconnectorVersion = "2.0.0";
 $githubReleasesUrl = "https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector/releases";
-$downloadUrl = "https://cdn.botofthespecter.com/app-builds/OBSConnector/BotOfTheSpecter-OBS-Connector-v$obsconnectorVersion.exe";
+$downloadUrl = "https://cdn.botofthespecter.com/app-builds/OBSConnector/botofthespecter-desktop-{$obsconnectorVersion}-setup.exe";
+$docsUrl = "https://app.botofthespecter.com";
 
 // StreamDeck Plugin version and download information
 $streamdeckVersion = "1.0.0.1";
@@ -50,7 +52,7 @@ ob_start();
             <p style="font-size:1.05rem;font-weight:600;color:var(--text-primary);margin-bottom:0.75rem;">
                 <?php echo t('obsconnector_banner_title'); ?>
             </p>
-            <p style="max-width:700px;margin:0 auto;line-height:1.6;color:var(--text-secondary);">
+            <p style="max-width:720px;margin:0 auto;line-height:1.6;color:var(--text-secondary);">
                 <?php echo t('obsconnector_banner_p1'); ?>
             </p>
         </div>
@@ -61,37 +63,55 @@ ob_start();
                 <?php echo t('obsconnector_keyfeatures_title'); ?>
             </p>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;">
-                <!-- Scene Control (coming soon) -->
-                <div class="sp-card" style="margin-bottom:0;opacity:0.7;position:relative;">
-                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
-                        <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
-                    </div>
+                <!-- Scene Control -->
+                <div class="sp-card" style="margin-bottom:0;">
                     <div class="sp-card-body">
                         <div style="font-size:2rem;color:var(--green);margin-bottom:0.75rem;"><i class="fas fa-object-group"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_scene_control_title'); ?></p>
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_scene_control_desc'); ?></p>
                     </div>
                 </div>
-                <!-- Source Management (coming soon) -->
-                <div class="sp-card" style="margin-bottom:0;opacity:0.7;position:relative;">
-                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
-                        <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
-                    </div>
+                <!-- Source & Audio -->
+                <div class="sp-card" style="margin-bottom:0;">
                     <div class="sp-card-body">
                         <div style="font-size:2rem;color:var(--blue);margin-bottom:0.75rem;"><i class="fas fa-sliders-h"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_source_management_title'); ?></p>
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_source_management_desc'); ?></p>
                     </div>
                 </div>
-                <!-- Real-time -->
+                <!-- Live Dashboard -->
                 <div class="sp-card" style="margin-bottom:0;">
                     <div class="sp-card-body">
-                        <div style="font-size:2rem;color:var(--amber);margin-bottom:0.75rem;"><i class="fas fa-circle-notch"></i></div>
+                        <div style="font-size:2rem;color:var(--amber);margin-bottom:0.75rem;"><i class="fas fa-tachometer-alt"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_realtime_title'); ?></p>
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_realtime_desc'); ?></p>
                     </div>
                 </div>
-                <!-- Bot Integration -->
+                <!-- Chat & Moderation -->
+                <div class="sp-card" style="margin-bottom:0;">
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--blue);margin-bottom:0.75rem;"><i class="fas fa-comments"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_chat_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_chat_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Channel Points -->
+                <div class="sp-card" style="margin-bottom:0;">
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--accent-hover);margin-bottom:0.75rem;"><i class="fas fa-coins"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_channel_points_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_channel_points_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Engagement (polls / predictions / giveaways / timers) -->
+                <div class="sp-card" style="margin-bottom:0;">
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--amber);margin-bottom:0.75rem;"><i class="fas fa-gift"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_engagement_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_engagement_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Bot Relay -->
                 <div class="sp-card" style="margin-bottom:0;">
                     <div class="sp-card-body">
                         <div style="font-size:2rem;color:var(--green);margin-bottom:0.75rem;"><i class="fas fa-robot"></i></div>
@@ -99,11 +119,8 @@ ob_start();
                         <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('obsconnector_feature_bot_integration_desc'); ?></p>
                     </div>
                 </div>
-                <!-- Automation (coming soon) -->
-                <div class="sp-card" style="margin-bottom:0;opacity:0.7;position:relative;">
-                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
-                        <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
-                    </div>
+                <!-- Automations & Actions -->
+                <div class="sp-card" style="margin-bottom:0;">
                     <div class="sp-card-body">
                         <div style="font-size:2rem;color:var(--red);margin-bottom:0.75rem;"><i class="fas fa-cogs"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('obsconnector_feature_automation_title'); ?></p>
@@ -120,6 +137,16 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Requirements -->
+        <div style="max-width:800px;margin:0 auto 1.5rem;padding:0 0.5rem;">
+            <p style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;">
+                <i class="fas fa-info-circle" style="margin-right:0.35rem;color:var(--accent-hover);"></i>
+                <?php echo t('obsconnector_requirements_title'); ?>
+            </p>
+            <p style="font-size:0.8rem;color:var(--text-muted);line-height:1.55;margin:0;">
+                <?php echo t('obsconnector_requirements_note'); ?>
+            </p>
+        </div>
         <!-- Download section -->
         <div class="sp-card" style="margin-bottom:0;max-width:800px;margin-left:auto;margin-right:auto;">
             <div class="sp-card-body" style="text-align:center;">
@@ -131,13 +158,17 @@ ob_start();
                     <?php echo t('obsconnector_download_note'); ?>
                 </p>
                 <div style="display:flex;flex-wrap:wrap;gap:0.75rem;justify-content:center;">
-                    <a href="<?php echo $downloadUrl; ?>" class="sp-btn sp-btn-success">
+                    <a href="<?php echo htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8'); ?>" class="sp-btn sp-btn-success">
                         <i class="fas fa-download"></i>
                         <span><?php echo sprintf(t('obsconnector_download_button'), $obsconnectorVersion); ?></span>
                     </a>
-                    <a href="<?php echo $githubReleasesUrl; ?>" target="_blank" rel="noopener noreferrer" class="sp-btn sp-btn-secondary">
+                    <a href="<?php echo htmlspecialchars($githubReleasesUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="sp-btn sp-btn-secondary">
                         <i class="fab fa-github"></i>
                         <span><?php echo t('obsconnector_view_on_github'); ?></span>
+                    </a>
+                    <a href="<?php echo htmlspecialchars($docsUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="sp-btn sp-btn-secondary">
+                        <i class="fas fa-book"></i>
+                        <span><?php echo t('obsconnector_view_docs'); ?></span>
                     </a>
                 </div>
             </div>
@@ -238,7 +269,7 @@ ob_start();
                     <?php echo t('streamdeck_download_note'); ?>
                 </p>
                 <div style="display:flex;flex-wrap:wrap;gap:0.75rem;justify-content:center;">
-                    <a href="<?php echo $streamdeckDownloadUrl; ?>" class="sp-btn sp-btn-success">
+                    <a href="<?php echo htmlspecialchars($streamdeckDownloadUrl, ENT_QUOTES, 'UTF-8'); ?>" class="sp-btn sp-btn-success">
                         <i class="fas fa-download"></i>
                         <span><?php echo sprintf(t('streamdeck_download_button'), $streamdeckVersion); ?></span>
                     </a>
