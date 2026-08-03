@@ -3,26 +3,45 @@ Local process management for Twitch bot variants on the bot host.
 
 Does not talk to MySQL or Twitch — callers (public API / dashboard) supply
 launch credentials. This module only starts/stops/screens/scans processes.
+
+Also maintains a durable running-bots snapshot on disk so admins can see
+which bots were last observed running after OOM/crash/reboot (process
+scan alone is empty after death).
 """
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import os
 import re
 import signal
+import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import psutil
+
+log = logging.getLogger("bots_api.manager")
 
 BOT_HOME = Path(os.getenv("BOT_HOME", "/home/botofthespecter"))
 VENV_ROOT = BOT_HOME / "venvs"
 LOGS = BOT_HOME / "logs"
 CRASH_DIR = LOGS / "crash"
 VERSION_DIR = LOGS / "version"
+# Durable inventory of bots we last saw running (survives process death / OOM).
+SNAPSHOT_PATH = Path(
+    os.getenv("BOTS_RUNNING_SNAPSHOT", str(LOGS / "bots_running_snapshot.json"))
+)
+# Drop expected-but-missing snapshot rows after this many seconds (default 7d).
+SNAPSHOT_STALE_MAX_SECONDS = int(os.getenv("BOTS_SNAPSHOT_STALE_MAX_SECONDS") or str(7 * 86400))
+SNAPSHOT_INTERVAL_SECONDS = float(os.getenv("BOTS_SNAPSHOT_INTERVAL_SECONDS") or "15")
 VERSIONS_URL = os.getenv("API_VERSIONS_URL", "https://api.botofthespecter.com/versions")
+
+_snapshot_lock = threading.Lock()
 
 BOT_TYPES = ("stable", "beta", "v6")
 
@@ -198,8 +217,291 @@ class RunningBot:
     custom: bool = False
 
 
-def list_running_bots() -> dict[str, Any]:
-    """Scan local processes; returns JSON-serializable inventory."""
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _parse_iso(ts: str | None) -> datetime | None:
+    if not ts or not isinstance(ts, str):
+        return None
+    try:
+        # Support both ...Z and +00:00
+        normalized = ts.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (TypeError, ValueError):
+        return None
+
+
+def _snapshot_key(bot_type: str, channel: str) -> str:
+    return f"{bot_type}:{channel.lower()}"
+
+
+def _empty_snapshot() -> dict[str, Any]:
+    return {"version": 1, "updated_at": None, "entries": {}}
+
+
+def load_snapshot() -> dict[str, Any]:
+    """Load durable snapshot from disk. Never raises."""
+    try:
+        if not SNAPSHOT_PATH.is_file():
+            return _empty_snapshot()
+        raw = SNAPSHOT_PATH.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return _empty_snapshot()
+        entries = data.get("entries")
+        if not isinstance(entries, dict):
+            data["entries"] = {}
+        data.setdefault("version", 1)
+        return data
+    except Exception as e:
+        log.warning("failed to load running-bots snapshot: %s", e)
+        return _empty_snapshot()
+
+
+def _atomic_write_snapshot(data: dict[str, Any]) -> None:
+    SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    data = dict(data)
+    data["updated_at"] = _utc_now_iso()
+    payload = json.dumps(data, indent=2, sort_keys=True)
+    tmp = SNAPSHOT_PATH.with_suffix(SNAPSHOT_PATH.suffix + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, SNAPSHOT_PATH)
+
+
+def save_snapshot(data: dict[str, Any]) -> None:
+    with _snapshot_lock:
+        try:
+            _atomic_write_snapshot(data)
+        except Exception as e:
+            log.error("failed to write running-bots snapshot: %s", e)
+
+
+def _flatten_live_buckets(buckets: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    flat: list[dict[str, Any]] = []
+    for btype, items in buckets.items():
+        for entry in items or []:
+            row = dict(entry)
+            row.setdefault("bot_type", btype)
+            flat.append(row)
+    return flat
+
+
+def merge_live_into_snapshot(live_inventory: dict[str, Any]) -> dict[str, Any]:
+    """
+    Upsert every live process into the snapshot (refresh last_seen_at).
+    Expected-but-missing rows are left alone (crash recovery candidates).
+    Intentionally-stopped bots are removed via snapshot_mark_stopped().
+    """
+    now_iso = _utc_now_iso()
+    now_dt = datetime.now(timezone.utc)
+    buckets = live_inventory.get("bots") if isinstance(live_inventory, dict) else None
+    if not isinstance(buckets, dict):
+        buckets = {}
+    live_rows = _flatten_live_buckets(buckets)
+    live_keys: set[str] = set()
+
+    with _snapshot_lock:
+        data = load_snapshot()
+        entries: dict[str, Any] = dict(data.get("entries") or {})
+
+        for row in live_rows:
+            channel = (row.get("channel") or "").strip().lower()
+            bot_type = (row.get("bot_type") or "").strip().lower()
+            if not channel or not bot_type:
+                continue
+            key = _snapshot_key(bot_type, channel)
+            live_keys.add(key)
+            prev = entries.get(key) if isinstance(entries.get(key), dict) else {}
+            entries[key] = {
+                "channel": channel,
+                "bot_type": bot_type,
+                "pid": row.get("pid"),
+                "version": row.get("version"),
+                "custom": bool(row.get("custom", bot_type == "custom")),
+                "last_seen_at": now_iso,
+                "first_seen_at": prev.get("first_seen_at") or now_iso,
+                "expected": True,
+            }
+
+        # Prune very old expected-but-missing rows so intentional long-ago
+        # stops that never cleared (or abandoned fleets) do not stick forever.
+        stale_cutoff = now_dt.timestamp() - SNAPSHOT_STALE_MAX_SECONDS
+        to_drop: list[str] = []
+        for key, entry in entries.items():
+            if key in live_keys:
+                continue
+            if not isinstance(entry, dict):
+                to_drop.append(key)
+                continue
+            if entry.get("expected") is False:
+                to_drop.append(key)
+                continue
+            last = _parse_iso(entry.get("last_seen_at"))
+            if last is None or last.timestamp() < stale_cutoff:
+                to_drop.append(key)
+        for key in to_drop:
+            entries.pop(key, None)
+
+        data["entries"] = entries
+        try:
+            _atomic_write_snapshot(data)
+        except Exception as e:
+            log.error("failed to write running-bots snapshot: %s", e)
+        return data
+
+
+def snapshot_mark_stopped(channel: str, bot_type: str) -> None:
+    """Remove channel+type from expected set after an intentional stop."""
+    channel = channel.lower().strip()
+    bot_type = bot_type.lower().strip()
+    if not channel or not bot_type:
+        return
+    keys = {_snapshot_key(bot_type, channel)}
+    # Stopping beta also kills custom-flag beta processes (see stop_bot).
+    if bot_type == "beta":
+        keys.add(_snapshot_key("custom", channel))
+    if bot_type == "custom":
+        keys.add(_snapshot_key("beta", channel))
+
+    with _snapshot_lock:
+        data = load_snapshot()
+        entries = dict(data.get("entries") or {})
+        changed = False
+        for key in keys:
+            if key in entries:
+                entries.pop(key, None)
+                changed = True
+        if changed:
+            data["entries"] = entries
+            try:
+                _atomic_write_snapshot(data)
+            except Exception as e:
+                log.error("failed to write snapshot after stop: %s", e)
+
+
+def snapshot_mark_started(
+    channel: str,
+    bot_type: str,
+    *,
+    pid: int | None = None,
+    version: str | None = None,
+    custom: bool = False,
+) -> None:
+    """Record an intentional start (and drop other variants for the channel)."""
+    channel = channel.lower().strip()
+    bot_type = bot_type.lower().strip()
+    if not channel or not bot_type:
+        return
+    now_iso = _utc_now_iso()
+    key = _snapshot_key(bot_type, channel)
+
+    with _snapshot_lock:
+        data = load_snapshot()
+        entries = dict(data.get("entries") or {})
+        # start_bot kills other variants for the same channel
+        for other in ("stable", "beta", "v6", "custom"):
+            if other == bot_type:
+                continue
+            entries.pop(_snapshot_key(other, channel), None)
+        prev = entries.get(key) if isinstance(entries.get(key), dict) else {}
+        entries[key] = {
+            "channel": channel,
+            "bot_type": bot_type,
+            "pid": pid,
+            "version": version,
+            "custom": custom or bot_type == "custom",
+            "last_seen_at": now_iso,
+            "first_seen_at": prev.get("first_seen_at") or now_iso,
+            "expected": True,
+        }
+        data["entries"] = entries
+        try:
+            _atomic_write_snapshot(data)
+        except Exception as e:
+            log.error("failed to write snapshot after start: %s", e)
+
+
+def snapshot_view(live_inventory: dict[str, Any] | None = None) -> dict[str, Any]:
+    """
+    Build admin-facing snapshot view: every expected bot, whether live now,
+    and how long since last_seen.
+    """
+    if live_inventory is None:
+        live_inventory = _scan_running_bots()
+    buckets = live_inventory.get("bots") if isinstance(live_inventory, dict) else {}
+    if not isinstance(buckets, dict):
+        buckets = {}
+    live_map: dict[str, dict[str, Any]] = {}
+    for row in _flatten_live_buckets(buckets):
+        ch = (row.get("channel") or "").strip().lower()
+        bt = (row.get("bot_type") or "").strip().lower()
+        if ch and bt:
+            live_map[_snapshot_key(bt, ch)] = row
+
+    data = load_snapshot()
+    entries = data.get("entries") if isinstance(data.get("entries"), dict) else {}
+    now = datetime.now(timezone.utc)
+    out_list: list[dict[str, Any]] = []
+    missing: list[dict[str, Any]] = []
+
+    for key, entry in entries.items():
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("expected") is False:
+            continue
+        channel = (entry.get("channel") or "").strip().lower()
+        bot_type = (entry.get("bot_type") or "").strip().lower()
+        if not channel or not bot_type:
+            continue
+        live = live_map.get(key)
+        currently_running = live is not None
+        last_seen_at = entry.get("last_seen_at")
+        # If live now, last_seen is effectively now (even if file lag)
+        if currently_running:
+            last_seen_at = _utc_now_iso()
+        last_dt = _parse_iso(last_seen_at)
+        if last_dt is not None:
+            ago = max(0, int((now - last_dt).total_seconds()))
+        else:
+            ago = None
+        row = {
+            "channel": channel,
+            "bot_type": bot_type,
+            "pid": (live or entry).get("pid"),
+            "version": (live or entry).get("version"),
+            "custom": bool((live or entry).get("custom", bot_type == "custom")),
+            "last_seen_at": last_seen_at,
+            "last_seen_ago_seconds": ago,
+            "first_seen_at": entry.get("first_seen_at"),
+            "currently_running": currently_running,
+            "expected": True,
+        }
+        if currently_running and live and live.get("uptime_seconds") is not None:
+            row["uptime_seconds"] = live.get("uptime_seconds")
+        out_list.append(row)
+        if not currently_running:
+            missing.append(row)
+
+    out_list.sort(key=lambda r: (r.get("channel") or "", r.get("bot_type") or ""))
+    missing.sort(key=lambda r: (r.get("channel") or "", r.get("bot_type") or ""))
+
+    return {
+        "updated_at": data.get("updated_at"),
+        "bots": out_list,
+        "missing": missing,
+        "expected_total": len(out_list),
+        "missing_total": len(missing),
+        "live_total": sum(1 for r in out_list if r.get("currently_running")),
+        "path": str(SNAPSHOT_PATH),
+    }
+
+
+def _scan_running_bots() -> dict[str, Any]:
+    """Scan local processes only (no snapshot side effects)."""
     buckets: dict[str, list[dict[str, Any]]] = {
         "stable": [],
         "beta": [],
@@ -284,6 +586,46 @@ def list_running_bots() -> dict[str, Any]:
         "totals": totals,
         "total": sum(totals.values()),
     }
+
+
+def list_running_bots(*, update_snapshot: bool = True) -> dict[str, Any]:
+    """
+    Scan local processes; returns JSON-serializable inventory plus durable
+    snapshot metadata for crash recovery on the admin dashboard.
+
+    Snapshot merge/view failures never hide the live inventory — admin status
+    must still load if the snapshot file is unwritable or corrupt.
+    """
+    live = _scan_running_bots()
+    if update_snapshot:
+        try:
+            merge_live_into_snapshot(live)
+        except Exception as e:
+            log.error("snapshot merge failed (live inventory still returned): %s", e)
+    try:
+        snap = snapshot_view(live)
+    except Exception as e:
+        log.error("snapshot view failed: %s", e)
+        snap = {
+            "updated_at": None,
+            "bots": [],
+            "missing": [],
+            "expected_total": 0,
+            "missing_total": 0,
+            "live_total": int(live.get("total") or 0),
+            "path": str(SNAPSHOT_PATH),
+            "error": str(e),
+        }
+    return {
+        **live,
+        "snapshot": snap,
+        "scanned_at": _utc_now_iso(),
+    }
+
+
+def refresh_running_snapshot() -> dict[str, Any]:
+    """Periodic / explicit snapshot refresh (scan + merge + view)."""
+    return list_running_bots(update_snapshot=True)
 
 
 def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, Any]:
@@ -384,6 +726,9 @@ async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
     if not pids:
         await _run(f"screen -S {session} -X quit 2>/dev/null; true", shell=True)
         await _run(f"tmux kill-session -t {session} 2>/dev/null; true", shell=True)
+        # Clear any stale expected snapshot (e.g. crash left a recovery row and
+        # admin is acknowledging / cleaning up via Stop).
+        snapshot_mark_stopped(channel, bot_type)
         return {
             "success": True,
             "state": "already_stopped",
@@ -429,6 +774,10 @@ async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
             "channel": channel,
             "killed_pids": killed,
         }
+
+    # Intentional stop — drop from crash-recovery snapshot so we do not
+    # prompt admins to restart bots they deliberately shut down.
+    snapshot_mark_stopped(channel, bot_type)
 
     return {
         "success": True,
@@ -503,13 +852,21 @@ async def start_bot(
     if existing:
         if version:
             write_version(bot_type, channel, version)
+        ver = read_version(bot_type, channel)
+        snapshot_mark_started(
+            channel,
+            "custom" if custom else bot_type,
+            pid=existing[0],
+            version=ver,
+            custom=custom,
+        )
         return {
             "success": True,
             "state": "already_running",
             "running": True,
             "pid": existing[0],
             "bot_type": bot_type,
-            "version": read_version(bot_type, channel),
+            "version": ver,
             "message": f"{other_msg}Bot is already running (PID {existing[0]}). No action taken.",
             "channel": channel,
         }
@@ -566,17 +923,35 @@ async def start_bot(
     if bot_type == "beta" and not new_pids:
         new_pids = find_pids("custom", channel)
 
+    effective_type = "custom" if custom else bot_type
     if new_pids:
+        ver = read_version(bot_type, channel)
+        snapshot_mark_started(
+            channel,
+            effective_type,
+            pid=new_pids[0],
+            version=ver,
+            custom=custom,
+        )
         return {
             "success": True,
             "state": "started",
             "running": True,
             "pid": new_pids[0],
             "bot_type": bot_type,
-            "version": read_version(bot_type, channel),
+            "version": ver,
             "message": f"{other_msg}Bot started successfully",
             "channel": channel,
         }
+    # Start was requested; record expected even if PID not visible yet so a
+    # quick crash still leaves a recovery row after the next scan cycle.
+    snapshot_mark_started(
+        channel,
+        effective_type,
+        pid=None,
+        version=version,
+        custom=custom,
+    )
     return {
         "success": True,
         "state": "start_pending",

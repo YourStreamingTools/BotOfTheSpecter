@@ -214,40 +214,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
     while (ob_get_level()) {
         ob_end_clean();
     }
-    header('Content-Type: application/json');
+    // Release session lock so concurrent admin requests are not blocked while we
+    // wait on the bots host (process scan can take several seconds).
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
     try {
-        // Clean ALL output buffers and start a fresh buffer to capture incidental output
-        while (ob_get_level()) {
-            ob_end_clean();
-        }
         ob_start();
-        require_once __DIR__ . '/../includes/bot_control_functions.php';
+        // Lightweight client only — do not pull bot_control_functions (SSH config).
+        require_once __DIR__ . '/../includes/bots_api_client.php';
         $running_bots = [];
         $resp = bots_api_running_bots();
         if (!$resp['ok']) {
             $debug = ob_get_clean();
-            echo json_encode(['success' => false, 'message' => is_string($resp['error']) ? $resp['error'] : 'Bots API request failed', 'bots' => [], 'debug' => $debug]);
+            $err = $resp['error'] ?? 'Bots API request failed';
+            if (is_array($err)) {
+                $err = json_encode($err);
+            }
+            echo json_encode([
+                'success' => false,
+                'message' => is_string($err) ? $err : 'Bots API request failed',
+                'bots' => [],
+                'snapshot' => null,
+                'http_status' => (int) ($resp['status'] ?? 0),
+                'debug' => $debug,
+            ]);
             exit;
         }
         $data = is_array($resp['data']) ? $resp['data'] : [];
-        $buckets = is_array($data['bots'] ?? null) ? $data['bots'] : [];
+        // Support both shapes: { bots: { stable: [...] } } and accidental flat lists
+        $buckets = $data['bots'] ?? null;
+        if (!is_array($buckets)) {
+            $buckets = [];
+        }
+        // Old/new API: keys are bot types; if a list was returned, ignore
+        $isBucketMap = isset($buckets['stable']) || isset($buckets['beta']) || isset($buckets['v6']) || isset($buckets['custom']) || isset($buckets['kick']);
+        if (!$isBucketMap && $buckets !== [] && array_keys($buckets) === range(0, count($buckets) - 1)) {
+            $buckets = ['stable' => $buckets];
+        }
         foreach (['stable', 'beta', 'v6', 'custom'] as $botType) {
             foreach ((array) ($buckets[$botType] ?? []) as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
                 $running_bots[] = [
-                    'username' => $entry['channel'] ?? '',
+                    'username' => strtolower(trim((string) ($entry['channel'] ?? ''))),
                     'pid' => (int) ($entry['pid'] ?? 0),
                     'bot_type' => $entry['bot_type'] ?? $botType,
                     'version' => $entry['version'] ?? '',
                     'uptime_seconds' => isset($entry['uptime_seconds']) ? (int) $entry['uptime_seconds'] : null,
-                    'uptime_human' => null
+                    'uptime_human' => null,
+                    'currently_running' => true,
+                    'last_seen_at' => $data['scanned_at'] ?? null,
+                    'last_seen_ago_seconds' => 0,
+                    'expected' => true,
                 ];
             }
         }
+
+        // Durable snapshot: bots expected to be running but not in the live scan
+        // (server crash, OOM, reboot). Admins use last_seen_ago for recovery.
+        // Safe when bots API is older and has no snapshot field yet.
+        $snap = is_array($data['snapshot'] ?? null) ? $data['snapshot'] : [];
+        $missing = [];
+        $liveUsernames = [];
+        foreach ($running_bots as $rb) {
+            if (!empty($rb['username'])) {
+                $liveUsernames[$rb['username']] = true;
+            }
+        }
+        foreach ((array) ($snap['missing'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $uname = strtolower(trim((string) ($entry['channel'] ?? '')));
+            if ($uname === '') {
+                continue;
+            }
+            // Prefer live row if both somehow appear
+            if (isset($liveUsernames[$uname])) {
+                continue;
+            }
+            $ago = isset($entry['last_seen_ago_seconds']) ? (int) $entry['last_seen_ago_seconds'] : null;
+            $missing[] = [
+                'username' => $uname,
+                'pid' => (int) ($entry['pid'] ?? 0),
+                'bot_type' => $entry['bot_type'] ?? 'stable',
+                'version' => $entry['version'] ?? '',
+                'uptime_seconds' => null,
+                'uptime_human' => null,
+                'currently_running' => false,
+                'last_seen_at' => $entry['last_seen_at'] ?? null,
+                'last_seen_ago_seconds' => $ago,
+                'expected' => true,
+                'was_running' => true,
+            ];
+        }
+
+        $snapshotOut = [
+            'updated_at' => $snap['updated_at'] ?? ($data['scanned_at'] ?? null),
+            'expected_total' => (int) ($snap['expected_total'] ?? count($running_bots)),
+            'live_total' => (int) ($snap['live_total'] ?? count($running_bots)),
+            'missing_total' => (int) ($snap['missing_total'] ?? count($missing)),
+            'missing' => $missing,
+        ];
+
         $debug = ob_get_clean();
-        echo json_encode(['success' => true, 'bots' => $running_bots, 'debug' => $debug]);
-    } catch (Exception $e) {
-        $debug = ob_get_clean();
-        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'bots' => [], 'debug' => $debug]);
+        $jsonFlags = 0;
+        if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+            $jsonFlags |= JSON_INVALID_UTF8_SUBSTITUTE;
+        }
+        echo json_encode([
+            'success' => true,
+            'bots' => $running_bots,
+            'snapshot' => $snapshotOut,
+            'scanned_at' => $data['scanned_at'] ?? null,
+            'debug' => $debug,
+        ], $jsonFlags);
+    } catch (Throwable $e) {
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage(),
+            'bots' => [],
+            'snapshot' => null,
+        ]);
     }
     exit;
 }
@@ -946,6 +1041,19 @@ ob_start();
     <div class="sp-card-body">
     <h1 style="font-size:1.25rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-play-circle"></i></span> <?php echo t('admin_start_bots_page_title'); ?></h1>
     <p class="mb-4"><?php echo t('admin_start_bots_intro'); ?></p>
+    <div id="bots-snapshot-banner" class="sp-alert sp-alert-warning" style="display:none;margin-bottom:1rem;" role="status" aria-live="polite">
+        <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:0.75rem;">
+            <div style="flex:1;min-width:14rem;">
+                <strong><i class="fas fa-exclamation-triangle"></i> <span id="bots-snapshot-banner-title"><?php echo t('admin_start_bots_snapshot_banner_title'); ?></span></strong>
+                <p id="bots-snapshot-banner-text" style="margin:0.35rem 0 0;font-size:0.9rem;"></p>
+                <p id="bots-snapshot-banner-list" style="margin:0.5rem 0 0;font-size:0.85rem;opacity:0.95;"></p>
+            </div>
+            <button type="button" class="sp-btn sp-btn-warning" onclick="refreshRunningStatus()" title="<?php echo htmlspecialchars(t('admin_start_bots_btn_refresh_status'), ENT_QUOTES); ?>">
+                <span class="icon"><i class="fas fa-tasks"></i></span>
+                <span><?php echo t('admin_start_bots_btn_refresh_status'); ?></span>
+            </button>
+        </div>
+    </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
         <div class="sp-btn-group">
             <button class="sp-btn sp-btn-info" onclick="refreshBotStatus()">
@@ -1120,6 +1228,8 @@ ob_start();
 <script>
     const COMPACT_BREAKPOINT = 1600;
 
+    let botsSnapshot = null; // durable last-seen inventory from bots API
+
     const SB_I18N = {
         unknown: <?php echo json_encode(t('admin_start_bots_label_unknown')); ?>,
         checking: <?php echo json_encode(t('admin_start_bots_status_checking')); ?>,
@@ -1127,6 +1237,12 @@ ob_start();
         botNotRunning: <?php echo json_encode(t('admin_start_bots_status_bot_not_running')); ?>,
         running: <?php echo json_encode(t('admin_start_bots_status_running')); ?>,
         runningPid: <?php echo json_encode(t('admin_start_bots_status_running_pid')); ?>,
+        wasRunning: <?php echo json_encode(t('admin_start_bots_status_was_running')); ?>,
+        lastSeenAgo: <?php echo json_encode(t('admin_start_bots_status_last_seen_ago')); ?>,
+        snapshotBannerTitle: <?php echo json_encode(t('admin_start_bots_snapshot_banner_title')); ?>,
+        snapshotBannerText: <?php echo json_encode(t('admin_start_bots_snapshot_banner_text')); ?>,
+        snapshotBannerNone: <?php echo json_encode(t('admin_start_bots_snapshot_banner_none')); ?>,
+        snapshotListItem: <?php echo json_encode(t('admin_start_bots_snapshot_list_item')); ?>,
         typeBeta: <?php echo json_encode(t('admin_start_bots_type_beta')); ?>,
         typeStable: <?php echo json_encode(t('admin_start_bots_type_stable')); ?>,
         typeCustom: <?php echo json_encode(t('admin_start_bots_type_custom')); ?>,
@@ -1252,7 +1368,234 @@ ob_start();
         if (hours > 0) return `${hours}h ${minutes}m`;
         return `${minutes}m`;
     }
-    document.addEventListener('DOMContentLoaded', function () {
+    /** Relative "time ago" label for snapshot last_seen (reuse uptime units). */
+    function formatTimeAgo(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return SB_I18N.unknown;
+        if (seconds < 10) return '<10s';
+        return formatUptime(seconds);
+    }
+    function botTypeLabel(bt) {
+        const t = String(bt || '').toLowerCase();
+        if (t === 'beta') return SB_I18N.typeBeta;
+        if (t === 'stable') return SB_I18N.typeStable;
+        if (t === 'custom') return SB_I18N.typeCustom;
+        if (t === 'v6') return SB_I18N.typeV6;
+        return SB_I18N.unknown;
+    }
+    function botTypeBadgeClass(bt) {
+        const t = String(bt || '').toLowerCase();
+        if (t === 'beta') return 'sp-badge sp-badge-blue bot-type-tag';
+        if (t === 'stable') return 'sp-badge sp-badge-green bot-type-tag';
+        if (t === 'custom') return 'sp-badge sp-badge-accent bot-type-tag';
+        if (t === 'v6') return 'sp-badge sp-badge-grey bot-type-tag';
+        return 'sp-badge sp-badge-amber bot-type-tag';
+    }
+    function findInventoryForUser(uname, runningList, snapshot) {
+        const live = (runningList || []).find(b => b.username === uname || String(b.username || '').toLowerCase() === String(uname || '').toLowerCase());
+        if (live) return { ...live, currently_running: true };
+        const missing = ((snapshot && snapshot.missing) || []).find(
+            b => b.username === uname || String(b.username || '').toLowerCase() === String(uname || '').toLowerCase()
+        );
+        if (missing) return { ...missing, currently_running: false, was_running: true };
+        return null;
+    }
+    function updateSnapshotBanner(snapshot) {
+        const banner = document.getElementById('bots-snapshot-banner');
+        const textEl = document.getElementById('bots-snapshot-banner-text');
+        const listEl = document.getElementById('bots-snapshot-banner-list');
+        if (!banner || !textEl || !listEl) return;
+        const missing = (snapshot && Array.isArray(snapshot.missing)) ? snapshot.missing : [];
+        if (!missing.length) {
+            banner.style.display = 'none';
+            textEl.textContent = '';
+            listEl.textContent = '';
+            return;
+        }
+        banner.style.display = '';
+        textEl.textContent = sbFormat(SB_I18N.snapshotBannerText, String(missing.length));
+        const items = missing.slice(0, 12).map(m => {
+            const ago = formatTimeAgo(Number(m.last_seen_ago_seconds));
+            return sbFormat(SB_I18N.snapshotListItem, m.username || '?', botTypeLabel(m.bot_type), ago);
+        });
+        let listText = items.join(' · ');
+        if (missing.length > 12) {
+            listText += ' · +' + (missing.length - 12);
+        }
+        listEl.textContent = listText;
+    }
+    /**
+     * Apply live + snapshot inventory to one table row.
+     * was_running (missing from live, still in durable snapshot) → amber recovery status.
+     */
+    function applyRowBotInventory(row, inv, opts) {
+        opts = opts || {};
+        const validateTokens = !!opts.validateTokens;
+        let validateDelay = opts.validateDelay || 0;
+        const uname = row.getAttribute('data-username');
+        const twitchId = row.getAttribute('data-twitch-id');
+        const botTag = row.querySelector('.bot-status-tag');
+        const botTypeTag = row.querySelector('.bot-type-tag');
+        const startStableBtn = row.querySelector('.start-stable-btn');
+        const startBetaBtn = row.querySelector('.start-beta-btn');
+        const startCustomBtn = row.querySelector('.start-custom-btn');
+        const restartBtn = row.querySelector('.restart-bot-btn');
+        const stopBotBtn = row.querySelector('.stop-bot-btn');
+        const switchBtn = row.querySelector('.switch-bot-btn');
+        const switchCustomBtn = row.querySelector('.switch-custom-btn');
+        const runningTimeTag = row.querySelector('.running-time-tag');
+        const canStartCustom = hasCustomBotEnabled(row);
+        const isLive = inv && inv.currently_running !== false && !inv.was_running;
+        const wasRunning = inv && !isLive && (inv.was_running || inv.expected);
+
+        if (isLive) {
+            const runningType = (inv.bot_type || '').toLowerCase();
+            const isBetaFamily = runningType === 'beta' || runningType === 'custom';
+            if (botTag) {
+                botTag.className = 'sp-badge sp-badge-green bot-status-tag';
+                botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(sbFormat(SB_I18N.runningPid, inv.pid)) + '</span>';
+            }
+            if (botTypeTag) {
+                botTypeTag.className = botTypeBadgeClass(inv.bot_type);
+                botTypeTag.innerHTML = '<span>' + escapeHtml(botTypeLabel(inv.bot_type)) + '</span>';
+            }
+            if (runningTimeTag) {
+                const rawUptime = inv.uptime_seconds;
+                const hasNumericUptime = rawUptime !== null && rawUptime !== undefined && rawUptime !== '' && Number.isFinite(Number(rawUptime));
+                const uptimeLabel = hasNumericUptime
+                    ? formatUptime(Number(rawUptime))
+                    : (inv.uptime_human || SB_I18N.unknown);
+                runningTimeTag.className = 'sp-badge sp-badge-blue running-time-tag';
+                runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
+            }
+            if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
+            if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
+            if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
+            if (restartBtn) {
+                restartBtn.style.display = 'inline-flex';
+                restartBtn.disabled = false;
+                restartBtn.setAttribute('onclick', `restartBot('${uname}', '${inv.bot_type}', ${inv.pid}, this)`);
+            }
+            if (stopBotBtn) {
+                stopBotBtn.style.display = 'inline-flex';
+                stopBotBtn.disabled = false;
+                stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${inv.pid}, this, '${runningType}')`);
+            }
+            const attachConsoleBtn = row.querySelector('.attach-console-btn');
+            if (attachConsoleBtn) { attachConsoleBtn.style.display = 'inline-flex'; attachConsoleBtn.disabled = false; }
+            if (switchBtn) {
+                const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta');
+                const btnText = runningType === 'custom' ? SB_I18N.switchToStable : (isBetaFamily ? SB_I18N.switchToStable : SB_I18N.switchToBeta);
+                switchBtn.style.display = 'inline-flex';
+                switchBtn.disabled = false;
+                switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
+                setCompactButtonLabel(switchBtn, btnText);
+            }
+            if (switchCustomBtn) {
+                if (runningType === 'custom') {
+                    switchCustomBtn.style.display = 'inline-flex';
+                    switchCustomBtn.disabled = false;
+                    switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`);
+                    setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToBeta);
+                } else {
+                    const canSwitchToCustom = canStartCustom && runningType !== 'custom';
+                    if (canSwitchToCustom) {
+                        switchCustomBtn.style.display = 'inline-flex';
+                        switchCustomBtn.disabled = false;
+                        switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`);
+                        setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToCustom);
+                    } else {
+                        switchCustomBtn.style.display = 'none';
+                        switchCustomBtn.disabled = true;
+                    }
+                }
+            }
+            if (validateTokens && twitchId) {
+                setTimeout(() => validateUserToken(twitchId), validateDelay);
+                validateDelay += 200;
+            }
+        } else if (wasRunning) {
+            // Crash / OOM recovery: not live, but durable snapshot says it was expected
+            const lastType = (inv.bot_type || 'stable').toLowerCase();
+            const agoLabel = formatTimeAgo(Number(inv.last_seen_ago_seconds));
+            if (botTag) {
+                botTag.className = 'sp-badge sp-badge-amber bot-status-tag';
+                botTag.title = sbFormat(SB_I18N.lastSeenAgo, agoLabel);
+                botTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>' +
+                    escapeHtml(sbFormat(SB_I18N.wasRunning, agoLabel)) + '</span>';
+            }
+            if (botTypeTag) {
+                botTypeTag.className = botTypeBadgeClass(lastType);
+                botTypeTag.innerHTML = '<span>' + escapeHtml(botTypeLabel(lastType)) + '</span>';
+            }
+            if (runningTimeTag) {
+                runningTimeTag.className = 'sp-badge sp-badge-amber running-time-tag';
+                runningTimeTag.title = inv.last_seen_at ? String(inv.last_seen_at) : '';
+                runningTimeTag.innerHTML = '<span>' + escapeHtml(sbFormat(SB_I18N.lastSeenAgo, agoLabel)) + '</span>';
+            }
+            // Allow start (recovery) + stop (clear snapshot) so admins can act
+            if (startStableBtn) {
+                startStableBtn.disabled = false;
+                startStableBtn.style.display = lastType === 'stable' ? 'inline-flex' : 'inline-flex';
+            }
+            if (startBetaBtn) {
+                startBetaBtn.disabled = false;
+                startBetaBtn.style.display = 'inline-flex';
+            }
+            if (startCustomBtn) {
+                startCustomBtn.disabled = !canStartCustom;
+                startCustomBtn.style.display = 'inline-flex';
+            }
+            if (restartBtn) {
+                // Restart needs a live PID; hide — use Start instead
+                restartBtn.style.display = 'none';
+                restartBtn.disabled = true;
+            }
+            if (stopBotBtn) {
+                // Stop clears snapshot even if process is already dead
+                stopBotBtn.style.display = 'inline-flex';
+                stopBotBtn.disabled = false;
+                stopBotBtn.setAttribute('onclick', `stopBot('${uname}', 0, this, '${lastType}')`);
+            }
+            const attachConsoleBtn = row.querySelector('.attach-console-btn');
+            if (attachConsoleBtn) { attachConsoleBtn.style.display = 'none'; attachConsoleBtn.disabled = true; }
+            if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
+            if (switchCustomBtn) { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; }
+            if (validateTokens && twitchId) {
+                setTimeout(() => validateUserToken(twitchId), validateDelay);
+                validateDelay += 200;
+            }
+        } else {
+            const attachConsoleBtnOff = row.querySelector('.attach-console-btn');
+            if (attachConsoleBtnOff) { attachConsoleBtnOff.style.display = 'none'; attachConsoleBtnOff.disabled = true; }
+            if (botTag) {
+                botTag.className = 'sp-badge sp-badge-red bot-status-tag';
+                botTag.removeAttribute('title');
+                botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.notRunning) + '</span>';
+            }
+            if (botTypeTag) {
+                botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag';
+                botTypeTag.innerHTML = '<span>' + escapeHtml(SB_I18N.botNotRunning) + '</span>';
+            }
+            if (runningTimeTag) {
+                runningTimeTag.className = 'sp-badge sp-badge-grey running-time-tag';
+                runningTimeTag.removeAttribute('title');
+                runningTimeTag.innerHTML = '<span>-</span>';
+            }
+            if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
+            if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
+            if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
+            if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
+            if (stopBotBtn) { stopBotBtn.style.display = 'none'; stopBotBtn.disabled = true; }
+            if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
+            if (switchCustomBtn) { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; }
+            if (validateTokens && twitchId) {
+                setTimeout(() => validateUserToken(twitchId), validateDelay);
+                validateDelay += 200;
+            }
+        }
+        return validateDelay;
+    }
+    function initStartBotsPage() {
         // Load running bots status on page load
         refreshBotStatus();
         // Initialize search functionality
@@ -1275,7 +1618,14 @@ ob_start();
             applyCompactActionLabels();
             applyCompactTableColumns();
         });
-    });
+    }
+    // Content is injected via layout.php — if this script runs after DOM is already
+    // interactive/complete, DOMContentLoaded will never fire and status stays "Checking...".
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initStartBotsPage);
+    } else {
+        initStartBotsPage();
+    }
 
     function applyCompactActionLabels() {
         if (window.innerWidth > COMPACT_BREAKPOINT) return;
@@ -1346,305 +1696,180 @@ ob_start();
         let i = 0;
         return String(str).replace(/%s/g, () => (i < args.length ? args[i++] : '%s'));
     }
-    function refreshBotStatus() {
-        // Show toast notification
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'info',
-            title: SB_I18N.refreshingAll,
-            showConfirmButton: false,
-            timer: 2000
+    function applyInventoryToTable(data, opts) {
+        opts = opts || {};
+        runningBots = Array.isArray(data.bots) ? data.bots : [];
+        botsSnapshot = data.snapshot || null;
+        const restartAllBtn = document.getElementById('restart-all-btn');
+        if (restartAllBtn) {
+            // Restart All only for currently live processes
+            restartAllBtn.disabled = runningBots.length === 0;
+        }
+        updateSnapshotBanner(botsSnapshot);
+        const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
+        let validateDelay = 0;
+        rows.forEach(row => {
+            const uname = row.getAttribute('data-username');
+            const inv = findInventoryForUser(uname, runningBots, botsSnapshot);
+            validateDelay = applyRowBotInventory(row, inv, {
+                validateTokens: !!opts.validateTokens,
+                validateDelay: validateDelay
+            });
         });
-        fetch('?get_running_bots=1')
-            .then(response => response.json())
+        applyCompactActionLabels();
+        applyCompactTableColumns();
+    }
+    function markAllBotStatusError(message) {
+        const msg = message || SB_I18N.error;
+        document.querySelectorAll('.bot-status-tag').forEach(tag => {
+            tag.className = 'sp-badge sp-badge-red bot-status-tag';
+            tag.title = String(msg);
+            tag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-circle"></i></span><span>' +
+                escapeHtml(SB_I18N.error) + '</span>';
+        });
+        const restartAllBtn = document.getElementById('restart-all-btn');
+        if (restartAllBtn) restartAllBtn.disabled = true;
+        updateSnapshotBanner(null);
+    }
+    function fetchRunningBotsInventory() {
+        // Longer than bots_api timeout (15s) so we surface API errors instead of hanging forever
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), 25000) : null;
+        return fetch('?get_running_bots=1', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            signal: controller ? controller.signal : undefined,
+            cache: 'no-store'
+        }).then(async (response) => {
+            const text = await response.text();
+            let data = null;
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch (e) {
+                const snippet = (text || '').slice(0, 200).replace(/\s+/g, ' ');
+                throw new Error('Invalid JSON from get_running_bots (HTTP ' + response.status + '): ' + snippet);
+            }
+            if (!response.ok && !(data && data.success === false)) {
+                throw new Error((data && data.message) || ('HTTP ' + response.status));
+            }
+            return data || { success: false, message: 'Empty response' };
+        }).finally(() => {
+            if (timer) clearTimeout(timer);
+        });
+    }
+    function refreshBotStatus() {
+        // Show toast notification (Swal may load after layout footer; guard it)
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: SB_I18N.refreshingAll,
+                showConfirmButton: false,
+                timer: 2000
+            });
+        }
+        fetchRunningBotsInventory()
             .then(data => {
-                if (data.success) {
-                    runningBots = data.bots;
-                    // Enable/disable Restart All button based on running bots count
-                    const restartAllBtn = document.getElementById('restart-all-btn');
-                    if (restartAllBtn) {
-                        restartAllBtn.disabled = runningBots.length === 0;
+                if (data && data.success) {
+                    try {
+                        applyInventoryToTable(data, { validateTokens: true });
+                    } catch (e) {
+                        console.error('applyInventoryToTable failed:', e);
+                        markAllBotStatusError(e.message || String(e));
                     }
-                    // Process all users and validate tokens
-                    const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
-                    let validateDelay = 0;
-                    rows.forEach(row => {
-                        const uname = row.getAttribute('data-username');
-                        const twitchId = row.getAttribute('data-twitch-id');
-                        const isRunning = runningBots.find(b => b.username === uname);
-                        const botTag = row.querySelector('.bot-status-tag');
-                        const botTypeTag = row.querySelector('.bot-type-tag');
-                        const startStableBtn = row.querySelector('.start-stable-btn');
-                        const startBetaBtn = row.querySelector('.start-beta-btn');
-                        const startCustomBtn = row.querySelector('.start-custom-btn');
-                        const restartBtn = row.querySelector('.restart-bot-btn');
-                        const stopBotBtn = row.querySelector('.stop-bot-btn');
-                        const switchBtn = row.querySelector('.switch-bot-btn');
-                        const switchCustomBtn = row.querySelector('.switch-custom-btn');
-                        const runningTimeTag = row.querySelector('.running-time-tag');
-                        const canStartCustom = hasCustomBotEnabled(row);
-                        if (isRunning) {
-                            // Determine bot type once for use in multiple places
-                            const runningType = (isRunning.bot_type || '').toLowerCase();
-                            const isBetaFamily = runningType === 'beta' || runningType === 'custom';
-                            // Show running status
-                            if (botTag) {
-                                botTag.className = 'sp-badge sp-badge-green bot-status-tag';
-                                botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(sbFormat(SB_I18N.runningPid, isRunning.pid)) + '</span>';
-                            }
-                            // Update bot type tag (handle stable, beta, custom, v6)
-                            if (botTypeTag) {
-                                const bt = (isRunning.bot_type || '').toLowerCase();
-                                let className = 'sp-badge sp-badge-amber bot-type-tag';
-                                let label = SB_I18N.unknown;
-                                if (bt === 'beta') { className = 'sp-badge sp-badge-blue bot-type-tag'; label = SB_I18N.typeBeta; }
-                                else if (bt === 'stable') { className = 'sp-badge sp-badge-green bot-type-tag'; label = SB_I18N.typeStable; }
-                                else if (bt === 'custom') { className = 'sp-badge sp-badge-accent bot-type-tag'; label = SB_I18N.typeCustom; }
-                                else if (bt === 'v6') { className = 'sp-badge sp-badge-grey bot-type-tag'; label = SB_I18N.typeV6; }
-                                botTypeTag.className = className;
-                                botTypeTag.innerHTML = '<span>' + escapeHtml(label) + '</span>';
-                            }
-                            if (runningTimeTag) {
-                                const rawUptime = isRunning.uptime_seconds;
-                                const hasNumericUptime = rawUptime !== null && rawUptime !== undefined && rawUptime !== '' && Number.isFinite(Number(rawUptime));
-                                const uptimeLabel = hasNumericUptime
-                                    ? formatUptime(Number(rawUptime))
-                                    : (isRunning.uptime_human || SB_I18N.unknown);
-                                runningTimeTag.className = 'sp-badge sp-badge-blue running-time-tag';
-                                runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
-                            }
-                            // Hide both start buttons for running bots
-                            if (startStableBtn) {
-                                startStableBtn.disabled = true;
-                                startStableBtn.style.display = 'none';
-                            }
-                            if (startBetaBtn) {
-                                startBetaBtn.disabled = true;
-                                startBetaBtn.style.display = 'none';
-                            }
-                            if (startCustomBtn) {
-                                startCustomBtn.disabled = true;
-                                startCustomBtn.style.display = 'none';
-                            }
-                            // Show restart button with correct bot type and PID
-                            if (restartBtn) {
-                                restartBtn.style.display = 'inline-flex';
-                                restartBtn.disabled = false;
-                                restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`);
-                            }
-                            // Show stop button with current PID
-                            if (stopBotBtn) {
-                                stopBotBtn.style.display = 'inline-flex';
-                                stopBotBtn.disabled = false;
-                                stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this, '${runningType}')`);
-                            }
-                            // Show attach console button
-                            const attachConsoleBtn = row.querySelector('.attach-console-btn');
-                            if (attachConsoleBtn) {
-                                attachConsoleBtn.style.display = 'inline-flex';
-                                attachConsoleBtn.disabled = false;
-                            }
-                            // Show switch button with opposite bot type
-                            if (switchBtn) {
-                                const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta');
-                                const btnText = runningType === 'custom' ? SB_I18N.switchToStable : (isBetaFamily ? SB_I18N.switchToStable : SB_I18N.switchToBeta);
-                                switchBtn.style.display = 'inline-flex';
-                                switchBtn.disabled = false;
-                                switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
-                                setCompactButtonLabel(switchBtn, btnText);
-                            }
-                            if (switchCustomBtn) {
-                                if (runningType === 'custom') {
-                                    switchCustomBtn.style.display = 'inline-flex';
-                                    switchCustomBtn.disabled = false;
-                                    switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`);
-                                    setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToBeta);
-                                } else {
-                                    const canSwitchToCustom = canStartCustom && runningType !== 'custom';
-                                    if (canSwitchToCustom) {
-                                        switchCustomBtn.style.display = 'inline-flex';
-                                        switchCustomBtn.disabled = false;
-                                        switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`);
-                                        setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToCustom);
-                                    } else {
-                                        switchCustomBtn.style.display = 'none';
-                                        switchCustomBtn.disabled = true;
-                                    }
-                                }
-                            }
-                            // Validate token to check mod status even for running bots
-                            if (twitchId) {
-                                setTimeout(() => validateUserToken(twitchId), validateDelay);
-                                validateDelay += 200;
-                            }
-                        } else {
-                            // Hide attach console button when not running
-                            const attachConsoleBtnOff = row.querySelector('.attach-console-btn');
-                            if (attachConsoleBtnOff) { attachConsoleBtnOff.style.display = 'none'; attachConsoleBtnOff.disabled = true; }
-                            // Update bot status tag for not running
-                            if (botTag) {
-                                botTag.className = 'sp-badge sp-badge-red bot-status-tag';
-                                botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.notRunning) + '</span>';
-                            }
-                            // Set bot type tag to "Bot Not Running" when not running
-                            if (botTypeTag) {
-                                botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag';
-                                botTypeTag.innerHTML = '<span>' + escapeHtml(SB_I18N.botNotRunning) + '</span>';
-                            }
-                            if (runningTimeTag) {
-                                runningTimeTag.className = 'sp-badge sp-badge-grey running-time-tag';
-                                runningTimeTag.innerHTML = '<span>-</span>';
-                            }
-                            // Show both start buttons and hide restart button for non-running bots
-                            if (startStableBtn) {
-                                startStableBtn.disabled = false;
-                                startStableBtn.style.display = 'inline-flex';
-                            }
-                            if (startBetaBtn) {
-                                startBetaBtn.disabled = false;
-                                startBetaBtn.style.display = 'inline-flex';
-                            }
-                            if (startCustomBtn) {
-                                startCustomBtn.disabled = !canStartCustom;
-                                startCustomBtn.style.display = 'inline-flex';
-                            }
-                            if (restartBtn) {
-                                restartBtn.style.display = 'none';
-                                restartBtn.disabled = true;
-                            }
-                            if (stopBotBtn) {
-                                stopBotBtn.style.display = 'none';
-                                stopBotBtn.disabled = true;
-                            }
-                            if (switchBtn) {
-                                switchBtn.style.display = 'none';
-                                switchBtn.disabled = true;
-                            }
-                            if (switchCustomBtn) {
-                                switchCustomBtn.style.display = 'none';
-                                switchCustomBtn.disabled = true;
-                            }
-                            // Validate token to check mod status
-                            if (twitchId) {
-                                setTimeout(() => validateUserToken(twitchId), validateDelay);
-                                validateDelay += 200;
-                            }
-                        }
-                    });
+                } else {
+                    const msg = (data && data.message) ? data.message : SB_I18N.unknownError;
+                    console.error('get_running_bots failed:', msg, data);
+                    markAllBotStatusError(msg);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: msg,
+                            showConfirmButton: false,
+                            timer: 5000
+                        });
+                    }
                 }
-                // Re-shorten any switch labels the refresh just set
-                applyCompactActionLabels();
-                applyCompactTableColumns();
             })
             .catch(error => {
                 console.error('Error fetching running bots:', error);
+                markAllBotStatusError(error && error.message ? error.message : String(error));
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: error && error.message ? error.message : SB_I18N.error,
+                        showConfirmButton: false,
+                        timer: 5000
+                    });
+                }
             });
     }
     // Refresh only running bots status (PIDs, bot type, buttons) without touching tokens/mods
     function refreshRunningStatus() {
-        // Show toast notification
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'info',
-            title: SB_I18N.refreshingStatus,
-            showConfirmButton: false,
-            timer: 1500
-        });
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: SB_I18N.refreshingStatus,
+                showConfirmButton: false,
+                timer: 1500
+            });
+        }
         // Update all bot status tags to show "Checking..." while we fetch
         document.querySelectorAll('.bot-status-tag').forEach(tag => {
             tag.className = 'sp-badge sp-badge-blue bot-status-tag';
             tag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>' + escapeHtml(SB_I18N.checking) + '</span>';
         });
-        fetch('?get_running_bots=1')
-            .then(response => response.json())
+        fetchRunningBotsInventory()
             .then(data => {
-                if (data.success) {
-                    runningBots = data.bots;
-                    const restartAllBtn = document.getElementById('restart-all-btn');
-                    if (restartAllBtn) restartAllBtn.disabled = runningBots.length === 0;
-                    const rows = Array.from(document.querySelectorAll('#users-table-body tr'));
-                    rows.forEach(row => {
-                        const uname = row.getAttribute('data-username');
-                        const twitchId = row.getAttribute('data-twitch-id');
-                        const isRunning = runningBots.find(b => b.username === uname);
-                        const botTag = row.querySelector('.bot-status-tag');
-                        const botTypeTag = row.querySelector('.bot-type-tag');
-                        const startStableBtn = row.querySelector('.start-stable-btn');
-                        const startBetaBtn = row.querySelector('.start-beta-btn');
-                        const startCustomBtn = row.querySelector('.start-custom-btn');
-                        const restartBtn = row.querySelector('.restart-bot-btn');
-                        const stopBotBtn = row.querySelector('.stop-bot-btn');
-                        const switchBtn = row.querySelector('.switch-bot-btn');
-                        const switchCustomBtn = row.querySelector('.switch-custom-btn');
-                        const runningTimeTag = row.querySelector('.running-time-tag');
-                        const canStartCustom = hasCustomBotEnabled(row);
-                        if (isRunning) {
-                            const runningType = (isRunning.bot_type || '').toLowerCase();
-                            const isBetaFamily = runningType === 'beta' || runningType === 'custom';
-                            if (botTag) {
-                                botTag.className = 'sp-badge sp-badge-green bot-status-tag';
-                                botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(sbFormat(SB_I18N.runningPid, isRunning.pid)) + '</span>';
-                            }
-                            if (botTypeTag) {
-                                const bt = (isRunning.bot_type || '').toLowerCase();
-                                let className = 'sp-badge sp-badge-amber bot-type-tag';
-                                let label = SB_I18N.unknown;
-                                if (bt === 'beta') { className = 'sp-badge sp-badge-blue bot-type-tag'; label = SB_I18N.typeBeta; }
-                                else if (bt === 'stable') { className = 'sp-badge sp-badge-green bot-type-tag'; label = SB_I18N.typeStable; }
-                                else if (bt === 'custom') { className = 'sp-badge sp-badge-accent bot-type-tag'; label = SB_I18N.typeCustom; }
-                                else if (bt === 'v6') { className = 'sp-badge sp-badge-grey bot-type-tag'; label = SB_I18N.typeV6; }
-                                botTypeTag.className = className;
-                                botTypeTag.innerHTML = '<span>' + escapeHtml(label) + '</span>';
-                            }
-                            if (runningTimeTag) {
-                                const rawUptime = isRunning.uptime_seconds;
-                                const hasNumericUptime = rawUptime !== null && rawUptime !== undefined && rawUptime !== '' && Number.isFinite(Number(rawUptime));
-                                const uptimeLabel = hasNumericUptime
-                                    ? formatUptime(Number(rawUptime))
-                                    : (isRunning.uptime_human || SB_I18N.unknown);
-                                runningTimeTag.className = 'sp-badge sp-badge-blue running-time-tag';
-                                runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
-                            }
-                            if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
-                            if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
-                            if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
-                            if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
-                            if (stopBotBtn) { stopBotBtn.style.display = 'inline-flex'; stopBotBtn.disabled = false; stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this, '${runningType}')`); }
-                            const attachConsoleBtnR = row.querySelector('.attach-console-btn');
-                            if (attachConsoleBtnR) { attachConsoleBtnR.style.display = 'inline-flex'; attachConsoleBtnR.disabled = false; }
-                            if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? SB_I18N.switchToStable : (isBetaFamily ? SB_I18N.switchToStable : SB_I18N.switchToBeta); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); setCompactButtonLabel(switchBtn, btnText); }
-                            if (switchCustomBtn) { if (runningType === 'custom') { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`); setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToBeta); } else { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); setCompactButtonLabel(switchCustomBtn, SB_I18N.switchToCustom); } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } } }
-                        } else {
-                            if (botTag) { botTag.className = 'sp-badge sp-badge-red bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.notRunning) + '</span>'; }
-                            if (botTypeTag) { botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag'; botTypeTag.innerHTML = '<span>' + escapeHtml(SB_I18N.botNotRunning) + '</span>'; }
-                            if (runningTimeTag) { runningTimeTag.className = 'sp-badge sp-badge-grey running-time-tag'; runningTimeTag.innerHTML = '<span>-</span>'; }
-                            if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
-                            if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
-                            if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
-                            if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
-                            if (stopBotBtn) { stopBotBtn.style.display = 'none'; stopBotBtn.disabled = true; }
-                            const attachConsoleBtnOff2 = row.querySelector('.attach-console-btn');
-                            if (attachConsoleBtnOff2) { attachConsoleBtnOff2.style.display = 'none'; attachConsoleBtnOff2.disabled = true; }
-                            if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
-                            if (switchCustomBtn) { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; }
-                        }
-                    });
-                    // Show completion toast
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: SB_I18N.statusRefreshed,
-                        showConfirmButton: false,
-                        timer: 2000
-                    });
+                if (data && data.success) {
+                    try {
+                        applyInventoryToTable(data, { validateTokens: false });
+                    } catch (e) {
+                        console.error('applyInventoryToTable failed:', e);
+                        markAllBotStatusError(e.message || String(e));
+                        return;
+                    }
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: SB_I18N.statusRefreshed,
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
+                    }
+                } else {
+                    const msg = (data && data.message) ? data.message : SB_I18N.unknownError;
+                    console.error('get_running_bots failed:', msg, data);
+                    markAllBotStatusError(msg);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: msg,
+                            showConfirmButton: false,
+                            timer: 5000
+                        });
+                    }
                 }
-                applyCompactActionLabels();
-                applyCompactTableColumns();
             })
-            .catch(error => console.error('Error fetching running bots:', error));
+            .catch(error => {
+                console.error('Error fetching running bots:', error);
+                markAllBotStatusError(error && error.message ? error.message : String(error));
+            });
     }
     // Refresh token status for all users: validate tokens and attempt renew when needed
     function refreshTokenStatus() {

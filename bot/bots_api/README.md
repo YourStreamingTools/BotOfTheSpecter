@@ -27,11 +27,21 @@ The public API and dashboard **load the `bots` key from MySQL automatically** â€
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness (no auth) |
-| GET | `/api/running_bots` | Full local inventory (admin) |
+| GET | `/api/running_bots` | Full local inventory (admin) + durable **snapshot** (`last_seen_at`, `missing` after crash/OOM) |
+| GET | `/api/running_bots/snapshot` | Snapshot view only (refresh + return expected / missing) |
 | GET | `/api/bot/status?channel=&bot_type=` | One channel (+ `script_mtime`, `last_run_mtime`, `code_update_available` for update notice) |
 | POST | `/api/bot/start` | Start (body has tokens) |
 | POST | `/api/bot/stop` | Stop |
 | POST | `/api/bot/restart` | Stop then start |
+
+### Crash / OOM recovery snapshot
+
+The control API writes a durable JSON inventory on the bot host:
+
+- Path (server): `/home/botofthespecter/logs/bots_running_snapshot.json` (override with `BOTS_RUNNING_SNAPSHOT`)
+- Refreshed every ~15s (`BOTS_SNAPSHOT_INTERVAL_SECONDS`) and on every `GET /api/running_bots`
+- Live processes refresh `last_seen_at`; intentional stop removes the row
+- After crash/OOM/reboot, processes are gone but the file still lists who was expected â€” response field `snapshot.missing` with `last_seen_ago_seconds` for admin Start Bots UI
 
 ## Deploy (server)
 

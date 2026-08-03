@@ -11,6 +11,7 @@ Create a key with service name:  bots
 Public surface (behind TLS at bots.botofthespecter.com):
   GET  /health
   GET  /api/running_bots
+  GET  /api/running_bots/snapshot  (durable last-seen inventory for crash recovery)
   GET  /api/bot/status?channel=&bot_type=  (includes script_mtime / last_run_mtime)
   POST /api/bot/start
   POST /api/bot/stop
@@ -21,6 +22,7 @@ website.admin_api_keys with service "bots" or "admin".
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
@@ -32,7 +34,16 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from manager import list_running_bots, restart_bot, start_bot, status_for_channel, stop_bot
+from manager import (
+    SNAPSHOT_INTERVAL_SECONDS,
+    list_running_bots,
+    refresh_running_snapshot,
+    restart_bot,
+    snapshot_view,
+    start_bot,
+    status_for_channel,
+    stop_bot,
+)
 
 load_dotenv()
 
@@ -56,11 +67,37 @@ HOST = os.getenv("BOTS_API_HOST", "0.0.0.0")
 PORT = int(os.getenv("BOTS_API_PORT", "8090"))
 
 _pool: aiomysql.Pool | None = None
+_snapshot_task: asyncio.Task | None = None
+
+
+async def _snapshot_loop() -> None:
+    """Periodically scan processes and refresh durable last-seen snapshot."""
+    interval = max(5.0, float(SNAPSHOT_INTERVAL_SECONDS))
+    # Initial capture soon after boot so post-crash inventory is current.
+    await asyncio.sleep(2.0)
+    while True:
+        try:
+            result = await asyncio.to_thread(refresh_running_snapshot)
+            missing = (result.get("snapshot") or {}).get("missing_total", 0)
+            total = result.get("total", 0)
+            if missing:
+                log.warning(
+                    "running-bots snapshot: live=%s expected-missing=%s (possible crash/OOM)",
+                    total,
+                    missing,
+                )
+            else:
+                log.debug("running-bots snapshot refreshed: live=%s", total)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.error("snapshot refresh failed: %s", e)
+        await asyncio.sleep(interval)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _pool
+    global _pool, _snapshot_task
     if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
         log.warning("SQL_* not fully set — admin_api_keys lookup will fail (env fallback only)")
     else:
@@ -79,7 +116,15 @@ async def lifespan(_app: FastAPI):
             BOTS_ADMIN_SERVICE,
             "yes" if ENV_FALLBACK_KEY else "no",
         )
+    _snapshot_task = asyncio.create_task(_snapshot_loop(), name="bots-snapshot-loop")
     yield
+    if _snapshot_task is not None:
+        _snapshot_task.cancel()
+        try:
+            await _snapshot_task
+        except asyncio.CancelledError:
+            pass
+        _snapshot_task = None
     if _pool is not None:
         _pool.close()
         await _pool.wait_closed()
@@ -170,8 +215,37 @@ async def health() -> dict[str, Any]:
 
 @app.get("/api/running_bots", dependencies=[Depends(require_control_key)])
 async def api_running_bots() -> dict[str, Any]:
-    """Full inventory of local bot processes (admin / ops)."""
-    return list_running_bots()
+    """
+    Full inventory of local bot processes (admin / ops).
+
+    Also merges a durable on-disk snapshot so after crash/OOM/reboot you still
+    see which bots were last reported running (`snapshot.missing` +
+    `last_seen_ago_seconds`).
+    """
+    try:
+        # Keyword arg: older asyncio.to_thread + positional bool was fine, but
+        # keyword is clearer and survives signature changes.
+        return await asyncio.to_thread(list_running_bots, update_snapshot=True)
+    except Exception as e:
+        log.exception("list_running_bots failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"running_bots scan failed: {e}",
+        ) from e
+
+
+@app.get("/api/running_bots/snapshot", dependencies=[Depends(require_control_key)])
+async def api_running_bots_snapshot() -> dict[str, Any]:
+    """Durable last-seen inventory only (refresh + return snapshot view)."""
+    try:
+        full = await asyncio.to_thread(refresh_running_snapshot)
+        return full.get("snapshot") or snapshot_view()
+    except Exception as e:
+        log.exception("running_bots snapshot failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"snapshot failed: {e}",
+        ) from e
 
 
 @app.get("/api/bot/status", dependencies=[Depends(require_control_key)])
@@ -179,7 +253,7 @@ async def api_bot_status(
     channel: str = Query(..., min_length=1),
     bot_type: str | None = Query(None, description="Optional: stable|beta|v6|custom"),
 ) -> dict[str, Any]:
-    return status_for_channel(channel, bot_type)
+    return await asyncio.to_thread(status_for_channel, channel, bot_type)
 
 
 @app.post("/api/bot/start", dependencies=[Depends(require_control_key)])
