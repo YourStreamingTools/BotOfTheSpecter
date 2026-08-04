@@ -630,6 +630,75 @@ def refresh_running_snapshot() -> dict[str, Any]:
     return list_running_bots(update_snapshot=True)
 
 
+def read_online_marker(channel: str) -> str | None:
+    """
+    Stream online marker written by the bot process.
+    Path (server): /home/botofthespecter/logs/online/{channel}.txt
+    Contents: \"True\" or \"False\".
+    """
+    channel = (channel or "").lower().strip()
+    if not channel or not re.match(r"^[a-z0-9_]{1,64}$", channel):
+        return None
+    path = LOGS / "online" / f"{channel}.txt"
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if text in ("True", "False"):
+        return text
+    return None
+
+
+# Allowlisted maintenance scripts (admin ops via bots API — no arbitrary shell).
+OPS_SCRIPTS: dict[str, list[str]] = {
+    "refresh_spotify": ["python3", str(BOT_HOME / "refresh_spotify_tokens.py")],
+    "refresh_streamelements": ["python3", str(BOT_HOME / "refresh_streamelements_tokens.py")],
+    "refresh_discord": ["python3", str(BOT_HOME / "refresh_discord_tokens.py")],
+    "refresh_custom_bot": ["python3", str(BOT_HOME / "refresh_custom_bot_tokens.py")],
+}
+
+
+async def run_allowlisted_script(script_key: str, *, timeout: float = 120.0) -> dict[str, Any]:
+    """Run a named ops script under BOT_HOME. Rejects unknown keys."""
+    key = (script_key or "").strip().lower()
+    cmd = OPS_SCRIPTS.get(key)
+    if not cmd:
+        return {
+            "success": False,
+            "message": f"Unknown script {script_key!r}. Allowed: {', '.join(sorted(OPS_SCRIPTS))}",
+        }
+    script_path = Path(cmd[-1])
+    if not script_path.is_file():
+        return {"success": False, "message": f"Script file missing: {script_path}"}
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=str(BOT_HOME),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            out_b, err_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {"success": False, "message": f"Script timed out after {timeout:.0f}s", "script": key}
+        out = out_b.decode(errors="replace")
+        err = err_b.decode(errors="replace")
+        code = proc.returncode or 0
+        combined = (out + ("\n" + err if err else "")).strip()
+        return {
+            "success": code == 0,
+            "script": key,
+            "exit_code": code,
+            "output": combined[-8000:] if combined else "",
+            "message": "OK" if code == 0 else f"exit {code}",
+        }
+    except Exception as e:
+        log.exception("ops script %s failed", key)
+        return {"success": False, "script": key, "message": str(e)}
+
+
 def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, Any]:
     """
     Process status plus update-notice metadata (local files only — no SSH).

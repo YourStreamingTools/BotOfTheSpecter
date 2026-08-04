@@ -159,29 +159,71 @@ def _format_duration(seconds: int) -> str:
     parts.append(f"{secs} second{'s' if secs != 1 else ''}")
     return ", ".join(parts)
 
-async def _read_uptime_marker_via_ssh(host: str, username: str, password: str, marker_path: str, server_label: str) -> dict | None:
-    if not all([host, username, password]):
+async def _read_uptime_from_health_url(url: str, server_label: str) -> dict | None:
+    """
+    Fetch process uptime from a service /health JSON endpoint.
+    Expected optional fields: started_at, started_at_utc, uptime_seconds, ok.
+    """
+    if not url:
         return None
-    timeout_seconds = int(os.getenv('SSH_CONNECT_TIMEOUT', '8'))
     try:
-        logging.info(f"Attempting SSH to {host} as {username} to stat {marker_path} ({server_label})")
-        async with asyncssh.connect(
-            host, username=username, password=password,
-            known_hosts=None, connect_timeout=timeout_seconds,
-        ) as conn:
-            async with conn.start_sftp_client() as sftp:
-                st = await sftp.stat(marker_path)
-                started_at_dt = datetime.fromtimestamp(st.mtime)
-                uptime_seconds = int((datetime.now() - started_at_dt).total_seconds())
-                result = {
-                    "uptime": _format_duration(uptime_seconds),
-                    "started_at": started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
-                }
-                logging.info(f"Successfully read {server_label} uptime marker (started_at={result['started_at']})")
-                return result
+        timeout = aiohttp.ClientTimeout(total=float(os.getenv("HEALTH_HTTP_TIMEOUT", "5")))
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as resp:
+                if resp.status >= 400:
+                    logging.warning(f"[uptime] {server_label} health HTTP {resp.status}: {url}")
+                    return None
+                data = await resp.json(content_type=None)
+        if not isinstance(data, dict):
+            return None
+        started_at = data.get("started_at") or data.get("started_at_utc")
+        uptime_seconds = data.get("uptime_seconds")
+        if uptime_seconds is None and started_at:
+            try:
+                # Accept "YYYY-mm-dd HH:MM:SS" or ISO
+                text = str(started_at).replace("Z", "+00:00")
+                if "T" in text:
+                    started_dt = datetime.fromisoformat(text)
+                    if started_dt.tzinfo:
+                        started_dt = started_dt.astimezone().replace(tzinfo=None)
+                else:
+                    started_dt = datetime.strptime(str(started_at)[:19], "%Y-%m-%d %H:%M:%S")
+                uptime_seconds = int((datetime.now() - started_dt).total_seconds())
+            except Exception:
+                uptime_seconds = None
+        if uptime_seconds is None and not started_at:
+            return None
+        if started_at is None and uptime_seconds is not None:
+            started_at = (datetime.now() - timedelta(seconds=int(uptime_seconds))).strftime("%Y-%m-%d %H:%M:%S")
+        result = {
+            "uptime": _format_duration(int(uptime_seconds or 0)),
+            "started_at": str(started_at)[:19] if started_at else "Unknown",
+        }
+        logging.info(f"Successfully read {server_label} uptime via health ({url})")
+        return result
     except Exception as exc:
-        logging.error(f"Error fetching {server_label} uptime via SSH ({host}): {exc}")
+        logging.error(f"Error fetching {server_label} uptime via health ({url}): {exc}")
         return None
+
+
+def _list_media_files(root: str, username: str, valid_extensions: tuple[str, ...]) -> list[str]:
+    """Local filesystem listing under {root}/{username}/ (shared mount or same host)."""
+    base = os.path.join(root, username)
+    if not os.path.isdir(base):
+        return []
+    names: list[str] = []
+    try:
+        for entry in os.listdir(base):
+            path = os.path.join(base, entry)
+            if not os.path.isfile(path):
+                continue
+            if entry.lower().endswith(valid_extensions):
+                names.append(entry)
+    except OSError as e:
+        logging.error(f"Error listing media under {base}: {e}")
+        return []
+    names.sort()
+    return names
 
 # In-memory cache for the Twitch app token from bot_chat_token
 _twitch_app_creds_cache: dict = {"loaded_at": 0.0, "access_token": None, "client_id": None}
@@ -2798,38 +2840,34 @@ async def system_uptime(request: Request):
     api_section = {"Local Read": {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}}
     websocket_section = {"Local Read": {"uptime": "Unknown", "started_at": "Unknown"}}
     other_sections = {}
-    # Attempt to fetch uptime markers via SSH from remote hosts
-    ws_marker_path = os.getenv('WEBSOCKET_UPTIME_MARKER_PATH', '/home/botofthespecter/websocket_uptime')
-    server_marker_paths = {
-        'WEB1': os.getenv('WEB1_UPTIME_MARKER_PATH', '/home/botofthespecter/web1_uptime'),
-        'SQL': os.getenv('SQL_UPTIME_MARKER_PATH', '/home/botofthespecter/sql_uptime'),
-        'BOTS': os.getenv('BOTS_UPTIME_MARKER_PATH', '/home/botofthespecter/bots_uptime'),
+    # Fetch uptime from HTTP /health endpoints (no SSH)
+    health_urls = {
+        "websocket": os.getenv(
+            "WEBSOCKET_HEALTH_URL",
+            "https://websocket.botofthespecter.com/health",
+        ),
+        "BOTS": os.getenv(
+            "BOTS_HEALTH_URL",
+            f"{BOTS_API_BASE}/health",
+        ),
+        "WEB1": os.getenv("WEB1_HEALTH_URL", ""),
+        "SQL": os.getenv("SQL_HEALTH_URL", ""),
     }
-    websocket_uptime = await _read_uptime_marker_via_ssh(
-        host=WEBSOCKET_SSH_HOST,
-        username=SSH_USERNAME,
-        password=SSH_PASSWORD,
-        marker_path=ws_marker_path,
-        server_label='websocket'
+    websocket_uptime = await _read_uptime_from_health_url(
+        health_urls["websocket"], "websocket"
     )
     if websocket_uptime:
-        websocket_section['Local Read'] = websocket_uptime
-    remote_servers = {
-        'WEB1': WEB1_SSH_HOST,
-        'SQL': SQL_SSH_HOST,
-        'BOTS': BOTS_SSH_HOST,
-    }
-    for section_name, host in remote_servers.items():
-        section = other_sections.setdefault(section_name, {'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'}})
-        uptime_info = await _read_uptime_marker_via_ssh(
-            host=host,
-            username=SSH_USERNAME,
-            password=SSH_PASSWORD,
-            marker_path=server_marker_paths[section_name],
-            server_label=section_name.lower()
+        websocket_section["Local Read"] = websocket_uptime
+    for section_name in ("WEB1", "SQL", "BOTS"):
+        section = other_sections.setdefault(
+            section_name, {"Local Read": {"uptime": "Unknown", "started_at": "Unknown"}}
+        )
+        uptime_info = await _read_uptime_from_health_url(
+            health_urls.get(section_name) or "",
+            section_name.lower(),
         )
         if uptime_info:
-            section['Local Read'] = uptime_info
+            section["Local Read"] = uptime_info
     # Database fallback: include system_metrics rows for websocket, api, and others
     db_ok = False
     db_rows_count = 0
@@ -3308,29 +3346,14 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        website_ssh_host = os.getenv('WEB-HOST')
-        website_ssh_username = os.getenv('SSH_USERNAME')
-        website_ssh_password = os.getenv('SSH_PASSWORD')
-        sound_alerts_dir = f"/var/www/soundalerts/{username}"
-        command = f'ls -1 "{sound_alerts_dir}" 2>/dev/null | grep -v "^twitch$" | while read f; do [ -f "{sound_alerts_dir}/$f" ] && echo "$f"; done | sort'
-        async with asyncssh.connect(
-            website_ssh_host, port=22,
-            username=website_ssh_username, password=website_ssh_password,
-            known_hosts=None, connect_timeout=10,
-        ) as conn:
-            result = await conn.run(command)
-        if result.exit_status != 0:
-            error_msg = result.stderr.strip()
-            if "No such file" in error_msg or "cannot access" in error_msg:
-                raise HTTPException(status_code=404, detail=f"No sound alerts directory found for user '{channel}'")
-            logging.error(f"Error listing sound alerts for '{channel}': {error_msg}")
-            raise HTTPException(status_code=500, detail="Error retrieving sound alerts")
-        output = result.stdout.strip()
-        if not output:
-            sound_files = []
-        else:
-            valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
-            sound_files = [f for f in output.split('\n') if f.lower().endswith(valid_extensions)]
+        # Local / shared mount only — no SSH. Set SOUNDALERTS_ROOT if media is not at /var/www/soundalerts.
+        root = os.getenv("SOUNDALERTS_ROOT", "/var/www/soundalerts")
+        valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
+        sound_files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
+        sound_files = [
+            f for f in sound_files
+            if f.lower() != "twitch" and not f.lower().startswith("twitch.")
+        ]
         return {
             "user": username,
             "total_sounds": len(sound_files),
@@ -3339,7 +3362,7 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error retrieving sound alerts for user '{channel}': {e}")
+        logging.error(f"Error retrieving sound alerts for user '{username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts: {str(e)}")
 
 # Walkons Endpoint
@@ -3356,38 +3379,20 @@ async def get_walkons(api_key: str = Query(...), channel: str = Query(None)):
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        website_ssh_host = os.getenv('WEB-HOST')
-        website_ssh_username = os.getenv('SSH_USERNAME')
-        website_ssh_password = os.getenv('SSH_PASSWORD')
-        walkons_dir = f"/var/www/walkons/{username}"
-        command = f'ls -1 "{walkons_dir}" 2>/dev/null | while read f; do [ -f "{walkons_dir}/$f" ] && echo "$f"; done | sort'
-        async with asyncssh.connect(
-            website_ssh_host, port=22,
-            username=website_ssh_username, password=website_ssh_password,
-            known_hosts=None, connect_timeout=10,
-        ) as conn:
-            result = await conn.run(command)
-        if result.exit_status != 0:
-            error_msg = result.stderr.strip()
-            if "No such file" in error_msg or "cannot access" in error_msg:
-                raise HTTPException(status_code=404, detail=f"No walkons directory found for user '{username}'")
-            logging.error(f"Error listing walkons for '{username}': {error_msg}")
-            raise HTTPException(status_code=500, detail="Error retrieving walkons")
-        output = result.stdout.strip()
+        # Local / shared mount only — no SSH. Set WALKONS_ROOT if media is not at /var/www/walkons.
+        root = os.getenv("WALKONS_ROOT", "/var/www/walkons")
+        valid_extensions = (".mp3", ".mp4")
+        files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
         walkons = []
-        if output:
-            valid_extensions = (".mp3", ".mp4")
-            for filename in output.split('\n'):
-                ext = os.path.splitext(filename)[1].lower()
-                if ext not in valid_extensions:
-                    continue
-                viewer = filename[:-len(ext)]
-                walkons.append({
-                    "username": viewer,
-                    "ext": ext,
-                    "filename": filename,
-                    "url": f"https://walkons.botofthespecter.com/{username}/{filename}",
-                })
+        for filename in files:
+            ext = os.path.splitext(filename)[1].lower()
+            viewer = filename[:-len(ext)]
+            walkons.append({
+                "username": viewer,
+                "ext": ext,
+                "filename": filename,
+                "url": f"https://walkons.botofthespecter.com/{username}/{filename}",
+            })
         return {
             "user": username,
             "total_walkons": len(walkons),

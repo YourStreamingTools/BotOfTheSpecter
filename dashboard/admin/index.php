@@ -481,22 +481,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     exit;
 }
 
-// Handle refresh Spotify tokens action
+// Handle refresh Spotify / StreamElements / Discord tokens via bots API (no SSH)
+require_once __DIR__ . '/../includes/bots_api_client.php';
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_spotify_tokens'])) {
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        if ($connection) {
-            $command = "cd /home/botofthespecter && python3 refresh_spotify_tokens.py";
-            $output = SSHConnectionManager::executeCommand($connection, $command);
-            $success = true;
-        } else {
-            $output = "Failed to connect to bot server.";
-            $success = false;
-        }
-    } catch (Exception $e) {
-        $output = "Error: " . $e->getMessage();
-        $success = false;
-    }
+    $resp = bots_api_run_script('refresh_spotify');
+    $success = !empty($resp['ok']);
+    $output = is_array($resp['data'] ?? null)
+        ? (string)(($resp['data']['output'] ?? '') ?: ($resp['data']['message'] ?? ''))
+        : (string)($resp['error'] ?? 'bots API error');
     admin_audit_log(
         'refresh_spotify_tokens',
         $success ? 'success' : 'failed',
@@ -510,22 +503,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_spotify_tokens
     exit;
 }
 
-// Handle refresh StreamElements tokens action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_streamelements_tokens'])) {
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        if ($connection) {
-            $command = "cd /home/botofthespecter && python3 refresh_streamelements_tokens.py";
-            $output = SSHConnectionManager::executeCommand($connection, $command);
-            $success = true;
-        } else {
-            $output = "Failed to connect to bot server.";
-            $success = false;
-        }
-    } catch (Exception $e) {
-        $output = "Error: " . $e->getMessage();
-        $success = false;
-    }
+    $resp = bots_api_run_script('refresh_streamelements');
+    $success = !empty($resp['ok']);
+    $output = is_array($resp['data'] ?? null)
+        ? (string)(($resp['data']['output'] ?? '') ?: ($resp['data']['message'] ?? ''))
+        : (string)($resp['error'] ?? 'bots API error');
     admin_audit_log(
         'refresh_streamelements_tokens',
         $success ? 'success' : 'failed',
@@ -539,22 +522,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_streamelements
     exit;
 }
 
-// Handle refresh Discord tokens action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens'])) {
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        if ($connection) {
-            $command = "cd /home/botofthespecter && python3 refresh_discord_tokens.py";
-            $output = SSHConnectionManager::executeCommand($connection, $command);
-            $success = true;
-        } else {
-            $output = "Failed to connect to bot server.";
-            $success = false;
-        }
-    } catch (Exception $e) {
-        $output = "Error: " . $e->getMessage();
-        $success = false;
-    }
+    $resp = bots_api_run_script('refresh_discord');
+    $success = !empty($resp['ok']);
+    $output = is_array($resp['data'] ?? null)
+        ? (string)(($resp['data']['output'] ?? '') ?: ($resp['data']['message'] ?? ''))
+        : (string)($resp['error'] ?? 'bots API error');
     admin_audit_log(
         'refresh_discord_tokens',
         $success ? 'success' : 'failed',
@@ -568,44 +541,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens
     exit;
 }
 
-// Handle bot stop action
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($_POST['pid'])) {
-    $pid = intval($_POST['pid']);
-    $stopUsername = preg_replace('/[^a-zA-Z0-9_]/', '_', trim($_POST['username'] ?? ''));
+// Handle bot stop action (bots API only — no SSH kill)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
+    $pid = intval($_POST['pid'] ?? 0);
+    $stopUsername = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '', trim($_POST['username'] ?? '')));
+    $stopBotType = trim($_POST['bot_type'] ?? '');
+    $allowedStopTypes = ['stable', 'beta', 'v6', 'custom'];
+    if (!in_array($stopBotType, $allowedStopTypes, true)) {
+        $stopBotType = '';
+    }
     $stopSuccess = false;
     $stopError = '';
-    if ($pid > 0) {
+    if ($stopUsername === '') {
+        $stopError = 'Username required';
+    } else {
         try {
-            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-                if ($connection) {
-                    // Use SIGKILL explicitly to force-stop the process on the bots server
-                    SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                    // Clean up screen session (and any leftover tmux session from before migration)
-                    if (!empty($stopUsername)) {
-                        $screenSession = 'specter_' . $stopUsername;
-                        SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($screenSession) . ' -X quit 2>/dev/null; true');
-                        SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($screenSession) . ' 2>/dev/null; true');
-                    }
-                    $stopSuccess = true;
+            if ($stopBotType === '') {
+                $status = bots_api_bot_status($stopUsername, null);
+                if ($status['ok'] && is_array($status['data'] ?? null) && !empty($status['data']['bot_type'])) {
+                    $stopBotType = (string)$status['data']['bot_type'];
                 } else {
-                    $stopError = 'Connection failed';
+                    $stopBotType = 'stable';
                 }
+            }
+            $resp = bots_api_stop_bot($stopUsername, $stopBotType);
+            $stopSuccess = !empty($resp['ok']);
+            if (!$stopSuccess) {
+                $stopError = is_string($resp['error'] ?? null) ? $resp['error'] : 'bots API stop failed';
+            }
         } catch (Exception $e) {
             $stopError = $e->getMessage();
         }
-    } else {
-        $stopError = 'Invalid PID';
     }
     admin_audit_log(
         'stop_bot',
         $stopSuccess ? 'success' : 'failed',
-        ['pid' => $pid, 'error' => $stopError],
+        ['pid' => $pid, 'username' => $stopUsername, 'bot_type' => $stopBotType, 'error' => $stopError],
         'bot_pid',
         (string) $pid
     );
     ob_clean();
     header('Content-Type: application/json');
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => $stopSuccess, 'error' => $stopError]);
     exit;
 }
 
@@ -644,24 +621,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $tokenData = $tokenResult->fetch_assoc();
                     $botAccessToken = $tokenData['twitch_access_token'];
                     client_console_log("RESTART DEBUG - About to restart: Username={$username}, BotType={$botType}, PID={$pid}");
-                    // Step 1: Stop the bot if it's running
-                    if ($pid > 0) {
-                        client_console_log("RESTART DEBUG - Stopping PID {$pid} (should be {$botType} bot)");
-                        try {
-                            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-                            if ($connection) {
-                                SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                                client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
-                                // Clean up screen session (and any leftover tmux session from before migration)
-                                $restartScreenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
-                                SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($restartScreenSession) . ' -X quit 2>/dev/null; true');
-                                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($restartScreenSession) . ' 2>/dev/null; true');
-                                // Give it a moment to stop
-                                sleep(1);
-                            }
-                        } catch (Exception $e) {
-                            client_console_log("Error stopping bot during restart: " . $e->getMessage());
+                    // Step 1: Stop via bots API (no SSH kill)
+                    $stopType = ($botType === 'custom') ? 'custom' : $botType;
+                    client_console_log("RESTART DEBUG - Stopping via bots API type={$stopType}");
+                    try {
+                        require_once __DIR__ . '/../includes/bots_api_client.php';
+                        $stopResp = bots_api_stop_bot($username, $stopType);
+                        if (empty($stopResp['ok']) && $stopType === 'beta') {
+                            bots_api_stop_bot($username, 'custom');
                         }
+                        sleep(1);
+                    } catch (Exception $e) {
+                        client_console_log("Error stopping bot during restart: " . $e->getMessage());
                     }
                     // Step 2: Start the bot with correct tokens
                     $params = [
@@ -1177,51 +1148,59 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
     return ['status' => $status, 'pid' => $pid];
 }
 
-// Function to get bot status
-function getBotStatus($bots_ssh_host, $bots_ssh_username, $bots_ssh_password) {
-    // Prefer private bots control API (no SSH)
+// Function to get bot status (bots control API only — no SSH)
+function getBotStatus($bots_ssh_host = null, $bots_ssh_username = null, $bots_ssh_password = null) {
     $client = __DIR__ . '/../includes/bots_api_client.php';
-    if (is_file($client)) {
-        require_once $client;
-        $resp = bots_api_running_bots();
-        if ($resp['ok'] && is_array($resp['data'])) {
-            $data = $resp['data'];
-            $lines = [];
-            $bots = $data['bots'] ?? [];
-            foreach (['stable' => 'Stable', 'beta' => 'Beta', 'v6' => 'V6', 'custom' => 'Custom', 'kick' => 'Kick'] as $key => $label) {
-                $list = $bots[$key] ?? [];
-                $lines[] = "{$label} bots running:";
-                if (!$list) {
-                    $lines[] = "None";
-                } else {
-                    foreach ($list as $b) {
-                        $ch = $b['channel'] ?? '?';
-                        $pid = $b['pid'] ?? '?';
-                        $ver = $b['version'] ?? 'Unknown';
-                        $lines[] = "- Channel: {$ch}, PID: {$pid}, Version: {$ver}";
+    if (!is_file($client)) {
+        return "Error: bots_api_client.php missing";
+    }
+    require_once $client;
+    $resp = bots_api_running_bots();
+    if ($resp['ok'] && is_array($resp['data'])) {
+        $data = $resp['data'];
+        $lines = [];
+        $bots = $data['bots'] ?? [];
+        // Optional published versions for OUTDATED tag (same parse format as AJAX overview)
+        $latest = [];
+        $verRaw = @file_get_contents('https://api.botofthespecter.com/versions');
+        if ($verRaw) {
+            $latest = json_decode($verRaw, true) ?: [];
+        }
+        $latestMap = [
+            'stable' => $latest['stable_version'] ?? null,
+            'beta' => $latest['beta_version'] ?? null,
+            'v6' => $latest['v6_version'] ?? ($latest['beta_version'] ?? null),
+            'custom' => $latest['beta_version'] ?? ($latest['stable_version'] ?? null),
+            'kick' => null,
+        ];
+        foreach (['stable' => 'Stable', 'beta' => 'Beta', 'v6' => 'V6', 'custom' => 'Custom', 'kick' => 'Kick'] as $key => $label) {
+            $list = $bots[$key] ?? [];
+            $lines[] = "{$label} bots running:";
+            if (!$list) {
+                $lines[] = "None";
+            } else {
+                foreach ($list as $b) {
+                    $ch = $b['channel'] ?? '?';
+                    $pid = $b['pid'] ?? '?';
+                    $ver = $b['version'] ?? 'Unknown';
+                    $statusTag = 'OK';
+                    $pub = $latestMap[$key] ?? null;
+                    if ($pub && $ver && $ver !== 'Unknown' && version_compare((string)$ver, (string)$pub, '<')) {
+                        $statusTag = 'OUTDATED';
                     }
-                    $lines[] = "Total: " . count($list);
+                    $lines[] = "- Channel: {$ch}, PID: {$pid}, Version: {$ver} | {$statusTag}";
                 }
-                $lines[] = "";
+                $lines[] = "Total: " . count($list);
             }
-            $lines[] = "Total all: " . intval($data['total'] ?? 0);
-            return implode("\n", $lines);
+            $lines[] = "";
         }
-        if (!empty($resp['error'])) {
-            return "Error fetching bot status via bots API: " . $resp['error'];
-        }
+        $lines[] = "Total all: " . intval($data['total'] ?? 0);
+        return implode("\n", $lines);
     }
-    // Legacy SSH fallback
-    $output = '';
-    try {
-        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-        if ($connection) {
-            $output = SSHConnectionManager::executeCommand($connection, "/home/botofthespecter/venvs/stable/bin/python /home/botofthespecter/running_bots.py 2>&1");
-        }
-    } catch (Exception $e) {
-        $output = "Error fetching bot status: " . $e->getMessage();
+    if (!empty($resp['error'])) {
+        return "Error fetching bot status via bots API: " . $resp['error'];
     }
-    return $output;
+    return "Error fetching bot status via bots API (unknown)";
 }
 
 // Function to get Twitch subscription tier
@@ -2571,8 +2550,8 @@ document.addEventListener('DOMContentLoaded', function() {
             buttons.forEach(btn => btn.disabled = false);
         });
     };
-    // Function to stop bot
-    window.stopBot = function(pid, element, username) {
+    // Function to stop bot (bots API — channel + bot_type; pid is diagnostic only)
+    window.stopBot = function(pid, element, username, botType) {
         Swal.fire({
             title: adminI18n.confirmTitle,
             text: adminI18n.confirmStopText,
@@ -2587,6 +2566,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('stop_bot', '1');
                 formData.append('pid', pid);
                 if (username) { formData.append('username', username); }
+                if (botType) { formData.append('bot_type', botType); }
                 fetch(window.location.href, {
                     method: 'POST',
                     body: formData
@@ -2595,6 +2575,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     if (data.success) {
                         element.remove();
+                    } else {
+                        console.error('Stop bot failed:', data.error || data);
                     }
                 })
                 .catch(error => {
@@ -2939,7 +2921,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         html += '</div>';
         html += '<div style="display: flex; gap: 0.5rem;">';
-        html += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm bot-stop-button" data-pid="' + bot.pid + '" data-username="' + bot.channel + '" title="Stop Bot">';
+        html += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm bot-stop-button" data-pid="' + bot.pid + '" data-username="' + bot.channel + '" data-bot-type="' + bot.type + '" title="Stop Bot">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
         html += '<button type="button" class="sp-btn sp-btn-info sp-btn-sm bot-restart-button" data-username="' + bot.channel + '" data-bot-type="' + bot.type + '" data-pid="' + bot.pid + '" title="Restart Bot">';
@@ -3056,14 +3038,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (stopBtn) {
                             stopBtn.setAttribute('data-pid', bot.pid);
                             stopBtn.setAttribute('data-username', bot.channel);
+                            stopBtn.setAttribute('data-bot-type', bot.type);
                             // Remove existing listeners to prevent duplicates
                             const newStopBtn = stopBtn.cloneNode(true);
                             stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
                             newStopBtn.addEventListener('click', function() {
                                 const pid = this.getAttribute('data-pid');
                                 const username = this.getAttribute('data-username');
+                                const botType = this.getAttribute('data-bot-type');
                                 const element = this.closest('.admin-bot-card');
-                                stopBot(pid, element, username);
+                                stopBot(pid, element, username, botType);
                             });
                         }
                         // update restart button attributes
@@ -3096,8 +3080,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                     stopButton.addEventListener('click', function() {
                                         const pid = this.getAttribute('data-pid');
                                         const username = this.getAttribute('data-username');
+                                        const botType = this.getAttribute('data-bot-type');
                                         const element = this.closest('.admin-bot-card');
-                                        stopBot(pid, element, username);
+                                        stopBot(pid, element, username, botType);
                                     });
                                 }
                                 const restartButton = newEl.querySelector('.bot-restart-button');
