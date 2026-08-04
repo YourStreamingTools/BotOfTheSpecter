@@ -6437,7 +6437,7 @@ async def start_bot(
     elif bot_type == "beta":
         version = latest.get("beta_version")
     elif bot_type == "v6":
-        version = latest.get("v6_version") or "6.0"
+        version = latest.get("v6_version") or "6.0.0"
     else:
         version = latest.get("stable_version")
 

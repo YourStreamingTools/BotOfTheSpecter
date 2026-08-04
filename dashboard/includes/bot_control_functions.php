@@ -119,7 +119,7 @@ function performBotAction($action, $botType, $params) {
     if ($versionsData) {
         if ($botType === 'stable')     { $version = $versionsData['stable_version'] ?? ''; }
         elseif ($botType === 'beta')   { $version = $versionsData['beta_version']   ?? ''; }
-        elseif ($botType === 'v6')     { $version = $versionsData['v6_version']      ?? '6.0'; }
+        elseif ($botType === 'v6')     { $version = $versionsData['v6_version']      ?? '6.0.0'; }
         else                           { $version = $versionsData['stable_version'] ?? ''; }
     }
 

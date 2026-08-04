@@ -63,7 +63,7 @@ if ($versionApiData !== false) {
   } elseif ($bot === 'beta') {
     $latestVersion = $versionInfo['beta_version'] ?? '';
   } elseif ($bot === 'v6') {
-    $latestVersion = $versionInfo['v6_version'] ?? '6.0';
+    $latestVersion = $versionInfo['v6_version'] ?? '6.0.0';
   }
 } else {
   if ($bot === 'stable') {
@@ -71,7 +71,7 @@ if ($versionApiData !== false) {
   } elseif ($bot === 'beta') {
     $latestVersion = '5.8';
   } elseif ($bot === 'v6') {
-    $latestVersion = '6.0';
+    $latestVersion = '6.0.0';
   }
 }
 

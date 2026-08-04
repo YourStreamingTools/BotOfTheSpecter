@@ -93,7 +93,7 @@ if (!isset($betaNewVersion)) {
   $betaNewVersion = '';
 }
 if (!isset($v6NewVersion)) {
-  $v6NewVersion = '6.0';
+  $v6NewVersion = '6.0.0';
 }
 if (!isset($versionFilePath)) {
   $versionFilePath = null;

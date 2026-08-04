@@ -27,7 +27,7 @@ if ($versionApiData !== false) {
     $versionInfo = json_decode($versionApiData, true);
     $newVersion = $versionInfo['stable_version'] ?? 'N/A';
     $betaNewVersion = $versionInfo['beta_version'] ?? 'N/A';
-    $v6NewVersion = $versionInfo['v6_version'] ?? '6.0';
+    $v6NewVersion = $versionInfo['v6_version'] ?? '6.0.0';
 } else {
     $newVersion = $betaNewVersion = $v6NewVersion = 'N/A';
 }
