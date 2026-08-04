@@ -39,7 +39,7 @@ import yt_dlp
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "6.2"
+VERSION = "6.3"
 
 # Global configuration class
 class Config:
@@ -625,38 +625,102 @@ class WebsocketListener:
         self.bot = bot
         self.logger = logger
         self.specterSocket = None
+        self._ws_ready = False
+        self._ws_reg_epoch = 0
+        self._ws_backoff = (0, 2, 5, 10, 20, 40, 60)
 
-    async def start(self):
-        # This listener has NO manual reconnect loop - it relies entirely on python-socketio's built-in reconnection (single authority). Do NOT set reconnection=False here or the Discord bot would never reconnect. Keep infinite attempts but bound the delay for the ~2 min internal-server reboot.
-        self.specterSocket = socketio.AsyncClient(
-            logger=False, engineio_logger=False,
-            reconnection=True, reconnection_attempts=0,
-            reconnection_delay=5, reconnection_delay_max=60,
-        )
+    async def _emit_register(self):
+        self._ws_reg_epoch += 1
+        epoch = self._ws_reg_epoch
+        self._ws_ready = False
         admin_key = config.admin_key
-        websocket_url = config.websocket_url
-        # Register event handlers for the websocket client
-        @self.specterSocket.event
-        async def connect():
-            self.logger.info("Connected to websocket server")
+        try:
             await self.specterSocket.emit("REGISTER", {
                 "code": admin_key,
                 "global_listener": True,
                 "channel": "Global",
-                "name": "Discord Bot Global Listener"
+                "name": "Discord Bot Global Listener",
             })
-        # Disconnect event handler
+            self.logger.info(f"REGISTER sent (epoch={epoch}) — waiting for SUCCESS")
+        except Exception as e:
+            self.logger.error(f"REGISTER emit failed (epoch={epoch}): {e}")
+            try:
+                await self.specterSocket.disconnect()
+            except Exception:
+                pass
+
+    def is_ws_ready(self) -> bool:
+        try:
+            sock_up = bool(self.specterSocket and getattr(self.specterSocket, "connected", False))
+        except Exception:
+            sock_up = False
+        if self._ws_ready and not sock_up:
+            self._ws_ready = False
+        return bool(self._ws_ready and sock_up)
+
+    async def start(self):
+        # Single reconnect authority: reconnection=False + this forever loop.
+        # Built-in socketio auto-reconnect + manual REGISTER used to fight (duplicate-name flap).
+        self.specterSocket = socketio.AsyncClient(
+            logger=False, engineio_logger=False, reconnection=False,
+        )
+        websocket_url = config.websocket_url
+        # Prefer https URL for socketio client (same as other bots)
+        if websocket_url.startswith("wss://"):
+            websocket_url = "https://" + websocket_url[len("wss://"):]
+        elif websocket_url.startswith("ws://"):
+            websocket_url = "http://" + websocket_url[len("ws://"):]
+
+        @self.specterSocket.event
+        async def connect():
+            self.logger.info(
+                f"Connected to websocket server (sid={self.specterSocket.sid}), sending REGISTER…"
+            )
+            await self._emit_register()
+
+        @self.specterSocket.on("WELCOME")
+        async def welcome(data=None):
+            self.logger.info(f"WELCOME received — re-sending REGISTER ({data!r})")
+            await self._emit_register()
+
         @self.specterSocket.event
         async def disconnect():
+            await asyncio.sleep(0)
+            if getattr(self.specterSocket, "connected", False):
+                self.logger.warning(
+                    "disconnect while client.connected=True (ignored — re-register race)"
+                )
+                return
+            self._ws_ready = False
             self.logger.info("Disconnected from websocket server")
-        # Success event handler
+
         @self.specterSocket.event
         async def SUCCESS(data):
-            self.logger.info(f"Websocket registration successful: {data}")
-        # Error event handler
+            self._ws_ready = True
+            self.logger.info(
+                f"Websocket registration successful (epoch={self._ws_reg_epoch}): {data}"
+            )
+
         @self.specterSocket.event
         async def ERROR(data):
-            self.logger.error(f"Websocket error: {data}")
+            msg = data.get("message", data) if isinstance(data, dict) else data
+            self.logger.error(f"Websocket error: {msg}")
+            text = str(msg or "").lower()
+            if "duplicate" in text:
+                if not getattr(self.specterSocket, "connected", False):
+                    self._ws_ready = False
+                return
+            self._ws_ready = False
+            try:
+                await self.specterSocket.disconnect()
+            except Exception:
+                pass
+
+        @self.specterSocket.event
+        async def connect_error(data):
+            self._ws_ready = False
+            self.logger.error(f"Websocket connect_error: {data}")
+
         # Event handlers for Twitch Follows
         @self.specterSocket.event
         async def TWITCH_FOLLOW(data):
@@ -796,7 +860,61 @@ class WebsocketListener:
             if event == 'CHAT_MESSAGE':
                 return
             self.logger.info(f"Received websocket event '{event}': {data}")
-        await self.specterSocket.connect(websocket_url)
+
+        # Forever reconnect loop (same pattern as Twitch/Kick bots)
+        consecutive_failures = 0
+        while True:
+            try:
+                self._ws_ready = False
+                try:
+                    await self.specterSocket.disconnect()
+                except Exception:
+                    pass
+                await asyncio.sleep(0.5)
+                if consecutive_failures > 0:
+                    delay = self._ws_backoff[min(consecutive_failures, len(self._ws_backoff) - 1)]
+                    jitter = random.uniform(0, min(3.0, max(0.5, delay * 0.1 + 0.5)))
+                    total = delay + jitter
+                    self.logger.info(
+                        f"Specter WS reconnect attempt {consecutive_failures + 1}, waiting {total:.1f}s"
+                    )
+                    await asyncio.sleep(total)
+                self.logger.info(
+                    f"Connecting to Specter WS {websocket_url} (attempt {consecutive_failures + 1})"
+                )
+                await asyncio.wait_for(
+                    self.specterSocket.connect(websocket_url, transports=["websocket"]),
+                    timeout=30,
+                )
+                deadline = time.time() + 30
+                while not self.is_ws_ready() and time.time() < deadline:
+                    await asyncio.sleep(0.25)
+                if not self.is_ws_ready():
+                    raise asyncio.TimeoutError("Registration confirmation timeout (no SUCCESS)")
+                consecutive_failures = 0
+                self.logger.info(
+                    f"Specter WS connected and registered (sid={self.specterSocket.sid})"
+                )
+                await self.specterSocket.wait()
+                consecutive_failures = max(1, consecutive_failures)
+                self.logger.warning(
+                    f"Specter WS connection ended; scheduling reconnect (failures={consecutive_failures})"
+                )
+            except asyncio.CancelledError:
+                self._ws_ready = False
+                raise
+            except Exception as e:
+                consecutive_failures += 1
+                self._ws_ready = False
+                self.logger.error(
+                    f"Specter WS error (attempt {consecutive_failures}): {e}"
+                )
+                try:
+                    await self.specterSocket.disconnect()
+                except Exception:
+                    pass
+            self._ws_ready = False
+            await asyncio.sleep(0.5)
 
 # Channel mapping class to manage multiple Discord servers
 class ChannelMapping:

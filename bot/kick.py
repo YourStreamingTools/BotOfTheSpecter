@@ -56,7 +56,7 @@ REFRESH_TOKEN       = args.refresh_token
 CLIENT_ID           = args.client_id
 CLIENT_SECRET       = args.client_secret
 API_TOKEN           = args.api_token
-VERSION             = "1.0.0"
+VERSION             = "1.0.1"
 SYSTEM              = "KICK"
 BOT_USERNAME        = "botofthespecter"
 BOT_OWNER           = "gfaundead"
@@ -411,48 +411,84 @@ async def unban_user(user_id: int) -> bool:
     })
     return status in (200, 204)
 
-specterSocket    = AsyncClient(reconnection=False)
+specterSocket = AsyncClient(reconnection=False)
 websocket_connected = False
+_ws_reg_epoch = 0
+_WS_BACKOFF = (0, 2, 5, 10, 20, 40, 60)
+
+async def _emit_specter_register():
+    global websocket_connected, _ws_reg_epoch
+    _ws_reg_epoch += 1
+    epoch = _ws_reg_epoch
+    websocket_connected = False
+    registration_data = {
+        'code': API_TOKEN,
+        'channel': TWITCH_USERNAME,
+        'name': f'Kick Bot V{VERSION}',
+    }
+    try:
+        await specterSocket.emit('REGISTER', registration_data)
+        websocket_logger.info(f"[WS] REGISTER sent (epoch={epoch}) — waiting for SUCCESS")
+    except Exception as e:
+        websocket_logger.error(f"[WS] REGISTER emit failed (epoch={epoch}): {e}")
+        try:
+            await specterSocket.disconnect()
+        except Exception:
+            pass
+
+def is_websocket_connected() -> bool:
+    global websocket_connected
+    try:
+        sock_up = bool(specterSocket and getattr(specterSocket, 'connected', False))
+    except Exception:
+        sock_up = False
+    if websocket_connected and not sock_up:
+        websocket_connected = False
+    return bool(websocket_connected and sock_up)
 
 async def specter_websocket():
     global websocket_connected
-    specter_uri      = "https://websocket.botofthespecter.com"
-    reconnect_delay  = 60
+    specter_uri = "https://websocket.botofthespecter.com"
     consecutive_failures = 0
     while True:
         try:
             websocket_connected = False
-            # Force a clean disconnect first to recover from any indeterminate socket state.
             try:
                 await specterSocket.disconnect()
             except Exception:
                 pass
+            await sleep(0.5)
             if consecutive_failures > 0:
-                jitter = random.uniform(0, 5)
+                delay = _WS_BACKOFF[min(consecutive_failures, len(_WS_BACKOFF) - 1)]
+                jitter = random.uniform(0, min(3.0, max(0.5, delay * 0.1 + 0.5)))
+                total_delay = delay + jitter
                 websocket_logger.info(
-                    f"[WS] Reconnect attempt {consecutive_failures}, "
-                    f"waiting {reconnect_delay + jitter:.1f}s …"
+                    f"[WS] Reconnect attempt {consecutive_failures + 1}, waiting {total_delay:.1f}s"
                 )
-                await sleep(reconnect_delay + jitter)
+                await sleep(total_delay)
             bot_logger.info(f"[WS] Connecting to {specter_uri} (attempt {consecutive_failures + 1})")
-            # Hard timeout on connect() - prevents hanging when the server is mid-reboot and accepts TCP but never completes the socket.io handshake.
             await asyncio_wait_for(
                 specterSocket.connect(specter_uri, transports=['websocket']),
                 timeout=30
             )
-            # Wait up to 30 s for registration to complete
             start = time_right_now()
-            while not websocket_connected:
+            while not is_websocket_connected():
                 if (time_right_now() - start).total_seconds() > 30:
-                    raise asyncioTimeoutError("Connection/registration timeout")
-                await sleep(0.5)
+                    raise asyncioTimeoutError("Registration confirmation timeout (no SUCCESS)")
+                await sleep(0.25)
             consecutive_failures = 0
             websocket_logger.info("[WS] Connected and registered with internal WebSocket server.")
             await specterSocket.wait()
+            consecutive_failures = max(1, consecutive_failures)
+            websocket_logger.warning(f"[WS] Connection ended; scheduling reconnect (failures={consecutive_failures})")
         except (ConnectionExceptionError, asyncioTimeoutError) as e:
             consecutive_failures += 1
             websocket_connected = False
             websocket_logger.error(f"[WS] Connection failed (attempt {consecutive_failures}): {e}")
+            try:
+                await specterSocket.disconnect()
+            except Exception:
+                pass
         except asyncioCancelledError:
             websocket_logger.info("[WS] Loop cancelled - exiting.")
             break
@@ -460,29 +496,45 @@ async def specter_websocket():
             consecutive_failures += 1
             websocket_connected = False
             websocket_logger.error(f"[WS] Unexpected error (attempt {consecutive_failures}): {e}")
+            try:
+                await specterSocket.disconnect()
+            except Exception:
+                pass
         websocket_connected = False
-        await sleep(1)
+        await sleep(0.5)
 
 @specterSocket.event
 async def connect():
-    global websocket_connected
     websocket_logger.info("[WS] Socket.IO connection established, registering …")
-    registration_data = {
-        'code':    API_TOKEN,
-        'channel': TWITCH_USERNAME,
-        'name':    f'Kick Bot V{VERSION}',
-    }
+    await _emit_specter_register()
+
+@specterSocket.on('WELCOME')
+async def WELCOME(data=None):
+    websocket_logger.info(f"[WS] WELCOME — re-sending REGISTER ({data!r})")
+    await _emit_specter_register()
+
+@specterSocket.event
+async def SUCCESS(data):
+    global websocket_connected
+    websocket_connected = True
+    msg = data.get('message', data) if isinstance(data, dict) else data
+    websocket_logger.info(f"[WS] Registration confirmed (epoch={_ws_reg_epoch}): {msg}")
+
+@specterSocket.event
+async def ERROR(data):
+    global websocket_connected
+    msg = data.get('message', data) if isinstance(data, dict) else data
+    websocket_logger.error(f"[WS] Server ERROR: {msg}")
+    text = str(msg or '').lower()
+    if 'duplicate' in text:
+        if not getattr(specterSocket, 'connected', False):
+            websocket_connected = False
+        return
+    websocket_connected = False
     try:
-        await specterSocket.emit('REGISTER', registration_data)
-        websocket_connected = True
-        websocket_logger.info("[WS] Registered with internal WebSocket server.")
-    except Exception as e:
-        websocket_logger.error(f"[WS] Registration failed: {e}")
-        websocket_connected = False
-        try:
-            await specterSocket.disconnect()
-        except Exception:
-            pass
+        await specterSocket.disconnect()
+    except Exception:
+        pass
 
 @specterSocket.event
 async def connect_error(data):
@@ -493,6 +545,10 @@ async def connect_error(data):
 @specterSocket.event
 async def disconnect():
     global websocket_connected
+    await sleep(0)
+    if getattr(specterSocket, 'connected', False):
+        websocket_logger.warning("[WS] disconnect while connected=True (ignored — re-register race)")
+        return
     websocket_connected = False
     websocket_logger.error("[WS] Disconnected from internal WebSocket server.")
 
