@@ -1,0 +1,29 @@
+# BotOfTheSpecter - Caddy config for the WebSocket host.
+#
+# Terminates TLS for websocket.botofthespecter.com and reverse-proxies
+# (including Socket.IO WebSocket upgrade) to the app on 127.0.0.1:8080.
+#
+# Reload with:   systemctl reload caddy
+# Watch logs:    journalctl -fu caddy
+
+{
+    email admin@botofthespecter.com
+}
+
+(security) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+        -X-Powered-By
+    }
+}
+
+websocket.botofthespecter.com {
+    reverse_proxy 127.0.0.1:8080
+    import security
+    log {
+        output file /var/log/caddy/websocket.log
+    }
+}

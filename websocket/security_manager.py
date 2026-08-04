@@ -44,27 +44,38 @@ class SecurityManager:
             # Only apply IP restrictions to specific endpoints
             restricted_paths = ['/clients', '/notify']
             if request.path in restricted_paths:
-                # The websocket server faces the public internet directly with no
-                # reverse proxy in front. Any request carrying proxy-identity
-                # headers is either misconfigured or an attempt to spoof the IP
-                # whitelist - reject outright so attempts show up in the logs.
-                for spoof_header in ('X-Forwarded-For', 'X-Real-IP'):
-                    if spoof_header in request.headers:
-                        self.logger.warning(
-                            f"Rejected {request.path} from {request.remote} - "
-                            f"unexpected {spoof_header}: {request.headers[spoof_header]}"
-                        )
-                        from aiohttp import web
-                        return web.Response(status=403, text="Access Forbidden")
-                client_ip = request.remote
-                # Allow localhost (server-internal calls)
+                peer = request.remote or ''
+                # Preferred production: Caddy on loopback → trust X-Forwarded-For
+                # only when the TCP peer is loopback (same pattern as product API).
+                # Direct public bind (legacy): ignore/reject spoof headers from non-loopback.
+                if peer in ('127.0.0.1', '::1'):
+                    xff = (request.headers.get('X-Forwarded-For') or '').strip()
+                    if xff:
+                        client_ip = xff.split(',')[0].strip()
+                    else:
+                        client_ip = (request.headers.get('X-Real-IP') or peer).strip()
+                else:
+                    for spoof_header in ('X-Forwarded-For', 'X-Real-IP'):
+                        if spoof_header in request.headers:
+                            self.logger.warning(
+                                f"Rejected {request.path} from {peer} - "
+                                f"unexpected {spoof_header}: {request.headers[spoof_header]}"
+                            )
+                            from aiohttp import web
+                            return web.Response(status=403, text="Access Forbidden")
+                    client_ip = peer
+                # Allow localhost (server-internal / loopback-only probes)
                 if client_ip in ('127.0.0.1', '::1'):
                     return await handler(request)
                 if not self.is_ip_allowed(client_ip):
-                    self.logger.warning(f"Access denied for IP: {client_ip} on restricted path: {request.path}")
+                    self.logger.warning(
+                        f"Access denied for IP: {client_ip} (peer={peer}) on restricted path: {request.path}"
+                    )
                     from aiohttp import web
                     return web.Response(status=403, text="Access Forbidden")
-                self.logger.debug(f"Access granted for IP: {client_ip} on restricted path: {request.path}")
+                self.logger.debug(
+                    f"Access granted for IP: {client_ip} (peer={peer}) on restricted path: {request.path}"
+                )
             # Allow all other requests to pass through without IP checking
             return await handler(request)
         return middleware_handler
