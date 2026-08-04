@@ -93,12 +93,14 @@ if (isset($_GET['ajax'])) {
         }
     }
 
-    // Fetch chat message counts by bot system
+    // Fetch chat message counts by bot system.
+    // Cast to int so JSON emits numbers (mysqli returns numeric columns as strings;
+    // string += in JS concatenates and produces absurd messages/min rates).
     $botMessageCounts = [];
     $result = $conn->query("SELECT bot_system, messages_sent FROM bot_messages WHERE bot_system IN ('discordbot', 'twitch_stable', 'twitch_beta', 'twitch_custom')");
     if ($result) {
         while ($row = $result->fetch_assoc()) {
-            $botMessageCounts[$row['bot_system']] = $row['messages_sent'];
+            $botMessageCounts[$row['bot_system']] = (int) $row['messages_sent'];
         }
     }
 
@@ -445,21 +447,23 @@ function fetchAndUpdateStatus() {
                 ];
                 let totalNow = 0, totalPrev = 0, havePrev = false;
                 msgSystems.forEach(({ key, elMsg }) => {
-                    const count = data.botMessageCounts[key] ?? 0;
-                    document.getElementById(elMsg).textContent = count == 0 ? 'Not Counting Yet' : formatNumber(count);
+                    // Always numeric: JSON/mysqli can still deliver strings from cache or older payloads
+                    const count = Math.max(0, Number(data.botMessageCounts[key]) || 0);
+                    document.getElementById(elMsg).textContent = count === 0 ? 'Not Counting Yet' : formatNumber(count);
                     totalNow += count;
                     if (prevMsgCounts[key] !== undefined) {
-                        totalPrev += prevMsgCounts[key];
+                        totalPrev += Number(prevMsgCounts[key]) || 0;
                         havePrev = true;
                     }
                     prevMsgCounts[key] = count;
                 });
-                // Compute and display overall messages/min
+                // Compute and display overall messages/min from delta between polls
                 const rateEl = document.getElementById('overall-msg-rate');
                 if (havePrev && prevMsgTimestamp !== null && totalNow > 0) {
                     const elapsedMin = (nowMs - prevMsgTimestamp) / 60000;
                     const delta = totalNow - totalPrev;
-                    rateEl.textContent = (elapsedMin > 0 && delta >= 0)
+                    // Require a real interval so a near-zero elapsed doesn't explode the rate
+                    rateEl.textContent = (elapsedMin >= 0.05 && delta >= 0)
                         ? (delta / elapsedMin).toFixed(1) + '/min'
                         : '—';
                 } else {
