@@ -1126,8 +1126,8 @@ class BotOfTheSpecter_WebsocketServer:
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)
 
     async def index(self, request):
-        # Redirect to the main page
-        raise web.HTTPFound(location="https://botofthespecter.com")
+        # Operator docs for the host control API (Caddy path /control/* ? 8093)
+        raise web.HTTPFound(location="/control/docs")
     
     async def favicon_redirect(self, request):
         # Redirect favicon.ico requests to the actual favicon.ico file

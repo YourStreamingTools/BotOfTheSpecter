@@ -21,6 +21,14 @@
 }
 
 websocket.botofthespecter.com {
+    # Docs explorer assets (css/js). Caddy runs as user `caddy` and often cannot
+    # read /home/botofthespecter (mode 700) → 403. Keep a copy under /var/www.
+    # Deploy: rsync host_api/docs_ui/ → /var/www/websocket-control-docs/
+    # Strips /control/docs-static so /css/docs.css maps into that root.
+    handle_path /control/docs-static/* {
+        root * /var/www/websocket-control-docs
+        file_server
+    }
     # Private host control API (bots-api style) — strip /control prefix
     handle_path /control/* {
         reverse_proxy 127.0.0.1:8093
