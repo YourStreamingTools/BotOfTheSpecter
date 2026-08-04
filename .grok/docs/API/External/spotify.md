@@ -127,7 +127,7 @@ The refresh job is invoked by `./bot/refresh_spotify_tokens.py`. It is triggered
 
 1. **Admin dashboard "Refresh Tokens" SSE stream** at `./dashboard/admin/stream_command.php` (mapped key `'spotify' => 'refresh_spotify_tokens.py'`).
 2. **Admin dashboard one-shot button** at `./dashboard/admin/index.php:473-493` - POSTs `refresh_spotify_tokens=1`, server runs `cd /home/botofthespecter && python3 refresh_spotify_tokens.py`.
-3. **Cron / scheduled task on the bot host** (server-side, not in repo). Spotify access tokens expire every 3600 seconds, so this should run no less often than hourly; ~every 30–50 minutes is the practical window.
+3. **Cron / scheduled task on the bot host** via `./bot/token_refresh_scheduler.py` (crontab every minute; Spotify job interval **45 minutes**). Spotify access tokens expire every 3600 seconds; the 45-minute cadence leaves a ~15-minute buffer so songrequest and overlays never hit a dead access token.
 
 The bot processes (`bot.py`, `beta.py`, `beta-v6.py`) all carry a `next_spotify_refresh_time` timer (`./bot/bot.py:194`, `./bot/beta.py:258`, `./bot/beta-v6.py:237`) but they read tokens straight from MySQL on every Spotify call rather than caching - so as long as the standalone refresh script keeps the DB row fresh, the bot will always pick up a valid token.
 
@@ -423,7 +423,7 @@ The script runs **all users concurrently** via `asyncio.gather`. With many users
 | ------- | ------ |
 | Admin "Refresh Tokens" panel (one-shot button) | `./dashboard/admin/index.php:473-493` (POST → exec) |
 | Admin token-refresh SSE stream | `./dashboard/admin/stream_command.php:35` (`'spotify'` script key) |
-| Scheduled cron on the bot host | server-side cron, NOT in repo. Recommended interval: 30–50 min (Spotify access tokens last 3600s). |
+| Scheduled cron on the bot host | `./bot/crontab` → `token_refresh_scheduler.py` every minute; Spotify job every **45 min** (access tokens last 3600s). |
 
 ### How the bot loads the token
 

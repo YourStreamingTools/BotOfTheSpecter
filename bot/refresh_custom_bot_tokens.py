@@ -19,7 +19,10 @@ SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 LOG_FILE = '/home/botofthespecter/logs/custom_bot_token_refresh.log'
-REFRESH_INTERVAL = 14400  # 4 hours in seconds
+# Look-ahead used in SQL below: refresh when token_expires is within this
+# many minutes (or already past). token_refresh_scheduler runs this script
+# every 45 min so tokens are caught with ~15+ minutes of life remaining.
+EXPIRY_LOOKAHEAD_MINUTES = 60
 
 # Setup logging
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
@@ -55,8 +58,11 @@ async def get_custom_bots_needing_refresh():
         return []
     try:
         async with connection.cursor() as cursor:
-            # Get bots where token expires within next hour or is already expired
-            query = """
+            # Get bots where token expires within the look-ahead window or is already expired.
+            # INTERVAL minutes is a trusted constant (not user input); MySQL prepared
+            # statements do not reliably bind placeholders inside INTERVAL expressions.
+            lookahead = int(EXPIRY_LOOKAHEAD_MINUTES)
+            query = f"""
                 SELECT 
                     cb.bot_channel_id,
                     cb.bot_username,
@@ -69,7 +75,7 @@ async def get_custom_bots_needing_refresh():
                 JOIN users u ON cb.channel_id = u.id
                 WHERE cb.refresh_token IS NOT NULL 
                 AND cb.refresh_token != ''
-                AND (cb.token_expires IS NULL OR cb.token_expires <= DATE_ADD(NOW(), INTERVAL 1 HOUR))
+                AND (cb.token_expires IS NULL OR cb.token_expires <= DATE_ADD(NOW(), INTERVAL {lookahead} MINUTE))
                 AND cb.is_verified = 1
             """
             await cursor.execute(query)
@@ -87,7 +93,8 @@ async def get_module_bots_needing_refresh():
         return []
     try:
         async with connection.cursor() as cursor:
-            query = """
+            lookahead = int(EXPIRY_LOOKAHEAD_MINUTES)
+            query = f"""
                 SELECT 
                     mb.id,
                     mb.bot_channel_id,
@@ -101,7 +108,7 @@ async def get_module_bots_needing_refresh():
                 JOIN users u ON mb.channel_id = u.id
                 WHERE mb.refresh_token IS NOT NULL
                 AND mb.refresh_token != ''
-                AND (mb.token_expires IS NULL OR mb.token_expires <= DATE_ADD(NOW(), INTERVAL 1 HOUR))
+                AND (mb.token_expires IS NULL OR mb.token_expires <= DATE_ADD(NOW(), INTERVAL {lookahead} MINUTE))
                 AND mb.is_verified = 1
             """
             await cursor.execute(query)
