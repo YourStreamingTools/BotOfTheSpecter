@@ -34,11 +34,9 @@ if ($username) {
     <title>Twitch Alerts Overlay - BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             function showOverlayError(message, type) {
@@ -703,280 +701,254 @@ if ($username) {
                     enqueueWalkon(media.url);
                 }
             }
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', {
-                    reconnection: false
-                });
-                socket.on('connect', () => {
-                    console.log('Connected to WebSocket server');
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Twitch Alerts' });
-                });
-                socket.on('disconnect', () => {
-                    console.log('Disconnected from WebSocket server');
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
-                socket.on('connect_error', (error) => {
-                    console.error('Connection error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
-                socket.on('WELCOME', (data) => {
-                    console.log('Server says:', data.message);
-                });
-                // Twitch events
-                socket.on('TWITCH_FOLLOW', (data) => {
-                    console.log('TWITCH_FOLLOW event received:', data);
-                    queueAlert('follow', { username: data['twitch-username'] });
-                });
-                socket.on('TWITCH_CHEER', (data) => {
-                    console.log('TWITCH_CHEER event received:', data);
-                    queueAlert('bits', {
-                        username: data['twitch-username'],
-                        amount: data['twitch-cheer-amount'],
-                        is_first: data['twitch-cheer-first'] || false
+            // Patreon/Fourthwall: api.py may forward Python-literal rather than strict JSON
+            function _parsePatreonPayload(raw) {
+                if (!raw) return null;
+                if (typeof raw === 'object') return raw;
+                try { return JSON.parse(raw); } catch (_) {}
+                try {
+                    const jsonStr = raw
+                        .replace(/'/g, '"')
+                        .replace(/\bNone\b/g, 'null')
+                        .replace(/\bTrue\b/g, 'true')
+                        .replace(/\bFalse\b/g, 'false');
+                    return JSON.parse(jsonStr);
+                } catch (_) {}
+                return null;
+            }
+            // Specter bus: helper owns reconnect (SUCCESS-gated ready, dispose + progressive backoff)
+            SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'Twitch Alerts',
+                onStatus: setConnectionStatus,
+                bind: function (socket) {
+                    socket.on('WELCOME', (data) => {
+                        console.log('Server says:', data.message);
                     });
-                });
-                socket.on('TWITCH_SUB', (data) => {
-                    console.log('TWITCH_SUB event received:', data);
-                    queueAlert('subscription', {
-                        username: data['twitch-username'],
-                        tier: data['twitch-tier'],
-                        months: data['twitch-sub-months']
+                    // Twitch events
+                    socket.on('TWITCH_FOLLOW', (data) => {
+                        console.log('TWITCH_FOLLOW event received:', data);
+                        queueAlert('follow', { username: data['twitch-username'] });
                     });
-                });
-                socket.on('TWITCH_RAID', (data) => {
-                    console.log('TWITCH_RAID event received:', data);
-                    queueAlert('raid', {
-                        username: data['twitch-username'],
-                        viewers: data['twitch-raid']
+                    socket.on('TWITCH_CHEER', (data) => {
+                        console.log('TWITCH_CHEER event received:', data);
+                        queueAlert('bits', {
+                            username: data['twitch-username'],
+                            amount: data['twitch-cheer-amount'],
+                            is_first: data['twitch-cheer-first'] || false
+                        });
                     });
-                });
-                socket.on('TWITCH_GIFT_SUB', (data) => {
-                    console.log('TWITCH_GIFT_SUB event received:', data);
-                    queueAlert('gift_subscription', {
-                        username: data['twitch-username'],
-                        amount: data['twitch-gift-count'] || 1
+                    socket.on('TWITCH_SUB', (data) => {
+                        console.log('TWITCH_SUB event received:', data);
+                        queueAlert('subscription', {
+                            username: data['twitch-username'],
+                            tier: data['twitch-tier'],
+                            months: data['twitch-sub-months']
+                        });
                     });
-                });
-                socket.on('TWITCH_HYPE_TRAIN', (data) => {
-                    console.log('TWITCH_HYPE_TRAIN event received:', data);
-                    queueAlert('hype_train', {
-                        username: data['twitch-username'] || '',
-                        level: parseInt(data['twitch-hype-level'] || data['level'] || 1)
+                    socket.on('TWITCH_RAID', (data) => {
+                        console.log('TWITCH_RAID event received:', data);
+                        queueAlert('raid', {
+                            username: data['twitch-username'],
+                            viewers: data['twitch-raid']
+                        });
                     });
-                });
-                socket.on('TWITCH_CHARITY', (data) => {
-                    console.log('TWITCH_CHARITY event received:', data);
-                    queueAlert('charity', {
-                        username:     data['twitch-username'] || '',
-                        amount:       data['twitch-charity-amount'] || '',     // formatted "100.00 USD" for display
-                        amount_value: parseFloat(data['twitch-charity-value'] || 0), // numeric, for condition matching
-                        charity_name: data['twitch-charity-name'] || ''
+                    socket.on('TWITCH_GIFT_SUB', (data) => {
+                        console.log('TWITCH_GIFT_SUB event received:', data);
+                        queueAlert('gift_subscription', {
+                            username: data['twitch-username'],
+                            amount: data['twitch-gift-count'] || 1
+                        });
                     });
-                });
-                socket.on('TWITCH_CHANNEL_POINTS', (data) => {
-                    console.log('TWITCH_CHANNEL_POINTS event received:', data);
-                    queueAlert('channel_points', {
-                        username:  data['twitch-username'] || '',
-                        reward_id: data['reward-id'] || data['reward_id'] || ''
+                    socket.on('TWITCH_HYPE_TRAIN', (data) => {
+                        console.log('TWITCH_HYPE_TRAIN event received:', data);
+                        queueAlert('hype_train', {
+                            username: data['twitch-username'] || '',
+                            level: parseInt(data['twitch-hype-level'] || data['level'] || 1)
+                        });
                     });
-                });
+                    socket.on('TWITCH_CHARITY', (data) => {
+                        console.log('TWITCH_CHARITY event received:', data);
+                        queueAlert('charity', {
+                            username:     data['twitch-username'] || '',
+                            amount:       data['twitch-charity-amount'] || '',
+                            amount_value: parseFloat(data['twitch-charity-value'] || 0),
+                            charity_name: data['twitch-charity-name'] || ''
+                        });
+                    });
+                    socket.on('TWITCH_CHANNEL_POINTS', (data) => {
+                        console.log('TWITCH_CHANNEL_POINTS event received:', data);
+                        queueAlert('channel_points', {
+                            username:  data['twitch-username'] || '',
+                            reward_id: data['reward-id'] || data['reward_id'] || ''
+                        });
+                    });
 
-                // Ko-fi - webhook payload comes wrapped as a JSON string in data.data
-                socket.on('KOFI', (data) => {
-                    console.log('KOFI event received:', data);
-                    let payload = {};
-                    try {
-                        if (data && typeof data.data === 'string') payload = JSON.parse(data.data);
-                        else if (data && typeof data.data === 'object' && data.data) payload = data.data;
-                        else payload = data || {};
-                    } catch (e) {
-                        console.warn('Failed to parse KOFI payload:', e);
-                        return;
-                    }
-                    const amt = payload.amount || '';
-                    const cur = payload.currency || '';
-                    queueAlert('kofi', {
-                        kofi_type:    payload.type || '',
-                        username:     payload.from_name || '',
-                        amount:       amt && cur ? `${amt} ${cur}` : amt,
-                        amount_value: parseFloat(amt) || 0,
-                        message:      payload.message || '',
-                        tier_name:    payload.tier_name || ''
+                    // Ko-fi - webhook payload comes wrapped as a JSON string in data.data
+                    socket.on('KOFI', (data) => {
+                        console.log('KOFI event received:', data);
+                        let payload = {};
+                        try {
+                            if (data && typeof data.data === 'string') payload = JSON.parse(data.data);
+                            else if (data && typeof data.data === 'object' && data.data) payload = data.data;
+                            else payload = data || {};
+                        } catch (e) {
+                            console.warn('Failed to parse KOFI payload:', e);
+                            return;
+                        }
+                        const amt = payload.amount || '';
+                        const cur = payload.currency || '';
+                        queueAlert('kofi', {
+                            kofi_type:    payload.type || '',
+                            username:     payload.from_name || '',
+                            amount:       amt && cur ? `${amt} ${cur}` : amt,
+                            amount_value: parseFloat(amt) || 0,
+                            message:      payload.message || '',
+                            tier_name:    payload.tier_name || ''
+                        });
                     });
-                });
 
-                // Patreon - JSON:API envelope nested in data.data; api.py forwards it
-                // via urlencode(dict) so the payload may be Python-literal rather than
-                // strict JSON (mirrors what overlay/patreon.php has to deal with).
-                function _parsePatreonPayload(raw) {
-                    if (!raw) return null;
-                    if (typeof raw === 'object') return raw;
-                    try { return JSON.parse(raw); } catch (_) {}
-                    try {
-                        const jsonStr = raw
-                            .replace(/'/g, '"')
-                            .replace(/\bNone\b/g, 'null')
-                            .replace(/\bTrue\b/g, 'true')
-                            .replace(/\bFalse\b/g, 'false');
-                        return JSON.parse(jsonStr);
-                    } catch (_) {}
-                    return null;
+                    // Patreon - JSON:API envelope nested in data.data
+                    socket.on('PATREON', (data) => {
+                        console.log('PATREON event received:', data);
+                        const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
+                        if (!parsed) { console.warn('PATREON payload unparseable'); return; }
+                        const member = (parsed.data || parsed || {});
+                        const attrs  = member.attributes || {};
+                        // Classify (matches overlay/patreon.php logic)
+                        const status = String(attrs.patron_status || '').toLowerCase();
+                        let patreon_type;
+                        if (status === 'declined_patron' || status === 'former_patron') patreon_type = 'cancelled';
+                        else if (attrs.last_charge_status === 'Paid' && attrs.campaign_lifetime_support_cents) patreon_type = 'update';
+                        else patreon_type = 'pledge';
+                        // Tier lookup from included array
+                        let tier_name = '';
+                        if (Array.isArray(parsed.included)) {
+                            const t = parsed.included.find(r => r && r.type === 'tier' && r.attributes && r.attributes.title);
+                            if (t) tier_name = t.attributes.title;
+                        }
+                        const currency = attrs.currency_code || 'USD';
+                        const cents    = Number(attrs.currently_entitled_amount_cents) || 0;
+                        const ltCents  = Number(attrs.campaign_lifetime_support_cents) || 0;
+                        const dollars  = (cents / 100).toFixed(2);
+                        const ltDollars= (ltCents / 100).toFixed(2);
+                        queueAlert('patreon', {
+                            patreon_type,
+                            username:     attrs.full_name || attrs.email || '',
+                            amount:       cents ? `${currency} ${dollars}` : '',
+                            amount_value: cents ? cents / 100 : 0,
+                            tier_name,
+                            lifetime:     ltCents ? `${currency} ${ltDollars}` : ''
+                        });
+                    });
+
+                    // Fourthwall - envelope { type, data } nested in event.data
+                    socket.on('FOURTHWALL', (data) => {
+                        console.log('FOURTHWALL event received:', data);
+                        const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
+                        if (!parsed) { console.warn('FOURTHWALL payload unparseable'); return; }
+                        const fwType    = parsed.type || '';
+                        const eventData = parsed.data || {};
+                        const totals = (eventData.amounts && eventData.amounts.total) ||
+                                       (eventData.subscription && eventData.subscription.variant && eventData.subscription.variant.amount) ||
+                                       null;
+                        let amountStr = '';
+                        let amountValue = 0;
+                        if (totals) {
+                            amountStr = `${totals.value} ${totals.currency || ''}`.trim();
+                            amountValue = parseFloat(totals.value) || 0;
+                        }
+                        let username = eventData.username || eventData.nickname || '';
+                        let item = '';
+                        let interval = '';
+                        if (fwType === 'ORDER_PLACED') {
+                            const offer = (eventData.offers && eventData.offers[0]) || {};
+                            const qty   = (offer.variant && offer.variant.quantity) || 1;
+                            item = qty > 1 ? `${qty}× ${offer.name || 'item'}` : (offer.name || 'item');
+                        } else if (fwType === 'GIVEAWAY_PURCHASED') {
+                            item = (eventData.offer && eventData.offer.name) || 'giveaway';
+                        } else if (fwType === 'SUBSCRIPTION_PURCHASED') {
+                            const variant = (eventData.subscription && eventData.subscription.variant) || {};
+                            interval = variant.interval || '';
+                        }
+                        queueAlert('fourthwall', {
+                            fourthwall_type: fwType,
+                            username,
+                            amount:       amountStr,
+                            amount_value: amountValue,
+                            message:      eventData.message || '',
+                            item,
+                            interval
+                        });
+                    });
+
+                    // Stream Bingo - four sub-events, each picks its own variant
+                    socket.on('STREAM_BINGO_STARTED', (data) => {
+                        console.log('STREAM_BINGO_STARTED event received:', data);
+                        queueAlert('stream_bingo', {
+                            bingo_event:  'STREAM_BINGO_STARTED',
+                            events_count: data.events_count || ''
+                        });
+                    });
+                    socket.on('STREAM_BINGO_ENDED', (data) => {
+                        console.log('STREAM_BINGO_ENDED event received:', data);
+                        queueAlert('stream_bingo', { bingo_event: 'STREAM_BINGO_ENDED' });
+                    });
+                    socket.on('STREAM_BINGO_EVENT_CALLED', (data) => {
+                        console.log('STREAM_BINGO_EVENT_CALLED event received:', data);
+                        queueAlert('stream_bingo', {
+                            bingo_event:      'STREAM_BINGO_EVENT_CALLED',
+                            bingo_number:     data.display_number || '',
+                            bingo_event_name: data.event_name || ''
+                        });
+                    });
+                    socket.on('STREAM_BINGO_WINNER', (data) => {
+                        console.log('STREAM_BINGO_WINNER event received:', data);
+                        queueAlert('stream_bingo', {
+                            bingo_event: 'STREAM_BINGO_WINNER',
+                            username:    data.player_name || '',
+                            rank_text:   data.rank_text || ''
+                        });
+                    });
+
+                    // Discord member joins - rendered as a standard alert variant
+                    socket.on('DISCORD_JOIN', (data) => {
+                        console.log('DISCORD_JOIN event received:', data);
+                        queueAlert('discord_join', { username: data.member || '' });
+                    });
+
+                    // Legacy overlays folded in - each keeps its own theme and only fires
+                    // when its category has an enabled variant.
+                    socket.on('DEATHS', (data) => {
+                        console.log('DEATHS event received:', data);
+                        if (isCategoryEnabled('deaths')) renderDeaths(data);
+                    });
+                    socket.on('WEATHER_DATA', (data) => {
+                        console.log('WEATHER_DATA event received:', data);
+                        if (isCategoryEnabled('weather')) renderWeather(data.weather_data);
+                    });
+                    socket.on('WALKON', (data) => {
+                        console.log('WALKON event received:', data);
+                        if (isCategoryEnabled('walkons')) handleWalkon(data);
+                    });
+
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches configs
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading browser source', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+
+                    // Log all events
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`[onAny] Event: ${event}`, ...args);
+                    });
                 }
-                socket.on('PATREON', (data) => {
-                    console.log('PATREON event received:', data);
-                    const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
-                    if (!parsed) { console.warn('PATREON payload unparseable'); return; }
-                    const member = (parsed.data || parsed || {});
-                    const attrs  = member.attributes || {};
-                    // Classify (matches overlay/patreon.php logic)
-                    const status = String(attrs.patron_status || '').toLowerCase();
-                    let patreon_type;
-                    if (status === 'declined_patron' || status === 'former_patron') patreon_type = 'cancelled';
-                    else if (attrs.last_charge_status === 'Paid' && attrs.campaign_lifetime_support_cents) patreon_type = 'update';
-                    else patreon_type = 'pledge';
-                    // Tier lookup from included array
-                    let tier_name = '';
-                    if (Array.isArray(parsed.included)) {
-                        const t = parsed.included.find(r => r && r.type === 'tier' && r.attributes && r.attributes.title);
-                        if (t) tier_name = t.attributes.title;
-                    }
-                    const currency = attrs.currency_code || 'USD';
-                    const cents    = Number(attrs.currently_entitled_amount_cents) || 0;
-                    const ltCents  = Number(attrs.campaign_lifetime_support_cents) || 0;
-                    const dollars  = (cents / 100).toFixed(2);
-                    const ltDollars= (ltCents / 100).toFixed(2);
-                    queueAlert('patreon', {
-                        patreon_type,
-                        username:     attrs.full_name || attrs.email || '',
-                        amount:       cents ? `${currency} ${dollars}` : '',
-                        amount_value: cents ? cents / 100 : 0,
-                        tier_name,
-                        lifetime:     ltCents ? `${currency} ${ltDollars}` : ''
-                    });
-                });
-
-                // Fourthwall - envelope { type, data } nested in event.data
-                socket.on('FOURTHWALL', (data) => {
-                    console.log('FOURTHWALL event received:', data);
-                    const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
-                    if (!parsed) { console.warn('FOURTHWALL payload unparseable'); return; }
-                    const fwType    = parsed.type || '';
-                    const eventData = parsed.data || {};
-                    const totals = (eventData.amounts && eventData.amounts.total) ||
-                                   (eventData.subscription && eventData.subscription.variant && eventData.subscription.variant.amount) ||
-                                   null;
-                    let amountStr = '';
-                    let amountValue = 0;
-                    if (totals) {
-                        amountStr = `${totals.value} ${totals.currency || ''}`.trim();
-                        amountValue = parseFloat(totals.value) || 0;
-                    }
-                    let username = eventData.username || eventData.nickname || '';
-                    let item = '';
-                    let interval = '';
-                    if (fwType === 'ORDER_PLACED') {
-                        const offer = (eventData.offers && eventData.offers[0]) || {};
-                        const qty   = (offer.variant && offer.variant.quantity) || 1;
-                        item = qty > 1 ? `${qty}× ${offer.name || 'item'}` : (offer.name || 'item');
-                    } else if (fwType === 'GIVEAWAY_PURCHASED') {
-                        item = (eventData.offer && eventData.offer.name) || 'giveaway';
-                    } else if (fwType === 'SUBSCRIPTION_PURCHASED') {
-                        const variant = (eventData.subscription && eventData.subscription.variant) || {};
-                        interval = variant.interval || '';
-                    }
-                    queueAlert('fourthwall', {
-                        fourthwall_type: fwType,
-                        username,
-                        amount:       amountStr,
-                        amount_value: amountValue,
-                        message:      eventData.message || '',
-                        item,
-                        interval
-                    });
-                });
-
-                // Stream Bingo - four sub-events, each picks its own variant
-                socket.on('STREAM_BINGO_STARTED', (data) => {
-                    console.log('STREAM_BINGO_STARTED event received:', data);
-                    queueAlert('stream_bingo', {
-                        bingo_event:  'STREAM_BINGO_STARTED',
-                        events_count: data.events_count || ''
-                    });
-                });
-                socket.on('STREAM_BINGO_ENDED', (data) => {
-                    console.log('STREAM_BINGO_ENDED event received:', data);
-                    queueAlert('stream_bingo', { bingo_event: 'STREAM_BINGO_ENDED' });
-                });
-                socket.on('STREAM_BINGO_EVENT_CALLED', (data) => {
-                    console.log('STREAM_BINGO_EVENT_CALLED event received:', data);
-                    queueAlert('stream_bingo', {
-                        bingo_event:      'STREAM_BINGO_EVENT_CALLED',
-                        bingo_number:     data.display_number || '',
-                        bingo_event_name: data.event_name || ''
-                    });
-                });
-                socket.on('STREAM_BINGO_WINNER', (data) => {
-                    console.log('STREAM_BINGO_WINNER event received:', data);
-                    queueAlert('stream_bingo', {
-                        bingo_event: 'STREAM_BINGO_WINNER',
-                        username:    data.player_name || '',
-                        rank_text:   data.rank_text || ''
-                    });
-                });
-
-                // Discord member joins - rendered as a standard alert variant
-                socket.on('DISCORD_JOIN', (data) => {
-                    console.log('DISCORD_JOIN event received:', data);
-                    queueAlert('discord_join', { username: data.member || '' });
-                });
-
-                // Legacy overlays folded in - each keeps its own theme and only fires
-                // when its category has an enabled variant.
-                socket.on('DEATHS', (data) => {
-                    console.log('DEATHS event received:', data);
-                    if (isCategoryEnabled('deaths')) renderDeaths(data);
-                });
-                socket.on('WEATHER_DATA', (data) => {
-                    console.log('WEATHER_DATA event received:', data);
-                    if (isCategoryEnabled('weather')) renderWeather(data.weather_data);
-                });
-                socket.on('WALKON', (data) => {
-                    console.log('WALKON event received:', data);
-                    if (isCategoryEnabled('walkons')) handleWalkon(data);
-                });
-
-                // Dashboard "Refresh Overlay" - full page reload (meta-refresh style)
-                // so PHP re-fetches alert configs / settings from the DB.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading browser source', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-
-                // Log all events
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`[onAny] Event: ${event}`, ...args);
-                });
-            }
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
-                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
-            }
-            // Start initial connection
-            connectWebSocket();
+            }).connect();
         });
     </script>
 </head>

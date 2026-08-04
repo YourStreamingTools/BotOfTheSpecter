@@ -196,6 +196,7 @@ ob_end_clean();
     <title>Specter Working/Study Timer</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="study-overlay-page">
@@ -1020,7 +1021,6 @@ ob_end_clean();
                 }
             };
             let socket = null;
-            let reconnectAttempts = 0;
             let statsTicker = null;
             const getOverlayConnectionName = () => {
                 if (hasTasklistQuery) {
@@ -1053,16 +1053,6 @@ ob_end_clean();
                     clearInterval(statsTicker);
                     statsTicker = null;
                 }
-            };
-            const scheduleReconnect = () => {
-                reconnectAttempts += 1;
-                const delay = Math.min(5000 * reconnectAttempts, 30000);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                if (socket) {
-                    socket.removeAllListeners();
-                    socket = null;
-                }
-                setTimeout(connect, delay);
             };
             // New channel task system helpers
             const channelTasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_channel_tasks`;
@@ -1567,224 +1557,204 @@ ob_end_clean();
                     ensurePomoTicker();
                 }
             };
-            const connect = () => {
-                setConnectionStatus('Connecting…', 'connecting');
-                console.log('[Overlay] Creating socket connection...');
-                socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-                console.log('[Overlay] Socket instance created, registering event listeners...');
-                socket.on('connect', () => {
-                    reconnectAttempts = 0;
-                    const overlayConnectionName = getOverlayConnectionName();
-                    console.log('[Overlay] Connected to socket server! ID:', socket.id);
-                    setConnectionStatus('Connected', 'connected');
-                    socket.emit('REGISTER', {
-                        code: overlayApiKey,
-                        channel: 'Overlay',
-                        name: overlayConnectionName
-                    });
-                    console.log('[Overlay] Sent REGISTER event for code/name:', overlayApiKey, overlayConnectionName);
+            const handleTimerControl = (payload) => {
+                console.log('[Overlay] Timer Control event received:', payload);
+                if (!payload) {
+                    console.log('[Overlay] No payload in Timer Control event');
+                    return;
+                }
+                const action = (payload.action || payload.command || '').toLowerCase();
+                console.log(`[Overlay] Parsed action: "${action}"`);
+                // Update timer durations from payload
+                updateDurationsFromPayload(payload);
+                const overrideDuration = parseDurationOverride(payload);
+                if (action === 'pause') {
+                    pauseTimer();
+                } else if (action === 'resume') {
+                    resumeTimer();
+                } else if (action === 'reset') {
+                    resetTimer();
+                } else if (action === 'reset_all') {
+                    resetAllState(payload);
+                } else if (action === 'stop') {
+                    stopTimer();
+                } else if (action === 'start') {
+                    const durationOverride = typeof overrideDuration === 'number' ? overrideDuration : timerState.durations[timerState.currentPhase];
+                    setPhase(timerState.currentPhase, { autoStart: true, duration: durationOverride });
+                }
+            };
+            // SpecterOverlayWS: SUCCESS-gated ready, dispose + progressive backoff reconnect
+            const session = SpecterOverlayWS.create({
+                code: overlayApiKey,
+                channel: 'Overlay',
+                name: getOverlayConnectionName,
+                onStatus: setConnectionStatus,
+                onDisconnect: () => {
+                    stopStatsTicker();
+                },
+                onRegistered: (sock) => {
+                    socket = sock;
+                    console.log('[Overlay] Registration CONFIRMED by server');
                     emitSessionStats();
                     syncTaskPanelVisibility();
                     loadSettingsFromAPI();
                     loadChannelTasks();
                     startStatsTicker();
-                });
-                console.log('[Overlay] Registering all WebSocket event listeners...');
-                socket.on('disconnect', reason => {
-                    console.warn('[Overlay] Disconnected:', reason);
-                    setConnectionStatus('Disconnected', 'error');
-                    stopStatsTicker();
-                    scheduleReconnect();
-                });
-                socket.on('connect_error', error => {
-                    console.error('[Overlay] WebSocket error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    stopStatsTicker();
-                    scheduleReconnect();
-                });
-                socket.on('SUCCESS', payload => {
-                    console.log('[Overlay] Received SUCCESS payload:', payload);
-                    if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
-                        console.log('[Overlay] Registration CONFIRMED by server');
-                    }
-                });
-                socket.on('SPECTER_PHASE', payload => {
-                    console.log('[Overlay] SPECTER_PHASE listener triggered');
-                    const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
-                    if (!phaseKey || !phases[phaseKey]) {
-                        return;
-                    }
-                    updateDurationsFromPayload(payload);
-                    const autoStart = payload.auto_start !== undefined ? Boolean(payload.auto_start) : true;
-                    const overrideDuration = parseDurationOverride(payload);
-                    setPhase(phaseKey, { autoStart, duration: overrideDuration });
-                });
-                socket.on('SPECTER_SETTINGS_UPDATE', payload => {
-                    console.log('[Overlay] SPECTER_SETTINGS_UPDATE listener triggered');
-                    if (!payload) {
-                        return;
-                    }
-                    updateDurationsFromPayload(payload);
-                    applyCycleConfigFromPayload(payload);
-                    if (payload.theme !== undefined) {
-                        applyOverlayTheme(payload.theme);
-                    }
-                    if (payload.list_view_mode !== undefined) {
-                        applyListViewMode(payload.list_view_mode);
-                    }
-                    if (!timerState.timerRunning && !timerState.timerPaused) {
-                        timerState.totalDuration = timerState.durations[timerState.currentPhase];
-                        timerState.remainingSeconds = timerState.totalDuration;
-                        updateDisplay();
-                        emitTimerUpdate();
-                    }
-                });
-                socket.on('SPECTER_TIMER_CONTROL', payload => {
-                    console.log('[Overlay] SPECTER_TIMER_CONTROL listener triggered');
-                    handleTimerControl(payload);
-                });
-                socket.on('SPECTER_TIMER_COMMAND', payload => {
-                    console.log('[Overlay] SPECTER_TIMER_COMMAND listener triggered (Bypass)');
-                    handleTimerControl(payload);
-                });
-                const handleTimerControl = (payload) => {
-                    console.log('[Overlay] Timer Control event received:', payload);
-                    if (!payload) {
-                        console.log('[Overlay] No payload in Timer Control event');
-                        return;
-                    }
-                    const action = (payload.action || payload.command || '').toLowerCase();
-                    console.log(`[Overlay] Parsed action: "${action}"`);
-                    // Update timer durations from payload
-                    updateDurationsFromPayload(payload);
-                    const overrideDuration = parseDurationOverride(payload);
-                    if (action === 'pause') {
-                        pauseTimer();
-                    } else if (action === 'resume') {
-                        resumeTimer();
-                    } else if (action === 'reset') {
-                        resetTimer();
-                    } else if (action === 'reset_all') {
-                        resetAllState(payload);
-                    } else if (action === 'stop') {
-                        stopTimer();
-                    } else if (action === 'start') {
-                        const durationOverride = typeof overrideDuration === 'number' ? overrideDuration : timerState.durations[timerState.currentPhase];
-                        setPhase(timerState.currentPhase, { autoStart: true, duration: durationOverride });
-                    }
-                };
-                socket.on('SPECTER_STATS_REQUEST', () => {
-                    emitSessionStats();
-                    if (timerState.timerRunning) {
-                        emitTimerState('running');
-                    } else if (timerState.timerPaused) {
-                        emitTimerState('paused');
-                    } else {
-                        emitTimerState('stopped');
-                    }
-                    emitTimerUpdate();
-                });
-                socket.on('TASK_LIST_SYNC', (d) => {
-                    const hasContent = ((d?.streamer_tasks || []).length + (d?.user_tasks || []).length) > 0;
-                    if (!hasContent) return; // an empty sync would wipe lists loadChannelTasks() just rendered
-                    latestStreamerTasks = d.streamer_tasks || [];
-                    latestViewerTasks = d.user_tasks || [];
-                    renderTaskLists();
-                });
-                socket.on('PROJECT_UPDATE', () => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_CREATE', (d) => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_UPDATE', (d) => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_COMPLETE', (d) => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_APPROVE', (d) => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_REJECT', (d) => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_DELETE', (d) => {
-                    loadChannelTasks();
-                });
-                socket.on('TASK_REWARD_CONFIRM', (d) => {
-                    showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');
-                });
-                socket.on('USER_POMO_START', (d) => {
-                    applyPomoPayload(d, { replace: true });
-                });
-                socket.on('USER_POMO_UPDATE', (d) => {
-                    applyPomoPayload(d);
-                });
-                socket.on('USER_POMO_PHASE', (d) => {
-                    applyPomoPayload(d);
-                });
-                socket.on('USER_POMO_COMPLETE', (d) => {
-                    if (!d || d.user_id === undefined || d.user_id === null) {
-                        return;
-                    }
-                    const key = String(d.user_id);
-                    // Resync first so the badge reflects the final state, then
-                    // flip it to a completed badge and clear after a brief beat.
-                    applyPomoPayload(d);
-                    const state = pomoState.get(key);
-                    if (!state) {
-                        return;
-                    }
-                    state.status = 'completed';
-                    state.phase = 'completed';
-                    state.remainingSeconds = 0;
-                    renderPomoBadge(key);
-                    // Idle the ticker if nothing else is active.
-                    let anyActive = false;
-                    pomoState.forEach(s => { if (s.status === 'active') anyActive = true; });
-                    if (!anyActive) stopPomoTicker();
-                    if (state.completedTimeoutId) {
-                        clearTimeout(state.completedTimeoutId);
-                    }
-                    state.completedTimeoutId = setTimeout(() => clearPomoBadge(key), 6000);
-                });
-                socket.on('USER_POMO_CANCEL', (d) => {
-                    if (!d || d.user_id === undefined || d.user_id === null) {
-                        return;
-                    }
-                    clearPomoBadge(d.user_id);
-                });
-                socket.on('SPECTER_SESSION_STATS', payload => {
-                    if (!payload) return;
-                    if (payload.phaseCounts && typeof payload.phaseCounts === 'object') {
-                        timerState.phaseCounts = normalizePhaseCounts(payload.phaseCounts);
-                        timerState.legacySessionOffset = 0;
-                    }
-                    if (typeof payload.sessionsCompleted === 'number') {
-                        timerState.sessionsCompleted = payload.sessionsCompleted;
-                        if (getPhaseSessionTotal() === 0 && timerState.sessionsCompleted > 0) {
-                            timerState.legacySessionOffset = Math.round(timerState.sessionsCompleted);
+                },
+                bind: (sock) => {
+                    socket = sock;
+                    sock.on('SPECTER_PHASE', payload => {
+                        console.log('[Overlay] SPECTER_PHASE listener triggered');
+                        const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
+                        if (!phaseKey || !phases[phaseKey]) {
+                            return;
                         }
-                    }
-                    if (typeof payload.totalTimeLogged === 'number') {
-                        timerState.totalTimeLogged = payload.totalTimeLogged;
-                    }
-                    saveSessionStats();
-                    updateStatsDisplay();
-                });
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('[Overlay] OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-            };
+                        updateDurationsFromPayload(payload);
+                        const autoStart = payload.auto_start !== undefined ? Boolean(payload.auto_start) : true;
+                        const overrideDuration = parseDurationOverride(payload);
+                        setPhase(phaseKey, { autoStart, duration: overrideDuration });
+                    });
+                    sock.on('SPECTER_SETTINGS_UPDATE', payload => {
+                        console.log('[Overlay] SPECTER_SETTINGS_UPDATE listener triggered');
+                        if (!payload) {
+                            return;
+                        }
+                        updateDurationsFromPayload(payload);
+                        applyCycleConfigFromPayload(payload);
+                        if (payload.theme !== undefined) {
+                            applyOverlayTheme(payload.theme);
+                        }
+                        if (payload.list_view_mode !== undefined) {
+                            applyListViewMode(payload.list_view_mode);
+                        }
+                        if (!timerState.timerRunning && !timerState.timerPaused) {
+                            timerState.totalDuration = timerState.durations[timerState.currentPhase];
+                            timerState.remainingSeconds = timerState.totalDuration;
+                            updateDisplay();
+                            emitTimerUpdate();
+                        }
+                    });
+                    sock.on('SPECTER_TIMER_CONTROL', payload => {
+                        console.log('[Overlay] SPECTER_TIMER_CONTROL listener triggered');
+                        handleTimerControl(payload);
+                    });
+                    sock.on('SPECTER_TIMER_COMMAND', payload => {
+                        console.log('[Overlay] SPECTER_TIMER_COMMAND listener triggered (Bypass)');
+                        handleTimerControl(payload);
+                    });
+                    sock.on('SPECTER_STATS_REQUEST', () => {
+                        emitSessionStats();
+                        if (timerState.timerRunning) {
+                            emitTimerState('running');
+                        } else if (timerState.timerPaused) {
+                            emitTimerState('paused');
+                        } else {
+                            emitTimerState('stopped');
+                        }
+                        emitTimerUpdate();
+                    });
+                    sock.on('TASK_LIST_SYNC', (d) => {
+                        const hasContent = ((d?.streamer_tasks || []).length + (d?.user_tasks || []).length) > 0;
+                        if (!hasContent) return; // an empty sync would wipe lists loadChannelTasks() just rendered
+                        latestStreamerTasks = d.streamer_tasks || [];
+                        latestViewerTasks = d.user_tasks || [];
+                        renderTaskLists();
+                    });
+                    sock.on('PROJECT_UPDATE', () => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_CREATE', (d) => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_UPDATE', (d) => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_COMPLETE', (d) => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_APPROVE', (d) => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_REJECT', (d) => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_DELETE', (d) => {
+                        loadChannelTasks();
+                    });
+                    sock.on('TASK_REWARD_CONFIRM', (d) => {
+                        showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');
+                    });
+                    sock.on('USER_POMO_START', (d) => {
+                        applyPomoPayload(d, { replace: true });
+                    });
+                    sock.on('USER_POMO_UPDATE', (d) => {
+                        applyPomoPayload(d);
+                    });
+                    sock.on('USER_POMO_PHASE', (d) => {
+                        applyPomoPayload(d);
+                    });
+                    sock.on('USER_POMO_COMPLETE', (d) => {
+                        if (!d || d.user_id === undefined || d.user_id === null) {
+                            return;
+                        }
+                        const key = String(d.user_id);
+                        // Resync first so the badge reflects the final state, then
+                        // flip it to a completed badge and clear after a brief beat.
+                        applyPomoPayload(d);
+                        const state = pomoState.get(key);
+                        if (!state) {
+                            return;
+                        }
+                        state.status = 'completed';
+                        state.phase = 'completed';
+                        state.remainingSeconds = 0;
+                        renderPomoBadge(key);
+                        // Idle the ticker if nothing else is active.
+                        let anyActive = false;
+                        pomoState.forEach(s => { if (s.status === 'active') anyActive = true; });
+                        if (!anyActive) stopPomoTicker();
+                        if (state.completedTimeoutId) {
+                            clearTimeout(state.completedTimeoutId);
+                        }
+                        state.completedTimeoutId = setTimeout(() => clearPomoBadge(key), 6000);
+                    });
+                    sock.on('USER_POMO_CANCEL', (d) => {
+                        if (!d || d.user_id === undefined || d.user_id === null) {
+                            return;
+                        }
+                        clearPomoBadge(d.user_id);
+                    });
+                    sock.on('SPECTER_SESSION_STATS', payload => {
+                        if (!payload) return;
+                        if (payload.phaseCounts && typeof payload.phaseCounts === 'object') {
+                            timerState.phaseCounts = normalizePhaseCounts(payload.phaseCounts);
+                            timerState.legacySessionOffset = 0;
+                        }
+                        if (typeof payload.sessionsCompleted === 'number') {
+                            timerState.sessionsCompleted = payload.sessionsCompleted;
+                            if (getPhaseSessionTotal() === 0 && timerState.sessionsCompleted > 0) {
+                                timerState.legacySessionOffset = Math.round(timerState.sessionsCompleted);
+                            }
+                        }
+                        if (typeof payload.totalTimeLogged === 'number') {
+                            timerState.totalTimeLogged = payload.totalTimeLogged;
+                        }
+                        saveSessionStats();
+                        updateStatsDisplay();
+                    });
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    sock.on('OVERLAY_REFRESH', (data) => {
+                        console.log('[Overlay] OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+                }
+            });
             restoreSavedSessionStats();
             hasRestoredTimerState = restoreSavedTimerState();
-            connect();
+            session.connect();
             updateStatsDisplay();
             updateDisplay();
         })();

@@ -85,6 +85,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
     <title>Overlay DMCA Music</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
 </head>
 <body>
     <audio id="audio-player" preload="auto"></audio>
@@ -124,7 +125,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         const audioPlayer = document.getElementById('audio-player');
         const nowPlayingDiv = document.getElementById('now-playing');
         const VOLUME_SCALE = 0.1;
-        let reconnectTimer = null;
         const urlParams = new URLSearchParams(window.location.search);
         const showNowPlaying = urlParams.has('nowplaying');
         const color = urlParams.get('color') || 'white';
@@ -200,14 +200,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 volume = Math.max(0, Math.min(100, parsed));
             }
             audioPlayer.volume = (volume / 100) * VOLUME_SCALE;
-        }
-        function scheduleReconnect() {
-            setConnectionStatus('Reconnecting…', 'connecting');
-            if (reconnectTimer !== null) return;
-            reconnectTimer = setTimeout(() => {
-                reconnectTimer = null;
-                connectWebSocket();
-            }, 5000);
         }
         function getSongKey(song) {
             return song.url ? song.url : `https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`;
@@ -373,120 +365,109 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         audioPlayer.addEventListener('ended', function() {
             playNextSong();
         });
-        function connectWebSocket() {
-            setConnectionStatus('Connecting…', 'connecting');
-            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-            if (urlParams.has('debug')) {
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log('Event:', event, ...args);
-                });
-            }
-            socket.on('connect', () => {
-                setConnectionStatus('Connected', 'connected');
-                if (reconnectTimer !== null) {
-                    clearTimeout(reconnectTimer);
-                    reconnectTimer = null;
-                }
-                const urlParams = new URLSearchParams(window.location.search);
-                const code = urlParams.get('code');
-                if (!code) return;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'DMCA' });
-                tryAutoStartFirstSong();
-            });
-            socket.on('disconnect', () => {
-                setConnectionStatus('Disconnected', 'error');
-                scheduleReconnect();
-            });
-            socket.on('connect_error', () => {
-                setConnectionStatus('Connection error', 'error');
-                scheduleReconnect();
-            });
-            socket.on('SUCCESS', () => {
-                socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
-            });
-            socket.on('MUSIC_SETTINGS', (settings) => {
-                if (typeof settings.volume !== 'undefined') {
-                    setAudioVolume(settings.volume);
-                }
-                if (typeof settings.repeat !== 'undefined') {
-                    repeat = !!settings.repeat;
-                }
-                if (typeof settings.shuffle !== 'undefined') {
-                    shuffle = !!settings.shuffle;
-                }
-                if (typeof settings.music_source !== 'undefined') {
-                    musicSource = settings.music_source || 'system';
-                    console.log('[Overlay] music_source set to', musicSource);
-                }
-                if (Array.isArray(settings.playlist_filter)) {
-                    excludedTracks = new Set(settings.playlist_filter);
-                    console.log('[Overlay] playlist_filter updated', excludedTracks.size, 'excluded');
-                }
-                updateActivePlaylist();
-            });
-            socket.on('NOW_PLAYING', (data) => {
-                if (data?.song?.url) {
-                    // Server provided a direct URL (recommended for private/user uploads)
-                    playSong(data.song.url, data.song);
-                } else if (data?.song?.file) {
-                    const idx = playlist.findIndex(song => song.file === data.song.file);
-                    if (idx >= 0) playSongByIndex(idx);
-                } else {
-                    stopSong();
-                    currentSongData = null;
-                    if (showNowPlaying) {
-                        nowPlayingDiv.innerText = '';
-                    }
-                }
-            });
-            socket.on('MUSIC_COMMAND', (data) => {
-                if (!data || !data.command) return;
-                switch (data.command) {
-                    case 'play': audioPlayer.play(); break;
-                    case 'pause': audioPlayer.pause(); break;
-                    case 'next': playNextSong(); break;
-                    case 'prev':
-                        if (!playlist.length) break;
-                        currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-                        playSongByIndex(currentIndex);
-                        break;
-                    case 'play_index':
-                        if (typeof data.index !== 'undefined') {
-                            playSongByIndex(Number(data.index));
-                        }
-                        break;
-                    case 'MUSIC_SETTINGS':
-                        if (typeof data.volume !== 'undefined') {
-                            setAudioVolume(data.volume);
-                        }
-                        if (typeof data.repeat !== 'undefined') repeat = !!data.repeat;
-                        if (typeof data.shuffle !== 'undefined') shuffle = !!data.shuffle;
-                        break;
-                }
-            });
-            socket.on('PLAY', () => audioPlayer.play());
-            socket.on('PAUSE', () => audioPlayer.pause());
-            socket.on('WHAT_IS_PLAYING', () => {
-                socket.emit('MUSIC_COMMAND', {
-                    command: 'NOW_PLAYING',
-                    song: currentSongData ?? null
-                });
-            });
-            // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-            socket.on('OVERLAY_REFRESH', (data) => {
-                console.log('OVERLAY_REFRESH received - reloading', data);
-                const meta = document.createElement('meta');
-                meta.setAttribute('http-equiv', 'refresh');
-                meta.setAttribute('content', '0');
-                document.head.appendChild(meta);
-            });
-        }
+        // SpecterOverlayWS: manual reconnect, SUCCESS-gated ready, dispose before retry
         if (hasCode) {
             document.body.addEventListener('click', () => {
                 audioPlayer.play().catch(() => {});
             }, { once: true });
-            connectWebSocket();
+            const code = urlParams.get('code');
+            const session = SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'DMCA',
+                onStatus: (text, state) => setConnectionStatus(text, state),
+                bind: (sock) => {
+                    socket = sock;
+                    if (urlParams.has('debug')) {
+                        sock.onAny((event, ...args) => {
+                            if (event.startsWith('CLOSED_CAPTION')) return;
+                            console.log('Event:', event, ...args);
+                        });
+                    }
+                    sock.on('MUSIC_SETTINGS', (settings) => {
+                        if (typeof settings.volume !== 'undefined') {
+                            setAudioVolume(settings.volume);
+                        }
+                        if (typeof settings.repeat !== 'undefined') {
+                            repeat = !!settings.repeat;
+                        }
+                        if (typeof settings.shuffle !== 'undefined') {
+                            shuffle = !!settings.shuffle;
+                        }
+                        if (typeof settings.music_source !== 'undefined') {
+                            musicSource = settings.music_source || 'system';
+                            console.log('[Overlay] music_source set to', musicSource);
+                        }
+                        if (Array.isArray(settings.playlist_filter)) {
+                            excludedTracks = new Set(settings.playlist_filter);
+                            console.log('[Overlay] playlist_filter updated', excludedTracks.size, 'excluded');
+                        }
+                        updateActivePlaylist();
+                    });
+                    sock.on('NOW_PLAYING', (data) => {
+                        if (data?.song?.url) {
+                            // Server provided a direct URL (recommended for private/user uploads)
+                            playSong(data.song.url, data.song);
+                        } else if (data?.song?.file) {
+                            const idx = playlist.findIndex(song => song.file === data.song.file);
+                            if (idx >= 0) playSongByIndex(idx);
+                        } else {
+                            stopSong();
+                            currentSongData = null;
+                            if (showNowPlaying) {
+                                nowPlayingDiv.innerText = '';
+                            }
+                        }
+                    });
+                    sock.on('MUSIC_COMMAND', (data) => {
+                        if (!data || !data.command) return;
+                        switch (data.command) {
+                            case 'play': audioPlayer.play(); break;
+                            case 'pause': audioPlayer.pause(); break;
+                            case 'next': playNextSong(); break;
+                            case 'prev':
+                                if (!playlist.length) break;
+                                currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+                                playSongByIndex(currentIndex);
+                                break;
+                            case 'play_index':
+                                if (typeof data.index !== 'undefined') {
+                                    playSongByIndex(Number(data.index));
+                                }
+                                break;
+                            case 'MUSIC_SETTINGS':
+                                if (typeof data.volume !== 'undefined') {
+                                    setAudioVolume(data.volume);
+                                }
+                                if (typeof data.repeat !== 'undefined') repeat = !!data.repeat;
+                                if (typeof data.shuffle !== 'undefined') shuffle = !!data.shuffle;
+                                break;
+                        }
+                    });
+                    sock.on('PLAY', () => audioPlayer.play());
+                    sock.on('PAUSE', () => audioPlayer.pause());
+                    sock.on('WHAT_IS_PLAYING', () => {
+                        sock.emit('MUSIC_COMMAND', {
+                            command: 'NOW_PLAYING',
+                            song: currentSongData ?? null
+                        });
+                    });
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    sock.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+                },
+                onRegistered: (sock, data) => {
+                    socket = sock;
+                    sock.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
+                    tryAutoStartFirstSong();
+                }
+            });
+            session.connect();
         }
     </script>
 </body>

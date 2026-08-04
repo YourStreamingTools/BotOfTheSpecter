@@ -33,11 +33,9 @@ if ($username) {
     <title>WebSocket Weather Notifications</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
             const timezone = <?php echo json_encode($timezone); ?>;
             let timerIntervalId = null;
             const urlParams = new URLSearchParams(window.location.search);
@@ -90,73 +88,6 @@ if ($username) {
                     .replace(/'/g, '&#39;');
             }
 
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', {
-                    reconnection: false
-                });
-
-                socket.on('connect', () => {
-                    console.log('Connected to WebSocket server');
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Weather' });
-                });
-
-                socket.on('disconnect', () => {
-                    console.log('Disconnected from WebSocket server');
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
-
-                socket.on('connect_error', (error) => {
-                    console.error('Connection error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
-
-                socket.on('WELCOME', (data) => {
-                    console.log('Server says:', data.message);
-                });
-
-                socket.on('WEATHER_DATA', (data) => {
-                    console.log('WEATHER_DATA event received:', data);
-                    let weather;
-                    try {
-                        weather = JSON.parse(data.weather_data);
-                    } catch (_) {
-                        // Legacy payload: api.py used to send str(dict) via urlencode.
-                        weather = JSON.parse(data.weather_data.replace(/'/g, '"'));
-                    }
-                    updateWeatherOverlay(weather, weather.location);
-                });
-
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-
-                // Log all events
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`Event: ${event}`, args);
-                });
-            }
-
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
-                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
-            }
-
             function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
@@ -207,8 +138,46 @@ if ($username) {
                 timerIntervalId = setInterval(updateTime, 1000);
             }
 
-            // Start initial connection
-            connectWebSocket();
+            // Specter bus: SUCCESS-gated ready; progressive backoff on disconnect
+            const session = SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'Weather',
+                onStatus: setConnectionStatus,
+                bind: (socket) => {
+                    socket.on('WELCOME', (data) => {
+                        console.log('Server says:', data.message);
+                    });
+
+                    socket.on('WEATHER_DATA', (data) => {
+                        console.log('WEATHER_DATA event received:', data);
+                        let weather;
+                        try {
+                            weather = JSON.parse(data.weather_data);
+                        } catch (_) {
+                            // Legacy payload: api.py used to send str(dict) via urlencode.
+                            weather = JSON.parse(data.weather_data.replace(/'/g, '"'));
+                        }
+                        updateWeatherOverlay(weather, weather.location);
+                    });
+
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+
+                    // Log all events
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`Event: ${event}`, args);
+                    });
+                }
+            });
+            session.connect();
         });
     </script>
 </head>

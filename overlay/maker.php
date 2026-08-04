@@ -163,6 +163,7 @@ if ($type === 'json') {
 <title>Makers &amp; Crafting Overlay</title>
 <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script src="js/specter-ws.js"></script>
 </head>
 <body>
 <div id="makerOverlay" style="display:none;"></div>
@@ -430,46 +431,29 @@ document.addEventListener('DOMContentLoaded', function () {
         status.dataset.state = state;
     }
 
-    var socket;
-    var retryInterval = 5000;
-    var reconnectAttempts = 0;
-
-    function connect() {
-        if (!code) { return; }
-        setConnectionStatus('Connecting…', 'connecting');
-        socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-        socket.on('connect', function () {
-            setConnectionStatus('Connected', 'connected');
-            reconnectAttempts = 0;
-            socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Makers' });
-        });
-        socket.on('disconnect', function () {
-            setConnectionStatus('Disconnected', 'error');
-            attemptReconnect();
-        });
-        socket.on('connect_error', function () {
-            setConnectionStatus('Connection error', 'error');
-            attemptReconnect();
-        });
-        socket.on('MAKER_UPDATE', function () { refetch(); });
-        // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-        socket.on('OVERLAY_REFRESH', function (data) {
-            console.log('OVERLAY_REFRESH received - reloading', data);
-            var meta = document.createElement('meta');
-            meta.setAttribute('http-equiv', 'refresh');
-            meta.setAttribute('content', '0');
-            document.head.appendChild(meta);
-        });
-    }
-    function attemptReconnect() {
-        reconnectAttempts++;
-        var delay = Math.min(retryInterval * reconnectAttempts, 30000);
-        setConnectionStatus('Reconnecting…', 'connecting');
-        setTimeout(connect, delay);
-    }
+    // SpecterOverlayWS: SUCCESS-gated ready, dispose + progressive backoff reconnect.
+    var session = SpecterOverlayWS.create({
+        code: code,
+        channel: 'Overlay',
+        name: 'Makers',
+        onStatus: function (text, state) {
+            setConnectionStatus(text, state);
+        },
+        bind: function (socket) {
+            socket.on('MAKER_UPDATE', function () { refetch(); });
+            // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+            socket.on('OVERLAY_REFRESH', function (data) {
+                console.log('OVERLAY_REFRESH received - reloading', data);
+                var meta = document.createElement('meta');
+                meta.setAttribute('http-equiv', 'refresh');
+                meta.setAttribute('content', '0');
+                document.head.appendChild(meta);
+            });
+        }
+    });
 
     render();
-    connect();
+    session.connect();
 });
 </script>
 </body>

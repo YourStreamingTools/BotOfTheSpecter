@@ -211,6 +211,7 @@ $apiUrl = '?' . http_build_query([
 <body>
 <div id="counter"><?php echo htmlspecialchars($counter_safe . ': ' . $count); ?></div>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script src="js/specter-ws.js"></script>
 <script>
 (function () {
     var endpoint   = <?php echo json_encode($apiUrl); ?>;
@@ -318,41 +319,23 @@ $apiUrl = '?' . http_build_query([
         showOverlayError('Invalid code provided in the URL', 'danger');
     }
 
-    // WebSocket - listen for dashboard refresh signal
-    (function () {
-        if (!code) return;
-        var socket;
-        var reconnectAttempts = 0;
-        function connectWS() {
-            setConnectionStatus('Connecting…', 'connecting');
-            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-            socket.on('connect', function () {
-                setConnectionStatus('Connected', 'connected');
-                reconnectAttempts = 0;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Counter' });
-            });
-            socket.on('OVERLAY_REFRESH', function (data) {
-                var meta = document.createElement('meta');
-                meta.setAttribute('http-equiv', 'refresh');
-                meta.setAttribute('content', '0');
-                document.head.appendChild(meta);
-            });
-            socket.on('disconnect', function () {
-                setConnectionStatus('Disconnected', 'error');
-                scheduleReconnect();
-            });
-            socket.on('connect_error', function () {
-                setConnectionStatus('Connection error', 'error');
-                scheduleReconnect();
-            });
-        }
-        function scheduleReconnect() {
-            reconnectAttempts++;
-            setConnectionStatus('Reconnecting…', 'connecting');
-            setTimeout(connectWS, Math.min(5000 * reconnectAttempts, 30000));
-        }
-        connectWS();
-    })();
+    // WebSocket - SpecterOverlayWS; OVERLAY_REFRESH reloads page from dashboard
+    if (code) {
+        SpecterOverlayWS.create({
+            code: code,
+            channel: 'Overlay',
+            name: 'Counter',
+            onStatus: setConnectionStatus,
+            bind: function (socket) {
+                socket.on('OVERLAY_REFRESH', function (data) {
+                    var meta = document.createElement('meta');
+                    meta.setAttribute('http-equiv', 'refresh');
+                    meta.setAttribute('content', '0');
+                    document.head.appendChild(meta);
+                });
+            }
+        }).connect();
+    }
 })();
 </script>
 </body>

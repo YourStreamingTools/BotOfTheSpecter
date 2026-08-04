@@ -22,6 +22,7 @@ if (!empty($api_key) && preg_match('/^[A-Za-z0-9_-]+$/', $api_key) && !$conn->co
     <title>Media Player Overlay</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <style>
         html,body{margin:0;background:transparent;overflow:hidden}
         #player{width:320px;height:180px}
@@ -41,7 +42,7 @@ if (!empty($api_key) && preg_match('/^[A-Za-z0-9_-]+$/', $api_key) && !$conn->co
         const showNP = params.has('nowplaying');
         let player = null, ready = false, started = false, volume = 30, pendingVideo = null;
         let currentVideoId = null;
-        let socket = null, reconnectTimer = null;
+        let socket = null;
         const npDiv = document.getElementById('nowplaying');
 
         // 1) YouTube IFrame API
@@ -107,36 +108,7 @@ if (!empty($api_key) && preg_match('/^[A-Za-z0-9_-]+$/', $api_key) && !$conn->co
             status.dataset.state = state;
         }
 
-        // 3) WebSocket
-        function scheduleReconnect() {
-            setConnectionStatus('Reconnecting…', 'connecting');
-            if (reconnectTimer !== null) return;
-            reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 5000);
-        }
-        function connect() {
-            setConnectionStatus('Connecting…', 'connecting');
-            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-            socket.on('connect', () => {
-                setConnectionStatus('Connected', 'connected');
-                if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-                if (!code) return;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Media Player' });
-            });
-            socket.on('SUCCESS', () => socket.emit('MEDIA_COMMAND', { command: 'request_state', code: code }));
-            socket.on('MEDIA_PLAY', (v) => loadVideo(v));
-            socket.on('MEDIA_STOP', () => { if (player && ready) player.stopVideo(); currentVideoId = null; if (showNP) npDiv.style.display = 'none'; });
-            socket.on('MEDIA_VOLUME', (d) => { volume = Math.max(0, Math.min(100, Number(d.value))); if (ready) player.setVolume(volume); });
-            socket.on('disconnect', () => { setConnectionStatus('Disconnected', 'error'); scheduleReconnect(); });
-            socket.on('connect_error', () => { setConnectionStatus('Connection error', 'error'); scheduleReconnect(); });
-            // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-            socket.on('OVERLAY_REFRESH', (data) => {
-                console.log('OVERLAY_REFRESH received - reloading', data);
-                const meta = document.createElement('meta');
-                meta.setAttribute('http-equiv', 'refresh');
-                meta.setAttribute('content', '0');
-                document.head.appendChild(meta);
-            });
-        }
+        // 3) WebSocket via SpecterOverlayWS (SUCCESS-gated ready + progressive reconnect)
         if (!code) {
             showOverlayError('No code provided in the URL', 'danger');
         } else {
@@ -144,7 +116,31 @@ if (!empty($api_key) && preg_match('/^[A-Za-z0-9_-]+$/', $api_key) && !$conn->co
             if (!username) {
                 showOverlayError('Invalid code provided in the URL', 'danger');
             } else {
-                connect();
+                const session = SpecterOverlayWS.create({
+                    code: code,
+                    channel: 'Overlay',
+                    name: 'Media Player',
+                    onStatus: setConnectionStatus,
+                    bind: function (s) {
+                        socket = s;
+                        s.on('MEDIA_PLAY', (v) => loadVideo(v));
+                        s.on('MEDIA_STOP', () => { if (player && ready) player.stopVideo(); currentVideoId = null; if (showNP) npDiv.style.display = 'none'; });
+                        s.on('MEDIA_VOLUME', (d) => { volume = Math.max(0, Math.min(100, Number(d.value))); if (ready) player.setVolume(volume); });
+                        // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                        s.on('OVERLAY_REFRESH', (data) => {
+                            console.log('OVERLAY_REFRESH received - reloading', data);
+                            const meta = document.createElement('meta');
+                            meta.setAttribute('http-equiv', 'refresh');
+                            meta.setAttribute('content', '0');
+                            document.head.appendChild(meta);
+                        });
+                    },
+                    onRegistered: function (s) {
+                        socket = s;
+                        s.emit('MEDIA_COMMAND', { command: 'request_state', code: code });
+                    }
+                });
+                session.connect();
             }
         }
     </script>

@@ -149,6 +149,7 @@ ob_end_clean();
     <title>Specter Avatar</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="avatar-overlay-page">
@@ -346,55 +347,30 @@ ob_end_clean();
                 }
             };
 
-            let socket = null;
-            let reconnectAttempts = 0;
-            const scheduleReconnect = () => {
-                reconnectAttempts += 1;
-                const delay = Math.min(5000 * reconnectAttempts, 30000);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                if (socket) {
-                    socket.removeAllListeners();
-                    socket = null;
-                }
-                setTimeout(connect, delay);
-            };
-
-            const requestAvatarState = () => {
-                if (!socket || !socket.connected) return;
-                socket.emit('AVATAR_STATE_REQUEST', { code: overlayApiKey });
-            };
-
-            function connect() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-                socket.on('connect', () => {
-                    reconnectAttempts = 0;
-                    setConnectionStatus('Connected', 'connected');
-                    socket.emit('REGISTER', { code: overlayApiKey, channel: 'Overlay', name: 'Avatar' });
-                    requestAvatarState();
+            // Specter bus: helper owns reconnect (dispose + progressive backoff); ready only after SUCCESS.
+            const session = SpecterOverlayWS.create({
+                code: overlayApiKey,
+                channel: 'Overlay',
+                name: 'Avatar',
+                onStatus: setConnectionStatus,
+                bind: (socket) => {
+                    socket.on('AVATAR_STATE', handleAvatarState);
+                    socket.on('AVATAR_SETTINGS_UPDATE', () => loadSettings());
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+                },
+                onRegistered: (socket) => {
+                    socket.emit('AVATAR_STATE_REQUEST', { code: overlayApiKey });
                     loadSettings();
-                });
-                socket.on('disconnect', () => {
-                    setConnectionStatus('Disconnected', 'error');
-                    scheduleReconnect();
-                });
-                socket.on('connect_error', () => {
-                    setConnectionStatus('Connection error', 'error');
-                    scheduleReconnect();
-                });
-                socket.on('AVATAR_STATE', handleAvatarState);
-                socket.on('AVATAR_SETTINGS_UPDATE', () => loadSettings());
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-            }
-
-            connect();
+                },
+            });
+            session.connect();
         })();
     </script>
 </body>

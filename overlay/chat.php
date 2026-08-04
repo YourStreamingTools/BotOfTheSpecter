@@ -184,6 +184,7 @@ $badgeCacheJson = json_encode(
     <meta charset="UTF-8">
     <title>Chat Overlay</title>
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -264,8 +265,6 @@ $badgeCacheJson = json_encode(
             return;
         }
         const container = document.getElementById('chat-overlay-page-container');
-        let reconnectAttempts = 0;
-        let socket;
         let messageBuffer = Array.isArray(OVERLAY_HISTORY) ? OVERLAY_HISTORY.slice() : [];
         let saveTimer = null;
         async function saveHistory() {
@@ -487,51 +486,31 @@ $badgeCacheJson = json_encode(
             const body = JSON.stringify(messageBuffer.slice(-100));
             navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
         });
-        // WebSocket connection
-        function connectWebSocket() {
-            setConnectionStatus('Connecting…', 'connecting');
-            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-            socket.on('connect', () => {
-                setConnectionStatus('Connected', 'connected');
-                reconnectAttempts = 0;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Chat Overlay ' + instanceId });
-            });
-            socket.on('disconnect', () => {
-                setConnectionStatus('Disconnected', 'error');
-                attemptReconnect();
-            });
-            socket.on('connect_error', () => {
-                setConnectionStatus('Connection error', 'error');
-                attemptReconnect();
-            });
-            socket.on('CHAT_MESSAGE', data => addMessage(data, false));
-            socket.on('CHAT_CLEAR', () => clearChatAndHistory());
-            socket.on('CHAT_MESSAGE_DELETE', data => {
-                if (data && data.message_id) removeMessage(data.message_id);
-            });
-            // Stream went offline - clear the overlay so it doesn't carry old
-            // messages into the next stream.
-            socket.on('STREAM_OFFLINE', () => clearChatAndHistory());
-            // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-            socket.on('OVERLAY_REFRESH', (data) => {
-                console.log('OVERLAY_REFRESH received - reloading', data);
-                const meta = document.createElement('meta');
-                meta.setAttribute('http-equiv', 'refresh');
-                meta.setAttribute('content', '0');
-                document.head.appendChild(meta);
-            });
-        }
-        function attemptReconnect() {
-            reconnectAttempts++;
-            const delay = Math.min(5000 * reconnectAttempts, 30000);
-            setConnectionStatus('Reconnecting…', 'connecting');
-            if (socket) {
-                socket.removeAllListeners();
-                socket = null;
+        // WebSocket via SpecterOverlayWS (SUCCESS-gated ready + progressive backoff)
+        SpecterOverlayWS.create({
+            code: code,
+            channel: 'Overlay',
+            name: 'Chat Overlay ' + instanceId,
+            onStatus: setConnectionStatus,
+            bind: (socket) => {
+                socket.on('CHAT_MESSAGE', data => addMessage(data, false));
+                socket.on('CHAT_CLEAR', () => clearChatAndHistory());
+                socket.on('CHAT_MESSAGE_DELETE', data => {
+                    if (data && data.message_id) removeMessage(data.message_id);
+                });
+                // Stream went offline - clear the overlay so it doesn't carry old
+                // messages into the next stream.
+                socket.on('STREAM_OFFLINE', () => clearChatAndHistory());
+                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                socket.on('OVERLAY_REFRESH', (data) => {
+                    console.log('OVERLAY_REFRESH received - reloading', data);
+                    const meta = document.createElement('meta');
+                    meta.setAttribute('http-equiv', 'refresh');
+                    meta.setAttribute('content', '0');
+                    document.head.appendChild(meta);
+                });
             }
-            setTimeout(connectWebSocket, delay);
-        }
-        connectWebSocket();
+        }).connect();
     })();
 </script>
 </body>
