@@ -39,7 +39,7 @@ import yt_dlp
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "6.3"
+VERSION = "6.4"
 
 # Global configuration class
 class Config:
@@ -627,9 +627,34 @@ class WebsocketListener:
         self.specterSocket = None
         self._ws_ready = False
         self._ws_reg_epoch = 0
+        self._ws_register_sent = False
         self._ws_backoff = (0, 2, 5, 10, 20, 40, 60)
 
-    async def _emit_register(self):
+    async def _force_ws_reset(self):
+        # disconnect() can fail mid-send and leave python-socketio.connected=True → "Already connected" forever
+        self._ws_ready = False
+        self._ws_register_sent = False
+        if not self.specterSocket:
+            return
+        try:
+            await self.specterSocket.disconnect()
+        except Exception:
+            pass
+        try:
+            self.specterSocket.connected = False
+            self.specterSocket.namespaces = {}
+            if getattr(self.specterSocket, "eio", None) is not None:
+                try:
+                    self.specterSocket.eio.state = "disconnected"
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    async def _emit_register(self, force=False):
+        if not force and self._ws_register_sent:
+            self.logger.info("REGISTER already sent this transport — skip")
+            return
         self._ws_reg_epoch += 1
         epoch = self._ws_reg_epoch
         self._ws_ready = False
@@ -641,13 +666,11 @@ class WebsocketListener:
                 "channel": "Global",
                 "name": "Discord Bot Global Listener",
             })
-            self.logger.info(f"REGISTER sent (epoch={epoch}) — waiting for SUCCESS")
+            self._ws_register_sent = True
+            self.logger.info(f"REGISTER sent (epoch={epoch}, sid={getattr(self.specterSocket, 'sid', None)}) — waiting for SUCCESS")
         except Exception as e:
             self.logger.error(f"REGISTER emit failed (epoch={epoch}): {e}")
-            try:
-                await self.specterSocket.disconnect()
-            except Exception:
-                pass
+            await self._force_ws_reset()
 
     def is_ws_ready(self) -> bool:
         try:
@@ -677,16 +700,15 @@ class WebsocketListener:
 
         @self.specterSocket.on("WELCOME")
         async def welcome(data=None):
-            self.logger.info(f"WELCOME received — re-sending REGISTER ({data!r})")
-            await self._emit_register()
+            # Connect handler already REGISTERs; only emit if that race missed this SID
+            self.logger.info(f"WELCOME received ({data!r})")
+            await self._emit_register(force=False)
 
         @self.specterSocket.event
         async def disconnect():
-            await asyncio.sleep(0)
-            if getattr(self.specterSocket, "connected", False):
-                self.logger.warning("disconnect while client.connected=True (ignored — re-register race)")
-                return
+            # python-socketio still has connected=True while handlers run — never ignore real drops
             self._ws_ready = False
+            self._ws_register_sent = False
             self.logger.info("Disconnected from websocket server")
 
         @self.specterSocket.event
@@ -704,10 +726,7 @@ class WebsocketListener:
                     self._ws_ready = False
                 return
             self._ws_ready = False
-            try:
-                await self.specterSocket.disconnect()
-            except Exception:
-                pass
+            await self._force_ws_reset()
 
         @self.specterSocket.event
         async def connect_error(data):
@@ -859,10 +878,7 @@ class WebsocketListener:
         while True:
             try:
                 self._ws_ready = False
-                try:
-                    await self.specterSocket.disconnect()
-                except Exception:
-                    pass
+                await self._force_ws_reset()
                 await asyncio.sleep(0.5)
                 if consecutive_failures > 0:
                     delay = self._ws_backoff[min(consecutive_failures, len(self._ws_backoff) - 1)]
@@ -871,8 +887,12 @@ class WebsocketListener:
                     self.logger.info(f"Specter WS reconnect attempt {consecutive_failures + 1}, waiting {total:.1f}s")
                     await asyncio.sleep(total)
                 self.logger.info(f"Connecting to Specter WS {websocket_url} (attempt {consecutive_failures + 1})")
+                if getattr(self.specterSocket, "connected", False):
+                    self.logger.warning("client.connected still True before connect — force reset")
+                    await self._force_ws_reset()
+                    await asyncio.sleep(0.25)
                 await asyncio.wait_for(
-                    self.specterSocket.connect(websocket_url, transports=["websocket"]),
+                    self.specterSocket.connect(websocket_url, transports=["websocket"], wait_timeout=10),
                     timeout=30,
                 )
                 deadline = time.time() + 30
@@ -891,11 +911,11 @@ class WebsocketListener:
             except Exception as e:
                 consecutive_failures += 1
                 self._ws_ready = False
+                err = str(e)
                 self.logger.error(f"Specter WS error (attempt {consecutive_failures}): {e}")
-                try:
-                    await self.specterSocket.disconnect()
-                except Exception:
-                    pass
+                await self._force_ws_reset()
+                if "already connected" in err.lower():
+                    await asyncio.sleep(1.0)
             self._ws_ready = False
             await asyncio.sleep(0.5)
 
