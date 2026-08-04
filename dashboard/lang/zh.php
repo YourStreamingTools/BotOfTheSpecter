@@ -6071,6 +6071,7 @@ return [
     'admin_index_svc_discord_bot' => 'Discord 机器人',
     'admin_index_svc_bots_api' => '机器人API',
     'admin_index_svc_bots_caddy' => 'Caddy(机器人主机)',
+    'admin_index_svc_api_caddy' => 'Caddy(API主机)',
     'admin_index_svc_api_server' => 'API服务器',
     'admin_index_svc_websocket_server' => 'WebSocket服务器',
     'admin_index_svc_mysql_server' => 'MySQL服务器',

@@ -351,17 +351,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
     // Some allowed "service" identifiers are dashboard-only aliases so the same real unit name
     // (e.g. caddy.service) can be routed to different hosts; map alias -> actual systemd unit here.
-    $serviceUnitOverrides = ['bots-caddy.service' => 'caddy.service'];
+    $serviceUnitOverrides = [
+        'bots-caddy.service' => 'caddy.service',
+        'api-caddy.service' => 'caddy.service',
+    ];
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
             $ssh_host = $bots_ssh_host ?? '';
             $ssh_username = $bots_ssh_username ?? '';
             $ssh_password = $bots_ssh_password ?? '';
-            if ($service == 'fastapi.service') {
+            if ($service == 'fastapi.service' || $service == 'api-caddy.service') {
                 // Use the variable names defined in config/ssh.php
                 $ssh_host = $api_server_host ?? '';
                 $ssh_username = $api_server_username ?? '';
@@ -376,17 +379,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_username = $sql_server_username ?? '';
                 $ssh_password = $sql_server_password ?? '';
             } elseif ($service == 'twitch-recorder.service') {
-                $ssh_host = $recorder_ssh_host ?? '';
-                $ssh_username = $recorder_ssh_username ?? '';
-                $ssh_password = $recorder_ssh_password ?? '';
+                // Retired service — refuse control (status is fixed SHUTDOWN in service_status.php)
+                $output = 'Twitch Recorder is shut down and cannot be controlled from the admin panel.';
+                $success = false;
+                $ssh_host = '';
             } elseif ($service == 'caddy.service') {
                 // The web host's Caddy instance - separate box from the bots host
                 $ssh_host = $web_ssh_host ?? '';
                 $ssh_username = $web_ssh_username ?? '';
                 $ssh_password = $web_ssh_password ?? '';
             }
-            $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
-            if (!$connection) {
+            if ($service == 'twitch-recorder.service') {
+                // no SSH — status is fixed SHUTDOWN
+            } elseif (!($connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password))) {
                 $output = "SSH connection failed to host: {$ssh_host} (check config/ssh.php and network)";
                 $success = false;
             } else {
@@ -425,6 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                             'bots-api.service' => 'Bots API',
                             'bots-caddy.service' => 'Caddy (Bots Host)',
                             'fastapi.service' => 'FastAPI',
+                            'api-caddy.service' => 'Caddy (API Host)',
                             'websocket.service' => 'WebSocket',
                             'mysql.service' => 'MySQL',
                             'export_queue_worker.service' => 'Export Queue Worker',
@@ -1848,6 +1854,36 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Caddy (API Host) Service -->
+        <div>
+            <div class="admin-service-card">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon sp-text-info">
+                            <i class="fas fa-shield-alt fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <span class="admin-heading"><?php echo t('admin_index_svc_api_caddy'); ?></span>
+                            <span class="admin-service-status sp-text-info" id="api-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="sp-badge sp-badge-grey" id="api-caddy-pid">PID: ...</span>
+                    </div>
+                </div>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="api-caddy-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('api-caddy.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('api-caddy.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('api-caddy.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- WebSocket Server Service -->
         <div>
             <div class="admin-service-card">
@@ -2296,6 +2332,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'bots-api.service' => t('admin_index_svc_bots_api'),
             'bots-caddy.service' => t('admin_index_svc_bots_caddy'),
             'fastapi.service' => 'FastAPI',
+            'api-caddy.service' => t('admin_index_svc_api_caddy'),
             'websocket.service' => 'WebSocket',
             'mysql.service' => 'MySQL',
             'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
@@ -2449,6 +2486,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'bots-api.service': { statusKey: 'bots_api', statusId: 'bots-api-status', pidId: 'bots-api-pid', buttonsId: 'bots-api-buttons' },
         'bots-caddy.service': { statusKey: 'bots_caddy', statusId: 'bots-caddy-status', pidId: 'bots-caddy-pid', buttonsId: 'bots-caddy-buttons' },
         'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
+        'api-caddy.service': { statusKey: 'api_caddy', statusId: 'api-caddy-status', pidId: 'api-caddy-pid', buttonsId: 'api-caddy-buttons' },
         'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
         'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' },
         'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
@@ -2795,6 +2833,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusElement.className = 'admin-service-status';
                 if (data.status === 'Running') {
                     statusElement.classList.add('sp-text-success');
+                } else if (data.status === 'SHUTDOWN') {
+                    statusElement.classList.add('sp-text-muted');
                 } else if (data.status === 'Stopped' || data.status === 'Failed') {
                     statusElement.classList.add('sp-text-danger');
                 } else {
@@ -2810,6 +2850,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
                     restartBtn.disabled = false;
+                } else if (data.status === 'SHUTDOWN') {
+                    // Retired / intentionally offline — no controls
+                    startBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    restartBtn.disabled = true;
                 } else if (data.status === 'Stopped' || data.status === 'Failed') {
                     startBtn.disabled = false;
                     stopBtn.disabled = true;
@@ -2833,6 +2878,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('bots_api', 'bots-api-status', 'bots-api-pid', 'bots-api-buttons');
         updateServiceStatus('bots_caddy', 'bots-caddy-status', 'bots-caddy-pid', 'bots-caddy-buttons');
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
+        updateServiceStatus('api_caddy', 'api-caddy-status', 'api-caddy-pid', 'api-caddy-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
