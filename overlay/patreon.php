@@ -23,11 +23,9 @@ if (!empty($api_key) && !$conn->connect_error) {
     <title>Patreon Overlay</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
             const alertQueue = [];
             let alertDisplaying = false;
             const ALERT_DURATION = 7000;
@@ -209,48 +207,31 @@ if (!empty($api_key) && !$conn->connect_error) {
                 enqueueAlert(parsed);
             }
 
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-                socket.on('connect', () => {
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code, channel: 'Overlay', name: 'Patreon' });
-                });
-                socket.on('disconnect', () => {
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
-                socket.on('connect_error', () => {
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
-                socket.on('WELCOME', (data) => console.log('Server says:', data && data.message));
-                socket.on('NOTIFY', (data) => console.log('Notification:', data));
-                socket.on('PATREON', handlePatreonEvent);
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`[onAny] Event: ${event}`, ...args);
-                });
-            }
-
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
-                console.log(`[patreon] Reconnecting in ${delay / 1000}s...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(connectWebSocket, delay);
-            }
-
-            connectWebSocket();
+            // Specter bus: helper owns reconnect (dispose + progressive backoff); ready after SUCCESS only.
+            const session = SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'Patreon',
+                onStatus: (text, state) => setConnectionStatus(text, state),
+                bind: (socket) => {
+                    socket.on('WELCOME', (data) => console.log('Server says:', data && data.message));
+                    socket.on('NOTIFY', (data) => console.log('Notification:', data));
+                    socket.on('PATREON', handlePatreonEvent);
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`[onAny] Event: ${event}`, ...args);
+                    });
+                },
+            });
+            session.connect();
         });
     </script>
 </head>

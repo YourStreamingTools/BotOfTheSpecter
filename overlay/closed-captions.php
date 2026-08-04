@@ -125,6 +125,7 @@ ob_end_clean();
     <title>Specter Closed Captions</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <?php $headFont = in_array($cc_settings['font_family'], $allowedFonts, true) ? $cc_settings['font_family'] : 'Inter'; ?>
@@ -347,71 +348,53 @@ ob_end_clean();
                     showInterim(text);
                 }
             };
-            // WebSocket
-            let socket = null;
-            let reconnectAttempts = 0;
+            // WebSocket (SpecterOverlayWS: SUCCESS-gated ready + progressive reconnect)
             const setConnectionStatus = (text, state) => {
                 if (!connectionStatus) return;
                 connectionStatus.textContent = text;
                 connectionStatus.dataset.state = state;
             };
-            const scheduleReconnect = () => {
-                reconnectAttempts += 1;
-                const delay = Math.min(5000 * reconnectAttempts, 30000);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                if (socket) {
-                    socket.removeAllListeners();
-                    socket = null;
-                }
-                setTimeout(connect, delay);
-            };
-            function connect() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-                socket.on('connect', () => {
-                    reconnectAttempts = 0;
-                    setConnectionStatus('Connected', 'connected');
-                    socket.emit('REGISTER', {
-                        code: overlayApiKey,
-                        channel: 'Overlay',
-                        name: 'Closed Captions'
-                    });
-                    loadSettings();
-                });
-                socket.on('disconnect', reason => {
+            const session = SpecterOverlayWS.create({
+                code: overlayApiKey,
+                channel: 'Overlay',
+                name: 'Closed Captions',
+                onStatus: setConnectionStatus,
+                onDisconnect: (reason) => {
                     console.warn('[CC Overlay] Disconnected:', reason);
-                    setConnectionStatus('Disconnected', 'error');
-                    scheduleReconnect();
-                });
-                socket.on('connect_error', error => {
-                    console.error('[CC Overlay] WebSocket error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    scheduleReconnect();
-                });
-                socket.on('CLOSED_CAPTION', payload => {
-                    handleCaption(payload);
-                });
-                socket.on('CLOSED_CAPTION_CLEAR', () => {
-                    blankBand();
-                });
-                socket.on('CLOSED_CAPTION_SETTINGS', () => {
-                    // Dashboard saved new appearance settings - reload them live (font size,
-                    // colour, position, background) without an OBS browser-source refresh.
+                },
+                onError: (data) => {
+                    console.error('[CC Overlay] WebSocket error:', data);
+                },
+                onRegistered: () => {
+                    // Reload settings after each successful re-register
                     loadSettings();
-                });
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-            }
+                },
+                bind: (socket) => {
+                    socket.on('CLOSED_CAPTION', payload => {
+                        handleCaption(payload);
+                    });
+                    socket.on('CLOSED_CAPTION_CLEAR', () => {
+                        blankBand();
+                    });
+                    socket.on('CLOSED_CAPTION_SETTINGS', () => {
+                        // Dashboard saved new appearance settings - reload them live (font size,
+                        // colour, position, background) without an OBS browser-source refresh.
+                        loadSettings();
+                    });
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+                }
+            });
             applySettings();
             blankBand();
             loadSettings();
-            connect();
+            session.connect();
         })();
     </script>
 </body>

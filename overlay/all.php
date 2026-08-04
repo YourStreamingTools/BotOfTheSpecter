@@ -28,11 +28,9 @@ if ($username) {
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
             let currentAudio = null;
             const audioQueue = [];
             const timezone = <?php echo json_encode($timezone); ?>;
@@ -131,141 +129,6 @@ if ($username) {
                     console.warn('Autoplay blocked; awaiting user gesture or stream interaction');
                 });
             }
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', {
-                    reconnection: false
-                });
-                socket.on('connect', () => {
-                    console.log('Connected to WebSocket server');
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Everything' });
-                });
-                socket.on('disconnect', () => {
-                    console.log('Disconnected from WebSocket server');
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
-                socket.on('connect_error', (error) => {
-                    console.error('Connection error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
-                socket.on('WELCOME', (data) => {
-                    console.log('Server says:', data.message);
-                });
-                socket.on('NOTIFY', (data) => {
-                    console.log('Notification:', data);
-                    console.log('NOTIFY message:', data.message);
-                });
-                socket.on('TTS', (data) => {
-                    console.log('TTS event received:', data);
-                    enqueueAudio(data.audio_file);
-                });
-                socket.on('WALKON', (data) => {
-                    console.log('WALKON event received:', data);
-                    // Migrated channels send `media_file` from the walkons table; the
-                    // bot has already resolved the file the user is tagged to.
-                    // Legacy channels send `user` (+ optional ext) and the overlay
-                    // builds the URL against the old per-trigger host.
-                    let audioFile;
-                    if (data.media_file) {
-                        audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
-                    } else {
-                        const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
-                        audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
-                    }
-                    enqueueAudio(audioFile);
-                });
-                socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT event received:', data);
-                    enqueueAudio(data.sound);
-                });
-                socket.on('DEATHS', (data) => {
-                    console.log('DEATHS event received:', data);
-                    const deathOverlay = document.getElementById('deathOverlay');
-                    deathOverlay.innerHTML = `
-                        <div class="deaths-overlay-page-content">
-                            <div class="deaths-overlay-page-title">
-                                <span class="deaths-overlay-page-emote"></span>
-                                <span>Current Deaths</span>
-                            </div>
-                            <div>${escapeHtml(data.game)}</div>
-                            <div>${escapeHtml(data['death-text'])}</div>
-                        </div>
-                    `;
-                    deathOverlay.classList.remove('hide');
-                    deathOverlay.classList.add('show');
-                    deathOverlay.style.display = 'block';
-                    setTimeout(() => {
-                        deathOverlay.classList.remove('show');
-                        deathOverlay.classList.add('hide');
-                    }, 10000);
-                    setTimeout(() => {
-                        deathOverlay.style.display = 'none';
-                    }, 11000);
-                });
-                // Listen for WEATHER_DATA events
-                socket.on('WEATHER_DATA', (data) => {
-                    console.log('WEATHER_DATA event received:', data);
-                    let weather;
-                    try {
-                        weather = JSON.parse(data.weather_data);
-                    } catch (_) {
-                        // Legacy payload: api.py used to send str(dict) via urlencode.
-                        weather = JSON.parse(data.weather_data.replace(/'/g, '"'));
-                    }
-                    updateWeatherOverlay(weather, weather.location);
-                });
-                // Listen for DISCORD_JOIN events
-                socket.on('DISCORD_JOIN', (data) => {
-                    console.log('DISCORD_JOIN event received:', data);
-                    const discordOverlay = document.getElementById('discordOverlay');
-                    discordOverlay.innerHTML = `
-                        <div class="discord-overlay-page-content">
-                            <span>
-                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
-                                ${escapeHtml(data.member)} has joined the Discord server
-                            </span>
-                        </div>
-                    `;
-                    discordOverlay.classList.add('show');
-                    discordOverlay.style.display = 'block';
-                    // Display for 10 seconds
-                    setTimeout(() => {
-                        discordOverlay.classList.remove('show');
-                        discordOverlay.classList.add('hide');
-                    }, 10000);
-                    // Hide after the transition
-                    setTimeout(() => {
-                        discordOverlay.style.display = 'none';
-                    }, 11000);
-                });
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-
-                // Log all events
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`Event: ${event}`, args);
-                });
-            }
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
-                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
-            }
             // Function to update weather overlay
             function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
@@ -311,8 +174,119 @@ if ($username) {
                 updateTime();
                 timerIntervalId = setInterval(updateTime, 1000);
             }
-            // Start initial connection
-            connectWebSocket();
+            // Specter bus: helper owns reconnect (dispose + progressive backoff); ready only after SUCCESS
+            const session = SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'Everything',
+                onStatus: (text, state) => setConnectionStatus(text, state),
+                bind: (socket) => {
+                    socket.on('WELCOME', (data) => {
+                        console.log('Server says:', data.message);
+                    });
+                    socket.on('NOTIFY', (data) => {
+                        console.log('Notification:', data);
+                        console.log('NOTIFY message:', data.message);
+                    });
+                    socket.on('TTS', (data) => {
+                        console.log('TTS event received:', data);
+                        enqueueAudio(data.audio_file);
+                    });
+                    socket.on('WALKON', (data) => {
+                        console.log('WALKON event received:', data);
+                        // Migrated channels send `media_file` from the walkons table; the
+                        // bot has already resolved the file the user is tagged to.
+                        // Legacy channels send `user` (+ optional ext) and the overlay
+                        // builds the URL against the old per-trigger host.
+                        let audioFile;
+                        if (data.media_file) {
+                            audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
+                        } else {
+                            const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
+                            audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
+                        }
+                        enqueueAudio(audioFile);
+                    });
+                    socket.on('SOUND_ALERT', (data) => {
+                        console.log('SOUND_ALERT event received:', data);
+                        enqueueAudio(data.sound);
+                    });
+                    socket.on('DEATHS', (data) => {
+                        console.log('DEATHS event received:', data);
+                        const deathOverlay = document.getElementById('deathOverlay');
+                        deathOverlay.innerHTML = `
+                            <div class="deaths-overlay-page-content">
+                                <div class="deaths-overlay-page-title">
+                                    <span class="deaths-overlay-page-emote"></span>
+                                    <span>Current Deaths</span>
+                                </div>
+                                <div>${escapeHtml(data.game)}</div>
+                                <div>${escapeHtml(data['death-text'])}</div>
+                            </div>
+                        `;
+                        deathOverlay.classList.remove('hide');
+                        deathOverlay.classList.add('show');
+                        deathOverlay.style.display = 'block';
+                        setTimeout(() => {
+                            deathOverlay.classList.remove('show');
+                            deathOverlay.classList.add('hide');
+                        }, 10000);
+                        setTimeout(() => {
+                            deathOverlay.style.display = 'none';
+                        }, 11000);
+                    });
+                    // Listen for WEATHER_DATA events
+                    socket.on('WEATHER_DATA', (data) => {
+                        console.log('WEATHER_DATA event received:', data);
+                        let weather;
+                        try {
+                            weather = JSON.parse(data.weather_data);
+                        } catch (_) {
+                            // Legacy payload: api.py used to send str(dict) via urlencode.
+                            weather = JSON.parse(data.weather_data.replace(/'/g, '"'));
+                        }
+                        updateWeatherOverlay(weather, weather.location);
+                    });
+                    // Listen for DISCORD_JOIN events
+                    socket.on('DISCORD_JOIN', (data) => {
+                        console.log('DISCORD_JOIN event received:', data);
+                        const discordOverlay = document.getElementById('discordOverlay');
+                        discordOverlay.innerHTML = `
+                            <div class="discord-overlay-page-content">
+                                <span>
+                                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
+                                    ${escapeHtml(data.member)} has joined the Discord server
+                                </span>
+                            </div>
+                        `;
+                        discordOverlay.classList.add('show');
+                        discordOverlay.style.display = 'block';
+                        // Display for 10 seconds
+                        setTimeout(() => {
+                            discordOverlay.classList.remove('show');
+                            discordOverlay.classList.add('hide');
+                        }, 10000);
+                        // Hide after the transition
+                        setTimeout(() => {
+                            discordOverlay.style.display = 'none';
+                        }, 11000);
+                    });
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+                    // Log all events
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`Event: ${event}`, args);
+                    });
+                }
+            });
+            session.connect();
         });
     </script>
 </head>

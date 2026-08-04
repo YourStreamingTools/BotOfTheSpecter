@@ -23,11 +23,9 @@ if (!empty($api_key) && !$conn->connect_error) {
     <title>Subathon Notifications</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
             let countdownInterval = null;
             // Absolute target end (Unix ms) - ticking against this avoids setInterval drift.
             let endTimestampMs = 0;
@@ -74,123 +72,6 @@ if (!empty($api_key) && !$conn->connect_error) {
             if (!username) {
                 showOverlayError('Invalid code provided in the URL', 'danger');
                 return;
-            }
-
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', {
-                    reconnection: false
-                });
-
-                socket.on('connect', () => {
-                    console.log('Connected to WebSocket server');
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Subathon' });
-                });
-
-                socket.on('disconnect', () => {
-                    console.log('Disconnected from WebSocket server');
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
-
-                socket.on('connect_error', (error) => {
-                    console.error('Connection error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
-
-                socket.on('SUBATHON_START', (data) => {
-                    console.log('SUBATHON_START event received:', data);
-                    const end = Number(data.end_timestamp_ms);
-                    if (Number.isFinite(end) && end > 0) {
-                        endTimestampMs = end;
-                    } else {
-                        const minutes = Number(data.starting_minutes) || 0;
-                        endTimestampMs = Date.now() + minutes * 60000;
-                    }
-                    pausedRemainingSeconds = 0;
-                    startCountdown();
-                    displaySubathonNotification('Subathon Started');
-                });
-
-                socket.on('SUBATHON_STOP', (data) => {
-                    console.log('SUBATHON_STOP event received:', data);
-                    stopCountdown();
-                    displaySubathonNotification('Subathon Stopped');
-                });
-
-                socket.on('SUBATHON_PAUSE', (data) => {
-                    console.log('SUBATHON_PAUSE event received:', data);
-                    const incomingSeconds = Number(data.remaining_seconds);
-                    if (Number.isFinite(incomingSeconds) && incomingSeconds >= 0) {
-                        pausedRemainingSeconds = incomingSeconds;
-                    } else {
-                        const incomingMinutes = Number(data.remaining_minutes);
-                        pausedRemainingSeconds = Number.isFinite(incomingMinutes) && incomingMinutes >= 0
-                            ? incomingMinutes * 60
-                            : Math.max(0, Math.floor((endTimestampMs - Date.now()) / 1000));
-                    }
-                    pauseCountdown();
-                    displaySubathonNotification('Subathon Paused');
-                });
-
-                socket.on('SUBATHON_RESUME', (data) => {
-                    console.log('SUBATHON_RESUME event received:', data);
-                    const end = Number(data.end_timestamp_ms);
-                    if (Number.isFinite(end) && end > 0) {
-                        endTimestampMs = end;
-                    } else {
-                        const incomingSeconds = Number(data.remaining_seconds);
-                        const incomingMinutes = Number(data.remaining_minutes);
-                        const secs = Number.isFinite(incomingSeconds) && incomingSeconds >= 0
-                            ? incomingSeconds
-                            : (Number.isFinite(incomingMinutes) && incomingMinutes >= 0 ? incomingMinutes * 60 : pausedRemainingSeconds);
-                        endTimestampMs = Date.now() + secs * 1000;
-                    }
-                    pausedRemainingSeconds = 0;
-                    resumeCountdown();
-                    displaySubathonNotification('Subathon Resumed');
-                });
-
-                socket.on('SUBATHON_ADD_TIME', (data) => {
-                    console.log('SUBATHON_ADD_TIME event received:', data);
-                    const end = Number(data.end_timestamp_ms);
-                    if (Number.isFinite(end) && end > 0) {
-                        endTimestampMs = end;
-                    } else {
-                        const minutes = Number(data.added_minutes) || 0;
-                        endTimestampMs += minutes * 60000;
-                    }
-                    updateTimerDisplay();
-                    displaySubathonNotification('Time Added');
-                });
-
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-
-                // Log all events
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`[onAny] Event: ${event}`, ...args);
-                });
-            }
-
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
-                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
             }
 
             function displaySubathonNotification(message) {
@@ -268,8 +149,97 @@ if (!empty($api_key) && !$conn->connect_error) {
                 subathonOverlay.style.display = 'block';
             }
 
-            // Start initial connection
-            connectWebSocket();
+            // SpecterOverlayWS: SUCCESS-gated ready, dispose + progressive backoff on drop.
+            const session = SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'Subathon',
+                onStatus: setConnectionStatus,
+                bind: (socket) => {
+                    socket.on('SUBATHON_START', (data) => {
+                        console.log('SUBATHON_START event received:', data);
+                        const end = Number(data.end_timestamp_ms);
+                        if (Number.isFinite(end) && end > 0) {
+                            endTimestampMs = end;
+                        } else {
+                            const minutes = Number(data.starting_minutes) || 0;
+                            endTimestampMs = Date.now() + minutes * 60000;
+                        }
+                        pausedRemainingSeconds = 0;
+                        startCountdown();
+                        displaySubathonNotification('Subathon Started');
+                    });
+
+                    socket.on('SUBATHON_STOP', (data) => {
+                        console.log('SUBATHON_STOP event received:', data);
+                        stopCountdown();
+                        displaySubathonNotification('Subathon Stopped');
+                    });
+
+                    socket.on('SUBATHON_PAUSE', (data) => {
+                        console.log('SUBATHON_PAUSE event received:', data);
+                        const incomingSeconds = Number(data.remaining_seconds);
+                        if (Number.isFinite(incomingSeconds) && incomingSeconds >= 0) {
+                            pausedRemainingSeconds = incomingSeconds;
+                        } else {
+                            const incomingMinutes = Number(data.remaining_minutes);
+                            pausedRemainingSeconds = Number.isFinite(incomingMinutes) && incomingMinutes >= 0
+                                ? incomingMinutes * 60
+                                : Math.max(0, Math.floor((endTimestampMs - Date.now()) / 1000));
+                        }
+                        pauseCountdown();
+                        displaySubathonNotification('Subathon Paused');
+                    });
+
+                    socket.on('SUBATHON_RESUME', (data) => {
+                        console.log('SUBATHON_RESUME event received:', data);
+                        const end = Number(data.end_timestamp_ms);
+                        if (Number.isFinite(end) && end > 0) {
+                            endTimestampMs = end;
+                        } else {
+                            const incomingSeconds = Number(data.remaining_seconds);
+                            const incomingMinutes = Number(data.remaining_minutes);
+                            const secs = Number.isFinite(incomingSeconds) && incomingSeconds >= 0
+                                ? incomingSeconds
+                                : (Number.isFinite(incomingMinutes) && incomingMinutes >= 0 ? incomingMinutes * 60 : pausedRemainingSeconds);
+                            endTimestampMs = Date.now() + secs * 1000;
+                        }
+                        pausedRemainingSeconds = 0;
+                        resumeCountdown();
+                        displaySubathonNotification('Subathon Resumed');
+                    });
+
+                    socket.on('SUBATHON_ADD_TIME', (data) => {
+                        console.log('SUBATHON_ADD_TIME event received:', data);
+                        const end = Number(data.end_timestamp_ms);
+                        if (Number.isFinite(end) && end > 0) {
+                            endTimestampMs = end;
+                        } else {
+                            const minutes = Number(data.added_minutes) || 0;
+                            endTimestampMs += minutes * 60000;
+                        }
+                        updateTimerDisplay();
+                        displaySubathonNotification('Time Added');
+                    });
+
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
+
+                    // Log all events
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`[onAny] Event: ${event}`, ...args);
+                    });
+                }
+            });
+
+            session.connect();
         });
     </script>
 </head>

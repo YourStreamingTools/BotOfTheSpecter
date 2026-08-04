@@ -23,11 +23,9 @@ if (!empty($api_key) && !$conn->connect_error) {
     <title>WebSocket Audio Notifications</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
             let currentAudio = null;
             const audioQueue = [];
             const urlParams = new URLSearchParams(window.location.search);
@@ -86,6 +84,15 @@ if (!empty($api_key) && !$conn->connect_error) {
             unlockAudio();
             document.addEventListener('click', unlockAudio, { capture: true });
 
+            // Handle user interaction to allow audio playback if blocked
+            document.body.addEventListener('click', () => {
+                if (currentAudio) {
+                    currentAudio.play().catch(error => {
+                        console.error('Error playing audio:', error);
+                    });
+                }
+            }, { once: true });
+
             function enqueueAudio(url) {
                 if (!url) return;
                 audioQueue.push(url);
@@ -124,105 +131,65 @@ if (!empty($api_key) && !$conn->connect_error) {
                 });
             }
 
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', {
-                    reconnection: false
-                });
+            // Specter bus: helper owns reconnect (reconnection:false + progressive backoff)
+            const session = SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'All Audio',
+                onStatus: (text, state) => setConnectionStatus(text, state),
+                bind: (socket) => {
+                    socket.on('WELCOME', (data) => {
+                        console.log('Server says:', data.message);
+                    });
 
-                socket.on('connect', () => {
-                    console.log('Connected to WebSocket server');
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'All Audio' });
-                });
+                    socket.on('NOTIFY', (data) => {
+                        console.log('Notification:', data);
+                    });
 
-                socket.on('disconnect', () => {
-                    console.log('Disconnected from WebSocket server');
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
+                    // Listen for TTS audio events
+                    socket.on('TTS', (data) => {
+                        console.log('TTS event received:', data);
+                        enqueueAudio(data.audio_file);
+                    });
 
-                socket.on('connect_error', (error) => {
-                    console.error('Connection error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
+                    // Listen for WALKON events
+                    socket.on('WALKON', (data) => {
+                        console.log('WALKON event received:', data);
+                        // Migrated channels send media_file; legacy send user (+ optional ext)
+                        let audioFile;
+                        if (data.media_file) {
+                            audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
+                        } else {
+                            const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
+                            audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
+                        }
+                        enqueueAudio(audioFile);
+                    });
 
-                socket.on('WELCOME', (data) => {
-                    console.log('Server says:', data.message);
-                });
+                    // Listen for SOUND_ALERT audio events
+                    socket.on('SOUND_ALERT', (data) => {
+                        console.log('SOUND_ALERT event received:', data);
+                        enqueueAudio(data.sound);
+                    });
 
-                socket.on('NOTIFY', (data) => {
-                    console.log('Notification:', data);
-                });
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
 
-                // Listen for TTS audio events
-                socket.on('TTS', (data) => {
-                    console.log('TTS event received:', data);
-                    enqueueAudio(data.audio_file);
-                });
+                    // Log all events
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`[onAny] Event: ${event}`, ...args);
+                    });
+                }
+            });
 
-                // Listen for WALKON events
-                socket.on('WALKON', (data) => {
-                    console.log('WALKON event received:', data);
-                    // Migrated channels send `media_file` from the walkons table; the
-                    // bot has already resolved the file the user is tagged to.
-                    // Legacy channels send `user` (+ optional ext) and the overlay
-                    // builds the URL against the old per-trigger host.
-                    let audioFile;
-                    if (data.media_file) {
-                        audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
-                    } else {
-                        const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
-                        audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
-                    }
-                    enqueueAudio(audioFile);
-                });
-
-                // Listen for SOUND_ALERT audio events
-                socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT event received:', data);
-                    enqueueAudio(data.sound);
-                });
-
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-
-                // Log all events
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`[onAny] Event: ${event}`, ...args);
-                });
-
-                // Handle user interaction to allow audio playback if blocked
-                document.body.addEventListener('click', () => {
-                    if (currentAudio) {
-                        currentAudio.play().catch(error => {
-                            console.error('Error playing audio:', error);
-                        });
-                    }
-                }, { once: true });
-            }
-
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
-                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
-            }
-
-            // Start initial connection
-            connectWebSocket();
+            session.connect();
         });
     </script>
 </head>

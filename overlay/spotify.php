@@ -86,6 +86,7 @@ $host = $username !== '' ? $username : 'specter';
 </div>
 <?php endif; ?>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script src="js/specter-ws.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
 const code = params.get('code');
@@ -207,40 +208,23 @@ const code = params.get('code');
         showOverlayError('Invalid code provided in the URL', 'danger');
     }
 
-    // WebSocket - listen for dashboard refresh signal
+    // WebSocket - OVERLAY_REFRESH via SpecterOverlayWS (SUCCESS-gated reconnect)
     (function () {
         if (!code) return;
-        var socket;
-        var reconnectAttempts = 0;
-        function connectWS() {
-            setConnectionStatus('Connecting…', 'connecting');
-            socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-            socket.on('connect', function () {
-                setConnectionStatus('Connected', 'connected');
-                reconnectAttempts = 0;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Spotify' });
-            });
-            socket.on('OVERLAY_REFRESH', function (data) {
-                var meta = document.createElement('meta');
-                meta.setAttribute('http-equiv', 'refresh');
-                meta.setAttribute('content', '0');
-                document.head.appendChild(meta);
-            });
-            socket.on('disconnect', function () {
-                setConnectionStatus('Disconnected', 'error');
-                scheduleReconnect();
-            });
-            socket.on('connect_error', function () {
-                setConnectionStatus('Connection error', 'error');
-                scheduleReconnect();
-            });
-        }
-        function scheduleReconnect() {
-            reconnectAttempts++;
-            setConnectionStatus('Reconnecting…', 'connecting');
-            setTimeout(connectWS, Math.min(5000 * reconnectAttempts, 30000));
-        }
-        connectWS();
+        SpecterOverlayWS.create({
+            code: code,
+            channel: 'Overlay',
+            name: 'Spotify',
+            onStatus: setConnectionStatus,
+            bind: function (socket) {
+                socket.on('OVERLAY_REFRESH', function (data) {
+                    var meta = document.createElement('meta');
+                    meta.setAttribute('http-equiv', 'refresh');
+                    meta.setAttribute('content', '0');
+                    document.head.appendChild(meta);
+                });
+            }
+        }).connect();
     })();
 })();
 </script>

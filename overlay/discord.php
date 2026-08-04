@@ -23,12 +23,9 @@ if (!empty($api_key) && !$conn->connect_error) {
     <title>Discord Join Notifications</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <script src="js/specter-ws.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            const retryInterval = 5000;
-            let reconnectAttempts = 0;
-
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             const username = <?php echo json_encode($username); ?>;
@@ -122,65 +119,35 @@ if (!empty($api_key) && !$conn->connect_error) {
                 }, 11000);
             }
 
-            function connectWebSocket() {
-                setConnectionStatus('Connecting…', 'connecting');
-                socket = io('wss://websocket.botofthespecter.com', {
-                    reconnection: false
-                });
+            // Specter bus: helper owns reconnect (dispose + progressive backoff); ready only after SUCCESS
+            SpecterOverlayWS.create({
+                code: code,
+                channel: 'Overlay',
+                name: 'Discord Join',
+                onStatus: setConnectionStatus,
+                bind: (socket) => {
+                    // Listen for DISCORD_JOIN events
+                    socket.on('DISCORD_JOIN', (data) => {
+                        console.log('DISCORD_JOIN event received:', data);
+                        enqueueDiscordJoin(data.member);
+                    });
 
-                socket.on('connect', () => {
-                    console.log('Connected to WebSocket server');
-                    setConnectionStatus('Connected', 'connected');
-                    reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Discord Join' });
-                });
+                    // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
+                    socket.on('OVERLAY_REFRESH', (data) => {
+                        console.log('OVERLAY_REFRESH received - reloading', data);
+                        const meta = document.createElement('meta');
+                        meta.setAttribute('http-equiv', 'refresh');
+                        meta.setAttribute('content', '0');
+                        document.head.appendChild(meta);
+                    });
 
-                socket.on('disconnect', () => {
-                    console.log('Disconnected from WebSocket server');
-                    setConnectionStatus('Disconnected', 'error');
-                    attemptReconnect();
-                });
-
-                socket.on('connect_error', (error) => {
-                    console.error('Connection error:', error);
-                    setConnectionStatus('Connection error', 'error');
-                    attemptReconnect();
-                });
-
-                // Listen for DISCORD_JOIN events
-                socket.on('DISCORD_JOIN', (data) => {
-                    console.log('DISCORD_JOIN event received:', data);
-                    enqueueDiscordJoin(data.member);
-                });
-
-                // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches settings.
-                socket.on('OVERLAY_REFRESH', (data) => {
-                    console.log('OVERLAY_REFRESH received - reloading', data);
-                    const meta = document.createElement('meta');
-                    meta.setAttribute('http-equiv', 'refresh');
-                    meta.setAttribute('content', '0');
-                    document.head.appendChild(meta);
-                });
-
-                // Log all events
-                socket.onAny((event, ...args) => {
-                    if (event.startsWith('CLOSED_CAPTION')) return;
-                    console.log(`[onAny] Event: ${event}`, ...args);
-                });
-            }
-
-            function attemptReconnect() {
-                reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
-                console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-                setConnectionStatus('Reconnecting…', 'connecting');
-                setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
-            }
-
-            // Start initial connection
-            connectWebSocket();
+                    // Log all events
+                    socket.onAny((event, ...args) => {
+                        if (event.startsWith('CLOSED_CAPTION')) return;
+                        console.log(`[onAny] Event: ${event}`, ...args);
+                    });
+                }
+            }).connect();
         });
     </script>
 </head>
