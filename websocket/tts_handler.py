@@ -19,8 +19,7 @@ class TTSHandler:
         self.sio = sio
         self.get_clients = get_clients
         self.tts_dir = "/home/botofthespecter/tts"
-        # Prefer writing directly into the web-served TTS tree (shared mount / same host).
-        # Env TTS_PUBLISH_DIR overrides; falls back to config remote_paths.tts_directory when local.
+        # Prefer web-served TTS tree via TTS_PUBLISH_DIR or config remote_paths (shared mount)
         self.tts_config = self.load_tts_config()
         self.publish_dir = self._resolve_publish_dir()
         self.tts_queue = asyncio.Queue()
@@ -51,19 +50,15 @@ class TTSHandler:
             # Load base config from JSON file
             with open(config_path, 'r') as f:
                 config = json.load(f)
-            # SSH is optional when TTS_PUBLISH_DIR (or a local mount) is available
+            # SSH optional when TTS_PUBLISH_DIR or a local mount is available
             ssh_username = os.getenv('SSH_USERNAME')
             ssh_password = os.getenv('SSH_PASSWORD')
             if 'ssh_config' in config and ssh_username and ssh_password:
                 config['ssh_config']['username'] = ssh_username
                 config['ssh_config']['password'] = ssh_password
-                self.logger.info(
-                    f"TTS configuration loaded (SSH available for fallback user={ssh_username})"
-                )
+                self.logger.info(f"TTS configuration loaded (SSH available for fallback user={ssh_username})")
             elif 'ssh_config' in config:
-                self.logger.warning(
-                    "TTS SSH credentials not set — will use local TTS_PUBLISH_DIR / mount if available"
-                )
+                self.logger.warning("TTS SSH credentials not set — will use local TTS_PUBLISH_DIR / mount if available")
             else:
                 self.logger.warning("ssh_config not found in TTS config file")
             return config
@@ -307,7 +302,7 @@ class TTSHandler:
             self.logger.error(f"Error cleaning up TTS file {file_path}: {e}")
 
     async def cleanup_remote_tts_file(self, filename):
-        # Prefer local publish dir (no SSH)
+        # Prefer local publish dir
         if self.publish_dir:
             path = os.path.join(self.publish_dir, filename)
             try:
@@ -335,12 +330,11 @@ class TTSHandler:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
 
     async def move_file_to_remote(self, local_file_path, remote_filename):
-        # 1) Local / shared mount publish (preferred — no SSH)
+        # Prefer local/shared mount publish; fall through to SSH/SFTP if needed
         publish_dir = self.publish_dir
         if not publish_dir and self.tts_config:
             candidate = (self.tts_config.get("remote_paths") or {}).get("tts_directory")
             if candidate and os.path.isdir(os.path.dirname(candidate.rstrip("/") + "/")):
-                # If parent exists, create target
                 try:
                     os.makedirs(candidate, exist_ok=True)
                     publish_dir = candidate
@@ -352,13 +346,10 @@ class TTSHandler:
                 os.makedirs(publish_dir, exist_ok=True)
                 dest = os.path.join(publish_dir, remote_filename)
                 await asyncio.to_thread(shutil.copy2, local_file_path, dest)
-                self.logger.info(f"TTS published locally (no SSH): {dest}")
+                self.logger.info(f"TTS published locally: {dest}")
                 return dest
             except Exception as e:
                 self.logger.error(f"Local TTS publish failed ({publish_dir}): {e}")
-                # fall through to SSH if configured
-
-        # 2) SSH/SFTP fallback
         if not self.tts_config or not self.tts_config.get('ssh_config'):
             self.logger.warning("No local TTS publish dir and no SSH config for file transfer")
             return None

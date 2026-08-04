@@ -160,10 +160,7 @@ def _format_duration(seconds: int) -> str:
     return ", ".join(parts)
 
 async def _read_uptime_from_health_url(url: str, server_label: str) -> dict | None:
-    """
-    Fetch process uptime from a service /health JSON endpoint.
-    Expected optional fields: started_at, started_at_utc, uptime_seconds, ok.
-    """
+    # Fetch uptime from /health JSON (started_at / started_at_utc / uptime_seconds).
     if not url:
         return None
     try:
@@ -207,7 +204,7 @@ async def _read_uptime_from_health_url(url: str, server_label: str) -> dict | No
 
 
 def _list_media_files(root: str, username: str, valid_extensions: tuple[str, ...]) -> list[str]:
-    """Local filesystem listing under {root}/{username}/ (shared mount or same host)."""
+    # Local listing under {root}/{username}/ (shared mount or same host).
     base = os.path.join(root, username)
     if not os.path.isdir(base):
         return []
@@ -1530,46 +1527,20 @@ class SystemUptimeResponse(BaseModel):
         }
 
 # Define the response model for Bot Status
+# status_check_ok=False means control plane unreachable (running may be null).
 class BotStatusResponse(BaseModel):
-    """
-    Bot process status for mobile/web clients.
-
-    When status_check_ok is False, running/pid/version are unreliable — the
-    bots control plane could not be reached; the bot may still be online.
-    """
-    running: bool | None = Field(
-        None,
-        description="True if a bot process is running. Null when status could not be checked.",
-    )
+    running: bool | None = Field(None, description="True if running; null when status could not be checked.")
     pid: int | None = None
     version: str | None = Field(None, description="Last-run version from bot-host version-control file.")
-    bot_type: str | None = Field(
-        None,
-        description="Detected variant: stable | beta | v6 | custom. Null if offline or check failed.",
-    )
-    outdated: bool | None = Field(
-        None,
-        description="True if published version is newer than last-run, or code on disk is newer than last start.",
-    )
-    version_outdated: bool | None = Field(
-        None,
-        description="True when last-run version string is older than latest published for this bot_type.",
-    )
-    code_update_available: bool | None = Field(
-        None,
-        description="True when bot script mtime on host is newer than last-run version-control file (deploy without restart).",
-    )
+    bot_type: str | None = Field(None, description="stable | beta | v6 | custom; null if offline or check failed.")
+    outdated: bool | None = Field(None, description="True if version outdated or code update available.")
+    version_outdated: bool | None = Field(None, description="True when last-run version is older than published latest.")
+    code_update_available: bool | None = Field(None, description="True when script mtime is newer than last-run file.")
     latest_version: str | None = None
     script_mtime: int | None = Field(None, description="Unix mtime of the bot .py on the bot host.")
     last_run_mtime: int | None = Field(None, description="Unix mtime of the channel version-control file.")
-    status_check_ok: bool = Field(
-        True,
-        description="False when the bots control API was unreachable or returned an error.",
-    )
-    status_message: str | None = Field(
-        None,
-        description="Human-readable note; set when status_check_ok is False.",
-    )
+    status_check_ok: bool = Field(True, description="False when the bots control API was unreachable.")
+    status_message: str | None = Field(None, description="Human-readable note when status_check_ok is False.")
     class Config:
         json_schema_extra = {
             "example": {
@@ -2840,7 +2811,7 @@ async def system_uptime(request: Request):
     api_section = {"Local Read": {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}}
     websocket_section = {"Local Read": {"uptime": "Unknown", "started_at": "Unknown"}}
     other_sections = {}
-    # Fetch uptime from HTTP /health endpoints (no SSH)
+    # Fetch uptime from HTTP /health endpoints
     health_urls = {
         "websocket": os.getenv(
             "WEBSOCKET_HEALTH_URL",
@@ -3346,7 +3317,7 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        # Local / shared mount only — no SSH. Set SOUNDALERTS_ROOT if media is not at /var/www/soundalerts.
+        # Local/shared mount only; set SOUNDALERTS_ROOT if media is not at /var/www/soundalerts
         root = os.getenv("SOUNDALERTS_ROOT", "/var/www/soundalerts")
         valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
         sound_files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
@@ -3379,7 +3350,7 @@ async def get_walkons(api_key: str = Query(...), channel: str = Query(None)):
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        # Local / shared mount only — no SSH. Set WALKONS_ROOT if media is not at /var/www/walkons.
+        # Local/shared mount only; set WALKONS_ROOT if media is not at /var/www/walkons
         root = os.getenv("WALKONS_ROOT", "/var/www/walkons")
         valid_extensions = (".mp3", ".mp4")
         files = await asyncio.to_thread(_list_media_files, root, username, valid_extensions)
@@ -6232,13 +6203,12 @@ def _load_latest_bot_versions() -> dict:
 
 
 def _parse_version_tuple(value: str | None) -> tuple[int, ...] | None:
-    """Parse dotted numeric version; ignores a leading 'v'. Returns None if unusable."""
+    # Dotted numeric version; leading v ignored; non-digits stop a segment (e.g. 5.7.1-beta -> 5.7.1).
     if not value:
         return None
     text = str(value).strip()
     if text.lower().startswith("v") and len(text) > 1 and text[1].isdigit():
         text = text[1:]
-    # Keep leading dotted numbers only (e.g. "5.7.1-beta" -> 5.7.1)
     parts: list[int] = []
     for chunk in text.split("."):
         num = ""
@@ -6254,7 +6224,7 @@ def _parse_version_tuple(value: str | None) -> tuple[int, ...] | None:
 
 
 def _is_version_outdated(local: str | None, latest: str | None) -> bool | None:
-    """True if local < latest (component-wise, zero-padded). None if either unparsable."""
+    # True if local < latest (component-wise, zero-padded); None if unparsable.
     a = _parse_version_tuple(local)
     b = _parse_version_tuple(latest)
     if a is None or b is None:
@@ -6266,8 +6236,7 @@ def _is_version_outdated(local: str | None, latest: str | None) -> bool | None:
 
 
 def _bot_status_check_failed(latest_versions: dict, detail: str | None = None) -> dict:
-    """Public payload when bots control API cannot answer (do not fake offline)."""
-    # Client-facing text is stable; callers log `detail` for operators.
+    # Payload when bots control API cannot answer (do not fake offline). Callers log detail.
     _ = detail
     return {
         "running": None,
@@ -6369,14 +6338,7 @@ async def get_bot_status_via_bots_api(username: str) -> dict:
     "/bot/status",
     response_model=BotStatusResponse,
     summary="Get chat bot status",
-    description=(
-        "Check if your chat bot is currently running and retrieve its status information. "
-        "Process data comes from the bots control API on the bot host. "
-        "If status_check_ok is false, running is null — status could not be verified "
-        "(bot may still be online). outdated is true when either the published version "
-        "is newer than last-run (version_outdated) or code on disk is newer than last "
-        "start (code_update_available). bot_type may be stable, beta, v6, or custom."
-    ),
+    description="Bot process status via bots control API. status_check_ok=false means check failed (running is null). outdated covers version_outdated or code_update_available. bot_type: stable|beta|v6|custom.",
     tags=["User Account"],
     operation_id="get_bot_status"
 )

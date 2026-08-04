@@ -659,13 +659,12 @@ class WebsocketListener:
         return bool(self._ws_ready and sock_up)
 
     async def start(self):
-        # Single reconnect authority: reconnection=False + this forever loop.
-        # Built-in socketio auto-reconnect + manual REGISTER used to fight (duplicate-name flap).
+        # Single reconnect authority (reconnection=False); avoids dual auto-reconnect flap
         self.specterSocket = socketio.AsyncClient(
             logger=False, engineio_logger=False, reconnection=False,
         )
         websocket_url = config.websocket_url
-        # Prefer https URL for socketio client (same as other bots)
+        # Prefer https URL for the socketio client (same as other bots)
         if websocket_url.startswith("wss://"):
             websocket_url = "https://" + websocket_url[len("wss://"):]
         elif websocket_url.startswith("ws://"):
@@ -673,9 +672,7 @@ class WebsocketListener:
 
         @self.specterSocket.event
         async def connect():
-            self.logger.info(
-                f"Connected to websocket server (sid={self.specterSocket.sid}), sending REGISTER…"
-            )
+            self.logger.info(f"Connected to websocket server (sid={self.specterSocket.sid}), sending REGISTER…")
             await self._emit_register()
 
         @self.specterSocket.on("WELCOME")
@@ -687,9 +684,7 @@ class WebsocketListener:
         async def disconnect():
             await asyncio.sleep(0)
             if getattr(self.specterSocket, "connected", False):
-                self.logger.warning(
-                    "disconnect while client.connected=True (ignored — re-register race)"
-                )
+                self.logger.warning("disconnect while client.connected=True (ignored — re-register race)")
                 return
             self._ws_ready = False
             self.logger.info("Disconnected from websocket server")
@@ -697,9 +692,7 @@ class WebsocketListener:
         @self.specterSocket.event
         async def SUCCESS(data):
             self._ws_ready = True
-            self.logger.info(
-                f"Websocket registration successful (epoch={self._ws_reg_epoch}): {data}"
-            )
+            self.logger.info(f"Websocket registration successful (epoch={self._ws_reg_epoch}): {data}")
 
         @self.specterSocket.event
         async def ERROR(data):
@@ -875,13 +868,9 @@ class WebsocketListener:
                     delay = self._ws_backoff[min(consecutive_failures, len(self._ws_backoff) - 1)]
                     jitter = random.uniform(0, min(3.0, max(0.5, delay * 0.1 + 0.5)))
                     total = delay + jitter
-                    self.logger.info(
-                        f"Specter WS reconnect attempt {consecutive_failures + 1}, waiting {total:.1f}s"
-                    )
+                    self.logger.info(f"Specter WS reconnect attempt {consecutive_failures + 1}, waiting {total:.1f}s")
                     await asyncio.sleep(total)
-                self.logger.info(
-                    f"Connecting to Specter WS {websocket_url} (attempt {consecutive_failures + 1})"
-                )
+                self.logger.info(f"Connecting to Specter WS {websocket_url} (attempt {consecutive_failures + 1})")
                 await asyncio.wait_for(
                     self.specterSocket.connect(websocket_url, transports=["websocket"]),
                     timeout=30,
@@ -892,23 +881,17 @@ class WebsocketListener:
                 if not self.is_ws_ready():
                     raise asyncio.TimeoutError("Registration confirmation timeout (no SUCCESS)")
                 consecutive_failures = 0
-                self.logger.info(
-                    f"Specter WS connected and registered (sid={self.specterSocket.sid})"
-                )
+                self.logger.info(f"Specter WS connected and registered (sid={self.specterSocket.sid})")
                 await self.specterSocket.wait()
                 consecutive_failures = max(1, consecutive_failures)
-                self.logger.warning(
-                    f"Specter WS connection ended; scheduling reconnect (failures={consecutive_failures})"
-                )
+                self.logger.warning(f"Specter WS connection ended; scheduling reconnect (failures={consecutive_failures})")
             except asyncio.CancelledError:
                 self._ws_ready = False
                 raise
             except Exception as e:
                 consecutive_failures += 1
                 self._ws_ready = False
-                self.logger.error(
-                    f"Specter WS error (attempt {consecutive_failures}): {e}"
-                )
+                self.logger.error(f"Specter WS error (attempt {consecutive_failures}): {e}")
                 try:
                     await self.specterSocket.disconnect()
                 except Exception:

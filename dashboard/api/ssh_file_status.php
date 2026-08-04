@@ -1,10 +1,5 @@
 <?php
-/**
- * Stream online marker for a channel (bot host logs/online/{channel}.txt).
- * Prefer bots control API; no SSH.
- *
- * Returns 'True', 'False', or null if unavailable.
- */
+// Stream online marker via bots API (logs/online/{channel}.txt). Returns 'True', 'False', or null.
 function checkSSHFileStatus($username) {
   // Name kept for callers (dashboard/bot.php); implementation is HTTP bots API.
   $client = __DIR__ . '/../includes/bots_api_client.php';

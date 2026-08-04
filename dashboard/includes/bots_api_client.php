@@ -163,19 +163,13 @@ function bots_api_stop_bot(string $channel, string $botType = 'stable'): array {
     ]);
 }
 
-/**
- * Stream online marker (logs/online/{channel}.txt on bot host).
- * @return array{ok:bool,status:int,data:mixed,error?:string}
- */
+// Stream online marker (logs/online/{channel}.txt on bot host).
 function bots_api_online_marker(string $channel): array {
     $channel = strtolower(trim($channel));
     return bots_api_request('GET', '/api/online/' . rawurlencode($channel));
 }
 
-/**
- * Run allowlisted bot-host maintenance script (token refresh, etc.).
- * @param string $script refresh_spotify|refresh_streamelements|refresh_discord|refresh_custom_bot
- */
+// Allowlisted bot-host maintenance script (refresh_spotify|refresh_streamelements|refresh_discord|refresh_custom_bot).
 function bots_api_run_script(string $script): array {
     return bots_api_request('POST', '/api/ops/run_script', ['script' => $script]);
 }

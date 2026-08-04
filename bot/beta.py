@@ -2368,7 +2368,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
 _WS_BACKOFF = (0, 2, 5, 10, 20, 40, 60)
 
 async def _emit_specter_register():
-    """Send REGISTER; ready only after SUCCESS for this epoch."""
+    # Send REGISTER; ready only after SUCCESS for this epoch.
     global websocket_connected, _ws_reg_epoch
     _ws_reg_epoch += 1
     epoch = _ws_reg_epoch
@@ -2388,9 +2388,8 @@ async def _emit_specter_register():
         except Exception:
             pass
 
-# Connect and manage reconnection for Internal Socket Server
+# Connect and manage reconnection for Internal Socket Server (single authority, no socketio auto-reconnect)
 async def specter_websocket():
-    """Forever: connect → REGISTER → SUCCESS → wait → backoff → retry. Single authority (no socketio auto-reconnect)."""
     global websocket_connected
     specter_websocket_uri = "https://websocket.botofthespecter.com"
     consecutive_failures = 0
@@ -2406,15 +2405,9 @@ async def specter_websocket():
                 delay = _WS_BACKOFF[min(consecutive_failures, len(_WS_BACKOFF) - 1)]
                 jitter = random.uniform(0, min(3.0, max(0.5, delay * 0.1 + 0.5)))
                 total_delay = delay + jitter
-                websocket_logger.info(
-                    f"[SPECTER WEBSOCKET] Reconnect attempt {consecutive_failures + 1}, "
-                    f"waiting {total_delay:.1f}s"
-                )
+                websocket_logger.info(f"[SPECTER WEBSOCKET] Reconnect attempt {consecutive_failures + 1}, waiting {total_delay:.1f}s")
                 await sleep(total_delay)
-            bot_logger.info(
-                f"[SPECTER WEBSOCKET] Attempting to connect to Internal WebSocket Server "
-                f"(attempt {consecutive_failures + 1})"
-            )
+            bot_logger.info(f"[SPECTER WEBSOCKET] Attempting to connect to Internal WebSocket Server (attempt {consecutive_failures + 1})")
             await asyncio_wait_for(
                 specterSocket.connect(specter_websocket_uri, transports=['websocket']),
                 timeout=30
@@ -2426,17 +2419,10 @@ async def specter_websocket():
                     raise asyncioTimeoutError("Registration confirmation timeout (no SUCCESS received)")
                 await sleep(0.25)
             consecutive_failures = 0
-            websocket_logger.info(
-                f"[SPECTER WEBSOCKET] Connected and registered "
-                f"(sid={specterSocket.sid}, transport={specterSocket.transport()})"
-            )
+            websocket_logger.info(f"[SPECTER WEBSOCKET] Connected and registered (sid={specterSocket.sid}, transport={specterSocket.transport()})")
             await specterSocket.wait()
-            # Clean drop: ensure next attempt uses some backoff if server is rebooting
-            consecutive_failures = max(1, consecutive_failures)
-            websocket_logger.warning(
-                f"[SPECTER WEBSOCKET] Connection ended; scheduling reconnect "
-                f"(failures={consecutive_failures})"
-            )
+            consecutive_failures = max(1, consecutive_failures)  # clean drop: slight backoff before next try
+            websocket_logger.warning(f"[SPECTER WEBSOCKET] Connection ended; scheduling reconnect (failures={consecutive_failures})")
         except ConnectionExecptionError as e:
             consecutive_failures += 1
             websocket_connected = False
@@ -2444,9 +2430,7 @@ async def specter_websocket():
         except asyncioTimeoutError as e:
             consecutive_failures += 1
             websocket_connected = False
-            websocket_logger.error(
-                f"[SPECTER WEBSOCKET] Connect/register timeout (attempt {consecutive_failures}): {e}"
-            )
+            websocket_logger.error(f"[SPECTER WEBSOCKET] Connect/register timeout (attempt {consecutive_failures}): {e}")
             try:
                 await specterSocket.disconnect()
             except Exception:
@@ -2454,10 +2438,7 @@ async def specter_websocket():
         except Exception as e:
             consecutive_failures += 1
             websocket_connected = False
-            websocket_logger.error(
-                f"[SPECTER WEBSOCKET] Unexpected error (attempt {consecutive_failures}): {e}",
-                exc_info=True,
-            )
+            websocket_logger.error(f"[SPECTER WEBSOCKET] Unexpected error (attempt {consecutive_failures}): {e}", exc_info=True)
             try:
                 await specterSocket.disconnect()
             except Exception:
@@ -2467,15 +2448,12 @@ async def specter_websocket():
 
 @specterSocket.event
 async def connect():
-    websocket_logger.info(
-        f"[SPECTER WEBSOCKET] Connected (sid={specterSocket.sid}, transport={specterSocket.transport()}), "
-        "sending REGISTER…"
-    )
+    websocket_logger.info(f"[SPECTER WEBSOCKET] Connected (sid={specterSocket.sid}, transport={specterSocket.transport()}), sending REGISTER…")
     await _emit_specter_register()
 
 @specterSocket.on('WELCOME')
 async def WELCOME(data=None):
-    # Server invites registration; re-emit if connect-handler race missed it
+    # Re-emit REGISTER if connect-handler race missed it
     websocket_logger.info(f"[SPECTER WEBSOCKET] WELCOME received — re-sending REGISTER ({data!r})")
     await _emit_specter_register()
 
@@ -2484,10 +2462,7 @@ async def SUCCESS(data):
     global websocket_connected
     websocket_connected = True
     msg = data.get('message', data) if isinstance(data, dict) else data
-    websocket_logger.info(
-        f"[SPECTER WEBSOCKET] Registration confirmed (epoch={_ws_reg_epoch}): {msg} — "
-        "notices, weather, walkons, alerts can use the bus"
-    )
+    websocket_logger.info(f"[SPECTER WEBSOCKET] Registration confirmed (epoch={_ws_reg_epoch}): {msg}")
 
 @specterSocket.event
 async def ERROR(data):
@@ -2495,7 +2470,7 @@ async def ERROR(data):
     msg = data.get('message', data) if isinstance(data, dict) else data
     websocket_logger.error(f"[SPECTER WEBSOCKET] Server ERROR: {msg}")
     text = str(msg or '').lower()
-    # Duplicate-session errors target the *old* SID — only tear down if we are already down
+    # Duplicate-session targets the old SID; only tear down if we are already down
     if 'duplicate' in text:
         if not getattr(specterSocket, 'connected', False):
             websocket_connected = False
@@ -2515,14 +2490,9 @@ async def connect_error(data):
 @specterSocket.event
 async def disconnect():
     global websocket_connected
-    # Yield so a simultaneous SUCCESS on re-register can land first
-    await sleep(0)
+    await sleep(0)  # let a simultaneous SUCCESS on re-register land first
     if getattr(specterSocket, 'connected', False):
-        # Stale disconnect from previous SID — keep ready if we already reconnected
-        websocket_logger.warning(
-            "[SPECTER WEBSOCKET] disconnect while client.connected=True "
-            "(ignored for ready flag — race with re-register)"
-        )
+        websocket_logger.warning("[SPECTER WEBSOCKET] disconnect while client.connected=True (ignored — re-register race)")
         return
     websocket_connected = False
     websocket_logger.error("[SPECTER WEBSOCKET] Disconnected from internal websocket server")
@@ -3390,7 +3360,7 @@ class SSHConnectionManager:
 
 
 async def http_public_file_exists(url: str, session=None) -> bool:
-    """Check a public CDN URL with HEAD (then ranged GET). Avoids SSH to WEB."""
+    # Public CDN HEAD (then ranged GET); no SSH to WEB.
     close = False
     try:
         if session is None:
@@ -5122,11 +5092,9 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Weather is HTTP API → /notify fan-out; do not hard-block if Socket.IO is mid-reconnect.
+                    # Weather is HTTP API; do not hard-block if Socket.IO is mid-reconnect
                     if not is_websocket_connected():
-                        websocket_logger.warning(
-                            "[WEATHER] Specter WS not registered — attempting weather via API anyway"
-                        )
+                        websocket_logger.warning("[WEATHER] Specter WS not registered — attempting weather via API anyway")
                     # Check cooldown
                     bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                     if not await check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
@@ -16269,13 +16237,9 @@ async def websocket_notice(
             return module_handled
         if _channel_modules:
             safe_create_task(dispatch_module_event(event.lower(), **_mod_kwargs))
-    # Outbound notices use HTTP /notify (do not require our Socket.IO session).
-    # Still log when the bot's own WS registration is down so ops can see flaps.
+    # Outbound notices use HTTP /notify (not our Socket.IO SID); log if registration is down
     if not is_websocket_connected():
-        websocket_logger.warning(
-            f"[WS NOTICE] Bot Specter WS not registered — still sending HTTP notify for '{event}' "
-            f"(overlays use code registration, not this bot's SID)"
-        )
+        websocket_logger.warning(f"[WS NOTICE] Bot Specter WS not registered — still sending HTTP notify for '{event}'")
     connection = None
     try:
         connection = await mysql_connection()
@@ -16329,7 +16293,7 @@ async def websocket_notice(
                                 if walkon_media_file:
                                     break
                         if not walkon_media_file:
-                            # Last resort: legacy walkons CDN
+                            # Last resort: legacy walkons CDN URL
                             for _stem in _walkon_stems:
                                 for ext in ['.mp3', '.mp4']:
                                     walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
@@ -16371,7 +16335,7 @@ async def websocket_notice(
                             )
                             return
                     else:
-                        # Legacy: probe public walkons CDN (no SSH)
+                        # Legacy walkons CDN probe
                         for _stem in _walkon_stems:
                             for ext in ['.mp3', '.mp4']:
                                 walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"

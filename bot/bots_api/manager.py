@@ -132,8 +132,7 @@ def _matches_bot_type(cmdline: list[str], bot_type: str, channel: str) -> bool:
     if bot_type == "stable":
         return script == "bot.py" and not _is_custom(cmdline)
     if bot_type == "beta":
-        # Exclude -custom: those are bot_type "custom" (inventory + status agree).
-        # stop_bot(beta) still merges find_pids("custom") when needed.
+        # Exclude -custom (those are bot_type "custom"; stop_bot(beta) still merges custom pids).
         return script == "beta.py" and not _is_custom(cmdline)
     if bot_type == "v6":
         return script in ("beta-v6.py", "beta_v6.py")
@@ -631,11 +630,7 @@ def refresh_running_snapshot() -> dict[str, Any]:
 
 
 def read_online_marker(channel: str) -> str | None:
-    """
-    Stream online marker written by the bot process.
-    Path (server): /home/botofthespecter/logs/online/{channel}.txt
-    Contents: \"True\" or \"False\".
-    """
+    # Stream online marker: logs/online/{channel}.txt contents "True" or "False".
     channel = (channel or "").lower().strip()
     if not channel or not re.match(r"^[a-z0-9_]{1,64}$", channel):
         return None
@@ -649,7 +644,7 @@ def read_online_marker(channel: str) -> str | None:
     return None
 
 
-# Allowlisted maintenance scripts (admin ops via bots API — no arbitrary shell).
+# Allowlisted maintenance scripts (admin ops via bots API; no arbitrary shell)
 OPS_SCRIPTS: dict[str, list[str]] = {
     "refresh_spotify": ["python3", str(BOT_HOME / "refresh_spotify_tokens.py")],
     "refresh_streamelements": ["python3", str(BOT_HOME / "refresh_streamelements_tokens.py")],
@@ -659,7 +654,7 @@ OPS_SCRIPTS: dict[str, list[str]] = {
 
 
 async def run_allowlisted_script(script_key: str, *, timeout: float = 120.0) -> dict[str, Any]:
-    """Run a named ops script under BOT_HOME. Rejects unknown keys."""
+    # Run a named ops script under BOT_HOME; rejects unknown keys.
     key = (script_key or "").strip().lower()
     cmd = OPS_SCRIPTS.get(key)
     if not cmd:
@@ -700,28 +695,15 @@ async def run_allowlisted_script(script_key: str, *, timeout: float = 120.0) -> 
 
 
 def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, Any]:
-    """
-    Process status plus update-notice metadata (local files only — no SSH).
-
-    Always returns when possible:
-      - script_mtime: mtime of the bot .py on this host (code "Last Updated")
-      - last_run_mtime: mtime of the channel version-control file ("Last Run")
-      - version: contents of that version-control file (even if not running)
-      - code_update_available: True when script is newer than last run
-
-    When bot_type is omitted, scan order prefers custom before beta so a
-    -custom beta.py process reports bot_type \"custom\" (not \"beta\").
-    """
+    # Process status + update-notice mtimes (local files only). Unfiltered scan: custom before beta.
     channel = channel.lower()
     if bot_type:
-        # beta UI/control also covers -custom (launched as beta.py -custom);
-        # still report the true type as "custom" when that is what is running.
+        # beta control also finds -custom; still report true type as "custom" when that is running.
         if bot_type == "beta":
             types = ["custom", "beta"]
         else:
             types = [bot_type]
     else:
-        # custom before beta: custom-flag processes must not be labeled beta
         types = ["stable", "custom", "beta", "v6"]
     found_type = None
     found_pid = None
