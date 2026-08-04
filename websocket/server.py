@@ -1077,11 +1077,14 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.warning(f"Global listener registration denied for SID [{sid}] - invalid admin key provided: '{code}'")
                 await self.sio.emit("ERROR", {"message": "Global listener registration denied - invalid admin key"}, to=sid)
                 return
-            # Disconnect any existing global listener with the same name;
-            # the disconnect handler removes it from self.global_listeners.
+            # Disconnect other global listeners with same name; same-SID re-REGISTER is idempotent (no self-disconnect)
             for listener in list(self.global_listeners):
                 if listener['name'] == name:
                     old_sid = listener['sid']
+                    if old_sid == sid:
+                        self.logger.info(f"Global listener [{sid}] name [{name}] already registered — re-confirming SUCCESS")
+                        await self.sio.emit("SUCCESS", {"message": "Global listener registration successful", "name": name, "admin_authenticated": True}, to=sid)
+                        return
                     self.logger.info(f"Disconnecting old global listener [{old_sid}] for name [{name}] before registering new session [{sid}]")
                     await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate global listener for name {name}"}, to=old_sid)
                     await self.sio.disconnect(old_sid)
@@ -1096,13 +1099,21 @@ class BotOfTheSpecter_WebsocketServer:
             # Handle regular client registration
             # Check if this is admin key being used for regular registration
             is_admin = (code == self.admin_code) if self.admin_code else False
-            # Disconnect any existing client with the same name; the disconnect
-            # handler removes it from registered_clients (and deletes the code
-            # entry if it was the last client). Iterate a snapshot so the
-            # handler's mutation can't disturb us.
+            # Disconnect other clients with same name; same-SID re-REGISTER is idempotent (connect+WELCOME must not self-disconnect)
             for client in list(self.registered_clients.get(code, [])):
                 if client['name'] == name:
                     old_sid = client['sid']
+                    if old_sid == sid:
+                        client['is_admin'] = is_admin
+                        client['channel'] = channel
+                        self.logger.info(f"Client [{sid}] name [{name}] already registered — re-confirming SUCCESS")
+                        if is_admin:
+                            await self.sio.emit("SUCCESS", {"message": "Admin registration successful", "code": code, "name": name, "admin_authenticated": True}, to=sid)
+                        else:
+                            await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+                        if channel.lower() == 'overlay' and 'avatar' in sid_name.lower():
+                            await self._emit_avatar_state_to_sid(sid, code)
+                        return
                     self.logger.info(f"Disconnecting old session [{old_sid}] for name [{name}] before registering new session [{sid}]")
                     await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate session for name {name}"}, to=old_sid)
                     await self.sio.disconnect(old_sid)
@@ -1126,7 +1137,7 @@ class BotOfTheSpecter_WebsocketServer:
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)
 
     async def index(self, request):
-        # Operator docs for the host control API (Caddy path /control/* ? 8093)
+        # Operator docs for the host control API (Caddy path /control/* → 8093)
         raise web.HTTPFound(location="/control/docs")
     
     async def favicon_redirect(self, request):
