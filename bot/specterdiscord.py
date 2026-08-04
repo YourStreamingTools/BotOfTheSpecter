@@ -630,6 +630,14 @@ class WebsocketListener:
         self._ws_register_sent = False
         self._ws_backoff = (0, 2, 5, 10, 20, 40, 60)
 
+    def _ns_ready(self) -> bool:
+        # python-socketio can deliver WELCOME before namespace '/' is marked connected
+        try:
+            ns = getattr(self.specterSocket, "namespaces", None) or {}
+            return "/" in ns
+        except Exception:
+            return False
+
     async def _force_ws_reset(self):
         # disconnect() can fail mid-send and leave python-socketio.connected=True → "Already connected" forever
         self._ws_ready = False
@@ -652,9 +660,15 @@ class WebsocketListener:
             pass
 
     async def _emit_register(self, force=False):
+        # Never force-reset on emit failure — that tears down an in-progress handshake
+        # (WELCOME often arrives before namespace '/' is ready → BadNamespaceError).
         if not force and self._ws_register_sent:
             self.logger.info("REGISTER already sent this transport — skip")
             return
+        if not self._ns_ready():
+            self.logger.info("REGISTER deferred — namespace not connected yet")
+            return
+        self._ws_register_sent = True  # claim before await so connect+WELCOME cannot double-fire
         self._ws_reg_epoch += 1
         epoch = self._ws_reg_epoch
         self._ws_ready = False
@@ -666,19 +680,18 @@ class WebsocketListener:
                 "channel": "Global",
                 "name": "Discord Bot Global Listener",
             })
-            self._ws_register_sent = True
             self.logger.info(f"REGISTER sent (epoch={epoch}, sid={getattr(self.specterSocket, 'sid', None)}) — waiting for SUCCESS")
         except Exception as e:
+            self._ws_register_sent = False  # allow connect handler / retry to re-emit
             self.logger.error(f"REGISTER emit failed (epoch={epoch}): {e}")
-            await self._force_ws_reset()
 
     def is_ws_ready(self) -> bool:
+        # Do not auto-clear the SUCCESS flag here — SUCCESS can land before
+        # python-socketio sets connected=True; clearing would lose a valid registration.
         try:
             sock_up = bool(self.specterSocket and getattr(self.specterSocket, "connected", False))
         except Exception:
             sock_up = False
-        if self._ws_ready and not sock_up:
-            self._ws_ready = False
         return bool(self._ws_ready and sock_up)
 
     async def start(self):
@@ -700,9 +713,9 @@ class WebsocketListener:
 
         @self.specterSocket.on("WELCOME")
         async def welcome(data=None):
-            # Connect handler already REGISTERs; only emit if that race missed this SID
+            # Do NOT REGISTER here. WELCOME often arrives before namespace '/' is connected;
+            # emit then raises BadNamespaceError and any force-reset kills the handshake.
             self.logger.info(f"WELCOME received ({data!r})")
-            await self._emit_register(force=False)
 
         @self.specterSocket.event
         async def disconnect():
@@ -895,8 +908,13 @@ class WebsocketListener:
                     self.specterSocket.connect(websocket_url, transports=["websocket"], wait_timeout=10),
                     timeout=30,
                 )
+                # connect() returned → namespace is ready; ensure REGISTER was sent
+                if not self._ws_register_sent and not self._ws_ready:
+                    await self._emit_register(force=True)
                 deadline = time.time() + 30
                 while not self.is_ws_ready() and time.time() < deadline:
+                    if not self._ws_register_sent:
+                        await self._emit_register(force=True)
                     await asyncio.sleep(0.25)
                 if not self.is_ws_ready():
                     raise asyncio.TimeoutError("Registration confirmation timeout (no SUCCESS)")
