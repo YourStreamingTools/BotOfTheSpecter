@@ -67,11 +67,11 @@ if ($versionApiData !== false) {
   }
 } else {
   if ($bot === 'stable') {
-    $latestVersion = '5.7.1';
+    $latestVersion = '5.7.15';
   } elseif ($bot === 'beta') {
     $latestVersion = '5.8';
   } elseif ($bot === 'v6') {
-    $latestVersion = '6.0';
+    $latestVersion = '6.0.1';
   }
 }
 

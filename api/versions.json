@@ -1,6 +1,7 @@
 {
     "beta_version": "5.8",
-    "stable_version": "5.7.14",
-    "discord_bot": "6.2",
-    "kick_bot": "1.0.0"
+    "stable_version": "5.7.15",
+    "v6_version": "6.0.1",
+    "discord_bot": "6.3",
+    "kick_bot": "1.0.1"
 }
