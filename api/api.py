@@ -53,7 +53,7 @@ load_dotenv(find_dotenv("/home/botofthespecter/.env"))
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER') 
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
-SQL_PORT = int(os.getenv('SQL_PORT'))
+SQL_PORT = int(os.getenv('SQL_PORT') or '3306')
 # SSH credentials (legacy / non-bot host ops). Bot process control uses BOTS_API_* below.
 BOTS_SSH_HOST = os.getenv('BOT-SRV-HOST')
 WEB1_SSH_HOST = os.getenv('WEB-HOST')
