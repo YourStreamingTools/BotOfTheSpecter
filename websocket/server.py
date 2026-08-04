@@ -1144,7 +1144,7 @@ class BotOfTheSpecter_WebsocketServer:
         return response
 
     async def health_http(self, request):
-        """Public liveness + uptime for the API system/uptime endpoint (no SSH)."""
+        # Liveness + uptime for public API /system/uptime
         started = getattr(self, "_process_started_at", None) or datetime.now(timezone.utc)
         now = datetime.now(timezone.utc)
         uptime_seconds = max(0, int((now - started).total_seconds()))

@@ -215,7 +215,7 @@ class StopBody(BaseModel):
 
 
 class RunScriptBody(BaseModel):
-    """Allowlisted ops scripts on the bot host (token refresh, etc.)."""
+    # Allowlisted ops scripts: refresh_spotify | refresh_streamelements | refresh_discord | refresh_custom_bot
     script: str = Field(
         ...,
         description="Logical name: refresh_spotify | refresh_streamelements | refresh_discord | refresh_custom_bot",
@@ -237,7 +237,7 @@ async def health() -> dict[str, Any]:
 
 @app.get("/api/online/{channel}", dependencies=[Depends(require_control_key)])
 async def api_online_marker(channel: str) -> dict[str, Any]:
-    """Read stream online marker written by the bot (logs/online/{channel}.txt)."""
+    # Stream online marker from logs/online/{channel}.txt
     value = await asyncio.to_thread(read_online_marker, channel)
     return {
         "channel": channel.lower().strip(),
@@ -248,7 +248,7 @@ async def api_online_marker(channel: str) -> dict[str, Any]:
 
 @app.post("/api/ops/run_script", dependencies=[Depends(require_control_key)])
 async def api_run_script(body: RunScriptBody) -> dict[str, Any]:
-    """Run an allowlisted maintenance script on the bot host (no arbitrary shell)."""
+    # Allowlisted maintenance script only (no arbitrary shell).
     result = await run_allowlisted_script(body.script)
     if not result.get("success"):
         raise HTTPException(
