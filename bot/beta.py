@@ -3326,6 +3326,33 @@ class SSHConnectionManager:
         self.connections.clear()
         self.logger.info("All SSH connections closed")
 
+
+async def http_public_file_exists(url: str, session=None) -> bool:
+    """Check a public CDN URL with HEAD (then ranged GET). Avoids SSH to WEB."""
+    close = False
+    try:
+        if session is None:
+            session = httpClientSession()
+            close = True
+        timeout = ClientTimeout(total=5)
+        try:
+            async with session.head(url, timeout=timeout, allow_redirects=True) as resp:
+                if resp.status == 200:
+                    return True
+                if resp.status == 404:
+                    return False
+        except Exception:
+            pass
+        headers = {"Range": "bytes=0-0"}
+        async with session.get(url, timeout=timeout, allow_redirects=True, headers=headers) as resp:
+            return resp.status in (200, 206)
+    except Exception:
+        return False
+    finally:
+        if close:
+            await session.close()
+
+
 # Kept for compatibility - per-function connections have no pools to clean up
 async def cleanup_idle_db_pools():
     while True:
@@ -16221,9 +16248,9 @@ async def websocket_notice(
                         if not walkon_media_file:
                             for _stem in _walkon_stems:
                                 for ext in ['.mp3', '.mp4']:
-                                    media_path = f"/var/www/media/{CHANNEL_NAME}/{_stem}{ext}"
+                                    media_url = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
                                     try:
-                                        if await ssh_manager.file_exists('WEB', media_path):
+                                        if await http_public_file_exists(media_url, session):
                                             walkon_media_file = f"{_stem}{ext}"
                                             walkon_mode = 'video' if ext == '.mp4' else 'sound'
                                             websocket_logger.info(
@@ -16232,27 +16259,27 @@ async def websocket_notice(
                                             )
                                             break
                                     except Exception as e:
-                                        websocket_logger.error(f"[WS NOTICE] Error checking walkon media file {media_path}: {e}")
+                                        websocket_logger.error(f"[WS NOTICE] Error checking walkon media URL {media_url}: {e}")
                                 if walkon_media_file:
                                     break
                         if not walkon_media_file:
-                            # Last resort: legacy dir still has the file (migration copied incompletely, or streamer uploaded via old page).
+                            # Last resort: legacy walkons CDN
                             for _stem in _walkon_stems:
                                 for ext in ['.mp3', '.mp4']:
-                                    walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{_stem}{ext}"
+                                    walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
                                     try:
-                                        if await ssh_manager.file_exists('WEB', walkon_file_path):
+                                        if await http_public_file_exists(walkon_url, session):
                                             params['channel'] = CHANNEL_NAME
                                             params['user'] = _stem
                                             params['ext'] = ext
                                             walkon_resolved = True
                                             websocket_logger.info(
                                                 f"[WS NOTICE] WALKON for {user} (id={user_id}): no walkons row; "
-                                                f"using legacy file {walkon_file_path}"
+                                                f"using legacy CDN file {walkon_url}"
                                             )
                                             break
                                     except Exception as e:
-                                        websocket_logger.error(f"[WS NOTICE] Error checking walkon file {walkon_file_path}: {e}")
+                                        websocket_logger.error(f"[WS NOTICE] Error checking walkon URL {walkon_url}: {e}")
                                 if walkon_resolved:
                                     break
                         if walkon_media_file:
@@ -16278,28 +16305,28 @@ async def websocket_notice(
                             )
                             return
                     else:
-                        # Legacy: probe the WEB host for /var/www/walkons/{channel}/{user}.{ext}
+                        # Legacy: probe public walkons CDN (no SSH)
                         for _stem in _walkon_stems:
                             for ext in ['.mp3', '.mp4']:
-                                walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{_stem}{ext}"
+                                walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{_stem}{ext}"
                                 try:
-                                    if await ssh_manager.file_exists('WEB', walkon_file_path):
+                                    if await http_public_file_exists(walkon_url, session):
                                         params['channel'] = CHANNEL_NAME
                                         params['user'] = _stem
                                         params['ext'] = ext
                                         walkon_resolved = True
                                         websocket_logger.info(
-                                            f"[WS NOTICE] WALKON triggered for {user}: found file {walkon_file_path} on WEB server"
+                                            f"[WS NOTICE] WALKON triggered for {user}: found CDN file {walkon_url}"
                                         )
                                         break
                                 except Exception as e:
-                                    websocket_logger.error(f"[WS NOTICE] Error checking walkon file {walkon_file_path} on WEB server: {e}")
+                                    websocket_logger.error(f"[WS NOTICE] Error checking walkon URL {walkon_url}: {e}")
                             if walkon_resolved:
                                 break
                         if not walkon_resolved:
                             websocket_logger.info(
-                                f"[WS NOTICE] WALKON skipped for {user}: no walk-on file in "
-                                f"/var/www/walkons/{CHANNEL_NAME}/"
+                                f"[WS NOTICE] WALKON skipped for {user}: no walk-on file on "
+                                f"walkons.botofthespecter.com/{CHANNEL_NAME}/"
                             )
                             return
                 elif event == "DEATHS" and death and game:

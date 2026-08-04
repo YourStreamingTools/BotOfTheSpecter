@@ -162,8 +162,10 @@ class BotOfTheSpecter_WebsocketServer:
 
     def setup_routes(self):
         # Set up the routes for the web application.
+        self._process_started_at = datetime.now(timezone.utc)
         self.app.add_routes([
             web.get("/", self.index),
+            web.get("/health", self.health_http),
             web.get("/notify", self.notify_http),
             web.get("/system-update", self.system_update_http),
             web.get("/heartbeat", self.heartbeat),
@@ -1140,6 +1142,19 @@ class BotOfTheSpecter_WebsocketServer:
         response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
+
+    async def health_http(self, request):
+        """Public liveness + uptime for the API system/uptime endpoint (no SSH)."""
+        started = getattr(self, "_process_started_at", None) or datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        uptime_seconds = max(0, int((now - started).total_seconds()))
+        return web.json_response({
+            "ok": True,
+            "service": "websocket",
+            "started_at": started.strftime("%Y-%m-%d %H:%M:%S"),
+            "started_at_utc": started.isoformat(),
+            "uptime_seconds": uptime_seconds,
+        })
 
     async def list_clients(self, request):
         # List the registered clients and global listeners.

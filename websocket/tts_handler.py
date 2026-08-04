@@ -2,6 +2,7 @@ import os
 import uuid
 import json
 import asyncio
+import shutil
 import subprocess
 import aiohttp
 
@@ -18,7 +19,10 @@ class TTSHandler:
         self.sio = sio
         self.get_clients = get_clients
         self.tts_dir = "/home/botofthespecter/tts"
+        # Prefer writing directly into the web-served TTS tree (shared mount / same host).
+        # Env TTS_PUBLISH_DIR overrides; falls back to config remote_paths.tts_directory when local.
         self.tts_config = self.load_tts_config()
+        self.publish_dir = self._resolve_publish_dir()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
         self.openai_api_key = os.getenv('OPENAI_KEY')
@@ -28,23 +32,38 @@ class TTSHandler:
         self.default_voice = DEFAULT_VOICE
         self.available_voices = AVAILABLE_VOICES
 
+    def _resolve_publish_dir(self):
+        env_dir = (os.getenv("TTS_PUBLISH_DIR") or "").strip()
+        if env_dir:
+            return env_dir
+        if self.tts_config:
+            remote = (self.tts_config.get("remote_paths") or {}).get("tts_directory")
+            if remote and os.path.isdir(remote):
+                return remote
+            # Common production path for tts.botofthespecter.com
+            if os.path.isdir("/var/www/tts"):
+                return "/var/www/tts"
+        return None
+
     def load_tts_config(self):
         config_path = "/home/botofthespecter/websocket_tts_config.json"
         try:
             # Load base config from JSON file
             with open(config_path, 'r') as f:
                 config = json.load(f)
-            # Inject SSH credentials from environment variables
+            # SSH is optional when TTS_PUBLISH_DIR (or a local mount) is available
             ssh_username = os.getenv('SSH_USERNAME')
             ssh_password = os.getenv('SSH_PASSWORD')
-            if not ssh_username or not ssh_password:
-                self.logger.error("SSH_USERNAME or SSH_PASSWORD environment variables not set")
-                return None
-            # Update SSH config with credentials if ssh_config exists
-            if 'ssh_config' in config:
+            if 'ssh_config' in config and ssh_username and ssh_password:
                 config['ssh_config']['username'] = ssh_username
                 config['ssh_config']['password'] = ssh_password
-                self.logger.info(f"TTS configuration loaded successfully with SSH credentials for user: {ssh_username}")
+                self.logger.info(
+                    f"TTS configuration loaded (SSH available for fallback user={ssh_username})"
+                )
+            elif 'ssh_config' in config:
+                self.logger.warning(
+                    "TTS SSH credentials not set — will use local TTS_PUBLISH_DIR / mount if available"
+                )
             else:
                 self.logger.warning("ssh_config not found in TTS config file")
             return config
@@ -288,8 +307,19 @@ class TTSHandler:
             self.logger.error(f"Error cleaning up TTS file {file_path}: {e}")
 
     async def cleanup_remote_tts_file(self, filename):
+        # Prefer local publish dir (no SSH)
+        if self.publish_dir:
+            path = os.path.join(self.publish_dir, filename)
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+                    self.logger.info(f"Deleted published TTS file: {path}")
+                    return
+            except OSError as e:
+                self.logger.warning(f"Local TTS cleanup failed for {path}: {e}")
         if not self.tts_config or not self.tts_config.get('ssh_config'):
-            self.logger.warning("No SSH config available for remote cleanup")
+            return
+        if not self.tts_config['ssh_config'].get('username'):
             return
         try:
             conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
@@ -305,8 +335,35 @@ class TTSHandler:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
 
     async def move_file_to_remote(self, local_file_path, remote_filename):
+        # 1) Local / shared mount publish (preferred — no SSH)
+        publish_dir = self.publish_dir
+        if not publish_dir and self.tts_config:
+            candidate = (self.tts_config.get("remote_paths") or {}).get("tts_directory")
+            if candidate and os.path.isdir(os.path.dirname(candidate.rstrip("/") + "/")):
+                # If parent exists, create target
+                try:
+                    os.makedirs(candidate, exist_ok=True)
+                    publish_dir = candidate
+                    self.publish_dir = candidate
+                except OSError:
+                    pass
+        if publish_dir:
+            try:
+                os.makedirs(publish_dir, exist_ok=True)
+                dest = os.path.join(publish_dir, remote_filename)
+                await asyncio.to_thread(shutil.copy2, local_file_path, dest)
+                self.logger.info(f"TTS published locally (no SSH): {dest}")
+                return dest
+            except Exception as e:
+                self.logger.error(f"Local TTS publish failed ({publish_dir}): {e}")
+                # fall through to SSH if configured
+
+        # 2) SSH/SFTP fallback
         if not self.tts_config or not self.tts_config.get('ssh_config'):
-            self.logger.warning("No SSH config available for file transfer")
+            self.logger.warning("No local TTS publish dir and no SSH config for file transfer")
+            return None
+        if not self.tts_config['ssh_config'].get('username'):
+            self.logger.warning("SSH username missing — cannot transfer TTS file")
             return None
         try:
             conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
@@ -320,7 +377,7 @@ class TTSHandler:
                 self.logger.info(f"File ownership set successfully")
             else:
                 self.logger.warning(f"Failed to set ownership: {result.stderr.strip()}")
-            self.logger.info(f"File transferred successfully: {remote_file_path}")
+            self.logger.info(f"File transferred successfully via SSH: {remote_file_path}")
             return remote_file_path
         except Exception as e:
             self.logger.error(f"Error transferring file {local_file_path}: {e}")

@@ -1764,6 +1764,33 @@ class SSHConnectionManager:
                 self._cleanup_connection(server_name)
             self.logger.info("All SSH connections closed")
 
+
+async def http_public_file_exists(url: str, session=None) -> bool:
+    """Check a public CDN URL with HEAD (then ranged GET). Avoids SSH to WEB."""
+    close = False
+    try:
+        if session is None:
+            session = httpClientSession()
+            close = True
+        timeout = ClientTimeout(total=5)
+        try:
+            async with session.head(url, timeout=timeout, allow_redirects=True) as resp:
+                if resp.status == 200:
+                    return True
+                if resp.status == 404:
+                    return False
+        except Exception:
+            pass
+        headers = {"Range": "bytes=0-0"}
+        async with session.get(url, timeout=timeout, allow_redirects=True, headers=headers) as resp:
+            return resp.status in (200, 206)
+    except Exception:
+        return False
+    finally:
+        if close:
+            await session.close()
+
+
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -8884,21 +8911,24 @@ async def websocket_notice(
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
                     found = False
-                    # Check for supported walkon file types (audio and video) on WEB server via SSH
+                    # Probe public walkons CDN (no SSH)
                     for ext in ['.mp3', '.mp4']:
-                        walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
+                        walkon_url = f"https://walkons.botofthespecter.com/{CHANNEL_NAME}/{user}{ext}"
                         try:
-                            if await ssh_manager.file_exists('WEB', walkon_file_path):
+                            if await http_public_file_exists(walkon_url, session):
                                 params['channel'] = CHANNEL_NAME
                                 params['user'] = user
                                 params['ext'] = ext
-                                websocket_logger.info(f"WALKON triggered for {user}: found file {walkon_file_path} on WEB server")
+                                websocket_logger.info(f"WALKON triggered for {user}: found CDN file {walkon_url}")
                                 found = True
                                 break
                         except Exception as e:
-                            websocket_logger.error(f"Error checking walkon file {walkon_file_path} on WEB server: {e}")
+                            websocket_logger.error(f"Error checking walkon URL {walkon_url}: {e}")
                     if not found:
-                        websocket_logger.warning(f"WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
+                        websocket_logger.warning(
+                            f"WALKON triggered for {user}, but no walk-on file on "
+                            f"walkons.botofthespecter.com/{CHANNEL_NAME}/"
+                        )
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game

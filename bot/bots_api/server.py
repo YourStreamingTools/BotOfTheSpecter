@@ -9,13 +9,15 @@ Create a key with service name:  bots
 (super-admin service "admin" is also accepted)
 
 Public surface (behind TLS at bots.botofthespecter.com):
-  GET  /health
+  GET  /health  (ok, started_at, uptime_seconds — no auth)
   GET  /api/running_bots
   GET  /api/running_bots/snapshot  (durable last-seen inventory for crash recovery)
   GET  /api/bot/status?channel=&bot_type=  (includes script_mtime / last_run_mtime)
+  GET  /api/online/{channel}  (stream online marker file True/False)
   POST /api/bot/start
   POST /api/bot/stop
   POST /api/bot/restart
+  POST /api/ops/run_script  (allowlisted token-refresh scripts only)
 
 Auth: header X-API-KEY (or X-BOTS-CONTROL-KEY) must be a row in
 website.admin_api_keys with service "bots" or "admin".
@@ -27,6 +29,7 @@ import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 import aiomysql
@@ -37,8 +40,10 @@ from pydantic import BaseModel, Field
 from manager import (
     SNAPSHOT_INTERVAL_SECONDS,
     list_running_bots,
+    read_online_marker,
     refresh_running_snapshot,
     restart_bot,
+    run_allowlisted_script,
     snapshot_view,
     start_bot,
     status_for_channel,
@@ -68,6 +73,7 @@ PORT = int(os.getenv("BOTS_API_PORT", "8090"))
 
 _pool: aiomysql.Pool | None = None
 _snapshot_task: asyncio.Task | None = None
+_process_started_at = datetime.now(timezone.utc)
 
 
 async def _snapshot_loop() -> None:
@@ -208,9 +214,48 @@ class StopBody(BaseModel):
     bot_type: str = "stable"
 
 
+class RunScriptBody(BaseModel):
+    """Allowlisted ops scripts on the bot host (token refresh, etc.)."""
+    script: str = Field(
+        ...,
+        description="Logical name: refresh_spotify | refresh_streamelements | refresh_discord | refresh_custom_bot",
+    )
+
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return {"ok": True, "service": "bots-control-api"}
+    now = datetime.now(timezone.utc)
+    uptime_seconds = max(0, int((now - _process_started_at).total_seconds()))
+    return {
+        "ok": True,
+        "service": "bots-control-api",
+        "started_at": _process_started_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "started_at_utc": _process_started_at.isoformat(),
+        "uptime_seconds": uptime_seconds,
+    }
+
+
+@app.get("/api/online/{channel}", dependencies=[Depends(require_control_key)])
+async def api_online_marker(channel: str) -> dict[str, Any]:
+    """Read stream online marker written by the bot (logs/online/{channel}.txt)."""
+    value = await asyncio.to_thread(read_online_marker, channel)
+    return {
+        "channel": channel.lower().strip(),
+        "online": value,  # "True" | "False" | None
+        "known": value is not None,
+    }
+
+
+@app.post("/api/ops/run_script", dependencies=[Depends(require_control_key)])
+async def api_run_script(body: RunScriptBody) -> dict[str, Any]:
+    """Run an allowlisted maintenance script on the bot host (no arbitrary shell)."""
+    result = await run_allowlisted_script(body.script)
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("message") or "script failed",
+        )
+    return result
 
 
 @app.get("/api/running_bots", dependencies=[Depends(require_control_key)])
