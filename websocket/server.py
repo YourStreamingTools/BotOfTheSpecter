@@ -1755,8 +1755,10 @@ class BotOfTheSpecter_WebsocketServer:
         self.stop()
         self.logger.info("Server stopped")
 
-    def run_app(self, host="0.0.0.0", port=443, insecure=False):
+    def run_app(self, host="0.0.0.0", port=443, insecure=False, behind_caddy=False):
         # Run the web application.
+        # Preferred production: behind_caddy=True, host=127.0.0.1, port=8080 + Caddy TLS
+        # (see websocket/Caddyfile + websocket.service). Legacy: in-process LE on :443.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         # Test database connection first
         self.loop = asyncio.new_event_loop()
@@ -1764,6 +1766,11 @@ class BotOfTheSpecter_WebsocketServer:
         db_test_result = self.loop.run_until_complete(self.test_database_connection())
         if not db_test_result:
             self.logger.warning("⚠ Database connection test failed, but server will continue starting...")
+        if behind_caddy:
+            # TLS at Caddy; app is loopback HTTP only (Socket.IO upgrade proxied)
+            self.logger.info(f"Starting WebSocket server on {host}:{port} (HTTP; TLS expected at Caddy)")
+            web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=None, handle_signals=True, shutdown_timeout=10, access_log_class=QuietAccessLogger)
+            return
         # Try to create SSL context
         ssl_context = self.create_ssl_context()
         if ssl_context is not None:
@@ -1781,7 +1788,7 @@ class BotOfTheSpecter_WebsocketServer:
             # can't silently downgrade prod to plain HTTP (which would leak API keys).
             self.logger.error("✗ SSL certificates not found and --insecure not set. Refusing to start in plaintext mode.")
             self.logger.error("  Provide SSL certificates at /etc/letsencrypt/live/websocket.botofthespecter.com/")
-            self.logger.error("  or pass --insecure for development only.")
+            self.logger.error("  or set WS_HOST=127.0.0.1 WS_PORT=8080 behind Caddy, or pass --insecure for development only.")
             sys.exit(1)
 
     def stop(self):
@@ -1835,7 +1842,7 @@ class BotOfTheSpecter_WebsocketServer:
             db_host = os.getenv('SQL_HOST')
             db_user = os.getenv('SQL_USER')
             db_password = os.getenv('SQL_PASSWORD')
-            db_port = os.getenv('SQL_PORT')
+            db_port = os.getenv('SQL_PORT') or '3306'
             # Validate required environment variables
             if not all([db_host, db_user, db_password, db_port]):
                 missing_vars = []
@@ -1927,11 +1934,21 @@ if __name__ == '__main__':
     parser.add_argument("-H", "--host", default="0.0.0.0", help="Specify the listener host. Default is 0.0.0.0")
     parser.add_argument("-p", "--port", default=443, type=int, help="Specify the listener port number. Default is 443")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
-    parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
+    parser.add_argument(
+        "-f",
+        "--logfile",
+        help="Log file path. Default production: /home/botofthespecter/logs/noti_server.log",
+    )
     parser.add_argument("--insecure", action="store_true", help="Allow starting without SSL (DEV ONLY). Without this flag, missing certs cause exit.")
     args = parser.parse_args()
     log_level = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL}[args.loglevel]
-    log_file = args.logfile if args.logfile else os.path.join(SCRIPT_DIR, "noti_server.log")
+    default_log = "/home/botofthespecter/logs/noti_server.log"
+    log_file = args.logfile if args.logfile else default_log
+    try:
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    except OSError:
+        if not args.logfile:
+            log_file = os.path.join(SCRIPT_DIR, "noti_server.log")
     # Create custom formatter with specific date format
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     # Configure file handler with rotation (10 MB per file, 10 backups)
@@ -1949,4 +1966,17 @@ if __name__ == '__main__':
     root_logger.addHandler(console_handler)
     logger = logging.getLogger("specter.websocket")
     server = BotOfTheSpecter_WebsocketServer(logger)
-    server.run_app(host=args.host, port=args.port, insecure=args.insecure)
+    # Preferred production: WS_HOST=127.0.0.1 WS_PORT=8080 + Caddy TLS (websocket.service).
+    # CLI -H/-p still work; env wins when either WS_HOST or WS_PORT is set.
+    env_host = os.getenv("WS_HOST")
+    env_port = os.getenv("WS_PORT")
+    behind_caddy = False
+    if env_host is not None or env_port is not None:
+        host = env_host if env_host is not None else "127.0.0.1"
+        port = int(env_port if env_port is not None else "8080")
+        behind_caddy = True
+        logger.info(f"WS_HOST/WS_PORT set → Caddy mode {host}:{port}")
+    else:
+        host = args.host
+        port = args.port
+    server.run_app(host=host, port=port, insecure=args.insecure, behind_caddy=behind_caddy)

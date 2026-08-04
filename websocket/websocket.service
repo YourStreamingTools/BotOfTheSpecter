@@ -1,0 +1,23 @@
+[Unit]
+Description=BotOfTheSpecter WebSocket server (Socket.IO hub)
+After=network.target mysql.service mariadb.service
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+# App root is the home directory (repo ./websocket/* deploys flat into here).
+WorkingDirectory=/home/botofthespecter
+EnvironmentFile=-/home/botofthespecter/.env
+Environment=WS_HOST=127.0.0.1
+Environment=WS_PORT=8080
+# TLS terminates at Caddy → reverse-proxy (WebSocket upgrade) to 127.0.0.1:8080
+# Public URL: https://websocket.botofthespecter.com / wss://websocket.botofthespecter.com
+# Log: /home/botofthespecter/logs/noti_server.log (admin logs.php)
+ExecStart=/home/botofthespecter/venvs/websocket/bin/python /home/botofthespecter/server.py
+Restart=on-failure
+RestartSec=3
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

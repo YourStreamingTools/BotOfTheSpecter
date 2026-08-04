@@ -559,7 +559,7 @@ if (isset($_GET['admin_system_log_type'])) {
             break;
         case 'websocket':
             // WebSocket server log (use WebSocket server SSH)
-            $logPath = "/home/botofthespecter/noti_server.log";
+            $logPath = "/home/botofthespecter/logs/noti_server.log";
             $result = read_websocket_log_over_ssh($logPath);
             break;
         case 'mysql-error':
