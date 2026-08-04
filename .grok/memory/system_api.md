@@ -7,7 +7,7 @@ type: project
 # BotOfTheSpecter API Server - Complete Architecture
 
 ## Overview
-FastAPI-based HTTPS server (port 443) serving as the central data backbone for BotOfTheSpecter. Handles authentication, user data access, webhook processing, command management, and triggering real-time events on the WebSocket server.
+FastAPI-based HTTP API (public TLS at Caddy) serving as the central data backbone for BotOfTheSpecter. Handles authentication, user data access, webhook processing, command management, and triggering real-time events on the WebSocket server.
 
 **Key Features**: Dual-auth system (v1 query param, v2 header), per-user databases, IP whitelisting, rate limiting, token caching, API counting with daily/monthly resets
 
@@ -16,9 +16,10 @@ FastAPI-based HTTPS server (port 443) serving as the central data backbone for B
 **Configuration**:
 - Title: BotOfTheSpecter
 - Version: 1.0.0
-- Port: 443 (HTTPS only)
-- SSL: Let's Encrypt certificates at `/etc/letsencrypt/live/api.botofthespecter.com/`
-- Docs: `/v2/docs`, `/v2/redoc`, `/v2/openapi.json` (V1 endpoints also available)
+- Preferred edge: **Caddy** TLS → `127.0.0.1:8080` (`API_HOST` / `API_PORT`); unit `fastapi.service`; see `./api/Caddyfile` + `./api/README.md`
+- Legacy/emergency: optional `API_SSL_CERTFILE` / `API_SSL_KEYFILE` in-process TLS
+- Health: `GET /health` (`ok`, `service`, `started_at`, `started_at_utc`, `uptime_seconds`) — same contract as bots/websocket
+- Docs: themed explorer at `/docs` / `/v2/docs` (`./api/docs_ui/`); schemas `/openapi.json`, `/v2/openapi.json`
 
 **Middleware Stack**:
 - **CORS**: Fully permissive (all origins, methods, headers, credentials)

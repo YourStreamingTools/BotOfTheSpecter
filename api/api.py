@@ -27,11 +27,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 import uvicorn
 import aioping
 import asyncssh
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from starlette.responses import Response
 from pydantic import BaseModel, Field
@@ -42,6 +43,10 @@ from urllib.parse import urlencode, parse_qsl, quote
 from contextlib import asynccontextmanager
 import math
 import ipaddress
+
+# Co-located themed docs SPA (./api/docs_ui/)
+_API_DIR = Path(__file__).resolve().parent
+_DOCS_UI_DIR = _API_DIR / "docs_ui"
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/botofthespecter/.env"))
@@ -529,6 +534,16 @@ async def _get_user_custom_bot_params(user_id: str, twitch_user_id: str, use_cus
 
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
+
+def _client_ip(request: Request) -> str:
+    # Trust X-Forwarded-For / X-Real-IP only when the peer is loopback (Caddy).
+    peer = request.client.host if request.client else "127.0.0.1"
+    if peer in ("127.0.0.1", "::1"):
+        xff = request.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[0].strip() or peer
+        return (request.headers.get("X-Real-IP") or peer).strip()
+    return peer
 
 # In-memory per-IP timestamp store for /system/uptime rate limiting
 _uptime_requests = {}  # ip -> last_request_epoch_seconds
@@ -1066,87 +1081,44 @@ def build_v2_openapi_schema():
 
 @app.get("/docs", include_in_schema=False)
 @app.get("/v1/docs", include_in_schema=False)
-async def docs_v1_redirect():
-    resp = get_swagger_ui_html(
-        openapi_url="/openapi.json",
-        title=f"{app.title} - v1 Docs",
-        swagger_ui_parameters={"defaultModelsExpandDepth": -1},
-    )
-    try:
-        body = resp.body.decode("utf-8")
-    except Exception:
-        return resp
-    insert_html = (
-        '<div style="padding:8px 16px;text-align:right;background:#fafafa;border-bottom:1px solid #eee;">'
-        '<a href="/v2/docs" style="display:inline-block;padding:6px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#111;text-decoration:none;font-weight:600;">Switch to V2</a>'
-        '</div>'
-    )
-    if "<body" in body:
-        body = body.replace("<body>", "<body>" + insert_html, 1)
-    else:
-        body = insert_html + body
-    resp.body = body.encode("utf-8")
-    resp.headers["content-length"] = str(len(resp.body))
-    return resp
+@app.get("/v2/docs", include_in_schema=False)
+async def themed_docs():
+    # Custom dark explorer (./api/docs_ui); V1/V2 switch is in the SPA.
+    index = _DOCS_UI_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=500, detail="Docs UI not installed")
+    return FileResponse(index)
 
 @app.get("/v1/openapi.json", include_in_schema=False)
 async def openapi_v1_redirect():
     return RedirectResponse(url="/openapi.json")
 
 @app.get("/v1/redoc", include_in_schema=False)
-async def redoc_v1_redirect():
+@app.get("/v2/redoc", include_in_schema=False)
+async def redoc_to_docs():
     return RedirectResponse(url="/docs")
 
 @app.get("/v2/openapi.json", include_in_schema=False)
 async def openapi_v2():
     return JSONResponse(content=build_v2_openapi_schema())
 
-@app.get("/v2/docs", include_in_schema=False)
-async def docs_v2():
-    resp = get_swagger_ui_html(
-        openapi_url="/v2/openapi.json",
-        title=f"{app.title} - v2 Docs",
-        swagger_ui_parameters={"defaultModelsExpandDepth": -1},
-    )
-    try:
-        body = resp.body.decode("utf-8")
-    except Exception:
-        return resp
-    insert_html = (
-        '<div style="padding:8px 16px;text-align:right;background:#fafafa;border-bottom:1px solid #eee;">'
-        '<a href="/v1/docs" style="display:inline-block;padding:6px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#111;text-decoration:none;font-weight:600;">Switch back to V1</a>'
-        '</div>'
-    )
-    if "<body" in body:
-        body = body.replace("<body>", "<body>" + insert_html, 1)
-    else:
-        body = insert_html + body
-    resp.body = body.encode("utf-8")
-    resp.headers["content-length"] = str(len(resp.body))
-    return resp
+@app.get("/health", include_in_schema=False)
+async def health():
+    # Same contract as bots_api / websocket: ok, service, started_at, uptime_seconds.
+    now = datetime.now()
+    uptime_seconds = max(0, int((now - _process_start_time).total_seconds()))
+    started_at = _process_start_time.strftime("%Y-%m-%d %H:%M:%S")
+    started_utc = datetime.now(timezone.utc) - timedelta(seconds=uptime_seconds)
+    return {
+        "ok": True,
+        "service": "api",
+        "started_at": started_at,
+        "started_at_utc": started_utc.isoformat(),
+        "uptime_seconds": uptime_seconds,
+    }
 
-@app.get("/v2/redoc", include_in_schema=False)
-async def redoc_v2():
-    resp = get_redoc_html(
-        openapi_url="/v2/openapi.json",
-        title=f"{app.title} - v2 ReDoc",
-    )
-    try:
-        body = resp.body.decode("utf-8")
-    except Exception:
-        return resp
-    insert_html = (
-        '<div style="padding:8px 16px;text-align:right;background:#fafafa;border-bottom:1px solid #eee;">'
-        '<a href="/v1/docs" style="display:inline-block;padding:6px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#111;text-decoration:none;font-weight:600;">Switch back to V1</a>'
-        '</div>'
-    )
-    if "<body" in body:
-        body = body.replace("<body>", "<body>" + insert_html, 1)
-    else:
-        body = insert_html + body
-    resp.body = body.encode("utf-8")
-    resp.headers["content-length"] = str(len(resp.body))
-    return resp
+if _DOCS_UI_DIR.is_dir():
+    app.mount("/docs-static", StaticFiles(directory=str(_DOCS_UI_DIR)), name="docs_static")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -2779,15 +2751,17 @@ async def database_heartbeat():
     operation_id="get_system_uptime"
 )
 async def system_uptime(request: Request):
-    for spoof_header in ('X-Forwarded-For', 'X-Real-IP'):
-        if spoof_header in request.headers:
-            peer = request.client.host if request.client else 'unknown'
-            logging.warning(
-                f"Rejected {request.url.path} from {peer} - "
-                f"unexpected {spoof_header}: {request.headers[spoof_header]}"
-            )
-            raise HTTPException(status_code=403, detail="Access Forbidden")
-    client_ip = request.client.host if request.client else '127.0.0.1'
+    # Behind Caddy, X-Forwarded-For is set by the proxy; only trust it from loopback (see _client_ip).
+    peer = request.client.host if request.client else "unknown"
+    if peer not in ("127.0.0.1", "::1"):
+        for spoof_header in ("X-Forwarded-For", "X-Real-IP"):
+            if spoof_header in request.headers:
+                logging.warning(
+                    f"Rejected {request.url.path} from {peer} - "
+                    f"unexpected {spoof_header}: {request.headers[spoof_header]}"
+                )
+                raise HTTPException(status_code=403, detail="Access Forbidden")
+    client_ip = _client_ip(request)
     # Whitelisted IPs are exempt from throttling
     try:
         whitelisted = _is_ip_allowed(client_ip)
@@ -7276,14 +7250,39 @@ async def favicon():
     return "https://cdn.botofthespecter.com/favicon.ico"
 
 if __name__ == "__main__":
-    # Use Let's Encrypt certificates only
-    ssl_cert_path = "/etc/letsencrypt/live/api.botofthespecter.com/fullchain.pem"
-    ssl_key_path = "/etc/letsencrypt/live/api.botofthespecter.com/privkey.pem"
-    logging.info(f"Using SSL certificates: {ssl_cert_path}")
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=443,
-        ssl_certfile=ssl_cert_path,
-        ssl_keyfile=ssl_key_path
-    )
+    # Preferred production: API_HOST=127.0.0.1 API_PORT=8080 + Caddy TLS (see api/README.md).
+    # Auto-fallback: if env unset and legacy LE certs exist, keep old 0.0.0.0:443 + in-process TLS.
+    env_host = os.getenv("API_HOST")
+    env_port = os.getenv("API_PORT")
+    ssl_cert = (os.getenv("API_SSL_CERTFILE") or "").strip()
+    ssl_key = (os.getenv("API_SSL_KEYFILE") or "").strip()
+    legacy_cert = "/etc/letsencrypt/live/api.botofthespecter.com/fullchain.pem"
+    legacy_key = "/etc/letsencrypt/live/api.botofthespecter.com/privkey.pem"
+    if env_host is None and env_port is None and not ssl_cert and not ssl_key:
+        if os.path.isfile(legacy_cert) and os.path.isfile(legacy_key):
+            host, port = "0.0.0.0", 443
+            ssl_cert, ssl_key = legacy_cert, legacy_key
+            logging.info("No API_HOST/PORT set; using legacy in-process TLS on 0.0.0.0:443")
+        else:
+            host, port = "127.0.0.1", 8080
+    else:
+        host = env_host or "127.0.0.1"
+        port = int(env_port or "8080")
+    if ssl_cert and ssl_key and not (os.path.isfile(ssl_cert) and os.path.isfile(ssl_key)):
+        logging.warning(f"SSL cert/key missing ({ssl_cert}); starting without TLS")
+        ssl_cert, ssl_key = "", ""
+    forwarded = (os.getenv("API_FORWARDED_ALLOW_IPS") or "127.0.0.1").strip()
+    run_kwargs = {
+        "app": app,
+        "host": host,
+        "port": port,
+        "proxy_headers": True,
+        "forwarded_allow_ips": forwarded,
+    }
+    if ssl_cert and ssl_key:
+        run_kwargs["ssl_certfile"] = ssl_cert
+        run_kwargs["ssl_keyfile"] = ssl_key
+        logging.info(f"Starting API on {host}:{port} with TLS cert {ssl_cert}")
+    else:
+        logging.info(f"Starting API on {host}:{port} (HTTP; TLS expected at Caddy)")
+    uvicorn.run(**run_kwargs)

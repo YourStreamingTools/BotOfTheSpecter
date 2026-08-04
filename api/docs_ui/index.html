@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BotOfTheSpecter API Docs</title>
+    <link rel="icon" href="https://cdn.botofthespecter.com/favicon.ico">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
+    <link rel="stylesheet" href="/docs-static/css/docs.css">
+</head>
+<body>
+    <div class="docs-shell">
+        <header class="docs-topbar">
+            <button type="button" class="docs-hamburger" id="docs-hamburger" aria-label="Open menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <a class="docs-brand" href="/docs">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="">
+                <span id="docs-brand-title">API Docs</span>
+            </a>
+            <span class="docs-topbar-title" id="docs-subtitle">BotOfTheSpecter</span>
+            <div class="docs-topbar-spacer"></div>
+            <div class="docs-topbar-actions">
+                <div class="docs-version-toggle" id="docs-version-toggle" hidden></div>
+                <input class="sp-input" id="docs-api-key" type="password" autocomplete="off"
+                       placeholder="API key (optional)" style="width: min(220px, 40vw);" title="Stored in sessionStorage only">
+            </div>
+        </header>
+
+        <div class="docs-body">
+            <aside class="docs-sidebar" id="docs-sidebar">
+                <div class="docs-sidebar-search">
+                    <input class="sp-input" id="docs-search" type="search" placeholder="Search endpoints…" autocomplete="off">
+                </div>
+                <nav class="docs-sidebar-nav" id="docs-nav">
+                    <div class="docs-loading">Loading…</div>
+                </nav>
+            </aside>
+            <div class="docs-overlay" id="docs-overlay"></div>
+            <main class="docs-main">
+                <div id="docs-banner" class="sp-alert sp-alert-info" hidden style="margin-bottom:16px;"></div>
+                <div id="docs-main">
+                    <div class="docs-loading">Loading API explorer…</div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        window.SPECTER_DOCS_CONFIG = {
+            title: "API Docs",
+            subtitle: "BotOfTheSpecter",
+            defaultVersion: "v2",
+            storageKey: "specter_product_api_docs_key",
+            versions: [
+                { id: "v2", label: "V2", openapiUrl: "/v2/openapi.json", authMode: "header" },
+                { id: "v1", label: "V1", openapiUrl: "/openapi.json", authMode: "query" }
+            ],
+            bannerHtml: "V2 authenticated routes use the <strong>X-API-KEY</strong> header. V1 accepts <code class=\"docs-code\">?api_key=</code> on legacy paths. Public and webhook routes do not require a key."
+        };
+    </script>
+    <script src="/docs-static/js/openapi.js"></script>
+    <script src="/docs-static/js/app.js"></script>
+</body>
+</html>

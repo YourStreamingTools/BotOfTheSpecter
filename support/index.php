@@ -343,9 +343,9 @@ ob_start();
                     </ul>
                     <p style="margin-top:0.5rem;margin-bottom:0;">
                         API Docs:
-                        <a href="https://api.botofthespecter.com/docs#/Commands/credit_user_points" target="_blank" rel="noopener">credit_user_points</a>
+                        <a href="https://api.botofthespecter.com/docs?v=1&amp;op=POST%20/user-points/credit" target="_blank" rel="noopener">credit_user_points</a>
                         |
-                        <a href="https://api.botofthespecter.com/docs#/Commands/debit_user_points" target="_blank" rel="noopener">debit_user_points</a>
+                        <a href="https://api.botofthespecter.com/docs?v=1&amp;op=POST%20/user-points/debit" target="_blank" rel="noopener">debit_user_points</a>
                     </p>
                 </div>
             </div>
@@ -2290,7 +2290,7 @@ System.out.println(resp.body());</code></pre>
     <div class="sp-alert sp-alert-info" style="margin-top:1.25rem;">
         <i class="fa-solid fa-book"></i>
         <div>
-            Interactive OpenAPI docs:
+            Interactive API explorer:
             <a href="https://api.botofthespecter.com/docs" target="_blank" rel="noopener">api.botofthespecter.com/docs</a>
             ·
             <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">v2 docs</a>
@@ -3182,7 +3182,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I use the BotOfTheSpecter API?</div>
-        <div class="sp-faq-a">Get your API key from Dashboard → Profile, send it as <code>X-API-KEY</code> on <code>/v2/</code> routes, and see the <a href="#" data-goto="api">Custom API</a> guide for endpoints and code samples. Full OpenAPI: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">api.botofthespecter.com/v2/docs</a>.</div>
+        <div class="sp-faq-a">Get your API key from Dashboard → Profile, send it as <code>X-API-KEY</code> on <code>/v2/</code> routes, and see the <a href="#" data-goto="api">Custom API</a> guide for endpoints and code samples. Full API explorer: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">api.botofthespecter.com/v2/docs</a>.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">Can I self-host BotOfTheSpecter?</div>
