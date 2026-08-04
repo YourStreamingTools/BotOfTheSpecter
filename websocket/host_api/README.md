@@ -32,9 +32,18 @@ Allowlisted units: `websocket`, `caddy`, `websocket-control`.
 2. Copy `host_api/` to `/home/botofthespecter/host_api/` on the WS host.
 3. `pip install -r host_api/requirements.txt` into `venvs/websocket` (or shared venv).
 4. Install `websocket-control.service` → systemd enable/start.
-5. Update Caddyfile (path `/control/*`) and reload Caddy.
-6. Passwordless sudo for `systemctl` if the service runs as `botofthespecter`.
-7. Deploy PHP config + client; admin UI uses HTTP for `websocket.service`.
+5. Update Caddyfile (`/etc/caddy/Caddyfile` from `./websocket/Caddyfile`) and reload Caddy.
+6. **Docs CSS/JS:** Caddy `file_server` cannot reliably read `/home/botofthespecter` (home is often `700` → HTTP 403). Publish assets:
+
+   ```bash
+   sudo mkdir -p /var/www/websocket-control-docs
+   sudo rsync -a --delete /home/botofthespecter/host_api/docs_ui/ /var/www/websocket-control-docs/
+   sudo chown -R caddy:caddy /var/www/websocket-control-docs   # or root:root with o+rX
+   ```
+
+   Public URL: `/control/docs-static/*` → that directory.
+7. Passwordless sudo for `systemctl` if the service runs as `botofthespecter`.
+8. Deploy PHP config + client; admin UI uses HTTP for `websocket.service`.
 
 ## Config (PHP)
 

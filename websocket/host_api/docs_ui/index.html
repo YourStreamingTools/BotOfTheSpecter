@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WebSocket Host Control API Docs</title>
+    <link rel="icon" href="https://cdn.botofthespecter.com/favicon.ico">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
+    <!-- Prefixed for Caddy handle_path /control/* -->
+    <link rel="stylesheet" href="/control/docs-static/css/docs.css">
+</head>
+<body>
+    <div class="docs-shell">
+        <header class="docs-topbar">
+            <button type="button" class="docs-hamburger" id="docs-hamburger" aria-label="Open menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <a class="docs-brand" href="/control/docs">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt=""
+                     width="28" height="28"
+                     style="width:28px;height:28px;border-radius:6px;object-fit:contain;flex-shrink:0;">
+                <span id="docs-brand-title">WebSocket Host Control</span>
+            </a>
+            <span class="docs-topbar-title" id="docs-subtitle">Private operator API</span>
+            <div class="docs-topbar-spacer"></div>
+            <div class="docs-topbar-actions">
+                <div class="docs-version-toggle" id="docs-version-toggle" hidden></div>
+                <input class="sp-input" id="docs-api-key" type="password" autocomplete="off"
+                       placeholder="Admin key" style="width: min(220px, 40vw);" title="Stored in sessionStorage only">
+            </div>
+        </header>
+
+        <div class="docs-body">
+            <aside class="docs-sidebar" id="docs-sidebar">
+                <div class="docs-sidebar-search">
+                    <input class="sp-input" id="docs-search" type="search" placeholder="Search endpoints…" autocomplete="off">
+                </div>
+                <nav class="docs-sidebar-nav" id="docs-nav">
+                    <div class="docs-loading">Loading…</div>
+                </nav>
+            </aside>
+            <div class="docs-overlay" id="docs-overlay"></div>
+            <main class="docs-main">
+                <div id="docs-banner" class="sp-alert sp-alert-warning" hidden style="margin-bottom:16px;"></div>
+                <div id="docs-main">
+                    <div class="docs-loading">Loading API explorer…</div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        window.SPECTER_DOCS_CONFIG = {
+            title: "WebSocket Host Control API",
+            subtitle: "Private operator API",
+            defaultVersion: "v1",
+            storageKey: "specter_ws_host_api_docs_key",
+            versions: [
+                {
+                    id: "v1",
+                    label: "Control",
+                    openapiUrl: "/control/openapi.json",
+                    authMode: "bots"
+                }
+            ],
+            bannerHtml: "Private control plane for the <strong>WebSocket host</strong> — not for streamer user keys. Use an admin key with <code class=\"docs-code\">service=websocket</code> or <code class=\"docs-code\">admin</code> via <code class=\"docs-code\">X-API-KEY</code> (or <code class=\"docs-code\">X-WS-CONTROL-KEY</code>). Allowlisted units: <code class=\"docs-code\">websocket</code>, <code class=\"docs-code\">caddy</code>, <code class=\"docs-code\">websocket-control</code>."
+        };
+    </script>
+    <script src="/control/docs-static/js/openapi.js"></script>
+    <script src="/control/docs-static/js/app.js"></script>
+</body>
+</html>

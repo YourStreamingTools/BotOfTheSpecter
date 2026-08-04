@@ -28,7 +28,6 @@ import aiomysql
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from manager import ALLOWED_UNITS, control_unit, list_services, unit_status
@@ -83,6 +82,19 @@ async def lifespan(_app: FastAPI):
             WS_ADMIN_SERVICE,
             "yes" if ENV_FALLBACK_KEY else "no",
         )
+    css = _DOCS_UI_DIR / "css" / "docs.css"
+    js_app = _DOCS_UI_DIR / "js" / "app.js"
+    log.info(
+        "docs_ui path=%s index=%s css=%s js=%s",
+        _DOCS_UI_DIR,
+        (_DOCS_UI_DIR / "index.html").is_file(),
+        css.is_file(),
+        js_app.is_file(),
+    )
+    if not css.is_file() or not js_app.is_file():
+        log.warning(
+            "docs_ui incomplete — upload full host_api/docs_ui/ (css/ + js/) or /control/docs assets 404"
+        )
     yield
     if _pool is not None:
         _pool.close()
@@ -104,6 +116,19 @@ app = FastAPI(
 )
 
 
+def _docs_asset(rel: str) -> Path | None:
+    """Resolve a path under docs_ui; None if missing or path-escape attempt."""
+    if not rel or ".." in Path(rel).parts:
+        return None
+    base = _DOCS_UI_DIR.resolve()
+    target = (base / rel).resolve()
+    try:
+        target.relative_to(base)
+    except ValueError:
+        return None
+    return target if target.is_file() else None
+
+
 @app.get("/", include_in_schema=False)
 async def root_to_docs():
     # Relative so public /control/ → /control/docs and local :8093/ → /docs
@@ -112,14 +137,42 @@ async def root_to_docs():
 
 @app.get("/docs", include_in_schema=False)
 async def themed_docs():
-    index = _DOCS_UI_DIR / "index.html"
-    if not index.is_file():
-        raise HTTPException(status_code=500, detail="Docs UI not installed")
+    index = _docs_asset("index.html")
+    if index is None:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Docs UI not installed (expected {_DOCS_UI_DIR / 'index.html'})",
+        )
     return FileResponse(index)
 
 
-if _DOCS_UI_DIR.is_dir():
-    app.mount("/docs-static", StaticFiles(directory=str(_DOCS_UI_DIR)), name="docs_static")
+@app.get("/docs-static/{asset_path:path}", include_in_schema=False)
+async def themed_docs_static(asset_path: str):
+    """Serve explorer CSS/JS when hit on :8093 directly (prod prefers Caddy file_server)."""
+    file_path = _docs_asset(asset_path)
+    if file_path is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Docs asset not found: {asset_path!r} under {_DOCS_UI_DIR}",
+        )
+    return FileResponse(file_path)
+
+
+@app.get("/api/docs-assets", include_in_schema=False)
+async def docs_assets_debug() -> dict[str, Any]:
+    """Operator check: which docs_ui files the process can see (no auth)."""
+    names = ["index.html", "css/docs.css", "js/app.js", "js/openapi.js"]
+    return {
+        "docs_ui_dir": str(_DOCS_UI_DIR),
+        "docs_ui_dir_exists": _DOCS_UI_DIR.is_dir(),
+        "files": {
+            n: {
+                "ok": _docs_asset(n) is not None,
+                "path": str(_DOCS_UI_DIR / n),
+            }
+            for n in names
+        },
+    }
 
 
 async def _admin_key_allowed(api_key: str) -> bool:
