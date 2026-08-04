@@ -110,7 +110,7 @@ class TaskCursorWrapper:
             query = query.replace("user_tasks", "streamer_tasks")
         return await self.cursor.execute(query, params)
 
-VERSION = "6.0.2"
+VERSION = "6.0"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
@@ -2170,6 +2170,14 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
 
 _WS_BACKOFF = (0, 2, 5, 10, 20, 40, 60)
 
+def _specter_ns_ready():
+    # python-socketio can deliver WELCOME before namespace '/' is marked connected
+    try:
+        ns = getattr(specterSocket, 'namespaces', None) or {}
+        return '/' in ns
+    except Exception:
+        return False
+
 async def _force_specter_ws_reset():
     # disconnect() can fail mid-send and leave python-socketio.connected=True → "Already connected" forever
     global websocket_connected, _ws_register_sent
@@ -2191,11 +2199,17 @@ async def _force_specter_ws_reset():
         pass
 
 async def _emit_specter_register(force=False):
-    # Send REGISTER once per transport unless force=True; ready only after SUCCESS
+    # Send REGISTER once per transport unless force=True; ready only after SUCCESS.
+    # Never force-reset on emit failure — that tears down an in-progress handshake
+    # (WELCOME often arrives before namespace '/' is ready → BadNamespaceError).
     global websocket_connected, _ws_reg_epoch, _ws_register_sent
     if not force and _ws_register_sent:
         websocket_logger.info("[SPECTER WEBSOCKET] REGISTER already sent this transport — skip")
         return
+    if not _specter_ns_ready():
+        websocket_logger.info("[SPECTER WEBSOCKET] REGISTER deferred — namespace not connected yet")
+        return
+    _ws_register_sent = True  # claim before await so connect+WELCOME cannot double-fire
     _ws_reg_epoch += 1
     epoch = _ws_reg_epoch
     websocket_connected = False
@@ -2206,11 +2220,10 @@ async def _emit_specter_register(force=False):
     }
     try:
         await specterSocket.emit('REGISTER', registration_data)
-        _ws_register_sent = True
         websocket_logger.info(f"[SPECTER WEBSOCKET] REGISTER sent (epoch={epoch}, sid={getattr(specterSocket, 'sid', None)}) — waiting for SUCCESS")
     except Exception as e:
+        _ws_register_sent = False  # allow connect handler / retry to re-emit
         websocket_logger.error(f"[SPECTER WEBSOCKET] REGISTER emit failed (epoch={epoch}): {e}")
-        await _force_specter_ws_reset()
 
 # Connect and manage reconnection for Internal Socket Server
 async def specter_websocket():
@@ -2237,10 +2250,15 @@ async def specter_websocket():
                 specterSocket.connect(specter_websocket_uri, transports=['websocket'], wait_timeout=10),
                 timeout=30
             )
+            # connect() returned → namespace is ready; ensure REGISTER was sent
+            if not _ws_register_sent and not websocket_connected:
+                await _emit_specter_register(force=True)
             start_time = time_right_now()
             while not is_websocket_connected():
                 if (time_right_now() - start_time).total_seconds() > 30:
                     raise asyncioTimeoutError("Registration confirmation timeout (no SUCCESS received)")
+                if not _ws_register_sent:
+                    await _emit_specter_register(force=True)
                 await sleep(0.25)
             consecutive_failures = 0
             websocket_logger.info(f"[SPECTER WEBSOCKET] Connected and registered (sid={specterSocket.sid}, transport={specterSocket.transport()})")
@@ -2275,9 +2293,10 @@ async def connect():
 
 @specterSocket.on('WELCOME')
 async def WELCOME(data=None):
-    # Connect handler already REGISTERs; only emit if that race missed this SID
+    # Do NOT REGISTER here. WELCOME often arrives before namespace '/' is connected;
+    # emit then raises BadNamespaceError and any force-reset kills the handshake.
+    # connect() + post-connect fallback own REGISTER.
     websocket_logger.info(f"[SPECTER WEBSOCKET] WELCOME received ({data!r})")
-    await _emit_specter_register(force=False)
 
 @specterSocket.event
 async def SUCCESS(data):
@@ -2513,13 +2532,12 @@ async def force_websocket_reconnect():
 
 # Helper function to check websocket connection status (SUCCESS flag + live socket)
 def is_websocket_connected():
-    global websocket_connected
+    # Do not auto-clear the SUCCESS flag here — SUCCESS can land before
+    # python-socketio sets connected=True; clearing would lose a valid registration.
     try:
         sock_up = bool(specterSocket and getattr(specterSocket, 'connected', False))
     except Exception:
         sock_up = False
-    if websocket_connected and not sock_up:
-        websocket_connected = False
     return bool(websocket_connected and sock_up)
 
 # Helper to safely redact sensitive values

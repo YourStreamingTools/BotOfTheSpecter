@@ -71,7 +71,7 @@ if ($versionApiData !== false) {
   } elseif ($bot === 'beta') {
     $latestVersion = '5.8';
   } elseif ($bot === 'v6') {
-    $latestVersion = '6.0.2';
+    $latestVersion = '6.0';
   }
 }
 
