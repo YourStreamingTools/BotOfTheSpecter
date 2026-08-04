@@ -8,17 +8,22 @@ metadata:
   modified: 2026-07-28T23:26:45.410Z
 ---
 
-All BotOfTheSpecter public services (`websocket.botofthespecter.com`, `api.botofthespecter.com`, the dashboard/website, etc.) use **Cloudflare in DNS-only mode** — Cloudflare resolves the hostname, but traffic goes straight to the origin server. There is **no reverse proxy** in front of any service.
+All BotOfTheSpecter public services use **Cloudflare in DNS-only mode** — Cloudflare resolves the hostname, but traffic goes to the origin (not through CF’s HTTP proxy/cache).
 
-**Why this matters:**
-- `X-Forwarded-For` and `X-Real-IP` headers on inbound requests are **attacker-controlled** — they're not set by any legitimate proxy because there is no proxy in the path.
-- Any code that reads these headers to determine the "real" client IP for auth or rate-limiting is spoofable. The correct source of truth is the direct TCP peer (`request.remote` in aiohttp, `request.client.host` in FastAPI/Starlette).
-- The established fix pattern is to **reject** requests carrying these headers with a 403 + WARN log, so spoof attempts are visible in logs.
+**Origin reverse proxies (Caddy) do exist on some hosts** — they are not Cloudflare:
+- `bots.botofthespecter.com` → Caddy → `127.0.0.1:8090` (bots-api)
+- `sql.botofthespecter.com` → Caddy → `127.0.0.1:8091` (sql-api)
+- `api.botofthespecter.com` → Caddy → `127.0.0.1:8080` (product API; preferred deploy)
+- Web PHP host also uses Caddy for dashboard/static sites
 
-**How to apply:** When adding or auditing any inbound-request-handling code:
-- Use the direct TCP peer attribute, not forwarded headers.
-- If the existing whitelist/auth code reads X-Forwarded-For, treat it as a security bug — see the fix that landed in `./websocket/security_manager.py` for the pattern.
-- Same pattern applies to `./api/api.py`, dashboard PHP, and any future web service.
-- **When debugging any "stale content served" issue, do NOT float Cloudflare caching/proxying as a hypothesis.** It is DNS-only, full stop — there is nothing there to cache or intercept. Look at origin-server caching (opcache, app-level cache files, response headers) or the client (browser/extension/proxy) instead.
+**Why this matters for client IP:**
+- From the public internet, `X-Forwarded-For` / `X-Real-IP` on a **direct** connection (no local Caddy peer) remain **attacker-controlled** — reject or ignore them.
+- When the app binds **loopback only** and Caddy is the sole peer, trust `X-Forwarded-For` **only if `request.client.host` is loopback** (`127.0.0.1` / `::1`). See `_client_ip()` in `./api/api.py`.
+- Cross-host uptime probes use each service’s public `GET /health` JSON (`started_at`, `uptime_seconds`) — not SSH markers.
+
+**How to apply:** When adding or auditing inbound-request-handling code:
+- Default: use the direct TCP peer; do not trust forwarded headers from non-loopback peers.
+- Behind Caddy on loopback: use the loopback-only trust pattern above for rate limits / whitelist.
+- **When debugging any "stale content served" issue, do NOT float Cloudflare caching/proxying as a hypothesis.** CF is DNS-only — look at origin caching or the client instead.
 
 Confirmed by user 2026-05-24 during the websocket security fix pass. Re-confirmed emphatically by user 2026-07-29 after this got raised again during a status.php maintenance-banner caching investigation — treat as settled, do not re-litigate.

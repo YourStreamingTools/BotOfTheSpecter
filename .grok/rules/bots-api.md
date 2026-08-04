@@ -6,8 +6,9 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 
 | Piece | Location |
 | ----- | -------- |
-| Service code | `./bot/bots_api/` (`server.py`, `manager.py`, `bots-api.service`) |
+| Service code | `./bot/bots_api/` (`server.py`, `manager.py`, `bots-api.service`, `docs_ui/`) |
 | Public URL | `https://bots.botofthespecter.com` (Caddy → `127.0.0.1:8090`) |
+| Operator docs | `https://bots.botofthespecter.com/docs` (themed explorer; not for end users) |
 | PHP client | `./dashboard/includes/bots_api_client.php` |
 | PHP config | `./config/bots_api.php` → production `/var/www/config/bots_api.php` |
 | Dashboard wrappers | `./dashboard/includes/bot_control_functions.php` (`checkBotRunning`, `performBotAction`) |
@@ -25,13 +26,16 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 
 | Method | Path | Notes |
 | ------ | ---- | ----- |
-| GET | `/health` | No auth |
+| GET | `/health` | No auth — `ok`, `started_at`, `uptime_seconds` (uptime contract) |
+| GET | `/docs` | Themed operator docs UI (`docs_ui/`) |
 | GET | `/api/running_bots` | Full local inventory + durable **snapshot** (`last_seen_at`, `snapshot.missing` for crash/OOM recovery) |
 | GET | `/api/running_bots/snapshot` | Snapshot view only (refresh + expected / missing) |
 | GET | `/api/bot/status?channel=&bot_type=` | One channel; omit `bot_type` to find any. Also returns `script_mtime`, `last_run_mtime`, `code_update_available` (update notice; no SSH). |
+| GET | `/api/online/{channel}` | Stream online marker (`True`/`False` from `logs/online/`) |
 | POST | `/api/bot/start` | JSON body: channel, bot_type, channel_id, token, refresh, apitoken, custom?, botusername?, self?, version? |
 | POST | `/api/bot/stop` | JSON: `{ "channel", "bot_type" }` |
 | POST | `/api/bot/restart` | Same body as start |
+| POST | `/api/ops/run_script` | Allowlisted ops only (`refresh_spotify`, `refresh_streamelements`, `refresh_discord`, `refresh_custom_bot`) |
 
 `bot_type`: `stable` | `beta` | `v6` (+ `custom` for status/stop matching). Channel = Twitch **login** (lowercased).
 

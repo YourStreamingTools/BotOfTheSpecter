@@ -77,6 +77,18 @@ just port 80 reachable for the ACME challenge.
 
 Bind the app to `127.0.0.1` only; TLS on the edge.
 
+## Docs UI
+
+Themed dark explorer (same design system as the product API docs):
+
+| URL | Purpose |
+|-----|---------|
+| `/docs` | Operator docs UI (`./bots_api/docs_ui/`) |
+| `/openapi.json` | Raw OpenAPI schema |
+| `/docs-static/*` | CSS/JS assets |
+
+Keep `docs_ui` CSS/JS in sync with `./api/docs_ui/` when changing the explorer.
+
 ## Callers
 
 - **Public API** (`api/api.py`): `BOTS_API_BASE` + key from `admin_api_keys` service `bots`.

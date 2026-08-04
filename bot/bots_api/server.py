@@ -30,12 +30,18 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import aiomysql
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+_BOTS_API_DIR = Path(__file__).resolve().parent
+_DOCS_UI_DIR = _BOTS_API_DIR / "docs_ui"
 
 from manager import (
     SNAPSHOT_INTERVAL_SECONDS,
@@ -145,9 +151,20 @@ app = FastAPI(
     ),
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
+    docs_url=None,
     redoc_url=None,
 )
+
+@app.get("/docs", include_in_schema=False)
+async def themed_docs():
+    # Custom dark explorer (./bot/bots_api/docs_ui).
+    index = _DOCS_UI_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=500, detail="Docs UI not installed")
+    return FileResponse(index)
+
+if _DOCS_UI_DIR.is_dir():
+    app.mount("/docs-static", StaticFiles(directory=str(_DOCS_UI_DIR)), name="docs_static")
 
 
 async def _admin_key_allowed(api_key: str) -> bool:

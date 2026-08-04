@@ -1,0 +1,34 @@
+# BotOfTheSpecter - Caddy config for the product API host.
+#
+# Terminates TLS for api.botofthespecter.com and reverse-proxies to the
+# public FastAPI app (api/api.py, systemd unit fastapi.service,
+# bound to 127.0.0.1:8080 — see api/README.md).
+#
+# Single exact host, plain HTTP-01 automatic HTTPS — stock `apt install caddy`
+# is enough (no Cloudflare DNS plugin). Port 80 must reach the origin for ACME
+# (DNS-only / grey-cloud at Cloudflare is fine).
+#
+# Reload with:   systemctl reload caddy
+# Watch logs:    journalctl -fu caddy
+
+{
+    email admin@botofthespecter.com
+}
+
+(security) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+        -X-Powered-By
+    }
+}
+
+api.botofthespecter.com {
+    reverse_proxy 127.0.0.1:8080
+    import security
+    log {
+        output file /var/log/caddy/api.log
+    }
+}
