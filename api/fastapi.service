@@ -6,15 +6,15 @@ After=network.target mysql.service mariadb.service
 Type=simple
 User=botofthespecter
 Group=botofthespecter
-# Confirm WorkingDirectory and venv path on the live API host before install.
-WorkingDirectory=/home/botofthespecter/api
+# App root is the home directory (repo ./api/* deploys flat into here).
+WorkingDirectory=/home/botofthespecter
 EnvironmentFile=-/home/botofthespecter/.env
 Environment=API_HOST=127.0.0.1
 Environment=API_PORT=8080
 # TLS terminates at Caddy → reverse-proxy to 127.0.0.1:8080
 # Public URL: https://api.botofthespecter.com
 # Optional emergency rollback: set API_SSL_CERTFILE / API_SSL_KEYFILE and bind 443.
-ExecStart=/home/botofthespecter/venvs/stable/bin/python /home/botofthespecter/api/api.py
+ExecStart=/home/botofthespecter/venvs/api/bin/python /home/botofthespecter/api.py
 Restart=on-failure
 RestartSec=3
 KillMode=mixed
