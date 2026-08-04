@@ -8,8 +8,14 @@
     justify-content: center;
 }
 
-/* Card components */
+/* Card components — only collapsible headers use pointer (not every sp-card-header) */
 .sp-card-header {
+    cursor: default;
+}
+.sp-card-header.is-collapsible,
+.sp-card-header[onclick],
+.admin-collapsible-header,
+.collapsible-header {
     cursor: pointer;
 }
 
