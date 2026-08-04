@@ -1,0 +1,22 @@
+[Unit]
+Description=BotOfTheSpecter WebSocket host control API (private)
+After=network.target
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+WorkingDirectory=/home/botofthespecter/host_api
+EnvironmentFile=-/home/botofthespecter/.env
+Environment=WS_HOST_API_HOST=127.0.0.1
+Environment=WS_HOST_API_PORT=8093
+# Auth: admin_api_keys service=websocket (or admin). Optional WS_CONTROL_KEY break-glass.
+ExecStart=/home/botofthespecter/venvs/websocket/bin/python /home/botofthespecter/host_api/server.py
+Restart=on-failure
+RestartSec=3
+KillMode=mixed
+
+# Caddy: path /control/* → 127.0.0.1:8093 (see websocket/Caddyfile)
+
+[Install]
+WantedBy=multi-user.target
