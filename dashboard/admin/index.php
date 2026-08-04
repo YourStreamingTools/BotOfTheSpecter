@@ -9,6 +9,7 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 require_once "/var/www/config/admin_actions.php";
 require_once "/var/www/config/twitch.php";
+require_once __DIR__ . '/../includes/websocket_control_client.php';
 include "../includes/userdata.php";
 session_write_close();
 
@@ -360,6 +361,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     ];
     if (in_array($service, $allowedServices)) {
         try {
+            // WebSocket host lifecycle via private HTTP control API (no SSH) — same idea as bots_api
+            if ($service == 'websocket.service') {
+                $wsUnit = 'websocket';
+                $wsResp = websocket_control_service_action($action, $wsUnit);
+                $success = !empty($wsResp['ok']);
+                if ($success) {
+                    $data = is_array($wsResp['data'] ?? null) ? $wsResp['data'] : [];
+                    $output = (string)($data['message'] ?? ("WebSocket " . $action . "ed successfully"));
+                } else {
+                    $output = (string)($wsResp['error'] ?? 'websocket control API failed');
+                }
+            } else {
             // Determine which server credentials to use based on service
             $ssh_host = $bots_ssh_host ?? '';
             $ssh_username = $bots_ssh_username ?? '';
@@ -369,11 +382,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $api_server_host ?? '';
                 $ssh_username = $api_server_username ?? '';
                 $ssh_password = $api_server_password ?? '';
-            } elseif ($service == 'websocket.service') {
-                // Use the variable names defined in config/ssh.php
-                $ssh_host = $websocket_server_host ?? '';
-                $ssh_username = $websocket_server_username ?? '';
-                $ssh_password = $websocket_server_password ?? '';
             } elseif ($service == 'mysql.service') {
                 $ssh_host = $sql_server_host ?? '';
                 $ssh_username = $sql_server_username ?? '';
@@ -444,6 +452,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                     }
                 }
             }
+            } // end non-websocket SSH branch
         } catch (Exception $e) {
             $success = false;
             $output = 'Exception: ' . $e->getMessage();
