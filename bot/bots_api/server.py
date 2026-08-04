@@ -36,7 +36,7 @@ from typing import Any
 import aiomysql
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -154,6 +154,10 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+
+@app.get("/", include_in_schema=False)
+async def root_to_docs():
+    return RedirectResponse(url="/docs")
 
 @app.get("/docs", include_in_schema=False)
 async def themed_docs():
