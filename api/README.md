@@ -63,6 +63,10 @@ Stock Swagger UI is **not** the primary UI. A dark dashboard-matching explorer l
 
 ## Deploy / cutover checklist
 
+**Fresh host (greenfield):** full OS → user → Python → Caddy → DNS runbook is in **[INSTALL-NEW-HOST.md](./INSTALL-NEW-HOST.md)** (Ubuntu LTS, including 26.04).
+
+**Same-host edge flip** (already running Python, switching to Caddy loopback):
+
 1. Deploy code with `API_HOST`/`API_PORT` support and `/health` + proxy-safe IP handling.
 2. Install Caddy on the API host (`apt install caddy`); install `./api/Caddyfile`.
 3. Confirm Cloudflare for `api.botofthespecter.com` is **DNS-only** (grey-cloud).
