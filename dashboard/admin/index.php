@@ -428,14 +428,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                         $serviceNames = [
                             'discordbot.service' => 'Discord Bot',
                             'bots-api.service' => 'Bots API',
-                            'bots-caddy.service' => 'Caddy (Bots Host)',
+                            'bots-caddy.service' => 'CADDY — BOTS SERVER',
                             'fastapi.service' => 'FastAPI',
-                            'api-caddy.service' => 'Caddy (API Host)',
+                            'api-caddy.service' => 'CADDY — API SERVER',
                             'websocket.service' => 'WebSocket',
                             'mysql.service' => 'MySQL',
                             'export_queue_worker.service' => 'Export Queue Worker',
                             'twitch-recorder.service' => 'Twitch Recorder',
-                            'caddy.service' => 'Caddy (Web Host)',
+                            'caddy.service' => 'CADDY — WEB SERVER',
                         ];
                         $actionLabels = ['start' => 'started', 'stop' => 'stopped', 'restart' => 'restarted'];
                         $svcLabel = $serviceNames[$service] ?? $service;
@@ -1733,307 +1733,263 @@ ob_start();
         </button>
     </div>
     <div class="sp-card-body">
-    <div class="admin-service-grid">
-        <!-- Discord Bot Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-info">
-                            <i class="fab fa-discord fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_discord_bot'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="discord-status"><?php echo t('admin_index_status_loading'); ?></span>
+    <div class="admin-service-groups">
+        <!-- ========== BOTS HOST ========== -->
+        <section class="admin-service-group">
+            <h3 class="admin-service-group-title">
+                <span class="sp-badge sp-badge-blue">BOTS</span>
+                <?php echo t('admin_index_group_bots_host'); ?>
+            </h3>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_bots_host_desc'); ?></span>
+            <div class="admin-service-grid">
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-info"><i class="fab fa-discord fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_discord_bot'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="discord-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="discord-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="discord-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('discordbot.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('discordbot.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('discordbot.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="discord-pid">PID: ...</span>
-                    </div>
                 </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="discord-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('discordbot.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('discordbot.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('discordbot.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <!-- Bots API Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-accent">
-                            <i class="fas fa-server fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_bots_api'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="bots-api-status"><?php echo t('admin_index_status_loading'); ?></span>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-accent"><i class="fas fa-server fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_bots_api'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="bots-api-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="bots-api-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="bots-api-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-api.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('bots-api.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('bots-api.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="bots-api-pid">PID: ...</span>
-                    </div>
                 </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="bots-api-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-api.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('bots-api.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('bots-api.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <!-- Caddy (Bots Host) Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-info">
-                            <i class="fas fa-shield-alt fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_bots_caddy'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="bots-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-info"><i class="fas fa-file-export fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_export_queue_worker'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="export-queue-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="export-queue-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="export-queue-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('export_queue_worker.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('export_queue_worker.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('export_queue_worker.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="bots-caddy-pid">PID: ...</span>
-                    </div>
-                </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="bots-caddy-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-caddy.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('bots-caddy.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('bots-caddy.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
                 </div>
             </div>
-        </div>
-        <!-- API Server Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-accent">
-                            <i class="fas fa-code fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_api_server'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="api-status"><?php echo t('admin_index_status_loading'); ?></span>
+        </section>
+        <!-- ========== API HOST ========== -->
+        <section class="admin-service-group">
+            <h3 class="admin-service-group-title">
+                <span class="sp-badge sp-badge-accent">API</span>
+                <?php echo t('admin_index_group_api_host'); ?>
+            </h3>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_api_host_desc'); ?></span>
+            <div class="admin-service-grid">
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-accent"><i class="fas fa-code fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_api_server'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="api-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="api-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="api-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('fastapi.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('fastapi.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('fastapi.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="api-pid">PID: ...</span>
-                    </div>
-                </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="api-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('fastapi.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('fastapi.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('fastapi.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
                 </div>
             </div>
-        </div>
-        <!-- Caddy (API Host) Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-info">
-                            <i class="fas fa-shield-alt fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_api_caddy'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="api-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+        </section>
+        <!-- ========== WEBSOCKET HOST ========== -->
+        <section class="admin-service-group">
+            <h3 class="admin-service-group-title">
+                <span class="sp-badge sp-badge-green">WS</span>
+                <?php echo t('admin_index_group_websocket_host'); ?>
+            </h3>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_websocket_host_desc'); ?></span>
+            <div class="admin-service-grid">
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-success"><i class="fas fa-plug fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_websocket_server'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="websocket-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="websocket-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="websocket-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('websocket.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('websocket.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('websocket.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="api-caddy-pid">PID: ...</span>
-                    </div>
-                </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="api-caddy-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('api-caddy.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('api-caddy.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('api-caddy.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
                 </div>
             </div>
-        </div>
-        <!-- WebSocket Server Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-success">
-                            <i class="fas fa-plug fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_websocket_server'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="websocket-status"><?php echo t('admin_index_status_loading'); ?></span>
+        </section>
+        <!-- ========== SQL HOST ========== -->
+        <section class="admin-service-group">
+            <h3 class="admin-service-group-title">
+                <span class="sp-badge sp-badge-amber">SQL</span>
+                <?php echo t('admin_index_group_sql_host'); ?>
+            </h3>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_sql_host_desc'); ?></span>
+            <div class="admin-service-grid">
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-warning"><i class="fas fa-database fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_mysql_server'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="mysql-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="mysql-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="mysql-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('mysql.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('mysql.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('mysql.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="websocket-pid">PID: ...</span>
-                    </div>
-                </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="websocket-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('websocket.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('websocket.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('websocket.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
                 </div>
             </div>
-        </div>
-        <!-- MySQL Server Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-warning">
-                            <i class="fas fa-database fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_mysql_server'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="mysql-status"><?php echo t('admin_index_status_loading'); ?></span>
+        </section>
+        <!-- ========== CADDY (all hosts — same service type) ========== -->
+        <section class="admin-service-group">
+            <h3 class="admin-service-group-title">
+                <span class="sp-badge sp-badge-blue">CADDY</span>
+                <?php echo t('admin_index_group_caddy'); ?>
+            </h3>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_caddy_desc'); ?></span>
+            <div class="admin-service-grid">
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-info"><i class="fas fa-shield-alt fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="sp-badge sp-badge-blue" style="margin-bottom:0.25rem;">BOTS</span>
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_bots_caddy'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_bots_caddy_sub'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="bots-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="bots-caddy-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="bots-caddy-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('bots-caddy.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('bots-caddy.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="mysql-pid">PID: ...</span>
-                    </div>
                 </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="mysql-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('mysql.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('mysql.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('mysql.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <!-- Export Queue Worker Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-info">
-                            <i class="fas fa-file-export fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_export_queue_worker'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="export-queue-status"><?php echo t('admin_index_status_loading'); ?></span>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-accent"><i class="fas fa-shield-alt fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="sp-badge sp-badge-accent" style="margin-bottom:0.25rem;">API</span>
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_api_caddy'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_api_caddy_sub'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="api-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="api-caddy-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="api-caddy-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('api-caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('api-caddy.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('api-caddy.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="export-queue-pid">PID: ...</span>
-                    </div>
                 </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="export-queue-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('export_queue_worker.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('export_queue_worker.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('export_queue_worker.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-        <!-- Twitch Recorder Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-danger">
-                            <i class="fas fa-video fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_twitch_recorder'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="twitch-recorder-status"><?php echo t('admin_index_status_loading'); ?></span>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-warning"><i class="fas fa-shield-alt fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="sp-badge sp-badge-amber" style="margin-bottom:0.25rem;">WEB</span>
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_web_caddy'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_web_caddy_sub'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="web-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="web-caddy-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="web-caddy-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('caddy.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('caddy.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="twitch-recorder-pid">PID: ...</span>
-                    </div>
-                </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="twitch-recorder-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('twitch-recorder.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('twitch-recorder.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('twitch-recorder.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
                 </div>
             </div>
-        </div>
-        <!-- Caddy (Web Host) Service -->
-        <div>
-            <div class="admin-service-card">
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon sp-text-warning">
-                            <i class="fas fa-shield-alt fa-lg"></i>
-                        </span>
-                        <div style="min-width: 0;">
-                            <span class="admin-heading"><?php echo t('admin_index_svc_web_caddy'); ?></span>
-                            <span class="admin-service-status sp-text-info" id="web-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+        </section>
+        <!-- ========== RETIRED ========== -->
+        <section class="admin-service-group">
+            <h3 class="admin-service-group-title">
+                <span class="sp-badge sp-badge-grey">OFF</span>
+                <?php echo t('admin_index_group_retired'); ?>
+            </h3>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_retired_desc'); ?></span>
+            <div class="admin-service-grid">
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-danger"><i class="fas fa-video fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_twitch_recorder'); ?></span>
+                                    <span class="admin-service-status sp-text-info" id="twitch-recorder-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="twitch-recorder-pid">PID: ...</span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="twitch-recorder-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('twitch-recorder.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('twitch-recorder.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('twitch-recorder.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
-                    <div>
-                        <span class="sp-badge sp-badge-grey" id="web-caddy-pid">PID: ...</span>
-                    </div>
-                </div>
-                <div class="sp-btn-group" style="margin-top:1rem;" id="web-caddy-buttons">
-                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('caddy.service', 'start')" disabled>
-                        <span class="icon"><i class="fas fa-play"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('caddy.service', 'stop')" disabled>
-                        <span class="icon"><i class="fas fa-stop"></i></span>
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('caddy.service', 'restart')" disabled>
-                        <span class="icon"><i class="fas fa-redo"></i></span>
-                    </button>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
     </div>
 </div>
