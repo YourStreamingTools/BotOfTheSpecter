@@ -2371,6 +2371,13 @@ class BotOfTheSpecter(commands.Bot):
                 return True
         return False
 
+    def _can_use_ai_chat(self, user) -> bool:
+        """AI chat is owner-only for now (OpenAI cost control). Later: Twitch sub gate."""
+        try:
+            return int(getattr(user, "id", 0) or 0) == int(config.bot_owner_id)
+        except (TypeError, ValueError):
+            return False
+
     async def on_ready(self):
         self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         self.logger.info(f'Bot version: {self.version}')
@@ -2906,6 +2913,23 @@ class BotOfTheSpecter(commands.Bot):
                 # Process as a command
                 await self.process_commands(message)
                 return
+            # AI DM chat: owner-only (cost control). Non-owners get a short notice, no OpenAI call.
+            if not self._can_use_ai_chat(message.author):
+                message_id = str(message.id)
+                if self._is_message_processed(message_id):
+                    return
+                try:
+                    await message.author.send(
+                        "AI chat is temporarily restricted. Only the bot owner can use it right now."
+                    )
+                    await self.mysql_helper.track_message('discordbot')
+                except Exception as e:
+                    self.logger.debug(f"Could not notify non-owner about AI DM restriction: {e}")
+                self._mark_message_processed(message_id)
+                self.logger.info(
+                    f"Blocked AI DM from non-owner {message.author} (id={message.author.id})"
+                )
+                return
             # Not a command, process as AI chat Determine the "channel_name" based on the source of the message
             channel = message.channel
             channel_name = str(message.author.id)  # Use user ID for DMs
@@ -3016,6 +3040,25 @@ class BotOfTheSpecter(commands.Bot):
                 self.logger.error(f"Error in ticket-info message watcher: {e}")
             # AI CHAT LOGIC - Check if message is directed at bot (mention or reply)
             if self._is_message_directed_at_bot(message):
+                # Owner-only AI chat for now (OpenAI cost control). No model call for others.
+                if not self._can_use_ai_chat(message.author):
+                    message_id = str(message.id)
+                    if self._is_message_processed(message_id):
+                        return
+                    try:
+                        await message.reply(
+                            "AI chat is temporarily restricted. Only the bot owner can use it right now.",
+                            mention_author=False,
+                        )
+                        await self.mysql_helper.track_message('discordbot')
+                    except Exception as e:
+                        self.logger.debug(f"Could not notify non-owner about AI restriction: {e}")
+                    self._mark_message_processed(message_id)
+                    self.logger.info(
+                        f"Blocked AI chat from non-owner {message.author} (id={message.author.id}) "
+                        f"in guild {getattr(message.guild, 'id', '?')}"
+                    )
+                    return
                 try:
                     # Use guild_id and user_id for chat history file
                     channel_identifier = str(message.author.id)
