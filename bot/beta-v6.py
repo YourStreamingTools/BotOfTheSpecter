@@ -15363,8 +15363,29 @@ async def process_channel_point_rewards(event_data, event_type):
             user_name = event_data["user_name"]
             user_id = event_data["user_id"]
             reward_data = event_data.get("reward", {})
-            reward_id = reward_data.get("id")
-            reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
+            reward_id = reward_data.get("id") or reward_data.get("type") or "unknown"
+            reward_title = reward_data.get("title") or reward_data.get("type") or ""
+            # Always record for dashboard Live activity (separate from opt-in (storeredeem) / Point Store)
+            try:
+                await cursor.execute(
+                    "CREATE TABLE IF NOT EXISTS redeem_history ("
+                    "id INT PRIMARY KEY AUTO_INCREMENT,"
+                    "reward_id VARCHAR(255) NOT NULL,"
+                    "reward_title VARCHAR(255) DEFAULT NULL,"
+                    "username VARCHAR(255) NOT NULL,"
+                    "user_id VARCHAR(255) DEFAULT NULL,"
+                    "redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                    "INDEX idx_redeemed_at (redeemed_at),"
+                    "INDEX idx_reward_id (reward_id),"
+                    "INDEX idx_username (username)"
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                )
+                await cursor.execute(
+                    "INSERT INTO redeem_history (reward_id, reward_title, username, user_id) VALUES (%s, %s, %s, %s)",
+                    (reward_id, reward_title or None, user_name, user_id),
+                )
+            except Exception as hist_err:
+                event_logger.error(f"Failed to log redeem_history: {hist_err}")
             create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))

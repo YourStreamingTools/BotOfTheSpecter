@@ -476,7 +476,19 @@ if ($isLoggedIn) {
             var empty = $('dbTickerEmpty'); if (empty) empty.remove();
             items.slice(0, TICKER_MAX).forEach(function (it) {
                 var m = ACT_MAP[it.type] || ['follow', 'fas fa-bell', null];
-                var label = (it.type === 'quote') ? esc(it.detail) : esc(I18N[m[2]] || '');
+                var base = I18N[m[2]] || '';
+                var detail = (it.detail && String(it.detail).trim()) ? String(it.detail).trim() : '';
+                var label;
+                if (it.type === 'quote') {
+                    label = esc(detail);
+                } else if (it.type === 'redeem') {
+                    // Match live ticker: show reward title when known
+                    label = esc(detail || base);
+                } else if (detail && (it.type === 'cheer' || it.type === 'tip' || it.type === 'raid' || it.type === 'sub')) {
+                    label = esc(base) + ' (' + esc(detail) + ')';
+                } else {
+                    label = esc(base);
+                }
                 var item = document.createElement('div');
                 item.className = 'db-ticker-item is-' + m[0];
                 item.innerHTML = '<span class="db-ticker-icon"><i class="' + m[1] + '"></i></span>' +

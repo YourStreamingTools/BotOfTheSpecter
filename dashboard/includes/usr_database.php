@@ -1072,6 +1072,19 @@ try {
                 INDEX idx_reward_id (reward_id),
                 INDEX idx_username (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        // Full channel-point redemption history for dashboard Live activity (not Point Store fulfillment)
+        'redeem_history' => "
+            CREATE TABLE IF NOT EXISTS redeem_history (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                reward_id VARCHAR(255) NOT NULL,
+                reward_title VARCHAR(255) DEFAULT NULL,
+                username VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) DEFAULT NULL,
+                redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_redeemed_at (redeemed_at),
+                INDEX idx_reward_id (reward_id),
+                INDEX idx_username (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'maker_projects' => "
             CREATE TABLE IF NOT EXISTS maker_projects (
                 id INT PRIMARY KEY AUTO_INCREMENT,

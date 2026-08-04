@@ -5726,7 +5726,7 @@ class DashboardActivityResponse(BaseModel):
     "/dashboard/activity",
     response_model=DashboardActivityResponse,
     summary="Dashboard: recent activity feed",
-    description="Most recent events merged across follows, subs, cheers, tips, raids, redemptions and quotes for the authenticated channel, newest first.",
+    description="Most recent events merged across follows, subs, cheers, tips, raids, channel-point redemptions and quotes for the authenticated channel, newest first.",
     tags=["Dashboard"],
     operation_id="get_dashboard_activity"
 )
@@ -5736,28 +5736,55 @@ async def get_dashboard_activity(api_key: str = Query(...), channel: str = Query
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     limit = max(1, min(int(limit), 100))
-    sql = (
-        "SELECT * FROM ("
-        " SELECT 'follow' AS type, CONVERT(user_name USING utf8mb4) AS actor, CONVERT('' USING utf8mb4) AS detail, followed_at AS at FROM followers_data"
+    # redeem_history = every channel-point redemption (bot beta/v6). stored_redeems remains
+    # Point Store / (storeredeem) only and is not used here (would under-report activity).
+    redeem_branch = (
+        " SELECT 'redeem', CONVERT(username USING utf8mb4), "
+        "COALESCE(CONVERT(NULLIF(reward_title,'') USING utf8mb4), CONVERT(reward_id USING utf8mb4)), "
+        "redeemed_at FROM redeem_history"
         " UNION ALL"
-        " SELECT 'sub', CONVERT(user_name USING utf8mb4), CONVERT(CONCAT(COALESCE(sub_plan,''), CASE WHEN months IS NOT NULL THEN CONCAT(' ', months, 'mo') ELSE '' END) USING utf8mb4), timestamp FROM subscription_data"
-        " UNION ALL"
-        " SELECT 'cheer', CONVERT(user_name USING utf8mb4), CONVERT(CAST(bits AS CHAR) USING utf8mb4), timestamp FROM bits_data"
-        " UNION ALL"
-        " SELECT 'tip', CONVERT(username USING utf8mb4), CONVERT(CONCAT(COALESCE(CAST(amount AS CHAR),''), ' ', COALESCE(currency,'')) USING utf8mb4), COALESCE(created_at, timestamp) FROM tipping"
-        " UNION ALL"
-        " SELECT 'raid', CONVERT(raider_name USING utf8mb4), CONVERT(CAST(viewers AS CHAR) USING utf8mb4), timestamp FROM raid_data"
-        " UNION ALL"
-        " SELECT 'redeem', CONVERT(sr.username USING utf8mb4), COALESCE(CONVERT(cpr.reward_title USING utf8mb4), CONVERT(sr.reward_id USING utf8mb4)), sr.redeemed_at FROM stored_redeems sr LEFT JOIN channel_point_rewards cpr ON CONVERT(sr.reward_id USING utf8mb4) = CONVERT(cpr.reward_id USING utf8mb4)"
-        " UNION ALL"
-        " SELECT 'quote', CONVERT('' USING utf8mb4), CONVERT(LEFT(quote, 80) USING utf8mb4), added FROM quotes"
-        ") AS feed WHERE at IS NOT NULL ORDER BY at DESC LIMIT %s"
     )
+    def _activity_sql(include_redeems: bool) -> str:
+        return (
+            "SELECT * FROM ("
+            " SELECT 'follow' AS type, CONVERT(user_name USING utf8mb4) AS actor, CONVERT('' USING utf8mb4) AS detail, followed_at AS at FROM followers_data"
+            " UNION ALL"
+            " SELECT 'sub', CONVERT(user_name USING utf8mb4), CONVERT(CONCAT(COALESCE(sub_plan,''), CASE WHEN months IS NOT NULL THEN CONCAT(' ', months, 'mo') ELSE '' END) USING utf8mb4), timestamp FROM subscription_data"
+            " UNION ALL"
+            " SELECT 'cheer', CONVERT(user_name USING utf8mb4), CONVERT(CAST(bits AS CHAR) USING utf8mb4), timestamp FROM bits_data"
+            " UNION ALL"
+            " SELECT 'tip', CONVERT(username USING utf8mb4), CONVERT(CONCAT(COALESCE(CAST(amount AS CHAR),''), ' ', COALESCE(currency,'')) USING utf8mb4), COALESCE(created_at, timestamp) FROM tipping"
+            " UNION ALL"
+            " SELECT 'raid', CONVERT(raider_name USING utf8mb4), CONVERT(CAST(viewers AS CHAR) USING utf8mb4), timestamp FROM raid_data"
+            " UNION ALL"
+            + (redeem_branch if include_redeems else "")
+            + " SELECT 'quote', CONVERT('' USING utf8mb4), CONVERT(LEFT(quote, 80) USING utf8mb4), added FROM quotes"
+            ") AS feed WHERE at IS NOT NULL ORDER BY at DESC LIMIT %s"
+        )
     try:
         conn = await get_mysql_connection_user(username)
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(sql, (limit,))
+                # Ensure history table exists (dashboard bootstrap may not have run yet)
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS redeem_history ("
+                    "id INT PRIMARY KEY AUTO_INCREMENT,"
+                    "reward_id VARCHAR(255) NOT NULL,"
+                    "reward_title VARCHAR(255) DEFAULT NULL,"
+                    "username VARCHAR(255) NOT NULL,"
+                    "user_id VARCHAR(255) DEFAULT NULL,"
+                    "redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                    "INDEX idx_redeemed_at (redeemed_at),"
+                    "INDEX idx_reward_id (reward_id),"
+                    "INDEX idx_username (username)"
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                )
+                try:
+                    await cur.execute(_activity_sql(True), (limit,))
+                except Exception as qerr:
+                    # If redeem_history is still unavailable for any reason, keep the rest of the feed
+                    logging.warning(f"Dashboard activity redeem branch failed for '{username}': {qerr}")
+                    await cur.execute(_activity_sql(False), (limit,))
                 rows = await cur.fetchall()
         finally:
             conn.close()
