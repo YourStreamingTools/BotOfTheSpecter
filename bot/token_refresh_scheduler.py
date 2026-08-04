@@ -5,15 +5,23 @@ cron. Each job runs on its own interval, tracked in a small local state file
 (intervals are a safety margin before the provider's real token expiry, not
 the expiry itself):
 
-  custom bot tokens   every 4 hours   (Twitch access tokens last ~4h)
-  Spotify             every 1 hour    (Spotify access tokens last 1h)
-  Discord             every 6 days    (Discord access tokens last 7d)
-  StreamElements       every 29 days  (StreamElements access tokens last 30d)
+  custom bot tokens   every 45 minutes  (Twitch access tokens last ~4h;
+                                         script only refreshes rows within
+                                         1h of expiry — job must run inside
+                                         that window, not every 4h)
+  Spotify             every 45 minutes  (Spotify access tokens last 1h;
+                                         15 min buffer so songrequest /
+                                         overlays never see a dead token)
+  Discord             every 6 days      (Discord access tokens last 7d)
+  StreamElements      every 29 days     (StreamElements access tokens last 30d)
 
 This replaces four separate cron lines with one, and replaces cron's
 day-of-month field (which drifts at month boundaries and can't express
 "every 6 days" or "every 29 days" cleanly) with a state file that tracks
 each job's actual last-run time.
+
+Failed jobs do not advance last_run, so the next minute's cron retries them
+instead of waiting a full interval with dead tokens.
 
 The four refresh_*.py scripts are untouched and stay independently runnable
 (the admin dashboard's manual "Refresh Tokens" buttons invoke them directly).
@@ -35,8 +43,14 @@ STATE_FILE = SCRIPT_DIR / "logs" / "token_refresh_state.json"
 LOCK_FILE = SCRIPT_DIR / "logs" / "token_refresh_scheduler.lock"
 
 JOBS = [
-    ("custom_bot_tokens", 4 * 3600, "refresh_custom_bot_tokens"),
-    ("spotify", 1 * 3600, "refresh_spotify_tokens"),
+    # Custom bots store token_expires and only refresh when within 1h of
+    # expiry. The job itself must therefore run *inside* that window (not
+    # every 4h at full lifetime). 45 min cadence leaves ~15+ min remaining.
+    ("custom_bot_tokens", 45 * 60, "refresh_custom_bot_tokens"),
+    # Spotify access tokens last 3600s. Running at exactly 1h leaves zero
+    # margin for cron lag and leaves mid-cycle OAuth links dead until the
+    # next tick. 45 min keeps ~15 min of lifetime after every refresh.
+    ("spotify", 45 * 60, "refresh_spotify_tokens"),
     ("discord", 6 * 86400, "refresh_discord_tokens"),
     ("streamelements", 29 * 86400, "refresh_streamelements_tokens"),
 ]
@@ -87,9 +101,15 @@ class SchedulerState:
             return None
 
     def record_run(self, job_name, success):
+        """Record outcome. Only advance last_run on success so a failed job
+        is retried on the next minute's cron instead of waiting a full interval
+        with expired access tokens."""
         self._data["jobs"].setdefault(job_name, {})
-        self._data["jobs"][job_name]["last_run"] = datetime.now(timezone.utc).isoformat()
-        self._data["jobs"][job_name]["last_success"] = success
+        job = self._data["jobs"][job_name]
+        job["last_success"] = success
+        job["last_attempt"] = datetime.now(timezone.utc).isoformat()
+        if success:
+            job["last_run"] = job["last_attempt"]
         self.save()
 
 
