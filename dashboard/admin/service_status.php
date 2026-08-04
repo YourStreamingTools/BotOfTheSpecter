@@ -111,6 +111,12 @@ $serviceMap = [
         'ssh_username' => $api_server_username ?? '',
         'ssh_password' => $api_server_password ?? ''
     ],
+    'api_caddy' => [
+        'service_name' => 'caddy.service',
+        'ssh_host' => $api_server_host ?? '',
+        'ssh_username' => $api_server_username ?? '',
+        'ssh_password' => $api_server_password ?? ''
+    ],
     'websocket' => [
         'service_name' => 'websocket.service',
         'ssh_host' => $websocket_server_host ?? '',
@@ -129,11 +135,14 @@ $serviceMap = [
         'ssh_username' => $bots_ssh_username ?? '',
         'ssh_password' => $bots_ssh_password ?? ''
     ],
+    // Intentionally offline / retired — do not SSH; admin UI shows SHUTDOWN not Error
     'twitch_recorder' => [
         'service_name' => 'twitch-recorder.service',
-        'ssh_host' => $recorder_ssh_host ?? '',
-        'ssh_username' => $recorder_ssh_username ?? '',
-        'ssh_password' => $recorder_ssh_password ?? ''
+        'ssh_host' => '',
+        'ssh_username' => '',
+        'ssh_password' => '',
+        'fixed_status' => 'SHUTDOWN',
+        'fixed_pid' => 'N/A',
     ],
     'web_caddy' => [
         'service_name' => 'caddy.service',
@@ -150,6 +159,13 @@ if (!isset($serviceMap[$service])) {
 }
 
 $config = $serviceMap[$service];
+if (!empty($config['fixed_status'])) {
+    echo json_encode([
+        'status' => $config['fixed_status'],
+        'pid' => $config['fixed_pid'] ?? 'N/A',
+    ]);
+    exit();
+}
 $result = getServiceStatus(
     $config['service_name'], 
     $config['ssh_host'], 
