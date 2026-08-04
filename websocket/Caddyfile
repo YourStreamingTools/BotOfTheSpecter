@@ -21,7 +21,14 @@
 }
 
 websocket.botofthespecter.com {
-    reverse_proxy 127.0.0.1:8080
+    # Private host control API (bots-api style) — strip /control prefix
+    handle_path /control/* {
+        reverse_proxy 127.0.0.1:8093
+    }
+    # Socket.IO + /health + /notify + /clients
+    handle {
+        reverse_proxy 127.0.0.1:8080
+    }
     import security
     log {
         output file /var/log/caddy/websocket.log
