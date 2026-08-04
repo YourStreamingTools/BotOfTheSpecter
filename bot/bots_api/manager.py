@@ -132,7 +132,9 @@ def _matches_bot_type(cmdline: list[str], bot_type: str, channel: str) -> bool:
     if bot_type == "stable":
         return script == "bot.py" and not _is_custom(cmdline)
     if bot_type == "beta":
-        return script == "beta.py"
+        # Exclude -custom: those are bot_type "custom" (inventory + status agree).
+        # stop_bot(beta) still merges find_pids("custom") when needed.
+        return script == "beta.py" and not _is_custom(cmdline)
     if bot_type == "v6":
         return script in ("beta-v6.py", "beta_v6.py")
     return False
@@ -637,9 +639,21 @@ def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, A
       - last_run_mtime: mtime of the channel version-control file ("Last Run")
       - version: contents of that version-control file (even if not running)
       - code_update_available: True when script is newer than last run
+
+    When bot_type is omitted, scan order prefers custom before beta so a
+    -custom beta.py process reports bot_type \"custom\" (not \"beta\").
     """
     channel = channel.lower()
-    types = [bot_type] if bot_type else list(BOT_TYPES) + ["custom"]
+    if bot_type:
+        # beta UI/control also covers -custom (launched as beta.py -custom);
+        # still report the true type as "custom" when that is what is running.
+        if bot_type == "beta":
+            types = ["custom", "beta"]
+        else:
+            types = [bot_type]
+    else:
+        # custom before beta: custom-flag processes must not be labeled beta
+        types = ["stable", "custom", "beta", "v6"]
     found_type = None
     found_pid = None
     for t in types:

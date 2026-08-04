@@ -51,9 +51,16 @@ function checkBotRunning($username, $botType = 'stable') {
         'message' => ''
     ];
     $resp = bots_api_bot_status($username, $botType);
-    if (!$resp['ok'] && $botType === 'beta') {
-        // Beta may run as "custom" flag — try without type filter
-        $resp = bots_api_bot_status($username, null);
+    // Custom-flag bots report bot_type=custom; beta status still finds them
+    // (bots API scans custom when bot_type=beta). Fallback if type-filtered miss.
+    if ($resp['ok'] && $botType === 'beta') {
+        $probe = is_array($resp['data'] ?? null) ? $resp['data'] : [];
+        if (empty($probe['running'])) {
+            $fallback = bots_api_bot_status($username, 'custom');
+            if ($fallback['ok'] && !empty(($fallback['data'] ?? [])['running'])) {
+                $resp = $fallback;
+            }
+        }
     }
     if (!$resp['ok']) {
         $result['message'] = is_string($resp['error']) ? $resp['error'] : 'Bots API status request failed';

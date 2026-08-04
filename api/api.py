@@ -1489,12 +1489,45 @@ class SystemUptimeResponse(BaseModel):
 
 # Define the response model for Bot Status
 class BotStatusResponse(BaseModel):
-    running: bool
+    """
+    Bot process status for mobile/web clients.
+
+    When status_check_ok is False, running/pid/version are unreliable — the
+    bots control plane could not be reached; the bot may still be online.
+    """
+    running: bool | None = Field(
+        None,
+        description="True if a bot process is running. Null when status could not be checked.",
+    )
     pid: int | None = None
-    version: str | None = None
-    bot_type: str | None = None
-    outdated: bool | None = None
+    version: str | None = Field(None, description="Last-run version from bot-host version-control file.")
+    bot_type: str | None = Field(
+        None,
+        description="Detected variant: stable | beta | v6 | custom. Null if offline or check failed.",
+    )
+    outdated: bool | None = Field(
+        None,
+        description="True if published version is newer than last-run, or code on disk is newer than last start.",
+    )
+    version_outdated: bool | None = Field(
+        None,
+        description="True when last-run version string is older than latest published for this bot_type.",
+    )
+    code_update_available: bool | None = Field(
+        None,
+        description="True when bot script mtime on host is newer than last-run version-control file (deploy without restart).",
+    )
     latest_version: str | None = None
+    script_mtime: int | None = Field(None, description="Unix mtime of the bot .py on the bot host.")
+    last_run_mtime: int | None = Field(None, description="Unix mtime of the channel version-control file.")
+    status_check_ok: bool = Field(
+        True,
+        description="False when the bots control API was unreachable or returned an error.",
+    )
+    status_message: str | None = Field(
+        None,
+        description="Human-readable note; set when status_check_ok is False.",
+    )
     class Config:
         json_schema_extra = {
             "example": {
@@ -1503,7 +1536,13 @@ class BotStatusResponse(BaseModel):
                 "version": "5.5",
                 "bot_type": "stable",
                 "outdated": True,
-                "latest_version": "5.7.1"
+                "version_outdated": True,
+                "code_update_available": False,
+                "latest_version": "5.7.1",
+                "script_mtime": 1710000000,
+                "last_run_mtime": 1709000000,
+                "status_check_ok": True,
+                "status_message": None,
             }
         }
 
@@ -6187,14 +6226,69 @@ def _load_latest_bot_versions() -> dict:
         return {}
 
 
+def _parse_version_tuple(value: str | None) -> tuple[int, ...] | None:
+    """Parse dotted numeric version; ignores a leading 'v'. Returns None if unusable."""
+    if not value:
+        return None
+    text = str(value).strip()
+    if text.lower().startswith("v") and len(text) > 1 and text[1].isdigit():
+        text = text[1:]
+    # Keep leading dotted numbers only (e.g. "5.7.1-beta" -> 5.7.1)
+    parts: list[int] = []
+    for chunk in text.split("."):
+        num = ""
+        for ch in chunk:
+            if ch.isdigit():
+                num += ch
+            else:
+                break
+        if not num:
+            break
+        parts.append(int(num))
+    return tuple(parts) if parts else None
+
+
+def _is_version_outdated(local: str | None, latest: str | None) -> bool | None:
+    """True if local < latest (component-wise, zero-padded). None if either unparsable."""
+    a = _parse_version_tuple(local)
+    b = _parse_version_tuple(latest)
+    if a is None or b is None:
+        return None
+    n = max(len(a), len(b))
+    a_pad = a + (0,) * (n - len(a))
+    b_pad = b + (0,) * (n - len(b))
+    return a_pad < b_pad
+
+
+def _bot_status_check_failed(latest_versions: dict, detail: str | None = None) -> dict:
+    """Public payload when bots control API cannot answer (do not fake offline)."""
+    # Client-facing text is stable; callers log `detail` for operators.
+    _ = detail
+    return {
+        "running": None,
+        "pid": None,
+        "version": None,
+        "bot_type": None,
+        "outdated": None,
+        "version_outdated": None,
+        "code_update_available": None,
+        "latest_version": latest_versions.get("stable_version"),
+        "script_mtime": None,
+        "last_run_mtime": None,
+        "status_check_ok": False,
+        "status_message": "Unable to check bot status; bot may be online or offline.",
+    }
+
+
 async def get_bot_status_via_bots_api(username: str) -> dict:
     """Ask the private bot-host control API whether a channel bot is running."""
     latest_versions = _load_latest_bot_versions()
+    # custom runs beta.py — compare against beta published version
     latest_version_map = {
         "stable": latest_versions.get("stable_version"),
         "beta": latest_versions.get("beta_version"),
         "v6": latest_versions.get("v6_version") or latest_versions.get("beta_version"),
-        "custom": latest_versions.get("stable_version"),
+        "custom": latest_versions.get("beta_version") or latest_versions.get("stable_version"),
     }
     t0 = _time.monotonic()
     try:
@@ -6206,49 +6300,78 @@ async def get_bot_status_via_bots_api(username: str) -> dict:
         logging.info(f"[bot_status] bots API for '{username}' in {_time.monotonic()-t0:.2f}s: {data!r}")
         running = bool(data.get("running"))
         found_type = data.get("bot_type")
+        # Normalize: bots API may still return null offline; never invent a type when offline
+        if found_type is not None:
+            found_type = str(found_type).lower()
+            if found_type not in ("stable", "beta", "v6", "custom"):
+                found_type = found_type  # pass through unknown for debugging
         version = data.get("version")
-        latest = latest_version_map.get(found_type) if found_type else latest_versions.get("stable_version")
-        outdated = None
-        if running and version and latest:
-            try:
-                outdated = tuple(map(int, str(version).split("."))) < tuple(map(int, str(latest).split(".")))
-            except Exception:
-                outdated = None
+        if version is not None:
+            version = str(version).strip() or None
+        latest = (
+            latest_version_map.get(found_type)
+            if found_type
+            else latest_versions.get("stable_version")
+        )
+        version_outdated = _is_version_outdated(version, latest)
+        code_update = data.get("code_update_available")
+        if code_update is not None:
+            code_update = bool(code_update)
+        # Combined badge: published newer OR code on disk newer than last start
+        if version_outdated is True or code_update is True:
+            outdated = True
+        elif version_outdated is False and code_update is False:
+            outdated = False
+        elif version_outdated is False and code_update is None:
+            outdated = False
+        elif version_outdated is None and code_update is False:
+            outdated = False
+        else:
+            outdated = None
+        script_mtime = data.get("script_mtime")
+        last_run_mtime = data.get("last_run_mtime")
+        try:
+            script_mtime = int(script_mtime) if script_mtime is not None else None
+        except (TypeError, ValueError):
+            script_mtime = None
+        try:
+            last_run_mtime = int(last_run_mtime) if last_run_mtime is not None else None
+        except (TypeError, ValueError):
+            last_run_mtime = None
         return {
             "running": running,
             "pid": data.get("pid"),
             "version": version,
             "bot_type": found_type,
             "outdated": outdated,
+            "version_outdated": version_outdated,
+            "code_update_available": code_update,
             "latest_version": latest,
+            "script_mtime": script_mtime,
+            "last_run_mtime": last_run_mtime,
+            "status_check_ok": True,
+            "status_message": None,
         }
     except HTTPException as e:
         logging.error(f"[bot_status] bots API error for '{username}': {e.detail}")
-        return {
-            "running": False,
-            "pid": None,
-            "version": None,
-            "bot_type": None,
-            "outdated": None,
-            "latest_version": latest_versions.get("stable_version"),
-        }
+        return _bot_status_check_failed(latest_versions, detail=str(e.detail))
     except Exception as e:
         logging.error(f"[bot_status] error for '{username}': {type(e).__name__}: {e}", exc_info=True)
-        return {
-            "running": False,
-            "pid": None,
-            "version": None,
-            "bot_type": None,
-            "outdated": None,
-            "latest_version": latest_versions.get("stable_version"),
-        }
+        return _bot_status_check_failed(latest_versions, detail=str(e))
 
 # Bot Status Endpoint
 @app.get(
     "/bot/status",
     response_model=BotStatusResponse,
     summary="Get chat bot status",
-    description="Check if your chat bot is currently running and retrieve its status information.",
+    description=(
+        "Check if your chat bot is currently running and retrieve its status information. "
+        "Process data comes from the bots control API on the bot host. "
+        "If status_check_ok is false, running is null — status could not be verified "
+        "(bot may still be online). outdated is true when either the published version "
+        "is newer than last-run (version_outdated) or code on disk is newer than last "
+        "start (code_update_available). bot_type may be stable, beta, v6, or custom."
+    ),
     tags=["User Account"],
     operation_id="get_bot_status"
 )
