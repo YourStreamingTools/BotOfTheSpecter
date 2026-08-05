@@ -135,7 +135,7 @@ if (!function_exists('start_bot_for_user')) {
     {
         global $conn, $api_key;
         // Load tokens and api_key for the user
-        $stmt = $conn->prepare("SELECT id, twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT id, twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self, use_custom_module FROM users WHERE username = ? LIMIT 1");
         if (!$stmt)
             return ['success' => false, 'message' => t('admin_start_bots_err_db_token_lookup')];
         $stmt->bind_param('s', $username);
@@ -152,6 +152,7 @@ if (!function_exists('start_bot_for_user')) {
         $refreshToken = trim($row['refresh_token'] ?? '');
         $useCustom = ((int) ($row['use_custom'] ?? 0)) === 1;
         $useSelf = ((int) ($row['use_self'] ?? 0)) === 1;
+        $useCustomModule = ((int) ($row['use_custom_module'] ?? 0)) === 1;
         // Get API key - try per-user key first, then global fallback
         $userApiKey = trim($row['api_key'] ?? '');
         $globalApiKey = trim($api_key ?? '');
@@ -189,7 +190,8 @@ if (!function_exists('start_bot_for_user')) {
                 'twitch_user_id' => $twitchUserId,
                 'auth_token' => $accessToken,
                 'refresh_token' => $refreshToken,
-                'api_key' => $finalApiKey
+                'api_key' => $finalApiKey,
+                'load_custom_module' => $useCustomModule,
             ];
             if ($actionBotType === 'beta') {
                 $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
@@ -811,7 +813,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     } else {
         try {
             // Get user data including refresh_token and api_key from users table
-            $stmt = $conn->prepare("SELECT id, twitch_user_id, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ?");
+            $stmt = $conn->prepare("SELECT id, twitch_user_id, refresh_token, api_key, use_custom, use_self, use_custom_module FROM users WHERE username = ?");
             $stmt->bind_param("s", $username);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -823,6 +825,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                 $apiKey = $userData['api_key'];
                 $useCustom = ((int) ($userData['use_custom'] ?? 0)) === 1;
                 $useSelf = ((int) ($userData['use_self'] ?? 0)) === 1;
+                $useCustomModule = ((int) ($userData['use_custom_module'] ?? 0)) === 1;
                 // Get bot access token from twitch_bot_access table
                 $stmt2 = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?");
                 $stmt2->bind_param("s", $twitchUserId);
@@ -867,7 +870,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                         'twitch_user_id' => $twitchUserId,
                         'auth_token' => $botAccessToken,  // Bot token from twitch_bot_access
                         'refresh_token' => $refreshToken,  // Refresh token from users table
-                        'api_key' => $apiKey
+                        'api_key' => $apiKey,
+                        'load_custom_module' => $useCustomModule,
                     ];
                     $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
                     if ($actionBotType === 'beta') {

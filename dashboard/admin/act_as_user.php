@@ -9,7 +9,7 @@ if ($targetUserId <= 0) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id, username, twitch_display_name, profile_image, twitch_user_id, access_token, refresh_token, api_key, is_admin, beta_access, use_custom, use_self, email FROM users WHERE id = ? LIMIT 1");
+$stmt = $conn->prepare("SELECT id, username, twitch_display_name, profile_image, twitch_user_id, access_token, refresh_token, api_key, is_admin, beta_access, use_custom, use_self, use_custom_module, email FROM users WHERE id = ? LIMIT 1");
 if (!$stmt) {
     admin_audit_log('act_as_user', 'error', ['reason' => 'prepare_failed', 'target_user_id' => $targetUserId], 'user_id', (string) $targetUserId);
     header('Location: users.php?act_as=error');
@@ -43,6 +43,7 @@ if (!empty($_SESSION['admin_act_as_active']) && isset($_SESSION['admin_act_as_or
         $_SESSION['beta_access']   = $original['beta_access']   ?? false;
         $_SESSION['use_custom']    = $original['use_custom']    ?? 0;
         $_SESSION['use_self']      = $original['use_self']      ?? 0;
+        $_SESSION['use_custom_module'] = $original['use_custom_module'] ?? 0;
         $_SESSION['user_data']     = $original['user_data']     ?? null;
     }
     unset(
@@ -70,6 +71,7 @@ if (!isset($_SESSION['admin_act_as_original']) || !is_array($_SESSION['admin_act
         'beta_access' => $_SESSION['beta_access'] ?? false,
         'use_custom' => $_SESSION['use_custom'] ?? 0,
         'use_self' => $_SESSION['use_self'] ?? 0,
+        'use_custom_module' => $_SESSION['use_custom_module'] ?? 0,
         'user_data' => $_SESSION['user_data'] ?? null,
     ];
 }

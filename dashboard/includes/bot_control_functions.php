@@ -48,6 +48,8 @@ function checkBotRunning($username, $botType = 'stable') {
         'script_mtime' => null,
         'last_run_mtime' => null,
         'code_update_available' => false,
+        // Operator-deployed custom_channel_modules/{channel}.py on bot host
+        'custom_module_available' => false,
         'message' => ''
     ];
     $resp = bots_api_bot_status($username, $botType);
@@ -89,6 +91,7 @@ function checkBotRunning($username, $botType = 'stable') {
         ? (int)$data['last_run_mtime']
         : null;
     $result['code_update_available'] = !empty($data['code_update_available']);
+    $result['custom_module_available'] = !empty($data['custom_module_available']);
     $result['lastModified'] = $result['script_mtime'];
     $result['lastRun'] = $result['last_run_mtime'];
     $result['message'] = 'Bot status retrieved successfully';
@@ -111,6 +114,7 @@ function performBotAction($action, $botType, $params) {
     $useCustomBot      = $params['use_custom_bot'] ?? false;
     $customBotUsername = $params['custom_bot_username'] ?? null;
     $useSelf           = $params['use_self'] ?? false;
+    $loadCustomModule  = !empty($params['load_custom_module']);
 
     // Version lookup
     $versionsUrl  = 'https://api.botofthespecter.com/versions';
@@ -151,6 +155,8 @@ function performBotAction($action, $botType, $params) {
             'botusername' => ($useCustomBot && $botType === 'beta') ? $customBotUsername : null,
             'self'        => (bool)($useSelf && $botType === 'beta'),
             'version'     => $version,
+            // beta/v6 only; bots API also requires the {channel}.py file on the host
+            'load_custom_module' => (bool)($loadCustomModule && in_array($botType, ['beta', 'v6'], true)),
         ];
         $resp = bots_api_start_bot($payload);
         if (!$resp['ok']) {

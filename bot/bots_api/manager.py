@@ -32,6 +32,12 @@ VENV_ROOT = BOT_HOME / "venvs"
 LOGS = BOT_HOME / "logs"
 CRASH_DIR = LOGS / "crash"
 VERSION_DIR = LOGS / "version"
+# Per-channel custom modules (operator-deployed). Status/start use this path only.
+CUSTOM_MODULES_DIR = Path(
+    os.getenv("CUSTOM_CHANNEL_MODULES_DIR", str(BOT_HOME / "custom_channel_modules"))
+)
+# Safe Twitch login segment for module filenames (no path traversal).
+_CHANNEL_MODULE_NAME_RE = re.compile(r"^[a-z0-9_]+$")
 # Durable inventory of bots we last saw running (survives process death / OOM).
 SNAPSHOT_PATH = Path(
     os.getenv("BOTS_RUNNING_SNAPSHOT", str(LOGS / "bots_running_snapshot.json"))
@@ -207,6 +213,17 @@ def write_version(bot_type: str, channel: str, version: str) -> None:
     path = fn(channel.lower())
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(version.strip() + "\n", encoding="utf-8")
+
+
+def custom_module_available(channel: str) -> bool:
+    """True if operator-deployed {channel}.py exists under custom_channel_modules."""
+    ch = (channel or "").lower().strip()
+    if not ch or not _CHANNEL_MODULE_NAME_RE.fullmatch(ch):
+        return False
+    try:
+        return (CUSTOM_MODULES_DIR / f"{ch}.py").is_file()
+    except OSError:
+        return False
 
 
 @dataclass
@@ -741,6 +758,7 @@ def status_for_channel(channel: str, bot_type: str | None = None) -> dict[str, A
         "script_mtime": script_mtime,
         "last_run_mtime": last_run_mtime,
         "code_update_available": code_update,
+        "custom_module_available": custom_module_available(channel),
     }
 
 
@@ -869,6 +887,7 @@ async def start_bot(
     botusername: str | None = None,
     self_mode: bool = False,
     version: str | None = None,
+    load_custom_module: bool = False,
 ) -> dict[str, Any]:
     channel = channel.lower()
     if bot_type not in BOT_TYPES:
@@ -960,6 +979,19 @@ async def start_bot(
         argv.extend(["-custom", "-botusername", botusername])
     if self_mode:
         argv.append("-self")
+    # Opt-in custom channel module: only pass CLI flag when requested and file exists.
+    # beta/v6 honor -load-custom-module; stable ignores unknown flags if ever passed.
+    module_will_load = False
+    if load_custom_module and bot_type in ("beta", "v6"):
+        if custom_module_available(channel):
+            argv.append("-load-custom-module")
+            module_will_load = True
+        else:
+            log.warning(
+                "load_custom_module requested for %s but no module file under %s",
+                channel,
+                CUSTOM_MODULES_DIR,
+            )
 
     # Escape for bash -c so tokens with special chars stay intact
     def sh_quote(s: str) -> str:
@@ -1007,6 +1039,8 @@ async def start_bot(
             "version": ver,
             "message": f"{other_msg}Bot started successfully",
             "channel": channel,
+            "load_custom_module": module_will_load,
+            "custom_module_available": custom_module_available(channel),
         }
     # Start was requested; record expected even if PID not visible yet so a
     # quick crash still leaves a recovery row after the next scan cycle.
@@ -1026,6 +1060,8 @@ async def start_bot(
         "version": version,
         "message": f"{other_msg}Bot start command sent. Status will update shortly.",
         "channel": channel,
+        "load_custom_module": module_will_load,
+        "custom_module_available": custom_module_available(channel),
     }
 
 

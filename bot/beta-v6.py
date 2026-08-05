@@ -56,20 +56,11 @@ try:
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-# Custom channel modules
-from custom_channel_modules import botofthespecter as botofthespecter_module
-from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
-try:
-    from custom_channel_modules import gfaundead as gfaundead_module  # type: ignore
-except ImportError:
-    gfaundead_module = None
-
-_MODULE_CLASSES = [
-    getattr(hedgehogobrien_module, 'HedgehogOBrienModule', None) if hedgehogobrien_module is not None else None,
-    getattr(gfaundead_module, 'GFAUnDeadModule', None) if gfaundead_module is not None else None,
-]
-_MODULE_CLASSES = [cls for cls in _MODULE_CLASSES if cls is not None]
-_channel_modules: list = []  # Active custom channel module instances, populated on event_ready
+# Custom channel modules — imported only when -load-custom-module is set (this channel's .py only).
+_MODULE_CLASSES: list = []
+_channel_modules: list = []  # Active instances, populated on event_ready
+_loaded_custom_module = None  # importlib package for this channel, or None
+botofthespecter_module = None  # soft-loaded for bot-home AI only
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -81,6 +72,12 @@ parser.add_argument("-apitoken", dest="api_token", required=False, help="API Tok
 parser.add_argument("-custom", dest="custom_mode", action="store_true", help="Enable custom bot mode")
 parser.add_argument("-botusername", dest="bot_username", required=False, help="Bot's Twitch username (required when -custom is used)")
 parser.add_argument("-self", dest="self_mode", action="store_true", help="Enable self mode (use broadcaster account)")
+parser.add_argument(
+    "-load-custom-module",
+    dest="load_custom_module",
+    action="store_true",
+    help="Load custom_channel_modules/{channel}.py for this channel only (opt-in via dashboard)",
+)
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -91,6 +88,7 @@ REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 SELF_MODE = args.self_mode
 CUSTOM_MODE = args.custom_mode or SELF_MODE
+LOAD_CUSTOM_MODULE = bool(args.load_custom_module)
 if args.custom_mode:
     BOT_USERNAME = args.bot_username
 elif SELF_MODE:
@@ -98,6 +96,61 @@ elif SELF_MODE:
 else:
     BOT_USERNAME = "botofthespecter"
 IGNORED_WELCOME_USERNAMES = {"botofthespecter", (BOT_USERNAME or "").lower()}
+
+
+def _discover_channel_module_classes(mod) -> list:
+    """Find classes on a loaded module that implement claims_channel()."""
+    found = []
+    for name in dir(mod):
+        if name.startswith("_"):
+            continue
+        obj = getattr(mod, name, None)
+        if isinstance(obj, type) and callable(getattr(obj, "claims_channel", None)):
+            found.append(obj)
+    return found
+
+
+def _load_opt_in_custom_module(channel_name: str) -> None:
+    """Import only custom_channel_modules/{channel}.py when opt-in flag is set."""
+    global _MODULE_CLASSES, _loaded_custom_module
+    _MODULE_CLASSES = []
+    _loaded_custom_module = None
+    if not LOAD_CUSTOM_MODULE:
+        return
+    ch = (channel_name or "").lower().strip()
+    if not ch or not re.fullmatch(r"[a-z0-9_]+", ch):
+        print(f"[module] Refusing to load module for invalid channel name: {channel_name!r}")
+        return
+    try:
+        import importlib
+        mod = importlib.import_module(f"custom_channel_modules.{ch}")
+        _loaded_custom_module = mod
+        _MODULE_CLASSES = _discover_channel_module_classes(mod)
+        if not _MODULE_CLASSES:
+            print(f"[module] Loaded custom_channel_modules.{ch} but found no claims_channel classes")
+        else:
+            print(f"[module] Opt-in load: custom_channel_modules.{ch} classes={[c.__name__ for c in _MODULE_CLASSES]}")
+    except Exception as exc:
+        print(f"[module] Failed to import custom_channel_modules.{ch}: {exc}")
+        _loaded_custom_module = None
+        _MODULE_CLASSES = []
+
+
+def _get_botofthespecter_home_helpers():
+    """Soft-import platform bot-home AI helpers only when needed (not a channel opt-in module)."""
+    global botofthespecter_module
+    if botofthespecter_module is not None:
+        return botofthespecter_module
+    try:
+        from custom_channel_modules import botofthespecter as _bots
+        botofthespecter_module = _bots
+        return botofthespecter_module
+    except Exception:
+        return None
+
+
+_load_opt_in_custom_module(CHANNEL_NAME)
+
 # TaskCursorWrapper to transparently route streamer's task queries to streamer_tasks table
 class TaskCursorWrapper:
     def __init__(self, cursor, owner):
@@ -3312,29 +3365,31 @@ class TwitchBot(commands.AutoBot):
                 irc_presence=twitch_irc_presence,
                 get_stream_started_at=lambda: stream_session_started_at,
             ))
-        # Hedgehog ready path is optional; never block the Specter ready chat line.
+        # Optional module-level ready helpers on the opt-in loaded package only.
         try:
-            _hh_is = getattr(hedgehogobrien_module, 'is_hedgehogobrien_channel', None)
-            if not callable(_hh_is):
-                _hh_cls = getattr(hedgehogobrien_module, 'HedgehogOBrienModule', None)
-                _hh_is = getattr(_hh_cls, 'claims_channel', None) if _hh_cls is not None else None
-            if hedgehogobrien_module is not None and callable(_hh_is) and _hh_is(CHANNEL_NAME):
-                _hh_ensure = getattr(hedgehogobrien_module, 'ensure_tables', None)
-                _hh_ready = getattr(hedgehogobrien_module, 'handle_ready', None)
-                if callable(_hh_ensure):
-                    await _hh_ensure(mysql_handler)
-                    bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
-                if callable(_hh_ready):
-                    create_task(_hh_ready(
-                        broadcaster_id=CHANNEL_ID,
-                        mysql_handler=mysql_handler,
-                        http_session=_shared_http_session,
-                        chat_logger=chat_logger,
-                        irc_presence=twitch_irc_presence,
-                        get_stream_started_at=lambda: stream_session_started_at,
-                    ))
+            _mod_pkg = _loaded_custom_module
+            if _mod_pkg is not None:
+                _hh_is = getattr(_mod_pkg, 'is_hedgehogobrien_channel', None)
+                if not callable(_hh_is):
+                    _hh_cls = getattr(_mod_pkg, 'HedgehogOBrienModule', None)
+                    _hh_is = getattr(_hh_cls, 'claims_channel', None) if _hh_cls is not None else None
+                if callable(_hh_is) and _hh_is(CHANNEL_NAME):
+                    _hh_ensure = getattr(_mod_pkg, 'ensure_tables', None)
+                    _hh_ready = getattr(_mod_pkg, 'handle_ready', None)
+                    if callable(_hh_ensure):
+                        await _hh_ensure(mysql_handler)
+                        bot_logger.info("[module] Package-level ensure_tables completed.")
+                    if callable(_hh_ready):
+                        create_task(_hh_ready(
+                            broadcaster_id=CHANNEL_ID,
+                            mysql_handler=mysql_handler,
+                            http_session=_shared_http_session,
+                            chat_logger=chat_logger,
+                            irc_presence=twitch_irc_presence,
+                            get_stream_started_at=lambda: stream_session_started_at,
+                        ))
         except Exception as _hh_err:
-            bot_logger.error(f"[hedgehogobrien] Ready path failed (non-fatal): {_hh_err}")
+            bot_logger.error(f"[module] Package ready path failed (non-fatal): {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     # Errors
@@ -3670,15 +3725,16 @@ class TwitchBot(commands.AutoBot):
                                     add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
-                # Handle hedgehogobrien module commands (helpers may be class methods, not module attrs)
-                _hh_is = getattr(hedgehogobrien_module, 'is_hedgehogobrien_channel', None) if hedgehogobrien_module is not None else None
-                if not callable(_hh_is) and hedgehogobrien_module is not None:
-                    _hh_cls = getattr(hedgehogobrien_module, 'HedgehogOBrienModule', None)
+                # Optional package-level module commands (e.g. bureau) on opt-in loaded package only
+                _mod_pkg = _loaded_custom_module
+                _hh_is = getattr(_mod_pkg, 'is_hedgehogobrien_channel', None) if _mod_pkg is not None else None
+                if not callable(_hh_is) and _mod_pkg is not None:
+                    _hh_cls = getattr(_mod_pkg, 'HedgehogOBrienModule', None)
                     _hh_is = getattr(_hh_cls, 'claims_channel', None) if _hh_cls is not None else None
-                _hh_is_cmd = getattr(hedgehogobrien_module, 'is_bureau_command', None) if hedgehogobrien_module is not None else None
-                if hedgehogobrien_module is not None and callable(_hh_is) and _hh_is(CHANNEL_NAME) and callable(_hh_is_cmd) and _hh_is_cmd(messageContent):
+                _hh_is_cmd = getattr(_mod_pkg, 'is_bureau_command', None) if _mod_pkg is not None else None
+                if _mod_pkg is not None and callable(_hh_is) and _hh_is(CHANNEL_NAME) and callable(_hh_is_cmd) and _hh_is_cmd(messageContent):
                     async def _hh_send(msg):
-                        _send = getattr(hedgehogobrien_module, 'send_module_message', None)
+                        _send = getattr(_mod_pkg, 'send_module_message', None)
                         if callable(_send):
                             await _send(
                                 message=msg,
@@ -3687,7 +3743,7 @@ class TwitchBot(commands.AutoBot):
                                 http_session=_shared_http_session,
                                 chat_logger=chat_logger,
                             )
-                    _hh_bureau = getattr(hedgehogobrien_module, 'handle_bureau_command', None)
+                    _hh_bureau = getattr(_mod_pkg, 'handle_bureau_command', None)
                     if callable(_hh_bureau):
                         await _hh_bureau(
                             command=AuthorMessage,
@@ -3696,9 +3752,10 @@ class TwitchBot(commands.AutoBot):
                             send_message=_hh_send,
                             chat_logger=chat_logger,
                         )
-                # Handle AI responses
-                if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
-                    ai_text = await botofthespecter_module.handle_bot_home_channel_ai(
+                # Handle AI responses (bot-home helpers soft-loaded only when needed)
+                _bots_home = _get_botofthespecter_home_helpers()
+                if _bots_home is not None and _bots_home.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
+                    ai_text = await _bots_home.handle_bot_home_channel_ai(
                         bot_nick=BOT_USERNAME,
                         original_message=AuthorMessage,
                         normalized_message=messageContent,
@@ -3861,7 +3918,7 @@ class TwitchBot(commands.AutoBot):
                     await connection.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today.")
                     # Forward to custom module if applicable - module handles message and returns True
-                    _hh_first = getattr(hedgehogobrien_module, 'handle_first_chat', None) if hedgehogobrien_module is not None else None
+                    _hh_first = getattr(_loaded_custom_module, 'handle_first_chat', None) if _loaded_custom_module is not None else None
                     if callable(_hh_first):
                         _hh_handled = await _hh_first(
                             channel_name=CHANNEL_NAME,

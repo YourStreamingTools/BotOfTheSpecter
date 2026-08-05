@@ -155,6 +155,12 @@ if ($action === 'run' && isset($_POST['use_custom_bot']) && ($_POST['use_custom_
   }
 }
 
+// Opt-in custom channel module: prefer session (userdata), allow POST override for immediate UI state
+$loadCustomModule = ((int)($_SESSION['use_custom_module'] ?? 0)) === 1;
+if (isset($_POST['load_custom_module'])) {
+  $loadCustomModule = ($_POST['load_custom_module'] === 'true' || $_POST['load_custom_module'] === '1');
+}
+
 // Prepare parameters
 $params = [
   'username' => $username,
@@ -164,7 +170,8 @@ $params = [
   'api_key' => $apiKey,
   'use_custom_bot' => $useCustomBot,
   'custom_bot_username' => $customBotUsername,
-  'use_self' => (isset($_POST['use_self']) && ($_POST['use_self'] === 'true' || $_POST['use_self'] === '1')) ? true : false
+  'use_self' => (isset($_POST['use_self']) && ($_POST['use_self'] === 'true' || $_POST['use_self'] === '1')) ? true : false,
+  'load_custom_module' => $loadCustomModule,
 ];
 
 // Perform the bot action with timeout monitoring

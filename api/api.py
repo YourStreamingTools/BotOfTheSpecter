@@ -415,7 +415,7 @@ async def _get_user_bot_launch_credentials(username: str) -> dict | None:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
                 """
-                SELECT id, twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self
+                SELECT id, twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self, use_custom_module
                 FROM users
                 WHERE username = %s
                 LIMIT 1
@@ -433,6 +433,7 @@ async def _get_user_bot_launch_credentials(username: str) -> dict | None:
                 "api_key": (row.get("api_key") or "").strip(),
                 "use_custom": int(row.get("use_custom") or 0) == 1,
                 "use_self": int(row.get("use_self") or 0) == 1,
+                "use_custom_module": int(row.get("use_custom_module") or 0) == 1,
             }
     finally:
         conn.close()
@@ -6452,6 +6453,9 @@ async def start_bot(
         "botusername": beta_params.get("custom_bot_username") if bot_type == "beta" else None,
         "self": bool(bot_type == "beta" and beta_params.get("use_self")),
         "version": version,
+        "load_custom_module": bool(
+            creds.get("use_custom_module") and bot_type in ("beta", "v6")
+        ),
     }
     try:
         data = await _bots_api_request("POST", "/api/bot/start", json_body=body)
