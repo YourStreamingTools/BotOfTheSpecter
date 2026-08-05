@@ -1,5 +1,5 @@
 # Standard library imports
-import os, re, sys, ast, signal, argparse, traceback, math, ssl
+import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
@@ -113,6 +113,7 @@ class TaskCursorWrapper:
         return await self.cursor.execute(query, params)
 
 VERSION = "6.0.0"
+# Use V6 (not BETA) so version-control files don't overwrite the beta track.
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
@@ -3180,7 +3181,9 @@ async def cleanup_idle_db_pools():
             await sleep(300)
 
 class TwitchBot(commands.AutoBot):
-    # Event Message to get the bot ready
+    # Minimal Component surface for TwitchIO when Command._injected is the bot instance.
+    __all_guards__ = ()
+
     def __init__(self, prefix, client_id, client_secret, bot_id, owner_id, subscriptions, force_subscribe):
         super().__init__(
                 prefix=prefix,
@@ -3195,8 +3198,37 @@ class TwitchBot(commands.AutoBot):
         self.channel_name = CHANNEL_NAME
         self.running_commands = set()
 
+    async def component_before_invoke(self, ctx: commands.Context) -> None:
+        return None
+
+    async def component_after_invoke(self, ctx: commands.Context) -> None:
+        # TwitchIO post-invoke hook when Command._injected is the bot instance
+        return None
+
+    async def component_command_error(self, payload: commands.CommandErrorPayload) -> bool:
+        # True = also dispatch Bot.event_command_error
+        return True
+
     async def setup_hook(self) -> None:
-        pass
+        # TwitchIO 3.x: register class @commands.command handlers and inject self.
+        seen: set[int] = set()
+        registered = 0
+        for _attr_name, member in inspect.getmembers(type(self)):
+            if not isinstance(member, commands.Command):
+                continue
+            mid = id(member)
+            if mid in seen:
+                continue
+            seen.add(mid)
+            member._injected = self  # type: ignore[attr-defined]
+            try:
+                self.add_command(member)
+                registered += 1
+            except Exception as reg_err:
+                bot_logger.error(
+                    f"[COMMANDS] Failed to register {getattr(member, 'name', _attr_name)!r}: {reg_err}"
+                )
+        bot_logger.info(f"[COMMANDS] Registered {registered} AutoBot command(s) for TwitchIO 3.x")
 
     async def event_token_refreshed(self, payload: twitchio.TokenRefreshedPayload) -> None:
         global CHANNEL_AUTH
@@ -3280,9 +3312,7 @@ class TwitchBot(commands.AutoBot):
                 irc_presence=twitch_irc_presence,
                 get_stream_started_at=lambda: stream_session_started_at,
             ))
-        # Hedgehog helpers live on classes (not always as module-level attrs). Never let this
-        # block abort event_ready before the ready chat line — GFA/other channels already load
-        # via _MODULE_CLASSES above.
+        # Hedgehog ready path is optional; never block the Specter ready chat line.
         try:
             _hh_is = getattr(hedgehogobrien_module, 'is_hedgehogobrien_channel', None)
             if not callable(_hh_is):
@@ -3385,11 +3415,13 @@ class TwitchBot(commands.AutoBot):
                             offset += frag_len
                         emotes_str = "/".join(f"{eid}:{','.join(ranges)}" for eid, ranges in emotes_map.items())
                         chat_color = getattr(message.chatter, 'colour', None) or getattr(message.chatter, 'color', None) or ''
+                        if chat_color is not None and not isinstance(chat_color, str):
+                            chat_color = str(chat_color)
                         chat_payload = {
                             'user_id': str(message.chatter.id),
                             'username': message.chatter.name or '',
                             'display_name': message.chatter.display_name or message.chatter.name or '',
-                            'color': chat_color,
+                            'color': chat_color or '',
                             'badges': badges_str,
                             'message': message.text or '',
                             'message_id': message.id or '',
