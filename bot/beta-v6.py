@@ -99,7 +99,13 @@ IGNORED_WELCOME_USERNAMES = {"botofthespecter", (BOT_USERNAME or "").lower()}
 
 
 def _discover_channel_module_classes(mod) -> list:
-    """Find classes on a loaded module that implement claims_channel()."""
+    # Prefer *Module facade (or explicit MODULE_CLASSES) so submodules are not double-instantiated.
+    explicit = getattr(mod, "MODULE_CLASSES", None) or getattr(mod, "CHANNEL_MODULE_CLASSES", None)
+    if explicit:
+        return [cls for cls in explicit if isinstance(cls, type)]
+    single = getattr(mod, "CHANNEL_MODULE", None) or getattr(mod, "MODULE_CLASS", None)
+    if isinstance(single, type):
+        return [single]
     found = []
     for name in dir(mod):
         if name.startswith("_"):
@@ -107,11 +113,14 @@ def _discover_channel_module_classes(mod) -> list:
         obj = getattr(mod, name, None)
         if isinstance(obj, type) and callable(getattr(obj, "claims_channel", None)):
             found.append(obj)
+    facades = [cls for cls in found if cls.__name__.endswith("Module")]
+    if facades:
+        return facades
     return found
 
 
 def _load_opt_in_custom_module(channel_name: str) -> None:
-    """Import only custom_channel_modules/{channel}.py when opt-in flag is set."""
+    # Import only custom_channel_modules/{channel}.py when -load-custom-module is set.
     global _MODULE_CLASSES, _loaded_custom_module
     _MODULE_CLASSES = []
     _loaded_custom_module = None
@@ -137,7 +146,7 @@ def _load_opt_in_custom_module(channel_name: str) -> None:
 
 
 def _get_botofthespecter_home_helpers():
-    """Soft-import platform bot-home AI helpers only when needed (not a channel opt-in module)."""
+    # Soft-import bot-home AI helpers only when needed (not a channel opt-in module).
     global botofthespecter_module
     if botofthespecter_module is not None:
         return botofthespecter_module
