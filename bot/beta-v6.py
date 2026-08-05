@@ -8,12 +8,13 @@ from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode, quote
-from logging import getLogger
+from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 from pathlib import Path
 from contextvars import ContextVar
+from collections import defaultdict
 
 # Third-party imports
 from websockets import connect as WebSocketConnect
@@ -170,7 +171,7 @@ SSH_HOSTS = {
 }
 builtin_commands = {
     "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime",
-    "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
+    "version", "convert", "subathon", "todo", "todolist", "kill", "points", "store", "slots", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles",
@@ -193,14 +194,14 @@ per_user_cooldown_commands = {
     "rps", "roulette", "gamble", "slots",
 }
 mod_commands = {
-    "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
+    "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "removesong",
-    "puzzledone"
+    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
+    "puzzledone", "warn"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
-    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "focus", "ctimer", "thelp"
+    "rafflejoin", "raffle", "ttimer", "stimer", "ptimer", "mytimer", "timer", "focus", "ctimer", "thelp", "warning"
 }
 
 # Logs
@@ -220,6 +221,7 @@ def setup_logger(name, log_file, level=LoggingLevel):
     # Clear any existing handlers to prevent duplicates
     if logger.hasHandlers():
         logger.handlers.clear()
+    formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     # Setup rotating file handler
     handler = LoggerFileHandler(
         log_file,
@@ -227,9 +229,12 @@ def setup_logger(name, log_file, level=LoggingLevel):
         backupCount=5,
         encoding='utf-8'
     )
-    formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+    # Also stream to stdout so the tmux console viewer can see output
+    console_handler = LoggingStreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
     return logger
 
 # Setup loggers
@@ -262,6 +267,7 @@ def time_right_now(tz=None):
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 scheduled_tasks = set()                                 # Set for scheduled tasks
+_background_tasks = set()                               # Strong references for fire-and-forget tasks to prevent GC warnings
 shoutout_queue = Queue()                                # Queue for shoutouts
 recent_shoutouts = {}                                   # Dictionary for recent shoutouts
 permitted_users = {}                                    # Dictionary for permitted users
@@ -337,6 +343,14 @@ allowed_ops = {
     '*': operator.mul,
     '/': operator.floordiv
 }
+
+_store_purchase_locks = defaultdict(asyncio.Lock)       # Locks for store purchases to prevent race conditions per user
+
+def safe_create_task(coro):
+    task = create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 def start_looped_task(name, coro_factory):
     existing = looped_tasks.get(name)
@@ -446,14 +460,36 @@ def signal_handler(sig, frame):
 
 # Async cleanup function
 async def async_signal_cleanup():
-    await specterSocket.disconnect()     # Disconnect the SocketClient
+    import asyncio
+    try:
+        await specterSocket.disconnect()     # Disconnect the SocketClient
+    except Exception:
+        pass
+    try:
+        await streamelements_socket.disconnect()
+    except Exception:
+        pass
     ssh_manager.close_all_connections()  # Close all SSH connections
-    for task in scheduled_tasks:
+    # Cancel all tracked tasks
+    tasks_to_cancel = list(scheduled_tasks) + list(looped_tasks.values())
+    for task in tasks_to_cancel:
+        if not task.done():
+            task.cancel()
+    # Cancel ALL remaining pending asyncio tasks (catches fire-and-forget create_task() calls)
+    current = asyncio.current_task()
+    all_tasks = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
+    for task in all_tasks:
         task.cancel()
-    for task in looped_tasks:
-        task.cancel()
-    for task in shoutout_queue:
-        task.cancel()
+    if all_tasks:
+        await asyncio.gather(*all_tasks, return_exceptions=True)
+    # Close shared HTTP session if created
+    try:
+        global _shared_http_session
+        if _shared_http_session is not None:
+            await _shared_http_session.close()
+            _shared_http_session = None
+    except Exception as e:
+        bot_logger.error(f"[SHUTDOWN] Error closing shared HTTP session: {e}")
     sys.exit(0)  # Exit the program
 
 # Register the signal handler
@@ -1537,9 +1573,9 @@ async def process_twitch_eventsub_message(message):
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
                         sound_file = "twitch/" + result.get("sound_mapping")
-                        create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                        safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                     # Specter Alerts overlay - variant matcher picks tier by level
-                    create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
+                    safe_create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
                         "twitch-hype-level": int(level),
                         "twitch-hype-phase": "begin",
                     }))
@@ -1559,8 +1595,8 @@ async def process_twitch_eventsub_message(message):
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
                         sound_file = "twitch/" + result.get("sound_mapping")
-                        create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
-                    create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
+                        safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                    safe_create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
                         "twitch-hype-level": int(level),
                         "twitch-hype-phase": "end",
                     }))
@@ -1755,10 +1791,10 @@ async def process_twitch_eventsub_message(message):
                 elif event_type in ["stream.online", "stream.offline"]:
                     if event_type == "stream.online":
                         bot_logger.info(f"Stream is now online!")
-                        create_task(websocket_notice(event="STREAM_ONLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         bot_logger.info(f"Stream is now offline.")
-                        create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_OFFLINE"))
                 # AutoMod Message Hold Event
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"Got an AutoMod Message Hold: {event_data}")
@@ -2399,6 +2435,38 @@ async def RAFFLE_WINNER(data):
             websocket_logger.error(f"Failed to send raffle winner chat message: {e}")
     except Exception as e:
         websocket_logger.error(f"Failed to process RAFFLE_WINNER event: {e}")
+
+@specterSocket.event
+async def STORE(data):
+    websocket_logger.info(f"[STORE] STORE event received: {data}")
+    try:
+        source = (data.get("source") or "").lower()
+        if source == "chat":
+            # Bot already posted the success line for !store <item>
+            return
+        username = data.get("username") or data.get("user_name") or data.get("user") or "someone"
+        display = data.get("display_name") or username
+        item_title = data.get("item_title") or data.get("title") or "an item"
+        cost = data.get("cost") or "0"
+        point_name = data.get("point_name") or "points"
+        balance_after = data.get("balance_after")
+        item_type = (data.get("item_type") or "").lower()
+        text = data.get("text")
+        try:
+            msg = f"@{display} redeemed {item_title} for {cost} {point_name}!"
+            if balance_after is not None and str(balance_after) != "":
+                msg += f" (balance: {balance_after})"
+            await send_chat_message(msg)
+        except Exception as e:
+            websocket_logger.error(f"[STORE] Failed to announce purchase: {e}")
+        # Optional chat_message fulfillment text (members path may not fire a separate event)
+        if item_type == "chat_message" and text:
+            try:
+                await send_chat_message(str(text))
+            except Exception as e:
+                websocket_logger.error(f"[STORE] Failed to send chat_message fulfillment: {e}")
+    except Exception as e:
+        websocket_logger.error(f"[STORE] Failed to process STORE event: {e}")
 
 @specterSocket.event
 async def CUSTOM_COMMAND(data):
@@ -3206,6 +3274,8 @@ class TwitchBot(commands.AutoBot):
             looped_tasks["module_ready_dispatch"] = create_task(dispatch_module_event(
                 "ready",
                 broadcaster_id=CHANNEL_ID,
+                irc_presence=twitch_irc_presence,
+                get_stream_started_at=lambda: stream_session_started_at,
             ))
         if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
             try:
@@ -3216,6 +3286,8 @@ class TwitchBot(commands.AutoBot):
                     mysql_handler=mysql_handler,
                     http_session=_shared_http_session,
                     chat_logger=chat_logger,
+                    irc_presence=twitch_irc_presence,
+                    get_stream_started_at=lambda: stream_session_started_at,
                 ))
             except Exception as _hh_err:
                 bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
@@ -4554,7 +4626,7 @@ class TwitchBot(commands.AutoBot):
                         chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now online!")
                         await send_chat_message("Stream status has been forcibly set to online.")
-                        create_task(websocket_notice(event="STREAM_ONLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_ONLINE"))
                         # Record usage
                         add_usage('forceonline', bucket_key, cooldown_bucket)
                     else:
@@ -4593,7 +4665,7 @@ class TwitchBot(commands.AutoBot):
                         chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now offline.")
                         await send_chat_message("Stream status has been forcibly set to offline.")
-                        create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_OFFLINE"))
                         # Record usage
                         add_usage('forceoffline', bucket_key, cooldown_bucket)
                     else:
@@ -4831,6 +4903,144 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the points command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='store')
+    async def store_command(ctx: commands.Context, *, item_query: str = None):
+        global bot_owner
+        user_id = str(ctx.author.id)
+        user_name = ctx.author.name.lower()
+        display_name = getattr(ctx.author, "display_name", None) or ctx.author.name
+        connection = None
+        try:
+            connection = await mysql_handler.get_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s",
+                    ("store",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == "Disabled" and ctx.author.name != bot_owner:
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown("store", bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                # Tables may not exist until dashboard has provisioned the channel
+                await cursor.execute("SHOW TABLES LIKE 'point_store_settings'")
+                if not await cursor.fetchone():
+                    await send_chat_message("Point Store is not set up for this channel yet.")
+                    return
+                settings = await point_store_load_settings(cursor)
+                point_name = "points"
+                try:
+                    ps = await get_point_settings()
+                    if ps and ps.get("point_name"):
+                        point_name = ps["point_name"]
+                except Exception:
+                    pass
+                query = (item_query or "").strip()
+                if not query:
+                    items = await point_store_list_enabled_items(cursor)
+                    if not settings.get("enabled"):
+                        await send_chat_message(f"The {point_name} store is currently closed.")
+                        add_usage("store", bucket_key, cooldown_bucket)
+                        return
+                    if settings.get("paused"):
+                        await send_chat_message(f"The {point_name} store is temporarily paused.")
+                        add_usage("store", bucket_key, cooldown_bucket)
+                        return
+                    if not items:
+                        await send_chat_message(f"No items in the {point_name} store yet.")
+                        add_usage("store", bucket_key, cooldown_bucket)
+                        return
+                    # Compact list: Title (cost) - fit chat length
+                    parts = []
+                    for it in items[:20]:
+                        slug = it.get("slug") or str(it["id"])
+                        parts.append(f"{it['title']} [{slug}] ({it['cost']})")
+                    listing = " · ".join(parts)
+                    more = f" (+{len(items) - 20} more)" if len(items) > 20 else ""
+                    msg = f"{point_name} store: {listing}{more}. Buy: !store <name>"
+                    if len(msg) > MAX_CHAT_MESSAGE_LENGTH:
+                        msg = msg[: MAX_CHAT_MESSAGE_LENGTH - 3] + "..."
+                    await send_chat_message(msg)
+                    add_usage("store", bucket_key, cooldown_bucket)
+                    return
+                # Purchase path
+                if not settings.get("enabled"):
+                    await send_chat_message(f"The {point_name} store is currently closed.")
+                    return
+                if settings.get("paused"):
+                    await send_chat_message(f"The {point_name} store is temporarily paused.")
+                    return
+                if settings.get("stream_online_only") and not await point_store_is_stream_online(cursor):
+                    await send_chat_message("Store purchases are only allowed while the stream is live.")
+                    return
+                item = await point_store_find_item(cursor, query)
+                if not item:
+                    await send_chat_message(f"Item not found. Use !store to list available rewards.")
+                    return
+                try:
+                    purchase = await point_store_checkout(
+                        connection,
+                        cursor,
+                        settings=settings,
+                        item=item,
+                        user_id=user_id,
+                        user_name=user_name,
+                        point_name=point_name,
+                        source="chat",
+                    )
+                except RuntimeError as e:
+                    await send_chat_message(str(e))
+                    return
+                cost = purchase["cost"]
+                balance_after = purchase["balance_after"]
+                item_title = item["title"]
+                await send_chat_message(
+                    f"@{display_name} spent {cost} {point_name} on {item_title}! (balance: {balance_after})"
+                )
+                add_usage("store", bucket_key, cooldown_bucket)
+                # Fan-out STORE (source=chat so listener does not double-announce) + media
+                payload = purchase.get("payload") or {}
+                store_data = {
+                    "username": user_name,
+                    "display_name": display_name,
+                    "user_id": user_id,
+                    "item_id": str(item["id"]),
+                    "item_title": item_title,
+                    "item_type": item.get("item_type") or "",
+                    "cost": str(cost),
+                    "point_name": point_name,
+                    "balance_after": str(balance_after),
+                    "source": "chat",
+                }
+                if payload.get("sound"):
+                    store_data["sound"] = payload["sound"]
+                if payload.get("video"):
+                    store_data["video"] = payload["video"]
+                if payload.get("text"):
+                    store_data["text"] = payload["text"]
+                safe_create_task(websocket_notice(event="STORE", additional_data=store_data))
+                await point_store_fulfill_media(item, payload)
+                if (item.get("item_type") or "").lower() == "chat_message" and payload.get("text"):
+                    await send_chat_message(str(payload["text"]))
+        except Exception as e:
+            chat_logger.error(f"[STORE] store command error: {e}", exc_info=True)
+            try:
+                await send_chat_message("An unexpected error occurred with the store. Please try again later.")
+            except Exception:
+                pass
         finally:
             if connection:
                 await connection.release()
@@ -5241,6 +5451,88 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the permit command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='warn', aliases=['warning'])
+    async def warn_command(ctx: commands.Context, target_user: str = None, *, reason: str = None):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("warn",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    await send_chat_message("The warn command is not configured yet. Please try again after a bot restart.")
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('warn', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    chat_logger.info(f"[WARN] {ctx.author.name} tried to use warn but lacked permissions.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                if not target_user:
+                    await send_chat_message("Usage: !warn @username Reason for the warning here")
+                    return
+                target_user = target_user.lstrip('@').strip()
+                if not target_user:
+                    await send_chat_message("Usage: !warn @username Reason for the warning here")
+                    return
+                reason = (reason or "").strip()
+                if not reason:
+                    await send_chat_message("Please provide a reason for the warning. Usage: !warn @username Reason here")
+                    return
+                # Resolve Twitch user so we store a stable user_id (usernames can change)
+                target_user_name = target_user.lower()
+                try:
+                    target_user_id, display_name = await get_twitch_user_by_login(target_user_name)
+                except Exception as fetch_err:
+                    chat_logger.warning(f"[WARN] Could not fetch Twitch user for {target_user_name}: {fetch_err}")
+                    target_user_id, display_name = None, None
+                if not target_user_id:
+                    await send_chat_message(f"User {target_user_name} not found.")
+                    return
+                if display_name:
+                    target_user_name = display_name.lower()
+                warned_by_id = str(ctx.author.id) if getattr(ctx.author, "id", None) is not None else None
+                warned_by_name = ctx.author.name
+                await cursor.execute(
+                    "INSERT INTO warnings (user_id, user_name, warned_by_id, warned_by_name, reason) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (target_user_id, target_user_name, warned_by_id, warned_by_name, reason),
+                )
+                await connection.commit()
+                warning_id = cursor.lastrowid
+                await cursor.execute(
+                    "SELECT COUNT(*) AS warning_count FROM warnings WHERE user_id = %s OR user_name = %s",
+                    (target_user_id, target_user_name),
+                )
+                count_row = await cursor.fetchone()
+                warning_count = int(count_row.get("warning_count") or 0) if count_row else 1
+                chat_logger.info(
+                    f"[WARN] #{warning_id} {warned_by_name} warned {target_user_name} "
+                    f"(id={target_user_id}): {reason} | total={warning_count}"
+                )
+                await send_chat_message(
+                    f"@{target_user_name} has been warned by @{warned_by_name} "
+                    f"(warning #{warning_count}): {reason}"
+                )
+                add_usage('warn', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[WARN] An error occurred during the execution of the warn command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             if connection:
@@ -5830,62 +6122,6 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             except:
                 pass
-        finally:
-            if connection:
-                await connection.release()
-
-    @commands.command(name='timer')
-    async def timer_command(ctx: commands.Context):
-        global bot_owner
-        connection = None
-        connection = await mysql_handler.get_connection()
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                # Fetch the status and permissions for the timer command
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("timer",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
-                    # If the command is disabled, stop execution
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                # Verify user permissions
-                if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
-                # Check cooldown
-                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
-                if not await check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                # Check if the user already has an active timer
-                await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                active_timer = await cursor.fetchone()
-                if active_timer:
-                    await send_chat_message(f"@{ctx.author.name}, you already have an active timer.")
-                    return
-                content = ctx.message.text.strip()
-                try:
-                    _, minutes = content.split(' ')
-                    minutes = int(minutes)
-                except ValueError:
-                    # Default to 5 minutes if the user didn't provide a valid value
-                    minutes = 5
-                end_time = time_right_now(timezone.utc) + timedelta(minutes=minutes)
-                await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
-                await connection.commit()
-                await send_chat_message(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-                await sleep(minutes * 60)
-                await send_chat_message(f"The {minutes} minute timer has ended @{ctx.author.name}!")
-                # Remove the timer from the active_timers table
-                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                await connection.commit()
-                # Record usage
-                add_usage('timer', bucket_key, cooldown_bucket)
-        except Exception as e:
-            chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             if connection:
                 await connection.release()
@@ -7401,6 +7637,232 @@ class TwitchBot(commands.AutoBot):
                     add_usage('tasktimer', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[TASKTIMER] Error in tasktimer_command: {e}")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='craft')
+    async def craft_command(ctx: commands.Context):
+        global bot_owner
+        # Makers & Crafting overlay control. Mirrors the builtin-command pattern: status / permission / cooldown come from the builtin_commands table so the dashboard enable toggle, permission and cooldown settings are respected.
+        content = (getattr(ctx.message, 'text', None) or getattr(ctx.message, 'content', '') or '').strip()
+        parts = content.split(' ', 2)
+        subcommand = parts[1].lower() if len(parts) > 1 else ''
+        argument = parts[2].strip() if len(parts) > 2 else ''
+        valid_modes = ('featured', 'current', 'finished', 'upcoming')
+        connection = None
+        mutated = False
+        # Defaults if the command has no builtin_commands row yet (mod-only by design).
+        permissions = "mod"
+        cooldown_rate = 1
+        cooldown_time = 0
+        cooldown_bucket = "default"
+        bucket_key = 'global'
+        try:
+            connection = await mysql_handler.get_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                # Respect dashboard configuration (status / permission / cooldown).
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s",
+                    ("craft",),
+                )
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('craft', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                # Make sure the singleton settings row exists.
+                await cursor.execute("INSERT INTO maker_overlay_settings (id) VALUES (1) ON DUPLICATE KEY UPDATE id = id")
+                async def featured_id():
+                    # Auto-track: the "current" project is the current-status project worked on most recently (newest updated_at; newer id breaks ties).
+                    await cursor.execute(
+                        "SELECT id FROM maker_projects WHERE status = 'current' ORDER BY updated_at DESC, id DESC LIMIT 1"
+                    )
+                    row = await cursor.fetchone()
+                    return row.get('id') if row else None
+                if subcommand in ('new', 'wip'):
+                    if not argument:
+                        await send_chat_message("Usage: !craft new <project title>")
+                        return
+                    title = argument[:255]
+                    # Newest updated_at makes this the featured project automatically; make sure the Featured box is enabled so the overlay shows it live.
+                    await cursor.execute("INSERT INTO maker_projects (title, status) VALUES (%s, 'current')", (title,))
+                    new_id = cursor.lastrowid
+                    await cursor.execute("UPDATE maker_overlay_settings SET show_featured = 1 WHERE id = 1")
+                    mutated = True
+                    await send_chat_message(f"New project #{new_id} set as current: {title}")
+                elif subcommand in ('note', 'desc', 'context'):
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project. Use !craft new <title> first.")
+                        return
+                    if not argument:
+                        await send_chat_message("Usage: !craft note <text> (prefix with + to append)")
+                        return
+                    if argument.startswith('+'):
+                        addition = argument[1:].strip()
+                        await cursor.execute("SELECT description FROM maker_projects WHERE id = %s", (pid,))
+                        row = await cursor.fetchone()
+                        existing = (row.get('description') or '') if row else ''
+                        new_desc = (existing + ' ' + addition).strip() if existing else addition
+                    else:
+                        new_desc = argument
+                    await cursor.execute(
+                        "UPDATE maker_projects SET description = %s, updated_at = NOW() WHERE id = %s",
+                        (new_desc[:2000], pid),
+                    )
+                    mutated = True
+                    await send_chat_message("Project note updated.")
+                elif subcommand == 'link':
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project. Use !craft new <title> first.")
+                        return
+                    url = argument.strip()
+                    if url and not (url.startswith('http://') or url.startswith('https://')):
+                        await send_chat_message("Link must start with http:// or https://")
+                        return
+                    await cursor.execute(
+                        "UPDATE maker_projects SET link_url = %s, updated_at = NOW() WHERE id = %s",
+                        (url[:500] or None, pid),
+                    )
+                    mutated = True
+                    await send_chat_message("Project link updated.")
+                elif subcommand == 'current':
+                    if not argument.isdigit():
+                        await send_chat_message("Usage: !craft current <project id> (see !craft list)")
+                        return
+                    target = int(argument)
+                    await cursor.execute("SELECT title FROM maker_projects WHERE id = %s", (target,))
+                    row = await cursor.fetchone()
+                    if not row:
+                        await send_chat_message(f"No project with id #{target}.")
+                        return
+                    # "Feature now": mark it current and stamp it as the most recently worked-on project so it becomes the featured card immediately.
+                    await cursor.execute(
+                        "UPDATE maker_projects SET status = 'current', updated_at = NOW() WHERE id = %s",
+                        (target,),
+                    )
+                    await cursor.execute("UPDATE maker_overlay_settings SET show_featured = 1 WHERE id = 1")
+                    mutated = True
+                    await send_chat_message(f"Now featuring project #{target}: {row.get('title')}")
+                elif subcommand == 'finish':
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project to finish.")
+                        return
+                    await cursor.execute(
+                        "UPDATE maker_projects SET status = 'finished', completed_at = NOW() WHERE id = %s",
+                        (pid,),
+                    )
+                    # No manual pointer to clear: the overlay auto-falls to the next most-recent current project (or the empty state if none remain).
+                    mutated = True
+                    await send_chat_message("Project marked as finished. The next current project is now featured automatically.")
+                elif subcommand == 'upcoming':
+                    if not argument:
+                        await send_chat_message("Usage: !craft upcoming <idea title>")
+                        return
+                    await cursor.execute(
+                        "INSERT INTO maker_projects (title, status) VALUES (%s, 'upcoming')",
+                        (argument[:255],),
+                    )
+                    new_id = cursor.lastrowid
+                    mutated = True
+                    await send_chat_message(f"Added upcoming idea #{new_id}: {argument[:255]}")
+                elif subcommand == 'mode':
+                    mode = argument.lower()
+                    if mode not in valid_modes:
+                        await send_chat_message("Usage: !craft mode <featured|current|finished|upcoming>")
+                        return
+                    # "mode" shows only this box (exclusive); use show/hide for multi.
+                    await cursor.execute(
+                        "UPDATE maker_overlay_settings SET show_featured = %s, show_current = %s, show_finished = %s, show_upcoming = %s WHERE id = 1",
+                        (
+                            1 if mode == 'featured' else 0,
+                            1 if mode == 'current' else 0,
+                            1 if mode == 'finished' else 0,
+                            1 if mode == 'upcoming' else 0,
+                        ),
+                    )
+                    mutated = True
+                    await send_chat_message(f"Overlay now showing {mode} only.")
+                elif subcommand == 'image':
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project. Use !craft new <title> first.")
+                        return
+                    filename = ''.join(c for c in argument if c.isalnum() or c in '._-')
+                    if not filename:
+                        await send_chat_message("Usage: !craft image <uploaded filename> (upload images on the dashboard first)")
+                        return
+                    if '.' not in filename or filename.rsplit('.', 1)[1].lower() not in ('png', 'jpg', 'jpeg', 'gif'):
+                        await send_chat_message("Image must be a .png, .jpg, .jpeg or .gif file uploaded on the dashboard.")
+                        return
+                    await cursor.execute(
+                        "INSERT INTO maker_project_images (project_id, media_file) VALUES (%s, %s)",
+                        (pid, filename),
+                    )
+                    # Adding an image counts as working on the project: keep it featured.
+                    await cursor.execute("UPDATE maker_projects SET updated_at = NOW() WHERE id = %s", (pid,))
+                    mutated = True
+                    await send_chat_message(f"Image '{filename}' attached to the current project.")
+                elif subcommand in ('show', 'hide'):
+                    on = 1 if subcommand == 'show' else 0
+                    cat = argument.lower().strip()
+                    if cat in valid_modes:
+                        # Toggle a single category on the overlay.
+                        column = 'show_' + cat
+                        await cursor.execute(f"UPDATE maker_overlay_settings SET {column} = %s WHERE id = 1", (on,))
+                        mutated = True
+                        await send_chat_message(f"{cat.capitalize()} category {'shown' if on else 'hidden'} on the overlay.")
+                    elif cat in ('', 'overlay', 'all'):
+                        # No category: toggle the whole overlay's visibility.
+                        await cursor.execute("UPDATE maker_overlay_settings SET visible = %s WHERE id = 1", (on,))
+                        mutated = True
+                        await send_chat_message(f"Makers overlay {'shown' if on else 'hidden'}.")
+                    else:
+                        await send_chat_message("Usage: !craft show|hide [featured|current|finished|upcoming]  (no box = whole overlay)")
+                        return
+                elif subcommand in ('remove', 'delete'):
+                    if not argument.isdigit():
+                        await send_chat_message("Usage: !craft remove <project id>")
+                        return
+                    target = int(argument)
+                    await cursor.execute("DELETE FROM maker_project_images WHERE project_id = %s", (target,))
+                    await cursor.execute("DELETE FROM maker_projects WHERE id = %s", (target,))
+                    # No manual featured pointer to clear: recency picks the next current project automatically.
+                    mutated = True
+                    await send_chat_message(f"Removed project #{target}.")
+                elif subcommand in ('list', 'projects'):
+                    await cursor.execute(
+                        "SELECT id, title, status FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), id"
+                    )
+                    rows = await cursor.fetchall()
+                    if not rows:
+                        await send_chat_message("No maker projects yet. Add one with !craft new <title>.")
+                        return
+                    summary = ' | '.join(f"#{r['id']} {r['title']} ({r['status']})" for r in rows[:10])
+                    await send_chat_message(f"Projects: {summary}")
+                    return
+                else:
+                    await send_chat_message(
+                        "!craft: new <title>, note <text>, link <url>, current <id>, finish, upcoming <title>, mode <cat>, show [cat], hide [cat], image <file>, list, remove <id>"
+                    )
+                    return
+            if mutated:
+                add_usage('craft', bucket_key, cooldown_bucket)
+                safe_create_task(websocket_notice(event="MAKER_UPDATE", additional_data={"action": subcommand}))
+        except Exception as e:
+            chat_logger.error(f"[CRAFT] Error in craft_command: {e}")
+            await send_chat_message(f"An error occurred while updating the makers overlay. {e}")
         finally:
             if connection:
                 await connection.release()
@@ -16062,6 +16524,208 @@ async def get_point_settings():
         if connection:
             await connection.release()
 
+
+async def point_store_load_settings(cursor):
+    await cursor.execute("SELECT * FROM point_store_settings WHERE id = 1 LIMIT 1")
+    row = await cursor.fetchone()
+    if not row:
+        return {
+            "enabled": 0,
+            "paused": 0,
+            "stream_online_only": 0,
+            "global_cooldown_seconds": 0,
+            "max_purchases_per_user_per_stream": None,
+        }
+    return row
+
+async def point_store_is_stream_online(cursor):
+    try:
+        await cursor.execute("SHOW TABLES LIKE 'stream_status'")
+        if not await cursor.fetchone():
+            return False
+        await cursor.execute("SELECT status FROM stream_status LIMIT 1")
+        row = await cursor.fetchone()
+        return bool(row and str(row.get("status", "")).lower() == "true")
+    except Exception:
+        return False
+
+async def point_store_list_enabled_items(cursor):
+    await cursor.execute(
+        "SELECT id, title, slug, cost, item_type FROM point_store_items "
+        "WHERE enabled = 1 ORDER BY sort_order ASC, cost ASC, title ASC"
+    )
+    return await cursor.fetchall() or []
+
+async def point_store_find_item(cursor, query: str):
+    q = (query or "").strip()
+    if not q:
+        return None
+    if q.isdigit():
+        await cursor.execute(
+            "SELECT * FROM point_store_items WHERE id = %s AND enabled = 1 LIMIT 1",
+            (int(q),),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row
+    await cursor.execute(
+        "SELECT * FROM point_store_items WHERE enabled = 1 AND (LOWER(slug) = LOWER(%s) OR LOWER(title) = LOWER(%s)) LIMIT 1",
+        (q, q),
+    )
+    row = await cursor.fetchone()
+    if row:
+        return row
+    # Partial title match as last resort
+    like = f"%{q}%"
+    await cursor.execute(
+        "SELECT * FROM point_store_items WHERE enabled = 1 AND LOWER(title) LIKE LOWER(%s) ORDER BY cost ASC LIMIT 1",
+        (like,),
+    )
+    return await cursor.fetchone()
+
+async def point_store_checkout(connection, cursor, *, settings, item, user_id, user_name, point_name, source="chat"):
+    import time as _time
+    now = int(_time.time())
+    item_id = int(item["id"])
+    cost = int(item["cost"])
+    if cost < 1:
+        raise RuntimeError("Invalid item price.")
+    payload = {}
+    if item.get("payload"):
+        try:
+            if isinstance(item["payload"], dict):
+                payload = item["payload"]
+            elif isinstance(item["payload"], str):
+                decoded = json.loads(item["payload"])
+                if isinstance(decoded, dict):
+                    payload = decoded
+        except Exception:
+            payload = {}
+    async with _store_purchase_locks[str(user_id)]:
+        # Cooldowns / caps (read-only; before transaction)
+        await cursor.execute("SHOW TABLES LIKE 'point_store_purchases'")
+        has_purchases = bool(await cursor.fetchone())
+        if has_purchases:
+            global_cd = max(0, int(settings.get("global_cooldown_seconds") or 0))
+            if global_cd > 0:
+                await cursor.execute(
+                    "SELECT created_at FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
+                    (user_id, user_name),
+                )
+                last = await cursor.fetchone()
+                if last and last.get("created_at"):
+                    created = last["created_at"]
+                    if hasattr(created, "timestamp"):
+                        ts = int(created.timestamp())
+                    else:
+                        ts = now
+                    elapsed = now - ts
+                    if elapsed < global_cd:
+                        raise RuntimeError(f"Store cooldown: try again in {max(1, global_cd - elapsed)}s.")
+            item_cd = max(0, int(item.get("cooldown_seconds") or 0))
+            if item_cd > 0:
+                await cursor.execute(
+                    "SELECT created_at FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) ORDER BY id DESC LIMIT 1",
+                    (item_id, user_id, user_name),
+                )
+                last = await cursor.fetchone()
+                if last and last.get("created_at"):
+                    created = last["created_at"]
+                    ts = int(created.timestamp()) if hasattr(created, "timestamp") else now
+                    elapsed = now - ts
+                    if elapsed < item_cd:
+                        raise RuntimeError(f"Item cooldown: try again in {max(1, item_cd - elapsed)}s.")
+            max_global = settings.get("max_purchases_per_user_per_stream")
+            if max_global is not None and str(max_global) != "":
+                max_g = int(max_global)
+                if max_g > 0:
+                    await cursor.execute(
+                        "SELECT COUNT(*) AS c FROM point_store_purchases WHERE (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                        (user_id, user_name),
+                    )
+                    row = await cursor.fetchone()
+                    if row and int(row.get("c") or 0) >= max_g:
+                        raise RuntimeError("You have reached the max store purchases for this stream.")
+            if item.get("max_per_stream") is not None and str(item.get("max_per_stream")) != "":
+                max_i = int(item["max_per_stream"])
+                if max_i > 0:
+                    await cursor.execute(
+                        "SELECT COUNT(*) AS c FROM point_store_purchases WHERE item_id = %s AND (user_id = %s OR user_name = %s) AND created_at >= CURDATE()",
+                        (item_id, user_id, user_name),
+                    )
+                    row = await cursor.fetchone()
+                    if row and int(row.get("c") or 0) >= max_i:
+                        raise RuntimeError("You have reached the max purchases of this item for this stream.")
+        await cursor.execute("START TRANSACTION")
+        try:
+            # Stock
+            if item.get("stock") is not None and str(item.get("stock")) != "":
+                await cursor.execute(
+                    "UPDATE point_store_items SET stock = stock - 1 WHERE id = %s AND stock IS NOT NULL AND stock > 0",
+                    (item_id,),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("This item is out of stock.")
+
+            # Atomic debit (must have enough points)
+            await cursor.execute(
+                "UPDATE bot_points SET points = points - %s, user_name = %s WHERE user_id = %s AND points >= %s",
+                (cost, user_name, user_id, cost),
+            )
+            if cursor.rowcount != 1:
+                await cursor.execute(
+                    "UPDATE bot_points SET points = points - %s WHERE user_name = %s AND points >= %s",
+                    (cost, user_name, cost),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError(f"Not enough {point_name}.")
+                await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s LIMIT 1", (user_name,))
+            else:
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s LIMIT 1", (user_id,))
+            bal_row = await cursor.fetchone()
+            balance_after = int(bal_row["points"]) if bal_row else 0
+            if has_purchases:
+                await cursor.execute(
+                    "INSERT INTO point_store_purchases "
+                    "(item_id, item_title, item_type, cost, user_id, user_name, balance_after, source, status) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        item_id,
+                        item.get("title") or "",
+                        item.get("item_type") or "",
+                        cost,
+                        user_id,
+                        user_name,
+                        balance_after,
+                        source,
+                        "completed",
+                    ),
+                )
+            await connection.commit()
+            return {
+                "cost": cost,
+                "balance_after": balance_after,
+                "payload": payload,
+                "point_name": point_name,
+            }
+        except Exception:
+            try:
+                await connection.rollback()
+            except Exception:
+                pass
+            raise
+
+async def point_store_fulfill_media(item, payload):
+    item_type = (item.get("item_type") or "").lower()
+    try:
+        if item_type == "sound_alert" and payload.get("sound"):
+            safe_create_task(websocket_notice(event="SOUND_ALERT", sound=payload["sound"]))
+        elif item_type == "video_alert" and payload.get("video"):
+            safe_create_task(websocket_notice(event="VIDEO_ALERT", video=payload["video"]))
+        elif item_type == "tts" and payload.get("text"):
+            safe_create_task(websocket_notice(event="TTS", text=str(payload["text"])))
+    except Exception as e:
+        bot_logger.error(f"[STORE] fulfill media error: {e}")
 
 async def known_users():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
