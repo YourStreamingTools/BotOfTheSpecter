@@ -1628,6 +1628,23 @@ document.addEventListener('DOMContentLoaded', function() {
               if (!v && v !== 0) return '';
               return String(v).trim().replace(/^v/i, '').toLowerCase();
             }
+            // True only when current is strictly older than latest (never treat 6.0.0 as outdated vs 5.8)
+            function isVersionOlder(current, latest) {
+              const parse = (v) => normalizeVersion(v).split('.').filter(Boolean).map((n) => {
+                const x = parseInt(n, 10);
+                return Number.isFinite(x) ? x : 0;
+              });
+              const a = parse(current);
+              const b = parse(latest);
+              const len = Math.max(a.length, b.length);
+              for (let i = 0; i < len; i++) {
+                const x = a[i] || 0;
+                const y = b[i] || 0;
+                if (x < y) return true;
+                if (x > y) return false;
+              }
+              return false;
+            }
             const normalizedLatest = normalizeVersion(latestVersion);
             const normalizedRunning = normalizeVersion(data.version);
             let hasUpdate = false;
@@ -1643,8 +1660,12 @@ document.addEventListener('DOMContentLoaded', function() {
               && parseAgoToSeconds(data.lastModified) < parseAgoToSeconds(data.lastRun)
             );
             const codeUpdate = codeUpdateFromApi || codeUpdateFromAgo;
-            const versionOutdated = data.versionOutdated === true
-              || (data.version && normalizedRunning !== normalizedLatest && latestVersion && latestVersion !== 'N/A');
+            // Trust API versionOutdated when present; never use bare inequality (6.0.0 !== 5.8 is not an update)
+            let versionOutdated = data.versionOutdated === true;
+            if (data.versionOutdated !== true && data.versionOutdated !== false
+                && data.version && latestVersion && latestVersion !== 'N/A') {
+              versionOutdated = isVersionOlder(data.version, latestVersion);
+            }
             if (versionOutdated) {
               showNotification(<?php echo json_encode(t('bot_new_version_available', [':bot' => ':bot', ':current' => ':current', ':latest' => ':latest'])); ?>.replace(':bot', selectedBot).replace(':current', data.version || '?').replace(':latest', latestVersion), 'update');
               hasUpdate = true;

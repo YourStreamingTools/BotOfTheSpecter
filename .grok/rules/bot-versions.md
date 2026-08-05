@@ -8,7 +8,7 @@ Three Twitch bot files exist for a reason. Pick the right target before editing.
 | ---- | ------ | ------------ |
 | `./bot/bot.py` | **STABLE** (v5.7.16, TwitchIO 2.10.0) | **Critical bug fix only.** Never add features here. |
 | `./bot/beta.py` | **BETA** (v5.8, TwitchIO 2.10.0) | New features, normal day-to-day work. |
-| `./bot/beta-v6.py` | **REWRITE / beta track** (v6.0.0, TwitchIO 3.2.2) | Forward-looking work using the new TwitchIO native EventSub. |
+| `./bot/beta-v6.py` | **REWRITE / beta track** (v6.0.0, TwitchIO **3.3.2**) | Forward-looking work using TwitchIO 3.x (`from twitchio import eventsub`). Docs: https://twitchio.dev/en/stable/ |
 
 ## Companion bots (separate files, separate platforms)
 
@@ -31,7 +31,7 @@ Also do **not** bump `api/versions.json` → `beta_version` or `v6_version` for 
 
 1. **Never copy a feature into `bot.py` unless it's a critical fix.** If unsure, ask.
 2. **If a fix is needed in stable, also apply it to beta and beta-v6.** Stable bug fixes do not auto-propagate.
-3. **TwitchIO API differs between 2.10 and 3.2.2.** Don't assume a beta.py change drops cleanly into beta-v6.py - check the TwitchIO version before porting.
+3. **TwitchIO API differs between 2.10 and 3.3.2.** Don't assume a beta.py change drops cleanly into beta-v6.py - check the TwitchIO version before porting. EventSub models are `from twitchio import eventsub` (not `twitchio.ext.eventsub`).
 4. **Bot scripts take CLI args** (`-channel`, `-channelid`, `-token`, `-refresh`). Don't hardcode these.
 5. **Token refresh for Twitch is in-process** (`twitch_token_refresh()` background task in bot.py). There is **no** `refresh_twitch_tokens.py` - only `refresh_custom_bot_tokens.py`, `refresh_spotify_tokens.py`, `refresh_streamelements_tokens.py`, `refresh_discord_tokens.py`.
 6. **Beta and V6 version strings never change** on routine fixes (see table above). Only stable gets patch bumps + public `docs/<ver>.md` releases.

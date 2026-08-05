@@ -4,7 +4,7 @@ Local reference for **TwitchIO 3.x stable** as used by `./bot/beta-v6.py` (the v
 
 | File | TwitchIO version | requirements file | Class subclassed |
 | ---- | ---------------- | ----------------- | ---------------- |
-| `./bot/beta-v6.py` | 3.x stable | `./bot/beta_requirements.txt` | `commands.AutoBot` |
+| `./bot/beta-v6.py` | **3.3.2** stable | `./bot/v6_requirements.txt` | `commands.AutoBot` |
 
 Upstream docs: <https://twitchio.dev/en/stable/>
 
@@ -14,11 +14,12 @@ Upstream docs: <https://twitchio.dev/en/stable/>
 
 ```python
 import twitchio
+from twitchio import eventsub
 from twitchio.ext.commands import Context
-from twitchio.ext import commands, routines, eventsub
+from twitchio.ext import commands, routines
 ```
 
-Used at `./bot/beta-v6.py:32-34`. Note `eventsub` is now a first-party extension that the project actually imports - it's used to construct `eventsub.ChatMessageSubscription` for the chat subscription.
+Used at the top of `./bot/beta-v6.py`. EventSub subscription models live under **`twitchio.eventsub`** (not `twitchio.ext.eventsub`). Used for `eventsub.ChatMessageSubscription` chat subscriptions.
 
 ---
 
