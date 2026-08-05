@@ -128,6 +128,8 @@ $response = [
   // Raw unix timestamps for client-side compare (locale-safe)
   'scriptMtime' => $scriptMTime,
   'lastRunMtime' => $lastRunTimestamp,
+  // Operator-deployed custom_channel_modules/{channel}.py on bot host
+  'customModuleAvailable' => !empty($botStatus['custom_module_available']),
 ];
 
 if (isset($botStatus['message']) && $botStatus['message'] !== '') {

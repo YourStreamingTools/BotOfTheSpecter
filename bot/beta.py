@@ -60,17 +60,11 @@ try:
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-# Custom channel modules
-from custom_channel_modules import botofthespecter as botofthespecter_module
-from custom_channel_modules import gfaundead as gfaundead_module
-#from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
-hedgehogobrien_module = None
-
-_MODULE_CLASSES = [
-    hedgehogobrien_module.HedgehogOBrienModule if hedgehogobrien_module is not None else None,
-    gfaundead_module.GFAUnDeadModule if gfaundead_module is not None else None,
-]
-_MODULE_CLASSES = [cls for cls in _MODULE_CLASSES if cls is not None]
+# Custom channel modules — imported only when -load-custom-module is set (this channel's .py only).
+_MODULE_CLASSES: list = []
+_channel_modules: list = []  # Active instances; also declared later for ready-path clarity
+_loaded_custom_module = None  # importlib package for this channel, or None
+botofthespecter_module = None  # soft-loaded for bot-home AI only
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -82,6 +76,12 @@ parser.add_argument("-apitoken", dest="api_token", required=False, help="API Tok
 parser.add_argument("-custom", dest="custom_mode", action="store_true", help="Enable custom bot mode")
 parser.add_argument("-botusername", dest="bot_username", required=False, help="Bot's Twitch username (required when -custom is used)")
 parser.add_argument("-self", dest="self_mode", action="store_true", help="Enable self mode (use broadcaster account)")
+parser.add_argument(
+    "-load-custom-module",
+    dest="load_custom_module",
+    action="store_true",
+    help="Load custom_channel_modules/{channel}.py for this channel only (opt-in via dashboard)",
+)
 args = parser.parse_args()
 
 # Twitch bot settings
@@ -92,6 +92,61 @@ REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 SELF_MODE = args.self_mode
 CUSTOM_MODE = args.custom_mode or SELF_MODE
+LOAD_CUSTOM_MODULE = bool(args.load_custom_module)
+
+
+def _discover_channel_module_classes(mod) -> list:
+    """Find classes on a loaded module that implement claims_channel()."""
+    found = []
+    for name in dir(mod):
+        if name.startswith("_"):
+            continue
+        obj = getattr(mod, name, None)
+        if isinstance(obj, type) and callable(getattr(obj, "claims_channel", None)):
+            found.append(obj)
+    return found
+
+
+def _load_opt_in_custom_module(channel_name: str) -> None:
+    """Import only custom_channel_modules/{channel}.py when opt-in flag is set."""
+    global _MODULE_CLASSES, _loaded_custom_module
+    _MODULE_CLASSES = []
+    _loaded_custom_module = None
+    if not LOAD_CUSTOM_MODULE:
+        return
+    ch = (channel_name or "").lower().strip()
+    if not ch or not re.fullmatch(r"[a-z0-9_]+", ch):
+        print(f"[module] Refusing to load module for invalid channel name: {channel_name!r}")
+        return
+    try:
+        import importlib
+        mod = importlib.import_module(f"custom_channel_modules.{ch}")
+        _loaded_custom_module = mod
+        _MODULE_CLASSES = _discover_channel_module_classes(mod)
+        if not _MODULE_CLASSES:
+            print(f"[module] Loaded custom_channel_modules.{ch} but found no claims_channel classes")
+        else:
+            print(f"[module] Opt-in load: custom_channel_modules.{ch} classes={[c.__name__ for c in _MODULE_CLASSES]}")
+    except Exception as exc:
+        print(f"[module] Failed to import custom_channel_modules.{ch}: {exc}")
+        _loaded_custom_module = None
+        _MODULE_CLASSES = []
+
+
+_load_opt_in_custom_module(CHANNEL_NAME)
+
+
+def _get_botofthespecter_home_helpers():
+    """Soft-import platform bot-home AI helpers only when needed (not a channel opt-in module)."""
+    global botofthespecter_module
+    if botofthespecter_module is not None:
+        return botofthespecter_module
+    try:
+        from custom_channel_modules import botofthespecter as _bots
+        botofthespecter_module = _bots
+        return botofthespecter_module
+    except Exception:
+        return None
 if args.custom_mode:
     BOT_USERNAME = args.bot_username
 elif SELF_MODE:
@@ -332,7 +387,7 @@ stream_session_started_at = 0.0                                                 
 pending_outgoing_raid = None                                                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
-_channel_modules: list = []                                                             # Active custom channel module instances, populated on event_ready
+# _channel_modules populated on event_ready when LOAD_CUSTOM_MODULE and classes claim this channel
 _store_purchase_locks = defaultdict(asyncio.Lock)                                       # Locks for store purchases to prevent race conditions per user
 
 def safe_create_task(coro):
@@ -3902,9 +3957,10 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[EVENT MESSAGE] Custom command '{command}' not found.")
             # Handle custom module commands
             await dispatch_module_command(message=AuthorMessage, username=messageAuthor, broadcaster_id=CHANNEL_ID)
-            # Handle AI responses
-            if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
-                ai_text = await botofthespecter_module.handle_bot_home_channel_ai(
+            # Handle AI responses (bot-home helper is platform code, soft-loaded only on home channel)
+            _bots_home = _get_botofthespecter_home_helpers()
+            if _bots_home is not None and _bots_home.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
+                ai_text = await _bots_home.handle_bot_home_channel_ai(
                     bot_nick=self.nick,
                     original_message=AuthorMessage,
                     normalized_message=messageContent,

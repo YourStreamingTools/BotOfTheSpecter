@@ -226,6 +226,13 @@ class StartBody(BaseModel):
     botusername: str | None = None
     self_mode: bool = Field(False, alias="self")
     version: str | None = Field(None, description="Optional version string to write after start")
+    load_custom_module: bool = Field(
+        False,
+        description=(
+            "If true and custom_channel_modules/{channel}.py exists, pass "
+            "-load-custom-module so beta/v6 load that channel's module only"
+        ),
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -335,6 +342,7 @@ async def api_bot_start(body: StartBody) -> dict[str, Any]:
         botusername=body.botusername,
         self_mode=body.self_mode,
         version=body.version,
+        load_custom_module=body.load_custom_module,
     )
     if not result.get("success") and result.get("state") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "start failed")
@@ -362,6 +370,7 @@ async def api_bot_restart(body: StartBody) -> dict[str, Any]:
         botusername=body.botusername,
         self_mode=body.self_mode,
         version=body.version,
+        load_custom_module=body.load_custom_module,
     )
     if not result.get("success") and result.get("state") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "restart failed")

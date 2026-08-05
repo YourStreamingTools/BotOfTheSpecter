@@ -134,6 +134,8 @@ $timezone = 'Australia/Sydney';
 $broadcasterID = $twitchUserId;
 $use_custom = $user['use_custom'];
 $use_self = $user['use_self'];
+// Opt-in custom channel module (distinct from use_custom = custom bot name)
+$use_custom_module = isset($user['use_custom_module']) ? (int)$user['use_custom_module'] : 0;
 
 // Session tokens are authoritative for this browser (validated / refreshed
 // by session_bootstrap). users.access_token is a single global column and
@@ -167,4 +169,5 @@ $_SESSION['beta_access'] = $betaAccess;
 $_SESSION['beta_programs'] = $betaPrograms;
 $_SESSION['use_custom'] = $use_custom;
 $_SESSION['use_self'] = $use_self;
+$_SESSION['use_custom_module'] = $use_custom_module;
 ?>

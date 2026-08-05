@@ -30,9 +30,9 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 | GET | `/docs` | Themed operator docs UI (`docs_ui/`) |
 | GET | `/api/running_bots` | Full local inventory + durable **snapshot** (`last_seen_at`, `snapshot.missing` for crash/OOM recovery) |
 | GET | `/api/running_bots/snapshot` | Snapshot view only (refresh + expected / missing) |
-| GET | `/api/bot/status?channel=&bot_type=` | One channel; omit `bot_type` to find any. Also returns `script_mtime`, `last_run_mtime`, `code_update_available` (update notice; no SSH). |
+| GET | `/api/bot/status?channel=&bot_type=` | One channel; omit `bot_type` to find any. Also returns `script_mtime`, `last_run_mtime`, `code_update_available` (update notice; no SSH), and `custom_module_available` (whether `/home/botofthespecter/custom_channel_modules/{channel}.py` exists). |
 | GET | `/api/online/{channel}` | Stream online marker (`True`/`False` from `logs/online/`) |
-| POST | `/api/bot/start` | JSON body: channel, bot_type, channel_id, token, refresh, apitoken, custom?, botusername?, self?, version? |
+| POST | `/api/bot/start` | JSON body: channel, bot_type, channel_id, token, refresh, apitoken, custom?, botusername?, self?, version?, `load_custom_module`? (if true and module file exists, pass `-load-custom-module` to beta/v6) |
 | POST | `/api/bot/stop` | JSON: `{ "channel", "bot_type" }` |
 | POST | `/api/bot/restart` | Same body as start |
 | POST | `/api/ops/run_script` | Allowlisted ops only (`refresh_spotify`, `refresh_streamelements`, `refresh_discord`, `refresh_custom_bot`) |
@@ -58,3 +58,4 @@ bots_api_stop_all_for_channel($channel); // all variants — use on username ren
 4. **systemd**: `bots-api.service` must use `KillMode=process` so restarting the API does not kill the fleet (bots spawn under `screen` in the same cgroup).
 5. **PHP never reads `.env`** for this — use `./config/bots_api.php` + DB admin key ([php-config.md](./php-config.md)).
 6. **Crash recovery snapshot** (server): `/home/botofthespecter/logs/bots_running_snapshot.json` — refreshed ~15s and on inventory GET. Intentional stop removes a row; process death does not. Admin Start Bots shows amber “Was running · {time_ago}” from `snapshot.missing`.
+7. **Custom channel modules** are opt-in: dashboard `users.use_custom_module` + file on bot host. Status exposes availability; start only loads when both are true. Filename must match Twitch login (`[a-z0-9_]+.py`). Not the same as beta “custom bot name” (`use_custom` / `-custom`).

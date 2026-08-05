@@ -441,6 +441,13 @@ ob_start();
                   <span><?= t('bot_use_self') ?></span>
                 </label>
               </div>
+              <!-- Custom channel module (only if {channel}.py exists on bot host) -->
+              <div id="custom-module-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
+                <input id="custom-module-toggle" type="checkbox" name="custom-module-toggle" class="switch" <?php echo (!empty($use_custom_module) ? 'checked' : ''); ?>>
+                <label for="custom-module-toggle" title="<?= htmlspecialchars(t('bot_use_custom_module_title')) ?>" style="white-space:nowrap; display:flex; align-items:center;">
+                  <span><?= t('bot_use_custom_module') ?></span>
+                </label>
+              </div>
               <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;">
                   <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
                     <?php echo t('bot_stable_bot'); ?>
@@ -480,6 +487,10 @@ ob_start();
               <i class="fas fa-info-circle"></i>
               <?= t('bot_use_self_warning') ?>
             </div>
+            <div id="custom-module-warning" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <?= t('bot_use_custom_module_warning') ?>
+            </div>
           <?php elseif ($selectedBot === 'v6'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
               <?php echo t('bot_v6_controls'); ?> (v<?php echo $v6NewVersion; ?>)
@@ -489,6 +500,10 @@ ob_start();
             </p>
             <div class="sp-alert sp-alert-danger" style="text-align:center;">
               <?php echo t('bot_v6_danger_notice'); ?>
+            </div>
+            <div id="custom-module-warning-v6" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <?= t('bot_use_custom_module_warning') ?>
             </div>
           <?php endif; ?>
           <?php 
@@ -708,6 +723,10 @@ const serverV6Version = <?php echo json_encode($v6VersionRunning); ?>;
 const serverUseCustom = <?php echo json_encode((int)($use_custom ?? 0)); ?>;
 // Server-side setting for using your own account to send messages
 const serverUseSelf = <?php echo json_encode((int)($use_self ?? 0)); ?>;
+// Opt-in custom channel module (file must also exist on bot host)
+const serverUseCustomModule = <?php echo json_encode((int)($use_custom_module ?? 0)); ?>;
+window.serverUseCustomModule = serverUseCustomModule;
+window.customModuleAvailable = false;
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
@@ -923,6 +942,54 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (e) { /* ignore */ }
   }
+  // Custom channel module toggle (shown only when bots API reports file present; beta/v6)
+  const customModuleToggleContainer = document.getElementById('custom-module-toggle-container');
+  const customModuleToggle = document.getElementById('custom-module-toggle');
+  function updateCustomModuleToggleVisibility() {
+    const currentBot = getCurrentBotType();
+    const show = window.customModuleAvailable && (currentBot === 'beta' || currentBot === 'v6');
+    if (customModuleToggleContainer) {
+      customModuleToggleContainer.style.display = show ? 'flex' : 'none';
+    }
+    const warnBeta = document.getElementById('custom-module-warning');
+    const warnV6 = document.getElementById('custom-module-warning-v6');
+    const moduleOn = customModuleToggle ? customModuleToggle.checked : false;
+    if (warnBeta) warnBeta.style.display = (show && currentBot === 'beta' && moduleOn) ? 'block' : 'none';
+    if (warnV6) warnV6.style.display = (show && currentBot === 'v6' && moduleOn) ? 'block' : 'none';
+  }
+  if (customModuleToggle) {
+    customModuleToggle.checked = serverUseCustomModule === 1;
+    customModuleToggle.addEventListener('change', function() {
+      const isEnabled = this.checked;
+      fetchWithTimeout('/api/update_use_custom_module.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `use_custom_module=${isEnabled ? 1 : 0}`
+      }, 8000).then(r => r.json()).then(data => {
+        if (data && data.success) {
+          try { window.serverUseCustomModule = parseInt(data.use_custom_module, 10); } catch (e) {}
+          showNotification(
+            isEnabled
+              ? <?php echo json_encode(t('bot_use_custom_module_enabled')); ?>
+              : <?php echo json_encode(t('bot_use_custom_module_disabled')); ?>,
+            isEnabled ? 'success' : 'info'
+          );
+          showNotification(<?php echo json_encode(t('bot_use_custom_module_restart_notice')); ?>, 'warning');
+        } else {
+          showNotification(<?php echo json_encode(t('bot_save_use_custom_module_failed')); ?>, 'danger');
+          this.checked = !isEnabled;
+        }
+        updateCustomModuleToggleVisibility();
+      }).catch(() => {
+        showNotification(<?php echo json_encode(t('bot_save_use_custom_module_failed')); ?>, 'danger');
+        this.checked = !isEnabled;
+        updateCustomModuleToggleVisibility();
+      });
+      updateCustomModuleToggleVisibility();
+    });
+  }
+  updateCustomModuleToggleVisibility();
+
   function getCurrentBotType() {
     const urlParams = new URLSearchParams(window.location.search);
     let bot = urlParams.get('bot');
@@ -1079,10 +1146,16 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         useSelfNow = (typeof serverUseSelf !== 'undefined' && serverUseSelf === 1) ? 1 : 0;
       }
+      let loadModuleNow = 0;
+      if (typeof customModuleToggle !== 'undefined' && customModuleToggle) {
+        loadModuleNow = customModuleToggle.checked ? 1 : 0;
+      } else {
+        loadModuleNow = (typeof window.serverUseCustomModule !== 'undefined' && window.serverUseCustomModule === 1) ? 1 : 0;
+      }
       fetchWithTimeout('/api/bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomNow ? 1 : 0}&use_self=${useSelfNow}`
+        body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomNow ? 1 : 0}&use_self=${useSelfNow}&load_custom_module=${loadModuleNow}`
       }, 8000) // Reduced from 15000 to 8000
         .then(response => response.json())
         .then(data => {
@@ -1156,10 +1229,16 @@ document.addEventListener('DOMContentLoaded', function() {
       currentBotBeingStarted = 'v6';
     }
     setTimeout(() => {
+      let loadModuleNow = 0;
+      if (typeof customModuleToggle !== 'undefined' && customModuleToggle) {
+        loadModuleNow = customModuleToggle.checked ? 1 : 0;
+      } else {
+        loadModuleNow = (typeof window.serverUseCustomModule !== 'undefined' && window.serverUseCustomModule === 1) ? 1 : 0;
+      }
       fetchWithTimeout('/api/bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `action=${encodeURIComponent(action)}&bot=v6`
+        body: `action=${encodeURIComponent(action)}&bot=v6&load_custom_module=${loadModuleNow}`
       }, 8000)
         .then(response => response.json())
         .then(data => {
@@ -1619,8 +1698,12 @@ document.addEventListener('DOMContentLoaded', function() {
               running: data.running,
               version: data.version,
               lastModified: data.lastModified,
-              lastRun: data.lastRun
+              lastRun: data.lastRun,
+              customModuleAvailable: data.customModuleAvailable
             });
+            // Surface whether operator-deployed {channel}.py exists (beta/v6 toggle)
+            window.customModuleAvailable = data.customModuleAvailable === true;
+            try { updateCustomModuleToggleVisibility(); } catch (e) { /* ignore if not defined yet */ }
             // Check for version updates and code-on-disk newer than last run
             const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : selectedBot === 'v6' ? window.latestV6Version : window.latestStableVersion;
             // Normalize versions to compare (strip whitespace / leading 'v')
