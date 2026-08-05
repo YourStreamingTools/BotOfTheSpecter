@@ -10,7 +10,7 @@ type: project
 Three-version Twitch chat bot system based on TwitchIO:
 - **bot.py (v5.7.7 STABLE)**: Production bot, TwitchIO 2.10.0, never changed except critical bugs
 - **beta.py (v5.8 BETA)**: Testing ground for features before stable release, TwitchIO 2.10.0
-- **beta-v6.py (v6.0 REWRITE)**: Major rewrite using TwitchIO 3.2.2 with native EventSub support
+- **beta-v6.py (v6.0 REWRITE)**: Major rewrite using TwitchIO 3.3.2 with native EventSub support (`from twitchio import eventsub`; docs https://twitchio.dev/en/stable/)
 
 Plus companion bots (separate platforms, share databases/integrations):
 - **specterdiscord.py** - Discord bot using discord.py
@@ -307,7 +307,7 @@ See also: `.grok/rules/bots-api.md`
 - Beta: full Working & Study task list + personal timers, cooldown normalization above
 
 **beta.py vs beta-v6.py**:
-- v6 uses TwitchIO 3.2.2 with native EventSub (API differs - do not paste 2.x handlers blindly)
+- v6 uses TwitchIO 3.3.2 with native EventSub (API differs - do not paste 2.x handlers blindly; EventSub is `twitchio.eventsub` not `twitchio.ext.eventsub`)
 - Task list + personal timer + cooldown helpers are ported for parity; re-check TwitchIO message/ctx APIs when changing either file
 - Raffle/puzzle and other v6-only surfaces as implemented in that file
 

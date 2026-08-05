@@ -4,9 +4,11 @@
 #
 # Do not install into the stable/beta venvs (those pin TwitchIO 2.10).
 
-# Async Twitch API client (v6 rewrite)
-twitchio==3.1.0
-twitchio[starlette]==3.1.0
+# Async Twitch API client (v6 rewrite) — TwitchIO 3.3.x stable
+# Docs: https://twitchio.dev/en/stable/
+# EventSub models live in `twitchio.eventsub` (not twitchio.ext.eventsub).
+twitchio==3.3.2
+twitchio[starlette]==3.3.2
 
 # Async HTTP client for Python
 aiohttp

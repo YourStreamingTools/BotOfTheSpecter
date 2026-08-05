@@ -7,7 +7,7 @@
 # Layout (server):
 #   /home/botofthespecter/venvs/stable   → bot.py          (TwitchIO 2.10)
 #   /home/botofthespecter/venvs/beta     → beta.py         (TwitchIO 2.10)
-#   /home/botofthespecter/venvs/v6       → beta-v6.py      (TwitchIO 3.x)
+#   /home/botofthespecter/venvs/v6       → beta-v6.py      (TwitchIO 3.3.2)
 #   /home/botofthespecter/venvs/discord  → specterdiscord.py
 #   /home/botofthespecter/venvs/kick     → kick.py
 #

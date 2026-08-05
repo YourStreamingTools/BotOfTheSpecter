@@ -32,8 +32,9 @@ from aiomysql import Error as MySQLOtherErrors
 from deep_translator import GoogleTranslator as translator
 import asyncio
 import twitchio
+from twitchio import eventsub
 from twitchio.ext.commands import Context
-from twitchio.ext import commands, routines, eventsub
+from twitchio.ext import commands, routines
 from streamlink import Streamlink
 import pytz as set_timezone
 from pytz import timezone as pytz_timezone
@@ -115,7 +116,7 @@ VERSION = "6.0.0"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
 else:
-    SYSTEM = "BETA"
+    SYSTEM = "V6"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
@@ -2546,6 +2547,8 @@ async def SYSTEM_UPDATE(data):
                     # Select appropriate version based on SYSTEM variable
                     if SYSTEM == "BETA":
                         latest_version = version_data.get("beta_version")
+                    elif SYSTEM == "V6":
+                        latest_version = version_data.get("v6_version") or version_data.get("beta_version")
                     elif SYSTEM == "STABLE":
                         latest_version = version_data.get("stable_version")
                     else:
@@ -3277,20 +3280,31 @@ class TwitchBot(commands.AutoBot):
                 irc_presence=twitch_irc_presence,
                 get_stream_started_at=lambda: stream_session_started_at,
             ))
-        if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
-            try:
-                await hedgehogobrien_module.ensure_tables(mysql_handler)
-                bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
-                create_task(hedgehogobrien_module.handle_ready(
-                    broadcaster_id=CHANNEL_ID,
-                    mysql_handler=mysql_handler,
-                    http_session=_shared_http_session,
-                    chat_logger=chat_logger,
-                    irc_presence=twitch_irc_presence,
-                    get_stream_started_at=lambda: stream_session_started_at,
-                ))
-            except Exception as _hh_err:
-                bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
+        # Hedgehog helpers live on classes (not always as module-level attrs). Never let this
+        # block abort event_ready before the ready chat line — GFA/other channels already load
+        # via _MODULE_CLASSES above.
+        try:
+            _hh_is = getattr(hedgehogobrien_module, 'is_hedgehogobrien_channel', None)
+            if not callable(_hh_is):
+                _hh_cls = getattr(hedgehogobrien_module, 'HedgehogOBrienModule', None)
+                _hh_is = getattr(_hh_cls, 'claims_channel', None) if _hh_cls is not None else None
+            if hedgehogobrien_module is not None and callable(_hh_is) and _hh_is(CHANNEL_NAME):
+                _hh_ensure = getattr(hedgehogobrien_module, 'ensure_tables', None)
+                _hh_ready = getattr(hedgehogobrien_module, 'handle_ready', None)
+                if callable(_hh_ensure):
+                    await _hh_ensure(mysql_handler)
+                    bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
+                if callable(_hh_ready):
+                    create_task(_hh_ready(
+                        broadcaster_id=CHANNEL_ID,
+                        mysql_handler=mysql_handler,
+                        http_session=_shared_http_session,
+                        chat_logger=chat_logger,
+                        irc_presence=twitch_irc_presence,
+                        get_stream_started_at=lambda: stream_session_started_at,
+                    ))
+        except Exception as _hh_err:
+            bot_logger.error(f"[hedgehogobrien] Ready path failed (non-fatal): {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     # Errors
@@ -3385,8 +3399,8 @@ class TwitchBot(commands.AutoBot):
                         websocket_logger.debug(f"[CHAT OVERLAY] CHAT_MESSAGE relayed for {chat_payload['username']}: {chat_payload['message'][:60]}")
                     except Exception as chat_relay_err:
                         websocket_logger.error(f"[CHAT OVERLAY] CHAT_MESSAGE relay error: {chat_relay_err}")
-                # Handle commands
-                await self.handle_commands(message)
+                # TwitchIO 3.x: process_commands (2.x was handle_commands)
+                await self.process_commands(message)
                 messageContent = str(message.text).strip().lower() if message.text else ""
                 messageAuthor = message.chatter.name if message.chatter else ""
                 messageAuthorID = message.chatter.id if message.chatter else ""
@@ -3624,23 +3638,32 @@ class TwitchBot(commands.AutoBot):
                                     add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
-                # Handle hedgehogobrien module commands
-                if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME) and hedgehogobrien_module.is_bureau_command(messageContent):
+                # Handle hedgehogobrien module commands (helpers may be class methods, not module attrs)
+                _hh_is = getattr(hedgehogobrien_module, 'is_hedgehogobrien_channel', None) if hedgehogobrien_module is not None else None
+                if not callable(_hh_is) and hedgehogobrien_module is not None:
+                    _hh_cls = getattr(hedgehogobrien_module, 'HedgehogOBrienModule', None)
+                    _hh_is = getattr(_hh_cls, 'claims_channel', None) if _hh_cls is not None else None
+                _hh_is_cmd = getattr(hedgehogobrien_module, 'is_bureau_command', None) if hedgehogobrien_module is not None else None
+                if hedgehogobrien_module is not None and callable(_hh_is) and _hh_is(CHANNEL_NAME) and callable(_hh_is_cmd) and _hh_is_cmd(messageContent):
                     async def _hh_send(msg):
-                        await hedgehogobrien_module.send_module_message(
-                            message=msg,
-                            broadcaster_id=CHANNEL_ID,
+                        _send = getattr(hedgehogobrien_module, 'send_module_message', None)
+                        if callable(_send):
+                            await _send(
+                                message=msg,
+                                broadcaster_id=CHANNEL_ID,
+                                mysql_handler=mysql_handler,
+                                http_session=_shared_http_session,
+                                chat_logger=chat_logger,
+                            )
+                    _hh_bureau = getattr(hedgehogobrien_module, 'handle_bureau_command', None)
+                    if callable(_hh_bureau):
+                        await _hh_bureau(
+                            command=AuthorMessage,
+                            username=messageAuthor,
                             mysql_handler=mysql_handler,
-                            http_session=_shared_http_session,
+                            send_message=_hh_send,
                             chat_logger=chat_logger,
                         )
-                    await hedgehogobrien_module.handle_bureau_command(
-                        command=AuthorMessage,
-                        username=messageAuthor,
-                        mysql_handler=mysql_handler,
-                        send_message=_hh_send,
-                        chat_logger=chat_logger,
-                    )
                 # Handle AI responses
                 if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
                     ai_text = await botofthespecter_module.handle_bot_home_channel_ai(
@@ -3806,8 +3829,9 @@ class TwitchBot(commands.AutoBot):
                     await connection.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today.")
                     # Forward to custom module if applicable - module handles message and returns True
-                    if hedgehogobrien_module is not None:
-                        _hh_handled = await hedgehogobrien_module.handle_first_chat(
+                    _hh_first = getattr(hedgehogobrien_module, 'handle_first_chat', None) if hedgehogobrien_module is not None else None
+                    if callable(_hh_first):
+                        _hh_handled = await _hh_first(
                             channel_name=CHANNEL_NAME,
                             username=messageAuthor,
                             broadcaster_id=CHANNEL_ID,
@@ -4409,7 +4433,7 @@ class TwitchBot(commands.AutoBot):
             return False
 
     @commands.command(name='commands', aliases=['cmds'])
-    async def commands_command(ctx: commands.Context):
+    async def commands_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4455,7 +4479,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='bot')
-    async def bot_command(ctx: commands.Context):
+    async def bot_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4492,7 +4516,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='wsstatus')
-    async def websocket_status_command(ctx: commands.Context):
+    async def websocket_status_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4543,7 +4567,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='dbstatus')
-    async def database_status_command(ctx: commands.Context):
+    async def database_status_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4601,7 +4625,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='forceonline')
-    async def forceonline_command(ctx: commands.Context):
+    async def forceonline_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4640,7 +4664,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='forceoffline')
-    async def forceoffline_command(ctx: commands.Context):
+    async def forceoffline_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4681,7 +4705,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='version')
-    async def version_command(ctx: commands.Context):
+    async def version_command(self, ctx: commands.Context):
         global bot_owner, bot_started
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4752,7 +4776,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='roadmap')
-    async def roadmap_command(ctx: commands.Context):
+    async def roadmap_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4788,7 +4812,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='weather')
-    async def weather_command(ctx: commands.Context, *, location: str = None) -> None:
+    async def weather_command(self, ctx: commands.Context, *, location: str = None) -> None:
         global bot_owner, CHANNEL_NAME
         connection = None
         connection = await mysql_handler.get_connection()
@@ -4908,7 +4932,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='store')
-    async def store_command(ctx: commands.Context, *, item_query: str = None):
+    async def store_command(self, ctx: commands.Context, *, item_query: str = None):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name.lower()
@@ -5134,7 +5158,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='time')
-    async def time_command(ctx: commands.Context, *, timezone: str = None) -> None:
+    async def time_command(self, ctx: commands.Context, *, timezone: str = None) -> None:
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5228,7 +5252,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='joke')
-    async def joke_command(ctx: commands.Context):
+    async def joke_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5285,7 +5309,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='quote')
-    async def quote_command(ctx: commands.Context, number: int = None):
+    async def quote_command(self, ctx: commands.Context, number: int = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5334,7 +5358,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='quoteadd')
-    async def quoteadd_command(ctx: commands.Context, *, quote):
+    async def quoteadd_command(self, ctx: commands.Context, *, quote):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5372,7 +5396,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='removequote')
-    async def quoteremove_command(ctx: commands.Context, number: int = None):
+    async def quoteremove_command(self, ctx: commands.Context, number: int = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5416,7 +5440,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='permit')
-    async def permit_command(ctx: commands.Context, permit_user: str = None):
+    async def permit_command(self, ctx: commands.Context, permit_user: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5457,7 +5481,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='warn', aliases=['warning'])
-    async def warn_command(ctx: commands.Context, target_user: str = None, *, reason: str = None):
+    async def warn_command(self, ctx: commands.Context, target_user: str = None, *, reason: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5539,7 +5563,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='settitle')
-    async def settitle_command(ctx: commands.Context, *, title: str = None) -> None:
+    async def settitle_command(self, ctx: commands.Context, *, title: str = None) -> None:
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5580,7 +5604,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='setgame')
-    async def setgame_command(ctx: commands.Context, *, game: str = None) -> None:
+    async def setgame_command(self, ctx: commands.Context, *, game: str = None) -> None:
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5637,7 +5661,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='song')
-    async def song_command(ctx: commands.Context):
+    async def song_command(self, ctx: commands.Context):
         global stream_online, song_requests, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5723,7 +5747,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='songrequest', aliases=['sr'])
-    async def songrequest_command(ctx: commands.Context):
+    async def songrequest_command(self, ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -5905,7 +5929,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='removesong')
-    async def removesong_command(ctx: commands.Context):
+    async def removesong_command(self, ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5949,7 +5973,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='skipsong', aliases=['skip'])
-    async def skipsong_command(ctx: commands.Context):
+    async def skipsong_command(self, ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6025,7 +6049,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
-    async def songqueue_command(ctx: commands.Context):
+    async def songqueue_command(self, ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6127,7 +6151,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='hug')
-    async def hug_command(ctx: commands.Context, mentioned_username: str = None):
+    async def hug_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6197,7 +6221,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='highfive')
-    async def highfive_command(ctx: commands.Context, mentioned_username: str = None):
+    async def highfive_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6267,7 +6291,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='kiss')
-    async def kiss_command(ctx: commands.Context, mentioned_username: str = None):
+    async def kiss_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6337,7 +6361,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='ping')
-    async def ping_command(ctx: commands.Context):
+    async def ping_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6390,7 +6414,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='translate')
-    async def translate_command(ctx: commands.Context):
+    async def translate_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6444,7 +6468,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='cheerleader', aliases=['bitsleader'])
-    async def cheerleader_command(ctx: commands.Context):
+    async def cheerleader_command(self, ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6500,7 +6524,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='mybits')
-    async def mybits_command(ctx: commands.Context):
+    async def mybits_command(self, ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6584,7 +6608,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='lurk')
-    async def lurk_command(ctx: commands.Context):
+    async def lurk_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6657,7 +6681,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='lurking')
-    async def lurking_command(ctx: commands.Context):
+    async def lurking_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6708,7 +6732,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='lurklead', aliases=['lurkleader'])
-    async def lurklead_command(ctx: commands.Context):
+    async def lurklead_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6770,7 +6794,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='unlurk', aliases=('back',))
-    async def unlurk_command(ctx: commands.Context):
+    async def unlurk_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6837,7 +6861,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='userslurking')
-    async def userslurking_command(ctx: commands.Context):
+    async def userslurking_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6879,7 +6903,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='clip')
-    async def clip_command(ctx: commands.Context):
+    async def clip_command(self, ctx: commands.Context):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6940,7 +6964,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='marker')
-    async def marker_command(ctx: commands.Context, *, description: str):
+    async def marker_command(self, ctx: commands.Context, *, description: str):
         global stream_online, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -6981,7 +7005,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='subscription', aliases=['mysub'])
-    async def subscription_command(ctx: commands.Context):
+    async def subscription_command(self, ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7047,7 +7071,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='uptime')
-    async def uptime_command(ctx: commands.Context):
+    async def uptime_command(self, ctx: commands.Context):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7177,7 +7201,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='typo')
-    async def typo_command(ctx: commands.Context, mentioned_username: str = None):
+    async def typo_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7231,7 +7255,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='typos', aliases=('typocount',))
-    async def typos_command(ctx: commands.Context, mentioned_username: str = None):
+    async def typos_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7277,7 +7301,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='edittypos', aliases=('edittypo',))
-    async def edittypo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
+    async def edittypo_command(self, ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7347,7 +7371,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
-    async def removetypos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
+    async def removetypos_command(self, ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7395,7 +7419,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='steam')
-    async def steam_command(ctx: commands.Context):
+    async def steam_command(self, ctx: commands.Context):
         global current_game, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -7642,7 +7666,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='craft')
-    async def craft_command(ctx: commands.Context):
+    async def craft_command(self, ctx: commands.Context):
         global bot_owner
         # Makers & Crafting overlay control. Mirrors the builtin-command pattern: status / permission / cooldown come from the builtin_commands table so the dashboard enable toggle, permission and cooldown settings are respected.
         content = (getattr(ctx.message, 'text', None) or getattr(ctx.message, 'content', '') or '').strip()
@@ -8919,7 +8943,7 @@ class TwitchBot(commands.AutoBot):
 
     @commands.command(name='deaths')
 
-    async def deaths_command(ctx: commands.Context):
+    async def deaths_command(self, ctx: commands.Context):
         global current_game, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -8977,7 +9001,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='deathadd', aliases=['death+'])
-    async def deathadd_command(ctx: commands.Context, deaths: int = 1):
+    async def deathadd_command(self, ctx: commands.Context, deaths: int = 1):
         global current_game, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9057,7 +9081,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='deathremove', aliases=['death-'])
-    async def deathremove_command(ctx: commands.Context, deaths: int = 1):
+    async def deathremove_command(self, ctx: commands.Context, deaths: int = 1):
         global current_game, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9130,7 +9154,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='game')
-    async def game_command(ctx: commands.Context):
+    async def game_command(self, ctx: commands.Context):
         global current_game, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9260,7 +9284,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='schedule')
-    async def schedule_command(ctx: commands.Context):
+    async def schedule_command(self, ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9363,7 +9387,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='checkupdate')
-    async def checkupdate_command(ctx: commands.Context):
+    async def checkupdate_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9472,7 +9496,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='addcommand')
-    async def addcommand_command(ctx: commands.Context):
+    async def addcommand_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9516,7 +9540,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='editcommand')
-    async def editcommand_command(ctx: commands.Context):
+    async def editcommand_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9560,7 +9584,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='removecommand')
-    async def removecommand_command(ctx: commands.Context):
+    async def removecommand_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9604,7 +9628,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='enablecommand')
-    async def enablecommand_command(ctx: commands.Context):
+    async def enablecommand_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9664,7 +9688,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='disablecommand')
-    async def disablecommand_command(ctx: commands.Context):
+    async def disablecommand_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9724,7 +9748,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='slots')
-    async def slots_command(ctx: commands.Context):
+    async def slots_command(self, ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -9804,7 +9828,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='kill')
-    async def kill_command(ctx: commands.Context, mention: str = None):
+    async def kill_command(self, ctx: commands.Context, mention: str = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9873,7 +9897,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name="roulette")
-    async def roulette_command(ctx: commands.Context):
+    async def roulette_command(self, ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -9936,7 +9960,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name="rps")
-    async def rps_command(ctx: commands.Context):
+    async def rps_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9986,7 +10010,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name="gamble")
-    async def gamble_command(ctx: commands.Context):
+    async def gamble_command(self, ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
@@ -10153,7 +10177,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name="convert")
-    async def convert_command(ctx: commands.Context, *args):
+    async def convert_command(self, ctx: commands.Context, *args):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10241,7 +10265,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='todo')
-    async def todo_command(ctx: commands.Context):
+    async def todo_command(self, ctx: commands.Context):
         global bot_owner
         message_content = ctx.message.text.strip()
         user = ctx.author
@@ -10306,7 +10330,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name="subathon")
-    async def subathon_command(ctx: commands.Context, action: str = None, minutes: int = None):
+    async def subathon_command(self, ctx: commands.Context, action: str = None, minutes: int = None):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10362,7 +10386,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='heartrate')
-    async def heartrate_command(ctx: commands.Context):
+    async def heartrate_command(self, ctx: commands.Context):
         global bot_owner, HEARTRATE, hyperate_task
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10413,7 +10437,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='puzzles')
-    async def puzzles_command(ctx: commands.Context):
+    async def puzzles_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10445,7 +10469,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='puzzledone')
-    async def puzzledone_command(ctx: commands.Context):
+    async def puzzledone_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10491,7 +10515,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='todolist')
-    async def todolist_command(ctx: commands.Context):
+    async def todolist_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10520,7 +10544,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='watchtime')
-    async def watchtime_command(ctx: commands.Context):
+    async def watchtime_command(self, ctx: commands.Context):
         global bot_owner
         user_id = ctx.author.id
         username = ctx.author.name
@@ -10592,7 +10616,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='startlotto')
-    async def startlotto_command(ctx: commands.Context):
+    async def startlotto_command(self, ctx: commands.Context):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -10629,7 +10653,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='drawlotto')
-    async def drawlotto_command(ctx: commands.Context):
+    async def drawlotto_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -10740,7 +10764,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='createraffle')
-    async def createraffle_command(ctx: commands.Context, *args):
+    async def createraffle_command(self, ctx: commands.Context, *args):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -10784,7 +10808,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='startraffle')
-    async def startraffle_command(ctx: commands.Context, raffle_id: str = None):
+    async def startraffle_command(self, ctx: commands.Context, raffle_id: str = None):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -10826,7 +10850,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='joinraffle', aliases=['rafflejoin', 'raffle'])
-    async def joinraffle_command(ctx: commands.Context):
+    async def joinraffle_command(self, ctx: commands.Context):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -10913,7 +10937,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='leaveraffle')
-    async def leaveraffle_command(ctx: commands.Context):
+    async def leaveraffle_command(self, ctx: commands.Context):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -10948,7 +10972,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='stopraffle')
-    async def stopraffle_command(ctx: commands.Context):
+    async def stopraffle_command(self, ctx: commands.Context):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -10983,7 +11007,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='drawraffle')
-    async def drawraffle_command(ctx: commands.Context, raffle_id: str = None):
+    async def drawraffle_command(self, ctx: commands.Context, raffle_id: str = None):
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -11066,7 +11090,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='obs')
-    async def obs_command(ctx: commands.Context):
+    async def obs_command(self, ctx: commands.Context):
         global bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -15629,40 +15653,29 @@ async def builtin_commands_creation():
 async def update_version_control():
     global SYSTEM, VERSION, CHANNEL_NAME
     try:
-        # Define the directory path
+        # Paths must match bots_api VERSION_FILE_BY_TYPE (stable / beta / v6 / custom)
         directory = "/home/botofthespecter/logs/version/"
         beta_directory = "/home/botofthespecter/logs/version/beta/"
+        v6_directory = "/home/botofthespecter/logs/version/v6/"
         custom_directory = "/home/botofthespecter/logs/version/custom/"
-        # Ensure the directory exists, create it if it doesn't
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        if not os.path.exists(beta_directory):
-            os.makedirs(beta_directory)
-        if not os.path.exists(custom_directory):
-            os.makedirs(custom_directory)
-        # Determine file name based on SYSTEM value
+        for d in (directory, beta_directory, v6_directory, custom_directory):
+            if not os.path.exists(d):
+                os.makedirs(d)
         if SYSTEM == "STABLE":
-            file_name = f"{CHANNEL_NAME}_version_control.txt"
-            directory = "/home/botofthespecter/logs/version/"
-            # Define the full file path
-            file_path = os.path.join(directory, file_name)
+            file_path = os.path.join(directory, f"{CHANNEL_NAME}_version_control.txt")
         elif SYSTEM == "BETA":
-            file_name = f"{CHANNEL_NAME}_beta_version_control.txt"
-            directory = "/home/botofthespecter/logs/version/beta/"
-            # Define the full file path
-            file_path = os.path.join(directory, file_name)
+            file_path = os.path.join(beta_directory, f"{CHANNEL_NAME}_beta_version_control.txt")
+        elif SYSTEM == "V6":
+            file_path = os.path.join(v6_directory, f"{CHANNEL_NAME}_v6_version_control.txt")
         elif SYSTEM == "CUSTOM":
-            file_name = f"{CHANNEL_NAME}_custom_version_control.txt"
-            directory = "/home/botofthespecter/logs/version/custom/"
+            file_path = os.path.join(custom_directory, f"{CHANNEL_NAME}_custom_version_control.txt")
         else:
-            raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, or CUSTOM.")
-        # Delete the file if it exists
+            raise ValueError("Invalid SYSTEM value. Expected STABLE, BETA, V6, or CUSTOM.")
         if os.path.exists(file_path):
             os.remove(file_path)
-        # Write the new version to the file
         with open(file_path, "w") as file:
             file.write(VERSION)
-        bot_logger.info(f"Version control updated")
+        bot_logger.info(f"Version control updated ({SYSTEM} → {file_path})")
     except Exception as e:
         bot_logger.error(f"An error occurred in update_version_control: {e}")
 
