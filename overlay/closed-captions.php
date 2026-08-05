@@ -253,6 +253,11 @@ ob_end_clean();
                 div.textContent = text == null ? '' : String(text);
                 return div.innerHTML;
             };
+            const clearCaptionMemory = () => {
+                committedLines.length = 0;
+                committedActions.length = 0;
+                interimText = '';
+            };
             const scheduleFade = () => {
                 if (fadeTimer) {
                     clearTimeout(fadeTimer);
@@ -263,6 +268,10 @@ ob_end_clean();
                     return;
                 }
                 fadeTimer = setTimeout(() => {
+                    // Fully clear (not just opacity) so resume / late packets cannot resurrect
+                    // the last line when the streamer talks again.
+                    clearCaptionMemory();
+                    renderBand();
                     ccBand.classList.add('is-faded');
                 }, seconds * 1000);
             };
@@ -294,9 +303,7 @@ ob_end_clean();
                 }
             };
             const blankBand = () => {
-                committedLines.length = 0;
-                committedActions.length = 0;
-                interimText = '';
+                clearCaptionMemory();
                 renderBand();
                 if (fadeTimer) {
                     clearTimeout(fadeTimer);
@@ -333,12 +340,15 @@ ob_end_clean();
                 const text = payload.text != null ? String(payload.text) : '';
                 const isFinal = payload.isFinal === true || payload.isFinal === 1 || payload.is_final === true;
                 const isAction = isActionCaption(payload, text);
-                // If the band has faded out (a pause since the last caption), drop the previous
-                // sentence first so it doesn't flash back when the user resumes speaking.
+                // After fade/clear the band is empty but can still receive late isFinal
+                // packets (translate lag, finalize after silence). Drop those so the last
+                // sentence does not pop back as "confirmed" when the streamer talks again.
+                // New speech always starts as interim and is allowed through; action tags too.
                 if (ccBand.classList.contains('is-faded')) {
-                    committedLines.length = 0;
-                    committedActions.length = 0;
-                    interimText = '';
+                    clearCaptionMemory();
+                    if (isFinal && !isAction) {
+                        return;
+                    }
                 }
                 // Action tags are always committed as their own caption line (they never
                 // arrive as interim text), flagged so renderBand styles them distinctly.
