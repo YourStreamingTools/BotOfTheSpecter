@@ -544,12 +544,18 @@ ob_start();
         }
     };
     let translateChain = Promise.resolve();
+    // Bumped when a new utterance starts after a pause so late translate/finalize work from
+    // the previous sentence cannot emit isFinal after the streamer has moved on.
+    let captionEpoch = 0;
     function emitFinalCaption(text) {
+        const epoch = captionEpoch;
         translateChain = translateChain.then(async () => {
+            if (epoch !== captionEpoch) return;
             let out = text;
             if (liveTranslator.isActive()) {
                 out = await liveTranslator.translate(text);
             }
+            if (epoch !== captionEpoch) return;
             emitCaption(out, true);
         });
     }
@@ -903,7 +909,8 @@ ob_start();
         const getSourceNode = () => sourceNode;
         const getAudioContext = () => audioContext;
         const isRunning = () => running;
-        return { start, stop, setConfig, onSilenceFlush, getSourceNode, getAudioContext, isRunning };
+        const getVadState = () => vadState;
+        return { start, stop, setConfig, onSilenceFlush, getSourceNode, getAudioContext, isRunning, getVadState };
     })();
     const soundDetector = (function () {
         const MODEL_URL = 'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1';
@@ -1112,6 +1119,39 @@ ob_start();
         micStatus.textContent = text;
         micStatus.className = 'status-indicator ' + state;
     };
+    const confClassForPct = (pct) => pct >= 80 ? 'cc-conf-high' : pct >= 60 ? 'cc-conf-med' : 'cc-conf-low';
+    // Per-word confidence from one SpeechRecognitionResult (best alt + agreement across alts).
+    const wordConfidencesFromResult = (result) => {
+        if (!result || !result[0]) {
+            return { confidences: [], confidence: null };
+        }
+        const best = result[0];
+        const rawWords = String(best.transcript || '').trim().split(/\s+/).filter(Boolean);
+        if (!rawWords.length) {
+            return { confidences: [], confidence: null };
+        }
+        const phraseConf = (typeof best.confidence === 'number' && !Number.isNaN(best.confidence))
+            ? best.confidence
+            : null;
+        if (result.length > 1) {
+            const alts = [];
+            for (let j = 0; j < result.length; j++) {
+                alts.push(String(result[j].transcript || '').trim().split(/\s+/));
+            }
+            const confidences = rawWords.map((w, idx) => {
+                const lw = w.toLowerCase().replace(/[^a-z0-9'\u2019]/g, '');
+                const matches = alts.filter(aw =>
+                    (aw[idx] || '').toLowerCase().replace(/[^a-z0-9'\u2019]/g, '') === lw
+                ).length;
+                return matches / alts.length;
+            });
+            return { confidences, confidence: phraseConf };
+        }
+        return {
+            confidences: rawWords.map(() => phraseConf),
+            confidence: phraseConf
+        };
+    };
     const setPreview = (committed, interim, confidence, wordConfidences) => {
         if (!preview) return;
         const clean = (committed + ' ' + interim).trim();
@@ -1122,7 +1162,6 @@ ob_start();
         preview.textContent = '';
         if (committed) {
             const tokens = committed.split(/( +)/);
-            const confClass = (pct) => pct >= 80 ? 'cc-conf-high' : pct >= 60 ? 'cc-conf-med' : 'cc-conf-low';
             let wordIdx = 0;
             tokens.forEach(token => {
                 if (!token) return;
@@ -1136,19 +1175,19 @@ ob_start();
                 const wConf = (showConfidence() && wordConfidences && wordConfidences[wordIdx] != null) ? wordConfidences[wordIdx] : null;
                 if (wConf != null) {
                     const pct = Math.round(wConf * 100);
-                    wordSpan.classList.add(confClass(pct));
+                    wordSpan.classList.add(confClassForPct(pct));
                     wordSpan.title = pct + '% confidence';
                 }
                 preview.appendChild(wordSpan);
                 wordIdx++;
             });
-            // Overall sentence confidence badge
+            // Overall sentence confidence badge (covers the committed / finalized text)
             if (showConfidence() && confidence != null && confidence >= 0) {
                 const pct = Math.round(confidence * 100);
                 const badge = document.createElement('span');
                 badge.title = 'Overall phrase confidence';
                 badge.textContent = pct + '%';
-                badge.className = 'cc-conf-badge ' + confClass(pct);
+                badge.className = 'cc-conf-badge ' + confClassForPct(pct);
                 preview.appendChild(badge);
             }
         }
@@ -1184,20 +1223,87 @@ ob_start();
     let committedConfidence = null; // 0–1 from Web Speech API, null when unavailable
     let committedWordConfidences = null; // per-word confidence array, null when unavailable
     let detectorDeviceId = null; // mic the recognizer locked onto; the detector pins the same one
+    let finalizeTimer = null;
+    // Weighted phrase confidence across multiple final SpeechRecognition results in one utterance.
+    let pendingConfWeighted = 0;
+    let pendingConfWordCount = 0;
+    // After a sentence is flushed, the next speech after a real pause should not re-show the
+    // previous confirmed line (overlay + dashboard preview start clean).
+    let lastFlushAt = 0;
+    let awaitingResumeClear = false;
+    const getFadeSeconds = () => {
+        const el = document.getElementById('ccFadeSeconds');
+        const n = el ? Number(el.value) : 5;
+        return Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 5;
+    };
+    const clearFinalizeTimer = () => {
+        if (finalizeTimer) {
+            clearTimeout(finalizeTimer);
+            finalizeTimer = null;
+        }
+    };
+    const mergeWordConfidences = (a, b) => {
+        if (a && a.length && b && b.length) return a.concat(b);
+        if (b && b.length) return b.slice();
+        if (a && a.length) return a.slice();
+        return null;
+    };
+    const pendingPhraseConfidence = () => {
+        if (pendingConfWordCount > 0) return pendingConfWeighted / pendingConfWordCount;
+        return pendingConfidence;
+    };
+    // Call when new speech arrives after a flush. If the pause was long enough that the
+    // previous line would feel "done", blank overlay + preview so last words do not sit
+    // there as confirmed next to the new utterance.
+    const prepareResumeSpeech = () => {
+        if (!awaitingResumeClear) return;
+        awaitingResumeClear = false;
+        const fadeMs = getFadeSeconds() * 1000;
+        // Match overlay fade when set; otherwise require a short pause so mid-phrase
+        // silence flushes (180ms VAD) do not wipe multi-line history every clause.
+        const pauseMs = fadeMs > 0 ? fadeMs : 1500;
+        if (Date.now() - lastFlushAt < pauseMs) return;
+        captionEpoch += 1;
+        committedText = '';
+        committedConfidence = null;
+        committedWordConfidences = null;
+        emitClear();
+    };
     const flushPendingUtterance = () => {
+        clearFinalizeTimer();
         const chunk = pendingUtterance.trim();
         if (!chunk) return;
         committedText = punctuateFinal(chunk);
         committedText = applyLocaleSpelling(committedText);
         committedText = applyCorrections(committedText);
         committedText = applyProfanityFilter(committedText);
-        committedConfidence = pendingConfidence;
-        committedWordConfidences = pendingWordConfidences;
+        // Prefer the word-weighted average across every final chunk in this utterance.
+        committedConfidence = pendingPhraseConfidence();
+        committedWordConfidences = pendingWordConfidences ? pendingWordConfidences.slice() : null;
         emitFinalCaption(committedText);
         setPreview(committedText, '', committedConfidence, committedWordConfidences);
         pendingUtterance = '';
         pendingConfidence = null;
         pendingWordConfidences = null;
+        pendingConfWeighted = 0;
+        pendingConfWordCount = 0;
+        lastFlushAt = Date.now();
+        awaitingResumeClear = true;
+    };
+    // After Web Speech finalizes a phrase with no further interim, promote to a confirmed
+    // caption even if VAD silence already fired early (race that left overlay stuck on gray).
+    // Only fire while the mic VAD is idle so a brief empty-interim gap mid-sentence does not
+    // punctuate early while the user is still talking.
+    const scheduleFinalize = () => {
+        clearFinalizeTimer();
+        finalizeTimer = setTimeout(() => {
+            finalizeTimer = null;
+            if (audioTap.getVadState && audioTap.getVadState() === 'talking') {
+                // Still in an utterance — wait for silence flush or the next quiet window.
+                return;
+            }
+            flushPendingUtterance();
+        }, 450);
     };
     audioTap.onSilenceFlush(flushPendingUtterance);
     const QUESTION_STARTERS = new Set([
@@ -1254,46 +1360,77 @@ ob_start();
         r.onstart = () => { setStatus(ccLang.listening, 'online'); };
         r.onresult = (event) => {
             let interim = '';
-            let finalChunk = '';
-            let finalConfidence = null;
-            let finalResultObj = null;
+            let gotNewFinal = false;
+            // Process every final result in this event (not just the last) so long sentences
+            // accumulate per-word confidences across phrase boundaries.
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalChunk += transcript;
-                    finalConfidence = event.results[i][0].confidence;
-                    finalResultObj = event.results[i];
+                const result = event.results[i];
+                const transcript = result[0] ? result[0].transcript : '';
+                if (result.isFinal) {
+                    const piece = String(transcript || '').trim();
+                    if (!piece) continue;
+                    gotNewFinal = true;
+                    const { confidences, confidence } = wordConfidencesFromResult(result);
+                    pendingUtterance = (pendingUtterance ? pendingUtterance + ' ' : '') + piece;
+                    pendingWordConfidences = mergeWordConfidences(pendingWordConfidences, confidences);
+                    if (confidence != null) {
+                        const wordCount = Math.max(1, confidences.length);
+                        pendingConfWeighted += confidence * wordCount;
+                        pendingConfWordCount += wordCount;
+                        pendingConfidence = pendingPhraseConfidence();
+                    }
                 } else {
                     interim += transcript;
                 }
             }
-            if (finalChunk.trim()) {
-                pendingUtterance = (pendingUtterance ? pendingUtterance + ' ' : '') + finalChunk.trim();
-                pendingConfidence = finalConfidence;
-                const rawWords = finalChunk.trim().split(/\s+/);
-                if (finalResultObj && finalResultObj.length > 1) {
-                    const alts = [];
-                    for (let j = 0; j < finalResultObj.length; j++) {
-                        alts.push(finalResultObj[j].transcript.trim().split(/\s+/));
-                    }
-                    pendingWordConfidences = rawWords.map((w, idx) => {
-                        const lw = w.toLowerCase().replace(/[^a-z0-9'\u2019]/g, '');
-                        const matches = alts.filter(aw => (aw[idx] || '').toLowerCase().replace(/[^a-z0-9'\u2019]/g, '') === lw).length;
-                        return matches / alts.length;
-                    });
-                } else {
-                    pendingWordConfidences = rawWords.map(() => finalConfidence != null ? finalConfidence : null);
+            // After we already flushed a sentence, Web Speech sometimes delivers a late final
+            // of the same utterance. Past the fade window that would re-open the overlay with
+            // the old line as interim/confirmed — drop it when the mic is idle.
+            // (Must run before prepareResumeSpeech, which clears awaitingResumeClear.)
+            if (gotNewFinal && !interim.trim() && awaitingResumeClear
+                && audioTap.getVadState && audioTap.getVadState() !== 'talking') {
+                const fadeMs = getFadeSeconds() * 1000;
+                const pauseMs = fadeMs > 0 ? fadeMs : 1500;
+                if (Date.now() - lastFlushAt >= pauseMs) {
+                    pendingUtterance = '';
+                    pendingConfidence = null;
+                    pendingWordConfidences = null;
+                    pendingConfWeighted = 0;
+                    pendingConfWordCount = 0;
+                    clearFinalizeTimer();
+                    return;
                 }
             }
+            // First audio after a long pause: blank the previous confirmed line so it does
+            // not sit on the overlay next to (or flash in as) the new utterance.
+            if (interim.trim() || gotNewFinal) {
+                prepareResumeSpeech();
+            }
+            const activeConf = pendingPhraseConfidence() != null ? pendingPhraseConfidence() : committedConfidence;
+            const activeWordConf = mergeWordConfidences(committedWordConfidences, pendingWordConfidences);
+            const previewCommitted = committedText + (pendingUtterance ? (committedText ? ' ' : '') + pendingUtterance : '');
             if (interim.trim()) {
+                // Still speaking: keep finalize timer off and stream the FULL utterance
+                // (already-final chunks + current interim). Emitting interim alone drops
+                // finalized words from the overlay and leaves them stuck gray after silence.
+                clearFinalizeTimer();
                 let filteredInterim = applyLocaleSpelling(interim.trim());
                 filteredInterim = applyProfanityFilter(filteredInterim);
-                emitCaption(filteredInterim, false);
-                const previewCommitted = committedText + (pendingUtterance ? (committedText ? ' ' : '') + pendingUtterance : '');
-                setPreview(previewCommitted, filteredInterim, pendingConfidence || committedConfidence, pendingWordConfidences || committedWordConfidences);
+                const streamText = ((pendingUtterance ? pendingUtterance + ' ' : '') + filteredInterim).trim();
+                let filteredStream = applyLocaleSpelling(streamText);
+                filteredStream = applyProfanityFilter(filteredStream);
+                emitCaption(filteredStream, false);
+                setPreview(previewCommitted, filteredInterim, activeConf, activeWordConf);
             } else if (pendingUtterance) {
-                const previewCommitted = committedText + (committedText ? ' ' : '') + pendingUtterance;
-                setPreview(previewCommitted, '', pendingConfidence || committedConfidence, pendingWordConfidences || committedWordConfidences);
+                // Web Speech finalized with no further interim (pause / end of phrase).
+                // Stream the pending text so the overlay is not left on a stale gray fragment,
+                // then schedule confirmation (isFinal) — also covers the race where VAD silence
+                // fired before this final result arrived.
+                let filteredPending = applyLocaleSpelling(pendingUtterance.trim());
+                filteredPending = applyProfanityFilter(filteredPending);
+                emitCaption(filteredPending, false);
+                setPreview(previewCommitted, '', activeConf, activeWordConf);
+                scheduleFinalize();
             }
         };
         r.onerror = (event) => {
@@ -1335,9 +1472,17 @@ ob_start();
             }
         }
         committedText = '';
+        committedConfidence = null;
+        committedWordConfidences = null;
         pendingUtterance = '';
         pendingConfidence = null;
         pendingWordConfidences = null;
+        pendingConfWeighted = 0;
+        pendingConfWordCount = 0;
+        lastFlushAt = 0;
+        awaitingResumeClear = false;
+        captionEpoch += 1;
+        clearFinalizeTimer();
         const tapOk = await audioTap.start(detectorDeviceId);
         if (!tapOk) {
             setStatus(ccLang.micDenied, 'offline');
@@ -1368,12 +1513,18 @@ ob_start();
         liveTranslator.stop();
         setTranslateNotice('', false);
         emitClear();
+        clearFinalizeTimer();
+        captionEpoch += 1;
         committedText = '';
         pendingUtterance = '';
         committedConfidence = null;
         committedWordConfidences = null;
         pendingConfidence = null;
         pendingWordConfidences = null;
+        pendingConfWeighted = 0;
+        pendingConfWordCount = 0;
+        lastFlushAt = 0;
+        awaitingResumeClear = false;
         setPreview('', '', null, null);
         setStatus(ccLang.idle, 'offline');
         if (startBtn) startBtn.disabled = false;

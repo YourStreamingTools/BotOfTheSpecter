@@ -2476,7 +2476,9 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     opacity: 0.75;
 }
 
-/* Interim (not-yet-final) text renders dimmer to signal it is uncommitted. */
+/* Interim (not-yet-final) text: still slightly softer than committed lines so the
+   streamer can tell what has not finalized, but opaque enough to read on busy
+   backgrounds (0.65 was too washed-out for many scenes). */
 .closed-captions-overlay-page-interim {
     margin: 0;
     opacity: 0;
@@ -2486,7 +2488,7 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     transition: opacity 150ms ease;
 }
 .closed-captions-overlay-page-interim.is-active {
-    opacity: 0.65;
+    opacity: 0.92;
     margin-top: 0.2vh;
 }
 
