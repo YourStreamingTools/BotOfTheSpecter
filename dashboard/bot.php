@@ -489,7 +489,7 @@ ob_start();
             </div>
             <div id="custom-module-warning" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
-              <?= t('bot_use_custom_module_warning') ?>
+              <span class="custom-module-note-text"><?= t('bot_use_custom_module_note_disabled') ?></span>
             </div>
           <?php elseif ($selectedBot === 'v6'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
@@ -503,7 +503,7 @@ ob_start();
             </div>
             <div id="custom-module-warning-v6" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
-              <?= t('bot_use_custom_module_warning') ?>
+              <span class="custom-module-note-text"><?= t('bot_use_custom_module_note_disabled') ?></span>
             </div>
           <?php endif; ?>
           <?php 
@@ -727,6 +727,15 @@ const serverUseSelf = <?php echo json_encode((int)($use_self ?? 0)); ?>;
 const serverUseCustomModule = <?php echo json_encode((int)($use_custom_module ?? 0)); ?>;
 window.serverUseCustomModule = serverUseCustomModule;
 window.customModuleAvailable = false;
+// True after the user changes the toggle until the next successful start applies it.
+window.customModuleSettingPending = false;
+window.botProcessRunning = false;
+const customModuleNoteStrings = {
+  enabled: <?php echo json_encode(t('bot_use_custom_module_note_enabled')); ?>,
+  disabled: <?php echo json_encode(t('bot_use_custom_module_note_disabled')); ?>,
+  pendingStart: <?php echo json_encode(t('bot_use_custom_module_note_pending_start')); ?>,
+  pendingRestart: <?php echo json_encode(t('bot_use_custom_module_note_pending_restart')); ?>
+};
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
@@ -945,6 +954,19 @@ document.addEventListener('DOMContentLoaded', function() {
   // Custom channel module toggle (shown only when bots API reports file present; beta/v6)
   const customModuleToggleContainer = document.getElementById('custom-module-toggle-container');
   const customModuleToggle = document.getElementById('custom-module-toggle');
+  function customModuleNoteText() {
+    const enabled = customModuleToggle ? customModuleToggle.checked : (window.serverUseCustomModule === 1);
+    if (window.customModuleSettingPending) {
+      return window.botProcessRunning
+        ? customModuleNoteStrings.pendingRestart
+        : customModuleNoteStrings.pendingStart;
+    }
+    return enabled ? customModuleNoteStrings.enabled : customModuleNoteStrings.disabled;
+  }
+  function updateCustomModuleNote() {
+    const text = customModuleNoteText();
+    document.querySelectorAll('.custom-module-note-text').forEach((el) => { el.innerHTML = text; });
+  }
   function updateCustomModuleToggleVisibility() {
     const currentBot = getCurrentBotType();
     const show = window.customModuleAvailable && (currentBot === 'beta' || currentBot === 'v6');
@@ -953,10 +975,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const warnBeta = document.getElementById('custom-module-warning');
     const warnV6 = document.getElementById('custom-module-warning-v6');
-    const moduleOn = customModuleToggle ? customModuleToggle.checked : false;
-    if (warnBeta) warnBeta.style.display = (show && currentBot === 'beta' && moduleOn) ? 'block' : 'none';
-    if (warnV6) warnV6.style.display = (show && currentBot === 'v6' && moduleOn) ? 'block' : 'none';
+    if (warnBeta) warnBeta.style.display = (show && currentBot === 'beta') ? 'block' : 'none';
+    if (warnV6) warnV6.style.display = (show && currentBot === 'v6') ? 'block' : 'none';
+    updateCustomModuleNote();
   }
+  function markCustomModuleApplied() {
+    if (!window.customModuleSettingPending) return;
+    window.customModuleSettingPending = false;
+    updateCustomModuleNote();
+  }
+  // Expose so start/status handlers can clear pending after a successful start.
+  window.markCustomModuleApplied = markCustomModuleApplied;
+  window.updateCustomModuleToggleVisibility = updateCustomModuleToggleVisibility;
   if (customModuleToggle) {
     customModuleToggle.checked = serverUseCustomModule === 1;
     customModuleToggle.addEventListener('change', function() {
@@ -968,13 +998,14 @@ document.addEventListener('DOMContentLoaded', function() {
       }, 8000).then(r => r.json()).then(data => {
         if (data && data.success) {
           try { window.serverUseCustomModule = parseInt(data.use_custom_module, 10); } catch (e) {}
+          window.customModuleSettingPending = true;
           showNotification(
             isEnabled
               ? <?php echo json_encode(t('bot_use_custom_module_enabled')); ?>
               : <?php echo json_encode(t('bot_use_custom_module_disabled')); ?>,
             isEnabled ? 'success' : 'info'
           );
-          showNotification(<?php echo json_encode(t('bot_use_custom_module_restart_notice')); ?>, 'warning');
+          showNotification(customModuleNoteText(), 'warning');
         } else {
           showNotification(<?php echo json_encode(t('bot_save_use_custom_module_failed')); ?>, 'danger');
           this.checked = !isEnabled;
@@ -1170,6 +1201,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Immediately update UI optimistically
             const expectedRunning = (action === 'run');
             updateUIOptimistically(expectedRunning, 'Beta');
+            window.botProcessRunning = expectedRunning;
+            // Start applies -load-custom-module; clear pending note after a successful start.
+            if (action === 'run' && typeof window.markCustomModuleApplied === 'function') {
+              window.markCustomModuleApplied();
+            } else {
+              updateCustomModuleNote();
+            }
             // Show success message from backend
             if (data.message) {
               showNotification(data.message, 'success');
@@ -1252,6 +1290,12 @@ document.addEventListener('DOMContentLoaded', function() {
           if (data.success) {
             const expectedRunning = (action === 'run');
             updateUIOptimistically(expectedRunning, 'V6');
+            window.botProcessRunning = expectedRunning;
+            if (action === 'run' && typeof window.markCustomModuleApplied === 'function') {
+              window.markCustomModuleApplied();
+            } else {
+              updateCustomModuleNote();
+            }
             if (data.message) { showNotification(data.message, 'success'); }
             btn.innerHTML = originalContent;
             btn.disabled = false;
@@ -1703,6 +1747,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             // Surface whether operator-deployed {channel}.py exists (beta/v6 toggle)
             window.customModuleAvailable = data.customModuleAvailable === true;
+            window.botProcessRunning = data.running === true;
             try { updateCustomModuleToggleVisibility(); } catch (e) { /* ignore if not defined yet */ }
             // Check for version updates and code-on-disk newer than last run
             const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : selectedBot === 'v6' ? window.latestV6Version : window.latestStableVersion;
