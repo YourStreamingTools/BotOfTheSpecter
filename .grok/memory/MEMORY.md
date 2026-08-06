@@ -68,5 +68,6 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Cloudflare zone owner](project_cloudflare_zone_owner.md) — botofthespecter.com zone on LochStudios CF account
 - [Credential logging](project_credential_logging.md) — never log raw user code/api_key
 - [s3fs storage + admin file manager](project_s3fs_storage_and_file_manager.md) — MEGA S4 s3fs mounts for 7 static dirs + admin CDN file manager; `compat_dir` gotcha
+- [V6 module host parity](project_v6_module_host_parity.md) — BETA→V6 custom channel module host call sites (websocket_notice intercept, CP, chat, Stream Bingo)
 
 **Last verified**: 2026-08-02 (migrated Claude project memory + restored historical plans into `.grok/`)
