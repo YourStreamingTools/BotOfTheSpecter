@@ -80,6 +80,52 @@ if ($username) {
             const alertQueue = [];
             let isShowingAlert = false;
             let currentAudio = null;
+            // TTS / SOUND_ALERT share a queue separate from alert-variant sounds and walk-ons.
+            // Default TTS volume is 30% (same as overlay/tts.php); sound alerts use 80%.
+            let fxAudio = null;
+            const fxQueue = [];
+            function enqueueFxAudio(url, volume) {
+                if (!url) return;
+                fxQueue.push({ url: url, volume: (volume == null ? 0.3 : volume) });
+                if (!fxAudio) playNextFxAudio();
+            }
+            function playNextFxAudio() {
+                if (fxQueue.length === 0) {
+                    fxAudio = null;
+                    return;
+                }
+                const item = fxQueue.shift();
+                fxAudio = new Audio(item.url + '?t=' + Date.now());
+                fxAudio.volume = item.volume;
+                fxAudio.addEventListener('ended', () => { fxAudio = null; playNextFxAudio(); });
+                fxAudio.addEventListener('error', (e) => {
+                    console.error('FX audio error:', e, 'src=', fxAudio && fxAudio.src);
+                    fxAudio = null;
+                    playNextFxAudio();
+                });
+                fxAudio.play().catch(err => {
+                    console.warn('FX autoplay blocked; will retry on interaction:', err && err.name);
+                });
+            }
+            // OBS browser sources often block autoplay until a context is unlocked.
+            (function unlockAudio() {
+                try {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (!Ctx) return;
+                    const ctx = new Ctx();
+                    const buf = ctx.createBuffer(1, 1, 22050);
+                    const src = ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(ctx.destination);
+                    src.start(0);
+                    ctx.resume().then(() => ctx.close()).catch(() => {});
+                } catch (e) {}
+            })();
+            document.addEventListener('click', () => {
+                if (fxAudio) {
+                    fxAudio.play().catch(() => {});
+                }
+            }, { capture: true, once: true });
             const loadedFonts = {};
             function loadGoogleFont(fontName) {
                 if (loadedFonts[fontName]) return;
@@ -154,6 +200,13 @@ if ($username) {
                         const typeOk   = !typeMatch   || (typeMatch[1] === eventData.fourthwall_type);
                         const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
                         if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
+                    } else if (category === 'channel_points') {
+                        // Dashboard stores: reward_id = 'uuid'
+                        const rewardMatch = cond.match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
+                        if (rewardMatch && eventData.reward_id
+                            && String(rewardMatch[1]) === String(eventData.reward_id)) {
+                            return variant;
+                        }
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -777,13 +830,31 @@ if ($username) {
                             charity_name: data['twitch-charity-name'] || ''
                         });
                     });
-                    socket.on('TWITCH_CHANNEL_POINTS', (data) => {
-                        console.log('TWITCH_CHANNEL_POINTS event received:', data);
+                    // Bot / WS emit TWITCH_CHANNELPOINTS (no underscore between CHANNEL and POINTS).
+                    // Accept the legacy underscore form too so older emitters still match.
+                    function handleChannelPoints(data) {
+                        console.log('TWITCH_CHANNELPOINTS event received:', data);
+                        let rewards = data || {};
+                        if (data && data.rewards != null) {
+                            try {
+                                rewards = (typeof data.rewards === 'string')
+                                    ? JSON.parse(data.rewards)
+                                    : data.rewards;
+                            } catch (e) {
+                                console.warn('Failed to parse channel points rewards payload:', e);
+                                rewards = data;
+                            }
+                        }
+                        const reward = (rewards && rewards.reward) || {};
                         queueAlert('channel_points', {
-                            username:  data['twitch-username'] || '',
-                            reward_id: data['reward-id'] || data['reward_id'] || ''
+                            username:  rewards.user_name || rewards.user_login
+                                       || data['twitch-username'] || '',
+                            reward_id: reward.id || data['reward-id'] || data.reward_id || '',
+                            message:   rewards.user_input || data.message || ''
                         });
-                    });
+                    }
+                    socket.on('TWITCH_CHANNELPOINTS', handleChannelPoints);
+                    socket.on('TWITCH_CHANNEL_POINTS', handleChannelPoints);
 
                     // Ko-fi - webhook payload comes wrapped as a JSON string in data.data
                     socket.on('KOFI', (data) => {
@@ -931,6 +1002,29 @@ if ($username) {
                     socket.on('WALKON', (data) => {
                         console.log('WALKON event received:', data);
                         if (isCategoryEnabled('walkons')) handleWalkon(data);
+                    });
+
+                    // TTS - generated audio URL from websocket tts_handler (tts.botofthespecter.com).
+                    // Specter Alerts previously lacked this handler, so channel-point TTS never played.
+                    socket.on('TTS', (data) => {
+                        console.log('TTS event received:', data);
+                        const url = (data && (data.audio_file || data.audio_url || data.url)) || null;
+                        if (!url) {
+                            console.warn('TTS event missing audio_file:', data);
+                            return;
+                        }
+                        enqueueFxAudio(url, 0.3);
+                    });
+
+                    // SOUND_ALERT - full URL already resolved by the bot (media or legacy CDN).
+                    socket.on('SOUND_ALERT', (data) => {
+                        console.log('SOUND_ALERT event received:', data);
+                        const url = (data && data.sound) || null;
+                        if (!url) {
+                            console.warn('SOUND_ALERT event missing sound:', data);
+                            return;
+                        }
+                        enqueueFxAudio(url, 0.8);
                     });
 
                     // Dashboard "Refresh Overlay" - full page reload so PHP re-fetches configs
