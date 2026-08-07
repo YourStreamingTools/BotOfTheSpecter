@@ -47,6 +47,8 @@ Cert renewals reload Caddy; the Python process does not need a restart for TLS.
 }
 ```
 
+`GET /health/metrics` (no auth) — live host CPU/RAM/disk/net for the public status page (`home/status.php`). Requires `psutil`. Optional `METRICS_SERVER_NAME` (default `api`) and `METRICS_DISK_PATH` (default `/`).
+
 ## API docs (themed explorer)
 
 Stock Swagger UI is **not** the primary UI. A dark dashboard-matching explorer lives in `./api/docs_ui/` and is served at:

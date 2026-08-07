@@ -8,6 +8,7 @@ streamer's database.
 
 Public surface (behind TLS at sql.botofthespecter.com):
   GET  /health
+  GET  /health/metrics  (live host CPU/RAM/disk/net — no auth)
   GET  /api/v1/me
   GET  /api/v1/{scope}/tables
   GET  /api/v1/{scope}/rows
@@ -247,6 +248,17 @@ class DeleteBody(BaseModel):
 @app.get("/health")
 async def health() -> dict[str, Any]:
     return {"ok": True, "service": "sql-data-api"}
+
+
+@app.get("/health/metrics")
+async def health_metrics() -> dict[str, Any]:
+    # Live host metrics for the public status page (no auth; same fields as status UI).
+    from host_metrics import collect_host_metrics
+
+    return collect_host_metrics(
+        os.getenv("METRICS_SERVER_NAME", "sql"),
+        service="sql-data-api",
+    )
 
 
 @app.get("/api/v1/me")

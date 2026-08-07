@@ -10,6 +10,7 @@ Create a key with service name:  bots
 
 Public surface (behind TLS at bots.botofthespecter.com):
   GET  /health  (ok, started_at, uptime_seconds — no auth)
+  GET  /health/metrics  (live host CPU/RAM/disk/net — no auth)
   GET  /api/running_bots
   GET  /api/running_bots/snapshot  (durable last-seen inventory for crash recovery)
   GET  /api/bot/status?channel=&bot_type=  (includes script_mtime / last_run_mtime)
@@ -261,6 +262,17 @@ async def health() -> dict[str, Any]:
         "started_at_utc": _process_started_at.isoformat(),
         "uptime_seconds": uptime_seconds,
     }
+
+
+@app.get("/health/metrics")
+async def health_metrics() -> dict[str, Any]:
+    # Live host metrics for the public status page (no auth).
+    from host_metrics import collect_host_metrics
+
+    return collect_host_metrics(
+        os.getenv("METRICS_SERVER_NAME", "bots"),
+        service="bots-control-api",
+    )
 
 
 @app.get("/api/online/{channel}", dependencies=[Depends(require_control_key)])
