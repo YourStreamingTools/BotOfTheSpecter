@@ -28,143 +28,29 @@ function pingServer($host, $port) {
     return $status;
 }
 
-/**
- * Local host metrics for the web server (this PHP process runs on web1).
- * Same field shape as Python /health/metrics; swap is folded into RAM totals.
- *
- * @return array<string, mixed>|null
- */
-function collectLocalWebHostMetrics(string $serverName = 'web1'): ?array {
-    if (!is_readable('/proc/meminfo') || !is_readable('/proc/stat')) {
-        return null;
-    }
+require_once __DIR__ . '/includes/host_metrics.php';
 
-    $memKb = [];
-    $memRaw = @file('/proc/meminfo', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    if (!is_array($memRaw)) {
-        return null;
-    }
-    foreach ($memRaw as $line) {
-        if (preg_match('/^(\w+):\s+(\d+)/', $line, $m)) {
-            $memKb[$m[1]] = (int) $m[2];
-        }
-    }
-    $memTotalB = (int) (($memKb['MemTotal'] ?? 0) * 1024);
-    $memAvailB = (int) (($memKb['MemAvailable'] ?? ($memKb['MemFree'] ?? 0)) * 1024);
-    $memUsedB = max(0, $memTotalB - $memAvailB);
-    $swapTotalB = (int) (($memKb['SwapTotal'] ?? 0) * 1024);
-    $swapFreeB = (int) (($memKb['SwapFree'] ?? 0) * 1024);
-    $swapUsedB = max(0, $swapTotalB - $swapFreeB);
-    $ramTotalB = $memTotalB + $swapTotalB;
-    $ramUsedB = $memUsedB + $swapUsedB;
-    $ramPercent = $ramTotalB > 0 ? ($ramUsedB / $ramTotalB) * 100.0 : 0.0;
+function loadStatusHostsConfig(): array {
+    $path = is_file('/var/www/config/status_hosts.php')
+        ? '/var/www/config/status_hosts.php'
+        : (__DIR__ . '/../config/status_hosts.php');
+    $cfg = is_file($path) ? (include $path) : [];
+    return is_array($cfg) ? $cfg : [];
+}
 
-    $readCpu = static function (): array {
-        $line = @file('/proc/stat', FILE_IGNORE_NEW_LINES);
-        if (!is_array($line) || empty($line[0]) || strpos($line[0], 'cpu ') !== 0) {
-            return [0, 0];
-        }
-        $parts = preg_split('/\s+/', trim($line[0]));
-        $nums = [];
-        for ($i = 1, $n = count($parts); $i < $n; $i++) {
-            if (ctype_digit((string) $parts[$i])) {
-                $nums[] = (int) $parts[$i];
-            }
-        }
-        if (count($nums) < 4) {
-            return [0, 0];
-        }
-        $idle = $nums[3] + ($nums[4] ?? 0);
-        return [array_sum($nums), $idle];
-    };
-    [$t1, $i1] = $readCpu();
-    usleep(100000);
-    [$t2, $i2] = $readCpu();
-    $dTotal = max(0, $t2 - $t1);
-    $dIdle = max(0, $i2 - $i1);
-    $cpuPercent = $dTotal > 0 ? max(0.0, min(100.0, (1.0 - ($dIdle / $dTotal)) * 100.0)) : 0.0;
-
-    $diskPath = is_dir('/') ? '/' : __DIR__;
-    $diskTotal = @disk_total_space($diskPath);
-    $diskFree = @disk_free_space($diskPath);
-    if ($diskTotal === false || $diskFree === false || $diskTotal <= 0) {
-        $diskTotal = 0;
-        $diskFree = 0;
-        $diskUsed = 0;
-        $diskPercent = 0.0;
-    } else {
-        $diskUsed = max(0.0, (float) $diskTotal - (float) $diskFree);
-        $diskPercent = ($diskUsed / (float) $diskTotal) * 100.0;
-    }
-
-    $readNet = static function (): array {
-        $sent = 0;
-        $recv = 0;
-        $raw = @file('/proc/net/dev', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if (!is_array($raw)) {
-            return [0, 0];
-        }
-        foreach ($raw as $line) {
-            if (strpos($line, ':') === false) {
-                continue;
-            }
-            [$name, $rest] = explode(':', $line, 2);
-            if (trim($name) === 'lo') {
-                continue;
-            }
-            $cols = preg_split('/\s+/', trim($rest));
-            if (!is_array($cols) || count($cols) < 9) {
-                continue;
-            }
-            $recv += (int) $cols[0];
-            $sent += (int) $cols[8];
-        }
-        return [$sent, $recv];
-    };
-
-    $netCache = sys_get_temp_dir() . '/specter_web1_net_sample.json';
-    $now = microtime(true);
-    [$bytesSent, $bytesRecv] = $readNet();
-    $netSent = 0.0;
-    $netRecv = 0.0;
-    if (is_file($netCache)) {
-        $prev = json_decode((string) @file_get_contents($netCache), true);
-        if (is_array($prev) && isset($prev['t'], $prev['sent'], $prev['recv'])) {
-            $dt = max($now - (float) $prev['t'], 0.001);
-            $netSent = max(0.0, ($bytesSent - (int) $prev['sent']) / $dt / (1024 ** 2));
-            $netRecv = max(0.0, ($bytesRecv - (int) $prev['recv']) / $dt / (1024 ** 2));
-        }
-    }
-    @file_put_contents($netCache, json_encode([
-        't' => $now,
-        'sent' => $bytesSent,
-        'recv' => $bytesRecv,
-    ]));
-
-    $gb = static function ($bytes): float {
-        return round(((float) $bytes) / (1024 ** 3), 2);
-    };
-
-    return [
-        'ok' => true,
-        'server_name' => $serverName,
-        'service' => 'web',
-        'cpu_percent' => round($cpuPercent, 1),
-        'ram_percent' => round($ramPercent, 1),
-        'ram_used' => $gb($ramUsedB),
-        'ram_total' => $gb($ramTotalB),
-        'disk_percent' => round($diskPercent, 1),
-        'disk_used' => $gb($diskUsed),
-        'disk_total' => $gb($diskTotal),
-        'net_sent' => round($netSent, 3),
-        'net_recv' => round($netRecv, 3),
-        'collected_at' => (int) $now,
-    ];
+function loadWebIdentity(): array {
+    $path = is_file('/var/www/config/web_identity.php')
+        ? '/var/www/config/web_identity.php'
+        : (__DIR__ . '/../config/web_identity.php');
+    $cfg = is_file($path) ? (include $path) : [];
+    return is_array($cfg) ? $cfg : [];
 }
 
 $mainConfig = include '/var/www/config/main.php';
 $maintenanceMode = $mainConfig['maintenanceMode'] ?? false;
 $maintenanceMessage = $mainConfig['maintenanceMessage'] ?? '';
+$statusHostsCfg = loadStatusHostsConfig();
+$webIdentity = loadWebIdentity();
 
 // Never let a browser or intermediary proxy cache this page or its AJAX
 // response - maintenance state must always reflect the live config.
@@ -186,21 +72,69 @@ if (isset($_GET['ajax'])) {
     mysqli_report(MYSQLI_REPORT_OFF);
     include '/var/www/config/db_connect.php';
 
-    // Directly ping the servers
-    $apiPingStatus = pingServer('api.botofthespecter.com', 443);
-    $apiServiceStatus = ['status' => $apiPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $apiPingStatus];
+    // Host inventory from config/status_hosts.php (web hosts + services).
+    // Adding web2 is config-only once health_metrics.php is on that host.
+    $webHosts = is_array($statusHostsCfg['web_hosts'] ?? null) ? $statusHostsCfg['web_hosts'] : [];
+    $serviceHosts = is_array($statusHostsCfg['services'] ?? null) ? $statusHostsCfg['services'] : [];
+    $localWebId = (string) ($webIdentity['server_name']
+        ?? $statusHostsCfg['local_web_id']
+        ?? 'web1');
 
-    $websocketPingStatus = pingServer('websocket.botofthespecter.com', 443);
-    $notificationServiceStatus = ['status' => $websocketPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $websocketPingStatus];
-
-    $databasePingStatus = pingServer('sql.botofthespecter.com', 3306);
-    $databaseServiceStatus = ['status' => $databasePingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $databasePingStatus];
-
-    $botServerPingStatus = pingServer('bots.botofthespecter.com', 22);
-    $botServerStatus = ['status' => $botServerPingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $botServerPingStatus];
-
-    $web1PingStatus = pingServer('web1.botofthespecter.com', 443);
-    $web1Status = ['status' => $web1PingStatus >= 0 ? 'OK' : 'OFF', 'ping' => $web1PingStatus];
+    $hostStatuses = [];
+    $serverDisplayNames = [];
+    foreach ($webHosts as $host) {
+        if (!is_array($host) || empty($host['id'])) {
+            continue;
+        }
+        $id = (string) $host['id'];
+        $label = (string) ($host['label'] ?? $id);
+        $serverDisplayNames[$id] = $label;
+        $pingHost = (string) ($host['ping_host'] ?? '');
+        $pingPort = (int) ($host['ping_port'] ?? 443);
+        $ping = $pingHost !== '' ? pingServer($pingHost, $pingPort) : -1;
+        $hostStatuses[] = [
+            'id' => $id,
+            'label' => $label,
+            'status' => $ping >= 0 ? 'OK' : 'OFF',
+            'ping' => $ping,
+        ];
+    }
+    foreach ($serviceHosts as $host) {
+        if (!is_array($host) || empty($host['id'])) {
+            continue;
+        }
+        $id = (string) $host['id'];
+        $label = (string) ($host['label'] ?? $id);
+        $serverDisplayNames[$id] = $label;
+        $pingHost = (string) ($host['ping_host'] ?? '');
+        $pingPort = (int) ($host['ping_port'] ?? 443);
+        $ping = $pingHost !== '' ? pingServer($pingHost, $pingPort) : -1;
+        $hostStatuses[] = [
+            'id' => $id,
+            'label' => $label,
+            'status' => $ping >= 0 ? 'OK' : 'OFF',
+            'ping' => $ping,
+        ];
+    }
+    // Back-compat keys used by older cached clients / partial deploys
+    $web1Status = ['status' => 'OFF', 'ping' => -1];
+    $databaseServiceStatus = ['status' => 'OFF', 'ping' => -1];
+    $apiServiceStatus = ['status' => 'OFF', 'ping' => -1];
+    $notificationServiceStatus = ['status' => 'OFF', 'ping' => -1];
+    $botServerStatus = ['status' => 'OFF', 'ping' => -1];
+    foreach ($hostStatuses as $hs) {
+        if ($hs['id'] === 'web1') {
+            $web1Status = ['status' => $hs['status'], 'ping' => $hs['ping']];
+        } elseif ($hs['id'] === 'sql') {
+            $databaseServiceStatus = ['status' => $hs['status'], 'ping' => $hs['ping']];
+        } elseif ($hs['id'] === 'api') {
+            $apiServiceStatus = ['status' => $hs['status'], 'ping' => $hs['ping']];
+        } elseif ($hs['id'] === 'websocket') {
+            $notificationServiceStatus = ['status' => $hs['status'], 'ping' => $hs['ping']];
+        } elseif ($hs['id'] === 'bots') {
+            $botServerStatus = ['status' => $hs['status'], 'ping' => $hs['ping']];
+        }
+    }
 
     // Fetch version data
     $versionData = fetchData('https://api.botofthespecter.com/versions');
@@ -218,10 +152,8 @@ if (isset($_GET['ajax'])) {
     $weatherData = fetchData('https://api.botofthespecter.com/api/weather');
     $weatherRequestsRemaining = $weatherData['requests_remaining'] ?? null;
 
-    // Live system metrics from each service's public GET /health/metrics.
-    // Replaces the old website.system_metrics table (cron status_monitor on
-    // legacy hosts stopped updating after the multi-host migration).
-    // web1 is this host (status.php runs here) — collect locally via /proc.
+    // Live system metrics: every web host metrics_url + each service metrics_url.
+    // Local /proc fallback when this machine is that web host and remote fetch fails.
     $metrics = [];
     $appendMetric = static function (array &$metrics, array $m, string $fallbackName): void {
         if (empty($m['ok'])) {
@@ -241,25 +173,32 @@ if (isset($_GET['ajax'])) {
         ];
     };
 
-    $metricsUrls = [
-        'api' => 'https://api.botofthespecter.com/health/metrics',
-        'websocket' => 'https://websocket.botofthespecter.com/health/metrics',
-        'bots' => 'https://bots.botofthespecter.com/health/metrics',
-        'sql' => 'https://sql.botofthespecter.com/health/metrics',
-    ];
-    // Preferred display order (web1 first, then services).
-    $metricsOrder = ['web1', 'api', 'websocket', 'bots', 'sql'];
-    foreach ($metricsOrder as $serverKey) {
-        if ($serverKey === 'web1') {
-            $local = collectLocalWebHostMetrics('web1');
-            if (is_array($local)) {
-                $appendMetric($metrics, $local, 'web1');
-            }
+    foreach ($webHosts as $host) {
+        if (!is_array($host) || empty($host['id'])) {
             continue;
         }
-        $m = fetchData($metricsUrls[$serverKey]);
+        $id = (string) $host['id'];
+        $url = trim((string) ($host['metrics_url'] ?? ''));
+        $m = $url !== '' ? fetchData($url) : null;
+        if ((!is_array($m) || empty($m['ok'])) && $id === $localWebId) {
+            $m = specter_collect_host_metrics($id, 'web');
+        }
         if (is_array($m)) {
-            $appendMetric($metrics, $m, $serverKey);
+            $appendMetric($metrics, $m, $id);
+        }
+    }
+    foreach ($serviceHosts as $host) {
+        if (!is_array($host) || empty($host['id'])) {
+            continue;
+        }
+        $id = (string) $host['id'];
+        $url = trim((string) ($host['metrics_url'] ?? ''));
+        if ($url === '') {
+            continue;
+        }
+        $m = fetchData($url);
+        if (is_array($m)) {
+            $appendMetric($metrics, $m, $id);
         }
     }
 
@@ -384,6 +323,10 @@ if (isset($_GET['ajax'])) {
     $data = [
         'maintenanceMode' => $maintenanceMode,
         'maintenanceMessage' => $maintenanceMessage,
+        // Preferred: ordered list from status_hosts.php (supports N web servers)
+        'hostStatuses' => $hostStatuses,
+        'serverDisplayNames' => $serverDisplayNames,
+        // Back-compat for older clients
         'apiServiceStatus' => $apiServiceStatus,
         'databaseServiceStatus' => $databaseServiceStatus,
         'notificationServiceStatus' => $notificationServiceStatus,
@@ -440,7 +383,7 @@ if (isset($_GET['ajax'])) {
         h1 { text-align: left; margin-bottom: 0; font-size: 1.6em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
         .section { background: #292929; border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(10px); margin: 0; }
         .section h2 { margin-bottom: 6px; font-size: 1.15em; border-bottom: 2px solid #ffffff; padding-bottom: 4px; }
-        .status-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
         .status-item { background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
         .status-item strong { font-size: 1.05em; }
         .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.25em; }
@@ -495,9 +438,6 @@ if (isset($_GET['ajax'])) {
             z-index: 20;
             filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
             user-select: none;
-        }
-        @media (max-width: 1100px) {
-            .status-grid { grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 768px) {
             body { font-size: 14px; }
@@ -654,14 +594,16 @@ function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 }
 
-// Helper to update service status HTML
-const serverDisplayNames = {
+// Fallback labels if AJAX omits serverDisplayNames (old cache)
+const defaultServerDisplayNames = {
     'web1': 'Web Server 1',
+    'web2': 'Web Server 2',
     'sql': 'Database Service',
     'api': 'API Service',
     'websocket': 'WebSocket Service',
     'bots': 'Bot Server'
 };
+let serverDisplayNames = { ...defaultServerDisplayNames };
 function renderServiceStatus(name, statusData) {
     if (statusData.status === 'OK') {
         const ping = statusData.ping + 'ms';
@@ -699,23 +641,35 @@ function fetchAndUpdateStatus() {
                     document.getElementById('maintenance-banner-text').innerHTML = data.maintenanceMessage || '';
                 }
             }
-            // Update service statuses
-            // Use an explicit array to control the order of displayed services
-            const serviceOrder = [
-                { key: 'web1Status', label: 'Web Server 1' },
-                { key: 'databaseServiceStatus', label: 'Database Service' },
-                { key: 'apiServiceStatus', label: 'API Service' },
-                { key: 'notificationServiceStatus', label: 'WebSocket Service' },
-                { key: 'botServerStatus', label: 'Bot Server' }
-            ];
-            // Build HTML in the requested order
+            // Labels from config (includes web2+ when added)
+            if (data.serverDisplayNames && typeof data.serverDisplayNames === 'object') {
+                serverDisplayNames = { ...defaultServerDisplayNames, ...data.serverDisplayNames };
+            }
+            // Update service statuses — prefer hostStatuses (N web hosts + services)
             let statusHtml = '';
-            serviceOrder.forEach(svc => {
-                const statusData = data[svc.key];
-                if (statusData) {
-                    statusHtml += renderServiceStatus(svc.label, statusData);
-                }
-            });
+            if (Array.isArray(data.hostStatuses) && data.hostStatuses.length) {
+                data.hostStatuses.forEach(host => {
+                    statusHtml += renderServiceStatus(
+                        host.label || serverDisplayNames[host.id] || host.id,
+                        { status: host.status, ping: host.ping }
+                    );
+                });
+            } else {
+                // Back-compat if an old cached payload is still in play
+                const serviceOrder = [
+                    { key: 'web1Status', label: 'Web Server 1' },
+                    { key: 'databaseServiceStatus', label: 'Database Service' },
+                    { key: 'apiServiceStatus', label: 'API Service' },
+                    { key: 'notificationServiceStatus', label: 'WebSocket Service' },
+                    { key: 'botServerStatus', label: 'Bot Server' }
+                ];
+                serviceOrder.forEach(svc => {
+                    const statusData = data[svc.key];
+                    if (statusData) {
+                        statusHtml += renderServiceStatus(svc.label, statusData);
+                    }
+                });
+            }
             document.getElementById('service-status').innerHTML = statusHtml;
             // Update versions
             document.getElementById('stable-version').textContent = data.stableVersion ?? 'N/A';
