@@ -1,6 +1,5 @@
 import os
 import uuid
-import json
 import asyncio
 import shutil
 import subprocess
@@ -10,7 +9,15 @@ import aiohttp
 OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
 MODEL_NAME = "gpt-4o-mini-tts"
 DEFAULT_VOICE = "alloy"
-AVAILABLE_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"]
+# OpenAI gpt-4o-mini-tts voice ids (lowercase). "verse" is used by several streamers.
+AVAILABLE_VOICES = [
+    "alloy", "ash", "ballad", "coral", "echo", "fable",
+    "nova", "onyx", "sage", "shimmer", "verse",
+]
+# Where Caddy serves tts.botofthespecter.com (web host). Overridable via env.
+DEFAULT_REMOTE_TTS_DIR = "/var/www/tts"
+DEFAULT_LOCAL_TTS_DIR = "/home/botofthespecter/tts"
+
 
 class TTSHandler:
     def __init__(self, logger, ssh_manager, sio=None, get_clients=None):
@@ -18,59 +25,81 @@ class TTSHandler:
         self.ssh_manager = ssh_manager
         self.sio = sio
         self.get_clients = get_clients
-        self.tts_dir = "/home/botofthespecter/tts"
-        # Prefer web-served TTS tree via TTS_PUBLISH_DIR or config remote_paths (shared mount)
-        self.tts_config = self.load_tts_config()
+        # Staging dir on the websocket host (OpenAI writes here first)
+        self.tts_dir = (os.getenv("TTS_LOCAL_DIR") or DEFAULT_LOCAL_TTS_DIR).strip()
+        # Public web path on WEB (Caddy root). Same path used over SSH.
+        self.remote_tts_dir = (
+            os.getenv("TTS_REMOTE_DIR") or os.getenv("TTS_PUBLISH_DIR") or DEFAULT_REMOTE_TTS_DIR
+        ).strip().rstrip("/") + "/"
+        # SSH to WEB for publish — same .env keys as bot/api (not a separate JSON file)
+        self.ssh_config = self._load_ssh_config_from_env()
         self.publish_dir = self._resolve_publish_dir()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
-        self.openai_api_key = os.getenv('OPENAI_KEY')
+        self.openai_api_key = os.getenv("OPENAI_KEY")
         if not self.openai_api_key:
             self.logger.error("OPENAI_KEY env var not set - TTS will not work")
         self.model_name = MODEL_NAME
         self.default_voice = DEFAULT_VOICE
         self.available_voices = AVAILABLE_VOICES
 
-    def _resolve_publish_dir(self):
-        env_dir = (os.getenv("TTS_PUBLISH_DIR") or "").strip()
-        if env_dir:
-            return env_dir
-        if self.tts_config:
-            remote = (self.tts_config.get("remote_paths") or {}).get("tts_directory")
-            if remote and os.path.isdir(remote):
-                return remote
-            # Common production path for tts.botofthespecter.com
-            if os.path.isdir("/var/www/tts"):
-                return "/var/www/tts"
-        return None
+    def _load_ssh_config_from_env(self):
+        """Build SSH target from the shared .env (WEB-HOST + SSH_USERNAME/PASSWORD).
 
-    def load_tts_config(self):
-        config_path = "/home/botofthespecter/websocket_tts_config.json"
+        Do not use websocket_tts_config.json for hosts/credentials — that file had a
+        placeholder hostname (your-server.com) that resolved to localhost and wrote
+        MP3s to the wrong machine.
+        """
+        hostname = (os.getenv("WEB-HOST") or os.getenv("WEB_HOST") or "").strip()
+        username = (os.getenv("SSH_USERNAME") or "").strip()
+        password = os.getenv("SSH_PASSWORD") or ""
+        port_raw = (os.getenv("SSH_PORT") or "22").strip()
         try:
-            # Load base config from JSON file
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            # SSH optional when TTS_PUBLISH_DIR or a local mount is available
-            ssh_username = os.getenv('SSH_USERNAME')
-            ssh_password = os.getenv('SSH_PASSWORD')
-            if 'ssh_config' in config and ssh_username and ssh_password:
-                config['ssh_config']['username'] = ssh_username
-                config['ssh_config']['password'] = ssh_password
-                self.logger.info(f"TTS configuration loaded (SSH available for fallback user={ssh_username})")
-            elif 'ssh_config' in config:
-                self.logger.warning("TTS SSH credentials not set — will use local TTS_PUBLISH_DIR / mount if available")
-            else:
-                self.logger.warning("ssh_config not found in TTS config file")
-            return config
-        except FileNotFoundError:
-            self.logger.error(f"TTS config file not found: {config_path}")
+            port = int(port_raw)
+        except ValueError:
+            port = 22
+        if not hostname:
+            self.logger.warning(
+                "WEB-HOST not set in .env — TTS can only publish locally "
+                f"(TTS_PUBLISH_DIR / {DEFAULT_REMOTE_TTS_DIR} if present on this host)"
+            )
             return None
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Failed to parse TTS config JSON: {e}")
+        if not username or not password:
+            self.logger.warning(
+                "SSH_USERNAME/SSH_PASSWORD not set in .env — TTS SSH publish to WEB disabled"
+            )
             return None
-        except Exception as e:
-            self.logger.error(f"Failed to load TTS config from {config_path}: {e}")
-            return None
+        # Never log password
+        self.logger.info(
+            f"TTS SSH publish configured from .env: host={hostname} user={username} "
+            f"remote_dir={self.remote_tts_dir}"
+        )
+        return {
+            "hostname": hostname,
+            "username": username,
+            "password": password,
+            "port": port,
+        }
+
+    def _resolve_publish_dir(self):
+        """Local path only when this host can write the web-facing TTS tree directly."""
+        env_dir = (os.getenv("TTS_PUBLISH_DIR") or "").strip()
+        if env_dir and os.path.isdir(env_dir):
+            return env_dir.rstrip("/")
+        # Same-machine deploy: websocket on web1 with /var/www/tts
+        if os.path.isdir(DEFAULT_REMOTE_TTS_DIR.rstrip("/")):
+            # Prefer local only when we can write (avoids false "local" when dir is root-only junk)
+            try:
+                test = os.path.join(DEFAULT_REMOTE_TTS_DIR, ".tts_write_test")
+                with open(test, "w") as f:
+                    f.write("ok")
+                os.remove(test)
+                return DEFAULT_REMOTE_TTS_DIR.rstrip("/")
+            except OSError:
+                self.logger.info(
+                    f"{DEFAULT_REMOTE_TTS_DIR} exists but not writable here — will use SSH to WEB-HOST"
+                )
+        return None
 
     async def get_available_voices(self):
         return self.available_voices
@@ -179,8 +208,10 @@ class TTSHandler:
             return
         # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_audio_duration(audio_file, text)
-        self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
-        await asyncio.sleep(duration + 5)
+        # Keep file longer than playback so OBS can finish the GET (no ffprobe on many hosts)
+        wait_s = max(duration + 10, 15)
+        self.logger.info(f"TTS event emitted. Waiting {wait_s}s before cleanup (est. play {duration}s).")
+        await asyncio.sleep(wait_s)
         # After playback, delete the TTS file from both local and remote
         try:
             await self.cleanup_tts_file(audio_file)
@@ -205,10 +236,10 @@ class TTSHandler:
         except Exception as e:
             self.logger.error(f"Error transferring TTS file: {e}")
             return
-        # Estimate the duration of the audio and wait for it to finish
         duration = self.estimate_audio_duration(audio_file, text)
-        self.logger.info(f"TTS event emitted. Waiting for {duration} seconds before continuing.")
-        await asyncio.sleep(duration + 5)
+        wait_s = max(duration + 10, 15)
+        self.logger.info(f"TTS event emitted. Waiting {wait_s}s before cleanup (est. play {duration}s).")
+        await asyncio.sleep(wait_s)
         # After playback, delete the TTS file from both local and remote
         try:
             await self.cleanup_tts_file(audio_file)
@@ -230,7 +261,9 @@ class TTSHandler:
             voice_name = self.default_voice
             self.logger.info(f"Using default voice: {voice_name}")
         unique_id = uuid.uuid4().hex[:8]
-        filename = f'tts_output_{code}_{unique_id}.mp3'
+        # Short id only — do not embed the full API key in the public filename/URL.
+        code_tag = (code or "anon")[:12]
+        filename = f'tts_output_{code_tag}_{unique_id}.mp3'
         filepath = os.path.join(self.tts_dir, filename)
         headers = {
             "Authorization": f"Bearer {self.openai_api_key}",
@@ -243,6 +276,7 @@ class TTSHandler:
             "response_format": "mp3",
         }
         try:
+            os.makedirs(self.tts_dir, exist_ok=True)
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     OPENAI_TTS_URL,
@@ -312,15 +346,13 @@ class TTSHandler:
                     return
             except OSError as e:
                 self.logger.warning(f"Local TTS cleanup failed for {path}: {e}")
-        if not self.tts_config or not self.tts_config.get('ssh_config'):
-            return
-        if not self.tts_config['ssh_config'].get('username'):
+        if not self.ssh_config:
             return
         try:
-            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            remote_dir = self.tts_config['remote_paths']['tts_directory']
+            conn = await self.ssh_manager.get_connection(self.ssh_config)
+            remote_dir = self.remote_tts_dir
             remote_file_path = f"{remote_dir.rstrip('/')}/{filename}"
-            self.logger.info(f"Executing remote cleanup: rm -f '{remote_file_path}'")
+            self.logger.info(f"Executing remote cleanup on {self.ssh_config['hostname']}: rm -f '{remote_file_path}'")
             result = await conn.run(f"rm -f '{remote_file_path}'")
             if result.exit_status == 0:
                 self.logger.info(f"Successfully deleted remote file: {remote_file_path}")
@@ -330,17 +362,8 @@ class TTSHandler:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
 
     async def move_file_to_remote(self, local_file_path, remote_filename):
-        # Prefer local/shared mount publish; fall through to SSH/SFTP if needed
+        # Prefer local write when this host serves /var/www/tts (or TTS_PUBLISH_DIR)
         publish_dir = self.publish_dir
-        if not publish_dir and self.tts_config:
-            candidate = (self.tts_config.get("remote_paths") or {}).get("tts_directory")
-            if candidate and os.path.isdir(os.path.dirname(candidate.rstrip("/") + "/")):
-                try:
-                    os.makedirs(candidate, exist_ok=True)
-                    publish_dir = candidate
-                    self.publish_dir = candidate
-                except OSError:
-                    pass
         if publish_dir:
             try:
                 os.makedirs(publish_dir, exist_ok=True)
@@ -350,25 +373,27 @@ class TTSHandler:
                 return dest
             except Exception as e:
                 self.logger.error(f"Local TTS publish failed ({publish_dir}): {e}")
-        if not self.tts_config or not self.tts_config.get('ssh_config'):
-            self.logger.warning("No local TTS publish dir and no SSH config for file transfer")
-            return None
-        if not self.tts_config['ssh_config'].get('username'):
-            self.logger.warning("SSH username missing — cannot transfer TTS file")
+        if not self.ssh_config:
+            self.logger.error(
+                "No local TTS publish dir and no SSH config "
+                "(need WEB-HOST + SSH_USERNAME + SSH_PASSWORD in .env)"
+            )
             return None
         try:
-            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            remote_dir = self.tts_config['remote_paths']['tts_directory']
+            host = self.ssh_config["hostname"]
+            self.logger.info(f"TTS SFTP to WEB host={host} path={self.remote_tts_dir}{remote_filename}")
+            conn = await self.ssh_manager.get_connection(self.ssh_config)
+            remote_dir = self.remote_tts_dir
             remote_file_path = f"{remote_dir.rstrip('/')}/{remote_filename}"
             await conn.run(f"mkdir -p '{remote_dir}'")
             async with conn.start_sftp_client() as sftp:
                 await sftp.put(local_file_path, remote_file_path)
             result = await conn.run(f"chown www-data:www-data '{remote_file_path}'")
             if result.exit_status == 0:
-                self.logger.info(f"File ownership set successfully")
+                self.logger.info("File ownership set successfully")
             else:
                 self.logger.warning(f"Failed to set ownership: {result.stderr.strip()}")
-            self.logger.info(f"File transferred successfully via SSH: {remote_file_path}")
+            self.logger.info(f"File transferred successfully via SSH to {host}:{remote_file_path}")
             return remote_file_path
         except Exception as e:
             self.logger.error(f"Error transferring file {local_file_path}: {e}")

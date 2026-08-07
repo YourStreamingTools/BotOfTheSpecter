@@ -1,21 +1,6 @@
 {
+    "_comment": "OBSOLETE for SSH/hosts. TTS publish uses .env only: WEB-HOST, SSH_USERNAME, SSH_PASSWORD (optional TTS_LOCAL_DIR, TTS_REMOTE_DIR, TTS_PUBLISH_DIR). Kept only as a voice/model note for operators.",
     "tts_model": "gpt-4o-mini-tts",
     "default_voice": "alloy",
-    "available_voices": ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"],
-    "audio_settings": {
-        "sample_rate": 24000,
-        "format": "mp3",
-        "response_format": "mp3"
-    },
-    "ssh_config": {
-        "hostname": "your-server.com",
-        "username": "username",
-        "key_filename": null,
-        "password": null,
-        "port": 22
-    },
-    "remote_paths": {
-        "tts_directory": "/var/www/tts/",
-        "temp_directory": "/tmp/tts/"
-    }
+    "available_voices": ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"]
 }

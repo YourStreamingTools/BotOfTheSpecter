@@ -1,6 +1,6 @@
 # BotOfTheSpecter - Caddy config for the web server.
 #
-# Covers all 14 surfaces (11 PHP frontends + 3 static asset hosts).
+# Covers PHP frontends + static asset hosts (Mega S4 durable assets + local TTS).
 # Caddy auto-issues + auto-renews Let's Encrypt certs.
 #
 # Wildcards (*.specterbot.app, *.yourlinks.click) use Cloudflare DNS-01;
@@ -299,9 +299,18 @@ soundalerts.botofthespecter.com {
     }
 }
 
+# Ephemeral OpenAI TTS clips from the websocket host (written under /var/www/tts,
+# cleaned up after playback). These are temporary — do NOT proxy to Mega S4.
 tts.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/tts{uri}
-    import asset_origin
+    root * /var/www/tts
+    file_server
+    encode zstd gzip
+    import security
+    @mp3 path *.mp3
+    # Short cache: files are deleted shortly after play; avoid long CDN-style caching.
+    header @mp3 Cache-Control "public, max-age=120, must-revalidate"
+    header Access-Control-Allow-Origin "*"
+    header Access-Control-Allow-Methods "GET, OPTIONS"
     log {
         output file /var/log/caddy/tts.log
     }

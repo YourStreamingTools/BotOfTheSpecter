@@ -16,14 +16,16 @@ $megas4_access_key = "";
 $megas4_secret_key = "";
 
 // Store map: prefix => display name + public CDN domain served by Caddy.
-// Domains match the static-asset host blocks in web/Caddyfile.
+// Domains match the Mega S4 static-asset host blocks in web/Caddyfile.
 // per_user: true when top-level folders are per-username directories.
+//
+// TTS is intentionally omitted: clips are ephemeral (generated → play → delete)
+// under /var/www/tts and served by local file_server, not object storage.
 $megas4_stores = [
     'cdn'         => ['name' => 'CDN',           'domain' => 'cdn.botofthespecter.com',         'per_user' => false],
     'media'       => ['name' => 'Media',         'domain' => 'media.botofthespecter.com',       'per_user' => true],
     'usermusic'   => ['name' => 'User Music',    'domain' => 'music.botofthespecter.com',       'per_user' => true],
     'walkons'     => ['name' => 'Walk-ons',      'domain' => 'walkons.botofthespecter.com',     'per_user' => true],
     'soundalerts' => ['name' => 'Sound Alerts',  'domain' => 'soundalerts.botofthespecter.com', 'per_user' => true],
-    'tts'         => ['name' => 'TTS',           'domain' => 'tts.botofthespecter.com',         'per_user' => true],
     'videoalerts' => ['name' => 'Video Alerts',  'domain' => 'videoalerts.botofthespecter.com', 'per_user' => true],
 ];
