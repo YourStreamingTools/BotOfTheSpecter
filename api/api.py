@@ -1118,6 +1118,15 @@ async def health():
         "uptime_seconds": uptime_seconds,
     }
 
+@app.get("/health/metrics", include_in_schema=False)
+async def health_metrics():
+    # Live host metrics for the public status page (replaces stale system_metrics DB rows).
+    from host_metrics import collect_host_metrics
+    return collect_host_metrics(
+        os.getenv("METRICS_SERVER_NAME", "api"),
+        service="api",
+    )
+
 if _DOCS_UI_DIR.is_dir():
     app.mount("/docs-static", StaticFiles(directory=str(_DOCS_UI_DIR)), name="docs_static")
 

@@ -166,6 +166,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.app.add_routes([
             web.get("/", self.index),
             web.get("/health", self.health_http),
+            web.get("/health/metrics", self.health_metrics_http),
             web.get("/notify", self.notify_http),
             web.get("/system-update", self.system_update_http),
             web.get("/heartbeat", self.heartbeat),
@@ -1166,6 +1167,27 @@ class BotOfTheSpecter_WebsocketServer:
             "started_at_utc": started.isoformat(),
             "uptime_seconds": uptime_seconds,
         })
+
+    async def health_metrics_http(self, request):
+        # Live host metrics for the public status page (replaces stale system_metrics DB).
+        try:
+            from host_metrics import collect_host_metrics
+            payload = collect_host_metrics(
+                os.getenv("METRICS_SERVER_NAME", "websocket"),
+                service="websocket",
+            )
+        except Exception as e:
+            payload = {
+                "ok": False,
+                "error": str(e),
+                "server_name": "websocket",
+                "service": "websocket",
+            }
+        response = web.json_response(payload)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
 
     async def list_clients(self, request):
         # List the registered clients and global listeners.

@@ -11,3 +11,4 @@ jokeapi
 python-multipart
 passlib[bcrypt]
 aioping
+psutil

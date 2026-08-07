@@ -27,6 +27,7 @@ The public API and dashboard **load the `bots` key from MySQL automatically** â€
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness + `started_at` / `uptime_seconds` (no auth) |
+| GET | `/health/metrics` | Live host CPU/RAM/disk/net (no auth; public status page) |
 | GET | `/api/running_bots` | Full local inventory (admin) + durable **snapshot** (`last_seen_at`, `missing` after crash/OOM) |
 | GET | `/api/running_bots/snapshot` | Snapshot view only (refresh + return expected / missing) |
 | GET | `/api/bot/status?channel=&bot_type=` | One channel (+ `script_mtime`, `last_run_mtime`, `code_update_available` for update notice) |

@@ -31,6 +31,7 @@ User keys **cannot** pass a different `channel`.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness (no auth) |
+| GET | `/health/metrics` | Live host CPU/RAM/disk/net (no auth; public status page) |
 | GET | `/api/v1/me` | Who am I + which DBs exist |
 | GET | `/api/v1/{scope}/tables` | List tables |
 | GET | `/api/v1/{scope}/rows?table=&…` | Select (optional single filter) |
