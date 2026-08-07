@@ -389,6 +389,7 @@ ad_upcoming_last_notified_next_ad_at = None             # Tracks which next_ad_a
 AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
 last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
 stream_session_started_at = 0.0                         # UTC timestamp when the current stream session started
+bot_initiated_ad_snooze_until = 0.0                     # UTC epoch; suppress generic ad_snoozed chat after bot raid-snooze
 pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))
@@ -15361,6 +15362,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             if result and result.get("sound_mapping"):
                 sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+            # Fire-and-forget: auto-snooze next ad if within window (does not use this raid DB connection)
+            create_task(maybe_snooze_ad_for_raid(from_broadcaster_name, viewer_count))
     finally:
         if connection:
             await connection.release()
@@ -17707,6 +17710,11 @@ async def get_ad_settings():
             await cursor.execute("SELECT * FROM ad_notice_settings WHERE id = 1")
             settings = await cursor.fetchone()
             if settings:
+                try:
+                    _raid_window = int(settings.get("raid_ad_snooze_window_minutes", 10) or 10)
+                except (TypeError, ValueError):
+                    _raid_window = 10
+                _raid_window = max(1, min(30, _raid_window))
                 ad_settings_cache = {
                     'ad_start_message': settings.get("ad_start_message", "Ads are running for (duration). We'll be right back after these ads."),
                     'ad_end_message': settings.get("ad_end_message", "Thanks for sticking with us through the ads! Welcome back, everyone!"),
@@ -17717,7 +17725,11 @@ async def get_ad_settings():
                     'enable_start_ad_message': settings.get("enable_start_ad_message", True),
                     'enable_end_ad_message': settings.get("enable_end_ad_message", True),
                     'enable_snoozed_ad_message': settings.get("enable_snoozed_ad_message", True),
-                    'enable_ai_ad_breaks': settings.get("enable_ai_ad_breaks", 0)
+                    'enable_ai_ad_breaks': settings.get("enable_ai_ad_breaks", 0),
+                    'enable_raid_ad_snooze': settings.get("enable_raid_ad_snooze", True),
+                    'raid_ad_snooze_window_minutes': _raid_window,
+                    'enable_raid_ad_snooze_message': settings.get("enable_raid_ad_snooze_message", True),
+                    'raid_ad_snooze_message': settings.get("raid_ad_snooze_message") or "Snoozed the next ad for the raid from (user).",
                 }
             else:
                 ad_settings_cache = {
@@ -17730,7 +17742,11 @@ async def get_ad_settings():
                     'enable_start_ad_message': True,
                     'enable_end_ad_message': True,
                     'enable_snoozed_ad_message': True,
-                    'enable_ai_ad_breaks': 0
+                    'enable_ai_ad_breaks': 0,
+                    'enable_raid_ad_snooze': True,
+                    'raid_ad_snooze_window_minutes': 10,
+                    'enable_raid_ad_snooze_message': True,
+                    'raid_ad_snooze_message': "Snoozed the next ad for the raid from (user).",
                 }
             # Ensure messages are distinct to avoid confusion
             if ad_settings_cache['ad_upcoming_message'] == ad_settings_cache['ad_snoozed_message']:
@@ -17759,7 +17775,11 @@ async def get_ad_settings():
             'enable_start_ad_message': True,
             'enable_end_ad_message': True,
             'enable_snoozed_ad_message': True,
-            'enable_ai_ad_breaks': 0
+            'enable_ai_ad_breaks': 0,
+            'enable_raid_ad_snooze': True,
+            'raid_ad_snooze_window_minutes': 10,
+            'enable_raid_ad_snooze_message': True,
+            'raid_ad_snooze_message': "Snoozed the next ad for the raid from (user).",
         }
         ad_settings_cache_time = current_time
         return ad_settings_cache
@@ -17825,6 +17845,29 @@ def can_send_ad_message():
         return True
     except Exception:
         return True
+
+def normalize_next_ad_at(value):
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+def mark_bot_initiated_ad_snooze(ttl_seconds=60):
+    """Mark that the bot just snoozed an ad so the poller skips generic ad_snoozed chat."""
+    global bot_initiated_ad_snooze_until
+    try:
+        bot_initiated_ad_snooze_until = datetime.now(timezone.utc).timestamp() + float(ttl_seconds)
+    except Exception:
+        bot_initiated_ad_snooze_until = time.time() + float(ttl_seconds)
+
+def is_bot_initiated_ad_snooze_active():
+    """True while the bot-initiated raid-snooze suppression window is open."""
+    try:
+        return datetime.now(timezone.utc).timestamp() < bot_initiated_ad_snooze_until
+    except Exception:
+        return time.time() < bot_initiated_ad_snooze_until
 
 def clear_ad_break_chat_history(context=""):
     try:
@@ -18144,7 +18187,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                     api_logger.debug("No ad data available")
                     return last_notification_time, last_ad_time, last_snooze_count
                 ad_info = ads_data[0]
-                next_ad_at = ad_info.get("next_ad_at")
+                next_ad_at = normalize_next_ad_at(ad_info.get("next_ad_at"))
                 duration = int(ad_info.get("duration"))
                 preroll_free_time = int(ad_info.get("preroll_free_time", 0))
                 snooze_count = int(ad_info.get("snooze_count", 0))
@@ -18153,8 +18196,11 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                 skip_upcoming_check = False
                 if last_snooze_count is not None and snooze_count < last_snooze_count:
                     settings = await get_ad_settings()
+                    # Skip generic chat when this drop was caused by bot raid auto-snooze
+                    if is_bot_initiated_ad_snooze_active():
+                        api_logger.info("Skipping generic ad snoozed chat (bot-initiated raid snooze)")
                     # Check global and individual settings for snoozed message
-                    if settings and settings['enable_ad_notice'] and settings.get('enable_snoozed_ad_message', True):
+                    elif settings and settings['enable_ad_notice'] and settings.get('enable_snoozed_ad_message', True):
                         snooze_message = settings['ad_snoozed_message'] if settings and settings['ad_snoozed_message'] else "Ads have been snoozed."
                         try:
                             sent_ok = await send_chat_message(snooze_message)
@@ -18220,6 +18266,137 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
     except Exception as e:
         api_logger.error(f"Error in check_and_handle_ads: {e}")
         return last_notification_time, last_ad_time, last_snooze_count
+
+async def maybe_snooze_ad_for_raid(raider_name, viewer_count, attempt=0):
+    """On incoming raid: if next ad is within the window and snoozes remain, POST Helix snooze once."""
+    global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH
+    try:
+        settings = await get_ad_settings()
+        if not settings or not settings.get('enable_raid_ad_snooze', True):
+            api_logger.debug(f"[ADS] Raid ad snooze disabled; skip (raider={raider_name})")
+            return
+        if not stream_online:
+            api_logger.debug(f"[ADS] Raid ad snooze skipped: stream not live (raider={raider_name})")
+            return
+        try:
+            window_minutes = int(settings.get('raid_ad_snooze_window_minutes', 10) or 10)
+        except (TypeError, ValueError):
+            window_minutes = 10
+        window_minutes = max(1, min(30, window_minutes))
+        window_seconds = window_minutes * 60
+        ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+        snooze_url = f"https://api.twitch.tv/helix/channels/ads/schedule/snooze?broadcaster_id={CHANNEL_ID}"
+        headers = {"Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}"}
+
+        retry_reason = None
+        try:
+            async with httpClientSession() as session:
+                async with session.get(ads_api_url, headers=headers) as response:
+                    get_status = response.status
+                    if get_status != 200:
+                        try:
+                            body = await response.text()
+                        except Exception:
+                            body = '<could not read response body>'
+                        body_snip = (body or '')[:200]
+                        if get_status >= 500:
+                            retry_reason = f"GET ads status={get_status} body={body_snip}"
+                        else:
+                            api_logger.warning(f"[ADS] Raid ad snooze: GET ads failed status={get_status} body={body_snip} (raider={raider_name})")
+                    else:
+                        try:
+                            data = await response.json()
+                        except Exception as e:
+                            retry_reason = f"GET ads JSON error: {e}"
+                            data = None
+                        if data is not None:
+                            ads_data = data.get("data") or []
+                            if not ads_data:
+                                api_logger.debug(f"[ADS] Raid ad snooze: no ad schedule data (raider={raider_name})")
+                            else:
+                                ad_info = ads_data[0]
+                                next_ad_at = normalize_next_ad_at(ad_info.get("next_ad_at"))
+                                try:
+                                    snooze_count = int(ad_info.get("snooze_count", 0) or 0)
+                                except (TypeError, ValueError):
+                                    snooze_count = 0
+                                if not next_ad_at:
+                                    api_logger.debug(f"[ADS] Raid ad snooze: no upcoming ad (raider={raider_name})")
+                                elif snooze_count < 1:
+                                    api_logger.debug(f"[ADS] Raid ad snooze: no snoozes remaining (raider={raider_name})")
+                                else:
+                                    now_utc = datetime.now(timezone.utc).timestamp()
+                                    time_until = next_ad_at - now_utc
+                                    if not (0 < time_until <= window_seconds):
+                                        api_logger.debug(
+                                            f"[ADS] Raid ad snooze: next ad outside window "
+                                            f"(time_until={time_until:.0f}s window={window_seconds}s raider={raider_name})"
+                                        )
+                                    else:
+                                        async with session.post(snooze_url, headers=headers) as post_resp:
+                                            try:
+                                                post_body = await post_resp.text()
+                                            except Exception:
+                                                post_body = ''
+                                            body_snip = (post_body or '')[:200]
+                                            if post_resp.status == 200:
+                                                new_next = None
+                                                new_snooze = None
+                                                try:
+                                                    post_data = json.loads(post_body) if post_body else {}
+                                                    updated = (post_data.get("data") or [None])[0] or {}
+                                                    new_next = normalize_next_ad_at(updated.get("next_ad_at"))
+                                                    new_snooze = updated.get("snooze_count")
+                                                except Exception:
+                                                    pass
+                                                mark_bot_initiated_ad_snooze(60)
+                                                api_logger.info(
+                                                    f"[ADS] Raid ad snooze success raider={raider_name} viewers={viewer_count} "
+                                                    f"old_next_ad_at={next_ad_at} new_next_ad_at={new_next} "
+                                                    f"snooze_remaining={new_snooze} pre_seconds={time_until:.0f}"
+                                                )
+                                                if settings.get('enable_raid_ad_snooze_message', True):
+                                                    template = (settings.get('raid_ad_snooze_message') or "").strip()
+                                                    if template:
+                                                        minutes = max(1, int(time_until // 60))
+                                                        chat_msg = (
+                                                            template
+                                                            .replace("(user)", str(raider_name))
+                                                            .replace("(viewers)", str(viewer_count))
+                                                            .replace("(minutes)", str(minutes))
+                                                        )
+                                                        try:
+                                                            sent_ok = await send_chat_message(chat_msg)
+                                                            if not sent_ok:
+                                                                api_logger.error(f"[ADS] Failed to send raid ad snooze chat: {chat_msg}")
+                                                            else:
+                                                                api_logger.info(f"[ADS] Sent raid ad snooze chat: {chat_msg}")
+                                                        except Exception as e:
+                                                            api_logger.error(f"[ADS] Exception sending raid ad snooze chat: {e}")
+                                            elif post_resp.status in (400, 429):
+                                                api_logger.warning(
+                                                    f"[ADS] Raid ad snooze refused status={post_resp.status} body={body_snip} (raider={raider_name})"
+                                                )
+                                            elif post_resp.status >= 500:
+                                                retry_reason = f"POST snooze status={post_resp.status} body={body_snip}"
+                                            else:
+                                                api_logger.warning(
+                                                    f"[ADS] Raid ad snooze unexpected status={post_resp.status} body={body_snip} (raider={raider_name})"
+                                                )
+        except Exception as e:
+            retry_reason = f"network/error: {e}"
+        if retry_reason:
+            if attempt == 0:
+                api_logger.warning(f"[ADS] Raid ad snooze transient failure ({retry_reason}); retrying once in 15s (raider={raider_name})")
+                await sleep(15)
+                await maybe_snooze_ad_for_raid(raider_name, viewer_count, attempt=1)
+            else:
+                api_logger.warning(f"[ADS] Raid ad snooze failed after retry ({retry_reason}); giving up (raider={raider_name})")
+    except Exception as e:
+        try:
+            api_logger.error(f"[ADS] maybe_snooze_ad_for_raid unexpected error: {e}")
+        except Exception:
+            pass
 
 async def check_next_ad_after_completion(ads_api_url, headers):
     global ad_upcoming_notified
