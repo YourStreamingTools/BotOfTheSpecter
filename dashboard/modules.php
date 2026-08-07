@@ -232,8 +232,12 @@ $enable_start_ad_message = 1;
 $enable_end_ad_message = 1;
 $enable_snoozed_ad_message = 1;
 $enable_ai_ad_breaks = 0;
+$enable_raid_ad_snooze = 1;
+$raid_ad_snooze_window_minutes = 10;
+$enable_raid_ad_snooze_message = 1;
+$raid_ad_snooze_message = 'Snoozed the next ad for the raid from (user).';
 
-$stmt = $db->prepare("SELECT ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks FROM ad_notice_settings LIMIT 1");
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks, enable_raid_ad_snooze, raid_ad_snooze_window_minutes, enable_raid_ad_snooze_message, raid_ad_snooze_message FROM ad_notice_settings LIMIT 1");
 if ($stmt) {
     $stmt->execute();
     $stmt->bind_result(
@@ -248,7 +252,11 @@ if ($stmt) {
         $fetched_enable_start,
         $fetched_enable_end,
         $fetched_enable_snoozed,
-        $fetched_enable_ai
+        $fetched_enable_ai,
+        $fetched_enable_raid_snooze,
+        $fetched_raid_window,
+        $fetched_enable_raid_msg,
+        $fetched_raid_msg
     );
     if ($stmt->fetch()) {
         $ad_upcoming_message = $fetched_upcoming;
@@ -263,6 +271,15 @@ if ($stmt) {
         $enable_end_ad_message = $fetched_enable_end;
         $enable_snoozed_ad_message = $fetched_enable_snoozed;
         $enable_ai_ad_breaks = $fetched_enable_ai;
+        $enable_raid_ad_snooze = $fetched_enable_raid_snooze;
+        $raid_ad_snooze_window_minutes = (int)$fetched_raid_window;
+        if ($raid_ad_snooze_window_minutes < 1 || $raid_ad_snooze_window_minutes > 30) {
+            $raid_ad_snooze_window_minutes = 10;
+        }
+        $enable_raid_ad_snooze_message = $fetched_enable_raid_msg;
+        if ($fetched_raid_msg !== null && $fetched_raid_msg !== '') {
+            $raid_ad_snooze_message = $fetched_raid_msg;
+        }
     }
     $stmt->close();
 }
@@ -1427,6 +1444,72 @@ ob_start();
                                         rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?></textarea>
                                     <p class="field-help">
                                         <span class="char-count" data-field="ad_snoozed_message">0</span><?= t('modules_char_count_255') ?>
+                                    </p>
+                                </div>
+                                <!-- Raid auto-snooze -->
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin:1.5rem 0 1rem;">
+                                    <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
+                                        <i class="fas fa-shield-alt"></i>
+                                        <?= t('modules_raid_ad_snooze_title') ?>
+                                    </h5>
+                                </div>
+                                <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+                                    <p><?= t('modules_raid_ad_snooze_note') ?></p>
+                                </div>
+                                <div class="sp-form-group" style="margin-bottom:1rem;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <div>
+                                            <label class="sp-label">
+                                                <i class="fas fa-user-friends"></i>
+                                                <?php echo t('modules_enable_raid_ad_snooze'); ?>
+                                            </label>
+                                            <p class="field-help">
+                                                <?= t('modules_enable_raid_ad_snooze_help') ?>
+                                            </p>
+                                        </div>
+                                        <label for="enable_raid_ad_snooze" style="cursor: pointer;">
+                                            <input id="enable_raid_ad_snooze" type="checkbox" name="enable_raid_ad_snooze"
+                                                value="1" <?php echo (!empty($enable_raid_ad_snooze) ? 'checked' : ''); ?>
+                                                style="display: none;">
+                                            <i class="fas fa-toggle-<?php echo (!empty($enable_raid_ad_snooze) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_raid_ad_snooze) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="sp-form-group" style="margin-bottom:1rem;">
+                                    <label class="sp-label" for="raid_ad_snooze_window_minutes">
+                                        <i class="fas fa-hourglass-start"></i>
+                                        <?php echo t('modules_raid_ad_snooze_window'); ?>
+                                    </label>
+                                    <input class="sp-input" type="number" name="raid_ad_snooze_window_minutes"
+                                        id="raid_ad_snooze_window_minutes" min="1" max="30" step="1"
+                                        value="<?php echo (int)$raid_ad_snooze_window_minutes; ?>"
+                                        style="max-width:8rem;">
+                                    <p class="field-help">
+                                        <?= t('modules_raid_ad_snooze_window_help') ?>
+                                    </p>
+                                </div>
+                                <div class="sp-form-group" style="margin-bottom:1rem;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                        <label class="sp-label" style="margin:0;">
+                                            <i class="fas fa-comment-dots"></i>
+                                            <?php echo t('modules_raid_ad_snooze_message'); ?>
+                                        </label>
+                                        <label for="enable_raid_ad_snooze_message" style="cursor: pointer;">
+                                            <input id="enable_raid_ad_snooze_message" type="checkbox"
+                                                name="enable_raid_ad_snooze_message" value="1"
+                                                <?php echo (!empty($enable_raid_ad_snooze_message) ? 'checked' : ''); ?>
+                                                style="display: none;">
+                                            <i class="fas fa-toggle-<?php echo (!empty($enable_raid_ad_snooze_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_raid_ad_snooze_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                        </label>
+                                    </div>
+                                    <textarea class="sp-textarea ad-notice-input" name="raid_ad_snooze_message"
+                                        maxlength="255" placeholder="<?php echo t('modules_raid_ad_snooze_message_placeholder'); ?>"
+                                        rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($raid_ad_snooze_message ?? ''); ?></textarea>
+                                    <p class="field-help">
+                                        <span class="char-count" data-field="raid_ad_snooze_message">0</span><?= t('modules_char_count_255') ?>
+                                    </p>
+                                    <p class="field-help">
+                                        <?= t('modules_raid_ad_snooze_variables_note') ?>
                                     </p>
                                 </div>
                                 <!-- Enable/Disable Toggle -->
