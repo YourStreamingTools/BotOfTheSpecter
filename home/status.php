@@ -302,9 +302,10 @@ if (isset($_GET['ajax'])) {
         .last-updated { text-align: center; font-size: 0.92em; opacity: 0.8; white-space: nowrap; }
         #system-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
         #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; padding: 4px 6px; gap: 2px; font-size: 0.95em; }
-        #system-metrics .status-item > div:last-child { text-align: left; line-height: 1.45; }
+        #system-metrics .status-item > .metric-body { text-align: left; line-height: 1.4; }
+        #system-metrics .metric-line { display: block; }
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
-        .metric-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.03em; }
+        .metric-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.03em; margin-bottom: 2px; }
         .user-list {
             /* column-width sets a target per-column width; browser fits as many
                columns as the container allows. At ~620px (half-page on a 1280px
@@ -706,16 +707,21 @@ function fetchAndUpdateStatus() {
                         const diskPct = Number(metric.disk_percent);
                         const diskUsed = Number(metric.disk_used);
                         const diskTotal = Number(metric.disk_total);
+                        const cpuTxt = Number.isFinite(cpu) ? cpu.toFixed(1) + '%' : '—';
+                        const ramTxt = Number.isFinite(ramPct)
+                            ? ramPct.toFixed(1) + '% (' + (Number.isFinite(ramUsed) ? ramUsed.toFixed(1) : '—') + 'GB / ' + (Number.isFinite(ramTotal) ? ramTotal.toFixed(1) : '—') + 'GB)'
+                            : '—';
+                        const diskTxt = Number.isFinite(diskPct)
+                            ? diskPct.toFixed(1) + '% (' + (Number.isFinite(diskUsed) ? diskUsed.toFixed(1) : '—') + 'GB / ' + (Number.isFinite(diskTotal) ? diskTotal.toFixed(1) : '—') + 'GB)'
+                            : '—';
                         metricsHtml += `<div class="status-item">
                             <div class="metric-header">
                                 <span class="has-text-weight-bold">Server: ${escapeHtml(serverDisplayNames[metric.server_name] || metric.server_name)}</span>
                             </div>
-                            <div>
-                                CPU: ${Number.isFinite(cpu) ? cpu.toFixed(1) : '—'}% |
-                                RAM: ${Number.isFinite(ramPct) ? ramPct.toFixed(1) : '—'}% (${Number.isFinite(ramUsed) ? ramUsed.toFixed(1) : '—'}GB / ${Number.isFinite(ramTotal) ? ramTotal.toFixed(1) : '—'}GB)
-                                <br>
-                                Disk: ${Number.isFinite(diskPct) ? diskPct.toFixed(1) : '—'}% (${Number.isFinite(diskUsed) ? diskUsed.toFixed(1) : '—'}GB / ${Number.isFinite(diskTotal) ? diskTotal.toFixed(1) : '—'}GB) |
-                                Net: ↑ ${formatSpeed(metric.net_sent)} ↓ ${formatSpeed(metric.net_recv)}
+                            <div class="metric-body">
+                                <span class="metric-line">CPU: ${cpuTxt} | RAM: ${ramTxt}</span>
+                                <span class="metric-line">DISK: ${diskTxt}</span>
+                                <span class="metric-line">NETWORK: ↑ ${formatSpeed(metric.net_sent)} ↓ ${formatSpeed(metric.net_recv)}</span>
                             </div>
                         </div>`;
                     });
