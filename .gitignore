@@ -134,3 +134,4 @@ app/__pycache__/
 *.pyw
 *.pyz
 AGENTS.md
+/websocket/logs

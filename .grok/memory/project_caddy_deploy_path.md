@@ -20,4 +20,6 @@ Secrets/backend details stay in `/etc/caddy/caddy.env` (server-only) as `{env.X}
 
 **Why:** I kept hand-waving the deploy and even wrote `git pull`/commit steps, which is wrong on both counts — git and the SFTP upload are the user's; only the server-side copy/validate/restart is mine.
 
-**How to apply:** Any task touching `web/Caddyfile` — give only the server-side steps above (copy `/var/www/web/Caddyfile` → `/etc/caddy/Caddyfile`, validate, restart), assuming the user has already uploaded the edited file. No git, no `git pull`. Context this arose: switching the 7 static asset hosts from s3fs-mount serving to `reverse_proxy` to the object-storage origin (mount served reads with no disk cache → buffered in RAM → 100% RAM crash).
+**How to apply:** Any task touching `web/Caddyfile` — give only the server-side steps above (copy `/var/www/web/Caddyfile` → `/etc/caddy/Caddyfile`, validate, restart), assuming the user has already uploaded the edited file. No git, no `git pull`. Context this arose: switching durable static asset hosts from s3fs-mount serving to `reverse_proxy` to the object-storage origin (mount served reads with no disk cache → buffered in RAM → 100% RAM crash). **TTS is the exception:** local `file_server` on `/var/www/tts`, never Mega S4 / s3fs.
+
+**TTS cutover (web1):** after uploading the Caddyfile that uses `root * /var/www/tts` + `file_server` for `tts.botofthespecter.com`, unmount any s3fs/rclone on `/var/www/tts`, remove its fstab/`*.mount` unit, ensure a real local dir owned by `www-data`, then `caddy validate` + restart Caddy.

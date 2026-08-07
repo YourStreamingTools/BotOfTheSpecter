@@ -54,11 +54,15 @@ caddy add-package github.com/caddy-dns/cloudflare || {
 }
 
 echo "==> Creating /var/www directory tree..."
+# Durable media dirs (cdn/media/walkons/…) may later be s3fs mounts; TTS must stay a
+# normal local directory — ephemeral OpenAI clips, Caddy file_server, never s3fs/S4.
 mkdir -p /var/www/{config,home,html,dashboard,members,overlay,support,roadmap,specterbotapp,specterbotsystems,yourchat,cdn,walkons,media,soundalerts,tts,usermusic,videoalerts,yourlinks.click}
 mkdir -p /var/log/caddy
 chown -R www-data:www-data /var/www
 find /var/www -type d -exec chmod 2755 {} \;
 chmod 2750 /var/www/config            # shared secrets - tighter perms
+# TTS write path for websocket publish (SFTP/local); keep group-writable for deploy user if needed.
+chmod 2775 /var/www/tts
 chown caddy:caddy /var/log/caddy
 
 echo "==> Writing Caddy env file (placeholder for CF_API_TOKEN)..."

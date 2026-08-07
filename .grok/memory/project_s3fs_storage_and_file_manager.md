@@ -1,6 +1,6 @@
 ---
 name: project_s3fs_storage_and_file_manager
-description: "s3fs MEGA S4 mounts for static media dirs + admin CDN file manager"
+description: "s3fs MEGA S4 mounts for 6 durable static dirs (NOT tts); admin CDN file manager; public serve via Caddy→S4 for durable hosts"
 metadata:
   node_type: memory
   type: project
@@ -12,13 +12,15 @@ The GeoIP/CF-Worker CDN idea was **DROPPED entirely** (real goal = free server d
 
 ## Approach
 
-Mount MEGA S4 bucket `botofthespecter` via **s3fs** at all 7 static dirs:
+Mount MEGA S4 bucket `botofthespecter` via **s3fs** at the **6 durable** static dirs (uploads/admin file manager still use the mounts even though public HTTP is Caddy→S4 reverse_proxy — see [[project_megas4_public_serving]]):
 
-- `cdn` / `media` / `usermusic` / `walkons` / `soundalerts` / `tts` / `videoalerts` → matching bucket prefixes
+- `cdn` / `media` / `usermusic` / `walkons` / `soundalerts` / `videoalerts` → matching bucket prefixes
 
-Objects are **PRIVATE** (Caddy serves through the mount, no public-read). Use `uid`/`gid`=www-data (fixes the upload-perms gotcha). Bounded local cache (`ensure_diskfree`) so disk space stays freed. Per-dir migration = rclone copy → verify → mv aside → mount → verify → reclaim, systemd `.mount` units. **Caddyfile UNCHANGED.**
+**TTS is NOT an s3fs mount and must never be remounted.** `/var/www/tts` is a normal local directory for ephemeral OpenAI clips (websocket publishes → Caddy `file_server` → delete after play). Unmount any existing `s3fs`/`rclone` on that path and remove fstab / `var-www-tts.mount` so it does not come back on reboot. See [[project_megas4_public_serving]].
 
-Plus an admin full file manager (`dashboard/admin/cdn_files.php` + `includes/megas4_s3.php`, `Aws\S3\S3Client` modeled on `persistent_storage.php`, creds in `config/megas4.php`, list/upload/rename/delete/mkdir, store switcher cdn-default).
+Use `uid`/`gid`=www-data on durable mounts (upload-perms). Per-dir migration = rclone copy → verify → mv aside → mount → verify → reclaim, systemd `.mount` units.
+
+Plus an admin full file manager (`dashboard/admin/cdn_files.php` + `includes/megas4_s3.php`, `Aws\S3\S3Client` modeled on `persistent_storage.php`, creds in `config/megas4.php`, list/upload/rename/delete/mkdir, store switcher cdn-default). **TTS is not a store in `$megas4_stores`.**
 
 ## Durable facts
 
@@ -31,7 +33,7 @@ Plus an admin full file manager (`dashboard/admin/cdn_files.php` + `includes/meg
 ## Status
 
 - **Part B (file manager) BUILT & SHIPPED** (committed `0241cc3b` 2026-06-30): `config/megas4.php`, `includes/megas4_s3.php`, `dashboard/admin/cdn_files.php` (+menu.php/lang×3/dashboard.css); store validated vs `$megas4_stores` every action, super_admin server-side per write + `admin_audit_log`, keys prefix-confined.
-- **Part A (s3fs mounts) DEPLOYED & LIVE** on web1 (2026-06-30): all 7 static dirs are s3fs mounts of bucket `botofthespecter` prefixes, fstab-persisted.
+- **Part A (s3fs mounts) DEPLOYED & LIVE** on web1 (2026-06-30): durable static dirs are s3fs mounts of bucket `botofthespecter` prefixes, fstab-persisted. **2026-08-07:** TTS must be **local disk only** — unmount `/var/www/tts` if still s3fs, strip from fstab/systemd, Caddy serves with `file_server` (not `asset_origin`).
 
 ## Endpoint / creds
 
