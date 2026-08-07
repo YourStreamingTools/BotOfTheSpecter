@@ -706,7 +706,11 @@ try {
                 enable_start_ad_message TINYINT(1) DEFAULT 1,
                 enable_end_ad_message TINYINT(1) DEFAULT 1,
                 enable_snoozed_ad_message TINYINT(1) DEFAULT 1,
-                enable_ai_ad_breaks TINYINT(1) DEFAULT 0
+                enable_ai_ad_breaks TINYINT(1) DEFAULT 0,
+                enable_raid_ad_snooze TINYINT(1) DEFAULT 1,
+                raid_ad_snooze_window_minutes INT DEFAULT 10,
+                enable_raid_ad_snooze_message TINYINT(1) DEFAULT 1,
+                raid_ad_snooze_message VARCHAR(255)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'streaming_settings' => "
             CREATE TABLE IF NOT EXISTS streaming_settings (
@@ -1395,7 +1399,7 @@ try {
             async_log("Default group $group_name ensured.");
         }
     }
-    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, ad_1min_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 'Ads are starting in 1 minute!', 1, 1, 0, 1, 1, 1, 0 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, ad_1min_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks, enable_raid_ad_snooze, raid_ad_snooze_window_minutes, enable_raid_ad_snooze_message, raid_ad_snooze_message) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 'Ads are starting in 1 minute!', 1, 1, 0, 1, 1, 1, 0, 1, 10, 1, 'Snoozed the next ad for the raid from (user).' WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
     }
     // Ensure default row for Tanggle puzzle stats exists
@@ -1582,6 +1586,44 @@ try {
         } else {
             async_log('Error adding enable_1min_ad_message column: ' . $usrDBconn->error);
         }
+    }
+    // Migration for raid ad snooze settings
+    $check_raid_snooze = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'enable_raid_ad_snooze'");
+    if ($check_raid_snooze->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD enable_raid_ad_snooze TINYINT(1) DEFAULT 1 AFTER enable_ai_ad_breaks") === TRUE) {
+            async_log('Successfully added enable_raid_ad_snooze column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding enable_raid_ad_snooze column: ' . $usrDBconn->error);
+        }
+    }
+    $check_raid_window = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'raid_ad_snooze_window_minutes'");
+    if ($check_raid_window->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD raid_ad_snooze_window_minutes INT DEFAULT 10 AFTER enable_raid_ad_snooze") === TRUE) {
+            async_log('Successfully added raid_ad_snooze_window_minutes column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding raid_ad_snooze_window_minutes column: ' . $usrDBconn->error);
+        }
+    }
+    $check_raid_msg_toggle = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'enable_raid_ad_snooze_message'");
+    if ($check_raid_msg_toggle->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD enable_raid_ad_snooze_message TINYINT(1) DEFAULT 1 AFTER raid_ad_snooze_window_minutes") === TRUE) {
+            async_log('Successfully added enable_raid_ad_snooze_message column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding enable_raid_ad_snooze_message column: ' . $usrDBconn->error);
+        }
+    }
+    $check_raid_msg = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'raid_ad_snooze_message'");
+    if ($check_raid_msg->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD raid_ad_snooze_message VARCHAR(255) DEFAULT 'Snoozed the next ad for the raid from (user).' AFTER enable_raid_ad_snooze_message") === TRUE) {
+            async_log('Successfully added raid_ad_snooze_message column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding raid_ad_snooze_message column: ' . $usrDBconn->error);
+        }
+    }
+    // Always ensure raid_ad_snooze_message has a proper value (for both new and existing installations)
+    $update_raid_msg_sql = "UPDATE ad_notice_settings SET raid_ad_snooze_message = 'Snoozed the next ad for the raid from (user).' WHERE raid_ad_snooze_message IS NULL OR raid_ad_snooze_message = ''";
+    if ($usrDBconn->query($update_raid_msg_sql) === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Updated raid_ad_snooze_message to use the default message.');
     }
     // Ensure default options for new BETA chat alert types
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'gift_paid_upgrade', 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'gift_paid_upgrade')") === TRUE && $usrDBconn->affected_rows > 0) {

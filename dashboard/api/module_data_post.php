@@ -121,9 +121,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $enable_end_ad_message = isset($_POST['enable_end_ad_message']) ? 1 : 0;
         $enable_snoozed_ad_message = isset($_POST['enable_snoozed_ad_message']) ? 1 : 0;
         $enable_ai_ad_breaks = isset($_POST['enable_ai_ad_breaks']) ? 1 : 0;
+        $enable_raid_ad_snooze = isset($_POST['enable_raid_ad_snooze']) ? 1 : 0;
+        $raid_ad_snooze_window_minutes = isset($_POST['raid_ad_snooze_window_minutes'])
+            ? (int)$_POST['raid_ad_snooze_window_minutes']
+            : 10;
+        if ($raid_ad_snooze_window_minutes < 1 || $raid_ad_snooze_window_minutes > 30) {
+            $raid_ad_snooze_window_minutes = 10;
+        }
+        $enable_raid_ad_snooze_message = isset($_POST['enable_raid_ad_snooze_message']) ? 1 : 0;
+        $raid_ad_snooze_message = isset($_POST['raid_ad_snooze_message'])
+            ? substr((string)$_POST['raid_ad_snooze_message'], 0, 255)
+            : '';
+        // Types: 5 message strings + 7 existing ints + 3 raid ints + 1 raid message string, twice (INSERT + UPDATE)
+        // sssssiiiiiiiiiis × 2
         $update_sql = "INSERT INTO ad_notice_settings 
-            (id, ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks, enable_raid_ad_snooze, raid_ad_snooze_window_minutes, enable_raid_ad_snooze_message, raid_ad_snooze_message)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 ad_upcoming_message = ?,
                 ad_1min_message = ?,
@@ -136,10 +149,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 enable_start_ad_message = ?,
                 enable_end_ad_message = ?,
                 enable_snoozed_ad_message = ?,
-                enable_ai_ad_breaks = ?";
+                enable_ai_ad_breaks = ?,
+                enable_raid_ad_snooze = ?,
+                raid_ad_snooze_window_minutes = ?,
+                enable_raid_ad_snooze_message = ?,
+                raid_ad_snooze_message = ?";
         $update_stmt = $db->prepare($update_sql);
         $update_stmt->bind_param(
-            'sssssiiiiiiisssssiiiiiii',
+            'sssssiiiiiiiiiissssssiiiiiiiiiis',
             $ad_upcoming_message,
             $ad_1min_message,
             $ad_start_message,
@@ -152,6 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $enable_end_ad_message,
             $enable_snoozed_ad_message,
             $enable_ai_ad_breaks,
+            $enable_raid_ad_snooze,
+            $raid_ad_snooze_window_minutes,
+            $enable_raid_ad_snooze_message,
+            $raid_ad_snooze_message,
             $ad_upcoming_message,
             $ad_1min_message,
             $ad_start_message,
@@ -163,7 +184,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $enable_start_ad_message,
             $enable_end_ad_message,
             $enable_snoozed_ad_message,
-            $enable_ai_ad_breaks
+            $enable_ai_ad_breaks,
+            $enable_raid_ad_snooze,
+            $raid_ad_snooze_window_minutes,
+            $enable_raid_ad_snooze_message,
+            $raid_ad_snooze_message
         );
         $update_stmt->execute();
         $update_stmt->close();
