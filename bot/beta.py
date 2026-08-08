@@ -3870,22 +3870,31 @@ class TwitchBot(commands.Bot):
                             else:
                                 tz = set_timezone.UTC
                                 chat_logger.info("[EVENT MESSAGE] Timezone not set, defaulting to UTC")
-                            # Lookup Custom Command
-                            await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
-                            cc_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                            # Lookup Custom Command (cooldown_bucket may be absent until dashboard migration)
+                            cc_result = None
+                            try:
+                                await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, cooldown_bucket, permission FROM custom_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                cc_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                            except Exception:
+                                await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                cc_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
                             if cc_result:
                                 command_data = {
                                     'type': 'custom',
                                     'response': cc_result.get("response"),
                                     'status': cc_result.get("status"),
                                     'cooldown': cc_result.get("cooldown"),
+                                    'cooldown_bucket': cc_result.get("cooldown_bucket") or 'default',
                                     'permission': cc_result.get("permission")
                                 }
                             else:
                                 # Check if the typed name is an alias of a custom command (BETA)
                                 alias_result = None
                                 try:
-                                    await asyncio_wait_for(cursor.execute('SELECT command, response, status, cooldown, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                    try:
+                                        await asyncio_wait_for(cursor.execute('SELECT command, response, status, cooldown, cooldown_bucket, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                    except Exception:
+                                        await asyncio_wait_for(cursor.execute('SELECT command, response, status, cooldown, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
                                     alias_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
                                 except Exception as alias_lookup_err:
                                     chat_logger.warning(f"[EVENT MESSAGE] Alias lookup failed for '{command}' (aliases column may be missing): {alias_lookup_err}")
@@ -3896,6 +3905,7 @@ class TwitchBot(commands.Bot):
                                         'response': alias_result.get("response"),
                                         'status': alias_result.get("status"),
                                         'cooldown': alias_result.get("cooldown"),
+                                        'cooldown_bucket': alias_result.get("cooldown_bucket") or 'default',
                                         'permission': alias_result.get("permission")
                                     }
                                 else:
@@ -3919,14 +3929,18 @@ class TwitchBot(commands.Bot):
                         response = command_data['response']
                         cc_status = command_data['status']
                         cooldown = command_data['cooldown']
+                        cooldown_bucket = str(command_data.get('cooldown_bucket') or 'default').strip().lower() or 'default'
+                        if cooldown_bucket == 'mods':
+                            cooldown_bucket = 'mod'
                         cc_permission = command_data['permission']
                         if cc_status == 'Enabled':
                             # Check permissions
                             if not await command_permissions(cc_permission, message.author):
                                 chat_logger.info(f"[EVENT MESSAGE] {messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
                                 return
-                            # Check cooldown
-                            if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                            # Check cooldown (bucket from dashboard: default=global, user=per-user, mod)
+                            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, message.author)
+                            if not await check_cooldown(command, bucket_key, cooldown_bucket, 1, int(cooldown)):
                                 return
                             # Handle (call.) - collect for deferred execution after the main response
                             pending_call = None
@@ -3945,7 +3959,7 @@ class TwitchBot(commands.Bot):
                             if pending_call:
                                 await self.call_command(pending_call[0], message, pending_call[1])
                             # Record usage
-                            add_usage(command, 'global', 'default')
+                            add_usage(command, bucket_key, cooldown_bucket)
                         else:
                             chat_logger.info(f"[EVENT MESSAGE] {command} not ran because it's disabled.")
                     elif command_data['type'] == 'user':

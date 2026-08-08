@@ -71,6 +71,7 @@ try {
                 response TEXT,
                 status TEXT,
                 cooldown INT DEFAULT '15',
+                cooldown_bucket VARCHAR(255) DEFAULT 'default',
                 permission VARCHAR(255) DEFAULT 'everyone',
                 aliases TEXT,
                 PRIMARY KEY (command(255))

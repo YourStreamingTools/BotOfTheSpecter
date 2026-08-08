@@ -3724,12 +3724,20 @@ class TwitchBot(commands.AutoBot):
                     else:
                         tz = set_timezone.UTC
                         chat_logger.info("Timezone not set, defaulting to UTC")
-                    await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
-                    cc_result = await cursor.fetchone()
+                    # cooldown_bucket may be absent until dashboard schema migration runs
+                    try:
+                        await cursor.execute('SELECT response, status, cooldown, cooldown_bucket, permission FROM custom_commands WHERE command = %s', (command,))
+                        cc_result = await cursor.fetchone()
+                    except Exception:
+                        await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
+                        cc_result = await cursor.fetchone()
                     if not cc_result:
                         # Resolve a custom command alias (BETA): the typed name may be listed in another command's aliases
                         try:
-                            await cursor.execute('SELECT command, response, status, cooldown, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,))
+                            try:
+                                await cursor.execute('SELECT command, response, status, cooldown, cooldown_bucket, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,))
+                            except Exception:
+                                await cursor.execute('SELECT command, response, status, cooldown, permission FROM custom_commands WHERE FIND_IN_SET(%s, aliases) LIMIT 1', (command,))
                             alias_result = await cursor.fetchone()
                         except Exception as alias_lookup_err:
                             chat_logger.warning(f"Alias lookup failed for '{command}' (aliases column may be missing): {alias_lookup_err}")
@@ -3741,14 +3749,18 @@ class TwitchBot(commands.AutoBot):
                         response = cc_result.get("response")
                         cc_status = cc_result.get("status")
                         cooldown = cc_result.get("cooldown")
+                        cooldown_bucket = str(cc_result.get("cooldown_bucket") or 'default').strip().lower() or 'default'
+                        if cooldown_bucket == 'mods':
+                            cooldown_bucket = 'mod'
                         cc_permission = cc_result.get("permission")
                         if cc_status == 'Enabled':
                             # Check if user has permission to use the command
                             if not await command_permissions(cc_permission, message.chatter):
                                 chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
                                 return
-                            # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                            if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                            # Check cooldown (bucket from dashboard: default=global, user=per-user, mod)
+                            bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, message.chatter)
+                            if not await check_cooldown(command, bucket_key, cooldown_bucket, 1, int(cooldown)):
                                 return
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.',
@@ -3909,7 +3921,7 @@ class TwitchBot(commands.AutoBot):
                                 chat_logger.info(f"{command} command ran with response: {resp}")
                                 await send_chat_message(resp)
                             # Record usage
-                            add_usage(command, 'global', 'default')
+                            add_usage(command, bucket_key, cooldown_bucket)
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
