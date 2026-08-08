@@ -30,6 +30,15 @@ date_default_timezone_set($timezone);
 $status = "";
 $notification_status = "";
 
+// Ensure cooldown_bucket exists before add/edit saves (layout migrates at render time, after POST)
+$colCheck = $db->query("SHOW COLUMNS FROM custom_commands LIKE 'cooldown_bucket'");
+if ($colCheck && $colCheck->num_rows === 0) {
+    $db->query("ALTER TABLE custom_commands ADD cooldown_bucket VARCHAR(255) DEFAULT 'default'");
+}
+if ($colCheck) {
+    $colCheck->close();
+}
+
 // Permission mapping (display to db)
 $permissionsMap = [
     "Everyone" => "everyone",
@@ -45,10 +54,27 @@ $permissionsMap = [
 // Reverse mapping (db to display)
 $permissionsMapReverse = array_flip($permissionsMap);
 
+// Cooldown bucket values (match builtin_commands / bot resolve_cooldown_bucket_key)
+$cooldownBucketOptions = [
+    'default' => 'custom_commands_cooldown_bucket_default',
+    'user' => 'custom_commands_cooldown_bucket_user',
+    'mod' => 'custom_commands_cooldown_bucket_mod',
+];
+
 function sanitize_command_name($command)
 {
     $command = strtolower(str_replace(' ', '', (string)$command));
     return preg_replace('/[^a-z0-9]/', '', $command);
+}
+
+function sanitize_cooldown_bucket($bucket)
+{
+    $bucket = strtolower(trim((string)$bucket));
+    if ($bucket === 'mods') {
+        $bucket = 'mod';
+    }
+    $allowed = ['default', 'user', 'mod'];
+    return in_array($bucket, $allowed, true) ? $bucket : 'default';
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
@@ -148,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $command_to_edit = $_POST['command_to_edit'];
         $command_response = $_POST['command_response'];
         $cooldown = $_POST['cooldown_response'];
+        $cooldown_bucket = sanitize_cooldown_bucket($_POST['cooldown_bucket_response'] ?? 'default');
         $permission = isset($_POST['permission_response']) ? $_POST['permission_response'] : 'Everyone';
         // Remove all non-alphanumeric characters
         $new_command_name = sanitize_command_name($_POST['new_command_name']);
@@ -195,8 +222,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $normalized_aliases = $kept;
                 }
                 $aliases_value = implode(',', $normalized_aliases);
-                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ?, aliases = ? WHERE command = ?");
-                $updateSTMT->bind_param("ssisss", $new_command_name, $command_response, $cooldown, $dbPermission, $aliases_value, $command_to_edit);
+                $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, cooldown_bucket = ?, permission = ?, aliases = ? WHERE command = ?");
+                $updateSTMT->bind_param("ssissss", $new_command_name, $command_response, $cooldown, $cooldown_bucket, $dbPermission, $aliases_value, $command_to_edit);
                 $updateSTMT->execute();
                 if ($new_command_name !== $command_to_edit) {
                     $renameOptionsSTMT = $db->prepare("UPDATE custom_command_random_pick_options SET command = ? WHERE command = ?");
@@ -231,6 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $newCommand = sanitize_command_name($_POST['command']);
         $newResponse = $_POST['response'];
         $cooldown = $_POST['cooldown'];
+        $cooldown_bucket = sanitize_cooldown_bucket($_POST['cooldown_bucket'] ?? 'default');
         $permission = isset($_POST['permission']) ? $_POST['permission'] : 'Everyone';
         // Check if command is built-in
         if (array_key_exists($newCommand, $builtinCommands['commands'])) {
@@ -284,8 +312,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $normalized_aliases = $kept;
                     }
                     $aliases_value = implode(',', $normalized_aliases);
-                    $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission, aliases) VALUES (?, ?, 'Enabled', ?, ?, ?)");
-                    $insertSTMT->bind_param("ssiss", $newCommand, $newResponse, $cooldown, $dbPermission, $aliases_value);
+                    $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, cooldown_bucket, permission, aliases) VALUES (?, ?, 'Enabled', ?, ?, ?, ?)");
+                    $insertSTMT->bind_param("ssisss", $newCommand, $newResponse, $cooldown, $cooldown_bucket, $dbPermission, $aliases_value);
                     $insertSTMT->execute();
                     $insertSTMT->close();
                     $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
@@ -458,6 +486,20 @@ ob_start();
                     </div>
                 </div>
                 <div class="sp-form-group">
+                    <label class="sp-label" for="cooldown_bucket"><?php echo t('custom_commands_cooldown_bucket_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <i class="fas fa-layer-group sp-input-icon"></i>
+                        <select id="cooldown_bucket" name="cooldown_bucket" class="sp-select" required>
+                            <?php foreach ($cooldownBucketOptions as $bucketValue => $bucketLabelKey): ?>
+                                <option value="<?php echo htmlspecialchars($bucketValue); ?>" <?php echo $bucketValue === 'default' ? 'selected' : ''; ?>>
+                                    <?php echo t($bucketLabelKey); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <small class="sp-help"><?php echo t('custom_commands_cooldown_bucket_help'); ?></small>
+                </div>
+                <div class="sp-form-group">
                     <label class="sp-label" for="permission"><?= t('custom_commands_permission_level') ?></label>
                     <div class="sp-input-wrap">
                         <i class="fas fa-users sp-input-icon"></i>
@@ -542,6 +584,20 @@ ob_start();
                         </div>
                     </div>
                     <div class="sp-form-group">
+                        <label class="sp-label" for="cooldown_bucket_response"><?php echo t('custom_commands_cooldown_bucket_label'); ?></label>
+                        <div class="sp-input-wrap">
+                            <i class="fas fa-layer-group sp-input-icon"></i>
+                            <select id="cooldown_bucket_response" name="cooldown_bucket_response" class="sp-select" required>
+                                <?php foreach ($cooldownBucketOptions as $bucketValue => $bucketLabelKey): ?>
+                                    <option value="<?php echo htmlspecialchars($bucketValue); ?>">
+                                        <?php echo t($bucketLabelKey); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <small class="sp-help"><?php echo t('custom_commands_cooldown_bucket_help'); ?></small>
+                    </div>
+                    <div class="sp-form-group">
                         <label class="sp-label" for="permission_response"><?= t('custom_commands_permission_level') ?></label>
                         <div class="sp-input-wrap">
                             <i class="fas fa-users sp-input-icon"></i>
@@ -602,6 +658,7 @@ ob_start();
                             <th><?php echo t('builtin_commands_table_description'); ?></th>
                             <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
                             <th style="text-align:center;"><?php echo t('custom_commands_cooldown_label'); ?></th>
+                            <th style="text-align:center;"><?php echo t('custom_commands_cooldown_bucket_label'); ?></th>
                             <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
                             <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
                             <th style="text-align:center;"><?php echo t('custom_commands_remove'); ?></th>
@@ -624,6 +681,13 @@ ob_start();
                                 <td><?php echo htmlspecialchars($command['response']); ?></td>
                                 <td style="text-align:center;"><?php echo $permissionsMapReverse[$command['permission']] ?? 'Everyone'; ?></td>
                                 <td style="text-align:center;"><?php echo (int)$command['cooldown']; ?><?php echo t('custom_commands_cooldown_seconds'); ?></td>
+                                <td style="text-align:center;">
+                                    <?php
+                                        $rowBucket = sanitize_cooldown_bucket($command['cooldown_bucket'] ?? 'default');
+                                        $rowBucketKey = $cooldownBucketOptions[$rowBucket] ?? 'custom_commands_cooldown_bucket_default';
+                                        echo t($rowBucketKey);
+                                    ?>
+                                </td>
                                 <td style="text-align:center;">
                                     <span class="sp-badge <?php echo ($command['status'] == 'Enabled') ? 'sp-badge-green' : 'sp-badge-red'; ?>">
                                         <?php echo t($command['status'] == 'Enabled' ? 'builtin_commands_status_enabled' : 'builtin_commands_status_disabled'); ?>
@@ -1198,12 +1262,19 @@ function showResponse() {
     var permissionsMap = <?php echo json_encode(array_flip($permissionsMap)); ?>;
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
+    var cooldownBucketInput = document.getElementById('cooldown_bucket_response');
     var newCommandInput = document.getElementById('new_command_name');
     var permissionInput = document.getElementById('permission_response');
     // Find the response for the selected command and display it in the text box
     var commandData = commands.find(c => c.command === command);
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
+    var bucket = commandData && commandData.cooldown_bucket ? String(commandData.cooldown_bucket).toLowerCase() : 'default';
+    if (bucket === 'mods') bucket = 'mod';
+    if (['default', 'user', 'mod'].indexOf(bucket) === -1) bucket = 'default';
+    if (cooldownBucketInput) {
+        cooldownBucketInput.value = bucket;
+    }
     newCommandInput.value = commandData ? commandData.command : '';
     // Set permission dropdown
     if (commandData && commandData.permission) {
@@ -1227,6 +1298,7 @@ function clearEditCustomCommandForm() {
     var newCommandInput = document.getElementById('new_command_name');
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
+    var cooldownBucketInput = document.getElementById('cooldown_bucket_response');
     var permissionInput = document.getElementById('permission_response');
 
     if (commandSelect) {
@@ -1248,6 +1320,9 @@ function clearEditCustomCommandForm() {
     }
     if (cooldownInput) {
         cooldownInput.value = '';
+    }
+    if (cooldownBucketInput) {
+        cooldownBucketInput.value = 'default';
     }
     if (permissionInput) {
         permissionInput.value = 'Everyone';
