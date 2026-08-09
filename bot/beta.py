@@ -7486,7 +7486,7 @@ class TwitchBot(commands.Bot):
                         # Record usage
                         add_usage('lurking', bucket_key, cooldown_bucket)
                     else:
-                        await send_chat_message(f"{ctx.author.name}, you're not currently lurking.")
+                        await send_chat_message(f"{ctx.author.name}, you're not currently lurking. To lurk, use the !lurk command.")
                         chat_logger.info(f"[LURKING] {ctx.author.name} tried to check lurk time but is not lurking.")
                         # Record usage
                         add_usage('lurking', bucket_key, cooldown_bucket)
