@@ -850,6 +850,10 @@ ob_start();
         };
         const tick = () => {
             if (!running) return;
+            // Keep graph alive in background tabs so mic VAD still sees real levels
+            if (audioContext && audioContext.state === 'suspended') {
+                try { audioContext.resume(); } catch (e) { /* ignore */ }
+            }
             const rms = computeRms();
             if (rms >= config.threshold) {
                 if (releaseTimer) { clearTimeout(releaseTimer); releaseTimer = null; }
@@ -866,24 +870,27 @@ ob_start();
             if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
             if (tickIntervalId) { clearInterval(tickIntervalId); tickIntervalId = null; }
         };
-        // rAF when visible (smooth); setInterval when hidden so silence flush still runs
+        // Always run setInterval so VAD keeps working when the tab is in the background
+        // (rAF freezes when hidden). rAF is an extra smooth tick while visible.
         const startTickLoop = () => {
             stopTickLoop();
             if (!running) return;
-            if (document.hidden) {
-                tickIntervalId = setInterval(tick, TICK_MS);
-                return;
+            tickIntervalId = setInterval(tick, TICK_MS);
+            if (!document.hidden) {
+                const loop = () => {
+                    tick();
+                    if (running && !document.hidden) {
+                        rafId = requestAnimationFrame(loop);
+                    }
+                };
+                rafId = requestAnimationFrame(loop);
             }
-            const loop = () => {
-                tick();
-                if (running && !document.hidden) {
-                    rafId = requestAnimationFrame(loop);
-                }
-            };
-            rafId = requestAnimationFrame(loop);
         };
         const onVisibilityChange = () => {
             if (!running) return;
+            if (audioContext && audioContext.state === 'suspended') {
+                try { audioContext.resume(); } catch (e) { /* ignore */ }
+            }
             startTickLoop();
         };
         const teardown = () => {
@@ -1342,18 +1349,16 @@ ob_start();
         lastFlushAt = Date.now();
         awaitingResumeClear = true;
     };
-    // Promote pending to confirmed after a quiet final; skip VAD-idle wait when tab is hidden
+    // Promote pending to confirmed after a quiet final; ignore VAD when tab is hidden
     const scheduleFinalize = () => {
         clearFinalizeTimer();
-        const delay = document.hidden ? 250 : 450;
         finalizeTimer = setTimeout(() => {
             finalizeTimer = null;
-            // Background tabs can leave VAD stuck on 'talking' if the last rAF never saw silence
             if (!document.hidden && audioTap.getVadState && audioTap.getVadState() === 'talking') {
                 return;
             }
             flushPendingUtterance();
-        }, delay);
+        }, 450);
     };
     audioTap.onSilenceFlush(flushPendingUtterance);
     const QUESTION_STARTERS = new Set([
@@ -1433,8 +1438,9 @@ ob_start();
                     interim += transcript;
                 }
             }
-            // Drop late idle final of already-flushed sentence (before prepareResumeSpeech)
-            if (gotNewFinal && !interim.trim() && awaitingResumeClear
+            // Drop late idle final of already-flushed sentence (before prepareResumeSpeech).
+            // Only when tab is visible — background VAD is often stuck idle and would drop real speech.
+            if (!document.hidden && gotNewFinal && !interim.trim() && awaitingResumeClear
                 && audioTap.getVadState && audioTap.getVadState() !== 'talking') {
                 if (Date.now() - lastFlushAt >= getResumeClearMs()) {
                     pendingUtterance = '';
@@ -1453,9 +1459,7 @@ ob_start();
             const activeWordConf = mergeWordConfidences(committedWordConfidences, pendingWordConfidences);
             const previewCommitted = committedText + (pendingUtterance ? (committedText ? ' ' : '') + pendingUtterance : '');
             if (interim.trim()) {
-                // Still speaking: keep finalize timer off and stream the FULL utterance
-                // (already-final chunks + current interim). Emitting interim alone drops
-                // finalized words from the overlay and leaves them stuck gray after silence.
+                // Still speaking: stream full pending+interim; do not finalize mid-utterance
                 clearFinalizeTimer();
                 let filteredInterim = applyLocaleSpelling(interim.trim());
                 filteredInterim = applyProfanityFilter(filteredInterim);
@@ -1465,16 +1469,12 @@ ob_start();
                 emitCaption(filteredStream, false);
                 setPreview(previewCommitted, filteredInterim, activeConf, activeWordConf);
             } else if (pendingUtterance) {
-                // Final with no interim: stream pending, then confirm (or flush now if tab hidden)
+                // Final with no interim: stream pending, then schedule confirm
                 let filteredPending = applyLocaleSpelling(pendingUtterance.trim());
                 filteredPending = applyProfanityFilter(filteredPending);
                 emitCaption(filteredPending, false);
                 setPreview(previewCommitted, '', activeConf, activeWordConf);
-                if (document.hidden) {
-                    flushPendingUtterance(); // VAD/rAF unreliable in background; don't backlog
-                } else {
-                    scheduleFinalize();
-                }
+                scheduleFinalize();
             }
         };
         r.onerror = (event) => {
@@ -1492,14 +1492,39 @@ ob_start();
             }
         };
         r.onend = () => {
-            // The Web Speech API auto-stops; restart while the user wants it running.
+            // Web Speech auto-stops; restart with retries (start can fail while tab is hidden)
             if (runState === 'started') {
-                try { recognition.start(); } catch (e) { /* already starting */ }
+                restartRecognition();
             } else {
                 setStatus(ccLang.idle, 'offline');
             }
         };
         return r;
+    };
+    let restartTimer = null;
+    const restartRecognition = () => {
+        if (runState !== 'started') return;
+        if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+        const tryStart = (attempt) => {
+            if (runState !== 'started') return;
+            if (!recognition) {
+                recognition = buildRecognition();
+            }
+            try {
+                recognition.start();
+                setStatus(ccLang.listening, 'online');
+            } catch (e) {
+                if (e && e.name === 'InvalidStateError') {
+                    setStatus(ccLang.listening, 'online'); // already running
+                    return;
+                }
+                // start() can fail while the tab is backgrounded — keep retrying
+                if (attempt < 30) {
+                    restartTimer = setTimeout(() => tryStart(attempt + 1), document.hidden ? 500 : 250);
+                }
+            }
+        };
+        tryStart(0);
     };
     const start = async () => {
         setStatus(ccLang.starting, 'warn');
@@ -1548,6 +1573,7 @@ ob_start();
     };
     const stop = () => {
         runState = 'stopped';
+        if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
         if (recognition) {
             try { recognition.stop(); } catch (e) { /* noop */ }
         }
@@ -1576,12 +1602,14 @@ ob_start();
     };
     if (startBtn) startBtn.addEventListener('click', start);
     if (stopBtn) stopBtn.addEventListener('click', stop);
-    // Flush backlog when returning to the tab (hidden-tab VAD may have stalled)
+    // On tab focus: resume audio + ensure recognizer is running (Chrome may have stopped it)
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden || runState !== 'started') return;
+        if (runState !== 'started') return;
+        if (document.hidden) return;
         if (pendingUtterance && pendingUtterance.trim()) {
             flushPendingUtterance();
         }
+        restartRecognition();
     });
     if (langSelect) langSelect.addEventListener('change', () => {
         if (runState === 'started' && recognition) {
