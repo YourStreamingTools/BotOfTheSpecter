@@ -4226,6 +4226,8 @@ label.checkbox input[type="checkbox"] {
 }
 .cc-preview {
     min-height: 4rem;
+    max-height: calc(1.45em * 6 + 1.8rem); /* ~6 lines; prevents background-tab wall of text */
+    overflow: hidden;
     padding: 0.9rem 1rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
