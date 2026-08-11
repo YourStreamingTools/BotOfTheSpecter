@@ -6,7 +6,7 @@ All third-party API and library references for BotOfTheSpecter. For full descrip
 | --- | ------ | ----: |
 | [twitch.md](./twitch.md) | Twitch Helix REST, OAuth (id.twitch.tv), EventSub WebSocket, GraphQL (gql.twitch.tv). Per-bot-version subscription matrix. | 884 |
 | [TwitchIO-Historical.md](./TwitchIO-Historical.md) | TwitchIO **2.10.0** - bot.py (stable) + beta.py (beta). IRC-driven `commands.Bot`, hand-rolled EventSub WebSocket, full event/context/type reference. | 315 |
-| [TwitchIO-Stable.md](./TwitchIO-Stable.md) | TwitchIO **3.x stable** - beta-v6.py. Native EventSub, `commands.AutoBot`, Components, Guards, 15-section 2.10→3.x migration map + exception hierarchy. | 625 |
+| [TwitchIO-Stable.md](./TwitchIO-Stable.md) | TwitchIO **3.3.2** stable - beta-v6.py. `commands.AutoBot`, full EventSub/events/commands/PartialUser tables, Conduits, 2.10→3.x migration map, changelog 3.1–3.3.2, project dual EventSub mapping. | 1068 |
 | [discord.md](./discord.md) | discord.py bot + OAuth Authorization Code flow + StreamersConnect proxy. Gateway, intents, slash commands, embeds, voice, rate limits. | ~1550 |
 | [openai.md](./openai.md) | Chat Completions (all bot variants + Discord + Kick), TTS (`gpt-4o-mini-tts`), Organization Usage API. Env: `OPENAI_KEY`. | 642 |
 | [spotify.md](./spotify.md) | 8 Web API endpoints - currently-playing, queue, devices, search. Auth Code flow, dual-mode credentials (`own_client`). | 546 |
