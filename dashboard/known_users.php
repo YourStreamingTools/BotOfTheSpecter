@@ -126,7 +126,7 @@ if (isMobileDevice()) {
 }
 </script>
 <div id="knownUsersPageContent">
-  <div id="loadingNoticeBox" class="sp-alert <?php echo $totalUsers > 0 ? 'sp-alert-warning' : 'sp-alert-info'; ?>" style="margin-bottom:1rem;">
+  <div id="loadingNoticeBox" class="sp-alert <?php echo $totalUsers > 0 ? 'sp-alert-warning' : 'sp-alert-info'; ?>" style="margin-bottom:1rem;"<?php echo $totalUsers > 0 ? ' aria-busy="true"' : ''; ?>>
     <p id="loadingNotice">
       <?php 
       if ($totalUsers > 0) {
@@ -142,7 +142,7 @@ if (isMobileDevice()) {
       <?php echo htmlspecialchars($cacheWarningMessage); ?>
   </div>
   <?php endif; ?>
-  <div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
+  <div id="content" style="display: block;">
     <div class="sp-card">
           <div class="sp-card-header">
             <span class="sp-card-title">
@@ -185,7 +185,7 @@ if (isMobileDevice()) {
             <!-- Search Bar -->
             <input type="text" id="searchInput" class="sp-input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()" style="margin-bottom:1rem;">
             <div class="sp-table-wrap">
-              <table class="sp-table" id="commandsTable">
+              <table class="sp-table" id="commandsTable"<?php echo $totalUsers > 0 ? ' aria-busy="true"' : ''; ?>>
                 <thead>
                   <tr>
                     <th><?php echo t('counters_username_column'); ?></th>
@@ -200,13 +200,23 @@ if (isMobileDevice()) {
                   </tr>
                 </thead>
                 <tbody id="user-table">
-                  <?php foreach ($seenUsersData as $userData): ?>
+                  <?php foreach ($seenUsersData as $userData):
+                    $kuName = isset($userData['username']) ? (string)$userData['username'] : '';
+                    $kuBanCached = ($kuName !== '' && is_array($bannedUsersCache) && array_key_exists($kuName, $bannedUsersCache));
+                    $kuIsBanned = $kuBanCached ? !empty($bannedUsersCache[$kuName]) : false;
+                  ?>
                     <tr>
                       <td>
-                        <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
-                          <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
+                        <span class="username" data-username="<?php echo htmlspecialchars($kuName); ?>">
+                          <?php echo htmlspecialchars($kuName); ?>
                         </span>
-                        <span class="banned-status"></span>
+                        <span class="banned-status"<?php echo $kuBanCached ? '' : ' data-ban-pending="1"'; ?>>
+                          <?php if ($kuBanCached && $kuIsBanned): ?>
+                            <em style="color:red">(<?php echo t('known_users_banned_label'); ?>)</em>
+                          <?php elseif (!$kuBanCached && $totalUsers > 0): ?>
+                            <span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;margin-left:0.35rem;vertical-align:middle;"></span>
+                          <?php endif; ?>
+                        </span>
                       </td>
                       <td style="text-align:center; vertical-align:middle;">
                         <?php
@@ -465,10 +475,19 @@ document.addEventListener('DOMContentLoaded', function() {
   fetchBannedStatuses();
 });
 
+function setBanStatus(element, isBanned) {
+  const bannedStatusElement = element.nextElementSibling;
+  if (!bannedStatusElement) return;
+  bannedStatusElement.removeAttribute('data-ban-pending');
+  if (isBanned) {
+    bannedStatusElement.innerHTML = " <em style='color:red'>(<?php echo t('known_users_banned_label'); ?>)</em>";
+  } else {
+    bannedStatusElement.innerHTML = "";
+  }
+}
+
 function fetchBannedStatuses() {
   const usernamesElements = document.querySelectorAll('.username');
-  const loadingNoticeBox = document.getElementById('loadingNoticeBox');
-  const contentElement = document.getElementById('content');
   if (totalUsers === 0) {
     return;
   }
@@ -481,18 +500,14 @@ function fetchBannedStatuses() {
   usernamesElements.forEach(usernameElement => {
     const username = usernameElement.dataset.username;
     if (!(username in bannedUsersCache)) {
+      // Keep SSR skeleton badge until batch returns
       uncachedUsers.push({username, element: usernameElement});
     } else {
       cachedUsers.push({username, element: usernameElement});
     }
   });
   cachedUsers.forEach(({username, element}) => {
-    const bannedStatusElement = element.nextElementSibling;
-    if (bannedUsersCache[username]) {
-      bannedStatusElement.innerHTML = " <em style='color:red'>(<?php echo t('known_users_banned_label'); ?>)</em>";
-    } else {
-      bannedStatusElement.innerHTML = "";
-    }
+    setBanStatus(element, !!bannedUsersCache[username]);
     loadedUsers++;
     updateLoadingNotice();
   });
@@ -535,13 +550,8 @@ function fetchBannedStatusBatch(userBatch, callback) {
           const response = JSON.parse(xhr.responseText);
           console.log(`Batch response:`, response);
           userBatch.forEach(({username, element}) => {
-            const bannedStatusElement = element.nextElementSibling;
             const isBanned = response.bannedUsers && response.bannedUsers[username] === true;
-            if (isBanned) {
-              bannedStatusElement.innerHTML = " <em style='color:red'>(<?php echo t('known_users_banned_label'); ?>)</em>";
-            } else {
-              bannedStatusElement.innerHTML = "";
-            }
+            setBanStatus(element, isBanned);
             bannedUsersCache[username] = isBanned;
             batchHadNewEntries = true;
             loadedUsers++;
@@ -557,14 +567,16 @@ function fetchBannedStatusBatch(userBatch, callback) {
           
         } catch (e) {
           console.error(`Error parsing JSON for batch:`, e, xhr.responseText);
-          userBatch.forEach(() => {
+          userBatch.forEach(({element}) => {
+            setBanStatus(element, false);
             loadedUsers++;
             updateLoadingNotice();
           });
         }
       } else {
         console.log(`Error fetching banned status for batch: ${xhr.status}`);
-        userBatch.forEach(() => {
+        userBatch.forEach(({element}) => {
+          setBanStatus(element, false);
           loadedUsers++;
           updateLoadingNotice();
         });
@@ -596,17 +608,24 @@ function updateCacheOnServer(cacheUpdate) {
 function handleAllUsersProcessed(cacheWasModified) {
   const loadingNoticeBox = document.getElementById('loadingNoticeBox');
   const loadingNotice = document.getElementById('loadingNotice');
-  const contentElement = document.getElementById('content');
-  if (!loadingNoticeBox || !loadingNotice || !contentElement) {
+  const table = document.getElementById('commandsTable');
+  // Clear any leftover ban skeletons (e.g. race / partial failures)
+  document.querySelectorAll('.banned-status[data-ban-pending]').forEach(function(el) {
+    el.removeAttribute('data-ban-pending');
+    el.innerHTML = '';
+  });
+  if (table) table.removeAttribute('aria-busy');
+  if (!loadingNoticeBox || !loadingNotice) {
       console.error('Required UI elements for loading notice not found.');
       return;
   }
   loadingNotice.innerText = '<?php echo t('known_users_loading_done'); ?>';
   loadingNoticeBox.classList.remove('sp-alert-warning', 'sp-alert-info');
   loadingNoticeBox.classList.add('sp-alert-success');
+  loadingNoticeBox.removeAttribute('aria-busy');
+  // Table stays visible the whole time; only the progress banner fades out.
   setTimeout(() => {
     loadingNoticeBox.style.display = 'none';
-    contentElement.style.display = 'block';
   }, 2000);
 }
 function updateLoadingNotice() {

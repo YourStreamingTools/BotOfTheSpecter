@@ -343,14 +343,18 @@ ob_start();
             <?php echo t('bot_beta_version_info'); ?>
           <?php endif; ?>
         </p>
-        <div class="version-meta">
+        <div class="version-meta" id="bot-version-meta" aria-busy="true">
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_last_updated'); ?></span>
-            <span id="last-updated" style="color:var(--blue);"><?php echo t('bot_loading'); ?></span>
+            <span id="last-updated" style="color:var(--blue); display:inline-block; min-width:5rem; vertical-align:middle;">
+              <span class="sp-skeleton sp-skeleton-line w-50" aria-hidden="true" style="display:inline-block; height:0.75rem; vertical-align:middle;"></span>
+            </span>
           </p>
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_last_run'); ?></span>
-            <span id="last-run" style="color:var(--blue);"><?php echo t('bot_loading'); ?></span>
+            <span id="last-run" style="color:var(--blue); display:inline-block; min-width:5rem; vertical-align:middle;">
+              <span class="sp-skeleton sp-skeleton-line w-40" aria-hidden="true" style="display:inline-block; height:0.75rem; vertical-align:middle;"></span>
+            </span>
           </p>
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_running_version'); ?></span>
@@ -514,23 +518,15 @@ ob_start();
           } 
           ?>
           <?php if ($showBotControls): ?>
-          <div style="display:flex; justify-content:center; align-items:center; gap:2rem; margin-bottom:1rem;">
-            <span style="font-size:2rem;" id="botStatusIcon">
-              <?php
-                $isRunning = false;
-                if ($selectedBot === 'stable') {
-                  $isRunning = $stableRunning;
-                } elseif ($selectedBot === 'beta') {
-                  $isRunning = $betaRunning;
-                } elseif ($selectedBot === 'v6') {
-                  $isRunning = $v6Running;
-                }
-                $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x" style="color:var(--blue);"></i>';
-                echo $heartIcon;
-              ?>
+          <div id="bot-status-region" style="display:flex; justify-content:center; align-items:center; gap:2rem; margin-bottom:1rem;" aria-busy="true">
+            <span style="font-size:2rem; display:inline-flex; align-items:center; justify-content:center; min-width:3rem; min-height:3rem;" id="botStatusIcon">
+              <span class="sp-skeleton-avatar lg" aria-hidden="true"></span>
             </span>
             <span style="font-size:1rem; font-weight:600;">
-              <?php echo t('bot_status_label'); ?> <span id="bot-status-text" style="color:var(--blue);"><?php echo t('bot_fetching_status'); ?></span>
+              <?php echo t('bot_status_label'); ?>
+              <span id="bot-status-text" style="color:var(--blue); display:inline-block; min-width:5.5rem; vertical-align:middle;">
+                <span class="sp-skeleton sp-skeleton-line w-60" aria-hidden="true" style="display:inline-block; height:0.9rem; vertical-align:middle;"></span>
+              </span>
               <?php if ($isTechnical): ?>
               <div id="bot-pid-display" style="color:var(--text-muted); font-size:0.75rem; margin-top:0.25rem; display:none;">
                 PID: <span id="bot-pid-value">--</span>
@@ -1717,6 +1713,19 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch(e) { /* ignore */ }
   }
+  // Clear status/meta skeleton hosts after first status poll settles
+  function setBotStatusBusy(busy) {
+    const region = document.getElementById('bot-status-region');
+    const meta = document.getElementById('bot-version-meta');
+    if (region) {
+      if (busy) region.setAttribute('aria-busy', 'true');
+      else region.removeAttribute('aria-busy');
+    }
+    if (meta) {
+      if (busy) meta.setAttribute('aria-busy', 'true');
+      else meta.removeAttribute('aria-busy');
+    }
+  }
   // Function to update bot status
   function updateBotStatus(silentUpdate = false) {
     const txtUnknown = <?php echo json_encode(t('bot_value_unknown')); ?>;
@@ -1927,6 +1936,7 @@ document.addEventListener('DOMContentLoaded', function() {
               latencyElement.textContent = `${data.latency || '--'}ms`;
               lastCheckElement.textContent = data.lastRun || '--';
             }
+            setBotStatusBusy(false);
             return data; // Return the data for status verification
           } else {
             console.error('Bot status API returned invalid data:', data);
@@ -1944,6 +1954,7 @@ document.addEventListener('DOMContentLoaded', function() {
               const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
               runningVersionElement.textContent = fallbackVersion;
             }
+            setBotStatusBusy(false);
             return null;
           }
         } catch (e) {
@@ -1962,6 +1973,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
             runningVersionElement.textContent = fallbackVersion;
           }
+          setBotStatusBusy(false);
           return null;
         }
       })
@@ -1985,6 +1997,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
           runningVersionElement.textContent = fallbackVersion;
         }
+        setBotStatusBusy(false);
         return null;
       });
     });  }

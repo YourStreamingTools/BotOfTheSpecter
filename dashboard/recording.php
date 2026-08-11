@@ -683,6 +683,26 @@ document.addEventListener('DOMContentLoaded', function () {
         tableContainer.appendChild(table);
         return tableContainer;
     }
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    // Layout-matching table skeleton for remote file list (refetch / refresh).
+    function skeletonRemoteFilesHtml() {
+        var html = '<div class="sp-table-wrap mb-4" aria-hidden="true">';
+        var i;
+        for (i = 0; i < 5; i++) {
+            html += '<div class="sp-skeleton-table-row">' +
+                '<span class="sp-skeleton sp-skeleton-line w-40"></span>' +
+                '<span class="sp-skeleton sp-skeleton-line w-20"></span>' +
+                '<span class="sp-skeleton sp-skeleton-line w-20"></span>' +
+                '<span class="sp-skeleton sp-skeleton-line w-25"></span>' +
+                '<span class="sp-skeleton sp-skeleton-badge"></span></div>';
+        }
+        html += '</div>';
+        return html;
+    }
     function renderRemoteFiles(data) {
         container.innerHTML = '';
         if (data && data.remoteFileError) {
@@ -690,6 +710,7 @@ document.addEventListener('DOMContentLoaded', function () {
             notice.className = 'sp-alert sp-alert-warning';
             notice.textContent = data.remoteFileError;
             container.appendChild(notice);
+            setBusy(container, false);
             return;
         }
         var sections = data && Array.isArray(data.remoteFileSections) ? data.remoteFileSections : [];
@@ -698,11 +719,13 @@ document.addEventListener('DOMContentLoaded', function () {
             empty.className = 'sp-alert sp-alert-warning';
             empty.textContent = RECORDING_I18N.noFiles;
             container.appendChild(empty);
+            setBusy(container, false);
             return;
         }
         sections.forEach(function (section) {
             container.appendChild(buildTable(section));
         });
+        setBusy(container, false);
     }
     var isLoading = false;
     var refreshBtn = document.getElementById('refresh-remote-files-btn');
@@ -723,6 +746,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         isLoading = true;
         setRefreshLoading(true);
+        // Content-region skeleton while SSH listing reloads; keep button spin for the action.
+        var previousHtml = container.innerHTML;
+        container.innerHTML = skeletonRemoteFilesHtml();
+        setBusy(container, true);
         var url = new URL(window.location.href);
         url.searchParams.set('ajax', '1');
         url.searchParams.set('_ts', String(Date.now()));
@@ -761,8 +788,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 notice.innerHTML = RECORDING_I18N.sessionExpiredHtml.replace('%s', window.location.pathname);
                 container.innerHTML = '';
                 container.appendChild(notice);
+                setBusy(container, false);
+            } else {
+                // Restore previous content so a transient error does not leave a skeleton
+                container.innerHTML = previousHtml;
+                setBusy(container, false);
             }
-            // All other errors: keep existing content visible, user can retry with the Refresh button
         })
         .finally(function () {
             isLoading = false;

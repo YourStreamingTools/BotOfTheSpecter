@@ -245,12 +245,29 @@ ob_start();
             <span id="client-search-count" class="search-count" aria-live="polite"><?php echo t('admin_websocket_clients_results', [0]); ?></span>
         </div>
     </div>
+    <div id="registered-clients-host">
     <?php if (empty($websocketData['registered_clients'])): ?>
-        <div class="sp-alert sp-alert-info">
+        <div class="sp-alert sp-alert-info" id="clients-empty-state">
             <p><?php echo t('admin_websocket_clients_none_connected'); ?></p>
         </div>
+        <div class="sp-table-wrap" id="clients-table-wrap" style="display:none;">
+            <table class="sp-table" id="clients-table">
+                <thead>
+                    <tr>
+                        <th><?php echo t('admin_websocket_clients_th_display_name'); ?></th>
+                        <th><?php echo t('admin_websocket_clients_th_api_key'); ?></th>
+                        <th><?php echo t('admin_websocket_clients_th_connected_clients'); ?></th>
+                        <th><?php echo t('admin_websocket_clients_th_actions'); ?></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     <?php else: ?>
-        <div class="sp-table-wrap">
+        <div class="sp-alert sp-alert-info" id="clients-empty-state" style="display:none;">
+            <p><?php echo t('admin_websocket_clients_none_connected'); ?></p>
+        </div>
+        <div class="sp-table-wrap" id="clients-table-wrap">
             <table class="sp-table" id="clients-table">
                 <thead>
                     <tr>
@@ -293,6 +310,7 @@ ob_start();
             </table>
         </div>
     <?php endif; ?>
+    </div>
     </div>
 </div>
 
@@ -478,7 +496,42 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function setBusy(el, busy) {
+    if (!el) return;
+    if (busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+}
+function skeletonClientsTableHtml(rows) {
+    const n = rows || 5;
+    let html = '';
+    for (let i = 0; i < n; i++) {
+        html += '<tr aria-hidden="true"><td colspan="4" style="padding:0;">' +
+            '<div class="sp-skeleton-table-row">' +
+            '<span class="sp-skeleton-line w-25"></span>' +
+            '<span class="sp-skeleton-line w-40"></span>' +
+            '<span class="sp-skeleton-badge"></span>' +
+            '<span class="sp-skeleton-line w-20"></span>' +
+            '</div></td></tr>';
+    }
+    return html;
+}
+function showClientsSkeleton() {
+    const host = document.getElementById('registered-clients-host');
+    const empty = document.getElementById('clients-empty-state');
+    const wrap = document.getElementById('clients-table-wrap');
+    const table = document.getElementById('clients-table');
+    if (empty) empty.style.display = 'none';
+    if (wrap) wrap.style.display = '';
+    if (table) {
+        const tbody = table.querySelector('tbody');
+        if (tbody) tbody.innerHTML = skeletonClientsTableHtml(5);
+    }
+    setBusy(host, true);
+    setBusy(wrap, true);
+}
 async function refreshData(silent = false) {
+    const host = document.getElementById('registered-clients-host');
+    const wrap = document.getElementById('clients-table-wrap');
     try {
         if (!silent) {
             // Show loading state on manual refresh
@@ -486,6 +539,7 @@ async function refreshData(silent = false) {
             if (refreshBtn) {
                 refreshBtn.classList.add('sp-btn-loading');
             }
+            showClientsSkeleton();
         }
         const response = await fetch('?refresh_data=1');
         if (!response.ok) {
@@ -497,9 +551,14 @@ async function refreshData(silent = false) {
         // Update tables
         updateClientsTable(data.registered_clients);
         updateGlobalListenersTable(data.global_listeners);
+        setBusy(host, false);
+        setBusy(wrap, false);
         // Update last updated timestamp
-        document.getElementById('last-updated').innerHTML =
-            `<small>${i18n.lastUpdated.replace('%s', new Date().toLocaleString())}</small>`;
+        const lastUpdated = document.getElementById('last-updated');
+        if (lastUpdated) {
+            lastUpdated.innerHTML =
+                `<small>${i18n.lastUpdated.replace('%s', new Date().toLocaleString())}</small>`;
+        }
         if (!silent) {
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
@@ -508,6 +567,8 @@ async function refreshData(silent = false) {
         }
     } catch (error) {
         console.error('Failed to refresh data:', error);
+        setBusy(host, false);
+        setBusy(wrap, false);
         if (!silent) {
             Swal.fire({
                 icon: 'error',
@@ -539,13 +600,18 @@ function updateStatistics(data) {
 
 function updateClientsTable(registeredClients) {
     const table = document.getElementById('clients-table');
+    const wrap = document.getElementById('clients-table-wrap');
+    const empty = document.getElementById('clients-empty-state');
     if (!table) return;
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
-    if (Object.keys(registeredClients).length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${escapeHtml(i18n.noneConnected)}</td></tr>`;
+    if (!registeredClients || Object.keys(registeredClients).length === 0) {
+        if (wrap) wrap.style.display = 'none';
+        if (empty) empty.style.display = '';
         return;
     }
+    if (wrap) wrap.style.display = '';
+    if (empty) empty.style.display = 'none';
     // Sort clients by client count (descending)
     const sortedClients = Object.entries(registeredClients).sort((a, b) => {
         return b[1].client_count - a[1].client_count;

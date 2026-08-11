@@ -335,19 +335,34 @@ function checkServiceStatus($serviceName, $serviceData) {
             </div>
         </div>
         <div class="column is-half">
-            <!-- Beta Users -->
+            <!-- Beta Users (filled by AJAX; skeleton until first success) -->
             <div class="section">
                 <h2>Friends that use BotOfTheSpecter</h2>
-                <div class="beta-users columns">
-                    <?php foreach ($userColumns as $column): ?>
+                <div class="beta-users columns" id="beta-users" aria-busy="true">
                     <div class="column is-half">
-                        <div class="user-list">
-                            <?php foreach ($column as $user): ?>
-                            <div class="info-item"><span><?= htmlspecialchars($user); ?></span></div>
-                            <?php endforeach; ?>
+                        <div class="user-list sp-skeleton-stack" aria-hidden="true" style="gap:0.45rem;">
+                            <span class="sp-skeleton sp-skeleton-line w-70"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-55"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-80"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-60"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-45"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-70"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-50"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-65"></span>
                         </div>
                     </div>
-                    <?php endforeach; ?>
+                    <div class="column is-half">
+                        <div class="user-list sp-skeleton-stack" aria-hidden="true" style="gap:0.45rem;">
+                            <span class="sp-skeleton sp-skeleton-line w-60"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-75"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-50"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-70"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-55"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-80"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-45"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-65"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -384,6 +399,12 @@ function renderServiceStatus(name, statusData) {
     } else {
         return `<div class='status-item'><span class="has-text-weight-bold">${name}:</span> Down <span>💀</span></div>`;
     }
+}
+
+function setBusy(el, busy) {
+    if (!el) return;
+    if (busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
 }
 
 // Fetch and update data every 60 seconds
@@ -443,6 +464,7 @@ function fetchAndUpdateStatus() {
             // Update beta users if the AJAX response includes them.
             // Use strict undefined check so empty arrays (no users) still replace the DOM.
             if (data.betaUsersLeft !== undefined && data.betaUsersRight !== undefined) {
+                const host = document.getElementById('beta-users') || document.querySelector('.beta-users');
                 const userColumns = [data.betaUsersLeft, data.betaUsersRight];
                 let usersHtml = '';
                 userColumns.forEach(column => {
@@ -452,10 +474,20 @@ function fetchAndUpdateStatus() {
                     });
                     usersHtml += `</div></div>`;
                 });
-                document.querySelector('.beta-users').innerHTML = usersHtml;
+                if (host) {
+                    host.innerHTML = usersHtml;
+                    setBusy(host, false);
+                }
             }
             // Update last updated time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
+        })
+        .catch(() => {
+            // Keep skeleton / last good friends data on poll failure; do not flash empty-state.
+            const host = document.getElementById('beta-users');
+            if (host && host.getAttribute('aria-busy') === 'true') {
+                // First load failed — leave skeleton; optional: could show error row later.
+            }
         });
 }
 

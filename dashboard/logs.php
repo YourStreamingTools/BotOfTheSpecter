@@ -351,6 +351,25 @@ var currentLogName = ''; // Track the currently selected log
 var currentRotation = 0; // Track the currently selected rotation
 var logtext = document.getElementById("logs-log-textarea");
 var logHtml = document.getElementById("logs-log-html");
+// Monospace multi-line shimmer while a log file is fetching
+function logSkeletonHtml() {
+  var widths = ['w-90', 'w-80', 'w-70', 'w-90', 'w-60', 'w-80', 'w-50', 'w-90', 'w-70', 'w-80', 'w-55', 'w-90', 'w-40', 'w-70'];
+  var html = '<div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.55rem; font-family:monospace;">';
+  for (var i = 0; i < widths.length; i++) {
+    html += '<span class="sp-skeleton sp-skeleton-line ' + widths[i] + '" style="height:0.7rem;"></span>';
+  }
+  html += '</div>';
+  return html;
+}
+function setLogBusy(busy) {
+  if (!logHtml) return;
+  if (busy) {
+    logHtml.setAttribute('aria-busy', 'true');
+    logHtml.innerHTML = logSkeletonHtml();
+  } else {
+    logHtml.removeAttribute('aria-busy');
+  }
+}
 // Function to scroll log container to bottom
 function scrollLogToBottom() {
   logHtml.scrollTop = logHtml.scrollHeight;
@@ -422,17 +441,20 @@ async function fetchLogData(logname, rotation = 0) {
     currentLogName = logname;
   }
   currentRotation = rotation;
+  setLogBusy(true);
   try {
     // Add cache-busting timestamp and rotation to URL
     const response = await fetch(`logs.php?log=${logname}&rotation=${rotation}&_=${Date.now()}`);
     const json = await response.json();
     // Check for errors first
     if (json.error) {
+      setLogBusy(false);
       logHtml.innerHTML = `<span style="color: #ff6b6b;">Error: ${json.error}</span>`;
       toggleButtonsContainer(true);
       return;
     }
-    // Check if file is empty
+    // Check if file is empty (only after successful load)
+    setLogBusy(false);
     if (json.empty || json["data"].length === 0 || json["data"].trim() === '') {
       logHtml.innerHTML = "(log is empty)";
     } else {
@@ -442,6 +464,7 @@ async function fetchLogData(logname, rotation = 0) {
     scrollLogToBottom();
   } catch (error) {
     console.error(<?php echo json_encode(t('logs_error_fetching')); ?>, error);
+    setLogBusy(false);
     logHtml.innerHTML = `<span style="color: #ff6b6b;">Network error: Failed to fetch log data</span>`;
   }
 }

@@ -200,8 +200,9 @@ ob_start();
             <span class="icon"><i class="fas fa-info-circle"></i></span>
             <span id="vip-status-text"></span>
           </div>
+          <div id="vip-list-host">
           <?php if (empty($allVIPs)): ?>
-            <div style="text-align:center;padding:3rem 0;">
+            <div class="vip-empty-state" style="text-align:center;padding:3rem 0;">
               <span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;">
                 <i class="fas fa-star fa-3x"></i>
               </span>
@@ -236,6 +237,7 @@ ob_start();
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
+          </div>
   </div>
 </div>
 
@@ -279,6 +281,32 @@ var VIP_I18N = {
     noneFound: <?php echo json_encode(t('vips_none_found')); ?>,
     ajaxError: <?php echo json_encode(t('vips_js_ajax_error')); ?>
 };
+function setBusy(el, busy) {
+    if (!el) return;
+    if (busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+}
+function skeletonVIPGridHtml(count) {
+    var html = '<div class="followers-grid">', i;
+    count = count || 8;
+    for (i = 0; i < count; i++) {
+        html += '<div class="follower-card-col" aria-hidden="true">' +
+            '<div class="sp-card">' +
+              '<div class="follower-card-media sp-card-body">' +
+                '<div class="follower-card-avatar">' +
+                  '<span class="sp-skeleton-avatar lg" style="width:64px;height:64px;"></span>' +
+                '</div>' +
+                '<div class="follower-card-content sp-skeleton-stack" style="flex:1;">' +
+                  '<span class="sp-skeleton sp-skeleton-line w-70"></span>' +
+                  '<span class="sp-skeleton-badge" style="margin-top:0.35rem;"></span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+    }
+    html += '</div>';
+    return html;
+}
 $(document).ready(function() {
     // Fade in all VIP cards
     function fadeInCards() {
@@ -316,23 +344,43 @@ $(document).ready(function() {
     }
 
     function renderVIPGrid(vips) {
-        var $body = $('.sp-card-body').first();
-        var $existing = $body.find('.followers-grid, [style*="text-align:center"]');
-        $existing.remove();
+        var host = document.getElementById('vip-list-host');
+        if (!host) return;
         if (!vips || vips.length === 0) {
-            $body.append(
-                '<div style="text-align:center;padding:3rem 0;">' +
+            host.innerHTML =
+                '<div class="vip-empty-state" style="text-align:center;padding:3rem 0;">' +
                   '<span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;"><i class="fas fa-star fa-3x"></i></span>' +
                   '<p class="sp-text-muted" style="font-size:1.1rem;">' + VIP_I18N.noneFound + '</p>' +
-                '</div>'
-            );
+                '</div>';
         } else {
-            var $grid = $('<div class="followers-grid"></div>');
+            var html = '<div class="followers-grid">';
             $.each(vips, function(i, vip) {
-                $grid.append(buildVIPCard(vip));
+                html += buildVIPCard(vip);
             });
-            $body.append($grid);
+            html += '</div>';
+            host.innerHTML = html;
         }
+        setBusy(host, false);
+    }
+
+    var vipListSnapshot = null;
+
+    function showVIPSkeleton() {
+        var host = document.getElementById('vip-list-host');
+        if (!host) return;
+        vipListSnapshot = host.innerHTML;
+        host.innerHTML = skeletonVIPGridHtml(8);
+        setBusy(host, true);
+    }
+
+    function restoreVIPList() {
+        var host = document.getElementById('vip-list-host');
+        if (!host) return;
+        if (vipListSnapshot !== null) {
+            host.innerHTML = vipListSnapshot;
+            vipListSnapshot = null;
+        }
+        setBusy(host, false);
     }
 
     $('#vip-search').on('input', function() {
@@ -375,7 +423,9 @@ $(document).ready(function() {
         var username = $('#vip-username').val().trim();
         if (!username) return;
         var $btn = $(this);
-        $btn.prop('disabled', true);
+        $btn.prop('disabled', true).addClass('sp-btn-loading');
+        // Content-region skeleton while Helix re-fetch runs (button spinner stays on action)
+        showVIPSkeleton();
         $.ajax({
             url: 'vips.php',
             method: 'POST',
@@ -386,17 +436,22 @@ $(document).ready(function() {
                 $('#vip-status-text').text(data.message);
                 $('#vip-status-msg').show();
                 if (data.success) {
+                    vipListSnapshot = null;
                     renderVIPGrid(data.vips);
                     $('#vip-username').val('');
                     $('#vip-modal').removeClass('is-active');
+                } else {
+                    // Mutation failed — restore previous grid (status message shows error)
+                    restoreVIPList();
                 }
             },
             error: function() {
                 $('#vip-status-text').text(VIP_I18N.ajaxError);
                 $('#vip-status-msg').show();
+                restoreVIPList();
             },
             complete: function() {
-                $btn.prop('disabled', false);
+                $btn.prop('disabled', false).removeClass('sp-btn-loading');
             }
         });
     });

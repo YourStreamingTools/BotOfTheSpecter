@@ -1049,7 +1049,7 @@ ob_start();
         <div class="sp-modal-body">
             <p class="alerts-help-text"><?= t('alerts_library_modal_help') ?></p>
             <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="<?= htmlspecialchars(t('alerts_search_files')) ?>">
-            <div class="alerts-library-grid" id="alerts-library-grid"></div>
+            <div class="alerts-library-grid" id="alerts-library-grid" aria-busy="false"></div>
             <div class="alerts-library-empty" id="alerts-library-empty" style="display:none;">
                 <?= t('alerts_library_empty') ?>
             </div>
@@ -2178,17 +2178,44 @@ $(document).ready(function() {
         });
     });
     var libraryMode = null; // 'image' | 'sound'
+    var libraryFirstPaintDone = false;
+    function setBusy(el, busy) {
+        if (!el || !el.length) return;
+        if (busy) el.attr('aria-busy', 'true');
+        else el.removeAttr('aria-busy');
+    }
+    function skeletonLibraryGridHtml(count) {
+        var n = count || 8, html = '', i;
+        for (i = 0; i < n; i++) {
+            html += '<div class="alerts-library-item alerts-library-item-skeleton" aria-hidden="true">'
+                + '<div class="alerts-library-thumb"><span class="sp-skeleton-thumb square"></span></div>'
+                + '<div class="sp-skeleton-stack" style="gap:0.35rem;">'
+                + '<span class="sp-skeleton-line w-80"></span>'
+                + '<span class="sp-skeleton-line w-50"></span>'
+                + '</div></div>';
+        }
+        return html;
+    }
     function openLibrary(mode) {
         libraryMode = mode;
+        libraryFirstPaintDone = false;
         var files = mode === 'image' ? libraryImages : librarySounds;
         $('#alerts-library-modal-title').text(mode === 'image' ? i18n.chooseImage : i18n.chooseSound);
-        renderLibrary(files, '');
         $('#alerts-library-search').val('');
+        $('#alerts-library-empty').hide();
+        var grid = $('#alerts-library-grid');
+        setBusy(grid, true);
+        grid.html(skeletonLibraryGridHtml(8));
         $('#alerts-library-modal').css('display', 'flex');
+        // Yield a frame so the square-thumb skeletons paint before building media DOM.
+        window.requestAnimationFrame(function() {
+            renderLibrary(files, '');
+        });
     }
     function closeLibrary() {
         $('#alerts-library-modal').hide();
         libraryMode = null;
+        setBusy($('#alerts-library-grid'), false);
     }
     function renderLibrary(files, search) {
         var grid = $('#alerts-library-grid');
@@ -2197,6 +2224,9 @@ $(document).ready(function() {
         });
         if (filtered.length === 0) {
             grid.empty();
+            // Only show empty after first open attempt completes (never during skeleton).
+            libraryFirstPaintDone = true;
+            setBusy(grid, false);
             $('#alerts-library-empty').show();
             return;
         }
@@ -2218,6 +2248,8 @@ $(document).ready(function() {
                 +  '</button>';
         }).join('');
         grid.html(html);
+        libraryFirstPaintDone = true;
+        setBusy(grid, false);
     }
     $('#image-library-btn').on('click', function() {
         if (!currentAlertId) return;

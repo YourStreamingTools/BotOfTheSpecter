@@ -823,6 +823,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const tokenLogTypeControl = document.getElementById('token-log-type-control');
     const tokenTypeSelect = document.getElementById('admin-token-log-type-select');
     const autoRefreshBtn = document.getElementById('admin-log-auto-refresh');
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    function skeletonLogPaneHtml() {
+        return '<div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.55rem;padding:0.25rem 0;">' +
+            '<span class="sp-skeleton-line w-90"></span>' +
+            '<span class="sp-skeleton-line w-70"></span>' +
+            '<span class="sp-skeleton-line w-80"></span>' +
+            '<span class="sp-skeleton-line w-55"></span>' +
+            '<span class="sp-skeleton-line w-85"></span>' +
+            '<span class="sp-skeleton-line w-40"></span>' +
+            '<span class="sp-skeleton-line w-75"></span>' +
+            '<span class="sp-skeleton-line w-60"></span>' +
+            '</div>';
+    }
+    function showLogSkeleton() {
+        if (!logTextarea) return;
+        logTextarea.innerHTML = skeletonLogPaneHtml();
+        setBusy(logTextarea, true);
+    }
     // Function to scroll log container to bottom
     function scrollLogToBottom() {
         logTextarea.scrollTop = logTextarea.scrollHeight;
@@ -965,6 +987,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     function resetLogContent() {
         logTextarea.innerHTML = '';
+        setBusy(logTextarea, false);
         stopAutoRefresh(); // Stop auto refresh when resetting content
     }
     function startAutoRefresh() {
@@ -1016,6 +1039,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     async function fetchAdminLog() {
         if (!adminLogUser || !adminLogType) return;
+        showLogSkeleton();
         try {
             const resp = await fetch(`logs.php?admin_log_user=${encodeURIComponent(adminLogUser)}&admin_log_type=${encodeURIComponent(adminLogType)}`);
             const json = await resp.json();
@@ -1027,6 +1051,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     logTextarea.innerHTML = ADMIN_LOGS_I18N.unknownError;
                 }
+                setBusy(logTextarea, false);
                 return;
             }
             if (json.empty) {
@@ -1036,18 +1061,22 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            setBusy(logTextarea, false);
             scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
+            setBusy(logTextarea, false);
             console.error(e);
         }
     }
     async function fetchAuditLog() {
+        showLogSkeleton();
         try {
             const resp = await fetch('logs.php?admin_audit_log=1');
             const json = await resp.json();
             if (json.error) {
                 logTextarea.innerHTML = ADMIN_LOGS_I18N.auditLoadFailed;
+                setBusy(logTextarea, false);
                 return;
             }
             if (json.empty) {
@@ -1057,14 +1086,17 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            setBusy(logTextarea, false);
             logTextarea.scrollTop = 0;
         } catch (e) {
             logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
+            setBusy(logTextarea, false);
             console.error(e);
         }
     }
     async function fetchSystemLog() {
         if (!adminLogType) return;
+        showLogSkeleton();
         try {
             const resp = await fetch(`logs.php?admin_system_log_type=${encodeURIComponent(adminLogType)}`);
             const json = await resp.json();
@@ -1078,6 +1110,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     logTextarea.innerHTML = ADMIN_LOGS_I18N.unknownError;
                 }
+                setBusy(logTextarea, false);
                 return;
             }
             if (json.empty) {
@@ -1087,14 +1120,17 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            setBusy(logTextarea, false);
             scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
+            setBusy(logTextarea, false);
             console.error(e);
         }
     }
     async function fetchTokenLog() {
         if (!adminLogType) return;
+        showLogSkeleton();
         try {
             const resp = await fetch(`logs.php?admin_token_log_type=${encodeURIComponent(adminLogType)}`);
             const json = await resp.json();
@@ -1108,6 +1144,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     logTextarea.innerHTML = ADMIN_LOGS_I18N.unknownError;
                 }
+                setBusy(logTextarea, false);
                 return;
             }
             if (json.empty) {
@@ -1117,9 +1154,11 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 logTextarea.innerHTML = json.data;
             }
+            setBusy(logTextarea, false);
             scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = ADMIN_LOGS_I18N.connectionFailed;
+            setBusy(logTextarea, false);
             console.error(e);
         }
     }

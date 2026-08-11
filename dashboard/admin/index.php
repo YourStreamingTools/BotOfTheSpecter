@@ -1758,10 +1758,10 @@ ob_start();
                                 <span class="icon sp-text-info"><i class="fab fa-discord fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_discord_bot'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="discord-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="discord-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="discord-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="discord-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="discord-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('discordbot.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1777,10 +1777,10 @@ ob_start();
                                 <span class="icon sp-text-accent"><i class="fas fa-server fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_bots_api'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="bots-api-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="bots-api-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="bots-api-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="bots-api-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="bots-api-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-api.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1796,10 +1796,10 @@ ob_start();
                                 <span class="icon sp-text-info"><i class="fas fa-file-export fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_export_queue_worker'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="export-queue-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="export-queue-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="export-queue-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="export-queue-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="export-queue-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('export_queue_worker.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1825,10 +1825,10 @@ ob_start();
                                 <span class="icon sp-text-accent"><i class="fas fa-code fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_api_server'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="api-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="api-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="api-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="api-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="api-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('fastapi.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1854,10 +1854,10 @@ ob_start();
                                 <span class="icon sp-text-success"><i class="fas fa-plug fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_websocket_server'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="websocket-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="websocket-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="websocket-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="websocket-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="websocket-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('websocket.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1883,10 +1883,10 @@ ob_start();
                                 <span class="icon sp-text-warning"><i class="fas fa-database fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_mysql_server'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="mysql-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="mysql-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="mysql-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="mysql-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="mysql-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('mysql.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1914,10 +1914,10 @@ ob_start();
                                     <span class="sp-badge sp-badge-blue" style="margin-bottom:0.25rem;">BOTS</span>
                                     <span class="admin-heading"><?php echo t('admin_index_svc_bots_caddy'); ?></span>
                                     <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_bots_caddy_sub'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="bots-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="bots-caddy-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="bots-caddy-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="bots-caddy-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="bots-caddy-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('bots-caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1935,10 +1935,10 @@ ob_start();
                                     <span class="sp-badge sp-badge-accent" style="margin-bottom:0.25rem;">API</span>
                                     <span class="admin-heading"><?php echo t('admin_index_svc_api_caddy'); ?></span>
                                     <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_api_caddy_sub'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="api-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="api-caddy-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="api-caddy-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="api-caddy-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="api-caddy-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('api-caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1956,10 +1956,10 @@ ob_start();
                                     <span class="sp-badge sp-badge-amber" style="margin-bottom:0.25rem;">WEB</span>
                                     <span class="admin-heading"><?php echo t('admin_index_svc_web_caddy'); ?></span>
                                     <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_web_caddy_sub'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="web-caddy-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="web-caddy-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="web-caddy-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="web-caddy-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="web-caddy-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -1985,10 +1985,10 @@ ob_start();
                                 <span class="icon sp-text-danger"><i class="fas fa-video fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_twitch_recorder'); ?></span>
-                                    <span class="admin-service-status sp-text-info" id="twitch-recorder-status"><?php echo t('admin_index_status_loading'); ?></span>
+                                    <span class="admin-service-status" id="twitch-recorder-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
-                            <div><span class="sp-badge sp-badge-grey" id="twitch-recorder-pid">PID: ...</span></div>
+                            <div><span class="sp-badge sp-badge-grey" id="twitch-recorder-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
                         </div>
                         <div class="sp-btn-group" style="margin-top:1rem;" id="twitch-recorder-buttons">
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('twitch-recorder.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
@@ -2119,8 +2119,28 @@ $botIconMap = [
     </div>
     <div class="collapsible-content" id="bot-overview">
         <div class="sp-card-body">
-            <div id="bot-overview-container">
-                <p style="margin-bottom:1.25rem;"><?php echo t('admin_index_loading_bot_overview'); ?></p>
+            <div id="bot-overview-container" aria-busy="true">
+                <div class="admin-bot-grid" id="bot-columns" aria-hidden="true">
+                    <?php for ($sk = 0; $sk < 6; $sk++): ?>
+                    <div class="admin-bot-card">
+                        <div class="admin-service-card">
+                            <div class="admin-level-row" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                                <span class="sp-skeleton-avatar"></span>
+                                <span class="sp-skeleton-line w-60"></span>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">
+                                <span class="sp-skeleton-badge"></span>
+                                <span class="sp-skeleton-badge" style="width:4rem;"></span>
+                                <span class="sp-skeleton-badge" style="width:3rem;"></span>
+                            </div>
+                            <div style="display:flex;gap:0.5rem;">
+                                <span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>
+                                <span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endfor; ?>
+                </div>
             </div>
         </div>
     </div>
@@ -2167,8 +2187,17 @@ $botIconMap = [
             </button>
         </div>
         <div class="sp-card-body">
-            <div id="ai-platform-stats-content">
-                <p class="sp-text-muted"><?php echo t('admin_index_loading_ai_stats'); ?></p>
+            <div id="ai-platform-stats-content" aria-busy="true">
+                <div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.75rem;">
+                    <div class="sp-stat-row" style="grid-template-columns:repeat(3,1fr);">
+                        <div class="sp-skeleton-stat"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-value"></span><span class="sp-skeleton-line w-40"></span></div>
+                        <div class="sp-skeleton-stat"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-value"></span><span class="sp-skeleton-line w-40"></span></div>
+                        <div class="sp-skeleton-stat"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-value"></span><span class="sp-skeleton-line w-40"></span></div>
+                    </div>
+                    <span class="sp-skeleton-line w-70"></span>
+                    <span class="sp-skeleton-line w-90"></span>
+                    <span class="sp-skeleton-line w-50"></span>
+                </div>
             </div>
         </div>
     </div>
@@ -2778,8 +2807,56 @@ document.addEventListener('DOMContentLoaded', function() {
     window.refreshCustomBotTokens = function() {
         streamCommand('custom_bot', 'Custom Bot', 'button[onclick="refreshCustomBotTokens()"]');
     };
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    function skeletonServiceStatusHtml() {
+        return '<span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span>';
+    }
+    function skeletonServicePidHtml() {
+        return '<span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span>';
+    }
+    function skeletonBotOverviewHtml() {
+        let html = '<div class="admin-bot-grid" id="bot-columns" aria-hidden="true">';
+        for (let i = 0; i < 6; i++) {
+            html += '<div class="admin-bot-card"><div class="admin-service-card">' +
+                '<div class="admin-level-row" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">' +
+                '<span class="sp-skeleton-avatar"></span><span class="sp-skeleton-line w-60"></span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">' +
+                '<span class="sp-skeleton-badge"></span><span class="sp-skeleton-badge" style="width:4rem;"></span>' +
+                '<span class="sp-skeleton-badge" style="width:3rem;"></span></div>' +
+                '<div style="display:flex;gap:0.5rem;">' +
+                '<span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>' +
+                '<span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span></div>' +
+                '</div></div>';
+        }
+        return html + '</div>';
+    }
+    function skeletonAiStatsHtml() {
+        return '<div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.75rem;">' +
+            '<div class="sp-stat-row" style="grid-template-columns:repeat(3,1fr);">' +
+            '<div class="sp-skeleton-stat"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-value"></span><span class="sp-skeleton-line w-40"></span></div>' +
+            '<div class="sp-skeleton-stat"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-value"></span><span class="sp-skeleton-line w-40"></span></div>' +
+            '<div class="sp-skeleton-stat"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-value"></span><span class="sp-skeleton-line w-40"></span></div>' +
+            '</div><span class="sp-skeleton-line w-70"></span><span class="sp-skeleton-line w-90"></span>' +
+            '<span class="sp-skeleton-line w-50"></span></div>';
+    }
     // Function to update service status
     function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
+        const statusElement = document.getElementById(statusElementId);
+        const pidElement = document.getElementById(pidElementId);
+        const buttonsElement = document.getElementById(buttonsElementId);
+        if (statusElement) {
+            statusElement.className = 'admin-service-status';
+            statusElement.innerHTML = skeletonServiceStatusHtml();
+            setBusy(statusElement, true);
+        }
+        if (pidElement) {
+            pidElement.innerHTML = skeletonServicePidHtml();
+            setBusy(pidElement, true);
+        }
         fetch(`service_status.php?service=${service}`)
             .then(response => response.text())
             .then(text => {
@@ -2790,9 +2867,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error(`Raw response text for ${service}:`, text);
                     throw parseError;
                 }
-                const statusElement = document.getElementById(statusElementId);
-                const pidElement = document.getElementById(pidElementId);
-                const buttonsElement = document.getElementById(buttonsElementId);
                 // Update status with appropriate color
                 statusElement.textContent = data.status;
                 statusElement.className = 'admin-service-status';
@@ -2805,8 +2879,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     statusElement.classList.add('sp-text-warning');
                 }
+                setBusy(statusElement, false);
                 // Update PID
                 pidElement.textContent = `PID: ${data.pid}`;
+                setBusy(pidElement, false);
                 // Enable/disable buttons based on status
                 const startBtn = buttonsElement.querySelector('button[onclick*="start"]');
                 const stopBtn = buttonsElement.querySelector('button[onclick*="stop"]');
@@ -2832,9 +2908,12 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error(`Error fetching ${service} status:`, error);
-                const statusElement = document.getElementById(statusElementId);
-                statusElement.textContent = adminI18n.statusError;
-                statusElement.className = 'admin-service-status sp-text-danger';
+                if (statusElement) {
+                    statusElement.textContent = adminI18n.statusError;
+                    statusElement.className = 'admin-service-status sp-text-danger';
+                    setBusy(statusElement, false);
+                }
+                if (pidElement) setBusy(pidElement, false);
             });
     }
     // Load service statuses after page load
@@ -2955,23 +3034,29 @@ document.addEventListener('DOMContentLoaded', function() {
             columns.className = 'admin-bot-grid';
             botContainer.appendChild(columns);
         }
+        if (!botHasLoadedOnce) {
+            setBusy(botContainer, true);
+        }
         const base = window.location.href.split('?')[0];
         fetch(base + '?ajax=bot_overview')
             .then(response => response.json())
             .then(data => {
-                // Clear loading text on first successful load
+                // Clear skeleton grid on first successful load
                 if (!botHasLoadedOnce) {
                     botContainer.innerHTML = '';
+                    columns = document.createElement('div');
+                    columns.id = 'bot-columns';
+                    columns.className = 'admin-bot-grid';
                     botContainer.appendChild(columns);
                 }
                 botHasLoadedOnce = true;
+                setBusy(botContainer, false);
                 // update the 'updated at' relative timestamp
                 setBotUpdatedNow();
                 if (!data.bots || data.bots.length === 0) {
-                    // No bots: clear columns and show message
+                    // No bots: clear columns and show message (only after first success)
                     botHasLoadedOnce = true;
                     setBotUpdatedNow();
-                    // No bots: clear columns and show message
                     columns.innerHTML = '<div class="admin-bot-card"><p>' + (data.error || adminI18n.none) + '</p></div>';
                     return;
                 }
@@ -3122,7 +3207,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error loading bot overview:', error);
                 botHasLoadedOnce = true;
                 setBotUpdatedNow();
-                columns.innerHTML = '<div class="column"><p>' + adminI18n.errLoadBotOverview + '</p></div>';
+                setBusy(botContainer, false);
+                const cols = document.getElementById('bot-columns') || columns;
+                if (cols) cols.innerHTML = '<div class="admin-bot-card"><p class="sp-text-danger">' + adminI18n.errLoadBotOverview + '</p></div>';
             });
     };
     // Smart refresh for bot overview - only refresh if section is open
@@ -3209,6 +3296,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const aiStatsContainer = document.getElementById('ai-platform-stats-content');
         if (!aiStatsContainer) return;
         aiStatsLoading = true;
+        aiStatsContainer.innerHTML = skeletonAiStatsHtml();
+        setBusy(aiStatsContainer, true);
         if (refreshAiStatsButton) {
             refreshAiStatsButton.disabled = true;
             refreshAiStatsButton.classList.add('sp-btn-loading');
@@ -3224,10 +3313,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     aiStatsContainer.innerHTML = '<p class="sp-text-danger">' + adminI18n.failLoadAiStats + '</p>';
                 }
+                setBusy(aiStatsContainer, false);
             })
             .catch(err => {
                 console.error('Error loading AI platform stats:', err);
                 aiStatsContainer.innerHTML = '<p class="sp-text-danger">' + adminI18n.failLoadAiStats + '</p>';
+                setBusy(aiStatsContainer, false);
             })
             .finally(() => {
                 aiStatsLoading = false;

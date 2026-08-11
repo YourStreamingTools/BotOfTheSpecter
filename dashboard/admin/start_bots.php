@@ -1118,33 +1118,32 @@ ob_start();
                         </td>
                         <td class="col-twitch-id"><?php echo htmlspecialchars($user['twitch_user_id']); ?></td>
                         <td class="col-status">
-                            <span class="sp-badge bot-status-tag"
-                                data-username="<?php echo htmlspecialchars($user['username']); ?>">
-                                <span class="icon"><i class="fas fa-spinner fa-pulse"></i></span>
-                                <span><?php echo t('admin_start_bots_status_checking'); ?></span>
+                            <span class="bot-status-tag"
+                                data-username="<?php echo htmlspecialchars($user['username']); ?>"
+                                aria-busy="true">
+                                <span class="sp-skeleton-badge" aria-hidden="true" style="width:5.5rem;"></span>
                             </span>
                         </td>
                         <td class="col-type">
-                            <span class="sp-badge sp-badge-amber bot-type-tag">
-                                <span><?php echo t('admin_start_bots_label_unknown'); ?></span>
+                            <span class="bot-type-tag" aria-busy="true">
+                                <span class="sp-skeleton-badge" aria-hidden="true" style="width:4rem;"></span>
                             </span>
                         </td>
                         <td class="col-uptime">
-                            <span class="sp-badge sp-badge-grey running-time-tag">
-                                <span>-</span>
+                            <span class="running-time-tag" aria-busy="true">
+                                <span class="sp-skeleton-badge" aria-hidden="true" style="width:3.5rem;"></span>
                             </span>
                         </td>
                         <td class="col-token">
-                            <span class="sp-badge token-status-tag"
-                                data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>">
-                                <span class="icon"><i class="fas fa-question"></i></span>
-                                <span><?php echo t('admin_start_bots_label_unknown'); ?></span>
+                            <span class="token-status-tag"
+                                data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>"
+                                aria-busy="true">
+                                <span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span>
                             </span>
                         </td>
                         <td class="col-mod">
-                            <span class="sp-badge mod-status-tag">
-                                <span class="icon"><i class="fas fa-question"></i></span>
-                                <span><?php echo t('admin_start_bots_label_unknown'); ?></span>
+                            <span class="mod-status-tag" aria-busy="true">
+                                <span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span>
                             </span>
                         </td>
                         <td class="col-actions">
@@ -1456,10 +1455,12 @@ ob_start();
             const isBetaFamily = runningType === 'beta' || runningType === 'custom';
             if (botTag) {
                 botTag.className = 'sp-badge sp-badge-green bot-status-tag';
+                botTag.removeAttribute('aria-busy');
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(sbFormat(SB_I18N.runningPid, inv.pid)) + '</span>';
             }
             if (botTypeTag) {
                 botTypeTag.className = botTypeBadgeClass(inv.bot_type);
+                botTypeTag.removeAttribute('aria-busy');
                 botTypeTag.innerHTML = '<span>' + escapeHtml(botTypeLabel(inv.bot_type)) + '</span>';
             }
             if (runningTimeTag) {
@@ -1469,6 +1470,7 @@ ob_start();
                     ? formatUptime(Number(rawUptime))
                     : (inv.uptime_human || SB_I18N.unknown);
                 runningTimeTag.className = 'sp-badge sp-badge-blue running-time-tag';
+                runningTimeTag.removeAttribute('aria-busy');
                 runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
             }
             if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
@@ -1523,16 +1525,19 @@ ob_start();
             const agoLabel = formatTimeAgo(Number(inv.last_seen_ago_seconds));
             if (botTag) {
                 botTag.className = 'sp-badge sp-badge-amber bot-status-tag';
+                botTag.removeAttribute('aria-busy');
                 botTag.title = sbFormat(SB_I18N.lastSeenAgo, agoLabel);
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>' +
                     escapeHtml(sbFormat(SB_I18N.wasRunning, agoLabel)) + '</span>';
             }
             if (botTypeTag) {
                 botTypeTag.className = botTypeBadgeClass(lastType);
+                botTypeTag.removeAttribute('aria-busy');
                 botTypeTag.innerHTML = '<span>' + escapeHtml(botTypeLabel(lastType)) + '</span>';
             }
             if (runningTimeTag) {
                 runningTimeTag.className = 'sp-badge sp-badge-amber running-time-tag';
+                runningTimeTag.removeAttribute('aria-busy');
                 runningTimeTag.title = inv.last_seen_at ? String(inv.last_seen_at) : '';
                 runningTimeTag.innerHTML = '<span>' + escapeHtml(sbFormat(SB_I18N.lastSeenAgo, agoLabel)) + '</span>';
             }
@@ -1573,15 +1578,18 @@ ob_start();
             if (attachConsoleBtnOff) { attachConsoleBtnOff.style.display = 'none'; attachConsoleBtnOff.disabled = true; }
             if (botTag) {
                 botTag.className = 'sp-badge sp-badge-red bot-status-tag';
+                botTag.removeAttribute('aria-busy');
                 botTag.removeAttribute('title');
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.notRunning) + '</span>';
             }
             if (botTypeTag) {
                 botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag';
+                botTypeTag.removeAttribute('aria-busy');
                 botTypeTag.innerHTML = '<span>' + escapeHtml(SB_I18N.botNotRunning) + '</span>';
             }
             if (runningTimeTag) {
                 runningTimeTag.className = 'sp-badge sp-badge-grey running-time-tag';
+                runningTimeTag.removeAttribute('aria-busy');
                 runningTimeTag.removeAttribute('title');
                 runningTimeTag.innerHTML = '<span>-</span>';
             }
@@ -1727,9 +1735,13 @@ ob_start();
         const msg = message || SB_I18N.error;
         document.querySelectorAll('.bot-status-tag').forEach(tag => {
             tag.className = 'sp-badge sp-badge-red bot-status-tag';
+            tag.removeAttribute('aria-busy');
             tag.title = String(msg);
             tag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-circle"></i></span><span>' +
                 escapeHtml(SB_I18N.error) + '</span>';
+        });
+        document.querySelectorAll('.bot-type-tag, .running-time-tag').forEach(tag => {
+            tag.removeAttribute('aria-busy');
         });
         const restartAllBtn = document.getElementById('restart-all-btn');
         if (restartAllBtn) restartAllBtn.disabled = true;
@@ -1829,10 +1841,21 @@ ob_start();
                 timer: 1500
             });
         }
-        // Update all bot status tags to show "Checking..." while we fetch
+        // Skeleton pills while inventory refreshes (name/avatar stay SSR)
         document.querySelectorAll('.bot-status-tag').forEach(tag => {
-            tag.className = 'sp-badge sp-badge-blue bot-status-tag';
-            tag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>' + escapeHtml(SB_I18N.checking) + '</span>';
+            tag.className = 'bot-status-tag';
+            tag.setAttribute('aria-busy', 'true');
+            tag.innerHTML = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:5.5rem;"></span>';
+        });
+        document.querySelectorAll('.bot-type-tag').forEach(tag => {
+            tag.className = 'bot-type-tag';
+            tag.setAttribute('aria-busy', 'true');
+            tag.innerHTML = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:4rem;"></span>';
+        });
+        document.querySelectorAll('.running-time-tag').forEach(tag => {
+            tag.className = 'running-time-tag';
+            tag.setAttribute('aria-busy', 'true');
+            tag.innerHTML = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:3.5rem;"></span>';
         });
         fetchRunningBotsInventory()
             .then(data => {
@@ -1944,8 +1967,9 @@ ob_start();
     async function validateUserToken(twitchUserId) {
         const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
         const tokenTag = row.querySelector('.token-status-tag');
-        tokenTag.className = 'sp-badge sp-badge-blue token-status-tag';
-        tokenTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>' + escapeHtml(SB_I18N.validating) + '</span>';
+        tokenTag.className = 'token-status-tag';
+        tokenTag.setAttribute('aria-busy', 'true');
+        tokenTag.innerHTML = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span>';
         try {
             const formData = new FormData();
             formData.append('validate_user_token', '1');
@@ -1957,6 +1981,7 @@ ob_start();
             const data = await response.json();
             if (data.success && data.valid) {
                 tokenTag.className = 'sp-badge sp-badge-green token-status-tag';
+                tokenTag.removeAttribute('aria-busy');
                 const hours = Math.floor(data.expires_in / 3600);
                 tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>${escapeHtml(sbFormat(SB_I18N.valid, hours))}</span>`;
                 // Update mod status if returned from server
@@ -1972,6 +1997,7 @@ ob_start();
                     // Skip mod check for BotOfTheSpecter's own channel
                     if (twitchUserId === '971436498') {
                         modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
+                        modTag.removeAttribute('aria-busy');
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>' + escapeHtml(SB_I18N.skipped) + '</span>';
                         if (makeModBtn) makeModBtn.style.display = 'none';
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
@@ -1979,6 +2005,7 @@ ob_start();
                         if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                     } else if (data.is_mod) {
                         modTag.className = 'sp-badge sp-badge-green mod-status-tag';
+                        modTag.removeAttribute('aria-busy');
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(SB_I18N.isModerator) + '</span>';
                         if (makeModBtn) makeModBtn.style.display = 'none';
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
@@ -1987,12 +2014,14 @@ ob_start();
                     } else if (data.is_banned) {
                         // Bot is BANNED
                         modTag.className = 'sp-badge sp-badge-red mod-status-tag';
+                        modTag.removeAttribute('aria-busy');
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>' + escapeHtml(SB_I18N.banned) + '</span>';
                         modTag.title = SB_I18N.reasonPrefix + (data.ban_reason || SB_I18N.noReasonProvided);
                         if (makeModBtn) makeModBtn.style.display = 'none';
                     } else {
                         // Not a moderator: show a warning state but allow admins to start the bot
                         modTag.className = 'sp-badge sp-badge-amber mod-status-tag';
+                        modTag.removeAttribute('aria-busy');
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>' + escapeHtml(SB_I18N.notAModerator) + '</span>';
                         if (makeModBtn) makeModBtn.style.display = 'inline-flex';
                         // Allow start button even if the bot is not a moderator (admins can start regardless)
@@ -2009,10 +2038,12 @@ ob_start();
             } else {
                 // Token invalid - attempt an automatic silent renewal
                 tokenTag.className = 'sp-badge sp-badge-amber token-status-tag';
+                tokenTag.removeAttribute('aria-busy');
                 tokenTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>' + escapeHtml(SB_I18N.invalidAttemptRenew) + '</span>';
                 const renewed = await renewUserToken(twitchUserId, true);
                 if (renewed) {
                     tokenTag.className = 'sp-badge sp-badge-green token-status-tag';
+                    tokenTag.removeAttribute('aria-busy');
                     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>' + escapeHtml(SB_I18N.renewed) + '</span>';
                     const startStableBtn = row.querySelector('.start-stable-btn');
                     const startBetaBtn = row.querySelector('.start-beta-btn');
@@ -2020,14 +2051,35 @@ ob_start();
                     if (startStableBtn) startStableBtn.disabled = false;
                     if (startBetaBtn) startBetaBtn.disabled = false;
                     if (startCustomBtn) startCustomBtn.disabled = !hasCustomBotEnabled(row);
+                    // Mod check deferred; resolve mod skeleton to unknown until refresh
+                    const modTag = row.querySelector('.mod-status-tag');
+                    if (modTag && modTag.getAttribute('aria-busy') === 'true') {
+                        modTag.className = 'sp-badge mod-status-tag';
+                        modTag.removeAttribute('aria-busy');
+                        modTag.innerHTML = '<span class="icon"><i class="fas fa-question"></i></span><span>' + escapeHtml(SB_I18N.unknown) + '</span>';
+                    }
                 } else {
                     tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
+                    tokenTag.removeAttribute('aria-busy');
                     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.renewalFailed) + '</span>';
+                    const modTag = row.querySelector('.mod-status-tag');
+                    if (modTag && modTag.getAttribute('aria-busy') === 'true') {
+                        modTag.className = 'sp-badge mod-status-tag';
+                        modTag.removeAttribute('aria-busy');
+                        modTag.innerHTML = '<span class="icon"><i class="fas fa-question"></i></span><span>' + escapeHtml(SB_I18N.unknown) + '</span>';
+                    }
                 }
             }
         } catch (error) {
             tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
+            tokenTag.removeAttribute('aria-busy');
             tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.error) + '</span>';
+            const modTag = row.querySelector('.mod-status-tag');
+            if (modTag && modTag.getAttribute('aria-busy') === 'true') {
+                modTag.className = 'sp-badge mod-status-tag';
+                modTag.removeAttribute('aria-busy');
+                modTag.innerHTML = '<span class="icon"><i class="fas fa-question"></i></span><span>' + escapeHtml(SB_I18N.unknown) + '</span>';
+            }
             console.error('Error validating token:', error);
         }
     }
@@ -2101,6 +2153,7 @@ ob_start();
         // Skip mod check for BotOfTheSpecter's own channel
         if (twitchUserId === '971436498') {
             modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
+            modTag.removeAttribute('aria-busy');
             modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>' + escapeHtml(SB_I18N.skipped) + '</span>';
             if (makeModBtn) makeModBtn.style.display = 'none';
             if (startStableBtn && !isRunning) startStableBtn.disabled = false;
@@ -2108,8 +2161,9 @@ ob_start();
             return;
         }
         try {
-            modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
-            modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>' + escapeHtml(SB_I18N.checking) + '</span>';
+            modTag.className = 'mod-status-tag';
+            modTag.setAttribute('aria-busy', 'true');
+            modTag.innerHTML = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span>';
             const formData = new FormData();
             formData.append('check_bot_mod_status', '1');
             formData.append('twitch_user_id', twitchUserId);
@@ -2121,33 +2175,39 @@ ob_start();
             if (result.success) {
                 if (result.is_mod) {
                     modTag.className = 'sp-badge sp-badge-green mod-status-tag';
+                    modTag.removeAttribute('aria-busy');
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>' + escapeHtml(SB_I18N.moderator) + '</span>';
                     if (makeModBtn) makeModBtn.style.display = 'none';
                 } else if (result.is_banned) {
                     modTag.className = 'sp-badge sp-badge-red mod-status-tag';
+                    modTag.removeAttribute('aria-busy');
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>' + escapeHtml(SB_I18N.banned) + '</span>';
                     modTag.title = SB_I18N.reasonPrefix + (result.ban_reason || SB_I18N.noReasonProvided);
                     if (makeModBtn) makeModBtn.style.display = 'none';
                 } else {
                     modTag.className = 'sp-badge sp-badge-amber mod-status-tag';
+                    modTag.removeAttribute('aria-busy');
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>' + escapeHtml(SB_I18N.notMod) + '</span>';
                     if (makeModBtn) makeModBtn.style.display = 'inline-flex';
                 }
             } else {
                 modTag.className = 'sp-badge sp-badge-red mod-status-tag';
+                modTag.removeAttribute('aria-busy');
                 modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>' + escapeHtml(SB_I18N.checkFailed) + '</span>';
             }
         } catch (e) {
             console.error('Error checking mod/ban status:', e);
             modTag.className = 'sp-badge sp-badge-red mod-status-tag';
+            modTag.removeAttribute('aria-busy');
             modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>' + escapeHtml(SB_I18N.error) + '</span>';
         }
     }
     async function renewUserToken(twitchUserId, silent = false) {
         const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
         const tokenTag = row.querySelector('.token-status-tag');
-        tokenTag.className = 'sp-badge sp-badge-blue token-status-tag';
-        tokenTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>' + escapeHtml(SB_I18N.renewing) + '</span>';
+        tokenTag.className = 'token-status-tag';
+        tokenTag.setAttribute('aria-busy', 'true');
+        tokenTag.innerHTML = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span>';
         try {
             const formData = new FormData();
             formData.append('renew_user_token', '1');
@@ -2159,11 +2219,13 @@ ob_start();
             const data = await response.json();
             if (data.success) {
                 tokenTag.className = 'sp-badge sp-badge-green token-status-tag';
+                tokenTag.removeAttribute('aria-busy');
                 const hours = Math.floor(data.expires_in / 3600);
                 tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>${escapeHtml(sbFormat(SB_I18N.renewedHours, hours))}</span>`;
                 return true;
             } else {
                 tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
+                tokenTag.removeAttribute('aria-busy');
                 tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.renewalFailed) + '</span>';
                 if (!silent) {
                     Swal.fire({
@@ -2176,6 +2238,7 @@ ob_start();
             }
         } catch (error) {
             tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
+            tokenTag.removeAttribute('aria-busy');
             tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.error) + '</span>';
             console.error('Error renewing token:', error);
             if (!silent) {
