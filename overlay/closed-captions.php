@@ -244,8 +244,9 @@ ob_end_clean();
             const committedActions = []; // parallel to committedLines: true => bracketed action tag
             let interimText = '';
             let fadeTimer = null;
-            // A caption is an action tag when the emitter flags it, or (fallback) the
-            // text is a single bracketed token like [LAUGHING].
+            let blockStaleFinals = false; // after hide/clear, drop late isFinal until new interim
+            let recentInterimNorm = '';
+            // Action tag when payload.action or single bracketed token like [LAUGHING]
             const isActionCaption = (payload, text) =>
                 (payload && payload.action === true) || /^\[.+\]$/.test(String(text || '').trim());
             const escapeHtml = text => {
@@ -253,10 +254,42 @@ ob_end_clean();
                 div.textContent = text == null ? '' : String(text);
                 return div.innerHTML;
             };
+            const normalizeCaption = text => String(text || '')
+                .toLowerCase()
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            // Same utterance if final ≈ recent interim (not a leftover previous sentence)
+            const captionsOverlap = (a, b) => {
+                if (!a || !b) {
+                    return false;
+                }
+                if (a === b || a.includes(b) || b.includes(a)) {
+                    return true;
+                }
+                const wb = b.split(' ').filter(Boolean);
+                if (wb.length < 2) {
+                    return wb.some(w => w.length > 2 && a.includes(w));
+                }
+                for (let i = 0; i < wb.length - 1; i++) {
+                    if (a.includes(wb[i] + ' ' + wb[i + 1])) {
+                        return true;
+                    }
+                }
+                return false;
+            };
             const clearCaptionMemory = () => {
                 committedLines.length = 0;
                 committedActions.length = 0;
                 interimText = '';
+                recentInterimNorm = '';
+            };
+            // Wipe text on hide so next speech starts clean
+            const hideAndClear = () => {
+                clearCaptionMemory();
+                renderBand();
+                blockStaleFinals = true;
+                ccBand.classList.add('is-faded');
             };
             const scheduleFade = () => {
                 if (fadeTimer) {
@@ -268,19 +301,15 @@ ob_end_clean();
                     return;
                 }
                 fadeTimer = setTimeout(() => {
-                    // Fully clear (not just opacity) so resume / late packets cannot resurrect
-                    // the last line when the streamer talks again.
-                    clearCaptionMemory();
-                    renderBand();
-                    ccBand.classList.add('is-faded');
+                    fadeTimer = null;
+                    hideAndClear();
                 }, seconds * 1000);
             };
             const wake = () => {
                 ccBand.classList.remove('is-faded');
                 scheduleFade();
             };
-            // Render committed lines + the interim line so the TOTAL never exceeds maxLines
-            // (the interim counts as one of the visible lines).
+            // Committed + interim share maxLines (interim counts as one slot)
             const renderBand = () => {
                 const max = Math.max(1, settings.maxLines);
                 const hasInterim = interimText.length > 0;
@@ -303,13 +332,11 @@ ob_end_clean();
                 }
             };
             const blankBand = () => {
-                clearCaptionMemory();
-                renderBand();
                 if (fadeTimer) {
                     clearTimeout(fadeTimer);
                     fadeTimer = null;
                 }
-                ccBand.classList.add('is-faded');
+                hideAndClear();
             };
             const commitText = (text, isAction) => {
                 const clean = String(text || '').trim();
@@ -323,11 +350,16 @@ ob_end_clean();
                     committedActions.shift();
                 }
                 interimText = '';
+                recentInterimNorm = '';
                 renderBand();
                 wake();
             };
             const showInterim = text => {
                 interimText = String(text || '').trim();
+                if (interimText) {
+                    recentInterimNorm = normalizeCaption(interimText);
+                    blockStaleFinals = false;
+                }
                 renderBand();
                 if (interimText) {
                     wake();
@@ -340,18 +372,23 @@ ob_end_clean();
                 const text = payload.text != null ? String(payload.text) : '';
                 const isFinal = payload.isFinal === true || payload.isFinal === 1 || payload.is_final === true;
                 const isAction = isActionCaption(payload, text);
-                // After fade/clear the band is empty but can still receive late isFinal
-                // packets (translate lag, finalize after silence). Drop those so the last
-                // sentence does not pop back as "confirmed" when the streamer talks again.
-                // New speech always starts as interim and is allowed through; action tags too.
-                if (ccBand.classList.contains('is-faded')) {
-                    clearCaptionMemory();
-                    if (isFinal && !isAction) {
+                // Drop late isFinal after hide/clear; allow interim + action tags
+                if (isFinal && !isAction) {
+                    if (ccBand.classList.contains('is-faded') || blockStaleFinals) {
                         return;
                     }
+                    // Stale final of previous sentence after new interim started
+                    if (recentInterimNorm) {
+                        const finalNorm = normalizeCaption(text);
+                        if (finalNorm && !captionsOverlap(finalNorm, recentInterimNorm)) {
+                            return;
+                        }
+                    }
                 }
-                // Action tags are always committed as their own caption line (they never
-                // arrive as interim text), flagged so renderBand styles them distinctly.
+                if (ccBand.classList.contains('is-faded') && !isFinal) {
+                    clearCaptionMemory(); // clean slate before new speech
+                }
+                // Action tags always commit as their own styled line
                 if (isFinal || isAction) {
                     commitText(text, isAction);
                 } else {

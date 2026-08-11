@@ -1227,14 +1227,18 @@ ob_start();
     // Weighted phrase confidence across multiple final SpeechRecognition results in one utterance.
     let pendingConfWeighted = 0;
     let pendingConfWordCount = 0;
-    // After a sentence is flushed, the next speech after a real pause should not re-show the
-    // previous confirmed line (overlay + dashboard preview start clean).
+    // After flush, next speech after a pause starts clean (no last-line stack)
     let lastFlushAt = 0;
     let awaitingResumeClear = false;
+    const SENTENCE_GAP_MS = 1000; // > VAD 180ms, << typical fade; clear previous line on resume
     const getFadeSeconds = () => {
         const el = document.getElementById('ccFadeSeconds');
         const n = el ? Number(el.value) : 5;
         return Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 5;
+    };
+    const getResumeClearMs = () => {
+        const fadeMs = getFadeSeconds() * 1000;
+        return fadeMs > 0 ? Math.min(fadeMs, SENTENCE_GAP_MS) : SENTENCE_GAP_MS;
     };
     const clearFinalizeTimer = () => {
         if (finalizeTimer) {
@@ -1252,17 +1256,11 @@ ob_start();
         if (pendingConfWordCount > 0) return pendingConfWeighted / pendingConfWordCount;
         return pendingConfidence;
     };
-    // Call when new speech arrives after a flush. If the pause was long enough that the
-    // previous line would feel "done", blank overlay + preview so last words do not sit
-    // there as confirmed next to the new utterance.
+    // New speech after sentence gap: blank overlay + preview so last line does not stick
     const prepareResumeSpeech = () => {
         if (!awaitingResumeClear) return;
         awaitingResumeClear = false;
-        const fadeMs = getFadeSeconds() * 1000;
-        // Match overlay fade when set; otherwise require a short pause so mid-phrase
-        // silence flushes (180ms VAD) do not wipe multi-line history every clause.
-        const pauseMs = fadeMs > 0 ? fadeMs : 1500;
-        if (Date.now() - lastFlushAt < pauseMs) return;
+        if (Date.now() - lastFlushAt < getResumeClearMs()) return;
         captionEpoch += 1;
         committedText = '';
         committedConfidence = null;
@@ -1383,15 +1381,10 @@ ob_start();
                     interim += transcript;
                 }
             }
-            // After we already flushed a sentence, Web Speech sometimes delivers a late final
-            // of the same utterance. Past the fade window that would re-open the overlay with
-            // the old line as interim/confirmed — drop it when the mic is idle.
-            // (Must run before prepareResumeSpeech, which clears awaitingResumeClear.)
+            // Drop late idle final of already-flushed sentence (before prepareResumeSpeech)
             if (gotNewFinal && !interim.trim() && awaitingResumeClear
                 && audioTap.getVadState && audioTap.getVadState() !== 'talking') {
-                const fadeMs = getFadeSeconds() * 1000;
-                const pauseMs = fadeMs > 0 ? fadeMs : 1500;
-                if (Date.now() - lastFlushAt >= pauseMs) {
+                if (Date.now() - lastFlushAt >= getResumeClearMs()) {
                     pendingUtterance = '';
                     pendingConfidence = null;
                     pendingWordConfidences = null;
@@ -1401,8 +1394,6 @@ ob_start();
                     return;
                 }
             }
-            // First audio after a long pause: blank the previous confirmed line so it does
-            // not sit on the overlay next to (or flash in as) the new utterance.
             if (interim.trim() || gotNewFinal) {
                 prepareResumeSpeech();
             }
