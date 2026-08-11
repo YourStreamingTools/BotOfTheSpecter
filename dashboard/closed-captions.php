@@ -817,6 +817,7 @@ ob_start();
         let analyserNode = null;
         let muteNode = null;
         let rafId = null;
+        let tickIntervalId = null; // used when tab is hidden (rAF freezes in background)
         let running = false;
         let vadState = 'idle';
         let releaseTimer = null;
@@ -824,6 +825,7 @@ ob_start();
             threshold: 0.08,
             releaseMs: 180,
         };
+        const TICK_MS = 50;
         const silenceListeners = [];
         const onSilenceFlush = (fn) => { silenceListeners.push(fn); };
         const notifySilenceFlush = () => { silenceListeners.forEach((fn) => fn()); };
@@ -859,10 +861,33 @@ ob_start();
                     notifySilenceFlush();
                 }, config.releaseMs);
             }
-            rafId = requestAnimationFrame(tick);
+        };
+        const stopTickLoop = () => {
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            if (tickIntervalId) { clearInterval(tickIntervalId); tickIntervalId = null; }
+        };
+        // rAF when visible (smooth); setInterval when hidden so silence flush still runs
+        const startTickLoop = () => {
+            stopTickLoop();
+            if (!running) return;
+            if (document.hidden) {
+                tickIntervalId = setInterval(tick, TICK_MS);
+                return;
+            }
+            const loop = () => {
+                tick();
+                if (running && !document.hidden) {
+                    rafId = requestAnimationFrame(loop);
+                }
+            };
+            rafId = requestAnimationFrame(loop);
+        };
+        const onVisibilityChange = () => {
+            if (!running) return;
+            startTickLoop();
         };
         const teardown = () => {
-            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            stopTickLoop();
             if (releaseTimer) { clearTimeout(releaseTimer); releaseTimer = null; }
             vadState = 'idle';
         };
@@ -894,7 +919,8 @@ ob_start();
                 sourceNode.connect(analyserNode);
                 analyserNode.connect(muteNode);
                 muteNode.connect(audioContext.destination);
-                rafId = requestAnimationFrame(tick);
+                document.addEventListener('visibilitychange', onVisibilityChange);
+                startTickLoop();
                 return true;
             } catch (e) {
                 stopTracks();
@@ -904,6 +930,7 @@ ob_start();
         const stop = () => {
             if (!running) return;
             running = false;
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             stopTracks();
         };
         const getSourceNode = () => sourceNode;
@@ -1152,16 +1179,43 @@ ob_start();
             confidence: phraseConf
         };
     };
+    const PREVIEW_MAX_WORDS = 48; // hard cap so a background-tab backlog cannot wall the UI
     const setPreview = (committed, interim, confidence, wordConfidences) => {
         if (!preview) return;
-        const clean = (committed + ' ' + interim).trim();
+        let committedShow = String(committed || '').trim();
+        let interimShow = String(interim || '').trim();
+        let wordConfShow = wordConfidences;
+        // Prefer recent words if the buffer ballooned (hidden-tab backlog)
+        const totalWords = (committedShow + ' ' + interimShow).trim().split(/\s+/).filter(Boolean).length;
+        if (totalWords > PREVIEW_MAX_WORDS) {
+            if (interimShow) {
+                const iWords = interimShow.split(/\s+/).filter(Boolean);
+                const iKeep = Math.min(iWords.length, Math.floor(PREVIEW_MAX_WORDS / 2));
+                interimShow = iWords.slice(-iKeep).join(' ');
+                const cBudget = PREVIEW_MAX_WORDS - iKeep;
+                const cWords = committedShow.split(/\s+/).filter(Boolean);
+                const cDropped = Math.max(0, cWords.length - cBudget);
+                committedShow = cWords.slice(-cBudget).join(' ');
+                if (wordConfShow && wordConfShow.length && cDropped > 0) {
+                    wordConfShow = wordConfShow.slice(cDropped);
+                }
+            } else {
+                const cWords = committedShow.split(/\s+/).filter(Boolean);
+                const cDropped = Math.max(0, cWords.length - PREVIEW_MAX_WORDS);
+                committedShow = cWords.slice(-PREVIEW_MAX_WORDS).join(' ');
+                if (wordConfShow && wordConfShow.length && cDropped > 0) {
+                    wordConfShow = wordConfShow.slice(cDropped);
+                }
+            }
+        }
+        const clean = (committedShow + ' ' + interimShow).trim();
         if (!clean) {
             preview.innerHTML = '<span class="cc-preview-placeholder">' + ccLang.previewPlaceholder + '</span>';
             return;
         }
         preview.textContent = '';
-        if (committed) {
-            const tokens = committed.split(/( +)/);
+        if (committedShow) {
+            const tokens = committedShow.split(/( +)/);
             let wordIdx = 0;
             tokens.forEach(token => {
                 if (!token) return;
@@ -1172,7 +1226,7 @@ ob_start();
                 const wordSpan = document.createElement('span');
                 wordSpan.className = 'cc-preview-final';
                 wordSpan.textContent = token;
-                const wConf = (showConfidence() && wordConfidences && wordConfidences[wordIdx] != null) ? wordConfidences[wordIdx] : null;
+                const wConf = (showConfidence() && wordConfShow && wordConfShow[wordIdx] != null) ? wordConfShow[wordIdx] : null;
                 if (wConf != null) {
                     const pct = Math.round(wConf * 100);
                     wordSpan.classList.add(confClassForPct(pct));
@@ -1191,10 +1245,10 @@ ob_start();
                 preview.appendChild(badge);
             }
         }
-        if (interim) {
+        if (interimShow) {
             const i = document.createElement('span');
             i.className = 'cc-preview-interim';
-            i.textContent = (committed ? ' ' : '') + interim;
+            i.textContent = (committedShow ? ' ' : '') + interimShow;
             preview.appendChild(i);
         }
     };
@@ -1288,20 +1342,18 @@ ob_start();
         lastFlushAt = Date.now();
         awaitingResumeClear = true;
     };
-    // After Web Speech finalizes a phrase with no further interim, promote to a confirmed
-    // caption even if VAD silence already fired early (race that left overlay stuck on gray).
-    // Only fire while the mic VAD is idle so a brief empty-interim gap mid-sentence does not
-    // punctuate early while the user is still talking.
+    // Promote pending to confirmed after a quiet final; skip VAD-idle wait when tab is hidden
     const scheduleFinalize = () => {
         clearFinalizeTimer();
+        const delay = document.hidden ? 250 : 450;
         finalizeTimer = setTimeout(() => {
             finalizeTimer = null;
-            if (audioTap.getVadState && audioTap.getVadState() === 'talking') {
-                // Still in an utterance — wait for silence flush or the next quiet window.
+            // Background tabs can leave VAD stuck on 'talking' if the last rAF never saw silence
+            if (!document.hidden && audioTap.getVadState && audioTap.getVadState() === 'talking') {
                 return;
             }
             flushPendingUtterance();
-        }, 450);
+        }, delay);
     };
     audioTap.onSilenceFlush(flushPendingUtterance);
     const QUESTION_STARTERS = new Set([
@@ -1413,15 +1465,16 @@ ob_start();
                 emitCaption(filteredStream, false);
                 setPreview(previewCommitted, filteredInterim, activeConf, activeWordConf);
             } else if (pendingUtterance) {
-                // Web Speech finalized with no further interim (pause / end of phrase).
-                // Stream the pending text so the overlay is not left on a stale gray fragment,
-                // then schedule confirmation (isFinal) — also covers the race where VAD silence
-                // fired before this final result arrived.
+                // Final with no interim: stream pending, then confirm (or flush now if tab hidden)
                 let filteredPending = applyLocaleSpelling(pendingUtterance.trim());
                 filteredPending = applyProfanityFilter(filteredPending);
                 emitCaption(filteredPending, false);
                 setPreview(previewCommitted, '', activeConf, activeWordConf);
-                scheduleFinalize();
+                if (document.hidden) {
+                    flushPendingUtterance(); // VAD/rAF unreliable in background; don't backlog
+                } else {
+                    scheduleFinalize();
+                }
             }
         };
         r.onerror = (event) => {
@@ -1523,6 +1576,13 @@ ob_start();
     };
     if (startBtn) startBtn.addEventListener('click', start);
     if (stopBtn) stopBtn.addEventListener('click', stop);
+    // Flush backlog when returning to the tab (hidden-tab VAD may have stalled)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden || runState !== 'started') return;
+        if (pendingUtterance && pendingUtterance.trim()) {
+            flushPendingUtterance();
+        }
+    });
     if (langSelect) langSelect.addEventListener('change', () => {
         if (runState === 'started' && recognition) {
             recognition.lang = langSelect.value;

@@ -244,6 +244,8 @@ ob_end_clean();
             const committedActions = []; // parallel to committedLines: true => bracketed action tag
             let interimText = '';
             let fadeTimer = null;
+            let clearAfterFadeTimer = null;
+            const FADE_MS = 600; // match .closed-captions-overlay-page-band transition
             let blockStaleFinals = false; // after hide/clear, drop late isFinal until new interim
             let recentInterimNorm = '';
             // Action tag when payload.action or single bracketed token like [LAUGHING]
@@ -284,8 +286,30 @@ ob_end_clean();
                 interimText = '';
                 recentInterimNorm = '';
             };
-            // Wipe text on hide so next speech starts clean
+            const cancelClearAfterFade = () => {
+                if (clearAfterFadeTimer) {
+                    clearTimeout(clearAfterFadeTimer);
+                    clearAfterFadeTimer = null;
+                }
+            };
+            // Fade opacity first (text still visible), wipe memory after transition ends
             const hideAndClear = () => {
+                blockStaleFinals = true;
+                ccBand.classList.add('is-faded');
+                cancelClearAfterFade();
+                clearAfterFadeTimer = setTimeout(() => {
+                    clearAfterFadeTimer = null;
+                    clearCaptionMemory();
+                    renderBand();
+                }, FADE_MS);
+            };
+            // Instant hide+wipe (resume clear / stop / CLOSED_CAPTION_CLEAR)
+            const blankBand = () => {
+                if (fadeTimer) {
+                    clearTimeout(fadeTimer);
+                    fadeTimer = null;
+                }
+                cancelClearAfterFade();
                 clearCaptionMemory();
                 renderBand();
                 blockStaleFinals = true;
@@ -306,6 +330,7 @@ ob_end_clean();
                 }, seconds * 1000);
             };
             const wake = () => {
+                cancelClearAfterFade();
                 ccBand.classList.remove('is-faded');
                 scheduleFade();
             };
@@ -330,13 +355,6 @@ ob_end_clean();
                     ccInterim.textContent = '';
                     ccInterim.classList.remove('is-active');
                 }
-            };
-            const blankBand = () => {
-                if (fadeTimer) {
-                    clearTimeout(fadeTimer);
-                    fadeTimer = null;
-                }
-                hideAndClear();
             };
             const commitText = (text, isAction) => {
                 const clean = String(text || '').trim();
