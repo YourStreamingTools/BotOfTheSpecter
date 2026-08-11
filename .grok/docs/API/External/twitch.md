@@ -4,7 +4,7 @@ Self-contained reference for the Twitch surfaces BotOfTheSpecter actually uses. 
 
 - Bot stable: `./bot/bot.py` - TwitchIO 2.10.0 (`./bot/requirements.txt`)
 - Bot beta: `./bot/beta.py` - TwitchIO 2.10.0 (`./bot/requirements.txt`)
-- Bot v6: `./bot/beta-v6.py` - TwitchIO 3.1.0 (`./bot/beta_requirements.txt`), native EventSub via `twitchio.ext.eventsub` and `commands.AutoBot`
+- Bot v6: `./bot/beta-v6.py` - TwitchIO 3.3.2 (`./bot/v6_requirements.txt`), native chat EventSub via `from twitchio import eventsub` and `commands.AutoBot`
 - API server: `./api/api.py` - FastAPI/aiohttp, app + user tokens
 - Dashboard: `./dashboard/*.php` - server-side cURL with the user's session access token
 - Other PHP entry points using OAuth: `./home/login.php`, `./home/oauth_callback.php`, `./roadmap/login.php`, `./members/login.php`, `./support/includes/session.php`, `./specterbotsystems/mybot/custombot.php`
@@ -731,14 +731,15 @@ Key behaviours:
 - `commands.CommandOnCooldown.retry_after` (float seconds).
 - IRC connection means TMI rate limits apply: 20 messages / 30s for non-mods, 100 / 30s for mods. Sending uses Helix `chat/messages` instead so this is mostly avoided, but join/part still count.
 
-### 6.2 v6 - TwitchIO 3.1.0 (rewrite)
+### 6.2 v6 - TwitchIO 3.3.2 (rewrite)
 
-Pin: `./bot/beta_requirements.txt` lines 3–4 (`twitchio==3.1.0` plus `twitchio[starlette]==3.1.0` for the optional ASGI bridge - currently unused in v6).
+Pin: `./bot/v6_requirements.txt` (`twitchio==3.3.2` plus `twitchio[starlette]==3.3.2` for the optional ASGI bridge - currently unused; `with_adapter=False`). Full library notes: [TwitchIO-Stable.md](./TwitchIO-Stable.md).
 
 ```python
 import twitchio
+from twitchio import eventsub  # NOT twitchio.ext.eventsub
 from twitchio.ext.commands import Context
-from twitchio.ext import commands, routines, eventsub
+from twitchio.ext import commands, routines
 
 class TwitchBot(commands.AutoBot):
     def __init__(self, prefix, client_id, client_secret, bot_id, owner_id,
@@ -759,19 +760,20 @@ async with TwitchBot(prefix='!', client_id=CLIENT_ID, client_secret=CLIENT_SECRE
 
 Differences that matter for porting from beta to v6:
 
-| Concern | TwitchIO 2.10 (stable/beta) | TwitchIO 3.1 (v6) |
+| Concern | TwitchIO 2.10 (stable/beta) | TwitchIO 3.3.2 (v6) |
 | --- | --- | --- |
 | Base class | `commands.Bot` | `commands.AutoBot` |
 | Bot identity | `token=...`, `nick`, `initial_channels=[...]` | `bot_id=`, `owner_id=`, `client_id`+`client_secret` mandatory |
 | Token mgmt | App passes one token at construction | `bot.add_token(access, refresh)` per user; `event_token_refreshed(payload)` fires automatically |
-| EventSub | Hand-roll WS + Helix POSTs | Native: `eventsub.ChatMessageSubscription(...)`, `subscriptions=[...]` arg; library still subscribes via Helix under the hood |
-| Chat ingest | IRC (`event_message`) | EventSub `channel.chat.message` (the stack still implements `event_message` for compatibility) |
+| EventSub import | n/a (hand-roll only) | **`from twitchio import eventsub`** (not `twitchio.ext.eventsub`) |
+| EventSub | Hand-roll WS + Helix POSTs | Native chat only: `eventsub.ChatMessageSubscription(...)`; non-chat still hand-rolled |
+| Chat ingest | IRC (`event_message` / `.content`) | EventSub `channel.chat.message` → `event_message` / **`.text`** |
 | Error context | `event_command_error(ctx, error)` | `event_command_error(payload: commands.CommandErrorPayload)` - read `payload.context` and `payload.exception` |
 | Cooldown attr | `error.retry_after` | `error.remaining` (still float seconds) |
-| Routines | `routines.routine(seconds=N)` | Same API |
-| ASGI server | n/a | `twitchio[starlette]` extra adds Starlette adapter for webhook transport (we don't use it) |
+| Routines | `routines.routine(seconds=N)` | `routines.routine(delta=timedelta(...))` |
+| ASGI server | n/a | `twitchio[starlette]` extra (unused; adapter off) |
 
-Both versions still hand-roll the EventSub WebSocket loop in `twitch_eventsub()` rather than relying on TwitchIO's built-in client - this is intentional so we control reconnect/backoff/dedup behavior across all three versions identically.
+Both versions still hand-roll the EventSub WebSocket loop in `twitch_eventsub()` for non-chat topics rather than relying solely on TwitchIO's built-in client - this is intentional so we control reconnect/backoff/dedup behavior across versions.
 
 ---
 

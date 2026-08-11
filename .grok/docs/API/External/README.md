@@ -15,7 +15,7 @@ Each file covers the **full API surface** scoped to what this project uses (and 
 | ---- | ------- | ------- |
 | [twitch.md](./twitch.md) | Twitch Helix REST, OAuth, EventSub, GraphQL | All bot versions, API server, dashboard |
 | [TwitchIO-Historical.md](./TwitchIO-Historical.md) | TwitchIO 2.10.0 | bot.py, beta.py |
-| [TwitchIO-Stable.md](./TwitchIO-Stable.md) | TwitchIO 3.x stable (v6 rewrite) | beta-v6.py |
+| [TwitchIO-Stable.md](./TwitchIO-Stable.md) | TwitchIO 3.3.2 stable (v6 rewrite) | beta-v6.py |
 | [discord.md](./discord.md) | discord.py, Discord REST API, OAuth2 | specterdiscord.py, dashboard |
 | [openai.md](./openai.md) | OpenAI Chat Completions, TTS, Usage API | All bots, WebSocket TTS handler, dashboard |
 | [spotify.md](./spotify.md) | Spotify Web API - playback, queue, search | All Twitch bots, dashboard |

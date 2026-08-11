@@ -1,807 +1,1068 @@
-# TwitchIO 3.x Stable - Reference
+# TwitchIO 3.x Stable — Reference (project pin 3.3.2)
 
-Local reference for **TwitchIO 3.x stable** as used by `./bot/beta-v6.py` (the v6 rewrite). For TwitchIO 2.10.0 used by `./bot/bot.py` and `./bot/beta.py`, see [TwitchIO-Historical.md](./TwitchIO-Historical.md). For the underlying Twitch HTTP API (Helix endpoints, OAuth, EventSub topic shapes), see [twitch.md](./twitch.md).
+> **Last Updated:** 2026-08-11  
+> **Source doc root:** <https://twitchio.dev/en/stable/>  
+> **Authoritative pin:** `twitchio==3.3.2` in `./bot/v6_requirements.txt` (+ `twitchio[starlette]==3.3.2`)  
+> **Audience:** agents working on `./bot/beta-v6.py`  
+> **Related:** [TwitchIO-Historical.md](./TwitchIO-Historical.md) (2.10.0 for `bot.py` / `beta.py`), [twitch.md](./twitch.md) (Helix / OAuth / hand-rolled EventSub)
 
-| File | TwitchIO version | requirements file | Class subclassed |
-| ---- | ---------------- | ----------------- | ---------------- |
-| `./bot/beta-v6.py` | **3.3.2** stable | `./bot/v6_requirements.txt` | `commands.AutoBot` |
+Local library reference for **TwitchIO 3.x stable**, scoped to what matters when porting or extending the v6 rewrite. Upstream claims are drawn from the stable docs tree. **Project-specific facts** (what `beta-v6` actually does) are labeled **Project** so they are not confused with pure library behaviour.
 
-Upstream docs: <https://twitchio.dev/en/stable/>
+| File | TwitchIO | Requirements | Base class |
+| ---- | -------- | ------------ | ---------- |
+| `./bot/beta-v6.py` | **3.3.2** | `./bot/v6_requirements.txt` | `commands.AutoBot` |
+| `./bot/bot.py` | 2.10.0 | `./bot/requirements.txt` | `commands.Bot` (IRC) |
+| `./bot/beta.py` | 2.10.0 | `./bot/requirements.txt` | `commands.Bot` (IRC) |
 
 ---
 
-## 1. Imports
+## Table of contents
+
+1. [Quick architecture snapshot](#1-quick-architecture-snapshot)
+2. [Installing & debugging](#2-installing--debugging)
+3. [Imports](#3-imports)
+4. [Client / Bot / AutoBot / AutoClient](#4-client--bot--autobot--autoclient)
+5. [Tokens, OAuth & web adapters](#5-tokens-oauth--web-adapters)
+6. [Lifecycle events](#6-lifecycle-events)
+7. [EventSub subscriptions](#7-eventsub-subscriptions)
+8. [Events catalog](#8-events-catalog)
+9. [Commands extension](#9-commands-extension)
+10. [Users / PartialUser / Chatter](#10-users--partialuser--chatter)
+11. [Helix models, enums & utils](#11-helix-models-enums--utils)
+12. [Routines & overlays ext](#12-routines--overlays-ext)
+13. [Exceptions](#13-exceptions)
+14. [Changelog notes 3.1 → 3.3.2](#14-changelog-notes-31--332)
+15. [Migration map 2.10 → 3.x](#15-migration-map-210--3x)
+16. [Project mapping (beta-v6)](#16-project-mapping-beta-v6)
+17. [Gotchas](#17-gotchas)
+18. [Upstream anchors](#18-upstream-anchors)
+
+---
+
+## 1. Quick architecture snapshot
+
+| Concept | 2.10 (`bot.py` / `beta.py`) | 3.x (`beta-v6`) |
+| ------- | --------------------------- | --------------- |
+| Chat transport | IRC (`initial_channels`, join/part) | **EventSub only** (WS / webhook / **Conduits**) |
+| Bot base | `commands.Bot` | Prefer **`commands.AutoBot`** (Bot + AutoClient) |
+| EventSub models | `twitchio.ext.eventsub` (2.x ext; stable/beta hand-roll WS) | **`from twitchio import eventsub`** |
+| Message text | IRC `.content` | **`ChatMessage.text`**; Context uses **`ctx.content`** for command text |
+| IDs | Often `int` | **Always `str`** on models |
+| Tokens | Constructor `token=` / manual refresh | `add_token` / `load_tokens` / `save_tokens`, auto-refresh |
+| Start | `bot.run()` | `async with Bot() as bot: await bot.start()` |
+| PubSub / sounds | Extensions | **Removed** (PubSub shut down by Twitch; sounds → future Overlays) |
+| Min Python | 3.7+ | **3.11+** |
+
+**Project:** `beta-v6` uses native TwitchIO only for **chat** (`ChatMessageSubscription` → `event_message` + `process_commands`). Follows, raids, subs, redeems, stream online/offline, etc. stay on the **hand-rolled** EventSub WebSocket (`twitch_eventsub` / `subscribe_to_events`), same control plane as stable/beta.
+
+---
+
+## 2. Installing & debugging
+
+### Python support
+
+| Python | Status |
+| ------ | ------ |
+| ≤ 3.10 | **Not supported** |
+| 3.11–3.14 | Fully supported |
+| ≥ 3.15 | May need custom pip index for prebuilt wheels |
+
+### Base install
+
+```bash
+pip install -U twitchio
+# Project pin:
+pip install twitchio==3.3.2
+pip install "twitchio[starlette]==3.3.2"   # optional ASGI adapter; beta-v6 starts with_adapter=False
+```
+
+### Optional extras
+
+| Extra | Command | Purpose |
+| ----- | ------- | ------- |
+| **starlette** | `pip install -U twitchio[starlette]` | `twitchio.web.StarletteAdapter` (Starlette ≥1.0.0 as of 3.3.0) |
+| **dev** / **docs** | `twitchio[dev]` / `twitchio[docs]` | Tooling / docs build |
+
+Default web adapter is **AiohttpAdapter** (no extra). **Removed vs 2.x:** `[sounds]`, `[speed]`.
+
+**Python ≥ 3.15 custom index:**
+
+```bash
+pip install -U twitchio --extra-index-url https://abstractumbra.github.io/pip/
+```
+
+**Version dump:**
+
+```bash
+# Windows
+py -m twitchio --version
+# Linux
+python -m twitchio --version
+```
+
+### Debugging
+
+```python
+import logging
+import twitchio
+
+handler = logging.FileHandler(filename="twitchio.log", encoding="utf-8", mode="w")
+twitchio.utils.setup_logging(level=logging.DEBUG, handler=handler)
+```
+
+Call `setup_logging()` once before start. Prefer logging over `print`.
+
+---
+
+## 3. Imports
 
 ```python
 import twitchio
+from twitchio import eventsub          # 3.x — NOT twitchio.ext.eventsub
+from twitchio.ext.commands import Context
+from twitchio.ext import commands, routines
+```
+
+**Project** (`./bot/beta-v6.py` imports):
+
+```python
 from twitchio import eventsub
 from twitchio.ext.commands import Context
 from twitchio.ext import commands, routines
 ```
 
-Used at the top of `./bot/beta-v6.py`. EventSub subscription models live under **`twitchio.eventsub`** (not `twitchio.ext.eventsub`). Used for `eventsub.ChatMessageSubscription` chat subscriptions.
+Subscription constructors live on `twitchio.eventsub` (e.g. `eventsub.ChatMessageSubscription`). Event **payload** models are re-exported as top-level `twitchio.ChatMessage`, `twitchio.ChannelFollow`, etc.
 
 ---
 
-## 2. `commands.AutoBot` subclass
+## 4. Client / Bot / AutoBot / AutoClient
 
-This project subclasses **`commands.AutoBot`** (the Conduit-backed variant), not `commands.Bot`. `AutoBot` adds Conduit-based EventSub load balancing on top of `Bot`. Both share the same constructor surface for the parameters this project uses.
-
-Reference: <https://twitchio.dev/en/stable/exts/commands/index.html>, <https://twitchio.dev/en/stable/references/client.html>
-
-Constructor parameters:
-
-```python
-commands.AutoBot(
-    *,
-    prefix: str | list[str] | Callable | Coroutine,
-    client_id: str,
-    client_secret: str,
-    bot_id: str,                 # str in 3.x (was int in 2.x)
-    owner_id: str | None = None,
-    subscriptions: list[eventsub.SubscriptionPayload] | None = None,
-    force_subscribe: bool = False,
-    case_insensitive: bool = False,
-    redirect_uri: str | None = None,
-    scopes: list[str] | None = None,
-    session: aiohttp.ClientSession | None = None,
-    adapter: BaseAdapter | None = None,
-    fetch_client_user: bool = True,
-)
-```
-
-**Removed vs 2.10:** `token`, `initial_channels`, `heartbeat`, `retain_cache`, `loop`. There is no IRC channel join - chat presence is achieved by registering an `eventsub.ChatMessageSubscription`.
-
-Project shape (`./bot/beta-v6.py:2624-2638`):
-
-```python
-class TwitchBot(commands.AutoBot):
-    def __init__(self, prefix, client_id, client_secret, bot_id, owner_id, subscriptions, force_subscribe):
-        super().__init__(
-            prefix=prefix,
-            case_insensitive=True,
-            client_id=client_id,
-            client_secret=client_secret,
-            bot_id=bot_id,
-            owner_id=owner_id,
-            subscriptions=subscriptions,
-            force_subscribe=force_subscribe,
-        )
-        self.channel_name = CHANNEL_NAME
-        self.running_commands = set()
-```
-
-Bootstrap (`./bot/beta-v6.py:12746-12766`):
-
-```python
-async def main() -> None:
-    if SELF_MODE:
-        bot_user_id = CHANNEL_ID
-    elif CUSTOM_MODE:
-        bot_user_id = await _fetch_custom_bot_user_id()
-    else:
-        bot_user_id = "971436498"  # official Specter bot
-
-    subs = [eventsub.ChatMessageSubscription(broadcaster_user_id=CHANNEL_ID, user_id=bot_user_id)]
-
-    async with TwitchBot(
-        prefix='!',
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        bot_id=BOT_ID,
-        owner_id=OWNER_ID,
-        subscriptions=subs,
-        force_subscribe=True,
-    ) as bot:
-        await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)
-        await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)
-```
-
-Lifecycle differences from 2.10:
-
-- 3.x supports **async context manager** (`async with TwitchBot(...) as bot:`). Resource cleanup is automatic on exit.
-- `bot.start(...)` is async (vs 2.10's blocking `bot.run()`).
-- `with_adapter=False` disables the built-in OAuth/webhook web server.
-- `load_tokens=False, save_tokens=False` disables the on-disk `.tio.tokens.json` round-trip - this project keeps tokens in MySQL `twitch_bot_access`.
-- `await bot.add_token(access_token, refresh_token)` registers a user token so Helix calls have credentials.
-
----
-
-## 3. Event lifecycle
-
-| Event | Signature | Project hooks it? |
-| ----- | --------- | ----------------- |
-| `setup_hook(self)` | no payload | Defined as no-op (`./bot/beta-v6.py:2640-2641`). Runs after login, before `event_ready`. |
-| `event_ready(self)` | no payload | Yes - `./bot/beta-v6.py:2649`. Kicks off all background tasks. |
-| `event_message(self, message: twitchio.ChatMessage)` | **`ChatMessage`**, not `Message` | Yes - `./bot/beta-v6.py:2740` |
-| `event_command_error(self, payload: commands.CommandErrorPayload)` | **single payload arg** (was `(ctx, error)` in 2.10) | Yes - `./bot/beta-v6.py:2707`. Access via `payload.context` and `payload.exception` |
-| `event_token_refreshed(self, payload: twitchio.TokenRefreshedPayload)` | refresh notice | Yes - `./bot/beta-v6.py:2643`. Updates `CHANNEL_AUTH` global. |
-| `event_error(self, payload: twitchio.EventErrorPayload)` | uncaught error | Available |
-
-**Removed in 3.x** (do not exist):
-
-- `event_join`, `event_part` - IRC join/part. Gone with IRC.
-- `event_channel_joined` - replaced by EventSub registration confirmation.
-- `event_raw_data`, `event_raw_usernotice`, `event_usernotice_subscription` - IRC raw events.
-- `event_token_expired` - replaced by `event_token_refreshed` (auto-refresh built in via `add_token`).
-
-`event_command_error`'s **payload-style signature is the most common 2.10→3.x bug source.** A 2.10 handler `async def event_command_error(self, ctx, error):` will silently never fire in 3.x.
-
----
-
-## 4. Command framework
-
-Decorator: `@commands.command(name=..., aliases=...)` - same name as 2.10.
-
-**In 3.x, command methods on a `Bot`/`AutoBot` subclass are instance methods and keep `self`.** The no-`self` form applies only to commands defined inside a **Component** (see §4.3).
-
-```python
-# Both 2.10 and 3.x - Bot subclass methods keep self
-@commands.command(name='commands', aliases=['cmds'])
-async def commands_command(self, ctx: commands.Context):
-    ...
-```
-
-See `./bot/beta-v6.py:3587-3588` vs `./bot/beta.py:3587-3588`.
-
-### 4.1 Context attributes (3.x)
-
-| Attribute | Type | Notes |
-| --------- | ---- | ----- |
-| `ctx.author` / `ctx.chatter` | `Chatter \| PartialUser` | Sender - same object, two aliases |
-| `ctx.broadcaster` / `ctx.channel` | `PartialUser` | Channel owner (`channel` is an alias for `broadcaster`) |
-| `ctx.source_broadcaster` | `PartialUser \| None` | Source channel for shared-chat commands |
-| `ctx.message` | `ChatMessage \| None` | **`.text`** in 3.x (not `.content`). `None` for redemption contexts. |
-| `ctx.redemption` | `ChannelPointsRedemptionAdd \| None` | Set when triggered by a channel points redemption |
-| `ctx.payload` | `ChatMessage \| redemption` | Whichever object triggered the command |
-| `ctx.type` | `ContextType` | `ContextType.MESSAGE` or `ContextType.REWARD` |
-| `ctx.prefix` | `str \| None` | The matched prefix |
-| `ctx.content` | `str` | Full command string content |
-| `ctx.command` | `Command \| RewardCommand \| None` | Resolved command object |
-| `ctx.invoked_with` | `str \| None` | The name or alias used to invoke |
-| `ctx.invoked_subcommand` | `Command \| None` | Resolved subcommand (for `Group` commands) |
-| `ctx.component` | `Component \| None` | Parent component, if command lives in one |
-| `ctx.bot` | `commands.Bot` | The Bot instance |
-| `ctx.args` | `list` | Positional arguments parsed from the command |
-| `ctx.kwargs` | `dict` | Keyword arguments parsed from the command |
-| `ctx.translator` | `Translator \| None` | Attached translator, if any |
-| `ctx.failed` | `bool` | Whether invocation failed |
-| `ctx.is_owner() → bool` | - | Check if invoker is the bot owner |
-| `ctx.is_valid() → bool` | - | Check if context is still valid |
-| `await ctx.send(content, *, me=False) → SentMessage` | - | Send; `me=True` for `/me` format |
-| `await ctx.send_translated(content, *, langcode=None)` | - | Send with built-in translator |
-| `await ctx.reply(content, *, me=False) → SentMessage` | - | Reply threading the parent message ID |
-| `await ctx.reply_translated(content, *, langcode=None)` | - | Reply with translator |
-| `await ctx.send_announcement(content, *, color=None)` | - | Send a channel announcement |
-| `await ctx.delete_message()` | - | Delete the triggering message |
-| `await ctx.clear_messages()` | - | Clear all messages in channel |
-
-### 4.2 CommandErrorPayload (3.x)
-
-Passed to `event_command_error`:
-
-| Attribute | Type |
-| --------- | ---- |
-| `payload.context` | `commands.Context` |
-| `payload.exception` | `Exception` |
-
-Cooldown error attribute changed: `error.retry_after` (2.10) → `error.remaining` (3.x), both float seconds:
-
-```python
-# 2.10 (./bot/bot.py:1785)
-retry_after = max(1, math.ceil(error.retry_after))
-# 3.x (./bot/beta-v6.py:2712)
-retry_after = max(1, math.ceil(error.remaining))
-```
-
-### 4.3 Components (3.x replacement for Cogs)
-
-`commands.Component` is the 3.x way to organise commands and listeners outside the Bot subclass. Added with `await self.add_component(MyComponent())` from `setup_hook`.
-
-In a Component, commands drop `self` and event listeners use `@commands.Component.listener()`:
-
-```python
-class MyComponent(commands.Component):
-    @commands.command()
-    async def my_command(ctx: commands.Context): ...
-
-    @commands.Component.listener()
-    async def event_message(self, message: twitchio.ChatMessage): ...
-```
-
-**Lifecycle methods** (override in your Component subclass; all optional):
-
-| Method | Called when |
-| ------ | ----------- |
-| `async def component_load(self)` | After the component is added to the bot |
-| `async def component_teardown(self)` | Before the component is removed |
-| `async def component_before_invoke(self, ctx)` | Before any command in this component is invoked |
-| `async def component_after_invoke(self, ctx)` | After any command in this component completes |
-| `async def component_command_error(self, ctx, error)` | Command error from within this component (supersedes `event_command_error`) |
-
-**`@Component.guard()` decorator** - apply a guard to every command in the component:
-
-```python
-class MyComponent(commands.Component):
-    @commands.Component.guard()
-    async def _guard(self, ctx: commands.Context) -> bool:
-        return ctx.author.is_mod
-```
-
-**Properties** (read-only):
-
-| Property | Description |
-| -------- | ----------- |
-| `component.extras()` | `dict` of extra metadata set on the component |
-| `component.guards()` | `list` of guard callables attached to the component |
-
-**Project doesn't use Components** - all commands are still methods on the `TwitchBot` subclass.
-
-### 4.4 Guards (3.x permission decorators)
-
-Guards are decorators that gate command execution. If a guard returns `False` or raises, `GuardFailure` is raised.
-
-| Guard | Description |
-| ----- | ----------- |
-| `@commands.guard(func)` | Custom guard - `func(ctx) -> bool` (sync or async) |
-| `@commands.is_owner()` | Passes only for the bot owner (`owner_id` in constructor) |
-| `@commands.is_broadcaster()` | Passes only for the channel broadcaster |
-| `@commands.is_moderator()` | Passes for mods and above |
-| `@commands.is_vip()` | Passes for VIPs and above |
-| `@commands.is_staff()` | Passes for Twitch staff |
-| `@commands.is_lead_moderator()` | Passes for lead mods and above |
-| `@commands.is_elevated()` | Passes for any elevated user (mod, VIP, staff, etc.) |
-
-```python
-@commands.command()
-@commands.is_moderator()
-async def modonly_cmd(self, ctx: commands.Context): ...
-
-# Custom guard
-async def is_subscriber(ctx):
-    return ctx.author.is_subscriber
-
-@commands.command()
-@commands.guard(is_subscriber)
-async def subonly_cmd(self, ctx: commands.Context): ...
-```
-
-Guard failure raises `commands.GuardFailure` - catch in `event_command_error`. `CommandOnCooldown` is a subclass of `GuardFailure`.
-
-**Project uses its own `command_permissions(role, author)` check instead of built-in Guards.**
-
-### 4.5 Exceptions (3.x hierarchy)
+### Hierarchy
 
 ```text
-commands.CommandError
-├── commands.ComponentLoadError
-├── commands.CommandInvokeError(message, original)  → .original
-│   └── commands.CommandHookError(message, original)  → .original
-├── commands.CommandNotFound
-├── commands.CommandExistsError
-├── commands.PrefixError
-├── commands.InputError
-│   └── commands.ArgumentError
-│       ├── commands.ConversionError  → commands.BadArgument(message, name, value)
-│       ├── commands.MissingRequiredArgument(param)
-│       ├── commands.UnexpectedQuoteError
-│       ├── commands.InvalidEndOfQuotedStringError
-│       └── commands.ExpectedClosingQuoteError
-├── commands.GuardFailure(message, guard)
-│   └── commands.CommandOnCooldown(message, cooldown, remaining)  → .remaining (seconds, float)
-└── commands.TranslatorError(message, original)  → .original
-
-commands.ModuleError
-├── commands.ModuleLoadFailure
-├── commands.ModuleAlreadyLoadedError
-├── commands.ModuleNotLoadedError
-└── commands.NoEntryPointError
+twitchio.Client
+  └── twitchio.ext.commands.Bot          # commands, Components, modules
+        (AutoClient path:)
+twitchio.AutoClient                      # Conduit + multi_subscribe
+  └── twitchio.ext.commands.AutoBot      # Bot + AutoClient  ← beta-v6
 ```
 
-**Key 2.10 → 3.x exception changes:**
+| Class | Import | When to use |
+| ----- | ------ | ----------- |
+| `Client` | `twitchio.Client` | Helix/HTTP only, no chat commands |
+| `Bot` | `from twitchio.ext import commands` → `commands.Bot` | Commands + manual `subscribe_websocket` / `subscribe_webhook` |
+| `AutoBot` | `commands.AutoBot` | **Multi-channel / Conduit continuity** (docs preferred) |
+| `AutoClient` | `twitchio.AutoClient` | Conduits without commands ext |
 
-| 2.10 | 3.x |
-| ---- | --- |
-| `commands.CheckFailure` | `commands.GuardFailure` |
-| `commands.MissingPermissions` | `commands.GuardFailure` (folded in) |
-| `error.retry_after` (CommandOnCooldown) | `error.remaining` |
-| No `ComponentLoadError` | `commands.ComponentLoadError` |
-| No `TranslatorError` | `commands.TranslatorError` |
+`Bot` subclasses `Client` — everything on `Client` is on `Bot`. `AutoBot` = `Bot` + `AutoClient`.
 
----
-
-## 5. EventSub - mostly hand-rolled
-
-3.x's selling point is native EventSub WebSocket: pass `eventsub.*Subscription` instances via `subscriptions=` to `AutoBot`, and the library opens the WebSocket, manages session ID, dispatches typed payloads to `event_*` handlers.
-
-### 5.1 Available subscription classes (partial)
-
-- `eventsub.ChatMessageSubscription(broadcaster_user_id, user_id)`
-- `eventsub.StreamOnlineSubscription(broadcaster_user_id)` / `StreamOfflineSubscription`
-- `eventsub.ChannelFollowSubscription(broadcaster_user_id, moderator_user_id)`
-- `eventsub.ChannelSubscribeSubscription`, `ChannelSubscriptionGiftSubscription`, `ChannelSubscriptionMessageSubscription`
-- `eventsub.ChannelRaidSubscription(to_broadcaster_user_id=...)` / `(from_broadcaster_user_id=...)`
-- `eventsub.ChannelAdBreakBeginSubscription`
-- `eventsub.ChannelPointsRedeemAddSubscription`, `ChannelPointsAutoRedeemAddSubscription`
-- `eventsub.ChannelPollBeginSubscription` / `EndSubscription`
-- `eventsub.ChannelHypeTrainBeginSubscription` / `EndSubscription`
-- `eventsub.ChannelModerateSubscription`
-- `eventsub.ChannelChatNotificationSubscription`
-- `eventsub.ChannelBanSubscription`, `ChannelUnbanSubscription`
-- `eventsub.AutomodMessageHoldSubscription`
-- `eventsub.SuspiciousUserMessageSubscription`
-- `eventsub.ChannelShoutoutCreateSubscription` / `ReceiveSubscription`
-- `eventsub.SharedChatSessionBeginSubscription` / `Update` / `End`
-
-Full list: <https://twitchio.dev/en/stable/references/eventsub/index.html>
-
-### 5.2 Corresponding event names
-
-- `event_message` ← `ChatMessageSubscription`
-- `event_message_delete` ← `ChatMessageDelete`
-- `event_stream_online` / `event_stream_offline`
-- `event_follow`
-- `event_subscription` / `event_subscription_gift` / `event_subscription_message`
-- `event_raid`
-- `event_ad_break_begin`
-- `event_custom_redemption_add` / `event_automatic_redemption_add`
-- `event_poll_begin` / `event_poll_end`
-- `event_hype_train_begin` / `event_hype_train_end`
-- `event_moderate`
-- `event_chat_notification`
-- `event_ban` / `event_unban`
-- `event_shoutout_create` / `event_shoutout_receive`
-
-### 5.3 How this project actually uses it
-
-The v6 bot only uses **one** native subscription:
+### Recommended start (upstream)
 
 ```python
-# ./bot/beta-v6.py:12754
-subs = [eventsub.ChatMessageSubscription(broadcaster_user_id=CHANNEL_ID, user_id=bot_user_id)]
+import asyncio
+import twitchio
+
+if __name__ == "__main__":
+    async def main() -> None:
+        twitchio.utils.setup_logging()
+        async with Bot() as bot:
+            await bot.start()
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        ...
 ```
 
-That single registration drives `event_message` (and the entire command framework). **Every other EventSub topic** is registered by the same hand-rolled WebSocket that bot.py and beta.py use:
+- Prefer **async context manager** for clean shutdown + token save.
+- `setup_hook()` runs after login, before full ready — load Components / modules / late subs here.
+- App token is **auto-generated** on start; rarely pass one to `start()` / `login()` / `run()`.
+- **Do not** call `login()` if using `start()`/`run()` — they call it.
+- **`wait_until_ready()` inside `setup_hook` deadlocks.**
 
-- Conduit lookup/creation: `./bot/beta-v6.py:548-587` (`get_or_create_conduit`)
-- WebSocket loop: `./bot/beta-v6.py:589-616` (`twitch_eventsub`)
-- Subscription POSTs: `./bot/beta-v6.py:618-738` (`subscribe_to_events`)
-- Reconnect handling: `EventSubReconnect` at `./bot/beta-v6.py:543-546`
+### `Client` constructor (key params)
 
-**What this means when adding a new topic:**
+| Param | Notes |
+| ----- | ----- |
+| `client_id` | Twitch Developer Portal app client ID |
+| `client_secret` | Same app; optional only for **DCF** (3.3.0+) |
+| `bot_id` | Bot account user ID; highly recommended; enables bot-owned tokens |
+| `redirect_uri`, `scopes`, `session`, `adapter`, `fetch_client_user` | Options |
 
-- Add it to `subscribe_to_events()` in beta-v6.py (same `topics` list shape as beta.py).
-- Do **not** assume `event_follow`/`event_raid`/etc. will fire - they won't.
-- If you want to switch a topic to native handling: add the `eventsub.*Subscription(...)` to the `subs` list in `main()`, write the `event_*` handler, and remove it from the hand-rolled list. Don't half-migrate - duplicate subscriptions cause duplicate dispatches.
+### `Bot` constructor
+
+| Param | Notes |
+| ----- | ----- |
+| `client_id`, `client_secret` | App credentials (`client_secret` optional on Bot for DCF) |
+| `bot_id` | **Required** on `Bot` (docs; DCF may relax) |
+| `owner_id` | Optional owner user ID |
+| `prefix` | `str` \| iterable \| **async** callable `(bot, message: ChatMessage) -> str \| list[str]` |
+
+### `AutoBot` / `AutoClient` extra params
+
+| Param | Default | Role |
+| ----- | ------- | ---- |
+| `subscriptions` | `[]` | List of `eventsub.SubscriptionPayload` |
+| `force_subscribe` | `False` | If `True`, subscribe every start even when reusing Conduit (**3.1.0**) |
+| `force_scale` | `False` | Force Conduit shard count to `len(shard_ids)` (**3.1.0**) |
+| `conduit_id` | `None` | `None` = auto one-or-create; `str` = specific Conduit; `True` = always create new |
+| `shard_ids` | auto | Explicit shard ownership for multi-process |
+| `max_per_shard` | `1000` | Shard count ≈ `max(2, len(subs)/max_per_shard)` when `shard_ids` omitted |
+
+**Conduit continuity:** subscriptions survive disconnect **up to 72 hours**. Reconnect within 72h → no resubscribe. After 72h → need `subscriptions` / `multi_subscribe` / `force_subscribe`.
+
+**Constructor `subscriptions` auto-apply only when a NEW conduit is created** unless `force_subscribe=True`.
+
+Conduit subscriptions use **App Access Tokens**. Users must still authorize the Client-ID with required scopes.
+
+### Important methods
+
+| Method | Class | Notes |
+| ------ | ----- | ----- |
+| `setup_hook()` | Client/Bot | Async setup after login |
+| `start(load_tokens=True, save_tokens=True, with_adapter=True, ...)` | Client | Main entry; AutoBot loads conduit |
+| `run(...)` | Client | Creates loop; **cannot** use inside running loop |
+| `login()` / `login_dcf()` / `start_dcf()` | Client | DCF = Device Code Flow (**3.3.0**); DCF forbids `client_secret` |
+| `add_token(token, refresh)` | Client | Both required; returns `ValidateTokenPayload`; always `await super().add_token` if overriding |
+| `load_tokens()` / `save_tokens()` | Client | Default file **`.tio.tokens.json`**; runs load **before** `setup_hook` |
+| `subscribe_websocket(payload, *, as_bot=..., token_for=...)` | Client/Bot | `as_bot` defaults **True** on Bot, **False** on bare Client |
+| `subscribe_webhook(payload, ...)` | Client/Bot | Docs: **not** for chat messages |
+| `multi_subscribe(subs, *, wait=True, stop_on_error=False)` | AutoClient/AutoBot | Bulk conduit subs → `MultiSubscribePayload` |
+| `delete_websocket_subscription` | Client | **Not implemented** on AutoClient/AutoBot |
+| `add_component(component)` | Bot | Loads commands + `@Component.listener()` |
+| `load_module` / `unload_module` / `reload_module` | Bot | **Coroutines** in 3.x; need `async def setup(bot)` |
+| `create_partialuser(user_id, user_login=None)` | Client | Renamed from `create_user` |
+| `wait_until_ready()` | Client | Was `wait_for_ready` |
+| `wait_for(event, *, predicate=..., timeout=...)` | Client | Event name **without** `event_` prefix; `predicate` **async**, keyword-only |
+| `safe_dispatch(name, *, payload=None)` | Client | Dispatches as `event_safe_{name}`; 0 or 1 arg |
+
+### Conduit models (brief)
+
+| Type | Notes |
+| ---- | ----- |
+| `ConduitInfo` | Via `auto.conduit_info` — `update_shard_count(shard_count, *, assign_transports=True)` rewires AutoClient websockets |
+| `Conduit` | `delete()`, `update(shard_count)` — **API-only** scale; does **not** rebind AutoClient websockets |
+| `ConduitShard` | `id`, `method`, `session_id`, `status`, … |
+| `MultiSubscribePayload` | `success: list[MultiSubscribeSuccess]`, `errors: list[MultiSubscribeError]` |
+
+**Shard status values (selected):** `enabled`, `websocket_disconnected`, `websocket_failed_ping_pong`, `websocket_failed_to_reconnect`, `notification_failures_exceeded`, webhook verification states, etc.
+
+**MissingConduit** if `multi_subscribe` / `update_shard_count` before conduit assignment.
+
+### AutoClient setup cases
+
+| Case | Config | Behaviour |
+| ---- | ------ | --------- |
+| **1 (common)** | `conduit_id=None` | Exactly 1 conduit → attach + keep subs; 0 → create. Single process. |
+| **2** | `conduit_id="…"` + optional `shard_ids` | Pin conduit; multi-process split shards |
+| **3** | `conduit_id=True` | Force-create new conduit |
 
 ---
 
-## 6. Token storage
+## 5. Tokens, OAuth & web adapters
 
-3.x has an opinionated token model:
+### Managed token API
 
-- `Client.add_token(token: str, refresh: str)` - register a user token. Library refreshes before expiry, emits `event_token_refreshed`.
-- `Client.remove_token(user_id: str)` - drop a token.
-- `Client.load_tokens(path: str | None = None)` - reads `.tio.tokens.json` by default. Override to load from DB.
-- `Client.save_tokens(path: str | None = None)` - writes `.tio.tokens.json` by default. Override to persist to DB.
+| Piece | Names |
+| ----- | ----- |
+| Web adapters | `twitchio.web.AiohttpAdapter`, `twitchio.web.StarletteAdapter` |
+| Token API | `Client.tokens`, `add_token`, `remove_token`, `load_tokens`, `save_tokens` |
+| Events | `event_oauth_authorized(payload)`, `event_token_refreshed(...)` |
+| Scopes helper | `twitchio.Scopes` (+ `Scopes.from_url()` in 3.2.0) |
 
-This project **disables the file path mechanism** (`load_tokens=False, save_tokens=False`) and also keeps a parallel manual refresh (`twitch_token_refresh()` at `./bot/beta-v6.py:461-526`). Both run - the library's auto-refresh keeps Helix calls alive; the manual task keeps the MySQL `twitch_bot_access` row authoritative for overlays/dashboard.
+| Item | Value |
+| ---- | ----- |
+| OAuth redirect (Dev Console) | `http://localhost:4343/oauth/callback` |
+| Authorize URL | `http://localhost:4343/oauth?scopes=...` |
+| Token file | `.tio.tokens.json` (on graceful close) |
+| Helix auth | `token_for=` (user id / PartialUser); many methods accept **`token_for=None`** for app token (3.3.0+) |
 
-To replace the manual task with a proper DB-backed adapter: subclass `Client`/`Bot`/`AutoBot`, override `load_tokens()` / `save_tokens()` to read/write `twitch_bot_access`, then drop the manual task.
+### Adapter defaults
 
----
+| Path | Purpose |
+| ---- | ------- |
+| `/oauth?scopes=…` | Start OAuth |
+| `/oauth/callback` | Redirect URI |
+| `/callback` | EventSub webhook |
 
-## 7. Sending chat
+Adapter starts by default; pass `with_adapter=False` to disable. Without public `domain`, webhooks unsupported. Persist `eventsub_secret` or it regenerates every restart.
 
-3.x exposes `await ctx.send(...)`, `await partial_user.send_message(...)`, etc., backed by Helix. **This project still uses its own Helix `send_chat_message(...)` function** (`./bot/beta-v6.py:12437+`) - same shape as `./bot/bot.py:10547`, same endpoint, same reply-parent threading. Architectural consistency across versions takes priority over using the library's send helpers.
+### Custom token storage (upstream pattern)
 
----
+Override `add_token` → `await super().add_token(token, refresh)` then write DB. On boot: load DB pairs, `await bot.add_token(*pair)`, then `await bot.start(load_tokens=False)`.
 
-## 8. Helix access
+Force-kill during save can wipe `.tio.tokens.json` — prefer SQL in production.
 
-```python
-users = await self.fetch_users(logins=["someuser"])    # 3.x: logins= (was names=)
-users = await self.fetch_users(ids=["971436498"])       # 3.x: ids are str (was int)
-streams = await self.fetch_streams(user_logins=[...])   # returns HTTPAsyncIterator
-channel = await self.fetch_channel(broadcaster_id="...")
-partial = self.create_partialuser(user_id="...", user_login="...")
-```
-
-Paginated methods return `HTTPAsyncIterator` - `await` for the first page (returns a list), `async for` to iterate all pages. `token_for=` accepts a user-ID string or `PartialUser` (replaces 2.10's `token=`).
-
-```python
-users = await self.fetch_users(logins=["someuser"])            # list
-async for stream in self.fetch_streams(user_logins=[...]): ... # full iteration
-```
-
-Full method reference on the Client/Bot/AutoBot instance:
-
-| Method | Returns | Notes |
-| ------ | ------- | ----- |
-| `fetch_users(ids=None, logins=None, token_for=None)` | `list[User]` | `logins=` = login strings; `ids=` = str list in 3.x |
-| `fetch_user(id=None, login=None, token_for=None)` | `User \| None` | Single user |
-| `fetch_streams(user_ids=None, user_logins=None, game_ids=None, languages=None, type=None, token_for=None, first=None, max_results=None)` | `HTTPAsyncIterator[Stream]` | |
-| `fetch_channel(broadcaster_id, token_for=None)` | `ChannelInfo \| None` | Single channel metadata |
-| `fetch_channels(broadcaster_ids, token_for=None)` | `list[ChannelInfo]` | Multiple channels |
-| `fetch_game(name=None, id=None, igdb_id=None, token_for=None)` | `Game \| None` | |
-| `fetch_games(names=None, ids=None, igdb_ids=None, token_for=None)` | `list[Game]` | |
-| `fetch_top_games(token_for=None)` | `HTTPAsyncIterator[Game]` | |
-| `fetch_clips(game_id=None, clip_ids=None, started_at=None, ended_at=None, token_for=None, first=None, max_results=None)` | `HTTPAsyncIterator[Clip]` | |
-| `fetch_videos(...)` | `HTTPAsyncIterator[Video]` | |
-| `fetch_emotes(token_for=None)` | `list[GlobalEmote]` | Global Twitch emotes |
-| `fetch_emote_sets(emote_set_ids, token_for=None)` | `list[EmoteSet]` | |
-| `fetch_badges(token_for=None)` | `list[ChatBadge]` | Global chat badges |
-| `fetch_cheermotes(broadcaster_id=None, token_for=None)` | `list[Cheermote]` | |
-| `fetch_chatters_color(user_ids, token_for=None)` | `list[ChatterColor]` | |
-| `search_channels(query, live_only=False)` | `HTTPAsyncIterator[SearchChannel]` | |
-| `search_categories(query)` | `HTTPAsyncIterator[Game]` | |
-| `create_partialuser(user_id, user_login)` | `PartialUser` | No API call - lightweight reference |
-| `add_token(token, refresh)` | `ValidateTokenPayload` | Register a user token pair |
-| `remove_token(user_id)` | `TokenMappingData \| None` | |
-| `wait_until_ready()` | `None` | Renamed from 2.10's `wait_for_ready()` |
-| `wait_for(event, predicate=None, timeout=60.0)` | event payload | Raises `TimeoutError` on timeout |
-| `safe_dispatch(name, payload)` | `None` | Manually fire a custom event |
-
-Project usage: `./bot/beta-v6.py:4113`, `./bot/beta-v6.py:4158`, `./bot/beta-v6.py:6794`, `./bot/beta-v6.py:7057` - all use `self.fetch_users(logins=[...])`.
-
----
-
-## 9. Routines (3.x)
-
-Reference: <https://twitchio.dev/en/stable/exts/routines/index.html>
-
-### `@routines.routine()` decorator
-
-```python
-@routines.routine(
-    delta: timedelta | None = None,
-    time: datetime | None = None,
-    name: str | None = None,
-    iterations: int | None = None,
-    wait_first: bool = False,
-    wait_remainder: bool = False,
-    max_attempts: int | None = 5,
-    stop_on_error: bool = False,
-)
-async def my_task(): ...
-```
-
-| Parameter | Type | Default | Description |
-| --------- | ---- | ------- | ----------- |
-| `delta` | `timedelta \| None` | - | Interval between iterations. Mutually exclusive with `time`. |
-| `time` | `datetime \| None` | - | Run at a fixed time of day. Mutually exclusive with `delta`. |
-| `name` | `str \| None` | `None` | Optional identifier for the routine |
-| `iterations` | `int \| None` | `None` | Max iterations; `None` = infinite |
-| `wait_first` | `bool` | `False` | Wait one interval before the first run |
-| `wait_remainder` | `bool` | `False` | If `True`, only waits the *remaining* time after iteration completes (vs full interval) |
-| `max_attempts` | `int \| None` | `5` | Consecutive error limit before stopping; resets on success. `None` = unlimited |
-| `stop_on_error` | `bool` | `False` | Stop immediately on any error, overriding `max_attempts` |
-
-Raises `TypeError` if decorated function is not a coroutine. Raises `RuntimeError` if both `time` and `delta` provided.
-
-### `Routine` class methods and attributes
-
-| Member | Description |
-| ------ | ----------- |
-| `start(*args, **kwargs) → Task` | Start the routine; raises `RuntimeError` if already running |
-| `stop()` | Gracefully stop after current iteration completes |
-| `cancel()` | Immediately cancel |
-| `restart(*, force: bool = True)` | Restart; `force=True` cancels immediately |
-| `change_interval(*, delta=None, time=None, wait_first=False)` | Modify the running interval |
-| `next_iteration() → float` | Seconds until next scheduled run |
-| `completed_iterations` | `int` - count of successful iterations |
-| `remaining_iterations` | `int \| None` |
-| `current_iteration` | `int` - current iteration number |
-| `last_iteration` | `datetime \| None` - when current iteration started |
-| `args` / `kwargs` | Positional/keyword args passed to `start()` |
-| `@before_routine` | Decorator: coroutine to run before first iteration |
-| `@after_routine` | Decorator: coroutine to run after stop/cancel/completion |
-| `@error` | Decorator: custom error handler receiving `Exception` |
-
-**Key 2.10 → 3.x changes:**
-- `seconds=`/`minutes=`/`hours=` → `delta=timedelta(...)` (required)
-- `start_time` attribute removed - use `last_iteration`
-- `stop_on_error` moved from `start()` parameter to `@routine()` parameter
-- New: `wait_remainder`, `max_attempts`, `name`, `current_iteration`, `args`, `kwargs`
-
-Project usage in v6 (one-shot timers):
-
-```python
-@routines.routine(delta=timedelta(seconds=duration_seconds), iterations=1, wait_first=True)
-async def _delayed_thing(): ...
-_delayed_thing.start()
-```
-
-Callsites: `./bot/beta-v6.py:9794`, `./bot/beta-v6.py:11931`.
-
----
-
-## 10. Key types
-
-### `twitchio.ChatMessage`
-
-Passed to `event_message` and accessible via `ctx.message`:
-
-| Attribute | Type | Notes |
-| --------- | ---- | ----- |
-| `message.text` | `str` | Plain text body (was `.content` in 2.10) |
-| `message.chatter` | `Chatter` | Sender (was `.author`) |
-| `message.broadcaster` | `PartialUser` | Channel owner |
-| `message.source_broadcaster` | `PartialUser \| None` | Set when message arrived via shared chat. Project filters at `./bot/beta-v6.py:2744-2745`. |
-| `message.id` | `str` | Message ID |
-| `message.type` | `str` | Message type (e.g. `'text'`, `'channel_points_highlighted'`) |
-| `message.colour` / `.color` | `str \| None` | Chatter's display colour |
-| `message.fragments` | `list[ChatMessageFragment]` | Structured chunks - each has `.text`, `.type`, `.mention`, `.cheermote`, `.emote` |
-| `message.emotes` | `list[ChatMessageEmote]` | Emote segments with `.set_id`, `.id`, `.owner`, `.format` |
-| `message.cheermotes` | `list[ChatMessageCheermote]` | Cheer segments with `.prefix`, `.bits`, `.tier` |
-| `message.badges` | `list[ChatMessageBadge]` | Badges with `.set_id`, `.id`, `.info` |
-| `message.reply` | `ChatMessageReply \| None` | Reply context: `.parent_message_id`, `.parent_message_body`, `.parent_user`, `.thread_message_id`, `.thread_user` |
-| `message.cheer` | `ChatMessageCheer \| None` | Present if message has a cheer: `.bits` |
-| `message.channel_points_id` | `str \| None` | Channel points reward ID if redeemed |
-| `message.source_id` | `str \| None` | Source message ID when in shared chat |
-| `message.source_badges` | `list \| None` | Badges from source channel |
-| `message.source_only` | `bool \| None` | `True` if message only appears in source channel |
-| `message.mentions` | `list` | Mentioned users |
-| `message.timestamp` | `datetime` | |
-| `await message.delete()` | - | Delete the message (requires moderator token) |
-| `await message.respond(content)` | - | Reply to this message |
-
-### `twitchio.Chatter` (3.x)
-
-| Attribute | Type | Notes |
-| --------- | ---- | ----- |
-| `.name` | `str` | Login name |
-| `.display_name` | `str` | Display name |
-| `.id` | `str` | User ID - **str in 3.x** (was int in 2.10) |
-| `.is_mod` | `bool` | |
-| `.is_subscriber` | `bool` | |
-| `.is_vip` | `bool` | |
-| `.is_broadcaster` | `bool` | |
-| `.colour` / `.color` | `str \| None` | Hex colour string or None |
-| `.badges` | `list[ChatMessageBadge]` | Active badges |
-
-### `twitchio.PartialUser`
-
-Lightweight reference for API calls. `.id` (str), `.name`, `.display_name`, `.mention` (returns `"@display_name"`). Build with `bot.create_partialuser(user_id=..., user_login=...)`.
-
-Key methods (full list at upstream reference):
+### Device Code Flow (3.3.0)
 
 | Method | Notes |
 | ------ | ----- |
-| `send_message(message, sender, *, token_for=None, reply_to_message_id=None, source_only=None) → SentMessage` | Broadcaster is implicit (the object called on). **Project uses `send_chat_message()` instead.** |
-| `send_announcement(message, *, color=None, token_for=None)` | Send a chat announcement |
-| `send_shoutout(to_broadcaster, *, token_for=None)` | Send a shoutout |
-| `send_whisper(to_user, message, *, token_for=None)` | Send a whisper |
-| `fetch_channel_info(*, token_for=None)` | Returns `ChannelInfo` |
-| `ban_user(user, *, reason=None, token_for=None)` | Permanent ban |
-| `timeout_user(user, duration, *, reason=None, token_for=None)` | Timed ban |
-| `unban_user(user, *, token_for=None)` | Unban |
-| `add_moderator(user, *, token_for=None)` | Grant mod |
-| `remove_moderator(user, *, token_for=None)` | Remove mod |
-| `add_vip(user, *, token_for=None)` | Grant VIP |
-| `remove_vip(user, *, token_for=None)` | Remove VIP |
-| `create_clip(*, has_delay=False, token_for=None)` | Create a clip |
-| `create_poll(title, choices, duration, *, token_for=None, ...)` | Create a poll |
-| `create_prediction(title, outcomes, window, *, token_for=None)` | Create a prediction |
-| `fetch_clips(...)` | `HTTPAsyncIterator[Clip]` |
-| `fetch_custom_rewards(*, token_for=None)` | `list[CustomReward]` |
+| `login_dcf(...)` | Call before `start_dcf`. Raises if `client_secret` present. |
+| `start_dcf(...)` | Completes DCF. Refresh tokens single-use, ~30 days. |
 
-### `twitchio.TokenRefreshedPayload`
+### **Project** token behaviour
 
-Passed to `event_token_refreshed`: `.user_id` (str), `.token` (new access token), `.refresh_token`. Project hook: `./bot/beta-v6.py:2643-2647`.
-
-### Key EventSub payload types
-
-Event handlers receive typed payload objects. Common ones this project may use:
-
-| Payload class | Fired by | Key attributes |
-| ------------- | -------- | -------------- |
-| `twitchio.ChatMessage` | `event_message` | See table above |
-| `twitchio.ChatMessageDelete` | `event_message_delete` | `.broadcaster`, `.user`, `.message_id` |
-| `twitchio.ChatNotification` | `event_chat_notification` | `.broadcaster`, `.chatter`, `.notice_type`, `.sub`, `.resub`, `.raid`, `.announcement`, etc. |
-| `twitchio.ChannelFollow` | `event_follow` | `.broadcaster`, `.user`, `.followed_at` |
-| `twitchio.ChannelSubscribe` | `event_subscription` | `.broadcaster`, `.user`, `.tier`, `.gift` |
-| `twitchio.ChannelSubscriptionMessage` | `event_subscription_message` | `.user`, `.tier`, `.months`, `.cumulative_months`, `.streak_months`, `.text` |
-| `twitchio.ChannelSubscriptionGift` | `event_subscription_gift` | `.user`, `.tier`, `.total`, `.anonymous`, `.cumulative_total` |
-| `twitchio.ChannelCheer` | `event_cheer` | `.broadcaster`, `.user`, `.anonymous`, `.bits`, `.message` |
-| `twitchio.ChannelRaid` | `event_raid` | `.from_broadcaster`, `.to_broadcaster`, `.viewer_count` |
-| `twitchio.ChannelBan` | `event_ban` | `.broadcaster`, `.user`, `.moderator`, `.reason`, `.banned_at`, `.ends_at`, `.permanent` |
-| `twitchio.ChannelUnban` | `event_unban` | `.broadcaster`, `.user`, `.moderator` |
-| `twitchio.ChannelAdBreakBegin` | `event_ad_break_begin` | `.broadcaster`, `.requester`, `.duration`, `.automatic`, `.started_at` |
-| `twitchio.ChannelPointsRedemptionAdd` | `event_custom_redemption_add` | `.broadcaster`, `.user`, `.user_input`, `.id`, `.status`, `.redeemed_at`, `.reward`; methods: `.fulfill()`, `.refund()` |
-| `twitchio.ChannelModerate` | `event_moderate` | `.broadcaster`, `.moderator`, `.action`, plus action-specific attrs (`.ban`, `.timeout`, `.raid`, etc.) |
-| `twitchio.SharedChatSessionBegin/Update/End` | shared chat events | `.session_id`, `.broadcaster`, `.host`, `.participants` |
-
-All payload objects have `.headers`, `.metadata`, `.subscription_data`, `.timestamp` and an async `.respond(content)` method (sends to the associated channel).
+- CLI `-token` / `-refresh`; **no** `.tio.tokens.json`.
+- Bootstrap: `await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)` then `await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)`.
+- `event_token_refreshed` updates `CHANNEL_AUTH` when `user_id` matches channel or bot.
+- Parallel task `twitch_token_refresh()` persists MySQL `website.twitch_bot_access` (same dual-refresh idea as stable/beta).
 
 ---
 
-## 11. Migration map: 2.10 → 3.x
+## 6. Lifecycle events
 
-The fastest reference for porting from `beta.py` to `beta-v6.py`. If a row says "no change," still re-read the line you copy - this codebase has subtle DB call differences (`mysql_connection()` → `mysql_handler.get_connection()`) alongside the TwitchIO ones.
+### Design rules (3.x)
 
-### 11.1 Imports
+| Rule | Detail |
+| ---- | ------ |
+| **Arity** | Almost all events take **exactly one** argument: payload (or `Context`). Exception: **`event_ready()` takes zero args**. |
+| **Transport** | Chat and most “IRC-era” events are **EventSub only**. No `event_join` / `event_part` / `event_raw_*` / `event_usernotice_*`. |
+| **Subscription required** | EventSub-backed events need `subscribe_websocket` / `subscribe_webhook` / Conduit `multi_subscribe` / AutoBot constructor subs **per broadcaster**. |
+| **V1+V2 duals** | Some Twitch types share one event name (Automod Hold V1/V2 → `event_automod_message_hold`; Moderate V1/V2 → `event_mod_action`). |
+| **wait_for** | Name **without** `event_` prefix (for `event_message` prefer `"message"`). `predicate` async + keyword-only. |
 
-| 2.10 | 3.x |
-| ---- | --- |
-| `import twitchio` | `import twitchio` |
-| `from twitchio.ext.commands import Context` | same |
-| `from twitchio.ext import commands, routines` | `from twitchio.ext import commands, routines, eventsub` |
+### Client events
 
-### 11.2 Bot class
+| Event | Signature | Notes |
+| ----- | --------- | ----- |
+| `event_ready` | `async def event_ready() -> None` | After login; tokens loaded; `setup_hook` finished |
+| `event_error` | `async def event_error(payload: EventErrorPayload)` | Exception in listener; errors **inside** this handler do not re-fire it |
+| `event_token_refreshed` | `async def event_token_refreshed(payload: TokenRefreshedPayload)` | Persist new access/refresh |
+| `event_oauth_authorized` | `async def event_oauth_authorized(payload: UserTokenPayload)` | Default calls `add_token` |
+| `event_subscription_revoked` | `async def event_subscription_revoked(payload: SubscriptionRevoked)` | One-shot; statuses include `user_removed`, `authorization_revoked`, `version_removed`; webhook also `notification_failures_exceeded` |
+| `event_websocket_welcome` | `async def event_websocket_welcome(payload: WebsocketWelcome)` | EventSub/Conduit WS connected |
 
-| 2.10 | 3.x |
-| ---- | --- |
-| `class TwitchBot(commands.Bot):` | `class TwitchBot(commands.AutoBot):` |
-| `__init__(self, token, prefix, channel_name)` | `__init__(self, prefix, client_id, client_secret, bot_id, owner_id, subscriptions, force_subscribe)` |
-| `super().__init__(token=..., prefix=..., initial_channels=[chan], case_insensitive=True)` | `super().__init__(prefix=..., case_insensitive=True, client_id=..., client_secret=..., bot_id=..., ...)` |
-| `bot.run()` (blocking) | `async with bot: await bot.add_token(...); await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)` |
+**Payload attrs:**
 
-### 11.3 Lifecycle / events
+| Class | Attributes |
+| ----- | ---------- |
+| `EventErrorPayload` | `error`, `listener`, `original` |
+| `TokenRefreshedPayload` | `user_id`, `refresh_token`, `token`, `scopes`, `expires_in` |
 
-| 2.10 | 3.x | Notes |
-| ---- | --- | ----- |
-| `async def event_ready(self):` | `async def event_ready(self):` | Same name, same signature |
-| _(no setup_hook)_ | `async def setup_hook(self):` | New optional hook between login and ready |
-| `async def event_message(self, message):` | `async def event_message(self, message):` | Same name; `message` is now `ChatMessage` |
-| `async def event_command_error(self, ctx, error):` | `async def event_command_error(self, payload):` | **Single payload arg.** Use `payload.context`, `payload.exception` |
-| _(no event_token_refreshed)_ | `async def event_token_refreshed(self, payload):` | Library auto-refresh hook |
-| `async def event_channel_joined(self, channel):` | _(removed)_ | No IRC join |
-| `async def event_join(self, channel, user):` | _(removed)_ | No IRC |
-| `async def event_part(self, channel, user):` | _(removed)_ | No IRC |
-| `async def event_message_delete(self, message):` | `async def event_message_delete(self, payload):` | Now a `ChatMessageDelete` EventSub payload |
-| `async def event_raw_data(self, data):` | _(removed)_ | No IRC |
-| `async def event_token_expired(self):` | _(removed)_ | Replaced by `event_token_refreshed` |
+### Commands events
 
-### 11.4 Command method shape
+| Event | Signature | Notes |
+| ----- | --------- | ----- |
+| `event_command_invoked` | `(ctx: Context)` | Command starts |
+| `event_command_completed` | `(ctx: Context)` | Successful completion |
+| `event_command_error` | `(payload: CommandErrorPayload)` | **Not** `(ctx, error)`. Use `payload.context` / `payload.exception` |
 
-| 2.10 | 3.x |
-| ---- | --- |
-| `async def cmd(self, ctx):` | `async def cmd(self, ctx: commands.Context):` - **`self` stays** on Bot/AutoBot subclass methods |
-| `async def cmd(self, ctx, user: str, n: int):` | `async def cmd(self, ctx: commands.Context, user: str, n: int):` |
-| `async def cmd(self, ctx, *, message: str):` | `async def cmd(self, ctx: commands.Context, *, message: str):` |
-| _(Component only)_ `async def handler(self, ...)` | `async def handler(ctx: commands.Context):` - Component commands drop `self` |
-
-### 11.5 Context
-
-| 2.10 | 3.x |
-| ---- | --- |
-| `ctx.author` | `ctx.author` or `ctx.chatter` (same object) |
-| `ctx.author.id` (int) | `ctx.author.id` (str) |
-| `ctx.channel` (Channel) | `ctx.broadcaster` (PartialUser) preferred |
-| `ctx.message.content` | `ctx.message.text` |
-| `await ctx.send("...")` | `await ctx.send("...")` (same) |
-
-### 11.6 Message object in `event_message`
-
-| 2.10 (`twitchio.Message`) | 3.x (`twitchio.ChatMessage`) |
-| ------------------------- | ---------------------------- |
-| `message.content` | `message.text` |
-| `message.author` | `message.chatter` |
-| `message.author.id` (int) | `message.chatter.id` (str) |
-| `message.channel` (Channel) | `message.broadcaster` (PartialUser) |
-| `message.echo` | Id check: `if message.chatter.id == str(BOT_ID): return` (`./bot/beta-v6.py:2756`) |
-| `message.tags['source-room-id']` | `message.source_broadcaster` - `None` for normal, set for shared-chat |
-
-### 11.7 Helix fetches
-
-| 2.10 | 3.x |
-| ---- | --- |
-| `self.fetch_users(names=[login])` | `self.fetch_users(logins=[login])` |
-| `self.fetch_users(ids=[12345])` (int) | `self.fetch_users(ids=["12345"])` (str) |
-| `self.fetch_users(token=user_token)` | `self.fetch_users(token_for=user_id_str)` |
-| `self.fetch_streams(...)` → list | `self.fetch_streams(...)` → `HTTPAsyncIterator` |
-| `bot.create_user(...)` | `bot.create_partialuser(user_id=..., user_login=...)` |
-| `bot.wait_for_ready()` | `bot.wait_until_ready()` |
-
-### 11.8 EventSub registration
-
-| 2.10 | 3.x |
-| ---- | --- |
-| Hand-rolled WS + aiohttp POST to Helix | (a) **Native:** `subscriptions=[eventsub.*Subscription(...)]` - library handles WS + dispatch. (b) **This project:** keeps hand-rolled for all topics except chat (see §5.3). |
-
-### 11.9 Error handling
-
-| 2.10 | 3.x |
-| ---- | --- |
-| `event_command_error(self, ctx, error)` | `event_command_error(self, payload)` |
-| `error.retry_after` (CommandOnCooldown) | `error.remaining` (CommandOnCooldown) |
-| `commands.CommandNotFound` | same |
-
-### 11.10 Routines
-
-| 2.10 | 3.x |
-| ---- | --- |
-| `@routines.routine(seconds=60.0)` | `@routines.routine(delta=timedelta(seconds=60))` |
-| `@routines.routine(minutes=5)` | `@routines.routine(delta=timedelta(minutes=5))` |
-| `routine.start_time` | removed - use `routine.last_iteration`, `routine.next_iteration()` |
-
-### 11.11 Cogs → Components
-
-| 2.10 | 3.x |
-| ---- | --- |
-| `commands.Cog` | `commands.Component` |
-| `bot.add_cog(MyCog(bot))` | `await bot.add_component(MyComponent())` (from `setup_hook`) |
-| `Cog.__init__` calls `super().__init__()` | Component `__init__` must **NOT** call `super().__init__()` |
-| `@commands.Cog.event()` | `@commands.Component.listener()` |
-
-### 11.12 Removed / discontinued
-
-| 2.10 | 3.x replacement |
-| ---- | --------------- |
-| `from twitchio.ext import pubsub` | **PubSub removed** - Twitch discontinued the API. Migrate to EventSub. |
-| `from twitchio.ext import eventsub` (webhook/WS clients) | `from twitchio.ext import eventsub` is now subscription *models* only. |
-| `bot.connect()`, `bot.join_channels(...)`, `bot.part_channels(...)` | Removed - IRC is gone. Use `ChatMessageSubscription`. |
-| `bot.get_channel(name)` | Removed. Use `bot.create_partialuser(user_login=name)`. |
-| `heartbeat`, `retain_cache`, `initial_channels` | Removed Bot kwargs. |
-| `Client(loop=...)` | Removed - uses ambient asyncio loop. |
-
-### 11.13 Identifier types
-
-| 2.10 | 3.x |
-| ---- | --- |
-| User IDs are `int` | User IDs are `str` - **check every comparison throughout the codebase** |
-| `bot_id: int` | `bot_id: str` |
-| `fetch_users(ids=[12345])` | `fetch_users(ids=["12345"])` |
-
-### 11.14 Python and dependency floor
-
-| 2.10 | 3.x |
-| ---- | --- |
-| Python 3.7+ | Python 3.11+ |
-| aiohttp loose pin | aiohttp 3.9.1+ |
-| iso8601, typing-extensions in deps | both removed |
+**Removed with IRC:** `event_join`, `event_part`, `event_raw_data`, `event_notice`, `event_usernotice_*`, `event_userstate`, `event_mode`, `event_reconnect`, `event_token_expired` (use managed refresh + `event_token_refreshed`).
 
 ---
 
-## 12. Gotchas
+## 7. EventSub subscriptions
 
-1. **CLI args drive everything.** Bot files take `-channel`, `-channelid`, `-token`, `-refresh`, optional `-apitoken`, `-custom`, `-botusername`, `-self`. In v6, `-token` is not passed to the constructor - it's passed to `await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)` after the `async with` opens. Don't hardcode a token; don't bypass argparse.
+Import: `from twitchio import eventsub`. All condition classes inherit `SubscriptionPayload`. IDs accept `str | PartialUser`.
 
-2. **`event_command_error` single-arg signature is silent when wrong.** A 2.10-style `(self, ctx, error)` handler in v6 produces no error - the dispatcher just fails to call it. Always use the single-payload form.
+### Chat / bits / power-ups
 
-3. **`message.content` vs `message.text`.** Raises `AttributeError: 'ChatMessage' object has no attribute 'content'`. Same for `message.author` vs `message.chatter`.
+| Class | Twitch type | Ver | Condition keys | Scope notes |
+| ----- | ----------- | --- | -------------- | ----------- |
+| `ChatMessageSubscription` | `channel.chat.message` | 1 | `broadcaster_user_id`, `user_id` (bot) | `user:read:chat`; app: +`user:bot` and `channel:bot` or mod |
+| `ChatNotificationSubscription` | `channel.chat.notification` | 1 | same | same |
+| `ChatMessageDeleteSubscription` | `channel.chat.message_delete` | 1 | same | same |
+| `ChatClearSubscription` | `channel.chat.clear` | 1 | same | same |
+| `ChatClearUserMessagesSubscription` | `channel.chat.clear_user_messages` | 1 | same | same |
+| `ChatSettingsUpdateSubscription` | `channel.chat_settings.update` | 1 | same | same |
+| `ChatUserMessageHoldSubscription` | `channel.chat.user_message_hold` | 1 | same | `user:read:chat` |
+| `ChatUserMessageUpdateSubscription` | `channel.chat.user_message_update` | 1 | same | same |
+| `ChannelBitsUseSubscription` | `channel.bits.use` | 1 | `broadcaster_user_id` | **`bits:read`**; cheer · power_up · custom_power_up; **not** free streamer self power-up |
+| `CustomPowerupRedeemAddSubscription` | `channel.custom_power_up_redemption.add` | 1 | broadcaster, optional `reward_id` | `bits:read` (**3.3.0**) |
+| `ChannelCheerSubscription` | `channel.cheer` | 1 | broadcaster | `bits:read` |
+| `WhisperReceivedSubscription` | `user.whisper.message` | 1 | user | whispers |
 
-4. **`fetch_users(names=[...])` raises `TypeError` in v6.** Use `logins=`. If a port silently fetches no users, this is why.
+### Channel points
 
-5. **User IDs are `str` in v6.** `if message.chatter.id == str(BOT_ID)` is explicit at `./bot/beta-v6.py:2756`. Mirror this when porting.
+| Class | Type | Ver | Notes |
+| ----- | ---- | --- | ----- |
+| `ChannelPointsAutoRedeemSubscription` | `…automatic_reward_redemption.add` | **1** | **Power-ups** only on V1 |
+| `ChannelPointsAutoRedeemV2Subscription` | same | **2** | Fragments; **does not** notify power-up types |
+| `ChannelPointsRewardAdd/Update/RemoveSubscription` | custom reward lifecycle | 1 | optional `reward_id` on update/remove |
+| `ChannelPointsRedeemAdd/UpdateSubscription` | redemption add/update | 1 | optional `reward_id` |
 
-6. **Two parallel token-refresh systems run in v6.** Library auto-refresh (from `add_token`) keeps Helix calls alive; manual `twitch_token_refresh()` task keeps `twitch_bot_access` MySQL row authoritative for overlays/dashboard. Don't swap to a fully library-driven model without overriding `Client.save_tokens` to write to MySQL and removing the manual task.
+Scope: `channel:read:redemptions` or `channel:manage:redemptions`.
 
-7. **EventSub typed events only fire for chat.** Only `eventsub.ChatMessageSubscription` is in the `subscriptions=` list. `event_follow`, `event_raid`, `event_subscription`, etc. won't fire from the library. Route those topics via the hand-rolled `process_twitch_eventsub_message(...)`.
+### Follows / stream / subs / raids / ads / update
 
-8. **All chat send goes through Helix.** Don't introduce `await ctx.send(...)` for production output. Use `send_chat_message(...)`. Consistency across all three bot files matters more than using the library's send helpers.
+| Class | Type | Ver | Condition / scope |
+| ----- | ---- | --- | ----------------- |
+| `ChannelFollowSubscription` | `channel.follow` | **2** | broadcaster + **`moderator_user_id`**; `moderator:read:followers` |
+| `ChannelUpdateSubscription` | `channel.update` | **2** | broadcaster |
+| `AdBreakBeginSubscription` | `channel.ad_break.begin` | 1 | `channel:read:ads` |
+| `ChannelSubscribeSubscription` | `channel.subscribe` | 1 | **new subs only** (not resubs) |
+| `ChannelSubscriptionEndSubscription` | `channel.subscription.end` | 1 | |
+| `ChannelSubscriptionGiftSubscription` | `channel.subscription.gift` | 1 | |
+| `ChannelSubscribeMessageSubscription` | `channel.subscription.message` | 1 | **resub chat** |
+| `ChannelRaidSubscription` | `channel.raid` | 1 | **exactly one** of `to_` / `from_broadcaster_user_id` |
+| `StreamOnlineSubscription` / `StreamOfflineSubscription` | `stream.online` / `stream.offline` | 1 | broadcaster |
 
-9. **The v6 bot subclasses `AutoBot`, not `Bot`.** `AutoBot` adds Conduit support. The project looks up a Conduit at startup (`get_or_create_conduit()` at `./bot/beta-v6.py:548`) but the WebSocket is hand-rolled - the Conduit ID isn't consumed by the current WebSocket transport. The lookup is a future hook.
+### Moderation / VIP / warnings / automod / shared chat / engagement
 
-10. **Bot subclass commands keep `self`; Component commands don't.** Commands defined as methods on `TwitchBot` (an `AutoBot` subclass) are instance methods - `self` is correct. E.g., `addpoints_command(self, ctx, ...)` at `./bot/beta-v6.py:4088` is right, not a bug. Only commands defined inside a `commands.Component` class drop `self`.
+| Area | Classes (summary) |
+| ---- | ----------------- |
+| Ban/unban | `ChannelBanSubscription`, `ChannelUnbanSubscription`, unban request create/resolve |
+| Moderate | `ChannelModerateSubscription` (v1), `ChannelModerateV2Subscription` (**+ warnings scopes**) |
+| Mod/VIP | Moderator add/remove, VIP add/remove |
+| Warnings | `ChannelWarningSendSubscription`, `ChannelWarningAcknowledgementSubscription` |
+| Suspicious | `SuspiciousUserMessageSubscription`, `SuspiciousUserUpdateSubscription` |
+| Automod | Hold/Update V1+V2, Settings, Terms |
+| Shared chat | Begin / Update / End |
+| Polls / predictions | Begin / Progress / Lock / End as applicable |
+| Hype train | Begin / Progress / End |
+| Goals / charity / shield / shoutout | Begin/progress/end variants |
+| User | `UserUpdateSubscription`, auth grant/revoke |
 
-11. **Keepalive loop is project code.** `asyncio.wait_for(ws.recv(), timeout=keepalive_timeout)` in `twitch_eventsub()` is project-written for the hand-rolled topics. The library's native keepalive does not run for those. Changing `keepalive_timeout` requires updating both the URL query string and the receive timeout.
+### Payload base helpers
 
-12. **CUSTOM_MODE / SELF_MODE branching.** In v6, the bot user ID for `ChatMessageSubscription` is selected at runtime: broadcaster id (SELF_MODE), custom bot user id (CUSTOM_MODE), or hardcoded `971436498` (default Specter bot). Token sources differ accordingly. See `./bot/beta-v6.py:12746-12766`.
+| Attr / method | Notes |
+| ------------- | ----- |
+| `.timestamp`, `.metadata`, `.headers`, `.subscription_data` | Transport metadata |
+| `async respond(content, *, me=False, token_for=...)` | **3.1+**. Needs `bot_id`; `user:write:chat` (+ bot scopes for app token); max 500 chars |
 
-13. **Python version split.** 2.10 bots run on Python 3.7+; v6 needs 3.11+. Don't backport 3.10/3.11 syntax (`match`/`case`, `X | None` PEP 604) to the 2.10 bots without checking.
+Many broadcaster-scoped subs set `default_auth` toward **broadcaster** token (`as_bot=False`) — wrong token fails at Twitch.
 
-14. **Shared chat filtering.** 2.10 reads `message.tags.get('source-room-id')`. 3.x reads `message.source_broadcaster`. When changing one, change the other.
+### **Project** EventSub usage
 
-15. **Routines `delta=` vs `seconds=`.** `@routines.routine(seconds=N)` works in 2.10. `@routines.routine(delta=timedelta(seconds=N))` is the v6 form. Keep them separate.
+Native library subscription (only):
+
+```python
+# ./bot/beta-v6.py main()
+subs = [eventsub.ChatMessageSubscription(broadcaster_user_id=CHANNEL_ID, user_id=bot_user_id)]
+```
+
+Hand-rolled path (everything else):
+
+| Piece | Location |
+| ----- | -------- |
+| Conduit get/create | `get_or_create_conduit` in `./bot/beta-v6.py` |
+| WebSocket loop | `twitch_eventsub` |
+| Subscription POSTs | `subscribe_to_events` |
+| Message processor | `process_twitch_eventsub_message` (and related) |
+
+When adding a topic: add to `subscribe_to_events()` (same shape as beta). Do **not** assume `event_follow` / `event_raid` fire natively. Full native migration requires both an `eventsub.*Subscription` in `subs`/`multi_subscribe` **and** an `event_*` handler, with the hand-rolled topic removed (avoid duplicate dispatch).
 
 ---
 
-## 13. Upstream doc anchors
+## 8. Events catalog
 
-- Root: <https://twitchio.dev/en/stable/>
-- Client reference: <https://twitchio.dev/en/stable/references/client.html>
-- Commands ext: <https://twitchio.dev/en/stable/exts/commands/index.html>
-- Components: <https://twitchio.dev/en/stable/exts/commands/components.html>
-- EventSub subscription/payload models: <https://twitchio.dev/en/stable/references/eventsub/index.html>
-- Migration guide: <https://twitchio.dev/en/getting-started/migrating.html>
-- Conduits guide: <https://twitchio.dev/en/stable/getting-started/conduits.html>
-- Routines ext: <https://twitchio.dev/en/stable/exts/routines/index.html>
+Subscribe with classes under `twitchio.eventsub`. Handlers: `async def event_*(payload) -> None` unless noted.
 
-## 14. Cross-references
+### Automod
 
-- TwitchIO 2.10.0 reference: [TwitchIO-Historical.md](./TwitchIO-Historical.md)
-- Twitch HTTP API (Helix, OAuth, EventSub topics): [twitch.md](./twitch.md)
-- Bot version policy: [bot-versions.md](../../../rules/bot-versions.md)
-- Bot architecture: [system_bot.md](../../../memory/system_bot.md)
+| Subscription | Event | Payload |
+| ------------ | ----- | ------- |
+| `AutomodMessageHold(Subscription|V2Subscription)` | `event_automod_message_hold` | `AutomodMessageHold` |
+| `AutomodMessageUpdate(Subscription|V2Subscription)` | `event_automod_message_update` | `AutomodMessageUpdate` |
+| `AutomodSettingsUpdateSubscription` | `event_automod_settings_update` | `AutomodSettingsUpdate` |
+| `AutomodTermsUpdateSubscription` | `event_automod_terms_update` | `AutomodTermsUpdate` |
+
+### Bans / channel / points / charity / goals / hype
+
+| Type | Subscription | Event | Payload |
+| ---- | ------------ | ----- | ------- |
+| Ban / Unban | `ChannelBan` / `ChannelUnban` | `event_ban` / `event_unban` | `ChannelBan` / `ChannelUnban` |
+| Unban request | Create / Resolve | `event_unban_request` / `event_unban_request_resolve` | request models |
+| Channel update | `ChannelUpdateSubscription` | `event_channel_update` | `ChannelUpdate` |
+| Follow | `ChannelFollowSubscription` | `event_follow` | `ChannelFollow` |
+| Ad break | `AdBreakBeginSubscription` | **`event_ad_break`** | `ChannelAdBreakBegin` |
+| Cheer | `ChannelCheerSubscription` | `event_cheer` | `ChannelCheer` |
+| Raid | `ChannelRaidSubscription` | `event_raid` | `ChannelRaid` |
+| Auto redeem V1/V2 | AutoRedeem* | `event_automatic_redemption_add` | `ChannelPointsAutoRedeemAdd` |
+| Custom reward | Add/Update/Remove | `event_custom_reward_*` | reward models |
+| Redemption | Add/Update | `event_custom_redemption_add` / `_update` | redemption models |
+| Custom power-up | `CustomPowerupRedeemAddSubscription` | `event_custom_power_up_redemption_add` | `CustomPowerupRedemptionAdd` |
+| Charity | donate/start/progress/stop | `event_charity_campaign_*` | charity models |
+| Goal | begin/progress/end | `event_goal_*` | goal models |
+| Hype train begin | `HypeTrainBeginSubscription` | **`event_hype_train`** (not `_begin`) | `HypeTrainBegin` |
+| Hype train progress/end | Progress/End | `event_hype_train_progress` / `_end` | progress/end models |
+
+### Chat
+
+| Type | Subscription | Event | Payload |
+| ---- | ------------ | ----- | ------- |
+| Chat message | `ChatMessageSubscription` | **`event_message`** | `ChatMessage` |
+| Message delete | `ChatMessageDeleteSubscription` | `event_message_delete` | `ChatMessageDelete` |
+| Chat clear | clear / clear user | `event_chat_clear` / `event_chat_clear_user` | clear models |
+| Notification | `ChatNotificationSubscription` | `event_chat_notification` | `ChatNotification` |
+| Settings | `ChatSettingsUpdateSubscription` | `event_chat_settings_update` | `ChatSettingsUpdate` |
+| User msg hold/update | hold/update | `event_chat_user_message_hold` / `_update` | hold/update models |
+| Whisper | `WhisperReceivedSubscription` | `event_message_whisper` | `Whisper` |
+| Bits use | `ChannelBitsUseSubscription` | `event_bits_use` | `ChannelBitsUse` |
+
+### Moderation / VIP / polls / predictions / shared / shield / shoutouts / subs / streams / suspicious / user
+
+| Type | Event |
+| ---- | ----- |
+| Moderate V1/V2 | **`event_mod_action`** (`ChannelModerate`) |
+| Moderator add/remove | `event_moderator_add` / `_remove` |
+| VIP add/remove | `event_vip_add` / `_remove` |
+| Warning send/ack | `event_warning_send` / `event_warning_acknowledge` |
+| Polls | `event_poll_begin` / `_progress` / `_end` |
+| Predictions | `event_prediction_begin` / `_progress` / `_lock` / `_end` |
+| Shared chat | `event_shared_chat_begin` / `_update` / `_end` |
+| Shield | `event_shield_mode_begin` / `_end` |
+| Shoutout | `event_shoutout_create` / `_receive` |
+| Subscribe (new only) | `event_subscription` |
+| Sub end / gift / resub message | `event_subscription_end` / `_gift` / `_message` |
+| Stream online/offline | `event_stream_online` / `event_stream_offline` |
+| Suspicious | `event_suspicious_user_message` / `_update` |
+| User auth / update | `event_user_authorization_grant` / `_revoke` / `event_user_update` |
+
+### Complete unique `event_*` names (library)
+
+**Client (6):** `event_ready`, `event_error`, `event_token_refreshed`, `event_oauth_authorized`, `event_subscription_revoked`, `event_websocket_welcome`
+
+**Commands (3):** `event_command_invoked`, `event_command_completed`, `event_command_error`
+
+**EventSub (~70):** automod×4, ban/unban/unban_request×4, channel_update/follow/ad_break/cheer/raid, points×7 (+ power-up), charity×4, chat×10, goals×3, hype×3, mod_action + mod/vip/warn×6, poll×3, prediction×4, shared_chat×3, shield×2, shoutout×2, subscription×4, stream×2, suspicious×2, user auth×2, user_update.
+
+---
+
+## 9. Commands extension
+
+Import: `from twitchio.ext import commands`.
+
+### Bot vs AutoBot (commands surface)
+
+| | `Bot` | `AutoBot` |
+| - | ----- | -------- |
+| Inheritance | `Client` + commands | Bot + `AutoClient` |
+| `client_secret` | Optional (DCF) | **Required** |
+| `bot_id` | Required (str) | Required |
+| Conduit | Manual WS/webhook | `conduit_info`, `multi_subscribe` |
+| `delete_websocket_subscription` | Client has it | **Not implemented** |
+
+Chat commands need **`ChatMessageSubscription`** + transport. On Bot, `subscribe_websocket(..., as_bot=True)` by default. Webhooks discouraged for chat.
+
+### Context (`commands.Context`)
+
+Built from `ChatMessage` **or** channel-point redemption payloads.
+
+| Property | Notes |
+| -------- | ----- |
+| **`content`** | Documented raw message / command text; for rewards = `user_input`. **Library Context field is `content` (not `.text`)** |
+| `message` | `ChatMessage \| None` — body is **`message.text`** |
+| `redemption` | Redemption payload if reward context |
+| `payload` | Underlying message or redemption |
+| `type` | `ContextType.MESSAGE` or `ContextType.REWARD` |
+| `chatter` / `author` | Same object; reward redeemer may be bare `PartialUser` |
+| `broadcaster` / `channel` | Channel owner (`channel` alias) |
+| `source_broadcaster` | Shared-chat origin; usually `None` (shared msgs ignored by default) |
+| `bot`, `prefix`, `command`, `invoked_with`, `args`, `kwargs`, `failed`, … | Invocation state |
+| `await send` / `reply` / `send_translated` / `reply_translated` | Chat helpers |
+| `await send_announcement` / `delete_message` / `clear_messages` | Moderation helpers |
+| `is_owner()` / `is_valid()` | Checks |
+
+**Reward contexts:** `type=REWARD`, `content=user_input`, `prefix=None`, no groups/aliases on `RewardCommand`.
+
+### Command / Group / RewardCommand
+
+| Symbol | Notes |
+| ------ | ----- |
+| `@commands.command()` | Chat command; aliases, converters, guards, cooldowns |
+| `@commands.group()` | Nested groups; `invoke_fallback`, `apply_cooldowns`, `apply_guards` |
+| `@commands.reward_command()` | Channel points; `RewardStatus`: `unfulfilled` / `fulfilled` / `canceled` / `all` |
+| `@commands.cooldown(...)` | Cooldown decorator |
+| `Command.signature` / `parameters` / `help` | **3.1+** |
+| `Command.run_guards(ctx, *, with_cooldowns=False)` | Dry-run; `with_cooldowns=True` **mutates** buckets |
+
+**Invoke hook order:** Bot → Component → command-local. `before_invoke` only after parse+guards; **`after_invoke` still runs if command body fails**.
+
+**3.3.0:** commands can be invoked via **reply**.
+
+### Components
+
+| Item | Detail |
+| ---- | ------ |
+| Purpose | Cog-like groups of commands + listeners |
+| Add | `await bot.add_component(...)` |
+| `__init__` | **Do not call `super().__init__()`** if overriding |
+| Listeners | `@Component.listener()` methods named `event_*` |
+| Guards | `@Component.guard()` applied to all component commands |
+| Errors | `component_command_error(payload)`; return **`False`** to stop propagation |
+| Load fail | `component_load` error rolls back load |
+
+### Guards
+
+| Guard | Role |
+| ----- | ---- |
+| `commands.guard()` | Custom predicate → `GuardFailure` on fail |
+| `is_owner()` | Bot owner |
+| `is_staff()` | Twitch staff |
+| `is_broadcaster()` | Channel owner |
+| `is_lead_moderator()` | Lead mod (**3.2+**) |
+| `is_moderator()` | Moderator |
+| `is_vip()` | VIP |
+| `is_elevated()` | Elevated bundle |
+| `Bot.global_guard` | **Must be async**; runs first; bypass via `bypass_global_guards` |
+
+`CommandOnCooldown` subclasses `GuardFailure`; **`.remaining`** is float seconds (was `.retry_after` in 2.10).
+
+### Exception tree (commands)
+
+```text
+CommandError
+├── ComponentLoadError
+├── CommandInvokeError  → .original
+│   └── CommandHookError
+├── CommandNotFound
+├── CommandExistsError
+├── PrefixError
+├── InputError
+│   └── ArgumentError
+│       ├── ConversionError → BadArgument
+│       ├── MissingRequiredArgument
+│       ├── UnexpectedQuoteError
+│       ├── InvalidEndOfQuotedStringError
+│       └── ExpectedClosingQuoteError
+├── GuardFailure
+│   └── CommandOnCooldown  # .cooldown, .remaining
+└── TranslatorError  → .original
+
+ModuleError
+├── ModuleLoadFailure
+├── ModuleAlreadyLoadedError
+├── ModuleNotLoadedError
+└── NoEntryPointError
+```
+
+`CommandErrorPayload(context, exception)` for `event_command_error`.
+
+### Converters & translators
+
+`Converter`, `UserConverter`, `ColourConverter` / `ColorConverter`, `Translator`, `@commands.translator(...)`, `send_translated` / `reply_translated`.
+
+### **Project** commands
+
+- Commands live as methods on `TwitchBot(commands.AutoBot)`, not Components.
+- `setup_hook` **manually** walks class members for `commands.Command`, sets `_injected=self`, `add_command` (TwitchIO 3.x registration workaround).
+- Permissions via project helpers, **not** built-in Guards.
+- Chat out via project Helix helper `send_chat_message` (not `ctx.send` for production consistency with stable/beta).
+- `event_message` uses `message.text` / `message.chatter`, shared-chat filter on `source_broadcaster`, then `await self.process_commands(message)`.
+- Cooldown path uses `error.remaining`.
+
+---
+
+## 10. Users / PartialUser / Chatter
+
+**Hierarchy:** `User` → bases `PartialUser`. `Chatter` → bases `PartialUser`. Equality by `.id` (**always `str`**).
+
+### Attributes
+
+| Class | Key attrs |
+| ----- | --------- |
+| `PartialUser` | `id`, `name`, `display_name`, `mention` |
+| `User` | + `type`, `broadcaster_type`, `description`, `profile_image`/`offline_image` as **`Asset`**, `email` (needs scope), `created_at` |
+| `Chatter` | + `channel`, badge bools: `staff`, `admin`, `broadcaster`, `moderator`, `lead_moderator`, `vip`, `artist`, `founder`, `subscriber`, `partner`, `turbo`, `prime`, `no_audio`/`no_video`, `colour`/`color`, `badges` |
+
+Upgrade: `await partial.user()` → full `User`.
+
+### Bot-critical `PartialUser` Helix methods
+
+#### Chat send / announce
+
+| Method | Key params / notes |
+| ------ | ------------------ |
+| `send_message` | `(message, sender, *, token_for=None, reply_to_message_id=None, source_only=None, pin=None)` → `SentMessage`. Object is **destination**. Scope `user:write:chat`. Max 500 chars. Raises **`MessageRejectedError`** if Twitch drops. `pin=True` needs pin scope; 20 min; no combine with reply/`source_only`. |
+| `send_announcement` | mod announcements; colors blue/green/orange/purple/primary |
+| `send_shoutout` | rate limits apply |
+| `send_whisper` | whisper Helix |
+| `update_chatter_color` | named or hex (Turbo/Prime) |
+
+#### Moderation (channel = `self`)
+
+`ban_user` / `timeout_user` / `unban_user` / `warn_user` / `delete_chat_messages` / block helpers / mod & VIP / blocked terms / suspicious users / automod / shield / unban requests.
+
+**Dual API:** `Chatter.ban` / `timeout` / `warn` / `delete_message` / `block` act on **this chatter**. `PartialUser.ban_user` / `timeout_user` take an explicit target in **self’s** channel. Cannot ban the broadcaster.
+
+Timeout default **600** s; max **1_209_600** s. Delete message: age ≤6h; not broadcaster/other mods.
+
+#### Chatters / followers / settings / pins / ads / stream / rewards
+
+| Method | Notes |
+| ------ | ----- |
+| `fetch_chatters(*, moderator, first=100, …)` | `moderator:read:chatters`; `first` up to **1000** |
+| `fetch_followers` / `fetch_followed_channels` | follower scopes |
+| `fetch_chat_settings` / `update_chat_settings` | slow 3–120s, etc. |
+| `pin_message` / `unpin_message` / `update_pin_message` / `fetch_pinned_message` | pin suite (**3.3.0**) |
+| `start_commercial` / `fetch_ad_schedule` / `snooze_next_ad` | ads; commercial length cap **180**; ~8 min between ads |
+| `fetch_stream` / markers / schedule / `modify_channel` / clips / raids / polls / predictions | engagement |
+| `fetch_custom_powerups` | bits power-ups (**3.3.0**) |
+| `create_custom_reward` / fetch / update / delete | max **50** rewards; title ≤45; prompt ≤200; only **creating client_id** may update/delete |
+
+**`token_for`:** omit → often MISSING → managed token for self/moderator; **`None` → app token** (many methods since 3.3.0); `str|PartialUser` → that user’s managed token.
+
+Pagination: `HTTPAsyncIterator` — `await` first page or `async for` with `first` / `max_results` (max 100/page typical; chatters first up to 1000).
+
+---
+
+## 11. Helix models, enums & utils
+
+### Selected models
+
+| Model | Highlights |
+| ----- | ---------- |
+| `Stream` | `id`, `user`, `game_id`/`name` (nullable), `title`, `viewer_count`, `thumbnail: Asset`, tags, mature |
+| `Clip` | `video_id` may be `""` until VOD ready; `thumbnail: Asset`; `fetch_video()` → None if empty |
+| `AdSchedule` / `SnoozeAd` / `CommercialStart` | ads; `CommercialStart.length` capped 180; `retry_after` |
+| `CustomReward` | `cooldown` / `max_per_stream` NamedTuples; `fulfil`/`color`; only creating app may update/delete |
+| `CustomRewardRedemption` | `fulfill()` → FULFILLED; `refund()` → CANCELED (points returned) |
+| `CustomPowerup` | bits-priced; cooldown/limit NamedTuples |
+| `PinnedMessage` | `text`, `fragments`, `ends_at=None` means until stream end; `update_pin` / `unpin` |
+| `HypeTrainStatus` | type `treasure`/`golden_kappa`/`regular`; shared train fields; contribution type casing differs Event vs Status |
+| `ChannelInfo`, `ChatSettings`, `SentMessage`, `Chatters`, `Game`, `Goal`, `Poll`, `Prediction`, mod models, `ShieldModeStatus`, `SharedChatSession`, subscription models | See helix refs |
+
+**No Helix class `UserAuthorisation` for auth tokens** — use `twitchio.authentication.UserTokenPayload` / `ValidateTokenPayload` / EventSub user.authorization.* (3.2 docs also mention a UserAuthorisation model in Helix for fetch_auth helpers).
+
+### Enums
+
+| Enum | Role |
+| ---- | ---- |
+| `eventsub.SubscriptionType` | Wire type strings (e.g. `ChannelChatMessage` → `channel.chat.message`) |
+| `eventsub.TransportMethod` | `WEBHOOK` / `WEBSOCKET` / `CONDUIT` |
+| `DeviceCodeRejection` | DCF failures; invalid refresh ~30d single-use |
+
+Doc typos: enum names `ChannelPollProgres` / `ChannelPredictionProgres` (missing **s**) still map to `*.progress`.
+
+### Utils
+
+| Symbol | Role |
+| ------ | ---- |
+| `twitchio.Asset` | 3.0 media primitive; `set_dimensions` before save/read |
+| `twitchio.Colour` / `Color` | hex/rgb; announcement helpers return **str** names |
+| `twitchio.Scopes` | descriptors, `urlsafe()`, `all()`, `from_url()` |
+| `setup_logging` | root logger helper |
+| `HTTPAsyncIterator` | await = first page list; async for = pagination |
+| `Route` | internal — do not construct casually |
+
+**IRC legacy scopes** `chat:read` / `chat:edit` ≠ Helix chat scopes (`user:read:chat` / `user:write:chat` / `channel:bot` / `user:bot`).
+
+### ChatMessage focus (EventSub model)
+
+| Attr | Notes |
+| ---- | ----- |
+| **`text`** | Plain body — **not** `.content` |
+| `chatter` | `Chatter` |
+| `broadcaster` | `PartialUser` |
+| `type` | includes `power_ups_message_effect`, `power_ups_gigantified_emote` |
+| `fragments` | types: text/cheermote/emote/mention/**gif** |
+| `reply`, `cheer`, `badges`, shared-chat `source_*` | |
+| Methods | `respond`, `delete`, `pin` / `update_pin` / `unpin` (3.2–3.3) |
+
+### ChannelBitsUse / power-ups
+
+| Attr | Notes |
+| ---- | ----- |
+| `type` | `cheer` \| `power_up` \| `custom_power_up` |
+| `power_up.type` | `message_effect` \| `celebration` \| `gigantify_an_emote` |
+
+### ChatNotification
+
+Nested: sub/resub/gift/raid/announcement/… plus **`watch_streak`**, **`modiversary`**, **`shared_modiversary`**, `source_only`, GIF fragments.
+
+---
+
+## 12. Routines & overlays ext
+
+### Routines (`from twitchio.ext import routines`)
+
+Create **only** via `@routines.routine(...)`. Exactly one of `delta=` or `time=`; both/neither → `RuntimeError`. Callback must be async.
+
+| Parameter | Default | Meaning |
+| --------- | ------- | ------- |
+| `delta` | — | `datetime.timedelta` interval |
+| `time` | — | daily wall-clock `datetime` |
+| `iterations` | `None` | stop after N successful runs |
+| `wait_first` | `False` | wait interval before first run |
+| `wait_remainder` | `False` | delta-only: wait remaining time after work |
+| `max_attempts` | `5` | consecutive errors then stop; reset on success; `None` = infinite |
+| `stop_on_error` | `False` | immediate stop (overrides max_attempts) |
+
+| Method | Behaviour |
+| ------ | --------- |
+| `start(*args, **kwargs)` | Start task; cannot re-enter running |
+| `stop()` | Graceful after current iteration |
+| `cancel()` | Abort mid-iteration |
+| `restart(*, force=True)` | Restart; no-op if never started |
+| `change_interval(*, delta/time, wait_first=False)` | Retune; default hard-cancels current iter |
+| `next_iteration()` | seconds until next |
+
+Hooks: `@before_routine`, `@after_routine`, `@error`.
+
+**2.x → 3.x:** removed `seconds=`/`minutes=`/`hours=` and `Routine.start_time`. Use `delta=timedelta(...)`.
+
+**Project:** short one-shots with `@routines.routine(delta=timedelta(...), iterations=1, wait_first=True)` (e.g. poll/ad delays). Long loops are `create_task` from `event_ready`.
+
+### Overlays ext
+
+**Docs stub only** — “planned to release in a near future version.” Sounds ext removed in v3. **Project-unused.** Product overlays live under `./overlay/*.php` + WebSocket, not TwitchIO.
+
+---
+
+## 13. Exceptions
+
+```text
+TwitchioException
+├── HTTPException          # route, status, extra["message"]
+│   ├── InvalidTokenException   # may hold secrets — never log full tokens
+│   └── DeviceCodeFlowException # reason: DeviceCodeRejection
+├── MessageRejectedError   # chat accepted by API but dropped by Twitch (not HTTP fail)
+└── MissingConduit         # AutoClient action before conduit assigned
+```
+
+Plus full **commands** tree in §9.
+
+---
+
+## 14. Changelog notes 3.1 → 3.3.2
+
+Matters for this bot pin (**3.3.2**). Full page: <https://twitchio.dev/en/stable/getting-started/changelog.html>
+
+### 3.3.1 – 3.3.2
+
+- Pin endpoints: parameters as **query params** (not JSON body).
+- Pin **duration** set correctly.
+
+### 3.3.0
+
+- **DCF:** `login_dcf` / `start_dcf`; optional `client_secret` / `bot_id` for DCF.
+- **Pins:** `PinnedMessage`; fetch/pin/update/unpin; `send_message(..., pin=)`; `ChatMessage.pin` / `update_pin` / `unpin`.
+- **Suspicious users:** add/remove on PartialUser.
+- **Custom power-ups:** models + EventSub `CustomPowerupRedeemAddSubscription` + `event_custom_power_up_redemption_add`.
+- **ChatNotification:** gif, modiversary, watch_streak, source_only.
+- **`token_for=None`** allowed on many mod/chat Helix methods (app token).
+- `token_for` on `.respond` payloads.
+- Starlette adapter ≥1.0.0.
+- Commands invokable via **reply**.
+- 409 errors include subscription id; `Client.http`; `conduit_id` on `fetch_eventsub_subscriptions`.
+- Goal types `new_bit`, `new_cheerer`.
+
+### 3.2.x
+
+- Auth helpers (`fetch_auth` / `fetch_auth_by_users`); `PartialUser.fetch_stream`; `fetch_hype_train_status` (deprecates `fetch_hype_train_events`).
+- `lead_moderator` + `is_lead_moderator` guard.
+- `ChatMessage.delete` / `Chatter.delete_message`.
+- `create_clip` title/duration (`has_delay` deprecated).
+- `Scopes.from_url`; adapter `oauth_path` / `redirect_path`.
+- Conduit WS reconnect fix; null-safe auto-redeem / bits-use message fields.
+- 3.2.1–3.2.2: reward `background_color` HTML hex; empty `shared_train_participants` when not shared.
+
+### 3.1.0
+
+- `force_subscribe` / `force_scale` on AutoClient/AutoBot.
+- Mass EventSub **`.respond()`**.
+- Commands: Translator, converters, `Command.signature`/`parameters`/`help`, `run_guards`, Generic Context.
+- Token save fix when `load_tokens=False`.
+- PartialUser/User/Chatter **`__hash__` by id**.
+- StarletteAdapter graceful shutdown timeouts (Windows).
+- `python -m twitchio --create-new` boilerplate.
+
+### 3.0.0 (breaking rewrite)
+
+Min Python 3.11; IRC removed; managed tokens + adapters; Conduits; single-payload events; str IDs; `HTTPAsyncIterator`; `setup_hook`; `create_partialuser`; PubSub/sounds removed; routines use `timedelta`. See Migrating guide.
+
+---
+
+## 15. Migration map 2.10 → 3.x
+
+Critical when porting `./bot/beta.py` → `./bot/beta-v6.py`.
+
+### Imports
+
+| 2.10 | 3.x |
+| ---- | --- |
+| `from twitchio.ext import commands, routines` | same + **`from twitchio import eventsub`** |
+| `twitchio.ext.eventsub` | **`twitchio.eventsub` only** |
+
+### Bot class & start
+
+| 2.10 | 3.x |
+| ---- | --- |
+| `class TwitchBot(commands.Bot)` | `class TwitchBot(commands.AutoBot)` |
+| `token=`, `initial_channels=[...]` | `client_id`, `client_secret`, `bot_id`, `owner_id`, `subscriptions=` |
+| `bot.run()` | `async with bot: await bot.add_token(...); await bot.start(...)` |
+| IRC join | EventSub `ChatMessageSubscription` |
+
+### Chat & events
+
+| 2.10 | 3.x |
+| ---- | --- |
+| `message.content` | **`message.text`** |
+| `message.author` | **`message.chatter`** |
+| Multi-arg events | Single payload (or Context / none for ready) |
+| `event_command_error(ctx, error)` | `event_command_error(payload: CommandErrorPayload)` |
+| `event_token_expired` | `event_token_refreshed` + managed refresh |
+| `handle_commands` | **`process_commands`** |
+| IRC join/part/raw/usernotice | **Removed** |
+
+### Names renames
+
+| 2.10 | 3.x |
+| ---- | --- |
+| `create_user` | `create_partialuser` |
+| `wait_for_ready` | `wait_until_ready` |
+| `fetch_chatters_colors` | `fetch_chatters_color` |
+| `fetch_content_classification_labels` | `fetch_classifications` |
+| Helix `token=` | **`token_for=`** |
+| `error.retry_after` (cooldown) | **`error.remaining`** |
+| `commands.CheckFailure` | `commands.GuardFailure` |
+| Routines `seconds=`/`minutes=`/`hours=` | **`delta=timedelta(...)`** |
+
+### Tokens & transport
+
+| 2.10 | 3.x |
+| ---- | --- |
+| Manual / constructor token | `add_token` / load / save / auto-refresh |
+| Multi-channel IRC | Conduits + shards (`AutoBot`) |
+| PubSub | EventSub |
+| IDs often int | **str** |
+
+### Event name gotchas when porting handlers
+
+| Wrong / 2.x habit | Correct 3.x |
+| ----------------- | ----------- |
+| `event_hype_train_begin` | `event_hype_train` |
+| `event_ad_break_begin` | `event_ad_break` |
+| `event_moderate` | `event_mod_action` |
+| `event_chat_message` | `event_message` |
+
+---
+
+## 16. Project mapping (beta-v6)
+
+> All line numbers verified against `./bot/beta-v6.py` as of this doc’s Last Updated date. Prefer symbol search if the file moves.
+
+### Pin & class
+
+| Fact | Detail |
+| ---- | ------ |
+| Pin | `twitchio==3.3.2` (+ starlette extra) in `./bot/v6_requirements.txt` |
+| Class | `TwitchBot(commands.AutoBot)` — not bare `Bot` |
+| Imports | `from twitchio import eventsub` + `commands`, `routines`, `Context` |
+
+### Bootstrap (`main`)
+
+```python
+# Pattern in ./bot/beta-v6.py main()
+if SELF_MODE:
+    bot_user_id = CHANNEL_ID
+elif CUSTOM_MODE:
+    bot_user_id = await _fetch_custom_bot_user_id()
+else:
+    bot_user_id = "971436498"  # official Specter
+
+subs = [eventsub.ChatMessageSubscription(broadcaster_user_id=CHANNEL_ID, user_id=bot_user_id)]
+async with TwitchBot(
+    prefix='!',
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    bot_id=BOT_ID,
+    owner_id=OWNER_ID,
+    subscriptions=subs,
+    force_subscribe=True,
+) as bot:
+    await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)
+    await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)
+```
+
+| Flag | Meaning for this project |
+| ---- | ------------------------ |
+| `force_subscribe=True` | Re-assert chat sub each start |
+| `load_tokens=False` / `save_tokens=False` | Skip `.tio.tokens.json`; MySQL is source of truth |
+| `with_adapter=False` | No local OAuth/webhook server |
+
+### Key symbols (search these)
+
+| Symbol | Role |
+| ------ | ---- |
+| `twitch_token_refresh` / `refresh_twitch_token` | Background MySQL token persistence |
+| `get_or_create_conduit` | Hand-rolled Helix conduit for non-chat EventSub |
+| `twitch_eventsub` | Hand-rolled EventSub WebSocket loop |
+| `subscribe_to_events` | Topic subscription POSTs |
+| `TwitchBot.setup_hook` | Registers `@commands.command` methods + `_injected=self` |
+| `TwitchBot.event_token_refreshed` | Updates `CHANNEL_AUTH` |
+| `TwitchBot.event_ready` | Starts background tasks including EventSub + token refresh |
+| `TwitchBot.event_command_error` | Cooldown (`error.remaining`), custom-command not-found filter |
+| `TwitchBot.event_message` | Shared-chat filter, history, overlay relay, `process_commands` |
+| `send_chat_message` | Production Helix chat send |
+| `@routines.routine` | One-shot timers (delta + iterations=1) |
+
+### Differs from stock quickstart
+
+| Quickstart | beta-v6 |
+| ---------- | ------- |
+| Full native subscription list | Chat-only native; rest hand-rolled WS |
+| File tokens / OAuth adapter | MySQL + dual refresh; adapter off |
+| Components | Commands on AutoBot subclass |
+| `ctx.send` / `.respond` | `send_chat_message` Helix helper |
+| Built-in Guards | Custom permission helpers |
+
+### Component surface on the bot class
+
+`TwitchBot` implements minimal Component hooks (`__all_guards__`, `component_before_invoke`, `component_after_invoke`, `component_command_error` returning `True`) so TwitchIO can treat the bot instance as command injection target without real Components.
+
+---
+
+## 17. Gotchas
+
+1. **Min Python 3.11** for TwitchIO 3.x.
+2. **IRC removed** — no `initial_channels` / join / part / `connected_channels`.
+3. **Import** `from twitchio import eventsub` — never `twitchio.ext.eventsub` in 3.x.
+4. **ChatMessage / Context text:** payload **`.text`**; Context documented **`.content`** for command string.
+5. **All model `.id` values are `str`.**
+6. **Events take one payload** (except `event_ready()`).
+7. **`event_command_error(payload)`** — not `(ctx, error)`.
+8. **`token_for=`** not raw `token=`; **`token_for=None`** = app token on many 3.3 methods.
+9. **`create_partialuser`** / **`wait_until_ready`** renames.
+10. **`wait_for`:** async keyword-only `predicate`; name without `event_` prefix.
+11. **Conduit 72h continuity**; constructor subs only auto-apply on **new** conduit unless `force_subscribe`.
+12. **AutoClient/AutoBot** do not implement `delete_websocket_subscription`.
+13. **`wait_until_ready` in `setup_hook` deadlocks.**
+14. **Modules** load/unload/reload are **coroutines**.
+15. **Routines** take `timedelta` only (no seconds/minutes kwargs).
+16. **`.tio.tokens.json`** can wipe on hard Ctrl+C — prefer DB + `load_tokens=False`.
+17. **Always `await super().add_token`** in overrides; both access and refresh required.
+18. **Hype train begin** event is `event_hype_train`; ads is `event_ad_break`; moderate is `event_mod_action`.
+19. **Follow v2** needs `moderator_user_id` + `moderator:read:followers`.
+20. **Auto-redeem V1 vs V2** power-up split; prefer `channel.bits.use` for power-ups.
+21. **`MessageRejectedError`** is not `HTTPException`.
+22. **Never log** full tokens from `InvalidTokenException` / `tokens` mapping.
+23. **Project:** native EventSub is chat-only — non-chat topics will not fire library `event_*` unless migrated.
+24. **Project:** use `process_commands` not `handle_commands`.
+25. **PubSub / sounds / TwitchIO overlays** unavailable or stub — do not plan on them.
+
+---
+
+## 18. Upstream anchors
+
+| Topic | URL |
+| ----- | --- |
+| Home | https://twitchio.dev/en/stable/ |
+| Installing | https://twitchio.dev/en/stable/getting-started/installing.html |
+| Migrating | https://twitchio.dev/en/stable/getting-started/migrating.html |
+| Quickstart | https://twitchio.dev/en/stable/getting-started/quickstart.html |
+| Changelog | https://twitchio.dev/en/stable/getting-started/changelog.html |
+| FAQ / Debugging | https://twitchio.dev/en/stable/getting-started/faq.html , …/debugging.html |
+| Client | https://twitchio.dev/en/stable/references/client.html |
+| Conduits | https://twitchio.dev/en/stable/references/conduits/index.html |
+| Events | https://twitchio.dev/en/stable/references/events/events.html |
+| EventSub subscriptions | https://twitchio.dev/en/stable/references/eventsub_subscriptions.html |
+| EventSub models | https://twitchio.dev/en/stable/references/eventsub/eventsub_models.html |
+| Users | https://twitchio.dev/en/stable/references/users/index.html |
+| Helix models | https://twitchio.dev/en/stable/references/helix/helix_models.html |
+| Utils / enums | https://twitchio.dev/en/stable/references/utils.html , …/enums_etc.html |
+| Exceptions | https://twitchio.dev/en/stable/references/exceptions.html |
+| Web adapters | https://twitchio.dev/en/stable/references/web.html |
+| Commands Bot / AutoBot | https://twitchio.dev/en/stable/exts/commands/bot.html , …/autobot.html |
+| Components / core / exceptions | https://twitchio.dev/en/stable/exts/commands/components.html , …/core.html , …/exceptions.html |
+| Routines / Overlays | https://twitchio.dev/en/stable/exts/routines/index.html , …/overlays/index.html |
+
+### Cross-refs in this repo
+
+| Doc | Role |
+| --- | ---- |
+| [TwitchIO-Historical.md](./TwitchIO-Historical.md) | TwitchIO 2.10.0 for stable + beta |
+| [twitch.md](./twitch.md) | Helix REST, OAuth, hand-rolled EventSub topic matrix |
+| `./.grok/rules/bot-versions.md` | Which bot file to edit |
+| `./.grok/agents/twitch-expert.md` | Agent prompt pin 3.3.2 |

@@ -19,7 +19,7 @@ Per [bot-versions.md](../../../rules/bot-versions.md):
 - **`beta.py`** is the *testing* track on the same 2.10.0 line. New features land here first.
 - **`beta-v6.py`** is the *forward-looking rewrite* on TwitchIO 3.x - the IRC-driven chat is replaced by native EventSub WebSocket. See [TwitchIO-Stable.md](./TwitchIO-Stable.md).
 
-The library APIs between 2.10.0 and 3.x are **not source-compatible**. [TwitchIO-Stable.md §4](./TwitchIO-Stable.md) is the side-by-side migration map for porting from `beta.py` to `beta-v6.py`.
+The library APIs between 2.10.0 and 3.x are **not source-compatible**. [TwitchIO-Stable.md §15](./TwitchIO-Stable.md#15-migration-map-210--3x) is the side-by-side migration map for porting from `beta.py` to `beta-v6.py`.
 
 ---
 
@@ -111,7 +111,7 @@ All event hooks are coroutine methods on the `Bot` subclass (or registered with 
 
 `event_ready` fires after IRC connection completes. Only after this point is `self.nick` reliable and is the bot a member of `initial_channels`.
 
-`event_command_error` takes **two args** (`ctx`, `error`) in 2.10. In 3.x the signature becomes a single `payload` arg - the most common silent bug when porting. See [TwitchIO-Stable.md §3.3](./TwitchIO-Stable.md).
+`event_command_error` takes **two args** (`ctx`, `error`) in 2.10. In 3.x the signature becomes a single `payload` arg - the most common silent bug when porting. See [TwitchIO-Stable.md §6 / §9](./TwitchIO-Stable.md#6-lifecycle-events).
 
 ---
 
