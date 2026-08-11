@@ -637,7 +637,7 @@ ob_start();
                     <div class="sp-card">
                         <h3 id="table-title"></h3>
                         <p id="command-totals" style="display:none;"></p>
-                        <div class="sp-table-wrap">
+                        <div class="sp-table-wrap" id="members-table-wrap">
                         <table class="sp-table">
                             <thead>
                                 <tr>
@@ -650,8 +650,13 @@ ob_start();
                                     <th id="additional-column5" style="display: none;"></th>
                                 </tr>
                             </thead>
-                            <tbody id="table-body">
-                                <!-- Content will be dynamically injected here -->
+                            <tbody id="table-body" aria-busy="true">
+                                <tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row"><span class="sp-skeleton-line w-25"></span><span class="sp-skeleton-line"></span><span class="sp-skeleton-line w-20"></span></div></td></tr>
+                                <tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row"><span class="sp-skeleton-line w-40"></span><span class="sp-skeleton-line"></span><span class="sp-skeleton-line w-25"></span></div></td></tr>
+                                <tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row"><span class="sp-skeleton-line w-45"></span><span class="sp-skeleton-line"></span><span class="sp-skeleton-line w-20"></span></div></td></tr>
+                                <tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row"><span class="sp-skeleton-line w-50"></span><span class="sp-skeleton-line"></span><span class="sp-skeleton-line w-25"></span></div></td></tr>
+                                <tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-line"></span><span class="sp-skeleton-line w-20"></span></div></td></tr>
+                                <tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row"><span class="sp-skeleton-line w-60"></span><span class="sp-skeleton-line"></span><span class="sp-skeleton-line w-25"></span></div></td></tr>
                             </tbody>
                         </table>
                         </div>
@@ -827,6 +832,33 @@ ob_start();
                 return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             }
         })();
+        function setBusy(el, busy) {
+            if (!el) return;
+            if (busy) el.setAttribute('aria-busy', 'true');
+            else el.removeAttribute('aria-busy');
+        }
+        function skeletonTableRowsHtml(count) {
+            var widths = [
+                ['w-25', '', 'w-20'],
+                ['w-40', '', 'w-25'],
+                ['w-45', '', 'w-20'],
+                ['w-50', '', 'w-25'],
+                ['w-55', '', 'w-20'],
+                ['w-60', '', 'w-25']
+            ];
+            var html = '';
+            var n = count || 6;
+            var i, w;
+            for (i = 0; i < n; i++) {
+                w = widths[i % widths.length];
+                html += '<tr aria-hidden="true"><td colspan="5"><div class="sp-skeleton-table-row">' +
+                    '<span class="sp-skeleton-line ' + w[0] + '"></span>' +
+                    '<span class="sp-skeleton-line' + (w[1] ? ' ' + w[1] : '') + '"></span>' +
+                    '<span class="sp-skeleton-line ' + w[2] + '"></span>' +
+                    '</div></td></tr>';
+            }
+            return html;
+        }
         // Function to load the data based on type
         async function loadData(type) {
             let data;
@@ -846,6 +878,10 @@ ob_start();
             let additionalColumnVisible4 = false;
             let additionalColumnVisible5 = false;
             let output = '';
+            const tableBody = document.getElementById('table-body');
+            // Show table-body skeletons while resolving (esp. lurkers Twitch lookup)
+            setBusy(tableBody, true);
+            tableBody.innerHTML = skeletonTableRowsHtml(6);
             // Hide command totals summary by default
             document.getElementById('command-totals').style.display = 'none';
             // Update active button state - highlight the currently selected button
@@ -878,6 +914,7 @@ ob_start();
                     activeTab.classList.add('active');
                 }
             }
+            try {
             switch (type) {
                 case 'customCommands': {
                     additionalColumnVisible = true;
@@ -903,9 +940,9 @@ ob_start();
                     infoColumn = 'Username';
                     dataColumn = 'Time';
                     const userIds = data.map(item => item.user_id);
-                    const usernames = await getTitchUsernames(userIds);
+                    const usernames = userIds.length ? await getTitchUsernames(userIds) : [];
                     data.forEach((item, index) => {
-                        item.username = usernames[index];
+                        item.username = usernames[index] || item.user_id || 'Unknown';
                         item.lurkDuration = calculateLurkDuration(item.start_time);
                     });
                     data.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
@@ -1049,7 +1086,7 @@ ob_start();
             document.getElementById('data-column-info').style.display = dataColumnVisible ? '' : 'none';
             document.getElementById('info-column-data').style.display = infoColumnVisible ? '' : 'none';
             document.getElementById('table-title').innerText = title;
-            document.getElementById('table-body').innerHTML = output;
+            tableBody.innerHTML = output;
             // Remove any existing filter buttons first
             const existingFilters = document.querySelector('.reward-filters');
             if (existingFilters) {
@@ -1070,6 +1107,12 @@ ob_start();
                 // Insert filter buttons after the title
                 const titleElement = document.getElementById('table-title');
                 titleElement.insertAdjacentHTML('afterend', filterHTML);
+            }
+            } catch (err) {
+                console.error('loadData failed:', err);
+                tableBody.innerHTML = '<tr><td colspan="5">Unable to load this table. Please try again.</td></tr>';
+            } finally {
+                setBusy(tableBody, false);
             }
         }
         // Filter rewards table by reward name

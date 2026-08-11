@@ -227,41 +227,41 @@ ob_start();
 	</div>
 	<div class="sp-card-body">
 	<p style="margin-bottom:1rem;"><?php echo t('admin_eventsub_description'); ?></p>
-	<div class="sp-alert sp-alert-info" id="last-updated">
-		<small><?php echo t('admin_eventsub_loading'); ?></small>
+	<div class="sp-alert sp-alert-info" id="last-updated" aria-busy="true">
+		<span class="sp-skeleton-line w-40" aria-hidden="true" style="display:inline-block;height:0.7rem;"></span>
 	</div>
-	<div class="stats-grid">
+	<div class="stats-grid" id="eventsub-stats" aria-busy="true">
 		<div class="stat-card accent-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_users_scanned'); ?></p>
-			<p class="stat-value" id="stat-users-scanned">0</p>
+			<p class="stat-value" id="stat-users-scanned"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card success-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_healthy_users'); ?></p>
-			<p class="stat-value" id="stat-healthy-users">0</p>
+			<p class="stat-value" id="stat-healthy-users"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card warning-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_users_active_ws'); ?></p>
-			<p class="stat-value" id="stat-users-active-ws">0</p>
+			<p class="stat-value" id="stat-users-active-ws"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card danger-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_users_errors'); ?></p>
-			<p class="stat-value" id="stat-users-errors">0</p>
+			<p class="stat-value" id="stat-users-errors"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_enabled_connections'); ?></p>
-			<p class="stat-value" id="stat-enabled-connections">0</p>
+			<p class="stat-value" id="stat-enabled-connections"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_enabled_ws_subs'); ?></p>
-			<p class="stat-value" id="stat-enabled-ws-subs">0</p>
+			<p class="stat-value" id="stat-enabled-ws-subs"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_disabled_ws_subs'); ?></p>
-			<p class="stat-value" id="stat-disabled-ws-subs">0</p>
+			<p class="stat-value" id="stat-disabled-ws-subs"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 		<div class="stat-card">
 			<p class="stat-label"><?php echo t('admin_eventsub_stat_webhook_subs'); ?></p>
-			<p class="stat-value" id="stat-webhook-subs">0</p>
+			<p class="stat-value" id="stat-webhook-subs"><span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span></p>
 		</div>
 	</div>
 	</div><!-- /sp-card-body --></div><!-- /sp-card -->
@@ -285,10 +285,24 @@ ob_start();
 					<th><?php echo t('admin_eventsub_th_error'); ?></th>
 				</tr>
 			</thead>
-			<tbody id="eventsub-users-body">
-				<tr>
-					<td colspan="9" class="sp-text-muted" style="text-align:center;"><?php echo t('admin_eventsub_loading_short'); ?></td>
+			<tbody id="eventsub-users-body" aria-busy="true">
+				<?php for ($esk = 0; $esk < 6; $esk++): ?>
+				<tr aria-hidden="true">
+					<td colspan="9" style="padding:0;">
+						<div class="sp-skeleton-table-row">
+							<span class="sp-skeleton-line w-20"></span>
+							<span class="sp-skeleton-line w-15" style="width:12%;"></span>
+							<span class="sp-skeleton-badge"></span>
+							<span class="sp-skeleton-line w-10" style="width:8%;"></span>
+							<span class="sp-skeleton-line w-10" style="width:8%;"></span>
+							<span class="sp-skeleton-line w-10" style="width:8%;"></span>
+							<span class="sp-skeleton-line w-10" style="width:8%;"></span>
+							<span class="sp-skeleton-line w-10" style="width:8%;"></span>
+							<span class="sp-skeleton-line w-20"></span>
+						</div>
+					</td>
 				</tr>
+				<?php endfor; ?>
 			</tbody>
 		</table>
 	</div><!-- /sp-table-wrap -->
@@ -335,14 +349,54 @@ function statusTag(user) {
 	return '<span class="sp-badge sp-badge-blue">' + escapeHtml(ESUB_I18N.statusNoActive) + '</span>';
 }
 
+function setBusy(el, busy) {
+	if (!el) return;
+	if (busy) el.setAttribute('aria-busy', 'true');
+	else el.removeAttribute('aria-busy');
+}
+function skeletonEventSubTableHtml(rows) {
+	const n = rows || 6;
+	let html = '';
+	for (let i = 0; i < n; i++) {
+		html += '<tr aria-hidden="true"><td colspan="9" style="padding:0;">' +
+			'<div class="sp-skeleton-table-row">' +
+			'<span class="sp-skeleton-line w-20"></span>' +
+			'<span class="sp-skeleton-line" style="width:12%;"></span>' +
+			'<span class="sp-skeleton-badge"></span>' +
+			'<span class="sp-skeleton-line" style="width:8%;"></span>' +
+			'<span class="sp-skeleton-line" style="width:8%;"></span>' +
+			'<span class="sp-skeleton-line" style="width:8%;"></span>' +
+			'<span class="sp-skeleton-line" style="width:8%;"></span>' +
+			'<span class="sp-skeleton-line" style="width:8%;"></span>' +
+			'<span class="sp-skeleton-line w-20"></span>' +
+			'</div></td></tr>';
+	}
+	return html;
+}
+function skeletonEventSubStats() {
+	const ids = [
+		'stat-users-scanned', 'stat-healthy-users', 'stat-users-active-ws', 'stat-users-errors',
+		'stat-enabled-connections', 'stat-enabled-ws-subs', 'stat-disabled-ws-subs', 'stat-webhook-subs'
+	];
+	ids.forEach(id => {
+		const el = document.getElementById(id);
+		if (el) el.innerHTML = '<span class="sp-skeleton-value" aria-hidden="true" style="width:2.5rem;"></span>';
+	});
+}
 function renderEventSubData(data) {
 	const body = document.getElementById('eventsub-users-body');
 	const updated = document.getElementById('last-updated');
+	const statsHost = document.getElementById('eventsub-stats');
 	if (!data || !data.success) {
 		if (updated) {
 			updated.innerHTML = '<small class="sp-text-danger">' + escapeHtml(ESUB_I18N.failedToLoad) + '</small>';
+			setBusy(updated, false);
 		}
-		body.innerHTML = '<tr><td colspan="9" class="sp-text-danger" style="text-align:center;">' + escapeHtml(ESUB_I18N.failedToLoadData) + '</td></tr>';
+		if (body) {
+			body.innerHTML = '<tr><td colspan="9" class="sp-text-danger" style="text-align:center;">' + escapeHtml(ESUB_I18N.failedToLoadData) + '</td></tr>';
+			setBusy(body, false);
+		}
+		setBusy(statsHost, false);
 		return;
 	}
 	const s = data.summary || {};
@@ -354,12 +408,15 @@ function renderEventSubData(data) {
 	document.getElementById('stat-enabled-ws-subs').textContent = s.total_enabled_ws_subs || 0;
 	document.getElementById('stat-disabled-ws-subs').textContent = s.total_disabled_ws_subs || 0;
 	document.getElementById('stat-webhook-subs').textContent = s.total_webhook_subs || 0;
+	setBusy(statsHost, false);
 	if (updated) {
 		updated.innerHTML = `<small>${escapeHtml(ESUB_I18N.lastUpdated)} ${escapeHtml(formatTimestamp(data.generated_at))}</small>`;
+		setBusy(updated, false);
 	}
 	const users = Array.isArray(data.users) ? data.users : [];
 	if (users.length === 0) {
 		body.innerHTML = '<tr><td colspan="9" class="sp-text-muted" style="text-align:center;">' + escapeHtml(ESUB_I18N.noUsersFound) + '</td></tr>';
+		setBusy(body, false);
 		return;
 	}
 	const rows = users.map(user => {
@@ -386,14 +443,28 @@ function renderEventSubData(data) {
 		`;
 	});
 	body.innerHTML = rows.join('');
+	setBusy(body, false);
 }
 
 async function refreshEventSubData() {
 	const button = document.getElementById('refresh-eventsub-btn');
 	const original = button ? button.innerHTML : null;
+	const body = document.getElementById('eventsub-users-body');
+	const statsHost = document.getElementById('eventsub-stats');
+	const updated = document.getElementById('last-updated');
 	if (button) {
 		button.disabled = true;
-		button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + escapeHtml(ESUB_I18N.refreshing) + '</span>';
+		button.classList.add('sp-btn-loading');
+	}
+	if (body) {
+		body.innerHTML = skeletonEventSubTableHtml(6);
+		setBusy(body, true);
+	}
+	skeletonEventSubStats();
+	setBusy(statsHost, true);
+	if (updated) {
+		updated.innerHTML = '<span class="sp-skeleton-line w-40" aria-hidden="true" style="display:inline-block;height:0.7rem;"></span>';
+		setBusy(updated, true);
 	}
 	try {
 		const response = await fetch('?refresh_data=1');
@@ -405,6 +476,7 @@ async function refreshEventSubData() {
 	} finally {
 		if (button && original !== null) {
 			button.disabled = false;
+			button.classList.remove('sp-btn-loading');
 			button.innerHTML = original;
 		}
 	}

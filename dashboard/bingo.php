@@ -203,8 +203,8 @@ ob_start();
             </div>
             <button class="db-modal-close" id="players-modal-close" aria-label="<?php echo htmlspecialchars(t('bingo_aria_close')); ?>">&times;</button>
         </div>
-        <div class="db-modal-body" id="players-content">
-            <!-- Players will be loaded here -->
+        <div class="db-modal-body" id="players-content" aria-busy="false">
+            <!-- Players loaded on demand -->
         </div>
         <div class="db-modal-foot">
             <button class="sp-btn sp-btn-secondary" id="close-players-modal-btn"><?= t('bingo_btn_close') ?></button>
@@ -222,8 +222,8 @@ ob_start();
             </div>
             <button class="db-modal-close" aria-label="<?php echo htmlspecialchars(t('bingo_aria_close')); ?>">&times;</button>
         </div>
-        <div class="db-modal-body" id="winners-content">
-            <!-- Winners will be loaded here -->
+        <div class="db-modal-body" id="winners-content" aria-busy="false">
+            <!-- Winners loaded on demand -->
         </div>
         <div class="db-modal-foot">
             <button class="sp-btn sp-btn-secondary" id="close-modal-btn"><?= t('bingo_btn_close') ?></button>
@@ -357,9 +357,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    function bingoListSkeletonHtml(rows) {
+        let html = '';
+        for (let i = 0; i < rows; i++) {
+            html += '<div class="sp-skeleton-table-row" aria-hidden="true">' +
+                '<span class="sp-skeleton-badge"></span>' +
+                '<span class="sp-skeleton sp-skeleton-line w-50"></span>' +
+                '<span class="sp-skeleton sp-skeleton-line w-25"></span></div>';
+        }
+        return html;
+    }
+    function bingoSetBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+
     function loadPlayers(gameId) {
         modalPlayersGameId.textContent = gameId;
-        playersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> ' + bingoI18n.loadingPlayers + '</div>';
+        playersContent.innerHTML = bingoListSkeletonHtml(5);
+        bingoSetBusy(playersContent, true);
 
         fetch('/api/bingo_players.php?game_id=' + encodeURIComponent(gameId))
             .then(response => response.json())
@@ -368,16 +385,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     displayPlayers(data.players);
                 } else {
                     playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingPlayers + '</div>';
+                    bingoSetBusy(playersContent, false);
                 }
             })
             .catch(error => {
                 playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingPlayersDetail + error.message + '</div>';
+                bingoSetBusy(playersContent, false);
             });
 
         playersModal.classList.remove('hidden');
     }
 
     function displayPlayers(players) {
+        bingoSetBusy(playersContent, false);
         if (players.length === 0) {
             playersContent.innerHTML = '<div class="sp-alert sp-alert-info">' + bingoI18n.noPlayers + '</div>';
             return;
@@ -417,7 +437,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loadWinners(gameId) {
         modalGameId.textContent = gameId;
-        winnersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> ' + bingoI18n.loadingWinners + '</div>';
+        winnersContent.innerHTML = bingoListSkeletonHtml(4);
+        bingoSetBusy(winnersContent, true);
 
         fetch('/api/bingo_winners.php?game_id=' + encodeURIComponent(gameId))
             .then(response => response.json())
@@ -426,16 +447,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     displayWinners(data.winners);
                 } else {
                     winnersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingWinners + '</div>';
+                    bingoSetBusy(winnersContent, false);
                 }
             })
             .catch(error => {
                 winnersContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + bingoI18n.errorLoadingWinnersDetail + error.message + '</div>';
+                bingoSetBusy(winnersContent, false);
             });
 
         winnersModal.classList.remove('hidden');
     }
 
     function displayWinners(winners) {
+        bingoSetBusy(winnersContent, false);
         if (winners.length === 0) {
             winnersContent.innerHTML = '<div class="sp-alert sp-alert-info">' + bingoI18n.noWinners + '</div>';
             return;

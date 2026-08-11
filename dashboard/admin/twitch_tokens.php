@@ -953,8 +953,8 @@ ob_start();
     <div class="sp-card-body">
     <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('admin_twitch_tokens_chat_heading'); ?></h3>
     <p class="mb-4"><?php echo t('admin_twitch_tokens_chat_intro'); ?></p>
-    <p><strong><?php echo t('admin_twitch_tokens_status_label'); ?></strong> <span id="chat-status"><?php echo t('admin_twitch_tokens_status_checking'); ?></span></p>
-    <p><strong><?php echo t('admin_twitch_tokens_expires_in_label'); ?></strong> <span id="chat-expiry">-</span></p>
+    <p><strong><?php echo t('admin_twitch_tokens_status_label'); ?></strong> <span id="chat-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span></span></p>
+    <p><strong><?php echo t('admin_twitch_tokens_expires_in_label'); ?></strong> <span id="chat-expiry" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4rem;"></span></span></p>
     <div style="margin-bottom:1rem;">
         <button class="sp-btn sp-btn-info" id="validate-chat-btn">
             <span class="icon"><i class="fas fa-check"></i></span>
@@ -1019,8 +1019,8 @@ ob_start();
                     $tokenId = md5($userId . $token); // Use hash for unique ID
                     echo "<tr id='row-$tokenId' data-user-id='$userId'>";
                     echo "<td>$username</td>";
-                    echo "<td id='status-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . "</td>";
-                    echo "<td id='expiry-$tokenId'>-</td>";
+                    echo "<td id='status-$tokenId' aria-busy='true'><span class='sp-skeleton-badge' aria-hidden='true' style='width:5rem;'></span></td>";
+                    echo "<td id='expiry-$tokenId' aria-busy='true'><span class='sp-skeleton-badge' aria-hidden='true' style='width:4rem;'></span></td>";
                     echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateToken(null, \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_validate')) . "</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewToken(\"$userId\", \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_renew')) . "</button></td>";
                     echo "</tr>";
                 }
@@ -1071,7 +1071,11 @@ ob_start();
                             echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($botChannelId) . "' data-bot-username='" . htmlspecialchars($botUsername) . "'>";
                     echo "<td>$botUsername</td>";
                     echo "<td>$botChannelId</td>";
-                    echo "<td id='status-custom-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . "</td>";
+                    if (trim((string)$accessToken) !== '') {
+                        echo "<td id='status-custom-$tokenId' aria-busy='true'><span class='sp-skeleton-badge' aria-hidden='true' style='width:5rem;'></span></td>";
+                    } else {
+                        echo "<td id='status-custom-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . "</td>";
+                    }
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
                     echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_validate')) . "</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_renew')) . "</button></td>";
                     echo "</tr>";
@@ -1230,9 +1234,8 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(err => console.warn('Failed to load token cache:', err))
         .finally(() => {
-            if (cacheLoadOk) {
-                autoValidateUserTokensCacheFirst();
-            }
+            // Always run (empty cache = validate all) so status skeletons resolve
+            autoValidateUserTokensCacheFirst();
             autoValidateCustomTokens();
         });
     }
@@ -1253,6 +1256,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusCell.textContent = TT_I18N.statusInvalid;
                     statusCell.className = 'sp-text-danger';
                 }
+                setBusy(statusCell, false);
                 if (cached.expires_in && cached.timestamp) {
                     // Recalculate remaining time based on cache timestamp + original expires_in
                     const cachedTime = cached.timestamp * 1000; // Convert to milliseconds
@@ -1265,7 +1269,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         expiryCell.textContent = TT_I18N.statusExpired;
                         expiryCell.className = 'sp-text-danger';
                     }
+                } else if (expiryCell) {
+                    expiryCell.textContent = '-';
                 }
+                if (expiryCell) setBusy(expiryCell, false);
             }
         });
         // Display cached data for custom tokens
@@ -1284,6 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusCell.textContent = TT_I18N.statusInvalid;
                     statusCell.className = 'sp-text-danger';
                 }
+                setBusy(statusCell, false);
                 if (cached.expires_in && cached.timestamp) {
                     // Recalculate remaining time based on cache timestamp + original expires_in
                     const cachedTime = cached.timestamp * 1000; // Convert to milliseconds
@@ -1582,11 +1590,31 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function setBusy(el, busy) {
+    if (!el) return;
+    if (busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+}
+function skeletonStatusCellHtml() {
+    return '<span class="sp-skeleton-badge" aria-hidden="true" style="width:5rem;"></span>';
+}
+function skeletonExpiryCellHtml() {
+    return '<span class="sp-skeleton-badge" aria-hidden="true" style="width:4rem;"></span>';
+}
 function validateChatToken(token, allowAutoRenew = true) {
     const statusCell = document.getElementById('chat-status');
     const expiryCell = document.getElementById('chat-expiry');
     const button = document.getElementById('validate-chat-btn');
-    statusCell.textContent = TT_I18N.statusValidating;
+    if (statusCell) {
+        statusCell.innerHTML = skeletonStatusCellHtml();
+        statusCell.className = '';
+        setBusy(statusCell, true);
+    }
+    if (expiryCell) {
+        expiryCell.innerHTML = skeletonExpiryCellHtml();
+        expiryCell.className = '';
+        setBusy(expiryCell, true);
+    }
     button.disabled = true;
     button.classList.add('sp-btn-loading');
     const formData = new FormData();
@@ -1612,7 +1640,9 @@ function validateChatToken(token, allowAutoRenew = true) {
                 chatToken = data.renewed_token;
                 statusCell.textContent = TT_I18N.statusAutoRenewed;
                 statusCell.className = 'sp-text-warning';
+                setBusy(statusCell, false);
                 expiryCell.textContent = TT_I18N.statusRefreshing;
+                setBusy(expiryCell, false);
                 // Re-validate without the renew flag so a bad renewal can't loop.
                 setTimeout(() => validateChatToken(chatToken, false), 500);
                 return;
@@ -1641,20 +1671,26 @@ function validateChatToken(token, allowAutoRenew = true) {
             const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
             statusCell.textContent = TT_I18N.statusValid;
             statusCell.className = 'sp-text-success';
+            setBusy(statusCell, false);
             expiryCell.textContent = timeString;
             expiryCell.className = '';
+            setBusy(expiryCell, false);
         } else {
             statusCell.textContent = TT_I18N.statusInvalid;
             statusCell.className = 'sp-text-danger';
+            setBusy(statusCell, false);
             expiryCell.textContent = '-';
             expiryCell.className = 'sp-text-danger';
+            setBusy(expiryCell, false);
         }
     })
     .catch(error => {
         statusCell.textContent = TT_I18N.statusError;
         statusCell.className = 'sp-text-danger';
+        setBusy(statusCell, false);
         expiryCell.textContent = '-';
         expiryCell.className = 'sp-text-danger';
+        setBusy(expiryCell, false);
     })
     .finally(() => {
         button.disabled = false;
@@ -1668,7 +1704,16 @@ function validateToken(token, tokenId) {
     const row = document.getElementById(`row-${tokenId}`);
     const userId = row.getAttribute('data-user-id');
     const button = document.querySelector(`#row-${tokenId} button:first-child`);
-    statusCell.textContent = TT_I18N.statusFetching;
+    if (statusCell) {
+        statusCell.innerHTML = skeletonStatusCellHtml();
+        statusCell.className = '';
+        setBusy(statusCell, true);
+    }
+    if (expiryCell) {
+        expiryCell.innerHTML = skeletonExpiryCellHtml();
+        expiryCell.className = '';
+        setBusy(expiryCell, true);
+    }
     button.disabled = true;
     button.classList.add('sp-btn-loading');
     // First fetch the current token from database
@@ -1681,14 +1726,17 @@ function validateToken(token, tokenId) {
             if (!fetchData.success) {
                 statusCell.textContent = TT_I18N.statusNoToken;
                 statusCell.className = 'sp-text-warning';
+                setBusy(statusCell, false);
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
+                setBusy(expiryCell, false);
                 button.disabled = false;
                 button.classList.remove('sp-btn-loading');
                 return Promise.reject({ handled: true });
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
-            statusCell.textContent = TT_I18N.statusValidating;
+            statusCell.innerHTML = skeletonStatusCellHtml();
+            setBusy(statusCell, true);
             const formData = new FormData();
             formData.append('validate_token', '1');
             formData.append('access_token', currentToken);
@@ -1721,16 +1769,20 @@ function validateToken(token, tokenId) {
             const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
             statusCell.textContent = TT_I18N.statusValid;
             statusCell.className = 'sp-text-success';
+            setBusy(statusCell, false);
             expiryCell.textContent = timeString;
             expiryCell.className = '';
+            setBusy(expiryCell, false);
             // Save to cache
             saveTokenToCache(tokenId, 'regular', expiresIn, true);
         } else {
             const errMsg = data.error || TT_I18N.errInvalidToken;
             statusCell.textContent = TT_I18N.statusInvalid;
             statusCell.className = 'sp-text-danger';
+            setBusy(statusCell, false);
             expiryCell.textContent = errMsg;
             expiryCell.className = 'sp-text-danger';
+            setBusy(expiryCell, false);
             // Save to cache
             saveTokenToCache(tokenId, 'regular', 0, false);
         }
@@ -1744,13 +1796,17 @@ function validateToken(token, tokenId) {
         const msg = (error && error.message) ? error.message : TT_I18N.errNetwork;
         statusCell.textContent = TT_I18N.statusError;
         statusCell.className = 'sp-text-danger';
+        setBusy(statusCell, false);
         expiryCell.textContent = msg;
         expiryCell.className = 'sp-text-danger';
+        setBusy(expiryCell, false);
         return { success: false };
     })
     .finally(() => {
         button.disabled = false;
         button.classList.remove('sp-btn-loading');
+        setBusy(statusCell, false);
+        setBusy(expiryCell, false);
     });
 }
 
@@ -1862,7 +1918,11 @@ function validateCustomToken(token, tokenId) {
     const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
     const row = document.getElementById(`custom-row-${tokenId}`);
     const botChannelId = row.getAttribute('data-bot-channel-id');
-    statusCell.textContent = TT_I18N.statusFetching;
+    if (statusCell) {
+        statusCell.innerHTML = skeletonStatusCellHtml();
+        statusCell.className = '';
+        setBusy(statusCell, true);
+    }
     // Disable the validate button in this row
     const btn = row.querySelector('button');
     if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
@@ -1880,13 +1940,15 @@ function validateCustomToken(token, tokenId) {
             if (!fetchData.success) {
                 statusCell.textContent = TT_I18N.statusNoToken;
                 statusCell.className = 'sp-text-warning';
+                setBusy(statusCell, false);
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
                 return Promise.reject({ handled: true });
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
-            statusCell.textContent = TT_I18N.statusValidating;
+            statusCell.innerHTML = skeletonStatusCellHtml();
+            setBusy(statusCell, true);
             const formData = new FormData();
             formData.append('validate_token', '1');
             formData.append('access_token', currentToken);
@@ -1915,6 +1977,7 @@ function validateCustomToken(token, tokenId) {
                 const timeString = timeParts.join(', ') || TT_I18N.zeroSeconds;
                 statusCell.textContent = TT_I18N.statusValid;
                 statusCell.className = 'sp-text-success';
+                setBusy(statusCell, false);
                 expiryCell.textContent = timeString;
                 expiryCell.className = '';
                 // Save to cache
@@ -1923,6 +1986,7 @@ function validateCustomToken(token, tokenId) {
                 const errMsg = data.error || TT_I18N.errInvalidToken;
                 statusCell.textContent = TT_I18N.statusInvalid;
                 statusCell.className = 'sp-text-danger';
+                setBusy(statusCell, false);
                 expiryCell.textContent = errMsg;
                 expiryCell.className = 'sp-text-danger';
                 // Save to cache
@@ -1937,11 +2001,13 @@ function validateCustomToken(token, tokenId) {
             const msg = (err && err.message) ? err.message : TT_I18N.errNetwork;
             statusCell.textContent = TT_I18N.statusError;
             statusCell.className = 'sp-text-danger';
+            setBusy(statusCell, false);
             expiryCell.textContent = msg;
             expiryCell.className = 'sp-text-danger';
         })
         .finally(() => {
             if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
+            setBusy(statusCell, false);
         });
 }
 

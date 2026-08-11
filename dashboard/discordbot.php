@@ -3346,8 +3346,24 @@ ob_start();
                     <i class="fas fa-list"></i> <?= t('discordbot_your_custom_embeds') ?>
                   </span>
                 </div>
-                <div id="embedsList" style="max-height:400px; overflow-y:auto; padding:0.25rem 0.75rem;">
-                  <!-- Embeds will be loaded here -->
+                <div id="embedsList" style="max-height:400px; overflow-y:auto; padding:0.25rem 0.75rem;" aria-busy="true">
+                  <div class="sp-skeleton-stack" aria-hidden="true" style="padding:0.5rem 0;">
+                    <div class="sp-skeleton-table-row" style="padding-left:0;padding-right:0;">
+                      <span class="sp-skeleton sp-skeleton-line w-40"></span>
+                      <span class="sp-skeleton sp-skeleton-line w-25"></span>
+                      <span class="sp-skeleton-badge"></span>
+                    </div>
+                    <div class="sp-skeleton-table-row" style="padding-left:0;padding-right:0;">
+                      <span class="sp-skeleton sp-skeleton-line w-50"></span>
+                      <span class="sp-skeleton sp-skeleton-line w-20"></span>
+                      <span class="sp-skeleton-badge"></span>
+                    </div>
+                    <div class="sp-skeleton-table-row" style="padding-left:0;padding-right:0;">
+                      <span class="sp-skeleton sp-skeleton-line w-45"></span>
+                      <span class="sp-skeleton sp-skeleton-line w-25"></span>
+                      <span class="sp-skeleton-badge"></span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <!-- Create New Embed Button -->
@@ -3618,11 +3634,35 @@ ob_start();
   let currentEmbedId = 0;
   let embedFieldsCounter = 0;
   let currentSendEmbedId = 0;
+  function embedsListSkeletonHtml() {
+    return '<div class="sp-skeleton-stack" aria-hidden="true" style="padding:0.5rem 0;">' +
+      '<div class="sp-skeleton-table-row" style="padding-left:0;padding-right:0;">' +
+      '<span class="sp-skeleton sp-skeleton-line w-40"></span>' +
+      '<span class="sp-skeleton sp-skeleton-line w-25"></span>' +
+      '<span class="sp-skeleton-badge"></span></div>' +
+      '<div class="sp-skeleton-table-row" style="padding-left:0;padding-right:0;">' +
+      '<span class="sp-skeleton sp-skeleton-line w-50"></span>' +
+      '<span class="sp-skeleton sp-skeleton-line w-20"></span>' +
+      '<span class="sp-skeleton-badge"></span></div>' +
+      '<div class="sp-skeleton-table-row" style="padding-left:0;padding-right:0;">' +
+      '<span class="sp-skeleton sp-skeleton-line w-45"></span>' +
+      '<span class="sp-skeleton sp-skeleton-line w-25"></span>' +
+      '<span class="sp-skeleton-badge"></span></div></div>';
+  }
+  function setEmbedsListBusy(busy) {
+    const container = document.getElementById('embedsList');
+    if (!container) return;
+    if (busy) container.setAttribute('aria-busy', 'true');
+    else container.removeAttribute('aria-busy');
+  }
   function loadEmbedsList() {
+    const container = document.getElementById('embedsList');
+    if (!container) return;
+    container.innerHTML = embedsListSkeletonHtml();
+    setEmbedsListBusy(true);
     fetch(`/api/get_custom_embeds.php?server_id=${getCurrentServerId()}`)
       .then(response => response.json())
       .then(data => {
-        const container = document.getElementById('embedsList');
         if (data.success && data.embeds && data.embeds.length > 0) {
           container.innerHTML = data.embeds.map(embed => `
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;padding:0.65rem 0.25rem;border-bottom:1px solid var(--border);">
@@ -3643,12 +3683,17 @@ ob_start();
             </div>
           </div>
         `).join('');
-        } else {
+        } else if (data.success) {
           container.innerHTML = '<p style="color:var(--text-muted);">No custom embeds yet. Create one to get started!</p>';
+        } else {
+          container.innerHTML = '<div class="db-loading"><i class="fas fa-triangle-exclamation"></i> Failed to load embeds.</div>';
         }
+        setEmbedsListBusy(false);
       })
       .catch(error => {
         console.error('Error loading embeds:', error);
+        container.innerHTML = '<div class="db-loading"><i class="fas fa-triangle-exclamation"></i> Failed to load embeds.</div>';
+        setEmbedsListBusy(false);
       });
   }
   function createEmbed() {

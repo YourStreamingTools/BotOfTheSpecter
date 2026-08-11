@@ -400,31 +400,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// All files in the unified media library (root + one subdirectory level, e.g. avatar/)
-$all_media_files = [];
-if (is_dir($media_path)) {
-    foreach (scandir($media_path) as $entry) {
-        if ($entry === '.' || $entry === '..') {
-            continue;
-        }
-        $full = $media_path . '/' . $entry;
-        if (is_file($full)) {
-            $all_media_files[] = $entry;
-        } elseif (is_dir($full)) {
-            foreach (scandir($full) as $sub) {
-                if ($sub === '.' || $sub === '..') {
-                    continue;
-                }
-                $subFull = $full . '/' . $sub;
-                if (is_file($subFull)) {
-                    $all_media_files[] = $entry . '/' . $sub;
-                }
-            }
-        }
-    }
-}
-sort($all_media_files, SORT_STRING | SORT_FLAG_CASE);
-
 $media_base_url = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/';
 
 function media_public_url($baseUrl, $relativePath) {
@@ -452,6 +427,134 @@ function format_bytes($bytes) {
     if ($bytes >= 1024) return round($bytes / 1024, 1) . ' KB';
     return $bytes . ' B';
 }
+
+function media_scan_library_files($media_path) {
+    $all_media_files = [];
+    if (!is_dir($media_path)) {
+        return $all_media_files;
+    }
+    foreach (scandir($media_path) as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $full = $media_path . '/' . $entry;
+        if (is_file($full)) {
+            $all_media_files[] = $entry;
+        } elseif (is_dir($full)) {
+            foreach (scandir($full) as $sub) {
+                if ($sub === '.' || $sub === '..') {
+                    continue;
+                }
+                $subFull = $full . '/' . $sub;
+                if (is_file($subFull)) {
+                    $all_media_files[] = $entry . '/' . $sub;
+                }
+            }
+        }
+    }
+    sort($all_media_files, SORT_STRING | SORT_FLAG_CASE);
+    return $all_media_files;
+}
+
+function media_render_file_list_html(
+    array $all_media_files,
+    $media_path,
+    $media_base_url,
+    array $soundAlertMappings,
+    array $videoAlertMappings,
+    array $twitchSoundAlertMappings,
+    array $walkonsByFile,
+    array $alertMediaFiles
+) {
+    ob_start();
+    foreach ($all_media_files as $file) {
+        if (!is_file($media_path . '/' . $file)) {
+            continue;
+        }
+        $size = media_file_size($media_path . '/' . $file);
+        $type = media_file_type($file);
+        $fileBase = basename($file);
+        $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? [])
+            + count($soundAlertMappings[$fileBase] ?? []) + count($videoAlertMappings[$fileBase] ?? []);
+        $eventCount  = count($twitchSoundAlertMappings[$file] ?? []) + count($twitchSoundAlertMappings[$fileBase] ?? []);
+        $walkonCount = count($walkonsByFile[$file] ?? []) + count($walkonsByFile[$fileBase] ?? []);
+        $alertCount  = count($alertMediaFiles[$file] ?? []) + count($alertMediaFiles[$fileBase] ?? []);
+        $totalCount  = $rewardCount + $eventCount + $walkonCount + $alertCount;
+        $summaryParts = [];
+        if ($rewardCount > 0) $summaryParts[] = t($rewardCount === 1 ? 'media_summary_reward' : 'media_summary_reward_plural', [$rewardCount]);
+        if ($eventCount  > 0) $summaryParts[] = t($eventCount === 1 ? 'media_summary_event' : 'media_summary_event_plural', [$eventCount]);
+        if ($walkonCount > 0) $summaryParts[] = t($walkonCount === 1 ? 'media_summary_walkon' : 'media_summary_walkon_plural', [$walkonCount]);
+        if ($alertCount  > 0) $summaryParts[] = t($alertCount === 1 ? 'media_summary_alert' : 'media_summary_alert_plural', [$alertCount]);
+        $summary = empty($summaryParts) ? t('media_summary_unused') : implode(' · ', $summaryParts);
+        ?>
+                <li class="media-file-row"
+                    data-file="<?php echo htmlspecialchars($file); ?>"
+                    data-type="<?php echo htmlspecialchars($type); ?>"
+                    data-has-rewards="<?php echo $rewardCount > 0 ? '1' : '0'; ?>"
+                    data-has-events="<?php echo $eventCount > 0 ? '1' : '0'; ?>"
+                    data-has-walkons="<?php echo $walkonCount > 0 ? '1' : '0'; ?>"
+                    data-has-alerts="<?php echo $alertCount > 0 ? '1' : '0'; ?>"
+                    data-alert-count="<?php echo $alertCount; ?>"
+                    data-total="<?php echo $totalCount; ?>">
+                    <input type="checkbox" class="media-file-check" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
+                    <?php if (media_is_previewable_image($file)): ?>
+                    <a class="media-file-thumb" href="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" target="_blank" rel="noopener" title="<?php echo htmlspecialchars($file); ?>">
+                        <img src="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" alt="" loading="lazy" decoding="async">
+                    </a>
+                    <?php else: ?>
+                    <span class="media-file-thumb media-file-thumb-empty" aria-hidden="true"></span>
+                    <?php endif; ?>
+                    <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>">
+                        <?php echo htmlspecialchars($file); ?>
+                    </button>
+                    <span class="media-file-meta"><?php echo strtoupper(pathinfo($file, PATHINFO_EXTENSION)); ?> · <?php echo format_bytes($size); ?></span>
+                    <span class="media-file-summary<?php echo $totalCount === 0 ? ' is-unused' : ''; ?>"><?php echo htmlspecialchars($summary); ?></span>
+                    <?php if ($type === 'audio' || $type === 'video'): ?>
+                    <button type="button" class="sp-btn sp-btn-primary sp-btn-sm media-test-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-type="<?php echo $type; ?>" title="<?php echo htmlspecialchars(t('media_test_playback')); ?>">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <?php else: ?>
+                    <span class="sp-btn sp-btn-sm media-test-btn-placeholder" title="<?php echo htmlspecialchars(t('media_images_managed_via_builder')); ?>">&nbsp;</span>
+                    <?php endif; ?>
+                    <?php if ($totalCount > 0): ?>
+                    <button type="button" class="sp-btn sp-btn-sm media-delete-locked" data-file="<?php echo htmlspecialchars($file); ?>" data-summary="<?php echo htmlspecialchars($summary); ?>" title="<?php echo htmlspecialchars(t('media_in_use_title')); ?>">
+                        <i class="fas fa-lock"></i>
+                    </button>
+                    <?php else: ?>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm media-delete-single" data-file="<?php echo htmlspecialchars($file); ?>" title="<?php echo htmlspecialchars(t('media_delete_file')); ?>">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <?php endif; ?>
+                </li>
+        <?php
+    }
+    return (string) ob_get_clean();
+}
+
+// AJAX: file list shell (scandir can be slow on remote media mounts)
+if (($_GET['action'] ?? '') === 'list_media_files') {
+    header('Content-Type: application/json; charset=utf-8');
+    $all_media_files = media_scan_library_files($media_path);
+    $html = media_render_file_list_html(
+        $all_media_files,
+        $media_path,
+        $media_base_url,
+        $soundAlertMappings,
+        $videoAlertMappings,
+        $twitchSoundAlertMappings,
+        $walkonsByFile,
+        $alertMediaFiles
+    );
+    echo json_encode([
+        'success' => true,
+        'count' => count($all_media_files),
+        'html' => $html,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// File list is filled client-side (skeleton → AJAX) so first paint is not blocked by scandir.
+$all_media_files = [];
 
 ob_start();
 ?>
@@ -556,78 +659,32 @@ ob_start();
             <i class="fas fa-trash"></i> <span><?= t('media_delete_selected') ?></span>
         </button>
     </header>
-    <div class="sp-card-body">
-        <?php if (empty($all_media_files)): ?>
-            <div class="media-empty-state">
-                <p><?= t('media_empty_state') ?></p>
-            </div>
-        <?php else: ?>
+    <div class="sp-card-body" id="media-library-body" aria-busy="true">
+        <div class="media-empty-state" id="media-empty-state" style="display:none;">
+            <p><?= t('media_empty_state') ?></p>
+        </div>
+        <div class="db-loading" id="media-list-error" style="display:none;" role="alert"></div>
         <form action="" method="POST" id="mediaDeleteForm" class="media-delete-form">
             <ul class="media-file-list" id="media-file-list">
-                <?php foreach ($all_media_files as $file):
-                    if (!is_file($media_path . '/' . $file)) continue;
-                    $size = media_file_size($media_path . '/' . $file);
-                    $type = media_file_type($file);
-                    $fileBase = basename($file);
-                    $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? [])
-                        + count($soundAlertMappings[$fileBase] ?? []) + count($videoAlertMappings[$fileBase] ?? []);
-                    $eventCount  = count($twitchSoundAlertMappings[$file] ?? []) + count($twitchSoundAlertMappings[$fileBase] ?? []);
-                    $walkonCount = count($walkonsByFile[$file] ?? []) + count($walkonsByFile[$fileBase] ?? []);
-                    $alertCount  = count($alertMediaFiles[$file] ?? []) + count($alertMediaFiles[$fileBase] ?? []);
-                    $totalCount  = $rewardCount + $eventCount + $walkonCount + $alertCount;
-                    $summaryParts = [];
-                    if ($rewardCount > 0) $summaryParts[] = t($rewardCount === 1 ? 'media_summary_reward' : 'media_summary_reward_plural', [$rewardCount]);
-                    if ($eventCount  > 0) $summaryParts[] = t($eventCount === 1 ? 'media_summary_event' : 'media_summary_event_plural', [$eventCount]);
-                    if ($walkonCount > 0) $summaryParts[] = t($walkonCount === 1 ? 'media_summary_walkon' : 'media_summary_walkon_plural', [$walkonCount]);
-                    if ($alertCount  > 0) $summaryParts[] = t($alertCount === 1 ? 'media_summary_alert' : 'media_summary_alert_plural', [$alertCount]);
-                    $summary = empty($summaryParts) ? t('media_summary_unused') : implode(' · ', $summaryParts);
-                ?>
-                <li class="media-file-row"
-                    data-file="<?php echo htmlspecialchars($file); ?>"
-                    data-type="<?php echo htmlspecialchars($type); ?>"
-                    data-has-rewards="<?php echo $rewardCount > 0 ? '1' : '0'; ?>"
-                    data-has-events="<?php echo $eventCount > 0 ? '1' : '0'; ?>"
-                    data-has-walkons="<?php echo $walkonCount > 0 ? '1' : '0'; ?>"
-                    data-has-alerts="<?php echo $alertCount > 0 ? '1' : '0'; ?>"
-                    data-alert-count="<?php echo $alertCount; ?>"
-                    data-total="<?php echo $totalCount; ?>">
-                    <input type="checkbox" class="media-file-check" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                    <?php if (media_is_previewable_image($file)): ?>
-                    <a class="media-file-thumb" href="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" target="_blank" rel="noopener" title="<?php echo htmlspecialchars($file); ?>">
-                        <img src="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" alt="" loading="lazy" decoding="async">
-                    </a>
-                    <?php else: ?>
-                    <span class="media-file-thumb media-file-thumb-empty" aria-hidden="true"></span>
-                    <?php endif; ?>
-                    <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>">
-                        <?php echo htmlspecialchars($file); ?>
-                    </button>
-                    <span class="media-file-meta"><?php echo strtoupper(pathinfo($file, PATHINFO_EXTENSION)); ?> · <?php echo format_bytes($size); ?></span>
-                    <span class="media-file-summary<?php echo $totalCount === 0 ? ' is-unused' : ''; ?>"><?php echo htmlspecialchars($summary); ?></span>
-                    <?php if ($type === 'audio' || $type === 'video'): ?>
-                    <button type="button" class="sp-btn sp-btn-primary sp-btn-sm media-test-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-type="<?php echo $type; ?>" title="<?php echo htmlspecialchars(t('media_test_playback')); ?>">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <?php else: ?>
-                    <span class="sp-btn sp-btn-sm media-test-btn-placeholder" title="<?php echo htmlspecialchars(t('media_images_managed_via_builder')); ?>">&nbsp;</span>
-                    <?php endif; ?>
-                    <?php if ($totalCount > 0): ?>
-                    <button type="button" class="sp-btn sp-btn-sm media-delete-locked" data-file="<?php echo htmlspecialchars($file); ?>" data-summary="<?php echo htmlspecialchars($summary); ?>" title="<?php echo htmlspecialchars(t('media_in_use_title')); ?>">
-                        <i class="fas fa-lock"></i>
-                    </button>
-                    <?php else: ?>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm media-delete-single" data-file="<?php echo htmlspecialchars($file); ?>" title="<?php echo htmlspecialchars(t('media_delete_file')); ?>">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                    <?php endif; ?>
+                <?php for ($i = 0; $i < 8; $i++): ?>
+                <li class="media-file-row media-file-row-skeleton" aria-hidden="true">
+                    <span class="sp-skeleton" style="width:1rem;height:1rem;border-radius:3px;"></span>
+                    <span class="sp-skeleton" style="width:52px;height:52px;border-radius:var(--radius-sm);"></span>
+                    <span class="sp-skeleton-stack" style="min-width:0;">
+                        <span class="sp-skeleton-line w-70"></span>
+                        <span class="sp-skeleton-line w-40"></span>
+                    </span>
+                    <span class="sp-skeleton-line w-20"></span>
+                    <span class="sp-skeleton-line w-25"></span>
+                    <span class="sp-skeleton-line w-20"></span>
+                    <span class="sp-skeleton-line w-20"></span>
                 </li>
-                <?php endforeach; ?>
+                <?php endfor; ?>
             </ul>
-            <div class="media-empty-filter" style="display:none;">
+            <div class="media-empty-filter" id="media-empty-filter" style="display:none;">
                 <p><?= t('media_no_files_match_filter') ?></p>
             </div>
         </form>
-        <?php endif; ?>
     </div>
 </div>
 
@@ -736,15 +793,87 @@ window.__MEDIA_I18N = {
     migrate_failed_title:  <?php echo json_encode(t('media_js_migrate_failed_title')); ?>,
     migrate_failed_unknown:<?php echo json_encode(t('media_js_migrate_failed_unknown')); ?>,
     migrate_failed_server: <?php echo json_encode(t('media_js_migrate_failed_server')); ?>,
-    migrate_btn_label:     <?php echo json_encode(t('media_migrate_btn')); ?>
+    migrate_btn_label:     <?php echo json_encode(t('media_migrate_btn')); ?>,
+    list_load_error:       <?php echo json_encode(t('media_js_upload_failed_retry')); ?>
 };
 
 $(document).ready(function () {
     var data = window.__MEDIA_DATA;
     var I18N = window.__MEDIA_I18N;
+    var mediaListReady = false;
     function fmtCount(n, singularKey, pluralKey) {
         var tpl = (n === 1 ? I18N[singularKey] : I18N[pluralKey]) || '%s';
         return tpl.replace('%s', n);
+    }
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    function skeletonMediaListHtml(count) {
+        var n = count || 8, html = '', i;
+        for (i = 0; i < n; i++) {
+            html += '<li class="media-file-row media-file-row-skeleton" aria-hidden="true">'
+                + '<span class="sp-skeleton" style="width:1rem;height:1rem;border-radius:3px;"></span>'
+                + '<span class="sp-skeleton" style="width:52px;height:52px;border-radius:var(--radius-sm);"></span>'
+                + '<span class="sp-skeleton-stack" style="min-width:0;">'
+                + '<span class="sp-skeleton-line w-70"></span>'
+                + '<span class="sp-skeleton-line w-40"></span></span>'
+                + '<span class="sp-skeleton-line w-20"></span>'
+                + '<span class="sp-skeleton-line w-25"></span>'
+                + '<span class="sp-skeleton-line w-20"></span>'
+                + '<span class="sp-skeleton-line w-20"></span></li>';
+        }
+        return html;
+    }
+    function loadMediaFileList() {
+        var body = document.getElementById('media-library-body');
+        var list = document.getElementById('media-file-list');
+        var empty = document.getElementById('media-empty-state');
+        var errEl = document.getElementById('media-list-error');
+        var form = document.getElementById('mediaDeleteForm');
+        if (!list) return;
+        mediaListReady = false;
+        setBusy(body, true);
+        if (empty) empty.style.display = 'none';
+        if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+        if (form) form.style.display = '';
+        list.innerHTML = skeletonMediaListHtml(8);
+        fetch('media.php?action=list_media_files', {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (resp) {
+                if (!resp || !resp.success) throw new Error((resp && resp.message) || 'load failed');
+                mediaListReady = true;
+                var count = Number(resp.count || 0);
+                if (count < 1 || !resp.html) {
+                    list.innerHTML = '';
+                    if (form) form.style.display = 'none';
+                    if (empty) empty.style.display = '';
+                } else {
+                    if (empty) empty.style.display = 'none';
+                    if (form) form.style.display = '';
+                    list.innerHTML = resp.html;
+                    applyFilter();
+                }
+                setBusy(body, false);
+            })
+            .catch(function () {
+                mediaListReady = true;
+                list.innerHTML = '';
+                if (form) form.style.display = 'none';
+                if (errEl) {
+                    errEl.style.display = '';
+                    errEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> ' + (I18N.list_load_error || 'Failed to load media library.');
+                }
+                setBusy(body, false);
+            });
     }
     // Modal rendering
     var modal     = document.getElementById('media-modal-backdrop');
@@ -1079,8 +1208,9 @@ $(document).ready(function () {
     })();
     var activeFilter = 'all';
     function applyFilter() {
+        if (!mediaListReady) return;
         var search = (document.getElementById('media-search-input').value || '').toLowerCase();
-        var rows = document.querySelectorAll('.media-file-row');
+        var rows = document.querySelectorAll('.media-file-row:not(.media-file-row-skeleton)');
         var visible = 0;
         rows.forEach(function (row) {
             var file = (row.dataset.file || '').toLowerCase();
@@ -1099,7 +1229,7 @@ $(document).ready(function () {
             row.style.display = match ? '' : 'none';
             if (match) visible++;
         });
-        var empty = document.querySelector('.media-empty-filter');
+        var empty = document.getElementById('media-empty-filter') || document.querySelector('.media-empty-filter');
         if (empty) empty.style.display = (visible === 0 && rows.length > 0) ? 'block' : 'none';
     }
     $(document).on('click', '.media-filter-btn', function () {
@@ -1109,6 +1239,7 @@ $(document).ready(function () {
         applyFilter();
     });
     $('#media-search-input').on('input', applyFilter);
+    loadMediaFileList();
     if ($('.sp-notif').length) {
         setTimeout(function () {
             $('.sp-notif').fadeOut(500, function () { $(this).remove(); });

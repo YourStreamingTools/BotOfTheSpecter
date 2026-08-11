@@ -156,7 +156,11 @@ ob_start();
     <div class="sp-card-body">
     <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><i class="fas fa-plug"></i> <?= t('notifications_internal_ws_heading') ?></h2>
     <p style="margin-bottom:0.75rem;"><?= t('notifications_internal_ws_description') ?></p>
-    <div id="internal-ws-summary" class="info-box"><?= t('notifications_internal_ws_loading_status') ?></div>
+    <div id="internal-ws-summary" class="info-box" aria-busy="true">
+        <div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.4rem;">
+            <span class="sp-skeleton sp-skeleton-line w-55"></span>
+        </div>
+    </div>
     <div class="sp-table-wrap" style="margin-top:0.625rem;">
         <table class="data-table sp-table" id="internal-ws-table">
             <thead>
@@ -167,8 +171,15 @@ ob_start();
                     <th><?= t('notifications_th_actions') ?></th>
                 </tr>
             </thead>
-            <tbody id="internal-ws-tbody">
-                <tr><td colspan="4" style="text-align:center;"><?= t('notifications_loading') ?></td></tr>
+            <tbody id="internal-ws-tbody" aria-busy="true">
+                <?php for ($iws = 0; $iws < 3; $iws++): ?>
+                <tr aria-hidden="true">
+                    <td><span class="sp-skeleton sp-skeleton-line w-60"></span></td>
+                    <td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>
+                    <td><span class="sp-skeleton-badge"></span></td>
+                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                </tr>
+                <?php endfor; ?>
             </tbody>
         </table>
     </div>
@@ -244,6 +255,66 @@ console.log('Initial PHP session groups:', <?php echo json_encode(array_keys($se
 // Auto-refresh interval (10 seconds)
 let autoRefreshInterval;
 let isDeleting = false; // Flag to prevent refresh during deletion
+let internalWsHasLoaded = false; // Don't re-skeleton silent auto-refreshes after first success
+
+function setBusy(el, busy) {
+    if (!el) return;
+    if (busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+}
+
+// Layout-matching skeleton for EventSub stats + a session table shell (manual refresh)
+function subscriptionSkeletonHtml() {
+    let html = '<div class="stats-grid" aria-busy="true">';
+    for (let i = 0; i < 5; i++) {
+        html += '<div class="sp-skeleton-stat" aria-hidden="true">' +
+            '<span class="sp-skeleton sp-skeleton-line w-55"></span>' +
+            '<span class="sp-skeleton sp-skeleton-value"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-40"></span></div>';
+    }
+    html += '</div>';
+    html += '<div class="sp-card" style="margin-top:1rem;"><div class="sp-card-body">';
+    html += '<div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.75rem; margin-bottom:1rem;">' +
+        '<span class="sp-skeleton sp-skeleton-line w-45" style="height:1rem;"></span>' +
+        '<span class="sp-skeleton sp-skeleton-line w-80"></span></div>';
+    for (let r = 0; r < 4; r++) {
+        html += '<div class="sp-skeleton-table-row" aria-hidden="true">' +
+            '<span class="sp-skeleton sp-skeleton-line w-25"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-20"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-40"></span>' +
+            '<span class="sp-skeleton-badge"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-25"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-20"></span></div>';
+    }
+    html += '</div></div>';
+    return html;
+}
+
+function internalWsSkeletonRows() {
+    let rows = '';
+    for (let i = 0; i < 3; i++) {
+        rows += '<tr aria-hidden="true">' +
+            '<td><span class="sp-skeleton sp-skeleton-line w-60"></span></td>' +
+            '<td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>' +
+            '<td><span class="sp-skeleton-badge"></span></td>' +
+            '<td><span class="sp-skeleton sp-skeleton-line w-40"></span></td></tr>';
+    }
+    return rows;
+}
+
+function showInternalWsSkeleton() {
+    const summary = document.getElementById('internal-ws-summary');
+    const tbody = document.getElementById('internal-ws-tbody');
+    if (summary) {
+        setBusy(summary, true);
+        summary.innerHTML = '<div class="sp-skeleton-stack" aria-hidden="true" style="gap:0.4rem;">' +
+            '<span class="sp-skeleton sp-skeleton-line w-55"></span></div>';
+    }
+    if (tbody) {
+        setBusy(tbody, true);
+        tbody.innerHTML = internalWsSkeletonRows();
+    }
+}
 
 // Show notification message
 function showNotification(message, type = 'success') {
@@ -269,13 +340,21 @@ async function refreshSubscriptions() {
     // If triggered by a button click, show loading state
     let button = null;
     let originalHTML = null;
+    let isManualRefresh = false;
     if (typeof event !== 'undefined' && event && event.target) {
         button = event.target.closest('button');
         if (button && button.classList.contains('refresh-btn')) {
+            isManualRefresh = true;
             originalHTML = button.innerHTML;
             button.disabled = true;
             button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> ' + NOTIF_I18N.refreshing;
         }
+    }
+    const container = document.getElementById('subscription-content');
+    // Manual refresh: layout-matching skeleton for stats + tables (not silent auto-refresh)
+    if (isManualRefresh && container) {
+        setBusy(container, true);
+        container.innerHTML = subscriptionSkeletonHtml();
     }
     try {
         const response = await fetch('/api/notifications_api.php?action=fetch_subscriptions');
@@ -288,7 +367,7 @@ async function refreshSubscriptions() {
         }
         // Render the content using the API data
         renderSubscriptions(result.data);
-        await refreshInternalWebsocket();
+        await refreshInternalWebsocket(isManualRefresh ? button : null, { forceSkeleton: isManualRefresh });
         // Update indicator
         const indicator = document.getElementById('auto-refresh-indicator');
         if (indicator) {
@@ -297,6 +376,9 @@ async function refreshSubscriptions() {
     } catch (error) {
         console.error('Refresh error:', error);
         showNotification(NOTIF_I18N.failedRefresh + error.message, 'error');
+        if (isManualRefresh && container) {
+            setBusy(container, false);
+        }
     } finally {
         // Restore button state if it was manually triggered
         if (button && originalHTML) {
@@ -310,6 +392,7 @@ async function refreshSubscriptions() {
 function renderSubscriptions(data) {
     const container = document.getElementById('subscription-content');
     if (!container) return;
+    setBusy(container, false);
     // Debug: Log session names to console
     console.log('Session names from API:', data.sessionNames);
     console.log('Session IDs from sessionGroups:', Object.keys(data.sessionGroups));
@@ -686,16 +769,23 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-async function refreshInternalWebsocket(button = null) {
+async function refreshInternalWebsocket(button = null, opts = {}) {
     const summary = document.getElementById('internal-ws-summary');
     const tbody = document.getElementById('internal-ws-tbody');
     if (!summary || !tbody) return;
 
+    const forceSkeleton = !!(opts && opts.forceSkeleton);
+    const showSkeleton = forceSkeleton || !!button || !internalWsHasLoaded;
+
     let originalButtonHtml = null;
-    if (button) {
+    if (button && button.id === 'refresh-my-ws-btn') {
         originalButtonHtml = button.innerHTML;
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> ' + NOTIF_I18N.refreshing;
+    }
+
+    if (showSkeleton) {
+        showInternalWsSkeleton();
     }
 
     try {
@@ -707,7 +797,10 @@ async function refreshInternalWebsocket(button = null) {
         const clients = Array.isArray(clientsRaw) ? clientsRaw : Object.values(clientsRaw);
         const clientCount = (data.data && typeof data.data.clientCount === 'number') ? data.data.clientCount : clients.length;
 
+        setBusy(summary, false);
+        setBusy(tbody, false);
         summary.innerHTML = NOTIF_I18N.internalWsSummary.replace(':count', `<strong>${clientCount}</strong>`);
+        internalWsHasLoaded = true;
 
         if (clients.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(NOTIF_I18N.noActiveClients) + '</td></tr>';
@@ -729,10 +822,12 @@ async function refreshInternalWebsocket(button = null) {
         tbody.innerHTML = html;
     } catch (err) {
         console.error('refreshInternalWebsocket error', err);
+        setBusy(summary, false);
+        setBusy(tbody, false);
         summary.innerHTML = `<span style="color:#e74c3c;">${escapeHtml(NOTIF_I18N.failedLoadInternalWs)} ${escapeHtml(err.message || String(err))}</span>`;
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(NOTIF_I18N.unableToLoadData) + '</td></tr>';
     } finally {
-        if (button) {
+        if (button && originalButtonHtml !== null) {
             button.disabled = false;
             button.innerHTML = originalButtonHtml;
         }

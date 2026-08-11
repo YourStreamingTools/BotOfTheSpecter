@@ -234,7 +234,36 @@ ob_start();
 
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script>
+function skeletonSubscriberCardsHtml(count) {
+    var html = '', i;
+    count = count || 8;
+    for (i = 0; i < count; i++) {
+        html += '<div class="subscriber-card-col" aria-hidden="true">' +
+            '<div class="sp-card">' +
+              '<div class="follower-card-media sp-card-body">' +
+                '<div class="follower-card-avatar">' +
+                  '<span class="sp-skeleton-avatar lg" style="width:64px;height:64px;"></span>' +
+                '</div>' +
+                '<div class="follower-card-content sp-skeleton-stack" style="flex:1;">' +
+                  '<span class="sp-skeleton-badge" style="width:100%;margin-bottom:0.3em;"></span>' +
+                  '<span class="sp-skeleton sp-skeleton-line w-60"></span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+    }
+    return html;
+}
 $(document).ready(function() {
+    <?php if (!$showNoSubscriberAccessMessage && !$subscribersError) : ?>
+    // Pagination is full-page Helix SSR — show matching card skeletons while the next page loads.
+    $('.sp-pagination-link[href]').on('click', function() {
+        var list = document.getElementById('subscribers-list');
+        if (!list) return;
+        list.innerHTML = skeletonSubscriberCardsHtml(8);
+        list.setAttribute('aria-busy', 'true');
+    });
+    <?php endif; ?>
     <?php if (!$showNoSubscriberAccessMessage && !$subscribersError && $displaySearchBar) : ?>
     $('#subscriber-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();

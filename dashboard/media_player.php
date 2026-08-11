@@ -103,9 +103,28 @@ ob_start();
             <button id="btn-clear" class="sp-btn sp-btn-ghost sp-btn-sm" type="button"><?php echo t('media_player_clear'); ?></button>
         </div>
     </header>
-    <div class="sp-card-body">
-        <div id="now-playing" style="margin-bottom:0.75rem;font-weight:600;"></div>
-        <ol id="queue-list" style="margin:0;padding-left:1.25rem;"></ol>
+    <div class="sp-card-body" id="media-queue-region" aria-busy="true">
+        <div id="now-playing" style="margin-bottom:0.75rem;font-weight:600;">
+            <span class="sp-skeleton-line w-70" aria-hidden="true"></span>
+        </div>
+        <ol id="queue-list" style="margin:0;padding-left:1.25rem;list-style:none;">
+            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
+                <span class="sp-skeleton-line w-80"></span>
+                <span class="sp-skeleton-line w-20"></span>
+            </li>
+            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
+                <span class="sp-skeleton-line w-60"></span>
+                <span class="sp-skeleton-line w-20"></span>
+            </li>
+            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
+                <span class="sp-skeleton-line w-70"></span>
+                <span class="sp-skeleton-line w-20"></span>
+            </li>
+            <li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;">
+                <span class="sp-skeleton-line w-55"></span>
+                <span class="sp-skeleton-line w-20"></span>
+            </li>
+        </ol>
     </div>
 </div>
 
@@ -159,6 +178,14 @@ $spotifyActAs = !empty($_SESSION['admin_act_as_active']);
             <div class="sp-alert sp-alert-warning"><i class="fas fa-exclamation-circle"></i> <?php echo t('media_player_spotify_actas'); ?></div>
         <?php else: ?>
             <div id="sp-player-status" class="sp-alert sp-alert-info" style="display:none; margin-bottom:1rem;"></div>
+            <div id="sp-player-skeleton" aria-hidden="true" style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+                <span class="sp-skeleton" style="width:64px;height:64px;border-radius:var(--radius-sm);flex-shrink:0;"></span>
+                <div class="sp-skeleton-stack" style="flex:1;min-width:0;">
+                    <span class="sp-skeleton-line w-70"></span>
+                    <span class="sp-skeleton-line w-50"></span>
+                    <span class="sp-skeleton-line w-40"></span>
+                </div>
+            </div>
             <div id="sp-now-playing" style="display:none; gap:1rem; align-items:center; margin-bottom:1rem;">
                 <img id="sp-art" alt="" style="width:64px; height:64px; border-radius:var(--radius-sm); object-fit:cover; background:var(--bg-input);">
                 <div style="min-width:0;">
@@ -399,14 +426,30 @@ ob_start();
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
     const code = <?php echo json_encode($api_key, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const idleLabel = <?php echo json_encode(t('media_player_idle'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    function skeletonQueueHtml() {
+        return ''
+            + '<li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;"><span class="sp-skeleton-line w-80"></span><span class="sp-skeleton-line w-20"></span></li>'
+            + '<li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;"><span class="sp-skeleton-line w-60"></span><span class="sp-skeleton-line w-20"></span></li>'
+            + '<li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;"><span class="sp-skeleton-line w-70"></span><span class="sp-skeleton-line w-20"></span></li>'
+            + '<li class="sp-skeleton-table-row" aria-hidden="true" style="padding-left:0;"><span class="sp-skeleton-line w-55"></span><span class="sp-skeleton-line w-20"></span></li>';
+    }
     const socket = io('wss://websocket.botofthespecter.com', { reconnection: true });
     socket.on('connect', () => socket.emit('REGISTER', { code: code, channel: 'Dashboard', name: 'Media Controller' }));
     socket.on('SUCCESS', () => socket.emit('MEDIA_COMMAND', { command: 'request_state', code: code }));
     socket.on('MEDIA_QUEUE_UPDATE', (d) => {
-        document.getElementById('now-playing').textContent = d.now_playing
-            ? ('▶ ' + d.now_playing.title + ' (req by ' + d.now_playing.requested_by + ')')
-            : '<?php echo t('media_player_idle'); ?>';
+        const region = document.getElementById('media-queue-region');
+        const np = document.getElementById('now-playing');
         const ol = document.getElementById('queue-list');
+        np.textContent = d.now_playing
+            ? ('▶ ' + d.now_playing.title + ' (req by ' + d.now_playing.requested_by + ')')
+            : idleLabel;
+        ol.style.listStyle = '';
         ol.innerHTML = '';
         (d.queue || []).forEach((row) => {
             const li = document.createElement('li');
@@ -419,6 +462,7 @@ ob_start();
             li.appendChild(btn);
             ol.appendChild(li);
         });
+        setBusy(region, false);
     });
     document.getElementById('btn-skip').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'skip', code: code });
     document.getElementById('btn-clear').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'clear', code: code });
@@ -479,6 +523,14 @@ ob_start();
     const $ = (id) => document.getElementById(id);
     let pollTimer = null, volDebounce = null, suppressVolUntil = 0;
     let progTick = null, progMs = 0, durMs = 0, isPlaying = false;
+    let firstStateReady = false;
+
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    setBusy(card, true);
 
     function fmtTime(ms) {
         const s = Math.max(0, Math.floor(ms / 1000));
@@ -501,6 +553,13 @@ ob_start();
         el.style.display = msg ? 'block' : 'none';
     }
 
+    function hideSpotifySkeleton() {
+        const sk = $('sp-player-skeleton');
+        if (sk) sk.style.display = 'none';
+        firstStateReady = true;
+        setBusy(card, false);
+    }
+
     async function call(action, params) {
         const body = new URLSearchParams(Object.assign({ action: action }, params || {}));
         const res = await fetch(endpoint, { method: 'POST', body: body, credentials: 'same-origin' });
@@ -509,6 +568,7 @@ ob_start();
 
     function renderState(d) {
         const np = $('sp-now-playing'), ctl = $('sp-controls');
+        hideSpotifySkeleton();
         if (!d || !d.success || !d.active || !d.track) {
             setStatus(ERR.no_device);
             if (np) np.style.display = 'none';
@@ -545,7 +605,13 @@ ob_start();
         try {
             const res = await fetch(endpoint + '?action=state', { credentials: 'same-origin' });
             renderState(await res.json());
-        } catch (e) { /* keep last rendered state on transient network errors */ }
+        } catch (e) {
+            // First load: clear skeleton and show error UI, keep last state on later transient errors
+            if (!firstStateReady) {
+                hideSpotifySkeleton();
+                setStatus(ERR.generic);
+            }
+        }
     }
 
     function handleActionResult(r) {

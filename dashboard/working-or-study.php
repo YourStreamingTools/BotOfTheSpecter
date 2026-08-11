@@ -967,9 +967,27 @@ ob_start();
                             <thead>
                                 <tr><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_project') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
                             </thead>
-                            <tbody id="chStreamerTaskBody">
-                                <tr id="chStreamerEmpty">
-                                    <td colspan="5" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_tasks_yet') ?></td>
+                            <tbody id="chStreamerTaskBody" aria-busy="true">
+                                <tr class="ch-task-skeleton" aria-hidden="true">
+                                    <td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                </tr>
+                                <tr class="ch-task-skeleton" aria-hidden="true">
+                                    <td><span class="sp-skeleton sp-skeleton-line w-60"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                </tr>
+                                <tr class="ch-task-skeleton" aria-hidden="true">
+                                    <td><span class="sp-skeleton sp-skeleton-line w-80"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-45"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -994,9 +1012,33 @@ ob_start();
                             <thead>
                                 <tr><th><?= t('working_or_study_th_user') ?></th><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_project') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_approval') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
                             </thead>
-                            <tbody id="chUserTaskBody">
-                                <tr id="chUserEmpty">
-                                    <td colspan="7" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_viewer_tasks_yet') ?></td>
+                            <tbody id="chUserTaskBody" aria-busy="true">
+                                <tr class="ch-task-skeleton" aria-hidden="true">
+                                    <td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                </tr>
+                                <tr class="ch-task-skeleton" aria-hidden="true">
+                                    <td><span class="sp-skeleton sp-skeleton-line w-45"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-60"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                </tr>
+                                <tr class="ch-task-skeleton" aria-hidden="true">
+                                    <td><span class="sp-skeleton sp-skeleton-line w-55"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-80"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>
+                                    <td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1762,9 +1804,11 @@ ob_start();
     chSocket.on('TASK_APPROVE',         (d) => { chUpdateApproval(d.task_id, 'approved'); });
     chSocket.on('TASK_REJECT',          (d) => { chUpdateApproval(d.task_id, 'rejected'); });
     chSocket.on('TASK_DELETE',          (d) => { chRemoveRow(d.task_id, d.owner || 'streamer'); });
+    let chTasksLoaded = false;
     chSocket.on('TASK_LIST_SYNC',       (d) => {
         const hasContent = ((d?.streamer_tasks || []).length + (d?.user_tasks || []).length) > 0;
         if (!hasContent) return; // an empty sync would wipe the lists chLoadTasks() just rendered
+        chTasksLoaded = true;
         chRenderStreamer(d.streamer_tasks || []);
         chRenderUser(d.user_tasks || []);
     });
@@ -1772,20 +1816,70 @@ ob_start();
     chSocket.on('TASK_REWARD_CONFIRM',  (d) => {
         chShowToast('✔ ' + wsLang.rewardEarned.replace(':user', d.user_name).replace(':points', d.points_awarded).replace(':total', d.new_total));
     });
+    function chSetTasksBusy(busy) {
+        ['chStreamerTaskBody', 'chUserTaskBody'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (busy) el.setAttribute('aria-busy', 'true');
+            else el.removeAttribute('aria-busy');
+        });
+    }
+    function chSkeletonStreamerHtml() {
+        let html = '';
+        for (let i = 0; i < 3; i++) {
+            html += '<tr class="ch-task-skeleton" aria-hidden="true">' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>' +
+                '<td><span class="sp-skeleton-badge"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-40"></span></td></tr>';
+        }
+        return html;
+    }
+    function chSkeletonUserHtml() {
+        let html = '';
+        for (let i = 0; i < 3; i++) {
+            html += '<tr class="ch-task-skeleton" aria-hidden="true">' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-40"></span></td>' +
+                '<td><span class="sp-skeleton-badge"></span></td>' +
+                '<td><span class="sp-skeleton-badge"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-25"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-40"></span></td></tr>';
+        }
+        return html;
+    }
+    function chShowTaskSkeletons() {
+        const st = document.getElementById('chStreamerTaskBody');
+        const ut = document.getElementById('chUserTaskBody');
+        if (st) st.innerHTML = chSkeletonStreamerHtml();
+        if (ut) ut.innerHTML = chSkeletonUserHtml();
+        chSetTasksBusy(true);
+    }
     function chLoadTasks() {
+        // First paint already has SSR skeletons; refetch re-injects them.
+        if (chTasksLoaded) chShowTaskSkeletons();
+        else chSetTasksBusy(true);
         chPost({ action: 'ch_get_tasks' }, (res) => {
             if (res.success) {
+                chTasksLoaded = true;
                 chRenderStreamer(res.streamer_tasks || []);
                 chRenderUser(res.user_tasks || []);
             }
+            chSetTasksBusy(false);
         });
     }
     function chRenderStreamer(tasks) {
         const tbody = document.getElementById('chStreamerTaskBody');
         if (!tbody) return;
         tbody.innerHTML = '';
+        tbody.removeAttribute('aria-busy');
+        // Empty-state only after first successful load (never during skeleton phase).
         if (!tasks.length) {
-            tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="5" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noTasksYet) + '</td></tr>';
+            if (chTasksLoaded) {
+                tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="5" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noTasksYet) + '</td></tr>';
+            }
             return;
         }
         tasks.forEach(t => chAppendStreamerRow(t, false));
@@ -1794,8 +1888,11 @@ ob_start();
         const tbody = document.getElementById('chUserTaskBody');
         if (!tbody) return;
         tbody.innerHTML = '';
+        tbody.removeAttribute('aria-busy');
         if (!tasks.length) {
-            tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="7" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noViewerTasksYet) + '</td></tr>';
+            if (chTasksLoaded) {
+                tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="7" class="has-text-centered has-text-grey py-4">' + chEsc(wsLang.noViewerTasksYet) + '</td></tr>';
+            }
             chRefreshProjectFilter();
             return;
         }
@@ -1807,6 +1904,8 @@ ob_start();
         document.getElementById('chStreamerEmpty')?.remove();
         const tbody = document.getElementById('chStreamerTaskBody');
         if (!tbody) return;
+        tbody.querySelectorAll('.ch-task-skeleton').forEach((r) => r.remove());
+        tbody.removeAttribute('aria-busy');
         let row = document.getElementById('ch-st-' + task.id) || document.createElement('tr');
         row.id = 'ch-st-' + task.id;
         row.setAttribute('data-title', task.title || '');
@@ -1852,6 +1951,8 @@ ob_start();
         document.getElementById('chUserEmpty')?.remove();
         const tbody = document.getElementById('chUserTaskBody');
         if (!tbody) return;
+        tbody.querySelectorAll('.ch-task-skeleton').forEach((r) => r.remove());
+        tbody.removeAttribute('aria-busy');
         let row = document.getElementById('ch-ut-' + task.id) || document.createElement('tr');
         row.id = 'ch-ut-' + task.id;
         const canApprove = task.approval_status === 'pending_approval';

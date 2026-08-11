@@ -72,8 +72,14 @@ if ($isLoggedIn) {
         <div class="db-zone-head">
             <div class="db-section-label"><?= t('dashboard_zone_bot_did') ?> <span class="db-alltime-tag"><?= t('dashboard_all_time') ?></span></div>
         </div>
-        <div class="sp-stat-row" id="dbBotDid">
-            <div class="db-loading"><i class="fas fa-circle-notch fa-spin"></i> <?= t('dashboard_loading') ?></div>
+        <div class="sp-stat-row" id="dbBotDid" aria-busy="true">
+            <?php for ($i = 0; $i < 9; $i++): ?>
+            <div class="sp-skeleton-stat" aria-hidden="true">
+                <span class="sp-skeleton sp-skeleton-line w-55"></span>
+                <span class="sp-skeleton sp-skeleton-value"></span>
+                <span class="sp-skeleton sp-skeleton-line w-40"></span>
+            </div>
+            <?php endfor; ?>
         </div>
     </div>
 
@@ -87,8 +93,15 @@ if ($isLoggedIn) {
                 <button type="button" class="db-window-btn" data-window="30d"><?= t('dashboard_window_30d') ?></button>
             </div>
         </div>
-        <div class="db-trend-grid" id="dbWhatsNew">
-            <div class="db-loading"><i class="fas fa-circle-notch fa-spin"></i> <?= t('dashboard_loading') ?></div>
+        <div class="db-trend-grid" id="dbWhatsNew" aria-busy="true">
+            <?php for ($i = 0; $i < 8; $i++): ?>
+            <div class="sp-skeleton-trend" aria-hidden="true">
+                <span class="sp-skeleton sp-skeleton-line w-50"></span>
+                <span class="sp-skeleton sp-skeleton-value"></span>
+                <span class="sp-skeleton sp-skeleton-line w-40"></span>
+                <span class="sp-skeleton sp-skeleton-line w-70"></span>
+            </div>
+            <?php endfor; ?>
         </div>
     </div>
 
@@ -97,8 +110,21 @@ if ($isLoggedIn) {
         <div class="db-zone-head">
             <div class="db-section-label"><?= t('dashboard_zone_community') ?></div>
         </div>
-        <div class="db-board-grid" id="dbBoards">
-            <div class="db-loading"><i class="fas fa-circle-notch fa-spin"></i> <?= t('dashboard_loading') ?></div>
+        <div class="db-board-grid" id="dbBoards" aria-busy="true">
+            <?php for ($i = 0; $i < 8; $i++): ?>
+            <div class="sp-skeleton-board" aria-hidden="true">
+                <div class="sp-skeleton-board-head">
+                    <span class="sp-skeleton sp-skeleton-line w-45"></span>
+                </div>
+                <?php for ($r = 0; $r < 6; $r++): ?>
+                <div class="sp-skeleton-board-row">
+                    <span class="sp-skeleton"></span>
+                    <span class="sp-skeleton sp-skeleton-line"></span>
+                    <span class="sp-skeleton sp-skeleton-line"></span>
+                </div>
+                <?php endfor; ?>
+            </div>
+            <?php endfor; ?>
         </div>
     </div>
 
@@ -283,6 +309,49 @@ if ($isLoggedIn) {
             });
         }
         function errRow() { return '<div class="db-loading"><i class="fas fa-triangle-exclamation"></i> ' + esc(I18N.load_error) + '</div>'; }
+        function setBusy(el, busy) {
+            if (!el) return;
+            if (busy) el.setAttribute('aria-busy', 'true');
+            else el.removeAttribute('aria-busy');
+        }
+        // Skeleton HTML mirrors SSR FAST SHELL placeholders (counts match real tile counts).
+        function skeletonBotDidHtml() {
+            var html = '', i;
+            for (i = 0; i < 9; i++) {
+                html += '<div class="sp-skeleton-stat" aria-hidden="true">' +
+                    '<span class="sp-skeleton sp-skeleton-line w-55"></span>' +
+                    '<span class="sp-skeleton sp-skeleton-value"></span>' +
+                    '<span class="sp-skeleton sp-skeleton-line w-40"></span></div>';
+            }
+            return html;
+        }
+        function skeletonWhatsNewHtml() {
+            var html = '', i;
+            for (i = 0; i < 8; i++) {
+                html += '<div class="sp-skeleton-trend" aria-hidden="true">' +
+                    '<span class="sp-skeleton sp-skeleton-line w-50"></span>' +
+                    '<span class="sp-skeleton sp-skeleton-value"></span>' +
+                    '<span class="sp-skeleton sp-skeleton-line w-40"></span>' +
+                    '<span class="sp-skeleton sp-skeleton-line w-70"></span></div>';
+            }
+            return html;
+        }
+        function skeletonBoardsHtml() {
+            var html = '', i, r;
+            for (i = 0; i < 8; i++) {
+                html += '<div class="sp-skeleton-board" aria-hidden="true">' +
+                    '<div class="sp-skeleton-board-head">' +
+                    '<span class="sp-skeleton sp-skeleton-line w-45"></span></div>';
+                for (r = 0; r < 6; r++) {
+                    html += '<div class="sp-skeleton-board-row">' +
+                        '<span class="sp-skeleton"></span>' +
+                        '<span class="sp-skeleton sp-skeleton-line"></span>' +
+                        '<span class="sp-skeleton sp-skeleton-line"></span></div>';
+                }
+                html += '</div>';
+            }
+            return html;
+        }
 
         var sessionSince = null;       // last-visit epoch captured once per session
         var currentWindow = '7d';
@@ -331,16 +400,26 @@ if ($isLoggedIn) {
                     renderWhatsNew(summary.window, summary.since_visit);
                     markVisit();
                 } else {
-                    $('dbBotDid').innerHTML = errRow();
-                    $('dbWhatsNew').innerHTML = errRow();
+                    var bot = $('dbBotDid'), wn = $('dbWhatsNew');
+                    if (bot) { bot.innerHTML = errRow(); setBusy(bot, false); }
+                    if (wn) { wn.innerHTML = errRow(); setBusy(wn, false); }
                 }
             });
         }
         function loadSummaryOnly() {
+            // Window toggle only changes trend metrics meaningfully — re-skeleton #dbWhatsNew only.
+            var wn = $('dbWhatsNew');
+            if (wn) {
+                wn.innerHTML = skeletonWhatsNewHtml();
+                setBusy(wn, true);
+            }
             apiGet('/dashboard/summary', summaryParams()).then(function (s) {
                 renderBotDid(s.lifetime);
                 renderWhatsNew(s.window, s.since_visit);
-            }).catch(function () { $('dbWhatsNew').innerHTML = errRow(); });
+            }).catch(function () {
+                var el = $('dbWhatsNew');
+                if (el) { el.innerHTML = errRow(); setBusy(el, false); }
+            });
         }
         function statTile(label, value, beta) {
             var sub = '<span class="db-alltime-tag">' + esc(I18N.all_time) + '</span>';
@@ -351,7 +430,9 @@ if ($isLoggedIn) {
         }
         function renderBotDid(l) {
             l = l || {};
-            $('dbBotDid').innerHTML = [
+            var host = $('dbBotDid');
+            if (!host) return;
+            host.innerHTML = [
                 statTile(I18N.commands, l.commands),
                 statTile(I18N.rewards_fulfilled, l.rewards),
                 statTile(I18N.deaths, l.deaths),
@@ -362,6 +443,7 @@ if ($isLoggedIn) {
                 statTile(I18N.points, l.points),
                 statTile(I18N.interactions, l.interactions)
             ].join('');
+            setBusy(host, false);
         }
         function sparkline(data) {
             if (!data || data.length < 2) return '';
@@ -399,7 +481,9 @@ if ($isLoggedIn) {
             var subsSub = (w.subs ? ('T1 ' + (w.subs.t1 || 0) + ' &middot; T2 ' + (w.subs.t2 || 0) + ' &middot; T3 ' + (w.subs.t3 || 0)) : '');
             var tipsSub = (w.tips && w.tips.amount) ? fmt(w.tips.amount) : '';
             var raidsSub = (w.raids ? (fmt(w.raids.viewers) + ' ' + esc(I18N.viewers)) : '');
-            $('dbWhatsNew').innerHTML = [
+            var host = $('dbWhatsNew');
+            if (!host) return;
+            host.innerHTML = [
                 trendTile(I18N.new_followers, w.followers, sv(function (s) { return s.followers; }), '', 'followers'),
                 trendTile(I18N.new_subs, (w.subs ? w.subs.total : 0), sv(function (s) { return s.subs ? s.subs.total : 0; }), subsSub, 'subs'),
                 trendTile(I18N.bits, w.bits, sv(function (s) { return s.bits; }), '', 'bits'),
@@ -409,11 +493,15 @@ if ($isLoggedIn) {
                 trendTile(I18N.new_quotes, w.new_quotes, sv(function (s) { return s.new_quotes; }), '', null),
                 trendTile(I18N.chat_messages, w.chat_messages, sv(function (s) { return s.chat_messages; }), '', 'chat')
             ].join('');
+            setBusy(host, false);
         }
 
         // Zone 4: leaderboards
         function loadBoards() {
-            apiGet('/dashboard/leaderboards', { limit: 8 }).then(renderBoards).catch(function () { $('dbBoards').innerHTML = errRow(); });
+            apiGet('/dashboard/leaderboards', { limit: 8 }).then(renderBoards).catch(function () {
+                var el = $('dbBoards');
+                if (el) { el.innerHTML = errRow(); setBusy(el, false); }
+            });
         }
         function boardRows(arr, nameKey, valFn) {
             if (!arr || !arr.length) return '<div class="db-board-empty">' + esc(I18N.no_data) + '</div>';
@@ -435,7 +523,9 @@ if ($isLoggedIn) {
                 '<div class="db-board-row"><span class="db-board-name">' + esc(I18N.hugs) + '</span><span class="db-board-val">' + topOf(it.hugs) + '</span></div>' +
                 '<div class="db-board-row"><span class="db-board-name">' + esc(I18N.kisses) + '</span><span class="db-board-val">' + topOf(it.kisses) + '</span></div>' +
                 '<div class="db-board-row"><span class="db-board-name">' + esc(I18N.highfives) + '</span><span class="db-board-val">' + topOf(it.highfives) + '</span></div>';
-            $('dbBoards').innerHTML = [
+            var host = $('dbBoards');
+            if (!host) return;
+            host.innerHTML = [
                 board(I18N.top_commands, 'fas fa-terminal', boardRows(d.top_commands, 'command', function (r) { return fmt(r.count); })),
                 board(I18N.top_rewards, 'fas fa-star', boardRows(d.top_rewards, 'reward_title', function (r) { return fmt(r.count); })),
                 board(I18N.watch_time, 'fas fa-clock', boardRows(d.watch_time, 'username', function (r) { return fmtWatch(r.live); })),
@@ -445,6 +535,7 @@ if ($isLoggedIn) {
                 board(I18N.top_songs, 'fas fa-music', boardRows(d.top_songs, 'song', function (r) { return fmt(r.count); })),
                 board(I18N.interaction_leaders, 'fas fa-hands-clapping', interRows)
             ].join('');
+            setBusy(host, false);
         }
 
         // Zone 1: WebSocket live ticker + chat pulse

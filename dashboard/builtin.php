@@ -502,19 +502,41 @@ function openCommandModal(commandName) {
 function closeCommandModal() {
     document.getElementById('commandModal').classList.remove('is-active');
     // Clear modal content to prevent stale data
-    document.getElementById('modalContent').innerHTML = '';
+    const modalContent = document.getElementById('modalContent');
+    if (modalContent) {
+        modalContent.removeAttribute('aria-busy');
+        modalContent.innerHTML = '';
+    }
+}
+
+// Form-field layout skeleton for cooldown options fetch (matches 3 form groups)
+function modalOptionsSkeletonHtml() {
+    function fieldBlock(labelW, inputH) {
+        return '<div class="sp-form-group" aria-hidden="true" style="margin-bottom:1.25rem;">' +
+            '<span class="sp-skeleton sp-skeleton-line ' + labelW + '" style="margin-bottom:0.5rem; height:0.7rem;"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-90" style="height:' + inputH + '; display:block;"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-70" style="margin-top:0.35rem; height:0.55rem;"></span>' +
+            '</div>';
+    }
+    return '<div class="sp-skeleton-stack" aria-hidden="true" style="gap:0;">' +
+        fieldBlock('w-40', '2.25rem') +
+        fieldBlock('w-45', '2.25rem') +
+        fieldBlock('w-50', '2.25rem') +
+        '</div>';
 }
 
 function loadCommandOptions(commandName) {
     const modalContent = document.getElementById('modalContent');
-    // Show loading state
-    modalContent.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> ' + BC_I18N.loading + '</div>';
+    // Layout-matching skeleton instead of center spinner
+    modalContent.setAttribute('aria-busy', 'true');
+    modalContent.innerHTML = modalOptionsSkeletonHtml();
     // Fetch command options
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '', true);
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
+            modalContent.removeAttribute('aria-busy');
             if (xhr.status === 200) {
                 try {
                     const response = JSON.parse(xhr.responseText);
@@ -536,6 +558,7 @@ function loadCommandOptions(commandName) {
 
 function renderCommandOptions(commandName, options) {
     const modalContent = document.getElementById('modalContent');
+    modalContent.removeAttribute('aria-busy');
     // Get cooldown options with defaults
     const cooldownRate = options && options.cooldown_rate !== undefined ? options.cooldown_rate : 1;
     const cooldownTime = options && options.cooldown_time !== undefined ? options.cooldown_time : 15;

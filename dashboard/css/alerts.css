@@ -1151,3 +1151,24 @@
 
 @keyframes zoomIn  { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes zoomOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0); opacity: 0; } }
+
+/* ---- Skeleton library helpers (primitives live in dashboard.css) ------ */
+/* Media library thumbs are 1:1; base .sp-skeleton-thumb is 16:9. */
+.sp-skeleton-thumb.square,
+.sp-skeleton-thumb.is-square {
+    aspect-ratio: 1 / 1;
+}
+
+.alerts-library-item-skeleton {
+    pointer-events: none;
+    cursor: default;
+}
+
+.alerts-library-item-skeleton:hover {
+    border-color: var(--border);
+    background: var(--bg-input);
+}
+
+.alerts-library-grid[aria-busy="true"] {
+    min-height: 12rem;
+}

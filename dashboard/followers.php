@@ -199,35 +199,43 @@ ob_start();
       <?php echo t('followers_page_title'); ?>
     </span>
   </div>
-  <div class="sp-card-body" style="padding-bottom:0;">
-    <canvas id="followerChart" width="400" height="200"></canvas>
-  </div>
-  <div class="sp-card-body">
-    <div class="sp-stat-row mb-4">
-      <div class="sp-stat">
-        <span class="sp-stat-value" id="total-followers">0</span>
-        <span class="sp-stat-label"><?php echo t('total_followers'); ?></span>
-      </div>
-      <div class="sp-stat">
-        <span class="sp-stat-value" id="new-today">0</span>
-        <span class="sp-stat-label"><?php echo t('new_followers_today'); ?></span>
-      </div>
-      <div class="sp-stat">
-        <span class="sp-stat-value" id="new-week">0</span>
-        <span class="sp-stat-label"><?php echo t('new_followers_week'); ?></span>
-      </div>
-      <div class="sp-stat">
-        <span class="sp-stat-value" id="new-month">0</span>
-        <span class="sp-stat-label"><?php echo t('new_followers_month'); ?></span>
-      </div>
-      <div class="sp-stat">
-        <span class="sp-stat-value" id="new-year">0</span>
-        <span class="sp-stat-label"><?php echo t('new_followers_year'); ?></span>
+  <div class="sp-card-body" style="padding-bottom:0;" id="follower-chart-host" aria-busy="true">
+    <div id="follower-chart-skel" aria-hidden="true">
+      <div class="sp-skeleton-stack" style="padding:0.5rem 0 1rem;">
+        <span class="sp-skeleton sp-skeleton-line w-40"></span>
+        <span class="sp-skeleton-thumb" style="height:12rem;aspect-ratio:auto;"></span>
       </div>
     </div>
-    <p id="live-data" class="sp-text-muted mb-4"><?php echo t('followers_loading'); ?></p>
-    <div id="followers-list" class="followers-grid">
-      <!-- AJAX appended followers -->
+    <canvas id="followerChart" width="400" height="200" style="display:none;"></canvas>
+  </div>
+  <div class="sp-card-body">
+    <div class="sp-stat-row mb-4" id="followers-stats" aria-busy="true">
+      <?php for ($i = 0; $i < 5; $i++): ?>
+      <div class="sp-skeleton-stat" aria-hidden="true">
+        <span class="sp-skeleton sp-skeleton-line w-55"></span>
+        <span class="sp-skeleton sp-skeleton-value"></span>
+        <span class="sp-skeleton sp-skeleton-line w-40"></span>
+      </div>
+      <?php endfor; ?>
+    </div>
+    <p id="live-data" class="sp-text-muted mb-4" style="display:none;"></p>
+    <div id="followers-list" class="followers-grid" aria-busy="true">
+      <?php for ($i = 0; $i < 8; $i++): ?>
+      <div class="follower-card-col" aria-hidden="true">
+        <div class="sp-card">
+          <div class="follower-card-media sp-card-body">
+            <div class="follower-card-avatar">
+              <span class="sp-skeleton-avatar lg" style="width:64px;height:64px;"></span>
+            </div>
+            <div class="follower-card-content sp-skeleton-stack" style="flex:1;">
+              <span class="sp-skeleton sp-skeleton-line w-70"></span>
+              <span class="sp-skeleton sp-skeleton-line w-50"></span>
+              <span class="sp-skeleton sp-skeleton-line w-40"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <?php endfor; ?>
     </div>
   </div>
 </div>
@@ -258,17 +266,95 @@ function getInitials(name) {
   return name.charAt(0).toUpperCase();
 }
 const FOLLOWERS_LOADING_PROGRESS = <?php echo json_encode(t('followers_loading_progress')); ?>;
+const FOLLOWERS_LABELS = {
+  total: <?php echo json_encode(t('total_followers')); ?>,
+  today: <?php echo json_encode(t('new_followers_today')); ?>,
+  week: <?php echo json_encode(t('new_followers_week')); ?>,
+  month: <?php echo json_encode(t('new_followers_month')); ?>,
+  year: <?php echo json_encode(t('new_followers_year')); ?>
+};
 function formatLoadingProgress(loaded, total) {
   // Replaces the two %s placeholders in order (loaded, then total)
   var i = 0;
   var args = [loaded, total];
   return FOLLOWERS_LOADING_PROGRESS.replace(/%s/g, function() { return args[i++]; });
 }
+function setBusy(el, busy) {
+  if (!el) return;
+  if (busy) el.setAttribute('aria-busy', 'true');
+  else el.removeAttribute('aria-busy');
+}
+function skeletonStatsHtml() {
+  var html = '', i;
+  for (i = 0; i < 5; i++) {
+    html += '<div class="sp-skeleton-stat" aria-hidden="true">' +
+      '<span class="sp-skeleton sp-skeleton-line w-55"></span>' +
+      '<span class="sp-skeleton sp-skeleton-value"></span>' +
+      '<span class="sp-skeleton sp-skeleton-line w-40"></span></div>';
+  }
+  return html;
+}
+function skeletonCardsHtml(count) {
+  var html = '', i;
+  count = count || 8;
+  for (i = 0; i < count; i++) {
+    html += '<div class="follower-card-col" aria-hidden="true">' +
+      '<div class="sp-card">' +
+        '<div class="follower-card-media sp-card-body">' +
+          '<div class="follower-card-avatar">' +
+            '<span class="sp-skeleton-avatar lg" style="width:64px;height:64px;"></span>' +
+          '</div>' +
+          '<div class="follower-card-content sp-skeleton-stack" style="flex:1;">' +
+            '<span class="sp-skeleton sp-skeleton-line w-70"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-50"></span>' +
+            '<span class="sp-skeleton sp-skeleton-line w-40"></span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+  return html;
+}
+function statsHtml(metrics) {
+  metrics = metrics || {};
+  return '' +
+    '<div class="sp-stat">' +
+      '<span class="sp-stat-value" id="total-followers">' + (metrics.total != null ? metrics.total : 0) + '</span>' +
+      '<span class="sp-stat-label">' + FOLLOWERS_LABELS.total + '</span>' +
+    '</div>' +
+    '<div class="sp-stat">' +
+      '<span class="sp-stat-value" id="new-today">' + (metrics.today != null ? metrics.today : 0) + '</span>' +
+      '<span class="sp-stat-label">' + FOLLOWERS_LABELS.today + '</span>' +
+    '</div>' +
+    '<div class="sp-stat">' +
+      '<span class="sp-stat-value" id="new-week">' + (metrics.week != null ? metrics.week : 0) + '</span>' +
+      '<span class="sp-stat-label">' + FOLLOWERS_LABELS.week + '</span>' +
+    '</div>' +
+    '<div class="sp-stat">' +
+      '<span class="sp-stat-value" id="new-month">' + (metrics.month != null ? metrics.month : 0) + '</span>' +
+      '<span class="sp-stat-label">' + FOLLOWERS_LABELS.month + '</span>' +
+    '</div>' +
+    '<div class="sp-stat">' +
+      '<span class="sp-stat-value" id="new-year">' + (metrics.year != null ? metrics.year : 0) + '</span>' +
+      '<span class="sp-stat-label">' + FOLLOWERS_LABELS.year + '</span>' +
+    '</div>';
+}
+function showChartSkeleton(show) {
+  var skel = document.getElementById('follower-chart-skel');
+  var canvas = document.getElementById('followerChart');
+  var host = document.getElementById('follower-chart-host');
+  if (skel) skel.style.display = show ? '' : 'none';
+  if (canvas) canvas.style.display = show ? 'none' : '';
+  setBusy(host, show);
+}
 $(document).ready(function() {
   let followerChart = null; // To hold the chart instance
-  // Initialize empty chart on page load
+  let firstLoadDone = false;
+  // Initialize empty chart on page load (canvas stays hidden until first success)
   function initializeChart() {
-    const ctx = document.getElementById('followerChart').getContext('2d');
+    const canvas = document.getElementById('followerChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
     followerChart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -302,13 +388,6 @@ $(document).ready(function() {
       }
     });
   }
-  // Update chart with data
-  function updateChart(chartData) {
-    if (followerChart) {
-      followerChart.data.datasets[0].data = chartData;
-      followerChart.update(); // Use default animation
-    }
-  }
   // Add a single point to the chart
   function addChartPoint(point) {
     if (followerChart) {
@@ -318,10 +397,50 @@ $(document).ready(function() {
   }
   // Initialize chart immediately
   initializeChart();
+  function injectLoadingShell() {
+    var stats = document.getElementById('followers-stats');
+    var list = document.getElementById('followers-list');
+    var live = document.getElementById('live-data');
+    if (stats) {
+      stats.innerHTML = skeletonStatsHtml();
+      setBusy(stats, true);
+    }
+    if (list) {
+      list.innerHTML = skeletonCardsHtml(8);
+      setBusy(list, true);
+    }
+    if (live) {
+      live.style.display = 'none';
+      live.textContent = '';
+    }
+    showChartSkeleton(true);
+    if (followerChart) {
+      followerChart.data.datasets[0].data = [];
+      followerChart.update('none');
+    }
+  }
+  function showError(msg) {
+    var stats = document.getElementById('followers-stats');
+    var list = document.getElementById('followers-list');
+    var live = document.getElementById('live-data');
+    // Errors use text UI (not skeletons); clear busy hosts and leave empty regions
+    if (stats) {
+      stats.innerHTML = statsHtml({ total: 0, today: 0, week: 0, month: 0, year: 0 });
+      setBusy(stats, false);
+    }
+    if (list) {
+      list.innerHTML = '';
+      setBusy(list, false);
+    }
+    showChartSkeleton(false);
+    if (live) {
+      live.style.display = '';
+      live.textContent = msg;
+    }
+  }
   // Automatically fetch followers when the page loads
   function fetchNewFollowers() {
-    $('#live-data').text("<?php echo t('followers_loading'); ?>");
-    $('#followers-list').empty();
+    injectLoadingShell();
     $.ajax({
       url: window.location.href,
       method: 'GET',
@@ -329,25 +448,41 @@ $(document).ready(function() {
       dataType: 'json',
       success: function(response) {
         if (response.status === 'success') {
-          // Update metrics
-          $('#total-followers').text(response.metrics.total);
-          $('#new-today').text(response.metrics.today);
-          $('#new-week').text(response.metrics.week);
-          $('#new-month').text(response.metrics.month);
-          $('#new-year').text(response.metrics.year);
-          // Clear chart data and start fresh
+          firstLoadDone = true;
+          var stats = document.getElementById('followers-stats');
+          var list = document.getElementById('followers-list');
+          var live = document.getElementById('live-data');
+          // Replace skeleton stats with real metric tiles
+          if (stats) {
+            stats.innerHTML = statsHtml(response.metrics);
+            setBusy(stats, false);
+          }
+          // Reveal chart canvas and clear progressive data
+          showChartSkeleton(false);
           if (followerChart) {
             followerChart.data.datasets[0].data = [];
+            // Canvas was display:none under skeleton — force layout before first paint
+            followerChart.resize();
             followerChart.update('none');
           }
           const totalFollowers = response.data.length;
           let loadedFollowers = 0;
+          if (list) {
+            list.innerHTML = '';
+            setBusy(list, false);
+          }
           if (totalFollowers === 0) {
-            $('#live-data').text("<?php echo t('followers_no_followers_found'); ?>");
+            if (live) {
+              live.style.display = '';
+              live.textContent = "<?php echo t('followers_no_followers_found'); ?>";
+            }
             return;
           }
-          // Update loading text with total count
-          $('#live-data').text(formatLoadingProgress(0, totalFollowers));
+          // Progress text while cards stream in (content region already clear of skeleton)
+          if (live) {
+            live.style.display = '';
+            live.textContent = formatLoadingProgress(0, totalFollowers);
+          }
           // Process followers in original order (newest first for display)
           response.data.forEach(function(follower, index) {
             setTimeout(function() {
@@ -379,7 +514,7 @@ $(document).ready(function() {
               $('#followers-list').append($followerElement);
               // Update progress counter
               loadedFollowers++;
-              $('#live-data').text(formatLoadingProgress(loadedFollowers, totalFollowers));
+              if (live) live.textContent = formatLoadingProgress(loadedFollowers, totalFollowers);
               // Hide loading text when all followers are loaded
               if (loadedFollowers === totalFollowers) {
                 setTimeout(function() {
@@ -397,7 +532,7 @@ $(document).ready(function() {
           if (response.message) {
             msg += " (" + response.message + ")";
           }
-          $('#live-data').text(msg);
+          showError(msg);
         }
       },
       error: function(xhr, status, error) {
@@ -408,7 +543,7 @@ $(document).ready(function() {
         } else if (xhr.responseText) {
           msg += " (" + xhr.responseText + ")";
         }
-        $('#live-data').text(msg);
+        showError(msg);
         console.error('AJAX Error: ' + error, xhr);
       }
     });

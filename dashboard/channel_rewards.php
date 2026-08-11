@@ -656,11 +656,18 @@ if ($httpCode == 200) {
                             </th>
                         </tr>
                     </thead>
-                    <tbody id="redemptions-table-body">
-                        <tr>
-                            <td colspan="6" style="text-align:center;"><i class="fas fa-spinner fa-spin"></i>
-                                <?php echo t('channel_rewards_loading'); ?></td>
+                    <tbody id="redemptions-table-body" aria-busy="true">
+                        <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                        <tr class="sp-skeleton-table-row-host" aria-hidden="true">
+                            <td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>
+                            <td><span class="sp-skeleton sp-skeleton-line w-60"></span></td>
+                            <td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton sp-skeleton-line w-40" style="display:inline-block;"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton sp-skeleton-line w-40" style="display:inline-block;"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton sp-skeleton-line w-50" style="display:inline-block;"></span></td>
                         </tr>
+                        <?php endfor; ?>
                     </tbody>
                 </table>
             </div>
@@ -893,7 +900,33 @@ if (!empty($twitchRewards)) {
             renderRedemptions([]);
         }
     });
+    function redemptionsSkeletonHtml() {
+        var rows = '';
+        for (var i = 0; i < 5; i++) {
+            rows += '<tr aria-hidden="true">' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-70"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-60"></span></td>' +
+                '<td><span class="sp-skeleton sp-skeleton-line w-50"></span></td>' +
+                '<td style="text-align:center;"><span class="sp-skeleton sp-skeleton-line w-40" style="display:inline-block;"></span></td>' +
+                '<td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>' +
+                '<td style="text-align:center;"><span class="sp-skeleton sp-skeleton-line w-40" style="display:inline-block;"></span></td>' +
+                '<td style="text-align:center;"><span class="sp-skeleton sp-skeleton-line w-50" style="display:inline-block;"></span></td>' +
+                '</tr>';
+        }
+        return rows;
+    }
+    function setRedemptionsBusy(busy) {
+        var tbody = document.getElementById('redemptions-table-body');
+        if (!tbody) return;
+        if (busy) {
+            tbody.setAttribute('aria-busy', 'true');
+            tbody.innerHTML = redemptionsSkeletonHtml();
+        } else {
+            tbody.removeAttribute('aria-busy');
+        }
+    }
     async function fetchAllRedemptions() {
+        setRedemptionsBusy(true);
         const promises = allRewardIds.map(id => fetch('/api/get_redemptions.php?reward_id=' + id)
             .then(res => res.json())
             .then(data => {
@@ -911,14 +944,19 @@ if (!empty($twitchRewards)) {
             allRedemptions = allRedemptions.slice(0, 50);
             renderRedemptions(allRedemptions);
         } catch (error) {
-            document.getElementById('redemptions-table-body').innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--red);">' + <?php echo json_encode(t('channel_rewards_failed_load_redemptions')); ?> + '</td></tr>';
+            var tbody = document.getElementById('redemptions-table-body');
+            if (tbody) {
+                tbody.removeAttribute('aria-busy');
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--red);">' + <?php echo json_encode(t('channel_rewards_failed_load_redemptions')); ?> + '</td></tr>';
+            }
         }
     }
     function renderRedemptions(redemptions) {
         const tbody = document.getElementById('redemptions-table-body');
+        tbody.removeAttribute('aria-busy');
         tbody.innerHTML = '';
         if (redemptions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;"><?php echo t('channel_rewards_no_redemptions'); ?></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;"><?php echo t('channel_rewards_no_redemptions'); ?></td></tr>`;
             return;
         }
         redemptions.forEach(r => {

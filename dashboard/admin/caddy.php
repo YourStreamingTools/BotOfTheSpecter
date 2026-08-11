@@ -191,7 +191,7 @@ ob_start();
             <?php echo $caddyUp ? t('caddy_status_running') : t('caddy_status_unreachable'); ?>
         </span>
         <span style="margin-left:1rem; color:var(--text-muted);">
-            <?php echo t('caddy_version_label'); ?>: <span id="caddy-version-value"><?php echo empty($web_ssh_host) ? '&mdash;' : '<i class="fas fa-spinner fa-spin"></i>'; ?></span>
+            <?php echo t('caddy_version_label'); ?>: <span id="caddy-version-value"<?php echo empty($web_ssh_host) ? '' : ' aria-busy="true"'; ?>><?php echo empty($web_ssh_host) ? '&mdash;' : '<span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;display:inline-block;vertical-align:middle;"></span>'; ?></span>
         </span>
     </div>
 </div>
@@ -390,8 +390,15 @@ document.getElementById('caddy-config-toggle')?.addEventListener('click', () => 
 (async function caddyLoadVersion() {
     if (!CADDY_SSH_READY) return;
     const el = document.getElementById('caddy-version-value');
-    const res = await caddyPost({ action: 'caddy_version' });
-    el.textContent = res.ok ? res.version : (res.error || 'unknown');
+    if (!el) return;
+    el.setAttribute('aria-busy', 'true');
+    try {
+        const res = await caddyPost({ action: 'caddy_version' });
+        el.textContent = res.ok ? res.version : (res.error || 'unknown');
+    } catch (err) {
+        el.textContent = 'unknown';
+    }
+    el.removeAttribute('aria-busy');
 })();
 
 if (CADDY_IS_SUPER) {

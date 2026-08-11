@@ -422,6 +422,46 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'clips') {
 	exit();
 }
 
+// AJAX shell for archive / highlights / uploads (Helix deferred from first paint)
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'videos') {
+	header('Content-Type: application/json; charset=utf-8');
+	if ($channelUserId === '' || $accessToken === '') {
+		echo json_encode([
+			'success' => false,
+			'message' => t('videos_error_no_channel_id'),
+			'html' => '',
+			'count' => 0,
+		]);
+		exit();
+	}
+	$ajaxTab = isset($_GET['tab']) ? trim((string) $_GET['tab']) : 'videos';
+	if (!in_array($ajaxTab, ['videos', 'highlights', 'uploads'], true)) {
+		$ajaxTab = 'videos';
+	}
+	$videoTypeMapAjax = [
+		'videos'     => 'archive',
+		'highlights' => 'highlight',
+		'uploads'    => 'upload',
+	];
+	$videoTypeFilter = $videoTypeMapAjax[$ajaxTab] ?? 'archive';
+	$allVideos = fetchAllTwitchItems('videos', [
+		'user_id' => $channelUserId,
+		'first'   => 100,
+		'type'    => $videoTypeFilter,
+	], $accessToken, $clientID, 1000);
+	$html = '';
+	foreach ($allVideos['items'] as $video) {
+		$html .= renderMediaCard($video, false, []);
+	}
+	echo json_encode([
+		'success' => $allVideos['error'] === '',
+		'html' => $html,
+		'count' => count($allVideos['items']),
+		'message' => $allVideos['error'],
+	]);
+	exit();
+}
+
 $flashSuccess = '';
 $flashError = '';
 
@@ -462,40 +502,11 @@ $videoTypeMap = [
 	'uploads'    => 'upload',
 ];
 
+// FAST SHELL: Helix fetches run via AJAX so the grid can show layout-matching skeletons first.
+$clientLoadVideos = ($channelUserId !== '' && $accessToken !== '');
 if ($channelUserId === '') {
 	$flashError = t('videos_error_no_channel_id');
-} else {
-	if ($isClipsMode) {
-		$sortedClipsResult = fetchSortedChannelClips($channelUserId, $accessToken, $clientID, 1000);
-		if ($sortedClipsResult['error'] !== '') {
-			$apiError = $sortedClipsResult['error'];
-		} else {
-			$allClips = $sortedClipsResult['items'];
-			$videos = array_slice($allClips, 0, 20);
-			$clipsNextOffset = count($videos);
-			$clipsHasMore = $clipsNextOffset < count($allClips);
-			$clipIds = [];
-			foreach ($videos as $clip) {
-				if (isset($clip['id']) && (string) $clip['id'] !== '') {
-					$clipIds[] = (string) $clip['id'];
-				}
-			}
-			$downloadLookup = fetchClipDownloadUrls($clipIds, $channelUserId, $editorUserId, $accessToken, $clientID);
-			$clipDownloadUrls = $downloadLookup['downloads'];
-			if ($downloadLookup['error'] !== '' && $flashError === '') {
-				$flashError = $downloadLookup['error'];
-			}
-		}
-	} else {
-		$videoTypeFilter = $videoTypeMap[$tab] ?? 'archive';
-		$allVideos = fetchAllTwitchItems('videos', [
-			'user_id' => $channelUserId,
-			'first'   => 100,
-			'type'    => $videoTypeFilter,
-		], $accessToken, $clientID, 1000);
-		$videos = $allVideos['items'];
-		$apiError = $allVideos['error'];
-	}
+	$clientLoadVideos = false;
 }
 
 $videosTabLink     = 'videos.php?tab=videos';
@@ -555,32 +566,53 @@ ob_start();
 		<?php if ($apiError !== ''): ?>
 			<div class="sp-alert sp-alert-danger"><?php echo htmlspecialchars($apiError, ENT_QUOTES, 'UTF-8'); ?></div>
 		<?php endif; ?>
-		<?php if (empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== ''): ?>
-			<?php
-			$emptyMessage = match($tab) {
-				'clips'      => t('videos_empty_clips'),
-				'highlights' => t('videos_empty_highlights'),
-				'uploads'    => t('videos_empty_uploads'),
-				default      => t('videos_empty_archive'),
-			};
-			?>
-			<div class="sp-alert sp-alert-info"><?php echo htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+		<?php
+		$emptyMessage = match($tab) {
+			'clips'      => t('videos_empty_clips'),
+			'highlights' => t('videos_empty_highlights'),
+			'uploads'    => t('videos_empty_uploads'),
+			default      => t('videos_empty_archive'),
+		};
+		// Empty-state only after a completed load with zero items (never during skeleton shell).
+		$showEmptyState = empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== '' && !$clientLoadVideos;
+		?>
+		<?php if ($showEmptyState): ?>
+			<div class="sp-alert sp-alert-info" id="videosEmptyState"><?php echo htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+		<?php else: ?>
+			<div class="sp-alert sp-alert-info" id="videosEmptyState" style="display:none;"><?php echo htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8'); ?></div>
 		<?php endif; ?>
 		<?php if ($isClipsMode): ?>
 			<div class="sp-card mb-4">
 				<div class="sp-card-body" style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
-					<p class="sp-text-muted" id="clipsLoadStatus"><?php echo htmlspecialchars(t('videos_loaded_clips', ['count' => count($videos)]), ENT_QUOTES, 'UTF-8'); ?></p>
+					<p class="sp-text-muted" id="clipsLoadStatus"><?php echo htmlspecialchars(t('videos_loaded_clips', ['count' => $clientLoadVideos ? 0 : count($videos)]), ENT_QUOTES, 'UTF-8'); ?></p>
 					<div class="sp-btn-group" style="margin-bottom:0;">
-						<button id="clipsLoadMoreBtn" class="sp-btn sp-btn-primary" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>><?php echo htmlspecialchars(t('videos_load_20_more'), ENT_QUOTES, 'UTF-8'); ?></button>
-						<button id="clipsLoadAllBtn" class="sp-btn sp-btn-warning" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>><?php echo htmlspecialchars(t('videos_load_all'), ENT_QUOTES, 'UTF-8'); ?></button>
+						<button id="clipsLoadMoreBtn" class="sp-btn sp-btn-primary" <?php echo ($clientLoadVideos || !$clipsHasMore) ? 'disabled' : ''; ?>><?php echo htmlspecialchars(t('videos_load_20_more'), ENT_QUOTES, 'UTF-8'); ?></button>
+						<button id="clipsLoadAllBtn" class="sp-btn sp-btn-warning" <?php echo ($clientLoadVideos || !$clipsHasMore) ? 'disabled' : ''; ?>><?php echo htmlspecialchars(t('videos_load_all'), ENT_QUOTES, 'UTF-8'); ?></button>
 					</div>
 				</div>
 			</div>
 		<?php endif; ?>
-		<div class="media-cards-grid" id="mediaCardsContainer">
-			<?php foreach ($videos as $video): ?>
-				<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls); ?>
-			<?php endforeach; ?>
+		<div class="media-cards-grid" id="mediaCardsContainer"<?php echo $clientLoadVideos ? ' aria-busy="true"' : ''; ?>>
+			<?php if ($clientLoadVideos): ?>
+				<?php for ($sk = 0; $sk < 6; $sk++): ?>
+				<div class="media-card-col media-card-skeleton" aria-hidden="true">
+					<div class="sp-card" style="height:100%; display:flex; flex-direction:column;">
+						<span class="sp-skeleton-thumb"></span>
+						<div class="sp-card-body sp-skeleton-stack" style="flex:1;">
+							<span class="sp-skeleton-line w-80"></span>
+							<span class="sp-skeleton-line w-60"></span>
+							<span class="sp-skeleton-badge"></span>
+							<span class="sp-skeleton-line w-50"></span>
+							<span class="sp-skeleton-line w-40"></span>
+						</div>
+					</div>
+				</div>
+				<?php endfor; ?>
+			<?php else: ?>
+				<?php foreach ($videos as $video): ?>
+					<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls); ?>
+				<?php endforeach; ?>
+			<?php endif; ?>
 		</div>
 	</div>
 </div>
@@ -620,36 +652,108 @@ document.addEventListener('DOMContentLoaded', function () {
 	};
 	const deleteForm = document.getElementById('deleteVideoForm');
 	const deleteVideoIdInput = document.getElementById('deleteVideoIdInput');
-	document.querySelectorAll('.delete-video-btn').forEach(function (button) {
-		button.addEventListener('click', function () {
-			const videoId = button.getAttribute('data-video-id');
-			if (!videoId || !deleteForm || !deleteVideoIdInput) {
-				return;
-			}
-			Swal.fire({
-				title: i18n.deleteTitle,
-				text: i18n.deleteText,
-				icon: 'warning',
-				showCancelButton: true,
-				confirmButtonColor: '#d33',
-				cancelButtonColor: '#3085d6',
-				confirmButtonText: i18n.deleteConfirm,
-				cancelButtonText: i18n.cancel,
-				background: '#333',
-				color: '#fff'
-			}).then((result) => {
-				if (result.isConfirmed) {
-					deleteVideoIdInput.value = videoId;
-					deleteForm.submit();
+	const isClipsMode = <?php echo $isClipsMode ? 'true' : 'false'; ?>;
+	const clientLoadVideos = <?php echo !empty($clientLoadVideos) ? 'true' : 'false'; ?>;
+	const pageTab = <?php echo json_encode($tab, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+	const cardsContainer = document.getElementById('mediaCardsContainer');
+	const emptyState = document.getElementById('videosEmptyState');
+	function setBusy(el, busy) {
+		if (!el) return;
+		if (busy) el.setAttribute('aria-busy', 'true');
+		else el.removeAttribute('aria-busy');
+	}
+	function skeletonMediaCardsHtml(count) {
+		var n = count || 6, html = '', i;
+		for (i = 0; i < n; i++) {
+			html += '<div class="media-card-col media-card-skeleton" aria-hidden="true">'
+				+ '<div class="sp-card" style="height:100%; display:flex; flex-direction:column;">'
+				+ '<span class="sp-skeleton-thumb"></span>'
+				+ '<div class="sp-card-body sp-skeleton-stack" style="flex:1;">'
+				+ '<span class="sp-skeleton-line w-80"></span>'
+				+ '<span class="sp-skeleton-line w-60"></span>'
+				+ '<span class="sp-skeleton-badge"></span>'
+				+ '<span class="sp-skeleton-line w-50"></span>'
+				+ '<span class="sp-skeleton-line w-40"></span>'
+				+ '</div></div></div>';
+		}
+		return html;
+	}
+	function removeSkeletonCards() {
+		if (!cardsContainer) return;
+		cardsContainer.querySelectorAll('.media-card-skeleton').forEach(function (el) { el.remove(); });
+	}
+	function bindDeleteButtons(root) {
+		(root || document).querySelectorAll('.delete-video-btn').forEach(function (button) {
+			if (button.dataset.bound === '1') return;
+			button.dataset.bound = '1';
+			button.addEventListener('click', function () {
+				const videoId = button.getAttribute('data-video-id');
+				if (!videoId || !deleteForm || !deleteVideoIdInput) {
+					return;
 				}
+				Swal.fire({
+					title: i18n.deleteTitle,
+					text: i18n.deleteText,
+					icon: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: '#d33',
+					cancelButtonColor: '#3085d6',
+					confirmButtonText: i18n.deleteConfirm,
+					cancelButtonText: i18n.cancel,
+					background: '#333',
+					color: '#fff'
+				}).then((result) => {
+					if (result.isConfirmed) {
+						deleteVideoIdInput.value = videoId;
+						deleteForm.submit();
+					}
+				});
 			});
 		});
-	});
-	const isClipsMode = <?php echo $isClipsMode ? 'true' : 'false'; ?>;
+	}
+	// Rebind: initial SSR cards (if any) already bound above; client-loaded need rebind.
+	bindDeleteButtons(document);
+
 	if (!isClipsMode) {
+		if (clientLoadVideos && cardsContainer) {
+			setBusy(cardsContainer, true);
+			if (emptyState) emptyState.style.display = 'none';
+			const url = new URL('videos.php', window.location.origin);
+			url.searchParams.set('tab', pageTab);
+			url.searchParams.set('ajax', 'videos');
+			fetch(url.toString(), {
+				method: 'GET',
+				headers: { 'X-Requested-With': 'XMLHttpRequest' }
+			})
+				.then(function (response) { return response.json(); })
+				.then(function (data) {
+					removeSkeletonCards();
+					if (!data || !data.success) {
+						throw new Error(data && data.message ? data.message : i18n.unableLoadMore);
+					}
+					const count = Number(data.count || 0);
+					if (count < 1 || !data.html) {
+						if (cardsContainer) cardsContainer.innerHTML = '';
+						if (emptyState) emptyState.style.display = '';
+					} else {
+						if (emptyState) emptyState.style.display = 'none';
+						cardsContainer.innerHTML = data.html;
+						bindDeleteButtons(cardsContainer);
+					}
+					setBusy(cardsContainer, false);
+				})
+				.catch(function (error) {
+					removeSkeletonCards();
+					if (cardsContainer) {
+						cardsContainer.innerHTML = '<div class="db-loading" style="grid-column:1/-1;"><i class="fas fa-triangle-exclamation"></i> '
+							+ (error.message || i18n.tryAgain) + '</div>';
+					}
+					setBusy(cardsContainer, false);
+				});
+		}
 		return;
 	}
-	const cardsContainer = document.getElementById('mediaCardsContainer');
+
 	const loadMoreBtn = document.getElementById('clipsLoadMoreBtn');
 	const loadAllBtn = document.getElementById('clipsLoadAllBtn');
 	const statusLabel = document.getElementById('clipsLoadStatus');
@@ -659,6 +763,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	let totalCount = null;
 	let totalCapped = false;
 	let loading = false;
+	let firstClipsLoadDone = !clientLoadVideos;
 	function updateButtons() {
 		if (loadMoreBtn) {
 			loadMoreBtn.disabled = loading || !hasMore;
@@ -702,12 +807,23 @@ document.addEventListener('DOMContentLoaded', function () {
 				updateButtons();
 			});
 	}
-	function fetchClipsBatch(mode) {
-		if (loading || !hasMore) {
+	function fetchClipsBatch(mode, replace) {
+		if (loading) {
+			return Promise.resolve();
+		}
+		if (!replace && !hasMore) {
 			return Promise.resolve();
 		}
 		loading = true;
 		updateButtons();
+		if (replace && cardsContainer) {
+			setBusy(cardsContainer, true);
+			if (emptyState) emptyState.style.display = 'none';
+			cardsContainer.innerHTML = skeletonMediaCardsHtml(6);
+		} else if (cardsContainer && !replace) {
+			setBusy(cardsContainer, true);
+			cardsContainer.insertAdjacentHTML('beforeend', skeletonMediaCardsHtml(mode === 'all' ? 6 : 3));
+		}
 		const url = new URL('videos.php', window.location.origin);
 		url.searchParams.set('tab', 'clips');
 		url.searchParams.set('ajax', 'clips');
@@ -725,10 +841,16 @@ document.addEventListener('DOMContentLoaded', function () {
 				if (!data || !data.success) {
 					throw new Error(data && data.message ? data.message : i18n.unableLoadMore);
 				}
+				removeSkeletonCards();
+				if (replace && cardsContainer) {
+					cardsContainer.innerHTML = '';
+				}
+				const batchCount = Number(data.loaded_count || 0);
 				if (data.html && cardsContainer) {
 					cardsContainer.insertAdjacentHTML('beforeend', data.html);
+					bindDeleteButtons(cardsContainer);
 				}
-				loadedCount += Number(data.loaded_count || 0);
+				loadedCount += batchCount;
 				nextOffset = Number(data.next_offset || nextOffset);
 				hasMore = !!data.has_more;
 				if (typeof data.total_count !== 'undefined') {
@@ -737,24 +859,37 @@ document.addEventListener('DOMContentLoaded', function () {
 				if (totalCount !== null && loadedCount > totalCount) {
 					totalCount = loadedCount;
 				}
+				firstClipsLoadDone = true;
+				if (firstClipsLoadDone && loadedCount === 0 && emptyState) {
+					emptyState.style.display = '';
+				} else if (emptyState && loadedCount > 0) {
+					emptyState.style.display = 'none';
+				}
 			})
 			.catch(error => {
-				Swal.fire({
-					title: i18n.unableLoadTitle,
-					text: error.message || i18n.tryAgain,
-					icon: 'error',
-					background: '#333',
-					color: '#fff'
-				});
+				removeSkeletonCards();
+				if (replace && cardsContainer) {
+					cardsContainer.innerHTML = '<div class="db-loading" style="grid-column:1/-1;"><i class="fas fa-triangle-exclamation"></i> '
+						+ (error.message || i18n.tryAgain) + '</div>';
+				} else {
+					Swal.fire({
+						title: i18n.unableLoadTitle,
+						text: error.message || i18n.tryAgain,
+						icon: 'error',
+						background: '#333',
+						color: '#fff'
+					});
+				}
 			})
 			.finally(() => {
 				loading = false;
+				setBusy(cardsContainer, false);
 				updateButtons();
 			});
 	}
 	if (loadMoreBtn) {
 		loadMoreBtn.addEventListener('click', function () {
-			fetchClipsBatch('more');
+			fetchClipsBatch('more', false);
 		});
 	}
 	if (loadAllBtn) {
@@ -776,12 +911,18 @@ document.addEventListener('DOMContentLoaded', function () {
 				color: '#fff'
 			}).then(result => {
 				if (result.isConfirmed) {
-					fetchClipsBatch('all');
+					fetchClipsBatch('all', false);
 				}
 			});
 		});
 	}
 	fetchClipCount();
+	if (clientLoadVideos) {
+		hasMore = true;
+		nextOffset = 0;
+		loadedCount = 0;
+		fetchClipsBatch('more', true);
+	}
 	updateButtons();
 });
 </script>

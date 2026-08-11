@@ -468,16 +468,16 @@ if (isset($_GET['ajax'])) {
     </div>
     <div class="title-row">
         <h1>BotOfTheSpecter System Status</h1>
-        <div class="last-updated" id="last-updated">Time right now: <span id="current-time">--:--:--</span> &nbsp;|&nbsp; Last updated: <span id="update-time">Loading...</span></div>
+        <div class="last-updated" id="last-updated">Time right now: <span id="current-time">--:--:--</span> &nbsp;|&nbsp; Last updated: <span id="update-time"><span class="sp-skeleton-line w-40" style="display:inline-block;width:4.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
     </div>
     <!-- Service Statuses -->
     <div class="section">
-            <div class="status-grid" id="service-status">
-                <div class='status-item'><span class="has-text-weight-bold">Web Server 1:</span> Checking... <span aria-hidden="true">⏳</span></div>
-                <div class='status-item'><span class="has-text-weight-bold">Database Service:</span> Checking... <span aria-hidden="true">⏳</span></div>
-                <div class='status-item'><span class="has-text-weight-bold">API Service:</span> Checking... <span aria-hidden="true">⏳</span></div>
-                <div class='status-item'><span class="has-text-weight-bold">WebSocket Service:</span> Checking... <span aria-hidden="true">⏳</span></div>
-                <div class='status-item'><span class="has-text-weight-bold">Bot Server:</span> Checking... <span aria-hidden="true">⏳</span></div>
+            <div class="status-grid" id="service-status" aria-busy="true">
+                <div class="status-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-60"></span><span class="sp-skeleton sp-skeleton-line w-25"></span></div>
+                <div class="status-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-55"></span><span class="sp-skeleton sp-skeleton-line w-25"></span></div>
+                <div class="status-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-50"></span><span class="sp-skeleton sp-skeleton-line w-20"></span></div>
+                <div class="status-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-70"></span><span class="sp-skeleton sp-skeleton-line w-25"></span></div>
+                <div class="status-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-45"></span><span class="sp-skeleton sp-skeleton-line w-20"></span></div>
             </div>
     </div>
     <div class="columns">
@@ -485,11 +485,11 @@ if (isset($_GET['ajax'])) {
             <!-- System Versions -->
             <div class="section">
                 <h2>System Versions</h2>
-                <div id="version-info">
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-version">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-version">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-version">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Running Bots:</span> <span id="running-bots-total">Loading...</span></div>
+                <div id="version-info" aria-busy="true">
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-version"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-version"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-version"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Running Bots:</span> <span id="running-bots-total"><span class="sp-skeleton-line w-25" style="display:inline-block;width:2.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
                     <div class="info-item" id="running-bots-breakdown" hidden></div>
                 </div>
             </div>
@@ -498,10 +498,10 @@ if (isset($_GET['ajax'])) {
             <!-- Public API Requests -->
             <div class="section">
                 <h2>Public API Requests</h2>
-                <div id="api-limits">
-                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaining:</span> <span id="song-requests">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaining:</span> <span id="exchange-requests">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaining:</span> <span id="weather-requests">Loading...</span></div>
+                <div id="api-limits" aria-busy="true">
+                    <div class="info-item"><span class="has-text-weight-bold">Song Identification Remaining:</span> <span id="song-requests"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Exchange Rate Remaining:</span> <span id="exchange-requests"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Weather Remaining:</span> <span id="weather-requests"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
                 </div>
             </div>
         </div>
@@ -509,8 +509,8 @@ if (isset($_GET['ajax'])) {
             <!-- Extra Column 1 -->
             <div class="section" id="signups-section">
                 <h2>Number of Signups</h2>
-                <div>
-                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span id="total-users">Loading...</span></div>
+                <div id="signups-body" aria-busy="true">
+                    <div class="info-item"><span class="has-text-weight-bold">Total:</span> <span id="total-users"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
                     <h3>Signups by Year</h3>
                     <div class="columns is-mobile">
                         <div class="column is-half">
@@ -535,11 +535,11 @@ if (isset($_GET['ajax'])) {
             <!-- Messages Sent Section -->
             <div class="section">
                 <h2>Messages Sent</h2>
-                <div id="message-counts">
-                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages">Loading...</span></div>
-                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages">Loading...</span></div>
+                <div id="message-counts" aria-busy="true">
+                    <div class="info-item"><span class="has-text-weight-bold">Discord Bot:</span> <span id="discord-messages"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Stable:</span> <span id="stable-messages"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Beta:</span> <span id="beta-messages"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
+                    <div class="info-item"><span class="has-text-weight-bold">Chat Bot Custom:</span> <span id="custom-messages"><span class="sp-skeleton-line w-40" style="display:inline-block;width:3.5rem;vertical-align:middle;" aria-hidden="true"></span></span></div>
                     <div class="info-item"><span class="has-text-weight-bold">Messages/min:</span> <span id="overall-msg-rate">—</span></div>
                 </div>
             </div>
@@ -550,8 +550,25 @@ if (isset($_GET['ajax'])) {
             <!-- System Metrics -->
             <div class="section">
                 <h2>System Metrics</h2>
-                <div id="system-metrics">
-                    <div class="status-item">Loading...</div>
+                <div id="system-metrics" aria-busy="true">
+                    <div class="status-item" aria-hidden="true">
+                        <div class="metric-header"><span class="sp-skeleton sp-skeleton-line w-50"></span></div>
+                        <div class="metric-body sp-skeleton-stack">
+                            <span class="sp-skeleton sp-skeleton-line w-70"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-80"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-60"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-90"></span>
+                        </div>
+                    </div>
+                    <div class="status-item" aria-hidden="true">
+                        <div class="metric-header"><span class="sp-skeleton sp-skeleton-line w-45"></span></div>
+                        <div class="metric-body sp-skeleton-stack">
+                            <span class="sp-skeleton sp-skeleton-line w-70"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-80"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-55"></span>
+                            <span class="sp-skeleton sp-skeleton-line w-90"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -559,7 +576,14 @@ if (isset($_GET['ajax'])) {
             <!-- Beta Users -->
             <div class="section">
                 <h2>Friends that use BotOfTheSpecter</h2>
-                <div class="beta-users user-list"></div>
+                <div class="beta-users user-list" id="beta-users" aria-busy="true">
+                    <div class="info-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-60"></span></div>
+                    <div class="info-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-50"></span></div>
+                    <div class="info-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-70"></span></div>
+                    <div class="info-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-45"></span></div>
+                    <div class="info-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-55"></span></div>
+                    <div class="info-item" aria-hidden="true"><span class="sp-skeleton sp-skeleton-line w-40"></span></div>
+                </div>
             </div>
         </div>
     </div>
@@ -622,6 +646,18 @@ function renderServiceStatus(name, statusData) {
 const MSG_RATE_WINDOW_MS = 5 * 60 * 1000;
 let msgRateSamples = []; // { tMs, total, generatedAt }
 let lastMsgRateText = '—';
+let statusFirstLoadDone = false;
+
+function setBusy(el, busy) {
+    if (!el) return;
+    if (busy) el.setAttribute('aria-busy', 'true');
+    else el.removeAttribute('aria-busy');
+}
+
+function clearStatusBusy() {
+    ['service-status', 'version-info', 'api-limits', 'signups-body', 'message-counts', 'system-metrics', 'beta-users']
+        .forEach(id => setBusy(document.getElementById(id), false));
+}
 
 // Fetch and update data every 60 seconds
 function fetchAndUpdateStatus() {
@@ -671,6 +707,7 @@ function fetchAndUpdateStatus() {
                 });
             }
             document.getElementById('service-status').innerHTML = statusHtml;
+            setBusy(document.getElementById('service-status'), false);
             // Update versions
             document.getElementById('stable-version').textContent = data.stableVersion ?? 'N/A';
             document.getElementById('beta-version').textContent = data.betaVersion ?? 'N/A';
@@ -704,12 +741,14 @@ function fetchAndUpdateStatus() {
                     runningBreakEl.hidden = true;
                 }
             }
+            setBusy(document.getElementById('version-info'), false);
             // Update song info
             document.getElementById('song-requests').textContent = formatNumber(data.songRequestsRemaining);
             // Update exchange info
             document.getElementById('exchange-requests').textContent = formatNumber(data.exchangeRateRequestsRemaining);
             // Update weather info
             document.getElementById('weather-requests').textContent = formatNumber(data.weatherRequestsRemaining);
+            setBusy(document.getElementById('api-limits'), false);
             // Update message counts if present
             if (data.botMessageCounts) {
                 const nowMs = Date.now();
@@ -779,6 +818,7 @@ function fetchAndUpdateStatus() {
                     }
                     rateEl.textContent = lastMsgRateText;
                 }
+                setBusy(document.getElementById('message-counts'), false);
             }
             // Update signup data if present
             if (data.totalUsers !== undefined) {
@@ -795,6 +835,9 @@ function fetchAndUpdateStatus() {
                         if (itemElement) itemElement.hidden = false;
                     }
                 });
+            }
+            if (data.totalUsers !== undefined || data.usersByYear) {
+                setBusy(document.getElementById('signups-body'), false);
             }
             // Update metrics if present (live /health/metrics from each API host)
             if (data.metrics) {
@@ -830,7 +873,9 @@ function fetchAndUpdateStatus() {
                         </div>`;
                     });
                 }
-                document.getElementById('system-metrics').innerHTML = metricsHtml;
+                const metricsEl = document.getElementById('system-metrics');
+                metricsEl.innerHTML = metricsHtml;
+                setBusy(metricsEl, false);
             }
             // Update beta users if the AJAX response includes them.
             // Use strict undefined check so empty arrays (no users) still replace the DOM.
@@ -839,14 +884,22 @@ function fetchAndUpdateStatus() {
                 data.betaUsers.forEach(user => {
                     usersHtml += `<div class="info-item"><span>${escapeHtml(user)}</span></div>`;
                 });
-                document.querySelector('.beta-users').innerHTML = usersHtml;
+                const betaEl = document.getElementById('beta-users') || document.querySelector('.beta-users');
+                if (betaEl) {
+                    betaEl.innerHTML = usersHtml;
+                    setBusy(betaEl, false);
+                }
             }
             // Update last updated time
             document.getElementById('update-time').textContent = new Date().toLocaleTimeString();
+            statusFirstLoadDone = true;
+            clearStatusBusy();
         })
         .catch(err => {
             console.error('Status update failed:', err);
             document.getElementById('update-time').textContent = 'update failed - retrying';
+            // Keep skeletons only until first success; on later poll errors leave last good UI
+            if (statusFirstLoadDone) clearStatusBusy();
         });
 }
 

@@ -388,14 +388,10 @@ ob_start();
             </div>
             <?php endif; ?>
         </div>
-        <!-- Loading indicator -->
-        <div id="cdnfm-status" class="cdnfm-status" style="display:none;">
-            <i class="fas fa-spinner fa-spin"></i> <?php echo t('cdn_files_loading'); ?>
-        </div>
         <!-- Alert area -->
         <div id="cdnfm-alert" style="display:none;"></div>
         <!-- File listing -->
-        <div class="sp-table-wrap" id="cdnfm-listing-wrap">
+        <div class="sp-table-wrap" id="cdnfm-listing-wrap" aria-busy="true">
             <table class="sp-table" id="cdnfm-table">
                 <thead>
                     <tr>
@@ -406,7 +402,18 @@ ob_start();
                     </tr>
                 </thead>
                 <tbody id="cdnfm-tbody">
-                    <tr><td colspan="4" style="color:var(--text-muted); text-align:center;"><i class="fas fa-spinner fa-spin"></i> <?php echo t('cdn_files_loading'); ?></td></tr>
+                    <?php for ($cdnSk = 0; $cdnSk < 8; $cdnSk++): ?>
+                    <tr aria-hidden="true">
+                        <td colspan="4" style="padding:0;">
+                            <div class="sp-skeleton-table-row">
+                                <span class="sp-skeleton-line w-40"></span>
+                                <span class="sp-skeleton-line w-15" style="width:12%;"></span>
+                                <span class="sp-skeleton-line w-20"></span>
+                                <span class="sp-skeleton-badge"></span>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </div>
@@ -456,11 +463,35 @@ ob_start();
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
+    function setBusy(el, busy) {
+        if (!el) return;
+        if (busy) el.setAttribute('aria-busy', 'true');
+        else el.removeAttribute('aria-busy');
+    }
+    function skeletonListingHtml(rows) {
+        const n = rows || 8;
+        let html = '';
+        for (let i = 0; i < n; i++) {
+            html += '<tr aria-hidden="true"><td colspan="4" style="padding:0;">' +
+                '<div class="sp-skeleton-table-row">' +
+                '<span class="sp-skeleton-line w-40"></span>' +
+                '<span class="sp-skeleton-line" style="width:12%;"></span>' +
+                '<span class="sp-skeleton-line w-20"></span>' +
+                '<span class="sp-skeleton-badge"></span>' +
+                '</div></td></tr>';
+        }
+        return html;
+    }
+    let listingLoadedOnce = false;
     function setLoading(on) {
-        const statusEl = document.getElementById('cdnfm-status');
-        const wrapEl   = document.getElementById('cdnfm-listing-wrap');
-        if (statusEl) statusEl.style.display = on ? '' : 'none';
-        if (wrapEl)   wrapEl.style.opacity   = on ? '0.4' : '1';
+        const wrapEl = document.getElementById('cdnfm-listing-wrap');
+        const tbody  = document.getElementById('cdnfm-tbody');
+        if (on) {
+            if (tbody) tbody.innerHTML = skeletonListingHtml(8);
+            setBusy(wrapEl, true);
+        } else {
+            setBusy(wrapEl, false);
+        }
     }
     function showAlert(msg, type) {
         const iconMap = { success: 'check-circle', danger: 'exclamation-circle', warning: 'exclamation-triangle', info: 'info-circle' };
@@ -537,8 +568,10 @@ ob_start();
         setLoading(false);
         if (!res.ok) {
             showAlert(res.error || 'Error loading listing', 'danger');
+            // Keep skeleton / previous content; do not show empty-state on error
             return;
         }
+        listingLoadedOnce = true;
         renderListing(res);
     }
     function renderListing(data) {
