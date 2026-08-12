@@ -13,9 +13,8 @@ $pageTitle = t('media_page_title');
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 include 'includes/storage_used.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
 session_write_close();

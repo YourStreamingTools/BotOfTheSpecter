@@ -11,10 +11,8 @@ require_once '/var/www/lib/require_auth.php';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();

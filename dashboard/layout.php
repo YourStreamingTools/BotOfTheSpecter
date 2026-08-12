@@ -79,31 +79,8 @@ $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
 $maintenanceMessage = $config['maintenanceMessage'] ?? '';
 
-// Check if dev stream is online
-$devStreamOnline = false;
-try {
-    include '/var/www/config/admin_actions.php';
-    if (!empty($admin_key)) {
-        $apiUrl = "https://api.botofthespecter.com/v2/streamonline?channel=gfaundead";
-        $ch = curl_init($apiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'X-API-KEY: ' . $admin_key,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($httpCode === 200 && $response) {
-            $data = json_decode($response, true);
-            if (isset($data['online']) && $data['online'] === true) {
-                $devStreamOnline = true;
-            }
-        }
-    }
-} catch (Exception $e) {
-    // Silently fail - don't display errors to end users
-}
+// Dev-stream topbar tag is filled client-side after first paint (see footer JS).
+// Never block HTML on a remote streamonline probe — that delayed every dashboard page by up to ~3s.
 
 $isAdminCssPage = isset($layoutMode) && $layoutMode === 'admin';
 if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
@@ -209,7 +186,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         <!-- Main -->
         <div class="sp-main">
             <!-- Topbar -->
-            <?php $hasTopbarTags = ($layoutMode === 'admin') || ($layoutMode === 'default' && $devStreamOnline) || $isActingAsUser || $maintenanceMode; ?>
+            <?php $hasTopbarTags = ($layoutMode === 'admin') || ($layoutMode === 'default') || $isActingAsUser || $maintenanceMode; ?>
             <header class="sp-topbar<?= $hasTopbarTags ? '' : ' sp-topbar-no-tags' ?>">
                 <button class="sp-hamburger" id="spHamburger" aria-label="<?php echo htmlspecialchars(t('layout_toggle_navigation')); ?>">
                     <i class="fas fa-bars"></i>
@@ -218,8 +195,8 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                 <div class="sp-topbar-center">
                     <?php if ($layoutMode === 'admin'): ?>
                         <span class="sp-topbar-tag sp-topbar-tag-admin"><i class="fas fa-shield-alt"></i> <?= t('layout_topbar_admin_dashboard') ?></span>
-                    <?php elseif ($layoutMode === 'default' && $devStreamOnline): ?>
-                        <span class="sp-topbar-tag sp-topbar-tag-dev"><i class="fas fa-video"></i> <?= t('layout_topbar_dev_stream_online') ?> &mdash; <a href="https://twitch.tv/gfaundead" target="_blank">twitch.tv/gfaundead</a></span>
+                    <?php elseif ($layoutMode === 'default'): ?>
+                        <span id="spDevStreamTag" class="sp-topbar-tag sp-topbar-tag-dev" hidden><i class="fas fa-video"></i> <?= t('layout_topbar_dev_stream_online') ?> &mdash; <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">twitch.tv/gfaundead</a></span>
                     <?php endif; ?>
                     <?php if ($isActingAsUser): ?>
                         <span class="sp-topbar-tag sp-topbar-tag-act-as"><i class="fas fa-user-secret"></i> <?= t('layout_topbar_viewing_as') ?> <strong><?php echo $actingAsLabel; ?></strong> &mdash; <a href="<?php echo $stopActAsHref; ?>"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a></span>
@@ -286,7 +263,6 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <script src="/js/dashboard.js?v=<?php echo filemtime(__DIR__ . '/js/dashboard.js'); ?>"></script>
     <script src="/js/search.js?v=<?php echo filemtime(__DIR__ . '/js/search.js'); ?>"></script>
         <?php echo $scripts; ?>
-        <?php include_once "includes/usr_database.php"; ?>
     <script>
         // Sidebar toggle (mobile)
         (function () {
@@ -438,5 +414,39 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             });
         })();
     </script>
+    <?php if ($layoutMode === 'default'): ?>
+    <script>
+        // Dev stream badge: after first paint only (never block PHP TTFB for this).
+        (function () {
+            var tag = document.getElementById('spDevStreamTag');
+            if (!tag) return;
+            fetch('/api/dev_stream_status.php', { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (d && d.online) {
+                        tag.hidden = false;
+                        var topbar = tag.closest('.sp-topbar');
+                        if (topbar) topbar.classList.remove('sp-topbar-no-tags');
+                    }
+                })
+                .catch(function () { /* ignore */ });
+        })();
+    </script>
+    <?php endif; ?>
 </body>
 </html>
+<?php
+// Per-user schema bootstrap runs AFTER the full HTML document is closed so the
+// browser can paint the shell (and skeletons) while CREATE TABLE work continues.
+// Prefer finishing the HTTP response first when running under php-fpm.
+if (!defined('BOTS_SKIP_USR_DATABASE') || !BOTS_SKIP_USR_DATABASE) {
+    if (function_exists('fastcgi_finish_request')) {
+        @fastcgi_finish_request();
+    } else {
+        while (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+        @flush();
+    }
+    include_once __DIR__ . '/includes/usr_database.php';
+}
