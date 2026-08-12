@@ -20,16 +20,29 @@ $BetaBotScriptPath = "/home/botofthespecter/beta.py";
 // Define script path for v6 bot
 $V6BotScriptPath = "/home/botofthespecter/beta-v6.py";
 
-// Fetch all versions from the API ONCE at the top
-$versionApiUrl = 'https://api.botofthespecter.com/versions';
-$versionApiData = @file_get_contents($versionApiUrl);
-if ($versionApiData !== false) {
-    $versionInfo = json_decode($versionApiData, true);
-    $newVersion = $versionInfo['stable_version'] ?? 'N/A';
-    $betaNewVersion = $versionInfo['beta_version'] ?? 'N/A';
-    $v6NewVersion = $versionInfo['v6_version'] ?? '6.0.0';
-} else {
-    $newVersion = $betaNewVersion = $v6NewVersion = 'N/A';
+// Version strings are loaded lazily (see ensureBotVersionInfo()) so pages that
+// only include this file for path constants don't pay an HTTP round-trip on every request.
+$newVersion = $newVersion ?? null;
+$betaNewVersion = $betaNewVersion ?? null;
+$v6NewVersion = $v6NewVersion ?? null;
+
+if (!function_exists('ensureBotVersionInfo')) {
+    function ensureBotVersionInfo() {
+        global $newVersion, $betaNewVersion, $v6NewVersion;
+        if ($newVersion !== null && $betaNewVersion !== null && $v6NewVersion !== null) {
+            return;
+        }
+        $versionApiUrl = 'https://api.botofthespecter.com/versions';
+        $versionApiData = @file_get_contents($versionApiUrl);
+        if ($versionApiData !== false) {
+            $versionInfo = json_decode($versionApiData, true);
+            $newVersion = $versionInfo['stable_version'] ?? 'N/A';
+            $betaNewVersion = $versionInfo['beta_version'] ?? 'N/A';
+            $v6NewVersion = $versionInfo['v6_version'] ?? '6.0.0';
+        } else {
+            $newVersion = $betaNewVersion = $v6NewVersion = 'N/A';
+        }
+    }
 }
 
 // Get bot status and check if it's running - Used for initial page load only
@@ -75,22 +88,6 @@ function fetchBotStatusData($username, $system) {
     return $result;
 }
 
-try {
-    $statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
-    $botSystemStatus = checkBotsRunning($statusScriptPath, $username, 'stable');
-    $betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
-    $betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'beta');
-    $v6StatusOutput = getBotsStatus($statusScriptPath, $username, 'v6');
-    $v6BotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'v6');
-} catch (Exception $e) {
-    $statusOutput = "<div class='status-message error'>Status: Bots API error</div>";
-    $botSystemStatus = false;
-    $betaStatusOutput = "<div class='status-message error'>Status: Bots API error</div>";
-    $betaBotSystemStatus = false;
-    $v6StatusOutput = "<div class='status-message error'>Status: Bots API error</div>";
-    $v6BotSystemStatus = false;
-}
-
 // Utility function to get bot status message via the private bots control API.
 function getBotsStatus($statusScriptPath, $username, $system = 'stable') {
     $status = fetchBotStatusData($username, $system);
@@ -112,24 +109,77 @@ function checkBotsRunning($statusScriptPath, $username, $system = 'stable') {
 // Get the version currently running, via the same bots control API response
 // (no separate round-trip needed - the status endpoint already returns it).
 function getRunningVersion($versionFilePath, $newVersion, $type = '') {
-    global $username;
+    global $username, $betaNewVersion, $v6NewVersion;
     $status = fetchBotStatusData($username, $type ?: 'stable');
     if ($status['ok'] && $status['running'] && $status['version'] !== '') {
         return $status['version'];
     }
+    // Fall back to latest known published version for this track
+    ensureBotVersionInfo();
+    if ($type === 'beta') {
+        return $betaNewVersion;
+    }
+    if ($type === 'v6') {
+        return $v6NewVersion;
+    }
+    // Prefer caller-supplied fallback when present
+    if ($newVersion !== null && $newVersion !== '') {
+        return $newVersion;
+    }
+    global $newVersion;
     return $newVersion;
 }
 
-// Set running versions if bots are running
-if ($botSystemStatus) {
-    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
+/**
+ * Eager status fetch used by bot.php (and anything that still expects
+ * $botSystemStatus / $statusOutput globals). Other pages that only included
+ * this file for path constants must NOT pay 3× bots-API round-trips.
+ */
+function loadBotControlStatusGlobals() {
+    global $statusScriptPath, $username;
+    global $statusOutput, $botSystemStatus, $betaStatusOutput, $betaBotSystemStatus;
+    global $v6StatusOutput, $v6BotSystemStatus;
+    global $versionRunning, $betaVersionRunning, $v6VersionRunning;
+    global $versionFilePath, $betaVersionFilePath, $v6VersionFilePath;
+    global $newVersion, $betaNewVersion, $v6NewVersion;
+
+    ensureBotVersionInfo();
+
+    try {
+        $statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
+        $botSystemStatus = checkBotsRunning($statusScriptPath, $username, 'stable');
+        $betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
+        $betaBotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'beta');
+        $v6StatusOutput = getBotsStatus($statusScriptPath, $username, 'v6');
+        $v6BotSystemStatus = checkBotsRunning($statusScriptPath, $username, 'v6');
+    } catch (Exception $e) {
+        $statusOutput = "<div class='status-message error'>Status: Bots API error</div>";
+        $botSystemStatus = false;
+        $betaStatusOutput = "<div class='status-message error'>Status: Bots API error</div>";
+        $betaBotSystemStatus = false;
+        $v6StatusOutput = "<div class='status-message error'>Status: Bots API error</div>";
+        $v6BotSystemStatus = false;
+    }
+
+    $versionRunning = $botSystemStatus
+        ? getRunningVersion($versionFilePath, $newVersion)
+        : null;
+    $betaVersionRunning = $betaBotSystemStatus
+        ? getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta')
+        : null;
+    $v6VersionRunning = $v6BotSystemStatus
+        ? getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6')
+        : null;
 }
 
-if ($betaBotSystemStatus) {
-    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
-}
-
-if ($v6BotSystemStatus) {
-    $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
-}
+// Defaults so accidental reads don't notice-error; call loadBotControlStatusGlobals() for live values.
+$statusOutput = $statusOutput ?? '';
+$botSystemStatus = $botSystemStatus ?? false;
+$betaStatusOutput = $betaStatusOutput ?? '';
+$betaBotSystemStatus = $betaBotSystemStatus ?? false;
+$v6StatusOutput = $v6StatusOutput ?? '';
+$v6BotSystemStatus = $v6BotSystemStatus ?? false;
+$versionRunning = $versionRunning ?? null;
+$betaVersionRunning = $betaVersionRunning ?? null;
+$v6VersionRunning = $v6VersionRunning ?? null;
 ?>

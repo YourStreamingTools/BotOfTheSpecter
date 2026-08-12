@@ -8,7 +8,27 @@ $dbname = $_SESSION['username'] ?? '';
 // to keep those unparameterized splices safe.
 if (!preg_match('/^[a-zA-Z0-9_]{1,64}$/', $dbname)) {
     error_log('usr_database.php: refusing unsafe dbname: ' . var_export($dbname, true));
-    die('Invalid session username.');
+    return;
+}
+
+// Fast path: already bootstrapped this PHP session for this user DB.
+// layout.php runs this after the HTML shell is sent; skipping on later navigations
+// is the main win for first-paint + subsequent page TTFB.
+$__usrSchemaSessionWasClosed = false;
+if (session_status() === PHP_SESSION_NONE) {
+    // Pages commonly call session_write_close() before layout — reopen only for this flag.
+    if (!empty($_COOKIE[session_name()] ?? '')) {
+        @session_start();
+        $__usrSchemaSessionWasClosed = true;
+    }
+}
+if (session_status() === PHP_SESSION_ACTIVE
+    && !empty($_SESSION['usr_schema_ok'])
+    && (string) $_SESSION['usr_schema_ok'] === (string) $dbname) {
+    if ($__usrSchemaSessionWasClosed) {
+        @session_write_close();
+    }
+    return;
 }
 
 try {
@@ -16,16 +36,24 @@ try {
     $usrDBconn = new mysqli($db_servername, $db_username, $db_password);
     // Check connection
     if ($usrDBconn->connect_error) {
-        die("Connection failed: " . $usrDBconn->connect_error);
+        error_log('usr_database.php connection failed: ' . $usrDBconn->connect_error);
+        if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+        return;
     }
     // Check if the database exists, if not, create it
     $result = $usrDBconn->query("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '$dbname'");
     if ($result->num_rows === 0) {
         $sql = "CREATE DATABASE `$dbname`";
         if ($usrDBconn->query($sql) === TRUE) {
-            echo "<script>console.log('Database $dbname created.');</script>";
+            // no-op: HTML may already be finished when this runs
         } else {
-            die("Error creating database: " . $usrDBconn->error);
+            error_log('usr_database.php create database failed: ' . $usrDBconn->error);
+            if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
+                @session_write_close();
+            }
+            return;
         }
     }
     // Close the connection after creating the database
@@ -34,7 +62,11 @@ try {
     $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $dbname);
     // Check connection again
     if ($usrDBconn->connect_error) {
-        die("Reconnection failed: " . $usrDBconn->connect_error);
+        error_log('usr_database.php reconnection failed: ' . $usrDBconn->connect_error);
+        if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+        return;
     }
     // List of table creation statements
     $tables = [
@@ -1720,7 +1752,18 @@ try {
 
     // Close the connection
     $usrDBconn->close();
+
+    // Mark schema OK for the rest of this session so later pages skip the work.
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['usr_schema_ok'] = $dbname;
+        if ($__usrSchemaSessionWasClosed) {
+            @session_write_close();
+        }
+    }
 } catch (Exception $e) {
-    echo "<script>console.error('Connection failed: " . addslashes($e->getMessage()) . "');</script>";
+    error_log('usr_database.php exception: ' . $e->getMessage());
+    if (!empty($__usrSchemaSessionWasClosed) && session_status() === PHP_SESSION_ACTIVE) {
+        @session_write_close();
+    }
 }
 ?>

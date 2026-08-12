@@ -52,8 +52,11 @@ include '/var/www/config/twitch.php';
 include '/var/www/config/ssh.php';
 include 'includes/userdata.php';
 include 'includes/bot_control.php';
+// This page needs live fleet status — other pages that include bot_control.php do not.
+loadBotControlStatusGlobals();
+ensureBotVersionInfo();
 include "includes/mod_access.php";
-include_once 'includes/usr_database.php';
+// Schema bootstrap runs after layout HTML (see layout.php). Avoid double-running here.
 include 'includes/user_db.php';
 include 'includes/storage_used.php';
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -86,14 +89,14 @@ if (isset($user_id)) {
 }
 
 // Ensure version variables exist to avoid undefined variable notices
-if (!isset($newVersion)) {
-  $newVersion = '';
+if (!isset($newVersion) || $newVersion === null || $newVersion === '') {
+  ensureBotVersionInfo();
 }
-if (!isset($betaNewVersion)) {
-  $betaNewVersion = '';
+if (!isset($betaNewVersion) || $betaNewVersion === null || $betaNewVersion === '') {
+  ensureBotVersionInfo();
 }
-if (!isset($v6NewVersion)) {
-  $v6NewVersion = '6.0.0';
+if (!isset($v6NewVersion) || $v6NewVersion === null || $v6NewVersion === '') {
+  ensureBotVersionInfo();
 }
 if (!isset($versionFilePath)) {
   $versionFilePath = null;

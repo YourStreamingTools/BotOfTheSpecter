@@ -13,10 +13,8 @@ require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include '/var/www/config/discord.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 $isActAsUser = isset($isActAs) && $isActAs === true;
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();

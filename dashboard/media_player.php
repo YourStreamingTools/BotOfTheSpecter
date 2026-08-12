@@ -11,7 +11,7 @@ require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 
 // The media tables (media_queue / media_request_settings / media_banlist) are created
