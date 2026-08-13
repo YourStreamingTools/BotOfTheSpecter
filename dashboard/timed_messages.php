@@ -11,13 +11,27 @@ $pageHeader = t('timed_messages_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $stmt = $db->prepare("SELECT * FROM timed_messages ORDER BY id ASC");
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        echo json_encode(['success' => true, 'messages' => $rows]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -266,13 +280,8 @@ if ($displayMessageData) {
     }
 }
 
-// Fetch all timed messages for dropdowns
-$stmt = $db->prepare("SELECT * FROM timed_messages");
-$stmt->execute();
-$timedMessagesData = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
 $twitchUsername = $username;
-// Start output buffering for layout template
+// Start output buffering for layout template (skeletons; JS fills the list)
 ob_start();
 ?>
 <div class="sp-card">
@@ -361,23 +370,21 @@ ob_start();
             </div>
             <!-- Edit Timed Message -->
             <div class="sp-card" style="display:flex; flex-direction:column;">
-                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;">
+                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;" id="editFormHost" aria-busy="true">
                     <h4 style="font-size:1.05rem; font-weight:600; margin-bottom:1rem;"><?php echo t('timed_messages_edit_title'); ?></h4>
-                    <?php if (!empty($timedMessagesData)): ?>
-                    <form id="editMessageForm" method="post" action="" onsubmit="return validateEditForm()">
+                    <div id="editFormSkeleton" class="sp-skeleton-stack" aria-hidden="true">
+                        <span class="sp-skeleton-line w-40"></span>
+                        <span class="sp-skeleton-line w-90"></span>
+                        <span class="sp-skeleton-line w-50"></span>
+                        <span class="sp-skeleton-line w-70"></span>
+                        <span class="sp-skeleton-line w-80"></span>
+                        <span class="sp-skeleton-line w-45"></span>
+                    </div>
+                    <form id="editMessageForm" method="post" action="" onsubmit="return validateEditForm()" style="display:none;">
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_message"><?php echo t('timed_messages_select_edit_label'); ?></label>
                             <select class="sp-select" name="edit_message" id="edit_message" onchange="showResponse(); toggleEditButton();">
                                 <option value="" selected><?php echo t('timed_messages_select_edit_placeholder'); ?></option>
-                                <?php
-                                usort($timedMessagesData, function($a, $b) {
-                                    return $a['id'] - $b['id'];
-                                });
-                                foreach ($timedMessagesData as $message): ?>
-                                    <option value="<?php echo $message['id']; ?>">
-                                        (<?php echo "ID: " . $message['id']; ?>) <?php echo htmlspecialchars($message['message']); ?>
-                                    </option>
-                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="sp-form-group">
@@ -417,26 +424,24 @@ ob_start();
                         </div>
                         <button type="submit" id="editMessageButton" class="sp-btn sp-btn-primary" style="width:100%;" disabled><?php echo t('timed_messages_save_btn'); ?></button>
                     </form>
-                    <?php else: ?>
-                        <p style="color:var(--text-muted);"><?php echo t('timed_messages_no_edit'); ?></p>
-                    <?php endif; ?>
+                    <p id="editEmptyState" style="color:var(--text-muted); display:none;"><?php echo t('timed_messages_no_edit'); ?></p>
                 </div>
             </div>
             <!-- Remove Timed Message -->
             <div class="sp-card" style="display:flex; flex-direction:column;">
-                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;">
+                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;" id="removeFormHost" aria-busy="true">
                     <h4 style="font-size:1.05rem; font-weight:600; margin-bottom:1rem;"><?php echo t('timed_messages_remove_title'); ?></h4>
-                    <?php if (!empty($timedMessagesData)): ?>
-                    <form id="removeMessageForm" method="post" action="" style="display:flex; flex-direction:column; flex:1;">
+                    <div id="removeFormSkeleton" class="sp-skeleton-stack" aria-hidden="true">
+                        <span class="sp-skeleton-line w-40"></span>
+                        <span class="sp-skeleton-line w-90"></span>
+                        <span class="sp-skeleton-line w-80"></span>
+                        <span class="sp-skeleton-line w-70"></span>
+                    </div>
+                    <form id="removeMessageForm" method="post" action="" style="display:none; flex-direction:column; flex:1;">
                         <div class="sp-form-group">
                             <label class="sp-label" for="remove_message"><?php echo t('timed_messages_select_remove_label'); ?></label>
                             <select class="sp-select" name="remove_message" id="remove_message" onchange="showMessage(); toggleRemoveButton();">
                                 <option value=""><?php echo t('timed_messages_select_remove_placeholder'); ?></option>
-                                <?php foreach ($timedMessagesData as $message): ?>
-                                    <option value="<?php echo $message['id']; ?>">
-                                        <?php echo t('timed_messages_message_id'); ?> <?php echo $message['id']; ?> - <?php echo htmlspecialchars(mb_strimwidth($message['message'], 0, 40, "")); ?>
-                                    </option>
-                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="sp-form-group">
@@ -446,9 +451,7 @@ ob_start();
                         <div style="flex-grow:1"></div>
                         <button type="submit" id="removeMessageButton" class="sp-btn sp-btn-danger" style="width:100%;" disabled><?php echo t('timed_messages_remove_btn'); ?></button>
                     </form>
-                    <?php else: ?>
-                        <p style="color:var(--text-muted);"><?php echo t('timed_messages_no_remove'); ?></p>
-                    <?php endif; ?>
+                    <p id="removeEmptyState" style="color:var(--text-muted); display:none;"><?php echo t('timed_messages_no_remove'); ?></p>
                 </div>
             </div>
         </div>
@@ -473,44 +476,15 @@ ob_start();
                         <th style="width: 130px; text-align: center; vertical-align: middle;"><?php echo t('timed_messages_status_label'); ?></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php if (!empty($timedMessagesData)): ?>
-                        <?php foreach ($timedMessagesData as $msg): ?>
-                            <tr>
-                                <td style="text-align: center; vertical-align: middle;"><?php echo $msg['id']; ?></td>
-                                <td><?php echo htmlspecialchars($msg['message']); ?></td>
-                                <td style="text-align: center; vertical-align: middle;">
-                                    <?php
-                                    $triggerType = $msg['trigger_type'] ?? 'timer';
-                                    if ($triggerType === 'chat_lines') {
-                                        echo '<span class="sp-badge sp-badge-blue">' . t('timed_messages_badge_chat_lines') . ': ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
-                                    } elseif ($triggerType === 'both') {
-                                        echo '<span class="sp-badge sp-badge-amber">' . t('timed_messages_badge_timer') . ': ' . htmlspecialchars($msg['interval_count']) . ' ' . t('timed_messages_badge_min') . ' &amp; ' . t('timed_messages_badge_chat_lines') . ': ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
-                                    } elseif ($triggerType === 'scheduled') {
-                                        $dispTime = $msg['scheduled_time'] ? substr($msg['scheduled_time'], 0, 5) : '--:--';
-                                        echo '<span class="sp-badge sp-badge-purple">' . (t('timed_messages_badge_scheduled') ?: 'Scheduled') . ': ' . htmlspecialchars($dispTime) . '</span>';
-                                    } else {
-                                        echo '<span class="sp-badge sp-badge-accent">' . t('timed_messages_badge_timer') . ': ' . htmlspecialchars($msg['interval_count']) . ' ' . t('timed_messages_badge_min') . '</span>';
-                                    }
-                                    ?>
-                                </td>
-                                <td style="text-align: center; vertical-align: middle;">
-                                    <button type="button"
-                                        class="sp-btn sp-btn-sm toggle-status-btn <?php echo $msg['status'] == 1 ? 'sp-btn-success' : 'sp-btn-danger'; ?>"
-                                        data-id="<?php echo $msg['id']; ?>"
-                                        data-status="<?php echo $msg['status']; ?>"
-                                        title="<?php echo htmlspecialchars($msg['status'] == 1 ? t('timed_messages_click_to_disable') : t('timed_messages_click_to_enable')); ?>">
-                                        <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
-                                        <span><?php echo $msg['status'] == 1 ? t('timed_messages_status_enabled') : t('timed_messages_status_disabled'); ?></span>
-                                    </button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="4" style="text-align:center;"><?php echo t('timed_messages_none_found'); ?></td>
-                        </tr>
-                    <?php endif; ?>
+                <tbody id="timedMessagesTableBody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-40"></span></td>
+                        <td><span class="sp-skeleton-line w-80"></span></td>
+                        <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-60"></span></td>
+                    </tr>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </div>
@@ -526,6 +500,7 @@ ob_start();
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
 <script>
 var charLimit = 255;
+var timedMessagesData = [];
 const TM_I18N = {
     charactersSuffix: <?php echo json_encode(t('timed_messages_characters')); ?>,
     intervalShoutout: <?php echo json_encode(t('timed_messages_err_interval_shoutout')); ?>,
@@ -538,8 +513,150 @@ const TM_I18N = {
     clickToDisable: <?php echo json_encode(t('timed_messages_click_to_disable')); ?>,
     clickToEnable: <?php echo json_encode(t('timed_messages_click_to_enable')); ?>,
     statusEnabled: <?php echo json_encode(t('timed_messages_status_enabled')); ?>,
-    statusDisabled: <?php echo json_encode(t('timed_messages_status_disabled')); ?>
+    statusDisabled: <?php echo json_encode(t('timed_messages_status_disabled')); ?>,
+    noneFound: <?php echo json_encode(t('timed_messages_none_found')); ?>,
+    loadError: <?php echo json_encode(t('timed_messages_err_updating')); ?>,
+    badgeChatLines: <?php echo json_encode(t('timed_messages_badge_chat_lines')); ?>,
+    badgeTimer: <?php echo json_encode(t('timed_messages_badge_timer')); ?>,
+    badgeScheduled: <?php echo json_encode(t('timed_messages_badge_scheduled') ?: 'Scheduled'); ?>,
+    badgeMin: <?php echo json_encode(t('timed_messages_badge_min')); ?>,
+    messageId: <?php echo json_encode(t('timed_messages_message_id')); ?>,
+    selectEditPlaceholder: <?php echo json_encode(t('timed_messages_select_edit_placeholder')); ?>,
+    selectRemovePlaceholder: <?php echo json_encode(t('timed_messages_select_remove_placeholder')); ?>
 };
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function truncateMessage(str, maxLen) {
+    var value = String(str == null ? '' : str);
+    if (value.length <= maxLen) return value;
+    return value.slice(0, maxLen);
+}
+
+function triggerBadgeHtml(msg) {
+    var triggerType = msg.trigger_type || 'timer';
+    if (triggerType === 'chat_lines') {
+        return '<span class="sp-badge sp-badge-blue">' + escapeHtml(TM_I18N.badgeChatLines) + ': ' + escapeHtml(msg.chat_line_trigger) + '</span>';
+    }
+    if (triggerType === 'both') {
+        return '<span class="sp-badge sp-badge-amber">' + escapeHtml(TM_I18N.badgeTimer) + ': ' + escapeHtml(msg.interval_count) + ' ' + escapeHtml(TM_I18N.badgeMin) + ' &amp; ' + escapeHtml(TM_I18N.badgeChatLines) + ': ' + escapeHtml(msg.chat_line_trigger) + '</span>';
+    }
+    if (triggerType === 'scheduled') {
+        var dispTime = msg.scheduled_time ? String(msg.scheduled_time).substring(0, 5) : '--:--';
+        return '<span class="sp-badge sp-badge-purple">' + escapeHtml(TM_I18N.badgeScheduled) + ': ' + escapeHtml(dispTime) + '</span>';
+    }
+    return '<span class="sp-badge sp-badge-accent">' + escapeHtml(TM_I18N.badgeTimer) + ': ' + escapeHtml(msg.interval_count) + ' ' + escapeHtml(TM_I18N.badgeMin) + '</span>';
+}
+
+function fillMessageSelect(selectEl, placeholder, optionBuilder) {
+    if (!selectEl) return;
+    var previous = selectEl.value;
+    selectEl.innerHTML = '';
+    var placeholderOpt = document.createElement('option');
+    placeholderOpt.value = '';
+    placeholderOpt.textContent = placeholder;
+    selectEl.appendChild(placeholderOpt);
+    timedMessagesData.forEach(function(message) {
+        var opt = document.createElement('option');
+        opt.value = message.id;
+        opt.textContent = optionBuilder(message);
+        selectEl.appendChild(opt);
+    });
+    if (previous && timedMessagesData.some(function(m) { return String(m.id) === String(previous); })) {
+        selectEl.value = previous;
+    }
+}
+
+function populateTimedMessageSelects() {
+    var hasMessages = timedMessagesData.length > 0;
+    var editSkeleton = document.getElementById('editFormSkeleton');
+    var removeSkeleton = document.getElementById('removeFormSkeleton');
+    var editForm = document.getElementById('editMessageForm');
+    var removeForm = document.getElementById('removeMessageForm');
+    var editEmpty = document.getElementById('editEmptyState');
+    var removeEmpty = document.getElementById('removeEmptyState');
+    var editHost = document.getElementById('editFormHost');
+    var removeHost = document.getElementById('removeFormHost');
+    if (editSkeleton) editSkeleton.style.display = 'none';
+    if (removeSkeleton) removeSkeleton.style.display = 'none';
+    if (editHost) editHost.setAttribute('aria-busy', 'false');
+    if (removeHost) removeHost.setAttribute('aria-busy', 'false');
+    if (editForm) {
+        editForm.style.display = hasMessages ? '' : 'none';
+        fillMessageSelect(document.getElementById('edit_message'), TM_I18N.selectEditPlaceholder, function(message) {
+            return '(ID: ' + message.id + ') ' + message.message;
+        });
+    }
+    if (removeForm) {
+        removeForm.style.display = hasMessages ? 'flex' : 'none';
+        fillMessageSelect(document.getElementById('remove_message'), TM_I18N.selectRemovePlaceholder, function(message) {
+            return TM_I18N.messageId + ' ' + message.id + ' - ' + truncateMessage(message.message, 40);
+        });
+    }
+    if (editEmpty) editEmpty.style.display = hasMessages ? 'none' : '';
+    if (removeEmpty) removeEmpty.style.display = hasMessages ? 'none' : '';
+}
+
+function renderTimedMessagesTable() {
+    var tbody = document.getElementById('timedMessagesTableBody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!timedMessagesData.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(TM_I18N.noneFound) + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = timedMessagesData.map(function(msg) {
+        var enabled = Number(msg.status) === 1;
+        return '<tr>' +
+            '<td style="text-align:center; vertical-align:middle;">' + escapeHtml(msg.id) + '</td>' +
+            '<td>' + escapeHtml(msg.message) + '</td>' +
+            '<td style="text-align:center; vertical-align:middle;">' + triggerBadgeHtml(msg) + '</td>' +
+            '<td style="text-align:center; vertical-align:middle;">' +
+                '<button type="button" class="sp-btn sp-btn-sm toggle-status-btn ' + (enabled ? 'sp-btn-success' : 'sp-btn-danger') + '" data-id="' + escapeHtml(msg.id) + '" data-status="' + escapeHtml(msg.status) + '" title="' + escapeHtml(enabled ? TM_I18N.clickToDisable : TM_I18N.clickToEnable) + '">' +
+                    '<span class="icon"><i class="fas ' + (enabled ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>' +
+                    '<span>' + escapeHtml(enabled ? TM_I18N.statusEnabled : TM_I18N.statusDisabled) + '</span>' +
+                '</button>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function renderTimedMessagesError() {
+    timedMessagesData = [];
+    populateTimedMessageSelects();
+    var tbody = document.getElementById('timedMessagesTableBody');
+    if (tbody) {
+        tbody.setAttribute('aria-busy', 'false');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(TM_I18N.loadError) + '</td></tr>';
+    }
+}
+
+function loadTimedMessages() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                renderTimedMessagesError();
+                return;
+            }
+            timedMessagesData = Array.isArray(data.messages) ? data.messages : [];
+            timedMessagesData.sort(function(a, b) { return Number(a.id) - Number(b.id); });
+            populateTimedMessageSelects();
+            renderTimedMessagesTable();
+            showResponse();
+            showMessage();
+            toggleEditButton();
+            toggleRemoveButton();
+        })
+        .catch(function() {
+            renderTimedMessagesError();
+        });
+}
 function applyBetaBotCharLimit(enabled) {
     charLimit = enabled ? 500 : 255;
     localStorage.setItem('betaBotMode', enabled ? '1' : '0');
@@ -572,8 +689,9 @@ function updateShoutoutHint(msgInputId, intervalInputId, hintId) {
 
 // Function to show response for editing
 function showResponse() {
-    var editMessage = document.getElementById('edit_message').value;
-    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+    var editSelect = document.getElementById('edit_message');
+    if (!editSelect) return;
+    var editMessage = editSelect.value;
     var editMessageContent = document.getElementById('edit_message_content');
     var editIntervalInput = document.getElementById('edit_interval');
     var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
@@ -613,8 +731,9 @@ function showResponse() {
 
 // Function to show message content in remove textarea and enable button
 function showMessage() {
-    var removeMessage = document.getElementById('remove_message').value;
-    var timedMessagesData = <?php echo json_encode($timedMessagesData); ?>;
+    var removeSelect = document.getElementById('remove_message');
+    if (!removeSelect) return;
+    var removeMessage = removeSelect.value;
     var removeMessageContent = document.getElementById('remove_message_content');
     var messageData = timedMessagesData.find(m => m.id == removeMessage);
     if (messageData) {
@@ -629,6 +748,7 @@ function showMessage() {
 function updateCharCount(inputId, counterId) {
     const input = document.getElementById(inputId);
     const counter = document.getElementById(counterId);
+    if (!input || !counter) return;
     const maxLength = charLimit;
     const currentLength = input.value.length;
     // Update the counter text
@@ -712,9 +832,10 @@ function toggleEditButton() {
 
 // Enable/disable remove button based on selection
 function toggleRemoveButton() {
-    var removeMessage = document.getElementById('remove_message').value;
+    var removeSelect = document.getElementById('remove_message');
     var removeBtn = document.getElementById('removeMessageButton');
-    removeBtn.disabled = (removeMessage === "");
+    if (!removeSelect || !removeBtn) return;
+    removeBtn.disabled = (removeSelect.value === "");
 }
 
 // Function to validate the form before submission
@@ -760,10 +881,11 @@ function validateEditForm() {
 
 // Update the edit form to use validation
 document.addEventListener('DOMContentLoaded', function() {
-    const editForm = document.querySelector('form:nth-of-type(2)');
+    const editForm = document.getElementById('editMessageForm');
     if (editForm) {
         editForm.onsubmit = validateEditForm;
     }
+    loadTimedMessages();
 });
 
 // SweetAlert2 for remove confirmation
@@ -883,6 +1005,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.title = newStatus == 1 ? TM_I18N.clickToDisable : TM_I18N.clickToEnable;
                 btn.innerHTML = '<span class="icon"><i class="fas ' + (newStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
                               + '<span>' + (newStatus == 1 ? TM_I18N.statusEnabled : TM_I18N.statusDisabled) + '</span>';
+                timedMessagesData.forEach(function(msg) {
+                    if (String(msg.id) === String(id)) msg.status = newStatus;
+                });
             } else {
                 // Restore original state on failure
                 btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (currentStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
