@@ -10,13 +10,26 @@ $pageTitle = t('navbar_manage_user_commands');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $stmt = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        echo json_encode(['success' => true, 'commands' => $rows]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
 
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
@@ -62,11 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $notification_status = "sp-alert-danger";
                 }
                 $insertSTMT->close();
-                $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
-                $commandsSTMT->execute();
-                $result = $commandsSTMT->get_result();
-                $userCommands = $result->fetch_all(MYSQLI_ASSOC);
-                $commandsSTMT->close();
             } catch (Exception $e) {
                 $status = t('user_commands_msg_add_exception') . " " . $e->getMessage();
                 $notification_status = "sp-alert-danger";
@@ -101,11 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $notification_status = "sp-alert-danger";
             }
             $updateSTMT->close();
-            $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
-            $commandsSTMT->execute();
-            $result = $commandsSTMT->get_result();
-            $userCommands = $result->fetch_all(MYSQLI_ASSOC);
-            $commandsSTMT->close();
         } catch (Exception $e) {
             $status = t('user_commands_msg_update_exception', ['command' => $command_to_edit]) . " " . $e->getMessage();
             $notification_status = "sp-alert-danger";
@@ -128,11 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $notification_status = "sp-alert-danger";
             }
             $statusSTMT->close();
-            $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
-            $commandsSTMT->execute();
-            $result = $commandsSTMT->get_result();
-            $userCommands = $result->fetch_all(MYSQLI_ASSOC);
-            $commandsSTMT->close();
         } catch (Exception $e) {
             $status = t('user_commands_msg_approve_exception') . " " . $e->getMessage();
             $notification_status = "sp-alert-danger";
@@ -154,24 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $notification_status = "sp-alert-danger";
             }
             $deleteSTMT->close();
-            $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
-            $commandsSTMT->execute();
-            $result = $commandsSTMT->get_result();
-            $userCommands = $result->fetch_all(MYSQLI_ASSOC);
-            $commandsSTMT->close();
         } catch (Exception $e) {
             $status = t('user_commands_msg_delete_exception') . " " . $e->getMessage();
             $notification_status = "sp-alert-danger";
         }
     }
-}
-
-if (!isset($userCommands)) {
-    $commandsSTMT = $db->prepare("SELECT * FROM custom_user_commands ORDER BY command ASC");
-    $commandsSTMT->execute();
-    $result = $commandsSTMT->get_result();
-    $userCommands = $result->fetch_all(MYSQLI_ASSOC);
-    $commandsSTMT->close();
 }
 
 ob_start();
@@ -252,56 +237,57 @@ ob_start();
             <i class="fas fa-edit" style="color:var(--blue); margin-right:0.5rem;"></i>
             <div class="sp-card-title"><?php echo t('user_commands_edit_title'); ?></div>
         </div>
-        <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
-            <?php if (!empty($userCommands)): ?>
-                <form method="post" action="" style="flex-grow: 1;">
-                    <div class="sp-form-group">
-                        <label class="sp-label" for="command_to_edit"><?php echo t('user_commands_edit_select_label'); ?></label>
-                        <select class="sp-select" name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
-                            <option value=""><?php echo t('user_commands_edit_select_placeholder'); ?></option>
-                            <?php foreach ($userCommands as $command): ?>
-                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?> (<?php echo t('manage_custom_user_commands_for_label'); ?> <?php echo $command['user_id']; ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
+        <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;" id="editFormHost" aria-busy="true">
+            <div id="editFormSkeleton" class="sp-skeleton-stack" aria-hidden="true">
+                <span class="sp-skeleton-line w-40"></span>
+                <span class="sp-skeleton-line w-90"></span>
+                <span class="sp-skeleton-line w-50"></span>
+                <span class="sp-skeleton-line w-70"></span>
+                <span class="sp-skeleton-line w-80"></span>
+                <span class="sp-skeleton-line w-45"></span>
+            </div>
+            <form id="editUserCommandForm" method="post" action="" style="flex-grow: 1; display:none;">
+                <div class="sp-form-group">
+                    <label class="sp-label" for="command_to_edit"><?php echo t('user_commands_edit_select_label'); ?></label>
+                    <select class="sp-select" name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
+                        <option value=""><?php echo t('user_commands_edit_select_placeholder'); ?></option>
+                    </select>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <span class="sp-input-icon"><i class="fas fa-terminal"></i></span>
+                        <input class="sp-input" type="text" name="new_command_name" id="new_command_name" value="" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
                     </div>
-                    <div class="sp-form-group">
-                        <label class="sp-label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
-                        <div class="sp-input-wrap">
-                            <span class="sp-input-icon"><i class="fas fa-terminal"></i></span>
-                            <input class="sp-input" type="text" name="new_command_name" id="new_command_name" value="" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
-                        </div>
-                        <small class="sp-help"><?php echo t('custom_commands_skip_exclamation'); ?></small>
+                    <small class="sp-help"><?php echo t('custom_commands_skip_exclamation'); ?></small>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <span class="sp-input-icon"><i class="fas fa-message"></i></span>
+                        <input class="sp-input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
                     </div>
-                    <div class="sp-form-group">
-                        <label class="sp-label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
-                        <div class="sp-input-wrap">
-                            <span class="sp-input-icon"><i class="fas fa-message"></i></span>
-                            <input class="sp-input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
-                        </div>
-                        <small id="editResponseCharCount" class="sp-help">0/255 <?php echo t('custom_commands_characters'); ?></small>
+                    <small id="editResponseCharCount" class="sp-help">0/255 <?php echo t('custom_commands_characters'); ?></small>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <span class="sp-input-icon"><i class="fas fa-clock"></i></span>
+                        <input class="sp-input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
                     </div>
-                    <div class="sp-form-group">
-                        <label class="sp-label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
-                        <div class="sp-input-wrap">
-                            <span class="sp-input-icon"><i class="fas fa-clock"></i></span>
-                            <input class="sp-input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
-                        </div>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
-                        <button type="submit" class="sp-btn sp-btn-primary">
-                            <i class="fas fa-save"></i>
-                            <span><?php echo t('custom_commands_update_btn'); ?></span>
-                        </button>
-                    </div>
-                </form>
-            <?php else: ?>
-                <p style="color:var(--text-muted);"><?php echo t('user_commands_no_commands'); ?></p>
-            <?php endif; ?>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+                    <button type="submit" class="sp-btn sp-btn-primary">
+                        <i class="fas fa-save"></i>
+                        <span><?php echo t('custom_commands_update_btn'); ?></span>
+                    </button>
+                </div>
+            </form>
+            <p id="editEmptyState" style="color:var(--text-muted); display:none;"><?php echo t('user_commands_no_commands'); ?></p>
         </div>
     </div>
 </div>
 
-<?php if (!empty($userCommands)): ?>
 <div class="sp-card" style="margin-top:1.5rem;">
     <div class="sp-card-header">
         <div class="sp-card-title"><?php echo t('user_commands_list_title'); ?></div>
@@ -320,46 +306,22 @@ ob_start();
                         <th style="text-align:center;"><?php echo t('user_commands_table_actions'); ?></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php foreach ($userCommands as $command): ?>
-                    <tr>
-                        <td><code>!<?php echo htmlspecialchars($command['command']); ?></code></td>
-                        <td style="max-width: 300px; word-wrap: break-word;"><?php echo htmlspecialchars($command['response']); ?></td>
-                        <td><?php echo htmlspecialchars($command['user_id']); ?></td>
-                        <td style="text-align:center;"><?php echo $command['cooldown']; ?>s</td>
-                        <td style="text-align:center;">
-                            <?php if ($command['status'] === 'Enabled'): ?>
-                                <span class="sp-badge sp-badge-green"><?php echo t('user_commands_status_enabled'); ?></span>
-                            <?php else: ?>
-                                <span class="sp-badge sp-badge-red"><?php echo t('user_commands_status_disabled'); ?></span>
-                            <?php endif; ?>
-                        </td>
-                        <td style="text-align:center;">
-                            <div style="display:flex; justify-content:center; gap:0.4rem;">
-                                <?php if ($command['status'] !== 'Enabled'): ?>
-                                <form method="post" style="display: inline;">
-                                    <input type="hidden" name="approve_command" value="<?php echo $command['command']; ?>">
-                                    <button type="submit" class="sp-btn sp-btn-sm" style="background:var(--green); color:#000;" title="<?php echo t('user_commands_approve_tooltip'); ?>">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </form>
-                                <?php endif; ?>
-                                <form method="post" style="display: inline;">
-                                    <input type="hidden" name="delete_command" value="<?php echo $command['command']; ?>">
-                                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo htmlspecialchars(t('manage_custom_user_commands_delete_tooltip')); ?>" onclick="return confirm(<?php echo htmlspecialchars(json_encode(t('user_commands_js_delete_confirm')), ENT_QUOTES); ?>)">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
+                <tbody id="commandsTableBody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td><span class="sp-skeleton-line w-40"></span></td>
+                        <td><span class="sp-skeleton-line w-80"></span></td>
+                        <td><span class="sp-skeleton-line w-50"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-60"></span></td>
                     </tr>
-                    <?php endforeach; ?>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <?php
 $content = ob_get_clean();
@@ -367,39 +329,162 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+var userCommands = [];
 const i18nCharacters = <?php echo json_encode(t('custom_commands_characters')); ?>;
 const i18nExceedsLimit = <?php echo json_encode(t('user_commands_js_exceeds_limit')); ?>;
 const i18nCharLimitAlert = <?php echo json_encode(t('user_commands_js_char_limit_alert')); ?>;
+const UC_I18N = {
+    noCommands: <?php echo json_encode(t('user_commands_no_commands')); ?>,
+    loadError: <?php echo json_encode(t('user_commands_msg_add_exception')); ?>,
+    selectPlaceholder: <?php echo json_encode(t('user_commands_edit_select_placeholder')); ?>,
+    forLabel: <?php echo json_encode(t('manage_custom_user_commands_for_label')); ?>,
+    statusEnabled: <?php echo json_encode(t('user_commands_status_enabled')); ?>,
+    statusDisabled: <?php echo json_encode(t('user_commands_status_disabled')); ?>,
+    approveTooltip: <?php echo json_encode(t('user_commands_approve_tooltip')); ?>,
+    deleteTooltip: <?php echo json_encode(t('manage_custom_user_commands_delete_tooltip')); ?>,
+    deleteConfirm: <?php echo json_encode(t('user_commands_js_delete_confirm')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function fillCommandSelect(selectEl) {
+    if (!selectEl) return;
+    var previous = selectEl.value;
+    selectEl.innerHTML = '';
+    var placeholderOpt = document.createElement('option');
+    placeholderOpt.value = '';
+    placeholderOpt.textContent = UC_I18N.selectPlaceholder;
+    selectEl.appendChild(placeholderOpt);
+    userCommands.forEach(function(command) {
+        var opt = document.createElement('option');
+        opt.value = command.command;
+        opt.textContent = '!' + command.command + ' (' + UC_I18N.forLabel + ' ' + command.user_id + ')';
+        selectEl.appendChild(opt);
+    });
+    if (previous && userCommands.some(function(c) { return c.command === previous; })) {
+        selectEl.value = previous;
+    }
+}
+
+function populateUserCommandSelects() {
+    var hasCommands = userCommands.length > 0;
+    var editSkeleton = document.getElementById('editFormSkeleton');
+    var editForm = document.getElementById('editUserCommandForm');
+    var editEmpty = document.getElementById('editEmptyState');
+    var editHost = document.getElementById('editFormHost');
+    if (editSkeleton) editSkeleton.style.display = 'none';
+    if (editHost) editHost.setAttribute('aria-busy', 'false');
+    if (editForm) {
+        editForm.style.display = hasCommands ? '' : 'none';
+        fillCommandSelect(document.getElementById('command_to_edit'));
+    }
+    if (editEmpty) editEmpty.style.display = hasCommands ? 'none' : '';
+}
+
+function renderUserCommandsTable() {
+    var tbody = document.getElementById('commandsTableBody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!userCommands.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">' + escapeHtml(UC_I18N.noCommands) + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = userCommands.map(function(command) {
+        var enabled = command.status === 'Enabled';
+        var name = command.command;
+        var approveBtn = '';
+        if (!enabled) {
+            approveBtn = '<form method="post" style="display: inline;">' +
+                '<input type="hidden" name="approve_command" value="' + escapeHtml(name) + '">' +
+                '<button type="submit" class="sp-btn sp-btn-sm" style="background:var(--green); color:#000;" title="' + escapeHtml(UC_I18N.approveTooltip) + '">' +
+                '<i class="fas fa-check"></i></button></form>';
+        }
+        return '<tr>' +
+            '<td><code>!' + escapeHtml(name) + '</code></td>' +
+            '<td style="max-width: 300px; word-wrap: break-word;">' + escapeHtml(command.response) + '</td>' +
+            '<td>' + escapeHtml(command.user_id) + '</td>' +
+            '<td style="text-align:center;">' + escapeHtml(command.cooldown) + 's</td>' +
+            '<td style="text-align:center;">' +
+                (enabled
+                    ? '<span class="sp-badge sp-badge-green">' + escapeHtml(UC_I18N.statusEnabled) + '</span>'
+                    : '<span class="sp-badge sp-badge-red">' + escapeHtml(UC_I18N.statusDisabled) + '</span>') +
+            '</td>' +
+            '<td style="text-align:center;"><div style="display:flex; justify-content:center; gap:0.4rem;">' +
+                approveBtn +
+                '<form method="post" style="display: inline;">' +
+                    '<input type="hidden" name="delete_command" value="' + escapeHtml(name) + '">' +
+                    '<button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="' + escapeHtml(UC_I18N.deleteTooltip) + '" onclick="return confirm(' + JSON.stringify(UC_I18N.deleteConfirm) + ')">' +
+                    '<i class="fas fa-trash-alt"></i></button></form>' +
+            '</div></td></tr>';
+    }).join('');
+}
+
+function renderUserCommandsError() {
+    userCommands = [];
+    populateUserCommandSelects();
+    var tbody = document.getElementById('commandsTableBody');
+    if (tbody) {
+        tbody.setAttribute('aria-busy', 'false');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">' + escapeHtml(UC_I18N.loadError) + '</td></tr>';
+    }
+}
+
+function applySavedSearch() {
+    var searchInput = document.getElementById("searchInput");
+    if (!searchInput) return;
+    searchInput.value = localStorage.getItem("searchTerm") || "";
+    if (typeof searchFunction === "function") {
+        searchFunction();
+    }
+}
+
+function loadUserCommands() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                renderUserCommandsError();
+                return;
+            }
+            userCommands = Array.isArray(data.commands) ? data.commands : [];
+            populateUserCommandSelects();
+            renderUserCommandsTable();
+            showResponse();
+            applySavedSearch();
+        })
+        .catch(function() {
+            renderUserCommandsError();
+        });
+}
 
 document.addEventListener("DOMContentLoaded", function() {
     var searchInput = document.getElementById("searchInput");
     if (searchInput) {
-        searchInput.value = localStorage.getItem("searchTerm") || "";
         searchInput.addEventListener("input", function() {
             localStorage.setItem("searchTerm", this.value);
             searchFunction();
         });
-        // Use setTimeout to ensure table is fully rendered before searching
-        setTimeout(function() {
-            if (typeof searchFunction === "function") {
-                searchFunction();
-            }
-        }, 100);
     }
+    loadUserCommands();
 });
 
 function showResponse() {
-    var command = document.getElementById('command_to_edit').value;
-    var commands = <?php echo json_encode($userCommands); ?>;
+    var selectEl = document.getElementById('command_to_edit');
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
     var newCommandInput = document.getElementById('new_command_name');
-    // Find the response for the selected command and display it in the text box
-    var commandData = commands.find(c => c.command === command);
+    if (!selectEl || !responseInput || !cooldownInput || !newCommandInput) return;
+    var command = selectEl.value;
+    var commandData = userCommands.find(function(c) { return c.command === command; });
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
     newCommandInput.value = commandData ? commandData.command : '';
-    // Update character count for the edit response field
     updateCharCount('command_response', 'editResponseCharCount');
 }
 
@@ -407,6 +492,7 @@ function showResponse() {
 function updateCharCount(inputId, counterId) {
     const input = document.getElementById(inputId);
     const counter = document.getElementById(counterId);
+    if (!input || !counter) return;
     const maxLength = 255;
     const currentLength = input.value.length;
     // Update the counter text
@@ -476,8 +562,9 @@ window.onload = function() {
 
 function searchFunction() {
     var input = document.getElementById("searchInput");
-    var filter = input.value.toLowerCase();
     var table = document.getElementById("commandsTable");
+    if (!input || !table) return;
+    var filter = input.value.toLowerCase();
     var trs = table.getElementsByTagName("tr");
     for (var i = 1; i < trs.length; i++) {
         var tr = trs[i];

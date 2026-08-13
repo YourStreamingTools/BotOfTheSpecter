@@ -1,16 +1,58 @@
 <?php
 require_once '/var/www/lib/session_bootstrap.php';
+$userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-require_once "/var/www/config/db_connect.php";
-include 'includes/userdata.php';
-session_write_close();
-include 'includes/mod_access.php';
-include_once 'includes/usr_database.php';
-include 'includes/user_db.php';
-
-$pageTitle = t('raffles_page_title');
 
 require_once '/var/www/lib/require_auth.php';
+
+// Page Title
+$pageTitle = t('raffles_page_title');
+
+// Include files for database and user data
+require_once "/var/www/config/db_connect.php";
+include 'includes/userdata.php';
+include "includes/mod_access.php";
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+session_write_close();
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $raffles = [];
+        $stmt = $db->prepare("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit FROM raffles ORDER BY created_at DESC LIMIT 50");
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $ids = [];
+        while ($row = $res->fetch_assoc()) {
+            $row['winners'] = [];
+            $rid = (int) $row['id'];
+            $raffles[$rid] = $row;
+            $ids[] = $rid;
+        }
+        $stmt->close();
+        if ($ids) {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $types = str_repeat('i', count($ids));
+            $wstmt = $db->prepare("SELECT raffle_id, username FROM raffle_winners WHERE raffle_id IN ($placeholders)");
+            $wstmt->bind_param($types, ...$ids);
+            $wstmt->execute();
+            $wres = $wstmt->get_result();
+            while ($winner = $wres->fetch_assoc()) {
+                $rid = (int) $winner['raffle_id'];
+                if (isset($raffles[$rid])) {
+                    $raffles[$rid]['winners'][] = $winner['username'];
+                }
+            }
+            $wstmt->close();
+        }
+        echo json_encode(['success' => true, 'raffles' => array_values($raffles)]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
 
 $api_key_to_use = isset($api_key) ? $api_key : (isset($admin_key) ? $admin_key : '');
 $message = '';
@@ -230,27 +272,6 @@ if (!$editRaffle && isset($_GET['edit'])) {
     $estmt->close();
 }
 
-// Fetch raffles list with winners
-$raffles = [];
-$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit FROM raffles ORDER BY created_at DESC LIMIT 50");
-if ($res) {
-    while ($row = $res->fetch_assoc()) {
-        // Fetch winners for this raffle
-        $raffle_id = $row['id'];
-        $winners_stmt = $db->prepare("SELECT username FROM raffle_winners WHERE raffle_id = ?");
-        $winners_stmt->bind_param('i', $raffle_id);
-        $winners_stmt->execute();
-        $winners_res = $winners_stmt->get_result();
-        $winners = [];
-        while ($winner = $winners_res->fetch_assoc()) {
-            $winners[] = $winner['username'];
-        }
-        $winners_stmt->close();
-        $row['winners'] = $winners;
-        $raffles[] = $row;
-    }
-}
-
 ob_start();
 ?>
 <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
@@ -411,78 +432,20 @@ $ef_unit      = $isEdit ? ($ef['followers_min_unit'] ?? 'days') : 'days';
                         <th><?= t('raffles_col_action') ?></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php foreach ($raffles as $r): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($r['id']); ?></td>
-                            <td><?php echo htmlspecialchars($r['name']); ?></td>
-                            <td><?php echo htmlspecialchars($r['prize'] ?? ''); ?></td>
-                            <td><?php echo htmlspecialchars($r['number_of_winners']); ?></td>
-                            <td>
-                                <?php
-                                $statusClass = match($r['status']) {
-                                    'running'   => 'sp-badge-green',
-                                    'scheduled' => 'sp-badge-blue',
-                                    'ended'     => 'sp-badge-grey',
-                                    default     => 'sp-badge-grey',
-                                };
-                                ?>
-                                <span class="sp-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($r['status']); ?></span>
-                            </td>
-                            <td>
-                                <?php if ($r['is_weighted']): ?>
-                                    <span class="sp-badge sp-badge-accent" title="T1: <?php echo $r['weight_sub_t1']; ?>x | T2: <?php echo $r['weight_sub_t2']; ?>x | T3: <?php echo $r['weight_sub_t3']; ?>x | VIP: <?php echo $r['weight_vip']; ?>x">
-                                        <?= t('raffles_badge_weighted') ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span style="color:var(--text-muted);"><?= t('raffles_badge_no') ?></span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?php
-                                $exclusions = [];
-                                if ($r['exclude_mods']) $exclusions[] = t('raffles_excl_mods');
-                                if ($r['subscribers_only']) $exclusions[] = t('raffles_excl_subs');
-                                if ($r['followers_only']) {
-                                    $followersLabel = t('raffles_excl_followers');
-                                    if (intval($r['followers_min_enabled']) === 1 && intval($r['followers_min_value']) > 0) {
-                                        $followersLabel .= ' (' . intval($r['followers_min_value']) . ' ' . htmlspecialchars($r['followers_min_unit']) . ' ' . t('raffles_excl_min') . ')';
-                                    }
-                                    $exclusions[] = $followersLabel;
-                                }
-                                echo !empty($exclusions) ? htmlspecialchars(implode(', ', $exclusions)) : '<span style="color:var(--text-muted);">' . t('raffles_excl_none') . '</span>';
-                                ?>
-                            </td>
-                            <td>
-                                <?php if (!empty($r['winners'])): ?>
-                                    <span style="color:var(--green);"><?php echo htmlspecialchars(implode(', ', $r['winners'])); ?></span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
-                                    <?php if ($r['status'] === 'scheduled'): ?>
-                                        <form method="post" style="display:inline">
-                                            <input type="hidden" name="action" value="start">
-                                            <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                            <button class="sp-btn sp-btn-success sp-btn-sm" type="submit"><i class="fas fa-play"></i> <?= t('raffles_btn_start') ?></button>
-                                        </form>
-                                        <a class="sp-btn sp-btn-secondary sp-btn-sm" href="?edit=<?php echo htmlspecialchars($r['id']); ?>#raffle-form"><i class="fas fa-edit"></i> <?= t('raffles_btn_edit') ?></a>
-                                    <?php elseif ($r['status'] === 'running'): ?>
-                                        <form method="post" style="display:inline">
-                                            <input type="hidden" name="action" value="draw">
-                                            <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                            <button class="sp-btn sp-btn-warning sp-btn-sm" type="submit"><i class="fas fa-star"></i> <?= t('raffles_btn_draw') ?></button>
-                                        </form>
-                                    <?php endif; ?>
-                                    <form method="post" style="display:inline" onsubmit="return confirm('<?php echo htmlspecialchars(t('raffles_confirm_delete'), ENT_QUOTES); ?>');">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                        <button class="sp-btn sp-btn-danger sp-btn-sm" type="submit"><i class="fas fa-trash"></i> <?= t('raffles_btn_delete') ?></button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+                <tbody id="rafflesTableBody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td><span class="sp-skeleton-line w-40"></span></td>
+                        <td><span class="sp-skeleton-line w-80"></span></td>
+                        <td><span class="sp-skeleton-line w-70"></span></td>
+                        <td><span class="sp-skeleton-line w-40"></span></td>
+                        <td><span class="sp-skeleton-badge"></span></td>
+                        <td><span class="sp-skeleton-badge"></span></td>
+                        <td><span class="sp-skeleton-line w-60"></span></td>
+                        <td><span class="sp-skeleton-line w-50"></span></td>
+                        <td><span class="sp-skeleton-line w-70"></span></td>
+                    </tr>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </div>
@@ -491,5 +454,129 @@ $ef_unit      = $isEdit ? ($ef['followers_min_unit'] ?? 'days') : 'days';
 <?php
 $content = ob_get_clean();
 
-require 'layout.php';
+ob_start();
+?>
+<script>
+const RAFFLE_I18N = {
+    badgeWeighted: <?php echo json_encode(t('raffles_badge_weighted')); ?>,
+    badgeNo: <?php echo json_encode(t('raffles_badge_no')); ?>,
+    exclMods: <?php echo json_encode(t('raffles_excl_mods')); ?>,
+    exclSubs: <?php echo json_encode(t('raffles_excl_subs')); ?>,
+    exclFollowers: <?php echo json_encode(t('raffles_excl_followers')); ?>,
+    exclMin: <?php echo json_encode(t('raffles_excl_min')); ?>,
+    exclNone: <?php echo json_encode(t('raffles_excl_none')); ?>,
+    btnStart: <?php echo json_encode(t('raffles_btn_start')); ?>,
+    btnDraw: <?php echo json_encode(t('raffles_btn_draw')); ?>,
+    btnEdit: <?php echo json_encode(t('raffles_btn_edit')); ?>,
+    btnDelete: <?php echo json_encode(t('raffles_btn_delete')); ?>,
+    confirmDelete: <?php echo json_encode(t('raffles_confirm_delete')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function raffleStatusClass(status) {
+    if (status === 'running') return 'sp-badge-green';
+    if (status === 'scheduled') return 'sp-badge-blue';
+    return 'sp-badge-grey';
+}
+
+function raffleExclusionsHtml(r) {
+    var exclusions = [];
+    if (Number(r.exclude_mods)) exclusions.push(RAFFLE_I18N.exclMods);
+    if (Number(r.subscribers_only)) exclusions.push(RAFFLE_I18N.exclSubs);
+    if (Number(r.followers_only)) {
+        var followersLabel = RAFFLE_I18N.exclFollowers;
+        if (Number(r.followers_min_enabled) === 1 && Number(r.followers_min_value) > 0) {
+            followersLabel += ' (' + Number(r.followers_min_value) + ' ' + String(r.followers_min_unit || '') + ' ' + RAFFLE_I18N.exclMin + ')';
+        }
+        exclusions.push(followersLabel);
+    }
+    if (exclusions.length) return escapeHtml(exclusions.join(', '));
+    return '<span style="color:var(--text-muted);">' + escapeHtml(RAFFLE_I18N.exclNone) + '</span>';
+}
+
+function raffleActionsHtml(r) {
+    var id = escapeHtml(r.id);
+    var html = '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">';
+    if (r.status === 'scheduled') {
+        html += '<form method="post" style="display:inline">' +
+            '<input type="hidden" name="action" value="start">' +
+            '<input type="hidden" name="raffle_id" value="' + id + '">' +
+            '<button class="sp-btn sp-btn-success sp-btn-sm" type="submit"><i class="fas fa-play"></i> ' + escapeHtml(RAFFLE_I18N.btnStart) + '</button>' +
+            '</form>' +
+            '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="?edit=' + id + '#raffle-form"><i class="fas fa-edit"></i> ' + escapeHtml(RAFFLE_I18N.btnEdit) + '</a>';
+    } else if (r.status === 'running') {
+        html += '<form method="post" style="display:inline">' +
+            '<input type="hidden" name="action" value="draw">' +
+            '<input type="hidden" name="raffle_id" value="' + id + '">' +
+            '<button class="sp-btn sp-btn-warning sp-btn-sm" type="submit"><i class="fas fa-star"></i> ' + escapeHtml(RAFFLE_I18N.btnDraw) + '</button>' +
+            '</form>';
+    }
+    html += '<form method="post" style="display:inline" onsubmit="return confirm(RAFFLE_I18N.confirmDelete);">' +
+        '<input type="hidden" name="action" value="delete">' +
+        '<input type="hidden" name="raffle_id" value="' + id + '">' +
+        '<button class="sp-btn sp-btn-danger sp-btn-sm" type="submit"><i class="fas fa-trash"></i> ' + escapeHtml(RAFFLE_I18N.btnDelete) + '</button>' +
+        '</form></div>';
+    return html;
+}
+
+function renderRafflesTable(raffles) {
+    var tbody = document.getElementById('rafflesTableBody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!raffles.length) {
+        tbody.innerHTML = '';
+        return;
+    }
+    tbody.innerHTML = raffles.map(function(r) {
+        var weighted = Number(r.is_weighted);
+        var weightsHtml = weighted
+            ? '<span class="sp-badge sp-badge-accent" title="T1: ' + escapeHtml(r.weight_sub_t1) + 'x | T2: ' + escapeHtml(r.weight_sub_t2) + 'x | T3: ' + escapeHtml(r.weight_sub_t3) + 'x | VIP: ' + escapeHtml(r.weight_vip) + 'x">' + escapeHtml(RAFFLE_I18N.badgeWeighted) + '</span>'
+            : '<span style="color:var(--text-muted);">' + escapeHtml(RAFFLE_I18N.badgeNo) + '</span>';
+        var winners = Array.isArray(r.winners) ? r.winners : [];
+        var winnersHtml = winners.length
+            ? '<span style="color:var(--green);">' + escapeHtml(winners.join(', ')) + '</span>'
+            : '';
+        return '<tr>' +
+            '<td>' + escapeHtml(r.id) + '</td>' +
+            '<td>' + escapeHtml(r.name) + '</td>' +
+            '<td>' + escapeHtml(r.prize) + '</td>' +
+            '<td>' + escapeHtml(r.number_of_winners) + '</td>' +
+            '<td><span class="sp-badge ' + raffleStatusClass(r.status) + '">' + escapeHtml(r.status) + '</span></td>' +
+            '<td>' + weightsHtml + '</td>' +
+            '<td>' + raffleExclusionsHtml(r) + '</td>' +
+            '<td>' + winnersHtml + '</td>' +
+            '<td>' + raffleActionsHtml(r) + '</td>' +
+            '</tr>';
+    }).join('');
+}
+
+function loadRaffles() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                var tbody = document.getElementById('rafflesTableBody');
+                if (tbody) tbody.setAttribute('aria-busy', 'false');
+                return;
+            }
+            renderRafflesTable(Array.isArray(data.raffles) ? data.raffles : []);
+        })
+        .catch(function() {
+            var tbody = document.getElementById('rafflesTableBody');
+            if (tbody) tbody.setAttribute('aria-busy', 'false');
+        });
+}
+
+loadRaffles();
+</script>
+<?php
+$scripts = ob_get_clean();
+include 'layout.php';
 ?>

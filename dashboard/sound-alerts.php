@@ -11,13 +11,72 @@ $pageTitle = t('sound_alerts_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+function sound_alerts_collect_list($db, $soundalert_path) {
+    $soundAlertMappings = [];
+    $getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
+    $getSoundAlerts->execute();
+    $getSoundAlerts->bind_result($sound_mapping, $reward_id);
+    while ($getSoundAlerts->fetch()) {
+        $soundAlertMappings[$sound_mapping] = $reward_id;
+    }
+    $getSoundAlerts->close();
+
+    $videoMappedRewards = [];
+    $getVideoAlertsForMapping = $db->prepare("SELECT DISTINCT reward_id FROM video_alerts");
+    $getVideoAlertsForMapping->execute();
+    $getVideoAlertsForMapping->bind_result($video_reward_id);
+    while ($getVideoAlertsForMapping->fetch()) {
+        $videoMappedRewards[] = $video_reward_id;
+    }
+    $getVideoAlertsForMapping->close();
+
+    $channelPointRewards = [];
+    $rewardStmt = $db->query("SELECT reward_id, reward_title FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC");
+    if ($rewardStmt) {
+        $channelPointRewards = $rewardStmt->fetch_all(MYSQLI_ASSOC);
+    }
+
+    $soundalert_files = [];
+    if (is_string($soundalert_path) && $soundalert_path !== '' && is_dir($soundalert_path)) {
+        $soundalert_files = array_values(array_diff(scandir($soundalert_path), array('.', '..', 'twitch')));
+    }
+
+    return [
+        'files' => $soundalert_files,
+        'mappings' => (object) $soundAlertMappings,
+        'video_mapped_rewards' => array_values($videoMappedRewards),
+        'rewards' => $channelPointRewards,
+    ];
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch files + rewards + storage.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        include 'includes/storage_used.php';
+        $list = sound_alerts_collect_list($db, $soundalert_path ?? '');
+        echo json_encode([
+            'success' => true,
+            'storage_used' => (int) $current_storage_used,
+            'max_storage' => (int) $max_storage_size,
+            'storage_percentage' => (float) $storage_percentage,
+            'files' => $list['files'],
+            'mappings' => $list['mappings'],
+            'video_mapped_rewards' => $list['video_mapped_rewards'],
+            'rewards' => $list['rewards'],
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -29,44 +88,13 @@ date_default_timezone_set($timezone);
 // Define empty variables
 $status = '';
 
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
-
-// Fetch sound alert mappings for the current user
-$soundAlertMappings = [];
-$getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
-$getSoundAlerts->execute();
-$getSoundAlerts->bind_result($sound_mapping, $reward_id);
-while ($getSoundAlerts->fetch()) {
-    $soundAlertMappings[$sound_mapping] = $reward_id;
-}
-$getSoundAlerts->close();
-
-// NEW: Query video alerts to exclude mapped rewards from sound alerts
-$videoMappedRewards = [];
-$getVideoAlertsForMapping = $db->prepare("SELECT DISTINCT reward_id FROM video_alerts");
-$getVideoAlertsForMapping->execute();
-$getVideoAlertsForMapping->bind_result($video_reward_id);
-while ($getVideoAlertsForMapping->fetch()) {
-    $videoMappedRewards[] = $video_reward_id;
-}
-$getVideoAlertsForMapping->close();
-
-// Create an associative array for reward_id => reward_title for easy lookup
-$rewardIdToTitle = [];
-foreach ($channelPointRewards as $reward) {
-    $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
-}
-
 // Handle channel point reward mapping
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST['reward_id'])) {
     $status = ""; // Initialize $status
     $soundFile = $_POST['sound_file'];
     $rewardId = $_POST['reward_id'];
-    $soundFile = htmlspecialchars($soundFile); 
-    $db->begin_transaction();  
+    $soundFile = htmlspecialchars($soundFile);
+    $db->begin_transaction();
     // Check if a mapping already exists for this sound file
     $checkExisting = $db->prepare("SELECT 1 FROM sound_alerts WHERE sound_mapping = ?");
     $checkExisting->bind_param('s', $soundFile);
@@ -105,17 +133,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
                 $status .= t('sound_alerts_status_create_success', ['file' => $soundFile]) . "<br>";
             }
             $insertMapping->close();
-        } 
+        }
     }
     $checkExisting->close();
     // Commit transaction
     $db->commit();
 }
 
-$remaining_storage = $max_storage_size - $current_storage_used;
-$max_upload_size = $remaining_storage;
-// ini_set('upload_max_filesize', $max_upload_size);
-// ini_set('post_max_size', $max_upload_size);
+// Disk scan only when an upload or delete actually needs paths / quota.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) || isset($_POST['delete_files']))) {
+    include 'includes/storage_used.php';
+}
 
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
@@ -139,7 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
             $status .= t('sound_alerts_status_upload_error', ['file' => htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
         }
     }
-    $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
 }
 
 // Handle file deletion
@@ -168,12 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
         }
     }
     $db->commit(); // Commit all database changes
-    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
-    $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
 }
-
-$soundalert_files = array_diff(scandir($soundalert_path), array('.', '..', 'twitch'));
-function formatFileName($fileName) { return basename($fileName, '.mp3'); }
 
 ob_start();
 ?>
@@ -203,12 +225,12 @@ ob_start();
         </header>
         <div class="sp-card-body">
             <!-- Storage Usage Info -->
-            <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+            <div class="sp-alert sp-alert-info" id="soundAlertsStorageHost" style="margin-bottom:1rem;" aria-busy="true">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
                     <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
-                    <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+                    <span id="soundAlertsStorageText"><span class="sp-skeleton-line w-40" aria-hidden="true"></span></span>
                 </div>
-                <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
+                <progress class="progress" id="soundAlertsStorageProgress" value="0" max="100" style="width:100%;"></progress>
             </div>
             <?php if (!empty($status)) : ?>
                 <div class="sp-alert sp-alert-info sp-notif" style="margin-bottom:1rem;">
@@ -254,8 +276,7 @@ ob_start();
                 <span><?php echo t('sound_alerts_delete_selected'); ?></span>
             </button>
         </header>
-        <div class="sp-card-body">
-            <?php if (!empty($soundalert_files)) : ?>
+        <div class="sp-card-body" id="soundAlertsListHost" aria-busy="true">
             <form action="" method="POST" id="deleteForm">
                 <div class="sp-table-wrap">
                     <table class="sp-table" id="soundAlertsTable">
@@ -268,53 +289,16 @@ ob_start();
                                 <th style="width:120px;text-align:center;"><?php echo t('sound_alerts_test_audio'); ?></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php foreach ($soundalert_files as $file): ?>
-                            <tr>
-                                <td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                                <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td style="text-align:center;">
-                                    <?php
-                                    $current_reward_id = isset($soundAlertMappings[$file]) ? $soundAlertMappings[$file] : null;
-                                    $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id]) : t('sound_alerts_not_mapped');
-                                    ?>
-                                    <?php if ($current_reward_id): ?>
-                                        <em><?php echo $current_reward_title; ?></em>
-                                    <?php else: ?>
-                                        <em><?php echo t('sound_alerts_not_mapped'); ?></em>
-                                    <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form" style="margin-top:0.5rem;">
-                                        <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                        <select name="reward_id" class="sp-select mapping-select" style="font-size:0.8rem;padding:0.35rem 2rem 0.35rem 0.6rem;">
-                                            <?php if ($current_reward_id): ?>
-                                                <option value=""><?php echo t('sound_alerts_remove_mapping'); ?></option>
-                                            <?php endif; ?>
-                                            <option value=""><?php echo t('sound_alerts_select_reward'); ?></option>
-                                            <?php
-                                            foreach ($channelPointRewards as $reward):
-                                                $isMapped = (in_array($reward['reward_id'], $soundAlertMappings) || in_array($reward['reward_id'], $videoMappedRewards));
-                                                $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                                if ($isMapped && !$isCurrent) continue;
-                                            ?>
-                                                <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) { echo ' selected';}?>>
-                                                    <?php echo htmlspecialchars($reward['reward_title']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </form>
-                                </td>
-                                <td style="text-align:center;">
-                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                                <td style="text-align:center;">
-                                    <button type="button" class="test-sound sp-btn sp-btn-primary sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                </td>
+                        <tbody id="soundAlertsTableBody" aria-busy="true">
+                            <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                            <tr aria-hidden="true">
+                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                                <td><span class="sp-skeleton-line w-70"></span></td>
+                                <td style="text-align:center;"><span class="sp-skeleton-line w-80"></span></td>
+                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
                             </tr>
-                            <?php endforeach; ?>
+                            <?php endfor; ?>
                         </tbody>
                     </table>
                 </div>
@@ -323,11 +307,9 @@ ob_start();
                     <span><?php echo t('sound_alerts_delete_selected'); ?></span>
                 </button>
             </form>
-            <?php else: ?>
-                <div style="text-align:center;padding:3rem 0;">
-                    <p style="color:var(--text-muted);font-size:1rem;"><?php echo t('sound_alerts_no_files_uploaded'); ?></p>
-                </div>
-            <?php endif; ?>
+            <div id="soundAlertsEmpty" style="display:none;text-align:center;padding:3rem 0;">
+                <p style="color:var(--text-muted);font-size:1rem;"><?php echo t('sound_alerts_no_files_uploaded'); ?></p>
+            </div>
         </div>
     </div>
 <?php
@@ -336,162 +318,166 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-$(document).ready(function() {
-    // Auto-dismiss status messages after 15 seconds
-    if ($('.sp-alert.sp-alert-info').length) {
-        setTimeout(function() {
-            $('.sp-alert.sp-alert-info').fadeOut(500, function() {
-                $(this).remove();
-            });
-        }, 15000);
+const SA_I18N = {
+    notMapped: <?php echo json_encode(t('sound_alerts_not_mapped')); ?>,
+    removeMapping: <?php echo json_encode(t('sound_alerts_remove_mapping')); ?>,
+    selectReward: <?php echo json_encode(t('sound_alerts_select_reward')); ?>,
+    noFilesSelected: <?php echo json_encode(t('sound_alerts_no_files_selected')); ?>,
+    noFilesSelectedTitle: <?php echo json_encode(t('sound_alerts_no_files_selected_title')); ?>,
+    noFilesSelectedText: <?php echo json_encode(t('sound_alerts_no_files_selected_text')); ?>,
+    uploadingFiles: <?php echo json_encode(t('sound_alerts_uploading_files')); ?>,
+    uploading: <?php echo json_encode(t('sound_alerts_uploading')); ?>,
+    uploadingPercent: <?php echo json_encode(t('sound_alerts_uploading_percent')); ?>,
+    processingFiles: <?php echo json_encode(t('sound_alerts_processing_files')); ?>,
+    uploadCompleted: <?php echo json_encode(t('sound_alerts_upload_completed')); ?>,
+    uploadBtn: <?php echo json_encode(t('sound_alerts_upload_btn')); ?>,
+    uploadFailedTitle: <?php echo json_encode(t('sound_alerts_upload_failed_title')); ?>,
+    uploadFailedText: <?php echo json_encode(t('sound_alerts_upload_failed_text')); ?>,
+    deleteTitle: <?php echo json_encode(t('sound_alerts_delete_file_title')); ?>,
+    deleteConfirm: <?php echo json_encode(t('sound_alerts_delete_file_confirm')); ?>,
+    deleteSelectedConfirm: <?php echo json_encode(t('sound_alerts_delete_selected_confirm')); ?>,
+    deleteConfirmBtn: <?php echo json_encode(t('sound_alerts_delete_file_confirm_btn')); ?>,
+    deleteCancelBtn: <?php echo json_encode(t('sound_alerts_delete_file_cancel_btn')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function fileDisplayName(fileName) {
+    var value = String(fileName == null ? '' : fileName);
+    return value.replace(/\.mp3$/i, '');
+}
+
+function applySoundAlertsStorageBar(data) {
+    if (!data || typeof data.storage_used !== 'number' || typeof data.max_storage !== 'number') return;
+    var usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
+    var maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
+    var pct = typeof data.storage_percentage === 'number'
+        ? data.storage_percentage
+        : ((data.max_storage > 0) ? (data.storage_used / data.max_storage) * 100 : 0);
+    var textEl = document.getElementById('soundAlertsStorageText');
+    var progEl = document.getElementById('soundAlertsStorageProgress');
+    var hostEl = document.getElementById('soundAlertsStorageHost');
+    if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + Number(pct).toFixed(2) + '%)';
+    if (progEl) progEl.value = pct;
+    if (hostEl) hostEl.setAttribute('aria-busy', 'false');
+}
+
+function rewardOptionsHtml(file, mappings, videoMapped, rewards) {
+    var currentRewardId = mappings && mappings[file] ? String(mappings[file]) : '';
+    var mappedIds = {};
+    if (mappings && typeof mappings === 'object') {
+        Object.keys(mappings).forEach(function(key) {
+            if (mappings[key]) mappedIds[String(mappings[key])] = true;
+        });
     }
-    
-    // Handle select all checkbox
-    $('#selectAll').on('change', function() {
-        $('input[name="delete_files[]"]').prop('checked', this.checked);
-        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
-        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
+    var html = '';
+    if (currentRewardId) {
+        html += '<option value="">' + escapeHtml(SA_I18N.removeMapping) + '</option>';
+    }
+    html += '<option value="">' + escapeHtml(SA_I18N.selectReward) + '</option>';
+    (rewards || []).forEach(function(reward) {
+        var rewardId = reward && reward.reward_id != null ? String(reward.reward_id) : '';
+        if (!rewardId) return;
+        var isCurrent = (currentRewardId === rewardId);
+        var isMapped = !!mappedIds[rewardId] || videoMapped[rewardId];
+        if (isMapped && !isCurrent) return;
+        html += '<option value="' + escapeHtml(rewardId) + '"' + (isCurrent ? ' selected' : '') + '>' +
+            escapeHtml(reward.reward_title || '') + '</option>';
     });
-    // Handle delete selected button
-    $('#deleteSelectedBtn').on('click', function() {
-        var checkedBoxes = $('input[name="delete_files[]"]:checked');
-        if (checkedBoxes.length > 0) {
-            Swal.fire({
-                title: '<?php echo t('sound_alerts_delete_file_title'); ?>',
-                text: <?php echo json_encode(t('sound_alerts_delete_selected_confirm')); ?>.replace(':count', checkedBoxes.length),
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: '<?php echo t('sound_alerts_delete_file_confirm_btn'); ?>',
-                cancelButtonText: '<?php echo t('sound_alerts_delete_file_cancel_btn'); ?>'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    $('#deleteForm').submit();
-                }
-            });
-        }
+    return html;
+}
+
+function renderSoundAlertsTable(data) {
+    var tbody = document.getElementById('soundAlertsTableBody');
+    var host = document.getElementById('soundAlertsListHost');
+    var form = document.getElementById('deleteForm');
+    var emptyEl = document.getElementById('soundAlertsEmpty');
+    if (!tbody) return;
+    var files = Array.isArray(data.files) ? data.files : [];
+    var mappings = (data.mappings && !Array.isArray(data.mappings)) ? data.mappings : {};
+    var videoMapped = {};
+    (Array.isArray(data.video_mapped_rewards) ? data.video_mapped_rewards : []).forEach(function(id) {
+        if (id) videoMapped[String(id)] = true;
     });
-    // Monitor checkbox changes to enable/disable delete button
-    $(document).on('change', 'input[name="delete_files[]"]', function() {
-        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
-        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
-    });
-    // Update file name display
-    $('#filesToUpload').on('change', function() {
-        let files = this.files;
-        let fileNames = [];
-        for (let i = 0; i < files.length; i++) {
-            fileNames.push(files[i].name);
-        }
-        $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('sound_alerts_no_files_selected'); ?>');
-    });
-    // Add event listener for mapping select boxes
-    $('.mapping-select').on('change', function() {
-        // Submit the form via AJAX
-        const form = $(this).closest('form');
-        $.post('', form.serialize(), function(data) {
-            // Reload the page after successful submission
-            location.reload();
-        });
-    });
-    // AJAX upload with progress bar
-    $('#uploadForm').on('submit', function(e) {
-        e.preventDefault();
-        var files = $('#filesToUpload')[0].files;
-        if (files.length === 0) {
-            Swal.fire({
-                icon: 'warning',
-                title: <?php echo json_encode(t('sound_alerts_no_files_selected_title')); ?>,
-                text: <?php echo json_encode(t('sound_alerts_no_files_selected_text')); ?>,
-                confirmButtonColor: '#3273dc'
-            });
-            return;
-        }
-        let formData = new FormData(this);
-        // Show upload status and update UI
-        $('#uploadStatusContainer').show();
-        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('sound_alerts_uploading_files')); ?>.replace(':count', files.length));
-        $('#uploadProgressPercent').text('0%');
-        $('#uploadProgress').val(0);
-        // Update button state
-        $('#uploadBtn').prop('disabled', true).addClass('sp-btn-loading');
-        $('#uploadBtnText').text(<?php echo json_encode(t('sound_alerts_uploading')); ?>);
-        $.ajax({
-            url: '',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            xhr: function() {
-                let xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        let percentComplete = Math.round((e.loaded / e.total) * 100);
-                        $('#uploadProgress').val(percentComplete);
-                        $('#uploadProgressPercent').text(percentComplete + '%');
-                        
-                        if (percentComplete < 100) {
-                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + <?php echo json_encode(t('sound_alerts_uploading_percent')); ?>.replace(':percent', percentComplete));
-                        } else {
-                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + <?php echo json_encode(t('sound_alerts_processing_files')); ?>);
-                        }
-                    }
-                }, false);
-                return xhr;
-            },
-            success: function(response) {
-                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + <?php echo json_encode(t('sound_alerts_upload_completed')); ?>);
-                $('#uploadProgressPercent').text('100%');
-                setTimeout(function() {
-                    location.reload();
-                }, 1500);
-            },
-            error: function(jqXHR, textStatus, errorThrown) {
-                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
-                $('#uploadStatusContainer').hide();
-                $('#uploadBtn').prop('disabled', false).removeClass('sp-btn-loading');
-                $('#uploadBtnText').text('<?php echo t("sound_alerts_upload_btn"); ?>');
-                Swal.fire({
-                    icon: 'error',
-                    title: <?php echo json_encode(t('sound_alerts_upload_failed_title')); ?>,
-                    text: <?php echo json_encode(t('sound_alerts_upload_failed_text')); ?>,
-                    confirmButtonColor: '#3273dc'
-                });
+    var rewards = Array.isArray(data.rewards) ? data.rewards : [];
+    if (files.length === 0) {
+        tbody.innerHTML = '';
+        if (form) form.style.display = 'none';
+        if (emptyEl) emptyEl.style.display = '';
+    } else {
+        if (form) form.style.display = '';
+        if (emptyEl) emptyEl.style.display = 'none';
+        var rows = '';
+        files.forEach(function(file) {
+            var safeFile = escapeHtml(file);
+            var currentRewardId = mappings[file] ? String(mappings[file]) : '';
+            var currentTitle = SA_I18N.notMapped;
+            if (currentRewardId) {
+                var match = rewards.find(function(reward) { return String(reward.reward_id) === currentRewardId; });
+                currentTitle = match && match.reward_title ? match.reward_title : SA_I18N.notMapped;
             }
+            rows += '<tr>' +
+                '<td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="' + safeFile + '"></td>' +
+                '<td>' + escapeHtml(fileDisplayName(file)) + '</td>' +
+                '<td style="text-align:center;">' +
+                    '<em>' + escapeHtml(currentTitle) + '</em>' +
+                    '<div class="mapping-form" style="margin-top:0.5rem;">' +
+                        '<select name="reward_id" class="sp-select mapping-select" data-file="' + safeFile + '" style="font-size:0.8rem;padding:0.35rem 2rem 0.35rem 0.6rem;">' +
+                            rewardOptionsHtml(file, mappings, videoMapped, rewards) +
+                        '</select>' +
+                    '</div>' +
+                '</td>' +
+                '<td style="text-align:center;">' +
+                    '<button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + safeFile + '">' +
+                        '<i class="fas fa-trash"></i>' +
+                    '</button>' +
+                '</td>' +
+                '<td style="text-align:center;">' +
+                    '<button type="button" class="test-sound sp-btn sp-btn-primary sp-btn-sm" data-file="' + safeFile + '">' +
+                        '<i class="fas fa-play"></i>' +
+                    '</button>' +
+                '</td>' +
+            '</tr>';
         });
-    });
-    // Single delete button with SweetAlert2
-    $('.delete-single').on('click', function() {
-        let fileName = $(this).data('file');
-        Swal.fire({
-            title: '<?php echo t('sound_alerts_delete_file_title'); ?>',
-            text: '<?php echo t('sound_alerts_delete_file_confirm'); ?>'.replace(':file', fileName),
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: '<?php echo t('sound_alerts_delete_file_confirm_btn'); ?>',
-            cancelButtonText: '<?php echo t('sound_alerts_delete_file_cancel_btn'); ?>'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $('<input>').attr({
-                    type: 'hidden',
-                    name: 'delete_files[]',
-                    value: fileName
-                }).appendTo('#deleteForm');
-                $('#deleteForm').submit();
+        tbody.innerHTML = rows;
+    }
+    tbody.setAttribute('aria-busy', 'false');
+    if (host) host.setAttribute('aria-busy', 'false');
+    $('#deleteSelectedBtn').prop('disabled', true);
+}
+
+function finishSoundAlertsListError() {
+    var tbody = document.getElementById('soundAlertsTableBody');
+    var host = document.getElementById('soundAlertsListHost');
+    var storageHost = document.getElementById('soundAlertsStorageHost');
+    if (tbody) {
+        tbody.innerHTML = '';
+        tbody.setAttribute('aria-busy', 'false');
+    }
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (storageHost) storageHost.setAttribute('aria-busy', 'false');
+}
+
+function loadSoundAlertsList() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                finishSoundAlertsListError();
+                return;
             }
-        });
-    });
-});
-document.addEventListener("DOMContentLoaded", function () {
-    // Attach click event listeners to all Test buttons
-    document.querySelectorAll(".test-sound").forEach(function (button) {
-        button.addEventListener("click", function () {
-            const fileName = this.getAttribute("data-file");
-            sendStreamEvent("SOUND_ALERT", fileName);
-        });
-    });
-});
+            applySoundAlertsStorageBar(data);
+            renderSoundAlertsTable(data);
+        })
+        .catch(finishSoundAlertsListError);
+}
+
 // Function to send a stream event
 function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();
@@ -518,6 +504,157 @@ function sendStreamEvent(eventType, fileName) {
     };
     xhr.send(params);
 }
+
+$(document).ready(function() {
+    loadSoundAlertsList();
+
+    // Auto-dismiss status messages after 15 seconds
+    if ($('.sp-alert.sp-notif').length) {
+        setTimeout(function() {
+            $('.sp-alert.sp-notif').fadeOut(500, function() {
+                $(this).remove();
+            });
+        }, 15000);
+    }
+
+    // Handle select all checkbox
+    $('#selectAll').on('change', function() {
+        $('input[name="delete_files[]"]').prop('checked', this.checked);
+        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
+        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
+    });
+    // Handle delete selected button
+    $('#deleteSelectedBtn').on('click', function() {
+        var checkedBoxes = $('input[name="delete_files[]"]:checked');
+        if (checkedBoxes.length > 0) {
+            Swal.fire({
+                title: SA_I18N.deleteTitle,
+                text: SA_I18N.deleteSelectedConfirm.replace(':count', checkedBoxes.length),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: SA_I18N.deleteConfirmBtn,
+                cancelButtonText: SA_I18N.deleteCancelBtn
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#deleteForm').submit();
+                }
+            });
+        }
+    });
+    // Monitor checkbox changes to enable/disable delete button
+    $(document).on('change', 'input[name="delete_files[]"]', function() {
+        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
+        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
+    });
+    // Update file name display
+    $('#filesToUpload').on('change', function() {
+        let files = this.files;
+        let fileNames = [];
+        for (let i = 0; i < files.length; i++) {
+            fileNames.push(files[i].name);
+        }
+        $('#file-list').text(fileNames.length ? fileNames.join(', ') : SA_I18N.noFilesSelected);
+    });
+    // Mapping select boxes (delegated — rows hydrate after ajax_action=list)
+    $(document).on('change', '.mapping-select', function() {
+        var soundFile = $(this).data('file');
+        $.post('', { sound_file: soundFile, reward_id: $(this).val() }, function() {
+            location.reload();
+        });
+    });
+    // AJAX upload with progress bar
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault();
+        var files = $('#filesToUpload')[0].files;
+        if (files.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: SA_I18N.noFilesSelectedTitle,
+                text: SA_I18N.noFilesSelectedText,
+                confirmButtonColor: '#3273dc'
+            });
+            return;
+        }
+        let formData = new FormData(this);
+        // Show upload status and update UI
+        $('#uploadStatusContainer').show();
+        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + SA_I18N.uploadingFiles.replace(':count', files.length));
+        $('#uploadProgressPercent').text('0%');
+        $('#uploadProgress').val(0);
+        // Update button state
+        $('#uploadBtn').prop('disabled', true).addClass('sp-btn-loading');
+        $('#uploadBtnText').text(SA_I18N.uploading);
+        $.ajax({
+            url: '',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            xhr: function() {
+                let xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        let percentComplete = Math.round((e.loaded / e.total) * 100);
+                        $('#uploadProgress').val(percentComplete);
+                        $('#uploadProgressPercent').text(percentComplete + '%');
+
+                        if (percentComplete < 100) {
+                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> ' + SA_I18N.uploadingPercent.replace(':percent', percentComplete));
+                        } else {
+                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + SA_I18N.processingFiles);
+                        }
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function(response) {
+                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> ' + SA_I18N.uploadCompleted);
+                $('#uploadProgressPercent').text('100%');
+                setTimeout(function() {
+                    location.reload();
+                }, 1500);
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Upload failed: ' + textStatus + ' - ' + errorThrown);
+                $('#uploadStatusContainer').hide();
+                $('#uploadBtn').prop('disabled', false).removeClass('sp-btn-loading');
+                $('#uploadBtnText').text(SA_I18N.uploadBtn);
+                Swal.fire({
+                    icon: 'error',
+                    title: SA_I18N.uploadFailedTitle,
+                    text: SA_I18N.uploadFailedText,
+                    confirmButtonColor: '#3273dc'
+                });
+            }
+        });
+    });
+    // Single delete button with SweetAlert2
+    $(document).on('click', '.delete-single', function() {
+        let fileName = $(this).data('file');
+        Swal.fire({
+            title: SA_I18N.deleteTitle,
+            text: SA_I18N.deleteConfirm.replace(':file', fileName),
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: SA_I18N.deleteConfirmBtn,
+            cancelButtonText: SA_I18N.deleteCancelBtn
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $('<input>').attr({
+                    type: 'hidden',
+                    name: 'delete_files[]',
+                    value: fileName
+                }).appendTo('#deleteForm');
+                $('#deleteForm').submit();
+            }
+        });
+    });
+    $(document).on('click', '.test-sound', function() {
+        sendStreamEvent("SOUND_ALERT", $(this).data('file'));
+    });
+});
 </script>
 <?php
 $scripts = ob_get_clean();

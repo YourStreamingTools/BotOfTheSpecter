@@ -6,19 +6,118 @@ include_once __DIR__ . '/lang/i18n.php';
 require_once '/var/www/lib/require_auth.php';
 
 // Page Title
-$pageTitle = t('spotify_link_page_title'); 
+$pageTitle = t('spotify_link_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/spotify.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
 $isActAsUser = isset($isActAs) && $isActAs === true;
+
+function spotifylink_build_list_payload(mysqli $conn, $user_id, $isActAsUser, $client_id, $redirect_uri): array
+{
+    $own_client = 0;
+    $user_client_id = '';
+    $user_client_secret = '';
+    $connectionStatus = 'not-connected';
+    $authURL = '';
+    $message = '';
+    $messageType = '';
+    $effective_client_id = $client_id;
+
+    $spotifySTMT = $conn->prepare("SELECT access_token, has_access, own_client, client_id, client_secret FROM spotify_tokens WHERE user_id = ?");
+    $spotifySTMT->bind_param("i", $user_id);
+    $spotifySTMT->execute();
+    $spotifyResult = $spotifySTMT->get_result();
+
+    if ($spotifyResult->num_rows > 0) {
+        $spotifyRow = $spotifyResult->fetch_assoc();
+        $spotifyAccessToken = $spotifyRow['access_token'];
+        $hasAccess = $spotifyRow['has_access'];
+        $own_client = $spotifyRow['own_client'];
+        $user_client_id = $spotifyRow['client_id'] ?? '';
+        $user_client_secret = $spotifyRow['client_secret'] ?? '';
+        if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) {
+            $effective_client_id = $user_client_id;
+        }
+        if ($hasAccess == 1 || $own_client == 1) {
+            $profileUrl = 'https://api.spotify.com/v1/me';
+            $profileOptions = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "Authorization: Bearer $spotifyAccessToken",
+                    'ignore_errors' => true
+                ]
+            ];
+            $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
+            $spotifyUserInfo = json_decode($profileResponse, true);
+            if (isset($spotifyUserInfo['id'])) {
+                $connectionStatus = 'connected';
+            } else {
+                $message = t('spotifylink_msg_not_authorized');
+                $messageType = "is-danger";
+                if ($own_client == 1 || $hasAccess == 1) {
+                    $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+                    $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$effective_client_id&scope=$scopes&redirect_uri=$redirect_uri";
+                }
+                $connectionStatus = 'error';
+            }
+        } else {
+            $message = t('spotifylink_msg_pending_approval');
+            $messageType = "is-warning";
+            $connectionStatus = 'pending';
+        }
+    } else {
+        if (!$isActAsUser && $own_client == 1) {
+            $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+            $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+        }
+    }
+    $spotifySTMT->close();
+
+    if ($authURL && strpos($authURL, 'client_id=') !== false) {
+        $authURL = str_replace("client_id=$client_id", "client_id=$effective_client_id", $authURL);
+    }
+
+    $linkedAccountsCount = 0;
+    $linkedAccountsStmt = $conn->prepare("SELECT COUNT(*) as count FROM spotify_tokens WHERE has_access = 1");
+    $linkedAccountsStmt->execute();
+    $linkedAccountsResult = $linkedAccountsStmt->get_result();
+    $linkedAccountsCount = (int)($linkedAccountsResult->fetch_assoc()['count'] ?? 0);
+    $linkedAccountsStmt->close();
+
+    return [
+        'success' => true,
+        'connection_status' => $connectionStatus,
+        'own_client' => (int)$own_client,
+        'auth_url' => $authURL,
+        'linked_accounts_count' => $linkedAccountsCount,
+        'max_accounts' => 5,
+        'is_act_as' => (bool)$isActAsUser,
+        'message' => $message,
+        'message_type' => $messageType,
+    ];
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch Spotify status.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        echo json_encode(spotifylink_build_list_payload($conn, $user_id, $isActAsUser, $client_id, $redirect_uri));
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -31,7 +130,6 @@ date_default_timezone_set($timezone);
 $authURL = '';
 $message = '';
 $messageType = '';
-$spotifyUserInfo = [];
 
 // Fetch user's Spotify settings first to determine which credentials to use
 $spotifySTMT = $conn->prepare("SELECT access_token, has_access, own_client, client_id, client_secret FROM spotify_tokens WHERE user_id = ?");
@@ -48,6 +146,7 @@ if ($spotifyResult->num_rows > 0) {
     $user_client_id = $spotifyRow['client_id'] ?? '';
     $user_client_secret = $spotifyRow['client_secret'] ?? '';
 }
+$spotifySTMT->close();
 
 // Determine effective client credentials
 $effective_client_id = $client_id;
@@ -93,16 +192,19 @@ if ($isActAsUser && isset($_GET['code'])) {
         $checkStmt->bind_param("i", $user_id);
         $checkStmt->execute();
         $exists = $checkStmt->get_result()->num_rows > 0;
+        $checkStmt->close();
         if ($exists) {
             // Update existing tokens for the user
             $updateStmt = $conn->prepare("UPDATE spotify_tokens SET access_token = ?, refresh_token = ?, auth = 1 WHERE user_id = ?");
             $updateStmt->bind_param("ssi", $access_token, $refresh_token, $user_id);
             $updateStmt->execute();
+            $updateStmt->close();
         } else {
             // Insert new tokens if none exist for this user
             $insertStmt = $conn->prepare("INSERT INTO spotify_tokens (user_id, access_token, refresh_token, auth) VALUES (?, ?, ?, 1)");
             $insertStmt->bind_param("iss", $user_id, $access_token, $refresh_token);
             $insertStmt->execute();
+            $insertStmt->close();
         }
         $message = t('spotifylink_msg_link_success');
         $messageType = "is-success";
@@ -122,6 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt = $conn->prepare("UPDATE spotify_tokens SET own_client = 1, auth = 0 WHERE user_id = ?");
         $updateStmt->bind_param("i", $user_id);
         $updateStmt->execute();
+        $updateStmt->close();
         $own_client = 1;
     } elseif (isset($_POST['save_credentials'])) {
         $client_id_input = $_POST['client_id'] ?? '';
@@ -129,6 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $updateStmt = $conn->prepare("UPDATE spotify_tokens SET client_id = ?, client_secret = ? WHERE user_id = ?");
         $updateStmt->bind_param("ssi", $client_id_input, $client_secret_input, $user_id);
         $updateStmt->execute();
+        $updateStmt->close();
         $user_client_id = $client_id_input;
         $user_client_secret = $client_secret_input;
         // Update effective credentials after saving
@@ -139,72 +243,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Re-fetch Spotify Profile Information for display
-$spotifySTMT = $conn->prepare("SELECT access_token, has_access, own_client, client_id, client_secret FROM spotify_tokens WHERE user_id = ?");
-$spotifySTMT->bind_param("i", $user_id);
-$spotifySTMT->execute();
-$spotifyResult = $spotifySTMT->get_result();
-$connectionStatus = 'not-connected'; // default
-
-if ($spotifyResult->num_rows > 0) {
-    // User has a token entry
-    $spotifyRow = $spotifyResult->fetch_assoc();
-    $spotifyAccessToken = $spotifyRow['access_token'];
-    $hasAccess = $spotifyRow['has_access'];
-    // Update these from the latest fetch
-    $own_client = $spotifyRow['own_client'];
-    $user_client_id = $spotifyRow['client_id'] ?? '';
-    $user_client_secret = $spotifyRow['client_secret'] ?? '';
-    if ($hasAccess == 1 || $own_client == 1) {
-        // Has access or using own client, try to fetch profile
-        $profileUrl = 'https://api.spotify.com/v1/me';
-        $profileOptions = [
-            'http' => [
-                'method' => 'GET',
-                'header' => "Authorization: Bearer $spotifyAccessToken",
-                'ignore_errors' => true
-            ]
-        ];
-        $profileResponse = file_get_contents($profileUrl, false, stream_context_create($profileOptions));
-        $spotifyUserInfo = json_decode($profileResponse, true);
-        if (isset($spotifyUserInfo['id'])) {
-            $connectionStatus = 'connected';
-        } else {
-            $message = t('spotifylink_msg_not_authorized');
-            $messageType = "is-danger";
-            // Allow reconnect if using own client OR if they already had a linked slot (has_access = 1)
-            if ($own_client == 1 || $hasAccess == 1) {
-                $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-                $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$effective_client_id&scope=$scopes&redirect_uri=$redirect_uri";
-            }
-            $connectionStatus = 'error';
-        }
-    } else {
-        // Pending approval
-        $message = t('spotifylink_msg_pending_approval');
-        $messageType = "is-warning";
-        $connectionStatus = 'pending';
-    }
-} else {
-    // User not linked - only allow linking via own client (dev account is full)
-    if (!$isActAsUser && $own_client == 1) {
-        $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-        $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
-    }
-}
-
-// Update auth URL if needed to use effective client ID
-if ($authURL && strpos($authURL, 'client_id=') !== false) {
-    $authURL = str_replace("client_id=$client_id", "client_id=$effective_client_id", $authURL);
-}
-
-// Fetch the number of linked accounts with access
-$linkedAccountsStmt = $conn->prepare("SELECT COUNT(*) as count FROM spotify_tokens WHERE has_access = 1");
-$linkedAccountsStmt->execute();
-$linkedAccountsResult = $linkedAccountsStmt->get_result();
-$linkedAccountsCount = $linkedAccountsResult->fetch_assoc()['count'];
-$maxAccounts = 5;
-
 // Start output buffering for layout
 ob_start();
 ?>
@@ -214,22 +252,9 @@ ob_start();
             <i class="fab fa-spotify"></i>
             <?php echo t('spotify_link_page_title'); ?>
         </div>
-        <?php if ($connectionStatus === 'connected'): ?>
-            <span class="sp-badge sp-badge-green">
-                <i class="fas fa-check-circle"></i>
-                <?php echo t('spotify_connected_title'); ?>
-            </span>
-        <?php elseif ($connectionStatus === 'pending'): ?>
-            <span class="sp-badge sp-badge-amber">
-                <i class="fas fa-clock"></i>
-                <?php echo t('spotifylink_badge_pending'); ?>
-            </span>
-        <?php else: ?>
-            <span class="sp-badge sp-badge-red">
-                <i class="fas fa-times-circle"></i>
-                <?php echo t('spotifylink_badge_not_connected'); ?>
-            </span>
-        <?php endif; ?>
+        <span id="spotifyStatusBadge" aria-busy="true">
+            <span class="sp-skeleton-badge" aria-hidden="true"></span>
+        </span>
     </div>
     <div class="sp-card-body">
         <div class="sp-alert sp-alert-warning" style="margin-bottom: 1.5rem;">
@@ -256,6 +281,7 @@ ob_start();
                 <?php echo $message; ?>
             </div>
         <?php endif; ?>
+        <div id="spotifyAjaxMessage"></div>
         <div class="sp-card" style="margin-bottom: 1.5rem;">
             <div class="sp-card-header">
                 <div class="sp-card-title">
@@ -292,94 +318,204 @@ ob_start();
                 </form>
             </div>
         </div>
-        <?php if ($connectionStatus === 'connected'): ?>
-            <div class="sp-card">
-                <div class="sp-card-header">
-                    <div class="sp-card-title">
-                        <i class="fab fa-spotify" style="color: var(--green);"></i>
-                        <?php echo t('spotifylink_connected_account_info'); ?>
-                    </div>
-                </div>
-                <div class="sp-card-body">
-                    <div class="sp-alert sp-alert-warning" style="margin-bottom: 1rem;">
-                        <i class="fas fa-info-circle"></i>
-                        <strong><?php echo t('spotify_connected_restart_bot'); ?></strong>
-                    </div>
-                    <div class="sp-alert sp-alert-info" style="margin-bottom: 1.5rem;">
-                        <i class="fas fa-link"></i>
-                        <strong><?php echo t('spotify_connected_check_link'); ?></strong>
-                    </div>
-                    <div class="sp-card" style="margin-bottom: 1rem;">
-                        <div class="sp-card-header">
-                            <div class="sp-card-title">
-                                <i class="fas fa-music" style="color: var(--green);"></i>
-                                <?php echo t('spotifylink_available_features'); ?>
-                            </div>
-                        </div>
-                        <div class="sp-card-body">
-                            <ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
-                                <li><?php echo t('spotify_feature_current_song'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!song</code></li>
-                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (<?php echo t('spotify_feature_or'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
-                                <li><?php echo t('spotify_feature_example'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest Stick Season Noah Kahan</code></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <p style="color: var(--text-secondary);">
-                        <strong><?php
-                            $accountsLinkedText = t('spotify_accounts_linked');
-                            $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
-                            echo $accountsLinkedText;
-                        ?></strong>
-                    </p>
-                </div>
+        <div id="spotifyStatusHost" aria-busy="true">
+            <div class="sp-skeleton-stack" aria-hidden="true">
+                <span class="sp-skeleton-line w-80"></span>
+                <span class="sp-skeleton-line w-60"></span>
+                <span class="sp-skeleton-line w-70"></span>
+                <span class="sp-skeleton-line w-50"></span>
+                <span class="sp-skeleton-line w-90"></span>
+                <span class="sp-skeleton-line w-40"></span>
             </div>
-        <?php else: ?>
-            <div style="text-align: center;">
-                <div style="max-width: 700px; margin: 0 auto 1.5rem;">
-                    <div class="sp-card" style="max-width: 600px; margin: 0 auto 1rem;">
-                        <div class="sp-card-header">
-                            <div class="sp-card-title">
-                                <i class="fas fa-music" style="color: var(--green);"></i>
-                                <?php echo t('spotifylink_available_features'); ?>
-                            </div>
-                        </div>
-                        <div class="sp-card-body">
-                            <ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; text-align: left;">
-                                <li><?php echo t('spotify_feature_current_song'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!song</code></li>
-                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (<?php echo t('spotify_feature_or'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
-                                <li><?php echo t('spotify_feature_example'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest Stick Season Noah Kahan</code></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <p style="color: var(--text-secondary);">
-                        <strong><?php
-                            $accountsLinkedText = t('spotify_accounts_linked');
-                            $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
-                            echo $accountsLinkedText;
-                        ?></strong>
-                    </p>
-                </div>
-                <?php if ($authURL && $connectionStatus !== 'pending'): ?>
-                    <a href="<?php echo $authURL; ?>" class="sp-btn sp-btn-success" style="font-size: 1rem; padding: 0.75rem 1.75rem;">
-                        <i class="fab fa-spotify"></i>
-                        <?php echo t('spotify_link_button'); ?>
-                    </a>
-                <?php elseif ($isActAsUser): ?>
-                    <div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <?php echo t('spotifylink_actas_disabled'); ?>
-                    </div>
-                <?php elseif (!$authURL && $connectionStatus === 'not-connected' && $own_client == 0): ?>
-                    <div class="sp-alert sp-alert-danger" style="max-width: 700px; margin: 0 auto;">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <?php echo str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], t('spotifylink_capacity_full')); ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
+        </div>
     </div>
 </div>
 <?php
 $content = ob_get_clean();
+
+ob_start();
+?>
+<script>
+const SP_I18N = {
+    connectedTitle: <?php echo json_encode(t('spotify_connected_title')); ?>,
+    badgePending: <?php echo json_encode(t('spotifylink_badge_pending')); ?>,
+    badgeNotConnected: <?php echo json_encode(t('spotifylink_badge_not_connected')); ?>,
+    connectedAccountInfo: <?php echo json_encode(t('spotifylink_connected_account_info')); ?>,
+    restartBot: <?php echo json_encode(t('spotify_connected_restart_bot')); ?>,
+    checkLink: <?php echo json_encode(t('spotify_connected_check_link')); ?>,
+    availableFeatures: <?php echo json_encode(t('spotifylink_available_features')); ?>,
+    featureCurrentSong: <?php echo json_encode(t('spotify_feature_current_song')); ?>,
+    featureSongRequest: <?php echo json_encode(t('spotify_feature_song_request')); ?>,
+    featureOr: <?php echo json_encode(t('spotify_feature_or')); ?>,
+    featureExample: <?php echo json_encode(t('spotify_feature_example')); ?>,
+    accountsLinked: <?php echo json_encode(t('spotify_accounts_linked')); ?>,
+    linkButton: <?php echo json_encode(t('spotify_link_button')); ?>,
+    actasDisabled: <?php echo json_encode(t('spotifylink_actas_disabled')); ?>,
+    capacityFull: <?php echo json_encode(t('spotifylink_capacity_full')); ?>,
+    contactFailed: <?php echo json_encode(t('spotifylink_msg_contact_failed')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function replaceCountMax(template, count, max) {
+    return String(template == null ? '' : template)
+        .replace(/:count/g, String(count))
+        .replace(/:max/g, String(max));
+}
+
+function codeChip(text) {
+    return '<code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">' + escapeHtml(text) + '</code>';
+}
+
+function featuresListHtml(leftAlign) {
+    var align = leftAlign ? ' text-align: left;' : '';
+    return '<ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;' + align + '">' +
+        '<li>' + escapeHtml(SP_I18N.featureCurrentSong) + ' ' + codeChip('!song') + '</li>' +
+        '<li>' + escapeHtml(SP_I18N.featureSongRequest) + ' ' + codeChip('!songrequest [song title] [artist]') + ' (' + escapeHtml(SP_I18N.featureOr) + ' ' + codeChip('!sr') + ')</li>' +
+        '<li>' + escapeHtml(SP_I18N.featureExample) + ' ' + codeChip('!songrequest Stick Season Noah Kahan') + '</li>' +
+        '</ul>';
+}
+
+function featuresCardHtml(opts) {
+    opts = opts || {};
+    var cardStyle = opts.cardStyle ? ' style="' + opts.cardStyle + '"' : '';
+    var listAlign = !!opts.leftAlign;
+    return '<div class="sp-card"' + cardStyle + '>' +
+        '<div class="sp-card-header"><div class="sp-card-title">' +
+        '<i class="fas fa-music" style="color: var(--green);"></i> ' + escapeHtml(SP_I18N.availableFeatures) +
+        '</div></div>' +
+        '<div class="sp-card-body">' + featuresListHtml(listAlign) + '</div>' +
+        '</div>';
+}
+
+function accountsLinkedHtml(count, max) {
+    return '<p style="color: var(--text-secondary);"><strong>' +
+        replaceCountMax(SP_I18N.accountsLinked, count, max) +
+        '</strong></p>';
+}
+
+function alertIcon(type) {
+    if (type === 'is-danger') return 'fa-exclamation-triangle';
+    if (type === 'is-success') return 'fa-check';
+    if (type === 'is-warning') return 'fa-exclamation-circle';
+    return 'fa-info-circle';
+}
+
+function alertClass(type) {
+    if (type === 'is-success') return 'sp-alert-success';
+    if (type === 'is-danger') return 'sp-alert-danger';
+    if (type === 'is-warning') return 'sp-alert-warning';
+    return 'sp-alert-info';
+}
+
+function showAjaxMessage(message, type) {
+    var box = document.getElementById('spotifyAjaxMessage');
+    if (!box) return;
+    if (!message) {
+        box.innerHTML = '';
+        return;
+    }
+    box.innerHTML = '<div class="sp-alert ' + alertClass(type) + '" style="margin-bottom: 1.5rem;">' +
+        '<i class="fas ' + alertIcon(type) + '"></i> ' + message +
+        '</div>';
+}
+
+function renderSpotifyBadge(status) {
+    var badge = document.getElementById('spotifyStatusBadge');
+    if (!badge) return;
+    var html;
+    if (status === 'connected') {
+        html = '<span class="sp-badge sp-badge-green"><i class="fas fa-check-circle"></i> ' + escapeHtml(SP_I18N.connectedTitle) + '</span>';
+    } else if (status === 'pending') {
+        html = '<span class="sp-badge sp-badge-amber"><i class="fas fa-clock"></i> ' + escapeHtml(SP_I18N.badgePending) + '</span>';
+    } else {
+        html = '<span class="sp-badge sp-badge-red"><i class="fas fa-times-circle"></i> ' + escapeHtml(SP_I18N.badgeNotConnected) + '</span>';
+    }
+    badge.innerHTML = html;
+    badge.setAttribute('aria-busy', 'false');
+}
+
+function renderSpotifyStatus(data) {
+    var host = document.getElementById('spotifyStatusHost');
+    if (!host) return;
+    var status = data.connection_status || 'not-connected';
+    var count = data.linked_accounts_count || 0;
+    var max = data.max_accounts || 5;
+    var html = '';
+    if (status === 'connected') {
+        html = '<div class="sp-card">' +
+            '<div class="sp-card-header"><div class="sp-card-title">' +
+            '<i class="fab fa-spotify" style="color: var(--green);"></i> ' + escapeHtml(SP_I18N.connectedAccountInfo) +
+            '</div></div>' +
+            '<div class="sp-card-body">' +
+            '<div class="sp-alert sp-alert-warning" style="margin-bottom: 1rem;">' +
+            '<i class="fas fa-info-circle"></i> <strong>' + escapeHtml(SP_I18N.restartBot) + '</strong></div>' +
+            '<div class="sp-alert sp-alert-info" style="margin-bottom: 1.5rem;">' +
+            '<i class="fas fa-link"></i> <strong>' + SP_I18N.checkLink + '</strong></div>' +
+            featuresCardHtml({ cardStyle: 'margin-bottom: 1rem;' }) +
+            accountsLinkedHtml(count, max) +
+            '</div></div>';
+    } else {
+        html = '<div style="text-align: center;">' +
+            '<div style="max-width: 700px; margin: 0 auto 1.5rem;">' +
+            featuresCardHtml({ cardStyle: 'max-width: 600px; margin: 0 auto 1rem;', leftAlign: true }) +
+            accountsLinkedHtml(count, max) +
+            '</div>';
+        if (data.auth_url && status !== 'pending') {
+            html += '<a href="' + escapeHtml(data.auth_url) + '" class="sp-btn sp-btn-success" style="font-size: 1rem; padding: 0.75rem 1.75rem;">' +
+                '<i class="fab fa-spotify"></i> ' + escapeHtml(SP_I18N.linkButton) +
+                '</a>';
+        } else if (data.is_act_as) {
+            html += '<div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">' +
+                '<i class="fas fa-exclamation-circle"></i> ' + escapeHtml(SP_I18N.actasDisabled) +
+                '</div>';
+        } else if (!data.auth_url && status === 'not-connected' && Number(data.own_client) === 0) {
+            html += '<div class="sp-alert sp-alert-danger" style="max-width: 700px; margin: 0 auto;">' +
+                '<i class="fas fa-exclamation-triangle"></i> ' + replaceCountMax(SP_I18N.capacityFull, count, max) +
+                '</div>';
+        }
+        html += '</div>';
+    }
+    host.innerHTML = html;
+    host.setAttribute('aria-busy', 'false');
+}
+
+function renderSpotifyError() {
+    renderSpotifyBadge('error');
+    var host = document.getElementById('spotifyStatusHost');
+    if (host) {
+        host.innerHTML = '';
+        host.setAttribute('aria-busy', 'false');
+    }
+    showAjaxMessage(escapeHtml(SP_I18N.contactFailed), 'is-danger');
+}
+
+function loadSpotifyStatus() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                renderSpotifyError();
+                return;
+            }
+            renderSpotifyBadge(data.connection_status);
+            showAjaxMessage(data.message || '', data.message_type || '');
+            renderSpotifyStatus(data);
+        })
+        .catch(function() {
+            renderSpotifyError();
+        });
+}
+
+document.addEventListener('DOMContentLoaded', loadSpotifyStatus);
+</script>
+<?php
+$scripts = ob_get_clean();
 include "layout.php";
 ?>

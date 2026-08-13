@@ -9,11 +9,9 @@ require_once '/var/www/lib/require_auth.php';
 $pageTitle = t('streaming_settings_title');
 
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
+include 'includes/user_db_connect.php';
 session_write_close();
 
 $stmt = $db->prepare("SELECT timezone FROM profile");

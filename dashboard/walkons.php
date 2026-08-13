@@ -11,17 +11,41 @@ $pageTitle = t('walkons_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+function walkons_format_file_name($fileName) {
+    return basename($fileName, '.mp3');
+}
+
+function walkons_format_file_name_with_ext($fileName) {
+    $fileInfo = pathinfo($fileName);
+    $name = basename($fileName, '.' . ($fileInfo['extension'] ?? ''));
+    $extension = strtoupper($fileInfo['extension'] ?? '');
+    return $name . " (" . $extension . ")";
+}
+
+function walkons_list_files($walkon_path) {
+    $files = [];
+    if (!is_dir($walkon_path)) {
+        return $files;
+    }
+    foreach (array_diff(scandir($walkon_path), array('.', '..')) as $file) {
+        $files[] = [
+            'name' => $file,
+            'display' => walkons_format_file_name_with_ext($file),
+            'test_name' => walkons_format_file_name($file),
+        ];
+    }
+    return $files;
+}
+
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
+$channelData = $result->fetch_assoc() ?: [];
 $timezone = $channelData['timezone'] ?? 'UTC';
 $media_migrated = (bool)($channelData['media_migrated'] ?? false);
 $stmt->close();
@@ -31,64 +55,81 @@ date_default_timezone_set($timezone);
 // /var/www/media/). The legacy page still writes to /var/www/walkons/ only and
 // never creates walkons rows, so the bot cannot resolve files after migration.
 if ($media_migrated) {
+    if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'migrated' => true]);
+        exit();
+    }
     header('Location: media.php?from=walkons');
     exit;
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        include 'includes/storage_used.php';
+        echo json_encode([
+            'success' => true,
+            'files' => walkons_list_files($walkon_path),
+            'storage_used' => (int) $current_storage_used,
+            'max_storage' => (int) $max_storage_size,
+            'storage_percentage' => (float) $storage_percentage,
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
 }
 
 // Define empty variable for status
 $status = '';
 
-// Define user-specific storage limits
-$remaining_storage = $max_storage_size - $current_storage_used;
-$max_upload_size = $remaining_storage;
+// Handle file upload / delete (storage scan only when mutating)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) || isset($_POST['delete_files']))) {
+    include 'includes/storage_used.php';
+    $remaining_storage = $max_storage_size - $current_storage_used;
+    $max_upload_size = $remaining_storage;
 
-// Handle file upload
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
-    foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
-        $fileSize = $_FILES["filesToUpload"]["size"][$key];
-        if ($current_storage_used + $fileSize > $max_storage_size) {
-            $status .= t('walkons_upload_failed_storage', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
-            continue;
+    if (isset($_FILES["filesToUpload"])) {
+        foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
+            $fileSize = $_FILES["filesToUpload"]["size"][$key];
+            if ($current_storage_used + $fileSize > $max_storage_size) {
+                $status .= t('walkons_upload_failed_storage', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
+                continue;
+            }
+            $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
+            $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
+            if ($fileType != "mp3" && $fileType != "mp4") {
+                $status .= t('walkons_upload_failed_filetype', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
+                continue;
+            }
+            if (move_uploaded_file($tmp_name, $targetFile)) {
+                $current_storage_used += $fileSize;
+                $status .= t('walkons_upload_success', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
+            } else {
+                $status .= t('walkons_upload_failed_generic', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
+            }
         }
-        $targetFile = $walkon_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
-        $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
-        if ($fileType != "mp3" && $fileType != "mp4") {
-            $status .= t('walkons_upload_failed_filetype', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
-            continue;
-        }
-        if (move_uploaded_file($tmp_name, $targetFile)) {
-            $current_storage_used += $fileSize;
-            $status .= t('walkons_upload_success', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
-        } else {
-            $status .= t('walkons_upload_failed_generic', [htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
-        }
+        $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
     }
-    $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
-}
 
-// Handle file deletion
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
-    foreach ($_POST['delete_files'] as $file_to_delete) {
-        $file_to_delete = $walkon_path . '/' . basename($file_to_delete);
-        if (is_file($file_to_delete) && unlink($file_to_delete)) {
-            $status .= t('walkons_delete_success', [htmlspecialchars(basename($file_to_delete))]) . "<br>";
-        } else {
-            $status .= t('walkons_delete_failed', [htmlspecialchars(basename($file_to_delete))]) . "<br>";
+    if (isset($_POST['delete_files'])) {
+        foreach ($_POST['delete_files'] as $file_to_delete) {
+            $file_to_delete = $walkon_path . '/' . basename($file_to_delete);
+            if (is_file($file_to_delete) && unlink($file_to_delete)) {
+                $status .= t('walkons_delete_success', [htmlspecialchars(basename($file_to_delete))]) . "<br>";
+            } else {
+                $status .= t('walkons_delete_failed', [htmlspecialchars(basename($file_to_delete))]) . "<br>";
+            }
         }
+        $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
+        $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
     }
-    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path]);
-    $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
-}
-$walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
-function formatFileName($fileName) { return basename($fileName, '.mp3'); }
-function formatFileNamewithEXT($fileName) {
-    $fileInfo = pathinfo($fileName);
-    $name = basename($fileName, '.' . $fileInfo['extension']);
-    $extenstion = strtoupper($fileInfo['extension']);
-    return $name . " (" . $extenstion . ")";
 }
 
-// Start output buffering for layout
+// Start output buffering for layout template (skeletons; JS fills the list)
 ob_start();
 ?>
 <!-- Setup info banner -->
@@ -118,12 +159,12 @@ ob_start();
     </header>
     <div class="sp-card-body">
         <!-- Storage Usage Info -->
-        <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+        <div class="sp-alert sp-alert-info" id="walkonsStorageBar" aria-busy="true" style="margin-bottom:1rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
                 <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
-                <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+                <span id="walkonsStorageText"><span class="sp-skeleton-line w-40" aria-hidden="true"></span></span>
             </div>
-            <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
+            <progress class="progress" id="walkonsStorageProgress" value="0" max="100" style="width:100%;"></progress>
         </div>
         <?php if (!empty($status)) : ?>
             <div class="sp-alert sp-alert-info" id="uploadStatusMsg" style="margin-bottom:1rem;">
@@ -169,10 +210,9 @@ ob_start();
             <span><?php echo t('walkons_delete_selected'); ?></span>
         </button>
     </header>
-    <div class="sp-card-body">
-        <?php if (!empty($walkon_files)) : ?>
+    <div class="sp-card-body" id="walkonsListHost" aria-busy="true">
         <form action="" method="POST" id="deleteForm">
-            <div class="sp-table-wrap">
+            <div class="sp-table-wrap" id="walkonsTableWrap">
                 <table class="sp-table" id="walkonsTable">
                     <thead>
                         <tr>
@@ -182,25 +222,15 @@ ob_start();
                             <th style="width:150px; text-align:center;"><?php echo t('walkons_test_audio'); ?></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <?php foreach ($walkon_files as $file): ?>
-                        <tr>
-                            <td style="text-align:center;">
-                                <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                            </td>
-                            <td><?php echo htmlspecialchars(formatFileNamewithEXT($file)); ?></td>
-                            <td style="text-align:center;">
-                                <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                            <td style="text-align:center;">
-                                <button type="button" class="test-walkon sp-btn sp-btn-primary sp-btn-sm" data-file="<?php echo htmlspecialchars(formatFileName($file)); ?>">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                            </td>
+                    <tbody id="walkonsTableBody">
+                        <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                        <tr aria-hidden="true">
+                            <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
+                            <td><span class="sp-skeleton-line w-80"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton-line w-50"></span></td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endfor; ?>
                     </tbody>
                 </table>
             </div>
@@ -209,11 +239,9 @@ ob_start();
                 <span><?php echo t('walkons_delete_selected'); ?></span>
             </button>
         </form>
-        <?php else: ?>
-            <div style="text-align:center; padding:3rem 0;">
-                <p style="font-size:1.05rem; color:var(--text-muted);"><?php echo t('walkons_no_files_uploaded'); ?></p>
-            </div>
-        <?php endif; ?>
+        <div id="walkonsEmptyState" style="text-align:center; padding:3rem 0; display:none;">
+            <p style="font-size:1.05rem; color:var(--text-muted);"><?php echo t('walkons_no_files_uploaded'); ?></p>
+        </div>
     </div>
 </div>
 <?php
@@ -334,8 +362,8 @@ $(document).ready(function() {
         }
         $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('walkons_no_files_selected'); ?>');
     });
-    // Single delete button with SweetAlert2
-    $('.delete-single').on('click', function() {
+    // Single delete button with SweetAlert2 (delegated for AJAX rows)
+    $(document).on('click', '.delete-single', function() {
         let fileName = $(this).data('file');
         Swal.fire({
             title: '<?php echo t('walkons_delete_file_confirm_title'); ?>',
@@ -356,16 +384,115 @@ $(document).ready(function() {
             }
         });
     });
-});
-document.addEventListener("DOMContentLoaded", function () {
-    // Attach click event listeners to all Test buttons for walkons
-    document.querySelectorAll(".test-walkon").forEach(function (button) {
-        button.addEventListener("click", function () {
-            const fileName = this.getAttribute("data-file");
-            sendStreamEvent("WALKON", fileName);
-        });
+    $(document).on('click', '.test-walkon', function() {
+        sendStreamEvent("WALKON", $(this).attr('data-file'));
     });
+    loadWalkons();
 });
+
+var WALKONS_I18N = {
+    empty: <?php echo json_encode(t('walkons_no_files_uploaded')); ?>,
+    loadError: <?php echo json_encode(t('walkons_upload_error')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function applyWalkonsStorage(data) {
+    if (!data || typeof data.storage_used !== 'number' || typeof data.max_storage !== 'number') return;
+    var usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
+    var maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
+    var pct = typeof data.storage_percentage === 'number'
+        ? data.storage_percentage.toFixed(2)
+        : ((data.storage_used / data.max_storage) * 100).toFixed(2);
+    var textEl = document.getElementById('walkonsStorageText');
+    var progEl = document.getElementById('walkonsStorageProgress');
+    var barEl = document.getElementById('walkonsStorageBar');
+    if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + pct + '%)';
+    if (progEl) progEl.value = pct;
+    if (barEl) barEl.setAttribute('aria-busy', 'false');
+}
+
+function renderWalkonsTable(files) {
+    var tbody = document.getElementById('walkonsTableBody');
+    var wrap = document.getElementById('walkonsTableWrap');
+    var empty = document.getElementById('walkonsEmptyState');
+    var host = document.getElementById('walkonsListHost');
+    var deleteBtn = document.getElementById('deleteSelectedBtn');
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (deleteBtn) deleteBtn.disabled = true;
+    if (!files.length) {
+        if (wrap) wrap.style.display = 'none';
+        if (empty) empty.style.display = '';
+        if (tbody) tbody.innerHTML = '';
+        return;
+    }
+    if (wrap) wrap.style.display = '';
+    if (empty) empty.style.display = 'none';
+    if (!tbody) return;
+    tbody.innerHTML = files.map(function(file) {
+        var name = file.name || '';
+        var display = file.display || name;
+        var testName = file.test_name || name;
+        return '<tr>' +
+            '<td style="text-align:center;">' +
+                '<input type="checkbox" name="delete_files[]" value="' + escapeHtml(name) + '">' +
+            '</td>' +
+            '<td>' + escapeHtml(display) + '</td>' +
+            '<td style="text-align:center;">' +
+                '<button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + escapeHtml(name) + '">' +
+                    '<i class="fas fa-trash"></i>' +
+                '</button>' +
+            '</td>' +
+            '<td style="text-align:center;">' +
+                '<button type="button" class="test-walkon sp-btn sp-btn-primary sp-btn-sm" data-file="' + escapeHtml(testName) + '">' +
+                    '<i class="fas fa-play"></i>' +
+                '</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function renderWalkonsError() {
+    var tbody = document.getElementById('walkonsTableBody');
+    var wrap = document.getElementById('walkonsTableWrap');
+    var empty = document.getElementById('walkonsEmptyState');
+    var host = document.getElementById('walkonsListHost');
+    var barEl = document.getElementById('walkonsStorageBar');
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (barEl) barEl.setAttribute('aria-busy', 'false');
+    if (empty) empty.style.display = 'none';
+    if (wrap) wrap.style.display = '';
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(WALKONS_I18N.loadError) + '</td></tr>';
+    }
+}
+
+function loadWalkons() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.migrated) {
+                window.location.href = 'media.php?from=walkons';
+                return;
+            }
+            if (!data || !data.success) {
+                renderWalkonsError();
+                return;
+            }
+            applyWalkonsStorage(data);
+            renderWalkonsTable(Array.isArray(data.files) ? data.files : []);
+        })
+        .catch(function() {
+            renderWalkonsError();
+        });
+}
+
 // Function to send a stream event
 function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();

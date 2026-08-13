@@ -1,31 +1,29 @@
-﻿<?php
+<?php
 require_once '/var/www/lib/session_bootstrap.php';
-require_once '/var/www/lib/require_auth.php';
-include "/var/www/config/streamlabs.php";
-include "/var/www/config/db_connect.php";
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
+
+require_once '/var/www/lib/require_auth.php';
+
+// Page Title
 $pageTitle = t('navbar_streamlabs') ?? 'StreamLabs Integration';
-// Check if user is logged in and has Twitch user ID
+
+// Include files for database and user data
+require_once "/var/www/config/db_connect.php";
+include "/var/www/config/streamlabs.php";
+include 'includes/userdata.php';
+include "includes/mod_access.php";
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+
 $twitchUserId = $_SESSION['twitchUserId'] ?? null;
 $isLinked = false;
 $linkingMessage = '';
 $linkingMessageType = '';
-
-// Include files for database and user data
-include 'includes/userdata.php';
-include 'includes/bot_control.php';
-include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
 $isActAsUser = isset($isActAs) && $isActAs === true;
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
+$access_token = null;
+$refresh_token = null;
+$expires_in = 3600;
+$token_created_at = null;
 
 if ($twitchUserId) {
     // Check if StreamLabs is already linked for this user and fetch token
@@ -41,6 +39,127 @@ if ($twitchUserId) {
         $isLinked = true;
     }
     $stmt->close();
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch StreamLabs data.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    session_write_close();
+    header('Content-Type: application/json');
+    $payload = [
+        'success' => true,
+        'linked' => $isLinked,
+        'donations' => [],
+        'donations_ok' => true,
+        'socket_token' => null,
+        'user' => null,
+    ];
+    if ($isLinked && !empty($access_token)) {
+        $timezone = 'UTC';
+        $tzStmt = $db->prepare("SELECT timezone FROM profile");
+        if ($tzStmt) {
+            $tzStmt->execute();
+            $tzRow = $tzStmt->get_result()->fetch_assoc();
+            $tzStmt->close();
+            $timezone = $tzRow['timezone'] ?? 'UTC';
+        }
+        date_default_timezone_set($timezone);
+
+        $donations_url = "https://streamlabs.com/api/v2.0/donations?limit=100&currency=USD";
+        $ch = curl_init($donations_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Accept: application/json",
+            "Authorization: Bearer " . $access_token
+        ]);
+        $donations_response = curl_exec($ch);
+        $donations_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($donations_code === 200) {
+            $donations_data = json_decode($donations_response, true);
+            if (isset($donations_data['data']) && is_array($donations_data['data'])) {
+                $recentDonations = array_slice($donations_data['data'], 0, 20);
+                foreach ($recentDonations as $donation) {
+                    $createdAtFormatted = '';
+                    if (isset($donation['created_at'])) {
+                        try {
+                            $dt = new DateTime();
+                            $dt->setTimestamp((int)$donation['created_at']);
+                            $createdAtFormatted = $dt->format('M j, Y');
+                        } catch (Exception $e) {
+                            $createdAtFormatted = (string)$donation['created_at'];
+                        }
+                    }
+                    $payload['donations'][] = [
+                        'name' => $donation['name'] ?? null,
+                        'currency' => $donation['currency'] ?? '$',
+                        'amount' => $donation['amount'] ?? 0,
+                        'message' => $donation['message'] ?? null,
+                        'created_at' => $donation['created_at'] ?? null,
+                        'created_at_formatted' => $createdAtFormatted,
+                    ];
+                }
+            }
+        } else {
+            $payload['donations_ok'] = false;
+        }
+
+        $socket_token_url = "https://streamlabs.com/api/v2.0/socket/token";
+        $ch = curl_init($socket_token_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Accept: application/json",
+            "Authorization: Bearer " . $access_token
+        ]);
+        $socket_token_response = curl_exec($ch);
+        $socketTokenCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($socketTokenCode === 200) {
+            $socket_token_data = json_decode($socket_token_response, true);
+            if (isset($socket_token_data['socket_token'])) {
+                $socketToken = $socket_token_data['socket_token'];
+                $payload['socket_token'] = $socketToken;
+                if (!empty($socketToken) && isset($twitchUserId)) {
+                    $colCheckSql = "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'streamlabs_tokens' AND COLUMN_NAME = 'socket_token'";
+                    if ($colRes = $conn->query($colCheckSql)) {
+                        $colRow = $colRes->fetch_assoc();
+                        $colExists = (isset($colRow['cnt']) && (int)$colRow['cnt'] > 0);
+                        $colRes->free();
+                    } else {
+                        $colExists = false;
+                    }
+                    if ($colExists) {
+                        if ($stmt = $conn->prepare("UPDATE streamlabs_tokens SET socket_token = ? WHERE twitch_user_id = ?")) {
+                            $stmt->bind_param("ss", $socketToken, $twitchUserId);
+                            $stmt->execute();
+                            $stmt->close();
+                        }
+                    }
+                }
+            }
+        }
+
+        $user_url = "https://streamlabs.com/api/v2.0/user";
+        $ch = curl_init($user_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Accept: application/json",
+            "Authorization: Bearer " . $access_token
+        ]);
+        $user_response = curl_exec($ch);
+        $userDataCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($userDataCode === 200) {
+            $user_data = json_decode($user_response, true);
+            if (is_array($user_data)) {
+                $payload['user'] = $user_data;
+            }
+        }
+    }
+    echo json_encode($payload);
+    exit();
 }
 
 // Set up StreamLabs OAuth2 parameters
@@ -59,7 +178,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'unlink') {
             $linkingMessageType = "is-success";
             $isLinked = false;
             unset($access_token);
-            unset($socketToken);
         } else {
             $linkingMessage = t('streamlabs_msg_unlink_failed');
             $linkingMessageType = "is-danger";
@@ -106,7 +224,8 @@ if (isset($_GET['code']) && !$isActAsUser) {
         $response = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curl_error = curl_error($ch);
-$token_data = json_decode($response, true);
+        curl_close($ch);
+        $token_data = json_decode($response, true);
         if ($httpcode === 200 && isset($token_data['access_token'])) {
             $new_access_token = $token_data['access_token'];
             $new_refresh_token = $token_data['refresh_token'] ?? null;
@@ -144,10 +263,10 @@ $token_data = json_decode($response, true);
         } else {
             $linkingMessage = t('streamlabs_msg_link_failed');
             $linkingMessageType = "is-danger";
-            if (isset($token_data['error'])) { 
+            if (isset($token_data['error'])) {
                 $linkingMessage .= " Error: " . htmlspecialchars($token_data['error']);
             }
-            if (isset($token_data['error_description'])) { 
+            if (isset($token_data['error_description'])) {
                 $linkingMessage .= " Description: " . htmlspecialchars($token_data['error_description']);
             }
         }
@@ -165,89 +284,6 @@ if (!$isLinked && !$isActAsUser) {
         . "&redirect_uri=" . urlencode($redirect_uri)
         . "&scope=" . urlencode($scope)
         . "&state=" . urlencode($state);
-}
-
-// Fetch recent donations if user is linked
-$recentDonations = [];
-$donations_code = null;
-if ($isLinked && isset($access_token) && !empty($access_token)) {
-    $donations_url = "https://streamlabs.com/api/v2.0/donations?limit=100&currency=USD";
-    $ch = curl_init($donations_url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Accept: application/json",
-        "Authorization: Bearer " . $access_token
-    ]);
-    $donations_response = curl_exec($ch);
-    $donations_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-if ($donations_code === 200) {
-        $donations_data = json_decode($donations_response, true);
-        if (isset($donations_data['data']) && is_array($donations_data['data'])) {
-            $recentDonations = $donations_data['data'];
-        }
-    }
-}
-
-// Fetch socket token for real-time events
-$socketToken = null;
-$socketTokenCode = null;
-if ($isLinked && isset($access_token) && !empty($access_token)) {
-    $socket_token_url = "https://streamlabs.com/api/v2.0/socket/token";
-    $ch = curl_init($socket_token_url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Accept: application/json",
-        "Authorization: Bearer " . $access_token
-    ]);
-    $socket_token_response = curl_exec($ch);
-    $socketTokenCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-if ($socketTokenCode === 200) {
-        $socket_token_data = json_decode($socket_token_response, true);
-        if (isset($socket_token_data['socket_token'])) {
-            $socketToken = $socket_token_data['socket_token'];
-            // Persist socket token to database for use by the bot
-            if (!empty($socketToken) && isset($twitchUserId)) {
-                // Attempt to detect if the socket_token column exists
-                $colCheckSql = "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'streamlabs_tokens' AND COLUMN_NAME = 'socket_token'";
-                if ($colRes = $conn->query($colCheckSql)) {
-                    $colRow = $colRes->fetch_assoc();
-                    $colExists = (isset($colRow['cnt']) && (int)$colRow['cnt'] > 0);
-                    $colRes->free();
-                } else {
-                    $colExists = false;
-                }
-                // If column exists, update the row for this twitch user
-                if ($colExists) {
-                    if ($stmt = $conn->prepare("UPDATE streamlabs_tokens SET socket_token = ? WHERE twitch_user_id = ?")) {
-                        $stmt->bind_param("ss", $socketToken, $twitchUserId);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Fetch user information
-$userData = null;
-$userDataCode = null;
-if ($isLinked && isset($access_token) && !empty($access_token)) {
-    $user_url = "https://streamlabs.com/api/v2.0/user";
-    $ch = curl_init($user_url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Accept: application/json",
-        "Authorization: Bearer " . $access_token
-    ]);
-    $user_response = curl_exec($ch);
-    $userDataCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-if ($userDataCode === 200) {
-        $user_data = json_decode($user_response, true);
-        if (is_array($user_data)) {
-            $userData = $user_data;
-        }
-    }
 }
 
 session_write_close();
@@ -328,8 +364,17 @@ ob_start();
                     </div>
                 <?php endif; ?>
                 <!-- Socket Token -->
-                <?php if ($socketToken): ?>
-                    <div class="sp-card" style="margin-bottom: 0;">
+                <div id="socketTokenHost" aria-busy="true">
+                    <div id="socketTokenSkeleton" class="sp-card" style="margin-bottom: 0;">
+                        <div class="sp-card-header">
+                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);"><?= t('streamlabs_socket_token_label') ?></span>
+                            <span class="sp-skeleton-badge"></span>
+                        </div>
+                        <div class="sp-card-body">
+                            <span class="sp-skeleton-line w-90"></span>
+                        </div>
+                    </div>
+                    <div id="socketTokenCard" class="sp-card" style="margin-bottom: 0; display: none;">
                         <div class="sp-card-header">
                             <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);"><?= t('streamlabs_socket_token_label') ?></span>
                             <div style="display: flex; gap: 0.5rem;">
@@ -342,67 +387,46 @@ ob_start();
                             </div>
                         </div>
                         <div class="sp-card-body">
-                            <input type="text" id="socketTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
+                            <input type="text" id="socketTokenDisplay" class="sp-input" value="" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
                         </div>
                     </div>
-                <?php endif; ?>
+                </div>
             </div>
             <!-- Recent Donations section -->
-            <?php if (!empty($recentDonations)): ?>
-                <div class="sp-card" style="margin-bottom: 1.5rem;">
-                    <div class="sp-card-header">
-                        <span class="sp-card-title"><?= t('streamlabs_recent_donations_title') ?></span>
-                        <span style="font-size: 0.8rem; color: var(--text-muted);"><?= t('streamlabs_recent_donations_latest') ?> <?php echo min(20, count($recentDonations)); ?></span>
-                    </div>
-                    <div class="sp-table-wrap" style="border: none; border-radius: 0;">
-                        <table class="sp-table">
-                            <thead>
-                                <tr>
-                                    <th><?= t('streamlabs_th_donor') ?></th>
-                                    <th style="text-align: right;"><?= t('streamlabs_th_amount') ?></th>
-                                    <th><?= t('streamlabs_th_message') ?></th>
-                                    <th><?= t('streamlabs_th_date') ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
-                                    <tr>
-                                        <td><strong><?php echo htmlspecialchars($donation['name'] ?? t('streamlabs_anonymous')); ?></strong></td>
-                                        <td style="text-align: right; color: var(--green); font-weight: 600;">
-                                            <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
-                                        </td>
-                                        <td style="color: var(--text-secondary); max-width: 250px; word-break: break-word;">
-                                            <?php echo htmlspecialchars($donation['message'] ?? t('streamlabs_no_message')); ?>
-                                        </td>
-                                        <td style="color: var(--text-muted); white-space: nowrap; font-size: 0.875rem;">
-                                            <?php 
-                                            if (isset($donation['created_at'])) {
-                                                try {
-                                                    $timestamp = (int)$donation['created_at'];
-                                                    $dt = new DateTime();
-                                                    $dt->setTimestamp($timestamp);
-                                                    echo htmlspecialchars($dt->format('M j, Y'));
-                                                } catch (Exception $e) {
-                                                    echo htmlspecialchars($donation['created_at']);
-                                                }
-                                            }
-                                            ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
+            <div id="donationsCard" class="sp-card" style="margin-bottom: 1.5rem;" aria-busy="true">
+                <div class="sp-card-header">
+                    <span class="sp-card-title"><?= t('streamlabs_recent_donations_title') ?></span>
+                    <span id="donationsCount" style="font-size: 0.8rem; color: var(--text-muted);"><span class="sp-skeleton-line w-40"></span></span>
                 </div>
-            <?php endif; ?>
-            <!-- Empty donations message -->
-            <?php if (empty($recentDonations) && $isLinked && isset($access_token)): ?>
-                <div style="text-align: center; padding: 3rem 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius-lg);">
-                    <i class="fas fa-inbox" style="font-size: 2rem; color: var(--text-muted); display: block; margin-bottom: 0.75rem;"></i>
-                    <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;"><?= t('streamlabs_no_donations_yet') ?></p>
-                    <p style="font-size: 0.82rem; color: var(--text-muted);"><?= t('streamlabs_no_donations_hint') ?></p>
+                <div class="sp-table-wrap" style="border: none; border-radius: 0;">
+                    <table class="sp-table">
+                        <thead>
+                            <tr>
+                                <th><?= t('streamlabs_th_donor') ?></th>
+                                <th style="text-align: right;"><?= t('streamlabs_th_amount') ?></th>
+                                <th><?= t('streamlabs_th_message') ?></th>
+                                <th><?= t('streamlabs_th_date') ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="donationsTableBody">
+                            <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                            <tr aria-hidden="true">
+                                <td><span class="sp-skeleton-line w-50"></span></td>
+                                <td style="text-align: right;"><span class="sp-skeleton-line w-40"></span></td>
+                                <td><span class="sp-skeleton-line w-80"></span></td>
+                                <td><span class="sp-skeleton-line w-60"></span></td>
+                            </tr>
+                            <?php endfor; ?>
+                        </tbody>
+                    </table>
                 </div>
-            <?php endif; ?>
+            </div>
+            <!-- Empty donations message (shown only after a successful empty load) -->
+            <div id="donationsEmpty" style="display: none; text-align: center; padding: 3rem 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius-lg);">
+                <i class="fas fa-inbox" style="font-size: 2rem; color: var(--text-muted); display: block; margin-bottom: 0.75rem;"></i>
+                <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;"><?= t('streamlabs_no_donations_yet') ?></p>
+                <p style="font-size: 0.82rem; color: var(--text-muted);"><?= t('streamlabs_no_donations_hint') ?></p>
+            </div>
         <?php else: ?>
             <!-- Not linked display -->
             <div style="text-align: center; padding: 1rem 0;">
@@ -469,12 +493,201 @@ ob_start();
 const accessToken = "<?php echo addslashes($access_token) ?>";
 const accessTokenDotCount = <?php echo (int)strlen($access_token); ?>;
 let accessTokenVisible = false;
-
-<?php if ($socketToken): ?>
-const socketToken = "<?php echo addslashes($socketToken) ?>";
-const socketTokenDotCount = <?php echo (int)strlen($socketToken); ?>;
+let socketToken = '';
+let socketTokenDotCount = 0;
 let socketTokenVisible = false;
-<?php endif; ?>
+const SL_I18N = {
+    anonymous: <?php echo json_encode(t('streamlabs_anonymous')); ?>,
+    noMessage: <?php echo json_encode(t('streamlabs_no_message')); ?>,
+    latest: <?php echo json_encode(t('streamlabs_recent_donations_latest')); ?>,
+    loadError: <?php echo json_encode(t('dashboard_js_load_error')); ?>,
+    hideSocketTitle: <?php echo json_encode(t('streamlabs_hide_socket_token_title')); ?>,
+    showSocketTitle: <?php echo json_encode(t('streamlabs_show_socket_token_title')); ?>,
+    copyFailedTitle: <?php echo json_encode(t('streamlabs_swal_copy_failed_title')); ?>,
+    copyFailedText: <?php echo json_encode(t('streamlabs_swal_copy_failed_text')); ?>,
+    revealSocketTitle: <?php echo json_encode(t('streamlabs_swal_reveal_socket_title')); ?>,
+    revealSocketText: <?php echo json_encode(t('streamlabs_swal_reveal_socket_text')); ?>,
+    swalShow: <?php echo json_encode(t('streamlabs_swal_show')); ?>,
+    cancel: <?php echo json_encode(t('streamlabs_cancel')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function formatDonationAmount(donation) {
+    var amount = Number(donation.amount);
+    if (isNaN(amount)) amount = 0;
+    return amount.toFixed(2);
+}
+
+function renderDonationsError() {
+    var card = document.getElementById('donationsCard');
+    var tbody = document.getElementById('donationsTableBody');
+    var empty = document.getElementById('donationsEmpty');
+    var count = document.getElementById('donationsCount');
+    if (empty) empty.style.display = 'none';
+    if (card) {
+        card.style.display = '';
+        card.setAttribute('aria-busy', 'false');
+    }
+    if (count) count.textContent = '';
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">' + escapeHtml(SL_I18N.loadError) + '</td></tr>';
+    }
+}
+
+function renderDonations(donations) {
+    var card = document.getElementById('donationsCard');
+    var tbody = document.getElementById('donationsTableBody');
+    var empty = document.getElementById('donationsEmpty');
+    var count = document.getElementById('donationsCount');
+    if (card) card.setAttribute('aria-busy', 'false');
+    if (!donations.length) {
+        if (card) card.style.display = 'none';
+        if (empty) empty.style.display = '';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    if (card) card.style.display = '';
+    if (count) count.textContent = SL_I18N.latest + ' ' + donations.length;
+    if (!tbody) return;
+    tbody.innerHTML = donations.map(function(donation) {
+        var name = donation.name || SL_I18N.anonymous;
+        var currency = donation.currency || '$';
+        var message = donation.message || SL_I18N.noMessage;
+        var dateLabel = donation.created_at_formatted || '';
+        return '<tr>'
+            + '<td><strong>' + escapeHtml(name) + '</strong></td>'
+            + '<td style="text-align: right; color: var(--green); font-weight: 600;">'
+            + escapeHtml(currency) + escapeHtml(formatDonationAmount(donation))
+            + '</td>'
+            + '<td style="color: var(--text-secondary); max-width: 250px; word-break: break-word;">'
+            + escapeHtml(message)
+            + '</td>'
+            + '<td style="color: var(--text-muted); white-space: nowrap; font-size: 0.875rem;">'
+            + escapeHtml(dateLabel)
+            + '</td></tr>';
+    }).join('');
+}
+
+function hideSocketTokenCard() {
+    var host = document.getElementById('socketTokenHost');
+    var skeleton = document.getElementById('socketTokenSkeleton');
+    var card = document.getElementById('socketTokenCard');
+    if (skeleton) skeleton.style.display = 'none';
+    if (card) card.style.display = 'none';
+    if (host) {
+        host.style.display = 'none';
+        host.setAttribute('aria-busy', 'false');
+    }
+}
+
+function showSocketTokenCard(token) {
+    socketToken = String(token || '');
+    socketTokenDotCount = socketToken.length;
+    socketTokenVisible = false;
+    var host = document.getElementById('socketTokenHost');
+    var skeleton = document.getElementById('socketTokenSkeleton');
+    var card = document.getElementById('socketTokenCard');
+    var display = document.getElementById('socketTokenDisplay');
+    if (skeleton) skeleton.style.display = 'none';
+    if (card) card.style.display = '';
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (display) display.value = '•'.repeat(socketTokenDotCount);
+    bindSocketTokenControls();
+}
+
+function bindSocketTokenControls() {
+    const socketBtn = document.getElementById('showSocketTokenBtn');
+    const socketEye = document.getElementById('socketTokenEye');
+    const socketDisplay = document.getElementById('socketTokenDisplay');
+    const copySocketBtn = document.getElementById('copySocketTokenBtn');
+    const copySocketIcon = document.getElementById('copySocketTokenIcon');
+    if (copySocketBtn && !copySocketBtn.dataset.bound) {
+        copySocketBtn.dataset.bound = '1';
+        copySocketBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(socketToken).then(() => {
+                copySocketIcon.classList.remove('fa-copy');
+                copySocketIcon.classList.add('fa-check');
+                copySocketBtn.classList.add('sp-btn-success');
+                copySocketBtn.classList.remove('sp-btn-info');
+                setTimeout(() => {
+                    copySocketIcon.classList.add('fa-copy');
+                    copySocketIcon.classList.remove('fa-check');
+                    copySocketBtn.classList.remove('sp-btn-success');
+                    copySocketBtn.classList.add('sp-btn-info');
+                }, 2000);
+            }).catch(() => {
+                Swal.fire({
+                    icon: 'error',
+                    title: SL_I18N.copyFailedTitle,
+                    text: SL_I18N.copyFailedText
+                });
+            });
+        });
+    }
+    if (socketBtn && socketEye && socketDisplay && !socketBtn.dataset.bound) {
+        socketBtn.dataset.bound = '1';
+        socketBtn.addEventListener('click', function() {
+            if (!socketTokenVisible) {
+                Swal.fire({
+                    title: SL_I18N.revealSocketTitle,
+                    text: SL_I18N.revealSocketText,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: SL_I18N.swalShow,
+                    cancelButtonText: SL_I18N.cancel,
+                    confirmButtonColor: '#3273dc',
+                    cancelButtonColor: '#6c757d'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        socketDisplay.value = socketToken;
+                        socketEye.classList.remove('fa-eye');
+                        socketEye.classList.add('fa-eye-slash');
+                        socketBtn.title = SL_I18N.hideSocketTitle;
+                        socketBtn.classList.remove('sp-btn-info');
+                        socketBtn.classList.add('sp-btn-danger');
+                        socketTokenVisible = true;
+                    }
+                });
+            } else {
+                socketDisplay.value = '•'.repeat(socketTokenDotCount);
+                socketEye.classList.remove('fa-eye-slash');
+                socketEye.classList.add('fa-eye');
+                socketBtn.title = SL_I18N.showSocketTitle;
+                socketBtn.classList.remove('sp-btn-danger');
+                socketBtn.classList.add('sp-btn-info');
+                socketTokenVisible = false;
+            }
+        });
+    }
+}
+
+function loadStreamlabsList() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success || data.donations_ok === false) {
+                renderDonationsError();
+            } else {
+                renderDonations(Array.isArray(data.donations) ? data.donations : []);
+            }
+            if (data && data.socket_token) {
+                showSocketTokenCard(data.socket_token);
+            } else {
+                hideSocketTokenCard();
+            }
+        })
+        .catch(function() {
+            renderDonationsError();
+            hideSocketTokenCard();
+        });
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const accessBtn = document.getElementById('showAccessTokenBtn');
@@ -538,69 +751,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    <?php if ($socketToken): ?>
-    const socketBtn = document.getElementById('showSocketTokenBtn');
-    const socketEye = document.getElementById('socketTokenEye');
-    const socketDisplay = document.getElementById('socketTokenDisplay');
-    const copySocketBtn = document.getElementById('copySocketTokenBtn');
-    const copySocketIcon = document.getElementById('copySocketTokenIcon');
-    if (copySocketBtn) {
-        copySocketBtn.addEventListener('click', function() {
-            navigator.clipboard.writeText(socketToken).then(() => {
-                copySocketIcon.classList.remove('fa-copy');
-                copySocketIcon.classList.add('fa-check');
-                copySocketBtn.classList.add('sp-btn-success');
-                copySocketBtn.classList.remove('sp-btn-info');
-                setTimeout(() => {
-                    copySocketIcon.classList.add('fa-copy');
-                    copySocketIcon.classList.remove('fa-check');
-                    copySocketBtn.classList.remove('sp-btn-success');
-                    copySocketBtn.classList.add('sp-btn-info');
-                }, 2000);
-            }).catch(() => {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?php echo json_encode(t('streamlabs_swal_copy_failed_title')); ?>,
-                    text: <?php echo json_encode(t('streamlabs_swal_copy_failed_text')); ?>
-                });
-            });
-        });
-    }
-    if (socketBtn && socketEye && socketDisplay) {
-        socketBtn.addEventListener('click', function() {
-            if (!socketTokenVisible) {
-                Swal.fire({
-                    title: <?php echo json_encode(t('streamlabs_swal_reveal_socket_title')); ?>,
-                    text: <?php echo json_encode(t('streamlabs_swal_reveal_socket_text')); ?>,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: <?php echo json_encode(t('streamlabs_swal_show')); ?>,
-                    cancelButtonText: <?php echo json_encode(t('streamlabs_cancel')); ?>,
-                    confirmButtonColor: '#3273dc',
-                    cancelButtonColor: '#6c757d'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        socketDisplay.value = socketToken;
-                        socketEye.classList.remove('fa-eye');
-                        socketEye.classList.add('fa-eye-slash');
-                        socketBtn.title = <?php echo json_encode(t('streamlabs_hide_socket_token_title')); ?>;
-                        socketBtn.classList.remove('sp-btn-info');
-                        socketBtn.classList.add('sp-btn-danger');
-                        socketTokenVisible = true;
-                    }
-                });
-            } else {
-                socketDisplay.value = '•'.repeat(socketTokenDotCount);
-                socketEye.classList.remove('fa-eye-slash');
-                socketEye.classList.add('fa-eye');
-                socketBtn.title = <?php echo json_encode(t('streamlabs_show_socket_token_title')); ?>;
-                socketBtn.classList.remove('sp-btn-danger');
-                socketBtn.classList.add('sp-btn-info');
-                socketTokenVisible = false;
-            }
-        });
-    }
-    <?php endif; ?>
+    loadStreamlabsList();
 });
 </script>
 <?php
@@ -609,4 +760,3 @@ endif;
 
 include 'layout.php';
 ?>
-

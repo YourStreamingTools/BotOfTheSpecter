@@ -10,24 +10,9 @@ $pageTitle = 'Specter Alerts';
 
 require_once "/var/www/config/db_connect.php";
 include 'includes/userdata.php';
+include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
-require_once __DIR__ . '/includes/upload_helpers.php';
-require_once __DIR__ . '/includes/file_paths.php';
 session_write_close();
-
-$stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$media_migrated = (bool)($channelData['media_migrated'] ?? false);
-$stmt->close();
-date_default_timezone_set($timezone);
-
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
 
 // Per-category variant caps. A follow is a follow - no condition can
 // meaningfully split it, so 1 is the only sane number.
@@ -88,18 +73,122 @@ $defaultAlerts = [
     ['deaths', 'Death counter', 0, null, null],
     ['walkons', 'Walk-ons', 0, null, null],
 ];
+// Enable/disable-only categories (weather, deaths, walk-ons) render through their own
+// overlay theme. Users seeded before these categories existed won't have rows, so make
+// sure a single on/off variant exists for each.
+$simpleCategorySeeds = [
+    'weather'      => 'Weather',
+    'deaths'       => 'Death counter',
+    'walkons'      => 'Walk-ons',
+    'watch_streak' => 'Watch streak',
+    'discord_join' => 'Discord joins',
+    'kofi'         => 'Ko-fi tips',
+    'patreon'      => 'Patreon',
+    'fourthwall'   => 'Fourthwall'
+];
 
-// Seed defaults if table is empty
-$countResult = $db->query("SELECT COUNT(*) AS cnt FROM twitch_alerts");
-$count = $countResult->fetch_assoc()['cnt'];
-if ($count == 0) {
-    $insertStmt = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, alert_condition, message_template) VALUES (?, ?, ?, ?, ?)");
-    foreach ($defaultAlerts as $alert) {
-        $insertStmt->bind_param('ssiss', $alert[0], $alert[1], $alert[2], $alert[3], $alert[4]);
-        $insertStmt->execute();
+// List endpoint first so the browser can paint skeletons, then fetch variants + library + rewards.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $countResult = $db->query("SELECT COUNT(*) AS cnt FROM twitch_alerts");
+        $count = $countResult ? (int)$countResult->fetch_assoc()['cnt'] : 0;
+        if ($countResult) {
+            $countResult->free();
+        }
+        if ($count === 0) {
+            $insertStmt = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, alert_condition, message_template) VALUES (?, ?, ?, ?, ?)");
+            foreach ($defaultAlerts as $alert) {
+                $insertStmt->bind_param('ssiss', $alert[0], $alert[1], $alert[2], $alert[3], $alert[4]);
+                $insertStmt->execute();
+            }
+            $insertStmt->close();
+        }
+        foreach ($simpleCategorySeeds as $simpleCat => $simpleLabel) {
+            $chk = $db->prepare("SELECT id FROM twitch_alerts WHERE alert_category = ? ORDER BY id ASC");
+            $chk->bind_param('s', $simpleCat);
+            $chk->execute();
+            $res = $chk->get_result();
+            $existingIds = [];
+            while ($row = $res->fetch_assoc()) {
+                $existingIds[] = $row['id'];
+            }
+            $chk->close();
+            if (count($existingIds) === 0) {
+                $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
+                $ins->bind_param('ss', $simpleCat, $simpleLabel);
+                $ins->execute();
+                $ins->close();
+            } else {
+                $primaryId = $existingIds[0];
+                $up = $db->prepare("UPDATE twitch_alerts SET variant_name = ? WHERE id = ?");
+                $up->bind_param('si', $simpleLabel, $primaryId);
+                $up->execute();
+                $up->close();
+                if (count($existingIds) > 1) {
+                    array_shift($existingIds);
+                    $inClause = implode(',', array_map('intval', $existingIds));
+                    $db->query("DELETE FROM twitch_alerts WHERE id IN ($inClause)");
+                }
+            }
+        }
+        $allAlerts = [];
+        if ($result = $db->query("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index")) {
+            while ($row = $result->fetch_assoc()) {
+                $allAlerts[(string)$row['id']] = $row;
+            }
+            $result->free();
+        }
+        $categoryRandomize = [];
+        if ($r = $db->query("SELECT category, randomize FROM twitch_alert_category_settings")) {
+            while ($row = $r->fetch_assoc()) {
+                $categoryRandomize[$row['category']] = (int)$row['randomize'];
+            }
+            $r->free();
+        }
+        require_once __DIR__ . '/includes/file_paths.php';
+        $channelPointRewards = [];
+        if ($rewardStmt = $db->query("SELECT reward_id, reward_title, reward_cost FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC")) {
+            $channelPointRewards = $rewardStmt->fetch_all(MYSQLI_ASSOC);
+            $rewardStmt->free();
+        }
+        $libraryImageExts = ['png', 'jpg', 'jpeg', 'gif', 'webm'];
+        $librarySoundExts = ['mp3'];
+        $libraryImages = [];
+        $librarySounds = [];
+        if (isset($media_path) && is_string($media_path) && $media_path !== '' && is_dir($media_path)) {
+            foreach (scandir($media_path) as $f) {
+                if ($f === '.' || $f === '..') continue;
+                if (!is_file($media_path . '/' . $f)) continue;
+                $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+                if (in_array($ext, $libraryImageExts, true)) $libraryImages[] = $f;
+                elseif (in_array($ext, $librarySoundExts, true)) $librarySounds[] = $f;
+            }
+            sort($libraryImages, SORT_STRING | SORT_FLAG_CASE);
+            sort($librarySounds, SORT_STRING | SORT_FLAG_CASE);
+        }
+        echo json_encode([
+            'success' => true,
+            'alerts' => empty($allAlerts) ? new stdClass() : $allAlerts,
+            'categoryRandomize' => empty($categoryRandomize) ? new stdClass() : $categoryRandomize,
+            'libraryImages' => $libraryImages,
+            'librarySounds' => $librarySounds,
+            'channelPointRewards' => array_values($channelPointRewards),
+        ]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
-    $insertStmt->close();
+    exit();
 }
+
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
+date_default_timezone_set($timezone);
 
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
@@ -280,6 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'upload_alert_media') {
+        require_once __DIR__ . '/includes/upload_helpers.php';
         include __DIR__ . '/includes/storage_used.php';
         if (!isset($_FILES['media_file'])) {
             echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
@@ -356,78 +446,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     exit;
 }
 
-include '/var/www/config/twitch.php';
-include "includes/mod_access.php";
-include 'includes/storage_used.php';
-
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
-
-// Enable/disable-only categories (weather, deaths, walk-ons) render through their own
-// overlay theme. Users seeded before these categories existed won't have rows, so make
-// sure a single on/off variant exists for each.
-$simpleCategorySeeds = [
-    'weather'      => 'Weather',
-    'deaths'       => 'Death counter',
-    'walkons'      => 'Walk-ons',
-    'watch_streak' => 'Watch streak',
-    'discord_join' => 'Discord joins',
-    'kofi'         => 'Ko-fi tips',
-    'patreon'      => 'Patreon',
-    'fourthwall'   => 'Fourthwall'
-];
-foreach ($simpleCategorySeeds as $simpleCat => $simpleLabel) {
-    $chk = $db->prepare("SELECT id FROM twitch_alerts WHERE alert_category = ? ORDER BY id ASC");
-    $chk->bind_param('s', $simpleCat);
-    $chk->execute();
-    $res = $chk->get_result();
-    $existingIds = [];
-    while ($row = $res->fetch_assoc()) {
-        $existingIds[] = $row['id'];
-    }
-    $chk->close();
-    
-    if (count($existingIds) === 0) {
-        $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
-        $ins->bind_param('ss', $simpleCat, $simpleLabel);
-        $ins->execute();
-        $ins->close();
-    } else {
-        $primaryId = $existingIds[0];
-        $up = $db->prepare("UPDATE twitch_alerts SET variant_name = ? WHERE id = ?");
-        $up->bind_param('si', $simpleLabel, $primaryId);
-        $up->execute();
-        $up->close();
-        
-        if (count($existingIds) > 1) {
-            array_shift($existingIds);
-            $inClause = implode(',', array_map('intval', $existingIds));
-            $db->query("DELETE FROM twitch_alerts WHERE id IN ($inClause)");
-        }
-    }
-}
-
-# Data load for page render
-$allAlerts = [];
-$alertsByCategory = [];
-$result = $db->query("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index");
-while ($row = $result->fetch_assoc()) {
-    $allAlerts[$row['id']] = $row;
-    $alertsByCategory[$row['alert_category']][] = $row;
-}
-$alertsJson = json_encode($allAlerts);
-
-// Per-category randomize flags
-$categoryRandomize = [];
-if ($r = $db->query("SELECT category, randomize FROM twitch_alert_category_settings")) {
-    while ($row = $r->fetch_assoc()) {
-        $categoryRandomize[$row['category']] = (int)$row['randomize'];
-    }
-    $r->free();
-}
-
 $categoryMeta = [
     'follow'            => ['icon' => 'fas fa-heart', 'label' => 'Follows'],
     'subscription'      => ['icon' => 'fas fa-star', 'label' => 'Subscriptions'],
@@ -463,24 +481,6 @@ $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-B
 $mediaBase = "https://media.botofthespecter.com/$username/";
 
 $browserSourceUrl = "https://overlay.botofthespecter.com/?code=" . urlencode($api_key);
-$totalVariants = count($allAlerts);
-
-// Library files exposed to the picker - only types this builder can use
-$libraryImageExts = ['png', 'jpg', 'jpeg', 'gif', 'webm'];
-$librarySoundExts = ['mp3'];
-$libraryImages = [];
-$librarySounds = [];
-if (is_dir($media_path)) {
-    foreach (scandir($media_path) as $f) {
-        if ($f === '.' || $f === '..') continue;
-        if (!is_file($media_path . '/' . $f)) continue;
-        $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
-        if (in_array($ext, $libraryImageExts, true)) $libraryImages[] = $f;
-        elseif (in_array($ext, $librarySoundExts, true)) $librarySounds[] = $f;
-    }
-    sort($libraryImages, SORT_STRING | SORT_FLAG_CASE);
-    sort($librarySounds, SORT_STRING | SORT_FLAG_CASE);
-}
 
 ob_start();
 ?>
@@ -494,7 +494,7 @@ ob_start();
         <div class="alerts-top-bar-left">
             <h1 class="alerts-page-title"><?= t('alerts_page_title') ?></h1>
             <span class="alerts-variant-counter">
-                <strong id="alerts-variant-count"><?php echo $totalVariants; ?></strong> <?= t('alerts_variants_word') ?>
+                <strong id="alerts-variant-count"><span class="sp-skeleton-line w-40"></span></strong> <?= t('alerts_variants_word') ?>
             </span>
         </div>
         <div class="alerts-top-bar-right">
@@ -516,55 +516,39 @@ ob_start();
                     <a href="#" class="alerts-edit-multiple" id="alerts-edit-multiple-link"><?= t('alerts_edit_multiple') ?></a>
                 </div>
             </div>
-            <div class="alerts-categories-scroll">
+            <div class="alerts-categories-scroll" id="alerts-categories-scroll" aria-busy="true">
                 <?php foreach ($categoryMeta as $category => $meta):
-                    $variants = $alertsByCategory[$category] ?? [];
-                    $randomize = $categoryRandomize[$category] ?? 0;
                     $catLimit = $variantLimits[$category] ?? null;
-                    $canAddVariant = ($catLimit === null) || (count($variants) < $catLimit);
                     $showRandomize = ($catLimit === null || $catLimit > 1);
-                    $showControls = $showRandomize || $canAddVariant;
+                    $showControls = $showRandomize;
                 ?>
                 <section class="alerts-category" data-category="<?php echo htmlspecialchars($category); ?>">
                     <header class="alerts-category-header">
                         <span class="alerts-category-icon"><i class="<?php echo $meta['icon']; ?>"></i></span>
                         <span class="alerts-category-name"><?php echo htmlspecialchars(t('alerts_cat_' . $category)); ?></span>
-                        <span class="alerts-category-count"><?php echo count($variants); ?></span>
+                        <span class="alerts-category-count"><span class="sp-skeleton-badge"></span></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-category-body">
                         <div class="alerts-category-controls"<?php echo $showControls ? '' : ' style="display:none;"'; ?>>
                             <?php if ($showRandomize): ?>
                             <label class="alerts-mini-toggle">
-                                <input type="checkbox" class="alerts-randomize-toggle" data-category="<?php echo htmlspecialchars($category); ?>" <?php echo $randomize ? 'checked' : ''; ?>>
+                                <input type="checkbox" class="alerts-randomize-toggle" data-category="<?php echo htmlspecialchars($category); ?>">
                                 <span class="alerts-mini-toggle-slider"></span>
                                 <span class="alerts-mini-toggle-text"><?= t('alerts_randomize') ?></span>
                             </label>
                             <?php endif; ?>
-                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="<?= htmlspecialchars(t('alerts_new_variant_title')) ?>"<?php echo $canAddVariant ? '' : ' style="display:none;"'; ?>>
+                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="<?= htmlspecialchars(t('alerts_new_variant_title')) ?>"<?php echo ($catLimit === null) ? '' : ' style="display:none;"'; ?>>
                                 <i class="fas fa-plus"></i> <?= t('alerts_new_variant_btn') ?>
                             </button>
                         </div>
-                        <ul class="alerts-variant-list">
-                            <?php foreach ($variants as $variant): ?>
-                            <li class="alerts-variant-item" data-id="<?php echo $variant['id']; ?>">
-                                <span class="alerts-variant-handle" title="<?= htmlspecialchars(t('alerts_drag_reorder')) ?>"><i class="fas fa-grip-vertical"></i></span>
-                                <span class="alerts-variant-priority"><?php echo $variant['variant_index'] + 1; ?></span>
-                                <div class="alerts-variant-info">
-                                    <div class="variant-name"><?php echo htmlspecialchars($variant['variant_name']); ?></div>
-                                    <?php if ($variant['alert_condition']): ?>
-                                    <div class="variant-condition"><?php echo htmlspecialchars($variant['alert_condition']); ?></div>
-                                    <?php endif; ?>
+                        <ul class="alerts-variant-list" aria-busy="true">
+                            <li aria-hidden="true">
+                                <div class="sp-skeleton-stack">
+                                    <span class="sp-skeleton-line w-70"></span>
+                                    <span class="sp-skeleton-line w-50"></span>
                                 </div>
-                                <label class="alerts-mini-toggle" onclick="event.stopPropagation();">
-                                    <input type="checkbox" class="alerts-variant-enabled-toggle" data-id="<?php echo $variant['id']; ?>" <?php echo $variant['enabled'] ? 'checked' : ''; ?>>
-                                    <span class="alerts-mini-toggle-slider"></span>
-                                </label>
                             </li>
-                            <?php endforeach; ?>
-                            <?php if (empty($variants)): ?>
-                            <li class="alerts-variant-empty"><?= t('alerts_no_variants_yet') ?></li>
-                            <?php endif; ?>
                         </ul>
                     </div>
                 </section>
@@ -676,9 +660,12 @@ ob_start();
                             <label><?= t('alerts_variant_name') ?></label>
                             <input type="text" class="sp-input" id="set-variant-name">
                         </div>
-                        <div class="alerts-form-group" id="variant-reward-group" style="display:none;">
+                        <div class="alerts-form-group" id="variant-reward-group" style="display:none;" aria-busy="true">
                             <label><?= t('alerts_channel_point_reward') ?></label>
-                            <select class="sp-select" id="set-reward-id">
+                            <div id="set-reward-id-skeleton" class="sp-skeleton-stack" aria-hidden="true">
+                                <span class="sp-skeleton-line w-90"></span>
+                            </div>
+                            <select class="sp-select" id="set-reward-id" style="display:none;">
                                 <option value=""><?= t('alerts_select_a_reward') ?></option>
                             </select>
                             <small class="alerts-help-text"><?= t('alerts_reward_help') ?></small>
@@ -1048,7 +1035,7 @@ ob_start();
         <div class="sp-modal-body">
             <p class="alerts-help-text"><?= t('alerts_library_modal_help') ?></p>
             <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="<?= htmlspecialchars(t('alerts_search_files')) ?>">
-            <div class="alerts-library-grid" id="alerts-library-grid" aria-busy="false"></div>
+            <div class="alerts-library-grid" id="alerts-library-grid" aria-busy="true"></div>
             <div class="alerts-library-empty" id="alerts-library-empty" style="display:none;">
                 <?= t('alerts_library_empty') ?>
             </div>
@@ -1062,13 +1049,52 @@ ob_start();
 ?>
 <script>
 $(document).ready(function() {
-    const alertsData = <?php echo $alertsJson; ?>;
+    let alertsData = {};
+    let categoryRandomize = {};
     const mediaBase = <?php echo json_encode($mediaBase); ?>;
     const apiKey = <?php echo json_encode($api_key); ?>;
     const channelName = <?php echo json_encode($username); ?>;
-    const libraryImages = <?php echo json_encode($libraryImages); ?>;
-    const librarySounds = <?php echo json_encode($librarySounds); ?>;
-    const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
+    let libraryImages = [];
+    let librarySounds = [];
+    let channelPointRewards = [];
+    let libraryListReady = false;
+    let libraryListFailed = false;
+    function normalizeAlertsMap(raw) {
+        var map = {}, id;
+        if (!raw) return map;
+        if (Array.isArray(raw)) {
+            raw.forEach(function(a) {
+                if (a && a.id != null) map[a.id] = a;
+            });
+            return map;
+        }
+        for (id in raw) {
+            if (Object.prototype.hasOwnProperty.call(raw, id) && raw[id]) map[id] = raw[id];
+        }
+        return map;
+    }
+    const libraryListPromise = (function() {
+        var url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        return fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) throw new Error('list failed');
+                libraryImages = Array.isArray(data.libraryImages) ? data.libraryImages : [];
+                librarySounds = Array.isArray(data.librarySounds) ? data.librarySounds : [];
+                channelPointRewards = Array.isArray(data.channelPointRewards) ? data.channelPointRewards : [];
+                alertsData = normalizeAlertsMap(data.alerts);
+                categoryRandomize = (data.categoryRandomize && !Array.isArray(data.categoryRandomize))
+                    ? data.categoryRandomize
+                    : {};
+                libraryListReady = true;
+                libraryListFailed = false;
+            })
+            .catch(function() {
+                libraryListReady = true;
+                libraryListFailed = true;
+            });
+    })();
     const bingoSubtypes = <?php echo json_encode($bingoSubtypes); ?>;
     const variantLimits = <?php echo json_encode($variantLimits); ?>;
     // Translated UI strings injected from PHP so JS never carries English literals.
@@ -1401,17 +1427,25 @@ $(document).ready(function() {
         var m = String(condition).match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
         return m ? m[1] : '';
     }
-    (function populateRewardDropdown() {
+    function populateRewardDropdown() {
         var sel = $('#set-reward-id');
-        if (!channelPointRewards.length) {
+        sel.find('option:not([value=""])').remove();
+        if (!libraryListFailed && !channelPointRewards.length) {
             sel.append('<option value="" disabled>' + escapeHtml(i18n.noRewardsSynced) + '</option>');
-            return;
+        } else {
+            channelPointRewards.forEach(function(r) {
+                var label = r.reward_title + (r.reward_cost ? ' (' + r.reward_cost + ' pts)' : '');
+                sel.append('<option value="' + $('<div>').text(r.reward_id).html() + '">' + $('<div>').text(label).html() + '</option>');
+            });
         }
-        channelPointRewards.forEach(function(r) {
-            var label = r.reward_title + (r.reward_cost ? ' (' + r.reward_cost + ' pts)' : '');
-            sel.append('<option value="' + $('<div>').text(r.reward_id).html() + '">' + $('<div>').text(label).html() + '</option>');
-        });
-    })();
+        $('#set-reward-id-skeleton').hide();
+        sel.show();
+        $('#variant-reward-group').attr('aria-busy', 'false');
+        if (currentAlertId && alertsData[currentAlertId] && alertsData[currentAlertId].alert_category === 'channel_points') {
+            applyCategoryUI('channel_points', alertsData[currentAlertId].alert_condition);
+        }
+    }
+    libraryListPromise.then(populateRewardDropdown);
     function extractBingoEvent(condition) {
         if (!condition) return '';
         var m = String(condition).match(/bingo_event\s*=\s*['"]?([^'"\s]+)['"]?/);
@@ -1898,20 +1932,7 @@ $(document).ready(function() {
             var $cat = $('.alerts-category[data-category="' + category + '"]');
             $cat.find('.alerts-variant-empty').remove();
             var $list = $cat.find('.alerts-variant-list');
-            var html = ''
-                + '<li class="alerts-variant-item" data-id="' + v.id + '">'
-                +   '<span class="alerts-variant-handle" title="' + escapeHtml(i18n.dragReorder) + '"><i class="fas fa-grip-vertical"></i></span>'
-                +   '<span class="alerts-variant-priority">' + (parseInt(v.variant_index) + 1) + '</span>'
-                +   '<div class="alerts-variant-info">'
-                +     '<div class="variant-name">' + escapeHtml(v.variant_name) + '</div>'
-                +     (v.alert_condition ? '<div class="variant-condition">' + escapeHtml(v.alert_condition) + '</div>' : '')
-                +   '</div>'
-                +   '<label class="alerts-mini-toggle" onclick="event.stopPropagation();">'
-                +     '<input type="checkbox" class="alerts-variant-enabled-toggle" data-id="' + v.id + '" ' + (v.enabled == 1 ? 'checked' : '') + '>'
-                +     '<span class="alerts-mini-toggle-slider"></span>'
-                +   '</label>'
-                + '</li>';
-            $list.append(html);
+            $list.append(variantItemHtml(v));
             $cat.find('.alerts-category-count').text($list.find('.alerts-variant-item').length);
             updateAddButtonFor(category);
             updateVariantCount();
@@ -2198,7 +2219,6 @@ $(document).ready(function() {
     function openLibrary(mode) {
         libraryMode = mode;
         libraryFirstPaintDone = false;
-        var files = mode === 'image' ? libraryImages : librarySounds;
         $('#alerts-library-modal-title').text(mode === 'image' ? i18n.chooseImage : i18n.chooseSound);
         $('#alerts-library-search').val('');
         $('#alerts-library-empty').hide();
@@ -2206,10 +2226,23 @@ $(document).ready(function() {
         setBusy(grid, true);
         grid.html(skeletonLibraryGridHtml(8));
         $('#alerts-library-modal').css('display', 'flex');
-        // Yield a frame so the square-thumb skeletons paint before building media DOM.
-        window.requestAnimationFrame(function() {
+        function paintLibrary() {
+            if (libraryListFailed) {
+                grid.empty();
+                setBusy(grid, false);
+                return;
+            }
+            var files = mode === 'image' ? libraryImages : librarySounds;
             renderLibrary(files, '');
-        });
+        }
+        // Yield a frame so the square-thumb skeletons paint before building media DOM.
+        if (libraryListReady) {
+            window.requestAnimationFrame(paintLibrary);
+        } else {
+            libraryListPromise.then(function() {
+                window.requestAnimationFrame(paintLibrary);
+            });
+        }
     }
     function closeLibrary() {
         $('#alerts-library-modal').hide();
@@ -2263,6 +2296,7 @@ $(document).ready(function() {
         if (e.target === this) closeLibrary();
     });
     $('#alerts-library-search').on('input', function() {
+        if (!libraryListReady || libraryListFailed) return;
         var files = libraryMode === 'image' ? libraryImages : librarySounds;
         renderLibrary(files, this.value);
     });
@@ -2293,13 +2327,61 @@ $(document).ready(function() {
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
-    // Auto-open first category and select first variant on load
-    var $firstCategory = $('.alerts-category:first');
-    if ($firstCategory.length) {
-        $firstCategory.addClass('open');
-        var $firstVariant = $firstCategory.find('.alerts-variant-item:first');
-        if ($firstVariant.length) $firstVariant.click();
+    function variantItemHtml(v) {
+        return '<li class="alerts-variant-item" data-id="' + v.id + '">'
+            +   '<span class="alerts-variant-handle" title="' + escapeHtml(i18n.dragReorder) + '"><i class="fas fa-grip-vertical"></i></span>'
+            +   '<span class="alerts-variant-priority">' + (parseInt(v.variant_index, 10) + 1) + '</span>'
+            +   '<div class="alerts-variant-info">'
+            +     '<div class="variant-name">' + escapeHtml(v.variant_name) + '</div>'
+            +     (v.alert_condition ? '<div class="variant-condition">' + escapeHtml(v.alert_condition) + '</div>' : '')
+            +   '</div>'
+            +   '<label class="alerts-mini-toggle" onclick="event.stopPropagation();">'
+            +     '<input type="checkbox" class="alerts-variant-enabled-toggle" data-id="' + v.id + '" ' + (v.enabled == 1 ? 'checked' : '') + '>'
+            +     '<span class="alerts-mini-toggle-slider"></span>'
+            +   '</label>'
+            + '</li>';
     }
+    function renderVariantSidebar() {
+        // Keep skeletons on a failed load — empty-state text only after a successful empty fetch.
+        if (libraryListFailed) return;
+        var byCat = {};
+        Object.keys(alertsData).forEach(function(id) {
+            var a = alertsData[id];
+            if (!a || !a.alert_category) return;
+            if (!byCat[a.alert_category]) byCat[a.alert_category] = [];
+            byCat[a.alert_category].push(a);
+        });
+        Object.keys(byCat).forEach(function(cat) {
+            byCat[cat].sort(function(a, b) {
+                return (parseInt(a.variant_index, 10) || 0) - (parseInt(b.variant_index, 10) || 0);
+            });
+        });
+        $('.alerts-category').each(function() {
+            var $cat = $(this);
+            var cat = $cat.data('category');
+            var variants = byCat[cat] || [];
+            var $list = $cat.find('.alerts-variant-list');
+            if (variants.length === 0) {
+                $list.html('<li class="alerts-variant-empty">' + escapeHtml(i18n.noVariantsYet) + '</li>');
+            } else {
+                $list.html(variants.map(variantItemHtml).join(''));
+            }
+            $list.removeAttr('aria-busy');
+            $cat.find('.alerts-category-count').text(variants.length);
+            var $rand = $cat.find('.alerts-randomize-toggle');
+            if ($rand.length) $rand.prop('checked', !!categoryRandomize[cat]);
+            updateAddButtonFor(cat);
+        });
+        $('#alerts-categories-scroll').removeAttr('aria-busy');
+        updateVariantCount();
+        var $firstCategory = $('.alerts-category:first');
+        if ($firstCategory.length) {
+            $firstCategory.addClass('open');
+            var $firstVariant = $firstCategory.find('.alerts-variant-item:first');
+            if ($firstVariant.length) $firstVariant.click();
+        }
+    }
+    libraryListPromise.then(renderVariantSidebar);
 });
 </script>
 <?php

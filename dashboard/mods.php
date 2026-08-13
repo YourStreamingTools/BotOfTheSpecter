@@ -102,13 +102,249 @@ $pageTitle = t('mods_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $broadcasterId = isset($_SESSION['twitchUserId']) ? (string)$_SESSION['twitchUserId'] : (string)($broadcasterID ?? '');
+        $stmt = $conn->prepare('SELECT moderator_id FROM moderator_access WHERE broadcaster_id = ?');
+        $stmt->bind_param('s', $broadcasterId);
+        $stmt->execute();
+        $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $accessIds = [];
+        foreach ($moderatorsAccess as $accessRow) {
+            $accessModeratorId = (string)($accessRow['moderator_id'] ?? '');
+            if ($accessModeratorId !== '') {
+                $accessIds[$accessModeratorId] = true;
+            }
+        }
+
+        $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+        $allModerators = [];
+        $cursor = null;
+        do {
+            $moderatorsURL = 'https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=' . rawurlencode($broadcasterId);
+            if ($cursor) {
+                $moderatorsURL .= '&after=' . rawurlencode($cursor);
+            }
+            $curl = curl_init($moderatorsURL);
+            curl_setopt($curl, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $authToken,
+                'Client-ID: ' . $clientID
+            ]);
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            $response = curl_exec($curl);
+            $httpCode = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            curl_close($curl);
+            if ($response === false) {
+                echo json_encode(['success' => false, 'error' => 'helix_request_failed']);
+                exit();
+            }
+            if ($httpCode !== 200) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'helix_http_' . $httpCode,
+                    'token_invalid' => ($httpCode === 401),
+                ]);
+                exit();
+            }
+            $moderatorsData = json_decode($response, true);
+            if (!empty($moderatorsData['data']) && is_array($moderatorsData['data'])) {
+                $allModerators = array_merge($allModerators, $moderatorsData['data']);
+            }
+            $cursor = $moderatorsData['pagination']['cursor'] ?? null;
+        } while ($cursor);
+
+        $botAccounts = [
+            'yourstreamingtools',
+            'botrixoficial',
+            'streamelements',
+            'lumiastream',
+            'kofistreambot',
+            'fourthwall',
+            'fourthwallhq',
+            'nightbot',
+            'moobot',
+            'streamlabs',
+            'commanderroot',
+            'botisimo',
+            'fossabot',
+            'wizebot',
+            'deepbot',
+            'streamcaptainbot',
+            'moderator',
+            'raidshield',
+            'ankhbot',
+            'phantombot',
+            'streamlooter',
+            'revlobot',
+            'scottybot',
+            'ai_licia',
+            'pokemoncommunitygame'
+        ];
+
+        $filteredModerators = array_values(array_filter($allModerators, function ($moderator) use ($botAccounts) {
+            return !in_array(strtolower($moderator['user_name'] ?? ''), $botAccounts, true);
+        }));
+
+        $botOfTheSpecterMod = null;
+        foreach ($filteredModerators as $key => $mod) {
+            if (strtolower($mod['user_name'] ?? '') === 'botofthespecter') {
+                $botOfTheSpecterMod = $mod;
+                unset($filteredModerators[$key]);
+                break;
+            }
+        }
+        if ($botOfTheSpecterMod) {
+            $filteredModerators = array_merge([$botOfTheSpecterMod], array_values($filteredModerators));
+        }
+
+        $currentModeratorIdSet = array_flip(array_map('strval', array_column($allModerators, 'user_id')));
+        $staleIds = [];
+        foreach ($accessIds as $accessModeratorId => $_hasAccess) {
+            if (!isset($currentModeratorIdSet[$accessModeratorId])) {
+                $staleIds[] = $accessModeratorId;
+            }
+        }
+
+        $registeredUsersByTwitchId = [];
+        if (!empty($staleIds)) {
+            $placeholders = implode(',', array_fill(0, count($staleIds), '?'));
+            $userLookupStmt = $conn->prepare('SELECT twitch_user_id, twitch_display_name, username, profile_image FROM users WHERE twitch_user_id IN (' . $placeholders . ')');
+            if ($userLookupStmt) {
+                $userLookupStmt->bind_param(str_repeat('s', count($staleIds)), ...$staleIds);
+                $userLookupStmt->execute();
+                $lookupResult = $userLookupStmt->get_result();
+                while ($lookupRow = $lookupResult->fetch_assoc()) {
+                    $lookupId = (string)($lookupRow['twitch_user_id'] ?? '');
+                    if ($lookupId === '') {
+                        continue;
+                    }
+                    $registeredUsersByTwitchId[$lookupId] = [
+                        'display_name' => (string)($lookupRow['twitch_display_name'] ?? ''),
+                        'username' => (string)($lookupRow['username'] ?? ''),
+                        'profile_image' => (string)($lookupRow['profile_image'] ?? ''),
+                    ];
+                }
+                $userLookupStmt->close();
+            }
+        }
+
+        $staleProfileImages = [];
+        foreach ($staleIds as $accessModeratorId) {
+            $lookup = $registeredUsersByTwitchId[$accessModeratorId] ?? null;
+            $staleName = '';
+            if (is_array($lookup)) {
+                $staleName = trim((string)($lookup['display_name'] ?? ''));
+                if ($staleName === '') {
+                    $staleName = trim((string)($lookup['username'] ?? ''));
+                }
+                if (!empty($lookup['profile_image'])) {
+                    $staleProfileImages[$accessModeratorId] = (string)$lookup['profile_image'];
+                }
+            }
+            if ($staleName === '') {
+                $staleName = 'User ' . $accessModeratorId;
+            }
+            $filteredModerators[] = [
+                'user_id' => $accessModeratorId,
+                'user_name' => $staleName,
+                'is_stale_access' => true,
+            ];
+        }
+
+        $displayNames = [];
+        foreach ($filteredModerators as $moderator) {
+            $displayName = trim((string)($moderator['user_name'] ?? ''));
+            if ($displayName !== '') {
+                $displayNames[] = $displayName;
+            }
+        }
+        $displayNames = array_values(array_unique($displayNames));
+        $registeredUsers = [];
+        if (!empty($displayNames)) {
+            $placeholders = implode(',', array_fill(0, count($displayNames), '?'));
+            $userStmt = $conn->prepare('SELECT twitch_display_name FROM users WHERE twitch_display_name IN (' . $placeholders . ')');
+            if ($userStmt) {
+                $userStmt->bind_param(str_repeat('s', count($displayNames)), ...$displayNames);
+                $userStmt->execute();
+                $result = $userStmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $registeredUsers[] = strtolower($row['twitch_display_name']);
+                }
+                $userStmt->close();
+            }
+        }
+
+        $modUserIds = array_values(array_filter(array_map('strval', array_column($filteredModerators, 'user_id'))));
+        $modProfileImages = [];
+        if (!empty($modUserIds)) {
+            $chunks = array_chunk($modUserIds, 100);
+            foreach ($chunks as $chunk) {
+                $idsParam = implode('&id=', $chunk);
+                $usersUrl = 'https://api.twitch.tv/helix/users?id=' . $idsParam;
+                $curl = curl_init($usersUrl);
+                curl_setopt($curl, CURLOPT_HTTPHEADER, [
+                    'Authorization: Bearer ' . $authToken,
+                    'Client-ID: ' . $clientID
+                ]);
+                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+                $usersResponse = curl_exec($curl);
+                curl_close($curl);
+                if ($usersResponse !== false) {
+                    $usersData = json_decode($usersResponse, true);
+                    if (isset($usersData['data'])) {
+                        foreach ($usersData['data'] as $helixUser) {
+                            $modProfileImages[$helixUser['id']] = $helixUser['profile_image_url'];
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!empty($staleProfileImages)) {
+            $modProfileImages = array_merge($modProfileImages, $staleProfileImages);
+        }
+
+        $rows = [];
+        foreach ($filteredModerators as $moderator) {
+            $modDisplayName = (string)($moderator['user_name'] ?? '');
+            $modUserId = (string)($moderator['user_id'] ?? '');
+            $isStaleAccess = !empty($moderator['is_stale_access']);
+            $hasAccess = isset($accessIds[$modUserId]);
+            $isRegistered = in_array(strtolower($modDisplayName), $registeredUsers, true);
+            $isSpecter = (strtolower($modDisplayName) === 'botofthespecter');
+            if ($isSpecter) {
+                $hasAccess = true;
+                $isRegistered = true;
+            }
+            $rows[] = [
+                'user_id' => $modUserId,
+                'user_name' => $modDisplayName,
+                'is_stale_access' => $isStaleAccess,
+                'is_registered' => $isRegistered,
+                'has_access' => $hasAccess,
+                'is_specter' => $isSpecter,
+                'profile_image' => isset($modProfileImages[$modUserId]) ? (string)$modProfileImages[$modUserId] : '',
+            ];
+        }
+
+        echo json_encode(['success' => true, 'moderators' => $rows]);
+    } catch (\Throwable $e) {
+        error_log('mods.php list: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -119,205 +355,6 @@ date_default_timezone_set($timezone);
 $isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
 $isActingAsAdmin = $isActingAs && isset($_SESSION['admin_act_as_actor_role']) && $_SESSION['admin_act_as_actor_role'] === 'admin';
 $disableModActions = $isActingAs && !$isActingAsAdmin;
-
-// Fetch all moderators and their access status (requires $conn from db_connect.php)
-$stmt = $conn->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = ?');
-$stmt->bind_param('s', $_SESSION['twitchUserId']);
-$stmt->execute();
-$moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-// Fetch all registered users from the users table
-$registeredUsers = [];
-$registeredUsersByTwitchId = [];
-$userStmt = $conn->prepare('SELECT twitch_display_name FROM users');
-$userStmt->execute();
-$result = $userStmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    $registeredUsers[] = strtolower($row['twitch_display_name']);
-}
-
-// Build a lookup for Twitch user ID -> display/profile data (used for stale access entries)
-$userLookupStmt = $conn->prepare('SELECT twitch_user_id, twitch_display_name, username, profile_image FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != ""');
-if ($userLookupStmt) {
-    $userLookupStmt->execute();
-    $lookupResult = $userLookupStmt->get_result();
-    while ($lookupRow = $lookupResult->fetch_assoc()) {
-        $lookupId = (string)($lookupRow['twitch_user_id'] ?? '');
-        if ($lookupId === '') {
-            continue;
-        }
-        $registeredUsersByTwitchId[$lookupId] = [
-            'display_name' => (string)($lookupRow['twitch_display_name'] ?? ''),
-            'username' => (string)($lookupRow['username'] ?? ''),
-            'profile_image' => (string)($lookupRow['profile_image'] ?? ''),
-        ];
-    }
-    $userLookupStmt->close();
-}
-
-// API endpoint to fetch moderators
-$moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID";
-$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-
-$allModerators = [];
-do {
-    // Set up cURL request with headers
-    $curl = curl_init($moderatorsURL);
-    curl_setopt($curl, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $authToken,
-        'Client-ID: ' . $clientID
-    ]);
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-    // Execute cURL request
-    $response = curl_exec($curl);
-    if ($response === false) { exit; }
-    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    if ($httpCode !== 200) {
-        if ($httpCode === 401) {
-            echo "<div style='color:red;font-weight:bold;'>" . t('mods_token_invalid') . "</div>";
-        }
-        exit;
-    }
-// Process and append moderator information to the array
-    $moderatorsData = json_decode($response, true);
-    $allModerators = array_merge($allModerators, $moderatorsData['data']);
-    // Check if there are more pages of moderators
-    $cursor = $moderatorsData['pagination']['cursor'] ?? null;
-    $moderatorsURL = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=$broadcasterID&after=$cursor";
-} while ($cursor);
-
-// Number of moderators per page
-$moderatorsPerPage = 50;
-
-// Calculate the total number of pages
-$totalPages = ceil(count($allModerators) / $moderatorsPerPage);
-
-// Current page (default to 1 if not specified)
-$currentPage = isset($_GET['page']) ? max(1, min($totalPages, intval($_GET['page']))) : 1;
-
-// Calculate the start and end index for the current page
-$startIndex = ($currentPage - 1) * $moderatorsPerPage;
-$endIndex = $startIndex + $moderatorsPerPage;
-
-// Get moderators for the current page
-$moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderatorsPerPage);
-
-// Filter out common bot accounts
-$botAccounts = [
-    'yourstreamingtools',
-    'botrixoficial',
-    'streamelements',
-    'lumiastream',
-    'kofistreambot',
-    'fourthwall',
-    'fourthwallhq',
-    'nightbot',
-    'moobot',
-    'streamlabs',
-    'commanderroot',
-    'botisimo',
-    'fossabot',
-    'wizebot',
-    'deepbot',
-    'streamcaptainbot',
-    'moderator',
-    'raidshield',
-    'ankhbot',
-    'phantombot',
-    'streamlooter',
-    'revlobot',
-    'scottybot',
-    'ai_licia',
-    'pokemoncommunitygame'
-];
-
-$filteredModerators = array_filter($allModerators, function($moderator) use ($botAccounts) {
-    return !in_array(strtolower($moderator['user_name']), $botAccounts);
-});
-
-// Move BotOfTheSpecter to the top if present
-$botOfTheSpecterMod = null;
-foreach ($filteredModerators as $key => $mod) {
-    if (strtolower($mod['user_name']) === 'botofthespecter') {
-        $botOfTheSpecterMod = $mod;
-        unset($filteredModerators[$key]);
-        break;
-    }
-}
-if ($botOfTheSpecterMod) {
-    $filteredModerators = array_merge([$botOfTheSpecterMod], $filteredModerators);
-}
-
-// Include users who still have dashboard access but are no longer moderators on Twitch
-$currentModeratorIds = array_map('strval', array_column($allModerators, 'user_id'));
-$currentModeratorIdSet = array_flip($currentModeratorIds);
-$staleProfileImages = [];
-foreach ($moderatorsAccess as $accessRow) {
-    $accessModeratorId = (string)($accessRow['moderator_id'] ?? '');
-    if ($accessModeratorId === '' || isset($currentModeratorIdSet[$accessModeratorId])) {
-        continue;
-    }
-
-    $lookup = $registeredUsersByTwitchId[$accessModeratorId] ?? null;
-    $staleName = '';
-    if (is_array($lookup)) {
-        $staleName = trim((string)($lookup['display_name'] ?? ''));
-        if ($staleName === '') {
-            $staleName = trim((string)($lookup['username'] ?? ''));
-        }
-        if (!empty($lookup['profile_image'])) {
-            $staleProfileImages[$accessModeratorId] = (string)$lookup['profile_image'];
-        }
-    }
-    if ($staleName === '') {
-        $staleName = 'User ' . $accessModeratorId;
-    }
-
-    $filteredModerators[] = [
-        'user_id' => $accessModeratorId,
-        'user_name' => $staleName,
-        'is_stale_access' => true,
-    ];
-}
-
-// Check if BotOfTheSpecter is already in the list
-$botOfTheSpecterExists = false;
-foreach ($filteredModerators as $mod) {
-    if (strtolower($mod['user_name']) === 'botofthespecter') {
-        $botOfTheSpecterExists = true;
-        break;
-    }
-}
-
-// Fetch profile images for all moderators (batch up to 100 per request)
-$modUserIds = array_column($filteredModerators, 'user_id');
-$modProfileImages = [];
-if (!empty($modUserIds)) {
-    $chunks = array_chunk($modUserIds, 100);
-    foreach ($chunks as $chunk) {
-        $idsParam = implode('&id=', $chunk);
-        $usersUrl = "https://api.twitch.tv/helix/users?id=" . $idsParam;
-        $curl = curl_init($usersUrl);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $authToken,
-            'Client-ID: ' . $clientID
-        ]);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        $usersResponse = curl_exec($curl);
-        if ($usersResponse !== false) {
-            $usersData = json_decode($usersResponse, true);
-            if (isset($usersData['data'])) {
-                foreach ($usersData['data'] as $user) {
-                    $modProfileImages[$user['id']] = $user['profile_image_url'];
-                }
-            }
-        }
-}
-}
-
-if (!empty($staleProfileImages)) {
-    $modProfileImages = array_merge($modProfileImages, $staleProfileImages);
-}
 
 // Start output buffering for layout
 ob_start();
@@ -359,50 +396,19 @@ ob_start();
                                     <th><?php echo t('mods_table_access'); ?></th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <?php 
-                                foreach ($filteredModerators as $moderator) : 
-                                    $modDisplayName = $moderator['user_name'];
-                                    $modUserId = $moderator['user_id'];
-                                    $isStaleAccess = !empty($moderator['is_stale_access']);
-                                    $hasAccess = in_array($modUserId, array_column($moderatorsAccess, 'moderator_id'));
-                                    $isRegistered = in_array(strtolower($modDisplayName), $registeredUsers);
-                                    if (strtolower($modDisplayName) === 'botofthespecter') {
-                                        $hasAccess = true;
-                                        $isRegistered = true;
-                                    }
-                                    $profileImg = isset($modProfileImages[$modUserId]) && $modProfileImages[$modUserId]
-                                        ? '<img src="' . htmlspecialchars($modProfileImages[$modUserId]) . '" alt="' . htmlspecialchars($modDisplayName) . '" style="width:32px;height:32px;margin-right:0.5em;border-radius:50%;object-fit:cover;flex-shrink:0;">'
-                                        : '<span style="width:32px;height:32px;font-size:1.1rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:0.5em;border-radius:50%;background:var(--accent-light);color:var(--accent-hover);flex-shrink:0;">' . strtoupper(mb_substr($modDisplayName, 0, 1)) . '</span>';
-                                ?>
-                                <tr>
+                            <tbody id="modsTableBody" aria-busy="true">
+                                <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                                <tr aria-hidden="true">
                                     <td>
-                                        <span style="display:flex;align-items:center;">
-                                            <?php echo $profileImg; ?>
-                                            <?php echo htmlspecialchars($modDisplayName); ?>
-                                            <?php if ($isStaleAccess): ?>
-                                                <span class="sp-badge sp-badge-amber ml-2"><?php echo t('mods_no_longer_mod'); ?></span>
-                                            <?php endif; ?>
+                                        <span style="display:flex;align-items:center;gap:0.5em;">
+                                            <span class="sp-skeleton-avatar"></span>
+                                            <span class="sp-skeleton-line w-50"></span>
                                         </span>
                                     </td>
-                                    <td>
-                                        <?php if ($isRegistered) : ?>
-                                            <span class="sp-text-success"><?php echo t('yes'); ?></span>
-                                        <?php else : ?>
-                                            <span class="sp-text-danger"><?php echo t('no'); ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if (strtolower($modDisplayName) === 'botofthespecter') : ?>
-                                            <button class="sp-btn sp-btn-success" disabled><?php echo t('mods_always_has_access'); ?></button>
-                                        <?php elseif ($hasAccess) : ?>
-                                            <button class="sp-btn sp-btn-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $disableModActions ? 'disabled title="' . htmlspecialchars(t('mods_acting_as_disabled')) . '"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
-                                        <?php else : ?>
-                                            <button class="sp-btn sp-btn-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $disableModActions ? 'disabled title="' . htmlspecialchars(t('mods_acting_as_disabled')) . '"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
-                                        <?php endif; ?>
-                                    </td>
+                                    <td><span class="sp-skeleton-line w-40"></span></td>
+                                    <td><span class="sp-skeleton-badge"></span></td>
                                 </tr>
-                                <?php endforeach; ?>
+                                <?php endfor; ?>
                             </tbody>
                         </table>
                     </div>
@@ -421,7 +427,21 @@ document.addEventListener('DOMContentLoaded', function() {
     var actingAsDisabledTitle = <?php echo json_encode(t('mods_acting_as_disabled')); ?>;
     var accessUpdatedSuccess = <?php echo json_encode(t('mods_access_updated_success')); ?>;
     var accessUpdateFailed = <?php echo json_encode(t('mods_access_update_generic_failed')); ?>;
+    var tokenInvalidHtml = <?php echo json_encode(t('mods_token_invalid')); ?>;
+    var yesText = <?php echo json_encode(t('yes')); ?>;
+    var noText = <?php echo json_encode(t('no')); ?>;
+    var alwaysHasAccess = <?php echo json_encode(t('mods_always_has_access')); ?>;
+    var noLongerMod = <?php echo json_encode(t('mods_no_longer_mod')); ?>;
     var disableModActions = <?php echo json_encode($disableModActions); ?>;
+    function escapeHtml(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+    function initialFromName(name) {
+        var value = String(name || '');
+        return value ? value.charAt(0).toUpperCase() : '?';
+    }
     function loadToastify() {
         return new Promise(function(resolve) {
             if (window.Toastify) return resolve();
@@ -505,10 +525,73 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.classList.remove('sp-btn-loading');
         });
     }
-    var buttons = document.querySelectorAll('.access-control');
-    buttons.forEach(function(btn) {
-        btn.addEventListener('click', handleClick);
-    });
+    function bindAccessButtons(root) {
+        var buttons = (root || document).querySelectorAll('.access-control');
+        buttons.forEach(function(btn) {
+            btn.addEventListener('click', handleClick);
+        });
+    }
+    function renderModsError(data) {
+        var tbody = document.getElementById('modsTableBody');
+        if (!tbody) return;
+        tbody.setAttribute('aria-busy', 'false');
+        if (data && data.token_invalid) {
+            tbody.innerHTML = '<tr><td colspan="3"><div style="color:red;font-weight:bold;">' + tokenInvalidHtml + '</div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = '<tr><td colspan="3">' + escapeHtml(accessUpdateFailed) + '</td></tr>';
+    }
+    function renderMods(rows) {
+        var tbody = document.getElementById('modsTableBody');
+        if (!tbody) return;
+        tbody.setAttribute('aria-busy', 'false');
+        if (!rows.length) {
+            tbody.innerHTML = '';
+            return;
+        }
+        tbody.innerHTML = rows.map(function(mod) {
+            var name = escapeHtml(mod.user_name);
+            var img = mod.profile_image
+                ? '<img src="' + escapeHtml(mod.profile_image) + '" alt="' + name + '" style="width:32px;height:32px;margin-right:0.5em;border-radius:50%;object-fit:cover;flex-shrink:0;">'
+                : '<span style="width:32px;height:32px;font-size:1.1rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:0.5em;border-radius:50%;background:var(--accent-light);color:var(--accent-hover);flex-shrink:0;">' + escapeHtml(initialFromName(mod.user_name)) + '</span>';
+            var stale = mod.is_stale_access
+                ? '<span class="sp-badge sp-badge-amber ml-2">' + escapeHtml(noLongerMod) + '</span>'
+                : '';
+            var registered = mod.is_registered
+                ? '<span class="sp-text-success">' + escapeHtml(yesText) + '</span>'
+                : '<span class="sp-text-danger">' + escapeHtml(noText) + '</span>';
+            var disabledAttrs = disableModActions
+                ? ' disabled title="' + escapeHtml(actingAsDisabledTitle) + '"'
+                : '';
+            var access;
+            if (mod.is_specter) {
+                access = '<button class="sp-btn sp-btn-success" disabled>' + escapeHtml(alwaysHasAccess) + '</button>';
+            } else if (mod.has_access) {
+                access = '<button class="sp-btn sp-btn-danger access-control" data-user-id="' + escapeHtml(mod.user_id) + '" data-action="remove"' + disabledAttrs + '>' + escapeHtml(removeText) + '</button>';
+            } else {
+                access = '<button class="sp-btn sp-btn-primary access-control" data-user-id="' + escapeHtml(mod.user_id) + '" data-action="add"' + disabledAttrs + '>' + escapeHtml(addText) + '</button>';
+            }
+            return '<tr><td><span style="display:flex;align-items:center;">' + img + name + stale + '</span></td><td>' + registered + '</td><td>' + access + '</td></tr>';
+        }).join('');
+        bindAccessButtons(tbody);
+    }
+    function loadMods() {
+        var url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) {
+                    renderModsError(data);
+                    return;
+                }
+                renderMods(Array.isArray(data.moderators) ? data.moderators : []);
+            })
+            .catch(function() {
+                renderModsError(null);
+            });
+    }
+    loadMods();
 });
 </script>
 <?php

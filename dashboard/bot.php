@@ -2,31 +2,20 @@
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-$today = new DateTime();
-$backup_system = false;
-
-require_once __DIR__ . '/api/twitch_token_validate.php';
 
 require_once '/var/www/lib/require_auth.php';
 $consoleLog = '';
 
 // Page Title and Initial Variables
 $pageTitle = t('bot_management_title');
-$statusOutput = '';
-$betaStatusOutput = '';
-$v6StatusOutput = '';
-$pid = '';
 $versionRunning = '';
 $betaVersionRunning = '';
 $v6VersionRunning = '';
+$newVersion = '';
+$betaNewVersion = '';
+$v6NewVersion = '';
 $BotIsMod = false;
 $BotModMessage = "";
-$setupMessage = "";
-$showButtons = false;
-$lastModifiedOutput = '';
-$lastRestartOutput = '';
-$stableLastModifiedOutput = '';
-$stableLastRestartOutput = '';
 
 $selectedBot = $_GET['bot'] ?? null;
 if (isset($_GET['bot'])) {
@@ -49,16 +38,119 @@ if (!in_array($selectedBot, ['stable', 'beta', 'v6'])) { $selectedBot = 'stable'
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include '/var/www/config/ssh.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
-// This page needs live fleet status — other pages that include bot_control.php do not.
-loadBotControlStatusGlobals();
-ensureBotVersionInfo();
 include "includes/mod_access.php";
-// Schema bootstrap runs after layout HTML (see layout.php). Avoid double-running here.
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+session_write_close();
+
+// Status/stream/Helix hydrate after paint (not a list table).
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+  header('Content-Type: application/json');
+  try {
+    require_once __DIR__ . '/api/ssh_file_status.php';
+    require_once __DIR__ . '/api/twitch_stream_status.php';
+    require_once __DIR__ . '/api/twitch_bot_status.php';
+    require_once __DIR__ . '/api/twitch_beta_access.php';
+
+    $betaResult = checkBetaAccess($user, $twitchUserId, $authToken, $clientID);
+    $ajaxBetaAccess = !empty($betaResult['betaAccess']);
+    $ajaxTier = $betaResult['tier'] ?? 'None';
+
+    $ajaxBotIsBanned = false;
+    $ajaxBotBanReason = '';
+    $ajaxBotIsMod = false;
+    if ($username !== 'botofthespecter') {
+      $ajaxBotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
+      if (!$ajaxBotIsMod) {
+        $banStatus = checkBotIsBanned($twitchUserId, $authToken, $clientID);
+        $ajaxBotIsBanned = !empty($banStatus['banned']);
+        $ajaxBotBanReason = $banStatus['reason'] ?? '';
+      }
+    } else {
+      $ajaxBotIsMod = true;
+    }
+
+    $ajaxBotModMessage = '';
+    if ($ajaxBotIsBanned) {
+      $ajaxBotModMessage = t('bot_banned_message', ['reason' => htmlspecialchars($ajaxBotBanReason)]);
+    } elseif (!$ajaxBotIsMod) {
+      $ajaxBotModMessage = t('bot_not_moderator_message');
+    }
+
+    $dbStatus = null;
+    $sshStatus = null;
+    $twitchStatus = null;
+    $finalStatus = null;
+    $internalOnline = false;
+    if (isset($username) && $username !== '') {
+      $stmt = $db->prepare("SELECT status FROM stream_status");
+      $stmt->execute();
+      $stmt->bind_result($dbStatus);
+      if (!$stmt->fetch()) {
+        $dbStatus = null;
+      }
+      $stmt->close();
+      $sshStatus = checkSSHFileStatus($username);
+      $twitchStatus = checkTwitchStreamStatus($twitchUserId, $authToken, $clientID);
+      if ($twitchStatus === 'True') {
+        $finalStatus = 'True';
+      } elseif ($dbStatus === 'True' || $sshStatus === 'True') {
+        $finalStatus = 'True';
+      } elseif ($dbStatus === 'False' && $sshStatus === 'False') {
+        $finalStatus = 'False';
+      } elseif ($dbStatus === 'False' && $sshStatus === null) {
+        $finalStatus = 'False';
+      } elseif ($dbStatus === null && $sshStatus === 'False') {
+        $finalStatus = 'False';
+      } elseif ($dbStatus === null && $sshStatus === null) {
+        $finalStatus = null;
+      } else {
+        $finalStatus = 'False';
+      }
+      $internalOnline = ($dbStatus === 'True' || $sshStatus === 'True');
+    }
+
+    $formatStatus = static function ($status) {
+      if ($status === 'True') return 'Online';
+      if ($status === 'False') return 'Offline';
+      return $status ?? 'null';
+    };
+
+    echo json_encode([
+      'success' => true,
+      'beta_access' => $ajaxBetaAccess,
+      'tier' => $ajaxTier,
+      'bot_is_mod' => $ajaxBotIsMod,
+      'bot_is_banned' => $ajaxBotIsBanned,
+      'bot_ban_reason' => $ajaxBotBanReason,
+      'bot_mod_message' => $ajaxBotModMessage,
+      'stream' => [
+        'db' => $dbStatus,
+        'ssh' => $sshStatus,
+        'twitch' => $twitchStatus,
+        'final' => $finalStatus,
+        'internal_online' => $internalOnline,
+      ],
+      'stream_labels' => [
+        'db' => $formatStatus($dbStatus),
+        'ssh' => $formatStatus($sshStatus),
+        'twitch' => $formatStatus($twitchStatus),
+        'final' => $formatStatus($finalStatus),
+      ],
+      'tooltips' => [
+        'db' => t('bot_db_explanation'),
+        'ssh' => t('bot_ssh_explanation'),
+        'twitch' => t('bot_twitch_explanation'),
+        'final' => t('bot_final_explanation'),
+      ],
+    ]);
+  } catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+  }
+  exit();
+}
+
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -88,249 +180,28 @@ if (isset($user_id)) {
   }
 }
 
-// Ensure version variables exist to avoid undefined variable notices
-if (!isset($newVersion) || $newVersion === null || $newVersion === '') {
-  ensureBotVersionInfo();
-}
-if (!isset($betaNewVersion) || $betaNewVersion === null || $betaNewVersion === '') {
-  ensureBotVersionInfo();
-}
-if (!isset($v6NewVersion) || $v6NewVersion === null || $v6NewVersion === '') {
-  ensureBotVersionInfo();
-}
-if (!isset($versionFilePath)) {
-  $versionFilePath = null;
-}
-if (!isset($betaVersionFilePath)) {
-  $betaVersionFilePath = null;
-}
-if (!isset($v6VersionFilePath)) {
-  $v6VersionFilePath = null;
-}
-
-require_once __DIR__ . '/api/ssh_file_status.php';
-require_once __DIR__ . '/api/twitch_stream_status.php';
-require_once __DIR__ . '/api/twitch_bot_status.php';
-
-// Check Beta Access
-require_once __DIR__ . '/api/twitch_beta_access.php';
-$betaResult = checkBetaAccess($user, $twitchUserId, $authToken, $clientID);
-$betaAccess = $betaResult['betaAccess'];
-$_SESSION['tier'] = $betaResult['tier'];
-
-// Check if bot is mod
-$BotIsBanned = false;
-$BotBanReason = '';
-if ($username !== 'botofthespecter') {
-  $BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
-  // Only check ban status if bot is NOT a moderator
-  if (!$BotIsMod) {
-    $banStatus = checkBotIsBanned($twitchUserId, $authToken, $clientID);
-    $BotIsBanned = $banStatus['banned'];
-    $BotBanReason = $banStatus['reason'];
-  }
-} else {
-  $BotIsMod = true; // Bot is the channel owner, no mod check needed
-}
-if ($BotIsBanned) {
-  $BotModMessage = t('bot_banned_message', ['reason' => htmlspecialchars($BotBanReason)]);
-} elseif (!$BotIsMod) {
-  $BotModMessage = t('bot_not_moderator_message');
-}
-
-// Display subscription warning for Beta if no access
-$subscriptionWarning = '';
-if ($selectedBot === 'beta' && !$betaAccess) {
-  $subscriptionWarning = '<div class="sp-alert sp-alert-warning">'
-    . t('bot_beta_subscription_warning', ['premium_url' => 'premium.php'])
-    . '</div>';
-}
-
-// Check running status for all bots to prevent conflicts
-$stableRunning = false; // Will be determined by JavaScript
-$betaRunning = false;   // Will be determined by JavaScript
-$v6Running = false;     // Will be determined by JavaScript
-$runningBotCount = 0;
-$multiBotWarning = '';
-if ($stableRunning || $betaRunning || $v6Running) {
-  $multiBotWarning = '<div class="sp-alert sp-alert-danger">'
-    . t('bot_multi_bot_warning')
-    . '</div>';
-}
-
-// Check if the bot "knows" the user is online
-$tagClass = 'bot-stream-status';
-$userOnlineStatus = null;
-$dbStatus = null;
-$sshStatus = null;
-$twitchStatus = null;
-$finalStatus = null;
-
-if (isset($username) && $username !== '') {
-  // Check 1: Database status
-  $stmt = $db->prepare("SELECT status FROM stream_status");
-  $stmt->execute();
-  $stmt->bind_result($dbStatus);
-  if ($stmt->fetch()) {
-    // Database status retrieved
-  } else {
-    $dbStatus = null;
-  }
-  $stmt->close();
-  // Check 2: SSH file status
-  $sshStatus = checkSSHFileStatus($username);
-  // Check 3: Twitch API status (authoritative for online, never for offline)
-  $twitchStatus = checkTwitchStreamStatus($twitchUserId, $authToken, $clientID);
-  // Determine final status - Twitch API has highest priority for "online"
-  if ($twitchStatus === 'True') {
-    // If Twitch says online, then definitely online
-    $finalStatus = 'True';
-  } elseif ($dbStatus === 'True' || $sshStatus === 'True') {
-    // If either other check says online (and Twitch doesn't contradict), then online
-    $finalStatus = 'True';
-  } elseif ($dbStatus === 'False' && $sshStatus === 'False') {
-    $finalStatus = 'False';
-  } elseif ($dbStatus === 'False' && $sshStatus === null) {
-    $finalStatus = 'False';
-  } elseif ($dbStatus === null && $sshStatus === 'False') {
-    $finalStatus = 'False';
-  } elseif ($dbStatus === null && $sshStatus === null) {
-    $finalStatus = null;
-  } else {
-    // If one is False and the other is unknown, default to False
-    $finalStatus = 'False';
-  }
-  // Determine internal status for force buttons
-  $internalOnline = ($dbStatus === 'True' || $sshStatus === 'True');
-  // Generate status display based on final status
-  if ($finalStatus === 'True') {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-online bot-status-tag">' . t('bot_status_online') . '</span>';
-  } elseif ($finalStatus === 'False') {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-offline bot-status-tag">' . t('bot_status_offline') . '</span>';
-  } else {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-unknown bot-status-tag">' . t('bot_status_unknown') . '</span>';
-  }
-  if ($isTechnical) {
-    $formatStatus = function($status) {
-      if ($status === 'True') return 'Online';
-      if ($status === 'False') return 'Offline';
-      return $status ?? 'null';
-    };
-    $debugStatuses = [
-      ['label' => 'DB','value' => $dbStatus,'tooltip' => t('bot_db_explanation'),],
-      ['label' => 'SSH','value' => $sshStatus,'tooltip' => t('bot_ssh_explanation'),],
-      ['label' => 'Twitch','value' => $twitchStatus,'tooltip' => t('bot_twitch_explanation'),],
-      ['label' => 'Final','value' => $finalStatus,'tooltip' => t('bot_final_explanation'),],
-    ];
-    $debugInfo = '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem; justify-content:center;">';
-      foreach ($debugStatuses as $statusMeta) {
-        $tooltipAttr = '';
-        if (!empty($statusMeta['tooltip'])) {
-          $tooltipAttr = ' data-tooltip="' . htmlspecialchars($statusMeta['tooltip'], ENT_QUOTES) . '" data-tooltip-pos="top"';
-        }
-        $titleAttr = '';
-        if (!empty($statusMeta['tooltip'])) {
-          $titleAttr = ' title="' . htmlspecialchars($statusMeta['tooltip'], ENT_QUOTES) . '"';
-        }
-        $debugInfo .= '<div' . $tooltipAttr . $titleAttr . '>';
-        $debugInfo .= '<strong style="color:var(--text-secondary);">' . $statusMeta['label'] . ':</strong> ' . $formatStatus($statusMeta['value']);
-        $debugInfo .= '</div>';
-      }
-    $debugInfo .= '</div>';
-    $userOnlineStatus .= $debugInfo;
-  }
-} else {
-  $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-unknown">' . t('bot_status_na') . '</span>';
-}
-
-// Check only the selected bot's status
-if ($selectedBot === 'stable') {
-  $statusOutput = getBotsStatus($statusScriptPath, $username, 'stable');
-  $botSystemStatus = strpos($statusOutput, 'PID') !== false;
-  if ($botSystemStatus) {
-    $versionRunning = getRunningVersion($versionFilePath, $newVersion);
-  }
-} elseif ($selectedBot === 'beta') {
-  $betaStatusOutput = getBotsStatus($statusScriptPath, $username, 'beta');
-  $betaBotSystemStatus = strpos($betaStatusOutput, 'PID') !== false;
-  if ($betaBotSystemStatus) {
-    $betaVersionRunning = getRunningVersion($betaVersionFilePath, $betaNewVersion, 'beta');
-  }
-} elseif ($selectedBot === 'v6') {
-  $v6StatusOutput = getBotsStatus($statusScriptPath, $username, 'v6');
-  $v6BotSystemStatus = strpos($v6StatusOutput, 'PID') !== false;
-  if ($v6BotSystemStatus) {
-    $v6VersionRunning = getRunningVersion($v6VersionFilePath, $v6NewVersion, 'v6');
-  }
-}
-
-// Get last modified time of the bot script files using SSH
-require_once 'includes/bot_control_functions.php';
-$stableBotScriptPath = "/home/botofthespecter/bot.py";
-$betaBotScriptPath = "/home/botofthespecter/beta.py";
-
-if ($backup_system == true) {
-  $showButtons = true;
-};
-
-function dbTimeToUserTime($dbDatetime, $userTimezone = 'UTC') {
-    if (!$dbDatetime) return '';
-    try {
-        $dt = new DateTime($dbDatetime, new DateTimeZone('Australia/Sydney'));
-        $dt->setTimezone(new DateTimeZone($userTimezone));
-        return $dt->format('Y-m-d H:i:s');
-    } catch (Exception $e) {
-        return $dbDatetime; // fallback to raw if error
-    }
-}
-
-// Get the version for changelog link
-$version = $versionRunning ?: $newVersion;
-$parts = explode('.', $version);
-$changelogVersion = isset($parts[1]) ? $parts[0] . '.' . $parts[1] : $parts[0];
-
-// Release session lock before rendering HTML
-session_write_close();
 // Start output buffering for layout template
 ob_start();
 ?>
-<?php if($multiBotWarning): ?>
-  <?php echo $multiBotWarning; ?>
-<?php endif; ?>
-<?php if ($BotIsBanned): ?>
-  <div class="sp-alert sp-alert-danger" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
-    <div><i class="fas fa-ban"></i> <?php echo $BotModMessage; ?></div>
-    <button id="unban-bot-btn" class="sp-btn sp-btn-secondary" title="<?= htmlspecialchars(t('bot_unban_bot')) ?>">
-      <i class="fas fa-unlock"></i> <?= t('bot_unban_bot') ?>
-    </button>
+<div id="bot-mod-banner-host" aria-busy="true">
+  <div id="bot-mod-banner-skeleton" class="sp-skeleton-stack" aria-hidden="true">
+    <span class="sp-skeleton-line w-80"></span>
   </div>
-<?php elseif (!$BotIsMod && !empty($BotModMessage)): ?>
-  <div class="sp-alert sp-alert-warning" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
-    <div><i class="fas fa-exclamation-triangle"></i> <?php echo $BotModMessage; ?></div>
-    <button id="make-mod-btn" class="sp-btn sp-btn-primary" title="<?= htmlspecialchars(t('bot_make_bot_moderator')) ?>">
-      <i class="fas fa-user-shield"></i> <?= t('bot_make_mod') ?>
-    </button>
-  </div>
-<?php endif; ?>
+</div>
 <div class="bot-page-cols">
   <div class="bot-col-sidebar bot-sidebar-status">
     <div class="sp-card">
       <div class="sp-card-header" style="justify-content:center;">
         <span class="sp-card-title"><?php echo t('bot_channel_status'); ?></span>
       </div>
-      <div id="channel-status-body" class="sp-card-body" style="text-align:center;">
+      <div id="channel-status-body" class="sp-card-body" style="text-align:center;" aria-busy="true">
         <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.75rem;"><?php echo t('bot_status_combined_note'); ?></p>
-        <?php echo $userOnlineStatus; ?>
-        <div style="margin-top:0.75rem;">
-          <?php
-            if ($internalOnline) {
-              echo '<button id="force-offline-btn" class="sp-btn sp-btn-warning" style="width:100%;">'
-                . t('bot_force_offline') . '</button>';
-            } else {
-              echo '<button id="force-online-btn" class="sp-btn sp-btn-success" style="width:100%;">'
-                . t('bot_force_online') . '</button>';
-            }
-          ?>
+        <span id="channel-status-tag" class="bot-stream-status bot-status-tag">
+          <span class="sp-skeleton sp-skeleton-line w-40" aria-hidden="true" style="display:inline-block; height:0.75rem; vertical-align:middle;"></span>
+        </span>
+        <div id="channel-status-debug"></div>
+        <div id="channel-status-actions" style="margin-top:0.75rem;">
+          <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
         </div>
       </div>
     </div>
@@ -362,19 +233,13 @@ ob_start();
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_running_version'); ?></span>
             <span id="running-version" style="color:var(--blue);">
-              <?php
-                if ($selectedBot === 'beta') {
-                  echo ($betaVersionRunning ?: $betaNewVersion);
-                } else {
-                  echo ($versionRunning ?: $newVersion);
-                }
-              ?>
+              <span class="sp-skeleton sp-skeleton-line w-40" aria-hidden="true" style="display:inline-block; height:0.75rem; vertical-align:middle;"></span>
             </span>
           </p>
           <?php if ($selectedBot === 'stable'): ?>
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_update_notes'); ?></span>
-            <a href="https://changelog.botofthespecter.com/<?php echo htmlspecialchars($changelogVersion); ?>.html" target="_blank"><?php echo t('bot_view_changelog'); ?></a>
+            <a id="bot-changelog-link" href="https://changelog.botofthespecter.com/" target="_blank"><?php echo t('bot_view_changelog'); ?></a>
           </p>
           <?php endif; ?>
           <div id="version-update-indicator" style="margin-top:0.5rem; display:none;">
@@ -472,14 +337,14 @@ ob_start();
         <div class="sp-card-body">
           <?php if ($selectedBot === 'stable'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-              <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" style="color:var(--blue);">(v<?php echo $versionRunning ?: $newVersion; ?>)</span>
+              <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" style="color:var(--blue);"></span>
             </h3>
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
               <?php echo t('bot_stable_description'); ?>
             </p>
-          <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
+          <?php elseif ($selectedBot === 'beta'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-              <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
+              <?php echo t('bot_beta_controls'); ?> <span id="bot-beta-version-label" style="color:var(--blue);"></span>
             </h3>
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
               <?php echo t('bot_beta_description'); ?>
@@ -500,7 +365,7 @@ ob_start();
             </div>
           <?php elseif ($selectedBot === 'v6'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-              <?php echo t('bot_v6_controls'); ?> (v<?php echo $v6NewVersion; ?>)
+              <?php echo t('bot_v6_controls'); ?> <span id="bot-v6-version-label" style="color:var(--blue);"></span>
             </h3>
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
               <?php echo t('bot_v6_description'); ?>
@@ -537,21 +402,16 @@ ob_start();
               <?php endif; ?>
             </span>
           </div>
-          <?php if ($BotModMessage): ?>
-          <p style="color:var(--red); text-align:center; margin-bottom:0.5rem;"><?php echo $BotModMessage; ?></p>
-          <?php endif; ?>
-          <?php if ($selectedBot === 'beta' && !$betaAccess): ?>
-          <div class="sp-alert sp-alert-warning" style="text-align:center;">
+          <p id="bot-mod-inline" style="color:var(--red); text-align:center; margin-bottom:0.5rem; display:none;"></p>
+          <div id="beta-access-warning" class="sp-alert sp-alert-warning" style="text-align:center; display:none;">
             <?php echo t('bot_beta_subscription_warning', ['premium_url' => 'premium.php']); ?>
           </div>
-          <?php else: ?>
-          <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;">
+          <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;" aria-busy="true">
             <button class="sp-btn sp-btn-primary" disabled>
               <i class="fas fa-spinner fa-spin"></i>
               <span><?php echo t('bot_checking_status'); ?></span>
             </button>
           </div>
-          <?php endif; ?>
           <?php endif; ?>
         </div>
       </div>
@@ -737,8 +597,8 @@ const customModuleNoteStrings = {
 };
 document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
-  const isBotMod = <?php echo json_encode($BotIsMod); ?>;
-  const hasBetaAccess = <?php echo json_encode($betaAccess); ?>;
+  let isBotMod = false;
+  let hasBetaAccess = <?php echo json_encode((bool)($betaAccess ?? false)); ?>;
   const isActingAs = <?php echo json_encode($isActingAs); ?>;
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.sp-notif .sp-notif-close');
@@ -1648,6 +1508,7 @@ document.addEventListener('DOMContentLoaded', function() {
           // Update the global variable
           window.latestV6Version = data.v6_version;
         }
+        applyLatestVersionLabels();
         return data;
       })
       .catch(error => {
@@ -2403,110 +2264,208 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   updateServiceStatus();
   updateApiLimits();
-  updateBotStatus(false);
-  fetchAndUpdateChannelStatus(); // Initial channel status update
+  loadBotPageShell().then(function() {
+    updateBotStatus(false);
+    attachBotButtonListeners();
+  });
   if (isTechnical) {
     updateTechnicalOverview();
   }
-  attachBotButtonListeners();
-  // Channel Status Force Buttons
-  const forceOnlineBtn = document.getElementById('force-online-btn');
-  const forceOfflineBtn = document.getElementById('force-offline-btn');
   const apiKey = <?php echo json_encode($user['api_key'] ?? ''); ?>;
-  // Unban Bot Button Handler
-  const unbanBotBtn = document.getElementById('unban-bot-btn');
-  if (unbanBotBtn) {
-    unbanBotBtn.addEventListener('click', async function() {
-      // Disable button and show loading state
-      unbanBotBtn.disabled = true;
-      const originalHTML = unbanBotBtn.innerHTML;
-      unbanBotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?php echo json_encode(t('bot_processing')); ?> + '</span>';
-      try {
-        const response = await fetch('https://api.twitch.tv/helix/moderation/bans?broadcaster_id=<?php echo htmlspecialchars($twitchUserId); ?>&moderator_id=<?php echo htmlspecialchars($twitchUserId); ?>&user_id=971436498', {
-          method: 'DELETE',
-          headers: {
-            'Authorization': 'Bearer <?php echo htmlspecialchars($authToken); ?>',
-            'Client-Id': '<?php echo htmlspecialchars($clientID); ?>'
-          }
+  function applyLatestVersionLabels() {
+    const stable = window.latestStableVersion || latestStableVersion;
+    const beta = window.latestBetaVersion || latestBetaVersion;
+    const v6 = window.latestV6Version || latestV6Version;
+    const headerVersionEl = document.getElementById('bot-controls-version');
+    if (headerVersionEl && selectedBot === 'stable' && stable) {
+      headerVersionEl.textContent = '(v' + stable + ')';
+    }
+    const betaLabel = document.getElementById('bot-beta-version-label');
+    if (betaLabel && beta) {
+      betaLabel.textContent = '(v' + beta + ' B)';
+    }
+    const v6Label = document.getElementById('bot-v6-version-label');
+    if (v6Label && v6) {
+      v6Label.textContent = '(v' + v6 + ')';
+    }
+    const changelog = document.getElementById('bot-changelog-link');
+    if (changelog && stable) {
+      const parts = String(stable).replace(/^v/i, '').split('.');
+      const cv = parts.length > 1 ? parts[0] + '.' + parts[1] : parts[0];
+      if (cv) changelog.href = 'https://changelog.botofthespecter.com/' + cv + '.html';
+    }
+  }
+  function applyBetaAccess(hasAccess) {
+    hasBetaAccess = !!hasAccess;
+    const warning = document.getElementById('beta-access-warning');
+    const controls = document.getElementById('bot-controls-container');
+    if (selectedBot === 'beta' && !hasBetaAccess) {
+      if (warning) warning.style.display = '';
+      if (controls) controls.style.display = 'none';
+    } else {
+      if (warning) warning.style.display = 'none';
+      if (controls) {
+        controls.style.display = 'flex';
+        controls.removeAttribute('aria-busy');
+      }
+    }
+  }
+  function applyModBanner(data) {
+    const host = document.getElementById('bot-mod-banner-host');
+    if (!host) return;
+    host.setAttribute('aria-busy', 'false');
+    const inline = document.getElementById('bot-mod-inline');
+    if (!data.bot_is_mod && data.bot_mod_message) {
+      const isBanned = !!data.bot_is_banned;
+      const alertClass = isBanned ? 'sp-alert-danger' : 'sp-alert-warning';
+      const icon = isBanned ? 'fa-ban' : 'fa-exclamation-triangle';
+      const btnId = isBanned ? 'unban-bot-btn' : 'make-mod-btn';
+      const btnClass = isBanned ? 'sp-btn-secondary' : 'sp-btn-primary';
+      const btnIcon = isBanned ? 'fa-unlock' : 'fa-user-shield';
+      const btnLabel = isBanned
+        ? <?php echo json_encode(t('bot_unban_bot')); ?>
+        : <?php echo json_encode(t('bot_make_mod')); ?>;
+      const btnTitle = isBanned
+        ? <?php echo json_encode(t('bot_unban_bot')); ?>
+        : <?php echo json_encode(t('bot_make_bot_moderator')); ?>;
+      host.innerHTML = '<div class="sp-alert ' + alertClass + '" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">'
+        + '<div><i class="fas ' + icon + '"></i> ' + data.bot_mod_message + '</div>'
+        + '<button id="' + btnId + '" class="sp-btn ' + btnClass + '" title="' + String(btnTitle).replace(/"/g, '&quot;') + '">'
+        + '<i class="fas ' + btnIcon + '"></i> ' + btnLabel + '</button></div>';
+      if (inline) {
+        inline.style.display = '';
+        inline.innerHTML = data.bot_mod_message;
+      }
+      attachModActionButtons();
+    } else {
+      host.innerHTML = '';
+      if (inline) {
+        inline.style.display = 'none';
+        inline.textContent = '';
+      }
+    }
+  }
+  function renderBotShellError() {
+    const host = document.getElementById('bot-mod-banner-host');
+    if (host) {
+      host.setAttribute('aria-busy', 'false');
+      host.innerHTML = '';
+    }
+    const body = document.getElementById('channel-status-body');
+    if (body) body.setAttribute('aria-busy', 'false');
+    const tag = document.getElementById('channel-status-tag');
+    if (tag) {
+      tag.textContent = <?php echo json_encode(t('bot_status_unknown')); ?>;
+      tag.className = 'bot-stream-status bot-stream-unknown bot-status-tag';
+    }
+    const actions = document.getElementById('channel-status-actions');
+    if (actions) actions.innerHTML = '';
+  }
+  function loadBotPageShell() {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    if (selectedBot) url.searchParams.set('bot', selectedBot);
+    return fetchWithTimeout(url.toString(), { credentials: 'same-origin', cache: 'no-store' }, 12000)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !data.success) {
+          renderBotShellError();
+          return null;
+        }
+        isBotMod = !!data.bot_is_mod;
+        applyBetaAccess(data.beta_access);
+        applyModBanner(data);
+        const stream = data.stream || {};
+        updateChannelStatusDisplay(stream.final, {
+          internalOnline: !!stream.internal_online,
+          labels: data.stream_labels || {},
+          tooltips: data.tooltips || {}
         });
-        if (response.status === 204) {
-          // Success - show success notification
-          showNotification(<?php echo json_encode(t('bot_unban_success')); ?>, 'success');
-          // Reload the page after a short delay to show the updated status
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        } else if (response.status === 401) {
-          // Token expired
-          showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
-          setTimeout(() => { window.location.href = 'login.php'; }, 1500);
-          return;
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.message || <?php echo json_encode(t('bot_unban_failed')); ?>;
-          showNotification(<?php echo json_encode(t('bot_error_prefix', [':message' => ':message'])); ?>.replace(':message', errorMessage), 'danger');
-          // Re-enable button
+        return data;
+      })
+      .catch(function() {
+        renderBotShellError();
+        return null;
+      });
+  }
+  function attachModActionButtons() {
+    const unbanBotBtn = document.getElementById('unban-bot-btn');
+    if (unbanBotBtn && !unbanBotBtn.dataset.bound) {
+      unbanBotBtn.dataset.bound = '1';
+      unbanBotBtn.addEventListener('click', async function() {
+        unbanBotBtn.disabled = true;
+        const originalHTML = unbanBotBtn.innerHTML;
+        unbanBotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?php echo json_encode(t('bot_processing')); ?> + '</span>';
+        try {
+          const response = await fetch('https://api.twitch.tv/helix/moderation/bans?broadcaster_id=<?php echo htmlspecialchars($twitchUserId); ?>&moderator_id=<?php echo htmlspecialchars($twitchUserId); ?>&user_id=971436498', {
+            method: 'DELETE',
+            headers: {
+              'Authorization': 'Bearer <?php echo htmlspecialchars($authToken); ?>',
+              'Client-Id': '<?php echo htmlspecialchars($clientID); ?>'
+            }
+          });
+          if (response.status === 204) {
+            showNotification(<?php echo json_encode(t('bot_unban_success')); ?>, 'success');
+            setTimeout(() => { window.location.reload(); }, 2000);
+          } else if (response.status === 401) {
+            showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
+            setTimeout(() => { window.location.href = 'login.php'; }, 1500);
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.message || <?php echo json_encode(t('bot_unban_failed')); ?>;
+            showNotification(<?php echo json_encode(t('bot_error_prefix', [':message' => ':message'])); ?>.replace(':message', errorMessage), 'danger');
+            unbanBotBtn.disabled = false;
+            unbanBotBtn.innerHTML = originalHTML;
+          }
+        } catch (error) {
+          console.error('Error unbanning bot:', error);
+          showNotification(<?php echo json_encode(t('bot_twitch_network_error')); ?>, 'danger');
           unbanBotBtn.disabled = false;
           unbanBotBtn.innerHTML = originalHTML;
         }
-      } catch (error) {
-        console.error('Error unbanning bot:', error);
-        showNotification(<?php echo json_encode(t('bot_twitch_network_error')); ?>, 'danger');
-        // Re-enable button
-        unbanBotBtn.disabled = false;
-        unbanBotBtn.innerHTML = originalHTML;
-      }
-    });
-  }
-  // Make Mod Button Handler
-  const makeModBtn = document.getElementById('make-mod-btn');
-  if (makeModBtn) {
-    makeModBtn.addEventListener('click', async function() {
-      // Disable button and show loading state
-      makeModBtn.disabled = true;
-      const originalHTML = makeModBtn.innerHTML;
-      makeModBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?php echo json_encode(t('bot_processing')); ?> + '</span>';
-      try {
-        const response = await fetch('https://api.twitch.tv/helix/moderation/moderators', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Bearer <?php echo htmlspecialchars($authToken); ?>',
-            'Client-Id': '<?php echo htmlspecialchars($clientID); ?>',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            broadcaster_id: '<?php echo htmlspecialchars($twitchUserId); ?>',
-            user_id: '971436498' // Bot's user ID
-          })
-        });
-        if (response.status === 204) {
-          // Success - show success notification
-          showNotification(<?php echo json_encode(t('bot_make_mod_success')); ?>, 'success');
-          // Reload the page after a short delay to show the updated status
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        } else if (response.status === 401) {
-          // Token expired
-          showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
-          setTimeout(() => { window.location.href = 'login.php'; }, 1500);
-          return;
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.message || <?php echo json_encode(t('bot_make_mod_failed')); ?>;
-          showNotification(<?php echo json_encode(t('bot_error_prefix', [':message' => ':message'])); ?>.replace(':message', errorMessage), 'danger');
-          // Re-enable button
+      });
+    }
+    const makeModBtn = document.getElementById('make-mod-btn');
+    if (makeModBtn && !makeModBtn.dataset.bound) {
+      makeModBtn.dataset.bound = '1';
+      makeModBtn.addEventListener('click', async function() {
+        makeModBtn.disabled = true;
+        const originalHTML = makeModBtn.innerHTML;
+        makeModBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?php echo json_encode(t('bot_processing')); ?> + '</span>';
+        try {
+          const response = await fetch('https://api.twitch.tv/helix/moderation/moderators', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer <?php echo htmlspecialchars($authToken); ?>',
+              'Client-Id': '<?php echo htmlspecialchars($clientID); ?>',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              broadcaster_id: '<?php echo htmlspecialchars($twitchUserId); ?>',
+              user_id: '971436498'
+            })
+          });
+          if (response.status === 204) {
+            showNotification(<?php echo json_encode(t('bot_make_mod_success')); ?>, 'success');
+            setTimeout(() => { window.location.reload(); }, 2000);
+          } else if (response.status === 401) {
+            showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
+            setTimeout(() => { window.location.href = 'login.php'; }, 1500);
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.message || <?php echo json_encode(t('bot_make_mod_failed')); ?>;
+            showNotification(<?php echo json_encode(t('bot_error_prefix', [':message' => ':message'])); ?>.replace(':message', errorMessage), 'danger');
+            makeModBtn.disabled = false;
+            makeModBtn.innerHTML = originalHTML;
+          }
+        } catch (error) {
+          console.error('Error making bot moderator:', error);
+          showNotification(<?php echo json_encode(t('bot_twitch_network_error')); ?>, 'danger');
           makeModBtn.disabled = false;
           makeModBtn.innerHTML = originalHTML;
         }
-      } catch (error) {
-        console.error('Error making bot moderator:', error);
-        showNotification(<?php echo json_encode(t('bot_twitch_network_error')); ?>, 'danger');
-        // Re-enable button
-        makeModBtn.disabled = false;
-        makeModBtn.innerHTML = originalHTML;
-      }
-    });
+      });
+    }
   }
   function fetchAndUpdateChannelStatus() {
     // Only run if no bot action is in progress
@@ -2528,12 +2487,12 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification(<?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>, 'danger');
       });
   }
-  function updateChannelStatusDisplay(newStatus) {
-    // Update the status tag and buttons in the Channel Status card
+  function updateChannelStatusDisplay(newStatus, extras) {
+    extras = extras || {};
     const contentDiv = document.getElementById('channel-status-body');
     if (!contentDiv) return;
-    // Update the status tag
-    const statusTag = contentDiv.querySelector('.bot-status-tag');
+    contentDiv.setAttribute('aria-busy', 'false');
+    const statusTag = document.getElementById('channel-status-tag') || contentDiv.querySelector('.bot-status-tag');
     if (statusTag) {
       if (newStatus === 'True') {
         statusTag.textContent = <?php echo json_encode(t('bot_status_online')); ?>;
@@ -2549,18 +2508,38 @@ document.addEventListener('DOMContentLoaded', function() {
         statusTag.className = 'bot-stream-status bot-stream-unknown bot-status-tag';
       }
     }
-    // Update the button
-    const buttonDiv = contentDiv.querySelector('.mt-3, [style*="margin-top:0.75rem"]');
+    const buttonDiv = document.getElementById('channel-status-actions') || contentDiv.querySelector('[style*="margin-top:0.75rem"]');
     if (buttonDiv) {
-      if (newStatus === 'True') {
+      if (typeof extras.internalOnline === 'boolean') {
+        buttonDiv.innerHTML = extras.internalOnline
+          ? '<button id="force-offline-btn" class="sp-btn sp-btn-warning" style="width:100%;"><?php echo t('bot_force_offline'); ?></button>'
+          : '<button id="force-online-btn" class="sp-btn sp-btn-success" style="width:100%;"><?php echo t('bot_force_online'); ?></button>';
+      } else if (newStatus === 'True') {
         buttonDiv.innerHTML = '<button id="force-offline-btn" class="sp-btn sp-btn-warning" style="width:100%;"><?php echo t('bot_force_offline'); ?></button>';
       } else if (newStatus === 'False') {
         buttonDiv.innerHTML = '<button id="force-online-btn" class="sp-btn sp-btn-success" style="width:100%;"><?php echo t('bot_force_online'); ?></button>';
       } else {
-        buttonDiv.innerHTML = ''; // No button for unknown/NA status
+        buttonDiv.innerHTML = '';
       }
     }
-    // Re-attach event listeners
+    const debugEl = document.getElementById('channel-status-debug');
+    if (debugEl && isTechnical && extras.labels) {
+      const labels = extras.labels;
+      const tips = extras.tooltips || {};
+      const rows = [
+        { key: 'db', label: 'DB' },
+        { key: 'ssh', label: 'SSH' },
+        { key: 'twitch', label: 'Twitch' },
+        { key: 'final', label: 'Final' }
+      ];
+      debugEl.innerHTML = '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem; justify-content:center;">'
+        + rows.map(function(row) {
+          const tip = tips[row.key] ? String(tips[row.key]).replace(/"/g, '&quot;') : '';
+          const tipAttr = tip ? ' data-tooltip="' + tip + '" data-tooltip-pos="top" title="' + tip + '"' : '';
+          return '<div' + tipAttr + '><strong style="color:var(--text-secondary);">' + row.label + ':</strong> ' + (labels[row.key] || 'null') + '</div>';
+        }).join('')
+        + '</div>';
+    }
     attachForceButtons();
   }
   function attachForceButtons() {

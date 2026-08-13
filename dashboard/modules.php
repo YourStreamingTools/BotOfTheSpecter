@@ -2,41 +2,459 @@
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-$today = new DateTime();
-
 require_once '/var/www/lib/require_auth.php';
 
 // Page Title and Initial Variables
 $pageTitle = t('modules_title');
-$current_blacklist = [];
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+$updateMessage = '';
+if (!empty($_SESSION['update_message'])) {
+    $updateMessage = $_SESSION['update_message'];
+    unset($_SESSION['update_message']);
+}
 session_write_close();
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
+
+function modules_default_chat_alerts()
+{
+    return [
+        'follower_alert' => 'Thank you (user) for following! Welcome to the channel!',
+        'cheer_alert' => 'Thank you (user) for (bits) bits! You\'ve given a total of (total-bits) bits.',
+        'raid_alert' => 'Incredible! (user) and (viewers) viewers have joined the party! Let\'s give them a warm welcome!',
+        'subscription_alert' => 'Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!',
+        'gift_subscription_alert' => 'Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!',
+        'hype_train_start' => 'The Hype Train has started! Starting at level: (level)',
+        'hype_train_end' => 'The Hype Train has ended at level (level)!',
+        'gift_paid_upgrade' => 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!',
+        'prime_paid_upgrade' => 'Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!',
+        'pay_it_forward' => 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!'
+    ];
+}
+
+function modules_query_all(mysqli $db, string $sql): array
+{
+    $rows = [];
+    if ($result = $db->query($sql)) {
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+        $result->free();
+    }
+    return $rows;
+}
+
+function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $username): array
+{
+    $timezone = 'UTC';
+    $stmt = $db->prepare("SELECT timezone FROM profile");
+    if ($stmt) {
+        $stmt->execute();
+        $channelData = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $timezone = $channelData['timezone'] ?? 'UTC';
+    }
+    date_default_timezone_set($timezone);
+
+    $current_blacklist = [];
+    $stmt = $db->prepare("SELECT blacklist FROM joke_settings");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($blacklist_str);
+        if ($stmt->fetch() && $blacklist_str) {
+            $decoded = json_decode($blacklist_str, true);
+            if (is_array($decoded)) {
+                $current_blacklist = $decoded;
+            }
+        }
+        $stmt->close();
+    }
+
+    $joke_command_status = 'Enabled';
+    $stmt = $db->prepare("SELECT status FROM builtin_commands WHERE command = 'joke'");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($joke_status);
+        if ($stmt->fetch() && $joke_status) {
+            $joke_command_status = $joke_status;
+        }
+        $stmt->close();
+    }
+
+    $welcome = [
+        'new_default_welcome_message' => '',
+        'default_welcome_message' => '',
+        'new_default_vip_welcome_message' => '',
+        'default_vip_welcome_message' => '',
+        'new_default_mod_welcome_message' => '',
+        'default_mod_welcome_message' => '',
+        'send_welcome_messages' => 0,
+    ];
+    $stmt = $db->prepare("SELECT 
+        new_default_welcome_message,
+        default_welcome_message,
+        new_default_vip_welcome_message,
+        default_vip_welcome_message,
+        new_default_mod_welcome_message,
+        default_mod_welcome_message,
+        send_welcome_messages
+        FROM streamer_preferences
+        LIMIT 1");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result(
+            $new_default_welcome_message,
+            $default_welcome_message,
+            $new_default_vip_welcome_message,
+            $default_vip_welcome_message,
+            $new_default_mod_welcome_message,
+            $default_mod_welcome_message,
+            $send_welcome_messages
+        );
+        if ($stmt->fetch()) {
+            $welcome = [
+                'new_default_welcome_message' => $new_default_welcome_message !== '' ? $new_default_welcome_message : t('modules_welcome_new_member_default'),
+                'default_welcome_message' => $default_welcome_message !== '' ? $default_welcome_message : t('modules_welcome_returning_member_default'),
+                'new_default_vip_welcome_message' => $new_default_vip_welcome_message !== '' ? $new_default_vip_welcome_message : t('modules_welcome_new_vip_default'),
+                'default_vip_welcome_message' => $default_vip_welcome_message !== '' ? $default_vip_welcome_message : t('modules_welcome_returning_vip_default'),
+                'new_default_mod_welcome_message' => $new_default_mod_welcome_message !== '' ? $new_default_mod_welcome_message : t('modules_welcome_new_mod_default'),
+                'default_mod_welcome_message' => $default_mod_welcome_message !== '' ? $default_mod_welcome_message : t('modules_welcome_returning_mod_default'),
+                'send_welcome_messages' => (int) $send_welcome_messages,
+            ];
+        } else {
+            $welcome['new_default_welcome_message'] = t('modules_welcome_new_member_default');
+            $welcome['default_welcome_message'] = t('modules_welcome_returning_member_default');
+            $welcome['new_default_vip_welcome_message'] = t('modules_welcome_new_vip_default');
+            $welcome['default_vip_welcome_message'] = t('modules_welcome_returning_vip_default');
+            $welcome['new_default_mod_welcome_message'] = t('modules_welcome_new_mod_default');
+            $welcome['default_mod_welcome_message'] = t('modules_welcome_returning_mod_default');
+        }
+        $stmt->close();
+    }
+
+    $ad = [
+        'ad_upcoming_message' => '',
+        'ad_1min_message' => '',
+        'ad_start_message' => '',
+        'ad_end_message' => '',
+        'ad_snoozed_message' => '',
+        'enable_ad_notice' => 0,
+        'enable_upcoming_ad_message' => 1,
+        'enable_1min_ad_message' => 0,
+        'enable_start_ad_message' => 1,
+        'enable_end_ad_message' => 1,
+        'enable_snoozed_ad_message' => 1,
+        'enable_ai_ad_breaks' => 0,
+        'enable_raid_ad_snooze' => 1,
+        'raid_ad_snooze_window_minutes' => 10,
+        'enable_raid_ad_snooze_message' => 1,
+        'raid_ad_snooze_message' => 'Snoozed the next ad for the raid from (user).',
+    ];
+    $stmt = $db->prepare("SELECT ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks, enable_raid_ad_snooze, raid_ad_snooze_window_minutes, enable_raid_ad_snooze_message, raid_ad_snooze_message FROM ad_notice_settings LIMIT 1");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result(
+            $fetched_upcoming,
+            $fetched_1min,
+            $fetched_start,
+            $fetched_end,
+            $fetched_snoozed,
+            $fetched_enable_global,
+            $fetched_enable_upcoming,
+            $fetched_enable_1min,
+            $fetched_enable_start,
+            $fetched_enable_end,
+            $fetched_enable_snoozed,
+            $fetched_enable_ai,
+            $fetched_enable_raid_snooze,
+            $fetched_raid_window,
+            $fetched_enable_raid_msg,
+            $fetched_raid_msg
+        );
+        if ($stmt->fetch()) {
+            $raidWindow = (int) $fetched_raid_window;
+            if ($raidWindow < 1 || $raidWindow > 30) {
+                $raidWindow = 10;
+            }
+            $ad = [
+                'ad_upcoming_message' => (string) $fetched_upcoming,
+                'ad_1min_message' => (string) $fetched_1min,
+                'ad_start_message' => (string) $fetched_start,
+                'ad_end_message' => (string) $fetched_end,
+                'ad_snoozed_message' => (string) $fetched_snoozed,
+                'enable_ad_notice' => (int) $fetched_enable_global,
+                'enable_upcoming_ad_message' => (int) $fetched_enable_upcoming,
+                'enable_1min_ad_message' => (int) $fetched_enable_1min,
+                'enable_start_ad_message' => (int) $fetched_enable_start,
+                'enable_end_ad_message' => (int) $fetched_enable_end,
+                'enable_snoozed_ad_message' => (int) $fetched_enable_snoozed,
+                'enable_ai_ad_breaks' => (int) $fetched_enable_ai,
+                'enable_raid_ad_snooze' => (int) $fetched_enable_raid_snooze,
+                'raid_ad_snooze_window_minutes' => $raidWindow,
+                'enable_raid_ad_snooze_message' => (int) $fetched_enable_raid_msg,
+                'raid_ad_snooze_message' => ($fetched_raid_msg !== null && $fetched_raid_msg !== '') ? $fetched_raid_msg : $ad['raid_ad_snooze_message'],
+            ];
+        }
+        $stmt->close();
+    }
+
+    $twitchSoundAlertMappings = [];
+    $stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($file_name, $twitch_event);
+        while ($stmt->fetch()) {
+            $twitchSoundAlertMappings[$file_name] = $twitch_event;
+        }
+        $stmt->close();
+    }
+
+    include __DIR__ . '/includes/storage_used.php';
+    $soundPath = "/var/www/soundalerts/$username/twitch";
+    $soundFiles = [];
+    if (is_dir($soundPath)) {
+        $soundFiles = array_values(array_diff(scandir($soundPath) ?: [], ['.', '..']));
+    }
+
+    $default_chat_alerts = modules_default_chat_alerts();
+    $chat_alerts = [];
+    $stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($alert_type, $alert_message);
+        while ($stmt->fetch()) {
+            $chat_alerts[$alert_type] = $alert_message;
+        }
+        $stmt->close();
+    }
+    foreach ($default_chat_alerts as $type => $default_message) {
+        if (!isset($chat_alerts[$type]) || trim((string) $chat_alerts[$type]) === '') {
+            $chat_alerts[$type] = $default_message;
+        }
+    }
+
+    $ignored_games = [];
+    $stmt = $db->prepare("SELECT game_name FROM game_deaths_settings");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($game_name);
+        while ($stmt->fetch()) {
+            $ignored_games[] = $game_name;
+        }
+        $stmt->close();
+    }
+
+    $automated_shoutout_cooldown = 60;
+    $stmt = $db->prepare("SELECT cooldown_minutes FROM automated_shoutout_settings LIMIT 1");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($cooldown_minutes);
+        if ($stmt->fetch() && $cooldown_minutes) {
+            $automated_shoutout_cooldown = (int) $cooldown_minutes;
+        }
+        $stmt->close();
+    }
+
+    $automated_shoutout_tracking = [];
+    $stmt = $db->prepare("SELECT user_id, user_name, shoutout_time FROM automated_shoutout_tracking ORDER BY shoutout_time DESC");
+    if ($stmt) {
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $now = new DateTime('now', new DateTimeZone($timezone));
+        $cooldown_seconds = $automated_shoutout_cooldown * 60;
+        while ($row = $result->fetch_assoc()) {
+            $shoutout_time = new DateTime($row['shoutout_time'], new DateTimeZone($timezone));
+            $diff = $now->getTimestamp() - $shoutout_time->getTimestamp();
+            $remaining_seconds = max(0, $cooldown_seconds - $diff);
+            $automated_shoutout_tracking[] = [
+                'user_id' => $row['user_id'],
+                'user_name' => $row['user_name'],
+                'shoutout_time' => $shoutout_time->format('Y-m-d H:i:s'),
+                'remaining_minutes' => (int) ceil($remaining_seconds / 60),
+                'is_expired' => $remaining_seconds <= 0,
+            ];
+        }
+        $stmt->close();
+    }
+
+    $tts_voice = 'Alloy';
+    $tts_language = 'en';
+    $stmt = $db->prepare("SELECT voice, language FROM tts_settings LIMIT 1");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($tts_voice_db, $tts_language_db);
+        if ($stmt->fetch()) {
+            if (!empty($tts_voice_db)) {
+                $tts_voice = $tts_voice_db;
+            }
+            if (!empty($tts_language_db)) {
+                $tts_language = $tts_language_db;
+            }
+        }
+        $stmt->close();
+    }
+
+    $currentSettings = 'False';
+    $termBlockingSettings = 'False';
+    $blockFirstMessageCommands = 'False';
+    $blockFirstMessageCommandMode = 'all';
+    $blockFirstMessageSelectedCommands = [];
+    $wordReplaceEnabled = 'False';
+    $wordReplaceWord = 'fun';
+    $wordReplaceFrequency = 30;
+    $wordReplaceRate = 10;
+    $wordReplaceCooldown = 30;
+    $getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands, word_replace_enabled, word_replace_word, word_replace_frequency, word_replace_rate, word_replace_cooldown FROM protection LIMIT 1");
+    if ($getProtection) {
+        $settings = $getProtection->fetch_assoc();
+        if ($settings) {
+            $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
+            $termBlockingSettings = isset($settings['term_blocking']) ? $settings['term_blocking'] : 'False';
+            $blockFirstMessageCommands = isset($settings['block_first_message_commands']) ? $settings['block_first_message_commands'] : 'False';
+            $blockFirstMessageCommandMode = isset($settings['block_first_message_command_mode']) && $settings['block_first_message_command_mode'] === 'selected' ? 'selected' : 'all';
+            $selectedCommandsRaw = isset($settings['block_first_message_selected_commands']) ? $settings['block_first_message_selected_commands'] : '[]';
+            $decodedSelectedCommands = json_decode($selectedCommandsRaw, true);
+            if (is_array($decodedSelectedCommands)) {
+                foreach ($decodedSelectedCommands as $cmd) {
+                    $normalizedCmd = ltrim(strtolower(trim((string) $cmd)), '!');
+                    if ($normalizedCmd !== '') {
+                        $blockFirstMessageSelectedCommands[] = $normalizedCmd;
+                    }
+                }
+            }
+            $wordReplaceEnabled = isset($settings['word_replace_enabled']) ? $settings['word_replace_enabled'] : 'False';
+            $wordReplaceWord = isset($settings['word_replace_word']) && $settings['word_replace_word'] !== '' ? $settings['word_replace_word'] : 'fun';
+            $wordReplaceFrequency = isset($settings['word_replace_frequency']) ? (int) $settings['word_replace_frequency'] : 30;
+            $wordReplaceRate = isset($settings['word_replace_rate']) ? (int) $settings['word_replace_rate'] : 10;
+            $wordReplaceCooldown = isset($settings['word_replace_cooldown']) ? (int) $settings['word_replace_cooldown'] : 30;
+        }
+        $getProtection->free();
+    }
+
+    $availableBlockFirstMessageCommands = [];
+    $commandOptionsResult = $db->query("SELECT command FROM builtin_commands UNION SELECT command FROM custom_commands UNION SELECT command FROM custom_user_commands");
+    if ($commandOptionsResult) {
+        while ($row = $commandOptionsResult->fetch_assoc()) {
+            $cmd = ltrim(strtolower(trim((string) ($row['command'] ?? ''))), '!');
+            if ($cmd !== '') {
+                $availableBlockFirstMessageCommands[$cmd] = $cmd;
+            }
+        }
+        $commandOptionsResult->free();
+        ksort($availableBlockFirstMessageCommands, SORT_NATURAL | SORT_FLAG_CASE);
+    }
+
+    $spotify_enabled = 1;
+    $spotify_max_song_seconds = 600;
+    $spotify_max_queue_length = 20;
+    $spotify_per_viewer_limit = 2;
+    $stmt = $db->prepare("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit FROM media_request_settings WHERE id = 1");
+    if ($stmt) {
+        $stmt->execute();
+        $stmt->bind_result($spotify_en, $spotify_mss, $spotify_mql, $spotify_pvl);
+        if ($stmt->fetch()) {
+            $spotify_enabled = (int) $spotify_en;
+            $spotify_max_song_seconds = (int) $spotify_mss;
+            $spotify_max_queue_length = (int) $spotify_mql;
+            $spotify_per_viewer_limit = (int) $spotify_pvl;
+        }
+        $stmt->close();
+    }
+
+    $moduleBots = [];
+    $mbStmt = $conn->prepare("SELECT id, bot_username, bot_channel_id, is_verified FROM custom_module_bots WHERE channel_id = ? ORDER BY bot_username ASC");
+    if ($mbStmt) {
+        $mbStmt->bind_param('i', $user_id);
+        $mbStmt->execute();
+        $mbRes = $mbStmt->get_result();
+        while ($row = $mbRes->fetch_assoc()) {
+            $moduleBots[] = $row;
+        }
+        $mbStmt->close();
+    }
+
+    $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
+    $eventLabels = [];
+    foreach ($allEvents as $evt) {
+        $eventLabels[$evt] = t('modules_event_' . strtolower(str_replace(' ', '_', $evt)));
+    }
+
+    return [
+        'success' => true,
+        'joke_command_status' => $joke_command_status,
+        'current_blacklist' => $current_blacklist,
+        'welcome' => $welcome,
+        'ad' => $ad,
+        'chat_alerts' => $chat_alerts,
+        'protection' => [
+            'url_blocking' => $currentSettings,
+            'term_blocking' => $termBlockingSettings,
+            'block_first_message_commands' => $blockFirstMessageCommands,
+            'block_first_message_command_mode' => $blockFirstMessageCommandMode,
+            'block_first_message_selected_commands' => $blockFirstMessageSelectedCommands,
+            'available_commands' => array_values($availableBlockFirstMessageCommands),
+        ],
+        'whitelist_links' => array_column(modules_query_all($db, "SELECT link FROM link_whitelist"), 'link'),
+        'blacklist_links' => array_column(modules_query_all($db, "SELECT link FROM link_blacklisting"), 'link'),
+        'blocked_terms' => array_column(modules_query_all($db, "SELECT term FROM blocked_terms"), 'term'),
+        'word_replace' => [
+            'enabled' => $wordReplaceEnabled,
+            'word' => $wordReplaceWord,
+            'frequency' => $wordReplaceFrequency,
+            'rate' => $wordReplaceRate,
+            'cooldown' => $wordReplaceCooldown,
+            'ignored_words' => array_column(modules_query_all($db, "SELECT word FROM word_replace_ignored_words ORDER BY word ASC"), 'word'),
+            'ignored_users' => modules_query_all($db, "SELECT username, opted_out_at, source FROM word_replace_ignored_users ORDER BY opted_out_at DESC"),
+        ],
+        'ignored_games' => $ignored_games,
+        'storage' => [
+            'used_mb' => round(($current_storage_used ?? 0) / 1024 / 1024, 2),
+            'max_mb' => round(($max_storage_size ?? 1) / 1024 / 1024, 2),
+            'percentage' => round($storage_percentage ?? 0, 2),
+        ],
+        'sound_files' => $soundFiles,
+        'sound_mappings' => $twitchSoundAlertMappings,
+        'sound_events' => $allEvents,
+        'sound_event_labels' => $eventLabels,
+        'shoutouts' => [
+            'cooldown_minutes' => $automated_shoutout_cooldown,
+            'tracking' => $automated_shoutout_tracking,
+        ],
+        'tts' => [
+            'voice' => $tts_voice,
+            'language' => $tts_language,
+        ],
+        'module_bots' => $moduleBots,
+        'spotify' => [
+            'enabled' => $spotify_enabled,
+            'max_song_seconds' => $spotify_max_song_seconds,
+            'max_queue_length' => $spotify_max_queue_length,
+            'per_viewer_limit' => $spotify_per_viewer_limit,
+        ],
+    ];
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        echo json_encode(modules_build_list_payload($db, $conn, $user_id, $username));
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
 
 // Check for cookie consent
 $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
 
 // Get active tab from URL parameter or default to first tab
 $activeTab = isset($_GET['tab']) ? $_GET['tab'] : ($cookieConsent && isset($_COOKIE['preferred_tab']) ? $_COOKIE['preferred_tab'] : 'joke-blacklist');
-
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
 
 // Helper: resolve a Twitch username to its user ID via Helix API (for custom module bot)
 function resolveModuleBotTwitchUserId($username) {
@@ -65,6 +483,7 @@ if ($resp === false || $code !== 200) {
 
 // AJAX: resolve module bot Twitch username to ID
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'resolve_module_bot_id') {
+    include '/var/www/config/twitch.php';
     ob_clean();
     header('Content-Type: application/json');
     $botName = trim($_POST['bot_username'] ?? '');
@@ -83,6 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Handle add a new module bot
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_module_bot') {
+    include '/var/www/config/twitch.php';
     session_start(); // Reopen session for flash messages
     $botName = trim($_POST['bot_username'] ?? '');
     $botId   = trim($_POST['bot_channel_id'] ?? '');
@@ -142,44 +562,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit();
 }
 
-// Load all module bots for this channel
-$moduleBots = [];
-$mbStmt = $conn->prepare("SELECT id, bot_username, bot_channel_id, is_verified FROM custom_module_bots WHERE channel_id = ? ORDER BY bot_username ASC");
-if ($mbStmt) {
-    $mbStmt->bind_param('i', $user_id);
-    $mbStmt->execute();
-    $mbRes = $mbStmt->get_result();
-    while ($row = $mbRes->fetch_assoc()) {
-        $moduleBots[] = $row;
-    }
-    $mbStmt->close();
-}
-
-// Always load the current blacklist from the database before rendering the form
-if (!isset($current_blacklist) || !is_array($current_blacklist) || empty($current_blacklist)) {
-    $stmt = $db->prepare("SELECT blacklist FROM joke_settings");
-    $stmt->execute();
-    $stmt->bind_result($blacklist_str);
-    if ($stmt->fetch() && $blacklist_str) {
-        $current_blacklist = json_decode($blacklist_str, true);
-        if (!is_array($current_blacklist))
-            $current_blacklist = [];
-    } else {
-        $current_blacklist = [];
-    }
-    $stmt->close();
-}
-
-// Load joke command status from builtin_commands table
-$joke_command_status = 'Enabled'; // Default value
-$stmt = $db->prepare("SELECT status FROM builtin_commands WHERE command = 'joke'");
-$stmt->execute();
-$stmt->bind_result($joke_status);
-if ($stmt->fetch()) {
-    $joke_command_status = $joke_status;
-}
-$stmt->close();
-
 // Handle joke command status update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['toggle_joke_command'])) {
     session_start(); // Reopen session for flash messages
@@ -191,296 +573,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['toggle_joke_command'])
     $_SESSION['update_message'] = t('modules_joke_command_status_updated');
     header("Location: ?tab=joke-blacklist");
     exit();
-}
-
-// Load welcome message settings from the database before rendering the form
-// Use explicit column selection and correct order for binding
-$stmt = $db->prepare("SELECT 
-    new_default_welcome_message,
-    default_welcome_message,
-    new_default_vip_welcome_message,
-    default_vip_welcome_message,
-    new_default_mod_welcome_message,
-    default_mod_welcome_message,
-    send_welcome_messages
-    FROM streamer_preferences
-    LIMIT 1");
-$stmt->execute();
-$stmt->bind_result(
-    $new_default_welcome_message,
-    $default_welcome_message,
-    $new_default_vip_welcome_message,
-    $default_vip_welcome_message,
-    $new_default_mod_welcome_message,
-    $default_mod_welcome_message,
-    $send_welcome_messages
-);
-$stmt->fetch();
-$stmt->close();
-
-// Load ad notice settings from the database before rendering the form
-// Default values in case the fetch fails or columns don't exist yet
-$ad_upcoming_message = '';
-$ad_1min_message = '';
-$ad_start_message = '';
-$ad_end_message = '';
-$ad_snoozed_message = '';
-$enable_ad_notice = 0;
-$enable_upcoming_ad_message = 1;
-$enable_1min_ad_message = 0;
-$enable_start_ad_message = 1;
-$enable_end_ad_message = 1;
-$enable_snoozed_ad_message = 1;
-$enable_ai_ad_breaks = 0;
-$enable_raid_ad_snooze = 1;
-$raid_ad_snooze_window_minutes = 10;
-$enable_raid_ad_snooze_message = 1;
-$raid_ad_snooze_message = 'Snoozed the next ad for the raid from (user).';
-
-$stmt = $db->prepare("SELECT ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks, enable_raid_ad_snooze, raid_ad_snooze_window_minutes, enable_raid_ad_snooze_message, raid_ad_snooze_message FROM ad_notice_settings LIMIT 1");
-if ($stmt) {
-    $stmt->execute();
-    $stmt->bind_result(
-        $fetched_upcoming,
-        $fetched_1min,
-        $fetched_start,
-        $fetched_end,
-        $fetched_snoozed,
-        $fetched_enable_global,
-        $fetched_enable_upcoming,
-        $fetched_enable_1min,
-        $fetched_enable_start,
-        $fetched_enable_end,
-        $fetched_enable_snoozed,
-        $fetched_enable_ai,
-        $fetched_enable_raid_snooze,
-        $fetched_raid_window,
-        $fetched_enable_raid_msg,
-        $fetched_raid_msg
-    );
-    if ($stmt->fetch()) {
-        $ad_upcoming_message = $fetched_upcoming;
-        $ad_1min_message = $fetched_1min;
-        $ad_start_message = $fetched_start;
-        $ad_end_message = $fetched_end;
-        $ad_snoozed_message = $fetched_snoozed;
-        $enable_ad_notice = $fetched_enable_global;
-        $enable_upcoming_ad_message = $fetched_enable_upcoming;
-        $enable_1min_ad_message = $fetched_enable_1min;
-        $enable_start_ad_message = $fetched_enable_start;
-        $enable_end_ad_message = $fetched_enable_end;
-        $enable_snoozed_ad_message = $fetched_enable_snoozed;
-        $enable_ai_ad_breaks = $fetched_enable_ai;
-        $enable_raid_ad_snooze = $fetched_enable_raid_snooze;
-        $raid_ad_snooze_window_minutes = (int)$fetched_raid_window;
-        if ($raid_ad_snooze_window_minutes < 1 || $raid_ad_snooze_window_minutes > 30) {
-            $raid_ad_snooze_window_minutes = 10;
-        }
-        $enable_raid_ad_snooze_message = $fetched_enable_raid_msg;
-        if ($fetched_raid_msg !== null && $fetched_raid_msg !== '') {
-            $raid_ad_snooze_message = $fetched_raid_msg;
-        }
-    }
-    $stmt->close();
-}
-
-// Load Twitch audio alerts settings from the database before rendering the form
-$twitchSoundAlertMappings = [];
-// Use the correct upload path for Twitch sound alerts
-$twitch_sound_alert_path = "/var/www/soundalerts/$username/twitch";
-// Load mappings: file => event
-$stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
-$stmt->execute();
-$stmt->bind_result($file_name, $twitch_event);
-while ($stmt->fetch()) {
-    $twitchSoundAlertMappings[$file_name] = $twitch_event;
-}
-$stmt->close();
-
-// Load Twitch chat alerts settings from the database before rendering the form
-$default_chat_alerts = [
-    'follower_alert' => 'Thank you (user) for following! Welcome to the channel!',
-    'cheer_alert' => 'Thank you (user) for (bits) bits! You\'ve given a total of (total-bits) bits.',
-    'raid_alert' => 'Incredible! (user) and (viewers) viewers have joined the party! Let\'s give them a warm welcome!',
-    'subscription_alert' => 'Thank you (user) for subscribing! You are now a (tier) subscriber for (months) months!',
-    'gift_subscription_alert' => 'Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!',
-    'hype_train_start' => 'The Hype Train has started! Starting at level: (level)',
-    'hype_train_end' => 'The Hype Train has ended at level (level)!',
-    'gift_paid_upgrade' => 'Thank you (user) for upgrading from a Gifted Sub to a paid (tier) subscription!',
-    'prime_paid_upgrade' => 'Thank you (user) for upgrading from Prime Gaming to a paid (tier) subscription!',
-    'pay_it_forward' => 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!'
-];
-$chat_alerts = [];
-$stmt = $db->prepare("SELECT alert_type, alert_message FROM twitch_chat_alerts");
-$stmt->execute();
-$stmt->bind_result($alert_type, $alert_message);
-while ($stmt->fetch()) {
-    $chat_alerts[$alert_type] = $alert_message;
-}
-$stmt->close();
-
-// Merge with defaults - if database value is empty or not set, use default
-foreach ($default_chat_alerts as $type => $default_message) {
-    if (!isset($chat_alerts[$type]) || trim($chat_alerts[$type]) === '') {
-        $chat_alerts[$type] = $default_message;
-    }
-}
-
-// Load ignored games from the database before rendering the form
-$ignored_games = [];
-$stmt = $db->prepare("SELECT game_name FROM game_deaths_settings");
-$stmt->execute();
-$stmt->bind_result($game_name);
-while ($stmt->fetch()) {
-    $ignored_games[] = $game_name;
-}
-$stmt->close();
-
-// Load automated shoutout settings from the database
-$automated_shoutout_cooldown = 60; // Default
-$stmt = $db->prepare("SELECT cooldown_minutes FROM automated_shoutout_settings LIMIT 1");
-$stmt->execute();
-$stmt->bind_result($automated_shoutout_cooldown);
-$stmt->fetch();
-$stmt->close();
-
-// Load automated shoutout tracking from the database
-$automated_shoutout_tracking = [];
-$stmt = $db->prepare("SELECT user_id, user_name, shoutout_time FROM automated_shoutout_tracking ORDER BY shoutout_time DESC");
-$stmt->execute();
-$result = $stmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    $automated_shoutout_tracking[] = $row;
-}
-$stmt->close();
-
-// Load TTS settings from the database
-$tts_voice = 'Alloy'; // Default voice
-$tts_language = 'en'; // Default language
-$stmt = $db->prepare("SELECT voice, language FROM tts_settings LIMIT 1");
-$stmt->execute();
-$stmt->bind_result($tts_voice_db, $tts_language_db);
-if ($stmt->fetch()) {
-    if (!empty($tts_voice_db))
-        $tts_voice = $tts_voice_db;
-    if (!empty($tts_language_db))
-        $tts_language = $tts_language_db;
-}
-$stmt->close();
-
-// Load protection settings
-$currentSettings = 'False';
-$termBlockingSettings = 'False';
-$blockFirstMessageCommands = 'False';
-$blockFirstMessageCommandMode = 'all';
-$blockFirstMessageSelectedCommands = [];
-$availableBlockFirstMessageCommands = [];
-$wordReplaceEnabled = 'False';
-$wordReplaceWord = 'fun';
-$wordReplaceFrequency = 30;
-$wordReplaceRate = 10;
-$wordReplaceCooldown = 30;
-$getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands, word_replace_enabled, word_replace_word, word_replace_frequency, word_replace_rate, word_replace_cooldown FROM protection LIMIT 1");
-if ($getProtection) {
-    $settings = $getProtection->fetch_assoc();
-    $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
-    $termBlockingSettings = isset($settings['term_blocking']) ? $settings['term_blocking'] : 'False';
-    $blockFirstMessageCommands = isset($settings['block_first_message_commands']) ? $settings['block_first_message_commands'] : 'False';
-    $blockFirstMessageCommandMode = isset($settings['block_first_message_command_mode']) && $settings['block_first_message_command_mode'] === 'selected' ? 'selected' : 'all';
-    $selectedCommandsRaw = isset($settings['block_first_message_selected_commands']) ? $settings['block_first_message_selected_commands'] : '[]';
-    $decodedSelectedCommands = json_decode($selectedCommandsRaw, true);
-    if (is_array($decodedSelectedCommands)) {
-        foreach ($decodedSelectedCommands as $cmd) {
-            $normalizedCmd = ltrim(strtolower(trim((string) $cmd)), '!');
-            if ($normalizedCmd !== '') {
-                $blockFirstMessageSelectedCommands[$normalizedCmd] = true;
-            }
-        }
-    }
-    $wordReplaceEnabled = isset($settings['word_replace_enabled']) ? $settings['word_replace_enabled'] : 'False';
-    $wordReplaceWord = isset($settings['word_replace_word']) && $settings['word_replace_word'] !== '' ? $settings['word_replace_word'] : 'fun';
-    $wordReplaceFrequency = isset($settings['word_replace_frequency']) ? (int)$settings['word_replace_frequency'] : 30;
-    $wordReplaceRate = isset($settings['word_replace_rate']) ? (int)$settings['word_replace_rate'] : 10;
-    $wordReplaceCooldown = isset($settings['word_replace_cooldown']) ? (int)$settings['word_replace_cooldown'] : 30;
-    $getProtection->free();
-}
-
-$wordReplaceIgnoredUsers = [];
-$getWordReplaceIgnoredUsers = $db->query("SELECT username, opted_out_at, source FROM word_replace_ignored_users ORDER BY opted_out_at DESC");
-if ($getWordReplaceIgnoredUsers) {
-    while ($row = $getWordReplaceIgnoredUsers->fetch_assoc()) {
-        $wordReplaceIgnoredUsers[] = $row;
-    }
-    $getWordReplaceIgnoredUsers->free();
-}
-
-$wordReplaceIgnoredWords = [];
-$getWordReplaceIgnoredWords = $db->query("SELECT word FROM word_replace_ignored_words ORDER BY word ASC");
-if ($getWordReplaceIgnoredWords) {
-    while ($row = $getWordReplaceIgnoredWords->fetch_assoc()) {
-        $wordReplaceIgnoredWords[] = $row;
-    }
-    $getWordReplaceIgnoredWords->free();
-}
-
-$commandOptionsResult = $db->query("SELECT command FROM builtin_commands UNION SELECT command FROM custom_commands UNION SELECT command FROM custom_user_commands");
-if ($commandOptionsResult) {
-    while ($row = $commandOptionsResult->fetch_assoc()) {
-        $cmd = ltrim(strtolower(trim((string) ($row['command'] ?? ''))), '!');
-        if ($cmd !== '') {
-            $availableBlockFirstMessageCommands[$cmd] = $cmd;
-        }
-    }
-    $commandOptionsResult->free();
-    ksort($availableBlockFirstMessageCommands, SORT_NATURAL | SORT_FLAG_CASE);
-}
-
-// Fetch whitelist and blacklist links
-$whitelistLinks = [];
-$blacklistLinks = [];
-$getWhitelist = $db->query("SELECT link FROM link_whitelist");
-if ($getWhitelist) {
-    while ($row = $getWhitelist->fetch_assoc()) {
-        $whitelistLinks[] = $row;
-    }
-    $getWhitelist->free();
-}
-
-$getBlacklist = $db->query("SELECT link FROM link_blacklisting");
-if ($getBlacklist) {
-    while ($row = $getBlacklist->fetch_assoc()) {
-        $blacklistLinks[] = $row;
-    }
-    $getBlacklist->free();
-}
-
-// Fetch blocked terms
-$blockedTerms = [];
-$getBlockedTerms = $db->query("SELECT term FROM blocked_terms");
-if ($getBlockedTerms) {
-    while ($row = $getBlockedTerms->fetch_assoc()) {
-        $blockedTerms[] = $row;
-    }
-    $getBlockedTerms->free();
-}
-
-// Load Spotify song request settings (stored in the unified media_request_settings table)
-$spotify_enabled = 1;
-$spotify_max_song_seconds = 600;
-$spotify_max_queue_length = 20;
-$spotify_per_viewer_limit = 2;
-
-$stmt = $db->prepare("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit FROM media_request_settings WHERE id = 1");
-if ($stmt) {
-    $stmt->execute();
-    $stmt->bind_result($spotify_en, $spotify_mss, $spotify_mql, $spotify_pvl);
-    if ($stmt->fetch()) {
-        $spotify_enabled = $spotify_en;
-        $spotify_max_song_seconds = $spotify_mss;
-        $spotify_max_queue_length = $spotify_mql;
-        $spotify_per_viewer_limit = $spotify_pvl;
-    }
-    $stmt->close();
 }
 
 // Handle Spotify song request settings update (saving to unified media_request_settings)
@@ -568,10 +660,9 @@ ob_start();
         </span>
     </header>
     <div class="sp-card-body">
-                <?php if (!empty($_SESSION['update_message'])): ?>
+                <?php if ($updateMessage !== ''): ?>
                     <div class="sp-alert sp-alert-success" style="margin-bottom:1rem;">
-                        <?php echo $_SESSION['update_message'];
-                        unset($_SESSION['update_message']); ?>
+                        <?php echo $updateMessage; ?>
                     </div>
                 <?php endif; ?>
                 <!-- Tab Contents -->
@@ -591,22 +682,18 @@ ob_start();
                                 <div>
                                     <!-- Joke Command Status Control -->
                                     <div class="sp-card" style="padding:0.75rem; min-width:420px;">
-                                        <div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
+                                        <div id="jokeCommandHost" style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;" aria-busy="true">
                                             <span class="sp-badge sp-badge-grey">
                                                 <i class="fas fa-terminal"></i>
                                                 <?= t('modules_joke_command_badge') ?>
                                             </span>
-                                            <span class="sp-badge <?php echo ($joke_command_status == 'Enabled') ? 'sp-badge-green' : 'sp-badge-red'; ?>">
-                                                <?php echo ($joke_command_status == 'Enabled') ? t('builtin_commands_status_enabled') : t('builtin_commands_status_disabled'); ?>
-                                            </span>
-                                            <form method="POST" style="display:inline;">
+                                            <span id="jokeCommandStatusBadge" class="sp-skeleton-badge" aria-hidden="true"></span>
+                                            <form id="jokeCommandForm" method="POST" style="display:none;">
                                                 <input type="hidden" name="toggle_joke_command" value="1">
-                                                <input type="hidden" name="joke_command_status"
-                                                    value="<?php echo ($joke_command_status == 'Enabled') ? 'Disabled' : 'Enabled'; ?>">
-                                                <button type="submit"
-                                                    class="sp-btn sp-btn-sm <?php echo ($joke_command_status == 'Enabled') ? 'sp-btn-danger' : 'sp-btn-success'; ?>">
-                                                    <i class="fas <?php echo ($joke_command_status == 'Enabled') ? 'fa-times' : 'fa-check'; ?>"></i>
-                                                    <span><?php echo ($joke_command_status == 'Enabled') ? t('builtin_commands_disable') : t('builtin_commands_enable'); ?></span>
+                                                <input type="hidden" name="joke_command_status" id="jokeCommandStatusValue" value="Disabled">
+                                                <button type="submit" id="jokeCommandToggleBtn" class="sp-btn sp-btn-sm">
+                                                    <i class="fas fa-check"></i>
+                                                    <span></span>
                                                 </button>
                                             </form>
                                         </div>
@@ -639,7 +726,7 @@ ob_start();
                                         <div>
                                             <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; color:var(--text-primary);">
                                                 <input type="checkbox" name="blacklist[]"
-                                                    value="<?php echo $cat_value; ?>" <?php echo (is_array($current_blacklist) && in_array($cat_value, $current_blacklist)) ? " checked" : ""; ?>>
+                                                    value="<?php echo $cat_value; ?>">
                                                 <?php echo t($cat_label_key); ?>
                                             </label>
                                         </div>
@@ -661,20 +748,18 @@ ob_start();
                                 <div>
                                     <!-- Welcome Messages Status Control -->
                                     <div class="sp-card" style="padding:0.75rem; min-width:420px;">
-                                        <div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
+                                        <div id="welcomeStatusHost" style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;" aria-busy="true">
                                             <span class="sp-badge sp-badge-grey">
                                                 <i class="fas fa-comment"></i>
                                                 <?= t('modules_welcome_messages_badge') ?>
                                             </span>
-                                            <span class="sp-badge <?php echo ($send_welcome_messages) ? 'sp-badge-green' : 'sp-badge-red'; ?>">
-                                                <?php echo ($send_welcome_messages) ? t('builtin_commands_status_enabled') : t('builtin_commands_status_disabled'); ?>
-                                            </span>
-                                            <form method="POST" action="/api/module_data_post.php" style="display:inline;">
+                                            <span id="welcomeStatusBadge" class="sp-skeleton-badge" aria-hidden="true"></span>
+                                            <form id="welcomeStatusForm" method="POST" action="/api/module_data_post.php" style="display:none;">
                                                 <input type="hidden" name="toggle_welcome_messages" value="1">
-                                                <input type="hidden" name="welcome_messages_status" value="<?php echo ($send_welcome_messages) ? '0' : '1'; ?>">
-                                                <button type="submit" class="sp-btn sp-btn-sm <?php echo ($send_welcome_messages) ? 'sp-btn-danger' : 'sp-btn-success'; ?>">
-                                                    <i class="fas <?php echo ($send_welcome_messages) ? 'fa-times' : 'fa-check'; ?>"></i>
-                                                    <span><?php echo ($send_welcome_messages) ? t('builtin_commands_disable') : t('builtin_commands_enable'); ?></span>
+                                                <input type="hidden" name="welcome_messages_status" id="welcomeStatusValue" value="1">
+                                                <button type="submit" id="welcomeStatusToggleBtn" class="sp-btn sp-btn-sm">
+                                                    <i class="fas fa-check"></i>
+                                                    <span></span>
                                                 </button>
                                             </form>
                                         </div>
@@ -705,7 +790,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="new_default_welcome_message" maxlength="255"
-                                                value="<?php echo htmlspecialchars($new_default_welcome_message !== '' ? $new_default_welcome_message : t('modules_welcome_new_member_default')); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="new_default_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -715,7 +800,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="default_welcome_message" maxlength="255"
-                                                value="<?php echo htmlspecialchars($default_welcome_message !== '' ? $default_welcome_message : t('modules_welcome_returning_member_default')); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="default_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
@@ -738,7 +823,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="new_default_vip_welcome_message" maxlength="255"
-                                                value="<?php echo htmlspecialchars($new_default_vip_welcome_message !== '' ? $new_default_vip_welcome_message : t('modules_welcome_new_vip_default')); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="new_default_vip_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -748,7 +833,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="default_vip_welcome_message" maxlength="255"
-                                                value="<?php echo htmlspecialchars($default_vip_welcome_message !== '' ? $default_vip_welcome_message : t('modules_welcome_returning_vip_default')); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="default_vip_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
@@ -773,7 +858,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="new_default_mod_welcome_message" maxlength="255"
-                                                value="<?php echo htmlspecialchars($new_default_mod_welcome_message !== '' ? $new_default_mod_welcome_message : t('modules_welcome_new_mod_default')); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="new_default_mod_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -783,7 +868,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="default_mod_welcome_message" maxlength="255"
-                                                value="<?php echo htmlspecialchars($default_mod_welcome_message !== '' ? $default_mod_welcome_message : t('modules_welcome_returning_mod_default')); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="default_mod_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
@@ -844,8 +929,8 @@ ob_start();
                                         <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <select class="sp-select" name="url_blocking" id="url_blocking">
-                                                    <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>><?php echo t('yes'); ?></option>
-                                                    <option value="False"<?php echo $currentSettings == 'False' ? ' selected' :'';?>><?php echo t('no'); ?></option>
+                                                    <option value="True"><?php echo t('yes'); ?></option>
+                                                    <option value="False"><?php echo t('no'); ?></option>
                                                 </select>
                                             </div>
                                             <div style="margin-top:1rem;">
@@ -868,24 +953,27 @@ ob_start();
                                         <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <select class="sp-select" name="block_first_message_commands" id="block_first_message_commands">
-                                                    <option value="True"<?php echo $blockFirstMessageCommands == 'True' ? ' selected' :'';?>><?php echo t('yes'); ?></option>
-                                                    <option value="False"<?php echo $blockFirstMessageCommands == 'False' ? ' selected' :'';?>><?php echo t('no'); ?></option>
+                                                    <option value="True"><?php echo t('yes'); ?></option>
+                                                    <option value="False"><?php echo t('no'); ?></option>
                                                 </select>
                                             </div>
                                             <div class="sp-form-group" style="margin-top:1rem;">
                                                 <label class="sp-label"><?= t('modules_blocking_mode_label') ?></label>
                                                 <select class="sp-select" name="block_first_message_command_mode" id="block_first_message_command_mode">
-                                                    <option value="all"<?php echo $blockFirstMessageCommandMode === 'all' ? ' selected' : ''; ?>><?= t('modules_blocking_mode_all') ?></option>
-                                                    <option value="selected"<?php echo $blockFirstMessageCommandMode === 'selected' ? ' selected' : ''; ?>><?= t('modules_blocking_mode_selected') ?></option>
+                                                    <option value="all"><?= t('modules_blocking_mode_all') ?></option>
+                                                    <option value="selected"><?= t('modules_blocking_mode_selected') ?></option>
                                                 </select>
                                             </div>
-                                            <div class="sp-form-group" id="block-first-message-selected-wrapper" style="margin-top:1rem;<?php echo ($blockFirstMessageCommands === 'True' && $blockFirstMessageCommandMode === 'selected') ? '' : 'display:none;'; ?>">
+                                            <div class="sp-form-group" id="block-first-message-selected-wrapper" style="margin-top:1rem;display:none;">
                                                 <label class="sp-label"><?= t('modules_commands_to_block_label') ?></label>
-                                                <select class="sp-select" name="block_first_message_selected_commands[]" id="block_first_message_selected_commands" multiple size="10">
-                                                    <?php foreach ($availableBlockFirstMessageCommands as $cmd): ?>
-                                                        <option value="<?php echo htmlspecialchars($cmd); ?>"<?php echo isset($blockFirstMessageSelectedCommands[$cmd]) ? ' selected' : ''; ?>><?php echo htmlspecialchars('!' . $cmd); ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
+                                                <div id="blockCommandsHost" aria-busy="true">
+                                                    <div class="sp-skeleton-stack" aria-hidden="true">
+                                                        <span class="sp-skeleton-line w-80"></span>
+                                                        <span class="sp-skeleton-line w-70"></span>
+                                                        <span class="sp-skeleton-line w-90"></span>
+                                                    </div>
+                                                    <select class="sp-select" name="block_first_message_selected_commands[]" id="block_first_message_selected_commands" multiple size="10" style="display:none;"></select>
+                                                </div>
                                                 <p class="field-help"><?= t('modules_commands_to_block_help') ?></p>
                                             </div>
                                             <div style="margin-top:1rem;">
@@ -946,30 +1034,13 @@ ob_start();
                                         </h3>
                                         <div class="sp-table-wrap">
                                             <table class="sp-table">
-                                                <tbody>
-                                                    <?php if (empty($whitelistLinks)): ?>
-                                                        <tr>
-                                                            <td colspan="2" style="text-align:center; color:var(--text-muted);">
-                                                                <i class="fas fa-info-circle"></i>
-                                                                <?= t('modules_no_whitelisted_links') ?>
-                                                            </td>
-                                                        </tr>
-                                                    <?php else: ?>
-                                                        <?php foreach ($whitelistLinks as $link): ?>
-                                                            <tr>
-                                                                <td><?php echo htmlspecialchars($link['link']); ?></td>
-                                                                <td style="text-align:right;">
-                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
-                                                                        <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
-                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
-                                                                            <i class="fas fa-trash-alt"></i>
-                                                                            <span><?php echo t('protection_remove'); ?></span>
-                                                                        </button>
-                                                                    </form>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    <?php endif; ?>
+                                                <tbody id="whitelistLinksBody" aria-busy="true">
+                                                    <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                                    <tr aria-hidden="true">
+                                                        <td><span class="sp-skeleton-line w-80"></span></td>
+                                                        <td style="text-align:right;"><span class="sp-skeleton-badge"></span></td>
+                                                    </tr>
+                                                    <?php endfor; ?>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -983,30 +1054,13 @@ ob_start();
                                         </h3>
                                         <div class="sp-table-wrap">
                                             <table class="sp-table">
-                                                <tbody>
-                                                    <?php if (empty($blacklistLinks)): ?>
-                                                        <tr>
-                                                            <td colspan="2" style="text-align:center; color:var(--text-muted);">
-                                                                <i class="fas fa-info-circle"></i>
-                                                                <?= t('modules_no_blacklisted_links') ?>
-                                                            </td>
-                                                        </tr>
-                                                    <?php else: ?>
-                                                        <?php foreach ($blacklistLinks as $link): ?>
-                                                            <tr>
-                                                                <td><?php echo htmlspecialchars($link['link']); ?></td>
-                                                                <td style="text-align:right;">
-                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
-                                                                        <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
-                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
-                                                                            <i class="fas fa-trash-alt"></i>
-                                                                            <span><?php echo t('protection_remove'); ?></span>
-                                                                        </button>
-                                                                    </form>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    <?php endif; ?>
+                                                <tbody id="blacklistLinksBody" aria-busy="true">
+                                                    <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                                    <tr aria-hidden="true">
+                                                        <td><span class="sp-skeleton-line w-80"></span></td>
+                                                        <td style="text-align:right;"><span class="sp-skeleton-badge"></span></td>
+                                                    </tr>
+                                                    <?php endfor; ?>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1058,8 +1112,8 @@ ob_start();
                                         <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <select class="sp-select" name="term_blocking" id="term_blocking">
-                                                    <option value="True"<?php echo $termBlockingSettings == 'True' ? ' selected' : ''; ?>><?php echo t('yes'); ?></option>
-                                                    <option value="False"<?php echo $termBlockingSettings == 'False' ? ' selected' : ''; ?>><?php echo t('no'); ?></option>
+                                                    <option value="True"><?php echo t('yes'); ?></option>
+                                                    <option value="False"><?php echo t('no'); ?></option>
                                                 </select>
                                             </div>
                                             <div style="margin-top:1rem;">
@@ -1100,30 +1154,13 @@ ob_start();
                                         </h3>
                                         <div class="sp-table-wrap">
                                             <table class="sp-table">
-                                                <tbody>
-                                                    <?php if (empty($blockedTerms)): ?>
-                                                        <tr>
-                                                            <td colspan="2" style="text-align:center; color:var(--text-muted);">
-                                                                <i class="fas fa-info-circle"></i>
-                                                                <?= t('modules_no_blocked_terms') ?>
-                                                            </td>
-                                                        </tr>
-                                                    <?php else: ?>
-                                                        <?php foreach ($blockedTerms as $term): ?>
-                                                            <tr>
-                                                                <td><?php echo htmlspecialchars($term['term']); ?></td>
-                                                                <td style="text-align:right;">
-                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
-                                                                        <input type="hidden" name="remove_blocked_term" value="<?php echo htmlspecialchars($term['term']); ?>">
-                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
-                                                                            <i class="fas fa-trash-alt"></i>
-                                                                            <span><?php echo t('protection_remove'); ?></span>
-                                                                        </button>
-                                                                    </form>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    <?php endif; ?>
+                                                <tbody id="blockedTermsBody" aria-busy="true">
+                                                    <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                                    <tr aria-hidden="true">
+                                                        <td><span class="sp-skeleton-line w-70"></span></td>
+                                                        <td style="text-align:right;"><span class="sp-skeleton-badge"></span></td>
+                                                    </tr>
+                                                    <?php endfor; ?>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1154,26 +1191,26 @@ ob_start();
                                         <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <label class="sp-label"><?= t('modules_word_replace_enable') ?></label>
-                                                <select class="sp-select" name="word_replace_enabled">
-                                                    <option value="True"<?= $wordReplaceEnabled == 'True' ? ' selected' : '' ?>><?= t('yes') ?></option>
-                                                    <option value="False"<?= $wordReplaceEnabled == 'False' ? ' selected' : '' ?>><?= t('no') ?></option>
+                                                <select class="sp-select" name="word_replace_enabled" id="word_replace_enabled">
+                                                    <option value="True"><?= t('yes') ?></option>
+                                                    <option value="False"><?= t('no') ?></option>
                                                 </select>
                                             </div>
                                             <div class="sp-form-group">
                                                 <label class="sp-label"><?= t('modules_word_replace_word_label') ?></label>
-                                                <input class="sp-input" type="text" name="word_replace_word" value="<?= htmlspecialchars($wordReplaceWord) ?>" maxlength="32" pattern="[a-z0-9]+" required>
+                                                <input class="sp-input" type="text" name="word_replace_word" value="" maxlength="32" pattern="[a-z0-9]+" required>
                                             </div>
                                             <div class="sp-form-group">
                                                 <label class="sp-label"><?= t('modules_word_replace_frequency_label') ?></label>
-                                                <input class="sp-input" type="number" name="word_replace_frequency" min="5" max="200" value="<?= (int)$wordReplaceFrequency ?>" required>
+                                                <input class="sp-input" type="number" name="word_replace_frequency" min="5" max="200" value="30" required>
                                             </div>
                                             <div class="sp-form-group">
                                                 <label class="sp-label"><?= t('modules_word_replace_rate_label') ?></label>
-                                                <input class="sp-input" type="number" name="word_replace_rate" min="2" max="50" value="<?= (int)$wordReplaceRate ?>" required>
+                                                <input class="sp-input" type="number" name="word_replace_rate" min="2" max="50" value="10" required>
                                             </div>
                                             <div class="sp-form-group">
                                                 <label class="sp-label"><?= t('modules_word_replace_cooldown_label') ?></label>
-                                                <input class="sp-input" type="number" name="word_replace_cooldown" min="10" max="300" value="<?= (int)$wordReplaceCooldown ?>" required>
+                                                <input class="sp-input" type="number" name="word_replace_cooldown" min="10" max="300" value="30" required>
                                             </div>
                                             <button type="submit" name="submit" class="sp-btn sp-btn-primary" style="width:100%;">
                                                 <i class="fas fa-save"></i>
@@ -1215,22 +1252,13 @@ ob_start();
                                         <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><?= t('modules_word_replace_ignored_words_list') ?></h3>
                                         <div class="sp-table-wrap" style="margin-bottom:1.5rem;">
                                             <table class="sp-table">
-                                                <tbody>
-                                                    <?php if (empty($wordReplaceIgnoredWords)): ?>
-                                                        <tr><td style="text-align:center;color:var(--text-muted);"><?= t('modules_word_replace_no_ignored_words') ?></td></tr>
-                                                    <?php else: ?>
-                                                        <?php foreach ($wordReplaceIgnoredWords as $wrWord): ?>
-                                                            <tr>
-                                                                <td><?= htmlspecialchars($wrWord['word']) ?></td>
-                                                                <td style="text-align:right;">
-                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
-                                                                        <input type="hidden" name="remove_word_replace_ignored_word" value="<?= htmlspecialchars($wrWord['word']) ?>">
-                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i></button>
-                                                                    </form>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    <?php endif; ?>
+                                                <tbody id="wordReplaceIgnoredWordsBody" aria-busy="true">
+                                                    <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                                    <tr aria-hidden="true">
+                                                        <td><span class="sp-skeleton-line w-60"></span></td>
+                                                        <td style="text-align:right;"><span class="sp-skeleton-badge"></span></td>
+                                                    </tr>
+                                                    <?php endfor; ?>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1245,24 +1273,15 @@ ob_start();
                                                         <th></th>
                                                     </tr>
                                                 </thead>
-                                                <tbody>
-                                                    <?php if (empty($wordReplaceIgnoredUsers)): ?>
-                                                        <tr><td colspan="4" style="text-align:center;color:var(--text-muted);"><?= t('modules_word_replace_no_opted_out_users') ?></td></tr>
-                                                    <?php else: ?>
-                                                        <?php foreach ($wordReplaceIgnoredUsers as $wrUser): ?>
-                                                            <tr>
-                                                                <td><?= htmlspecialchars($wrUser['username']) ?></td>
-                                                                <td><?= htmlspecialchars($wrUser['opted_out_at'] ?? '') ?></td>
-                                                                <td><?= htmlspecialchars($wrUser['source'] ?? 'chat') ?></td>
-                                                                <td style="text-align:right;">
-                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
-                                                                        <input type="hidden" name="remove_word_replace_ignored_user" value="<?= htmlspecialchars($wrUser['username']) ?>">
-                                                                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i></button>
-                                                                    </form>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    <?php endif; ?>
+                                                <tbody id="wordReplaceIgnoredUsersBody" aria-busy="true">
+                                                    <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                                    <tr aria-hidden="true">
+                                                        <td><span class="sp-skeleton-line w-50"></span></td>
+                                                        <td><span class="sp-skeleton-line w-60"></span></td>
+                                                        <td><span class="sp-skeleton-badge"></span></td>
+                                                        <td style="text-align:right;"><span class="sp-skeleton-badge"></span></td>
+                                                    </tr>
+                                                    <?php endfor; ?>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1302,21 +1321,11 @@ ob_start();
                                 <i class="fas fa-list"></i>
                                 <?= t('modules_currently_ignored_games') ?>
                             </h4>
-                            <div>
-                                <?php
-                                if (!empty($ignored_games)) {
-                                    echo '<div style="display:flex; flex-wrap:wrap; gap:0.5rem;">';
-                                    foreach ($ignored_games as $game) {
-                                        echo '<span class="sp-badge sp-badge-red" style="font-size:0.9rem; padding:0.3rem 0.6rem;">';
-                                        echo htmlspecialchars($game);
-                                        echo '<button type="button" onclick="removeIgnoredGame(\'' . htmlspecialchars(addslashes($game)) . '\')" style="background:none; border:none; cursor:pointer; color:inherit; margin-left:0.4rem; font-size:0.85rem;">&times;</button>';
-                                        echo '</span>';
-                                    }
-                                    echo '</div>';
-                                } else {
-                                    echo '<p style="color:var(--text-muted);">' . t('modules_no_games_ignored') . '</p>';
-                                }
-                                ?>
+                            <div id="ignoredGamesHost" aria-busy="true">
+                                <div class="sp-skeleton-stack" aria-hidden="true">
+                                    <span class="sp-skeleton-line w-70"></span>
+                                    <span class="sp-skeleton-line w-50"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1346,14 +1355,13 @@ ob_start();
                                             <label for="enable_upcoming_ad_message" style="cursor: pointer;">
                                                 <input id="enable_upcoming_ad_message" type="checkbox"
                                                     name="enable_upcoming_ad_message" value="1"
-                                                    <?php echo (!empty($enable_upcoming_ad_message) ? 'checked' : ''); ?>
                                                     style="display: none;">
-                                                <i class="fas fa-toggle-<?php echo (!empty($enable_upcoming_ad_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_upcoming_ad_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                                <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_upcoming_message"
                                             maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>"
-                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?></textarea>
+                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
                                             <span class="char-count" data-field="ad_upcoming_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
@@ -1367,14 +1375,13 @@ ob_start();
                                             <label for="enable_1min_ad_message" style="cursor: pointer;">
                                                 <input id="enable_1min_ad_message" type="checkbox"
                                                     name="enable_1min_ad_message" value="1"
-                                                    <?php echo (!empty($enable_1min_ad_message) ? 'checked' : ''); ?>
                                                     style="display: none;">
-                                                <i class="fas fa-toggle-<?php echo (!empty($enable_1min_ad_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_1min_ad_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                                <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_1min_message"
                                             maxlength="255" placeholder="<?php echo t('modules_ad_1min_message_placeholder'); ?>"
-                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_1min_message ?? ''); ?></textarea>
+                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
                                             <span class="char-count" data-field="ad_1min_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
@@ -1388,14 +1395,13 @@ ob_start();
                                             <label for="enable_start_ad_message" style="cursor: pointer;">
                                                 <input id="enable_start_ad_message" type="checkbox"
                                                     name="enable_start_ad_message" value="1"
-                                                    <?php echo (!empty($enable_start_ad_message) ? 'checked' : ''); ?>
                                                     style="display: none;">
-                                                <i class="fas fa-toggle-<?php echo (!empty($enable_start_ad_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_start_ad_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                                <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_start_message"
                                             maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>"
-                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_start_message ?? ''); ?></textarea>
+                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
                                             <span class="char-count" data-field="ad_start_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
@@ -1409,14 +1415,13 @@ ob_start();
                                             <label for="enable_end_ad_message" style="cursor: pointer;">
                                                 <input id="enable_end_ad_message" type="checkbox"
                                                     name="enable_end_ad_message" value="1"
-                                                    <?php echo (!empty($enable_end_ad_message) ? 'checked' : ''); ?>
                                                     style="display: none;">
-                                                <i class="fas fa-toggle-<?php echo (!empty($enable_end_ad_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_end_ad_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                                <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                             </label>
                                         </div>
                                         <textarea class="sp-textarea ad-notice-input" name="ad_end_message"
                                             maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>"
-                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_end_message ?? ''); ?></textarea>
+                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                         <p class="field-help">
                                             <span class="char-count" data-field="ad_end_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
@@ -1434,14 +1439,13 @@ ob_start();
                                         <label for="enable_snoozed_ad_message" style="cursor: pointer;">
                                             <input id="enable_snoozed_ad_message" type="checkbox"
                                                 name="enable_snoozed_ad_message" value="1"
-                                                <?php echo (!empty($enable_snoozed_ad_message) ? 'checked' : ''); ?>
                                                 style="display: none;">
-                                            <i class="fas fa-toggle-<?php echo (!empty($enable_snoozed_ad_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_snoozed_ad_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                            <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                         </label>
                                     </div>
                                     <textarea class="sp-textarea ad-notice-input" name="ad_snoozed_message"
                                         maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>"
-                                        rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?></textarea>
+                                        rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                     <p class="field-help">
                                         <span class="char-count" data-field="ad_snoozed_message">0</span><?= t('modules_char_count_255') ?>
                                     </p>
@@ -1469,9 +1473,9 @@ ob_start();
                                         </div>
                                         <label for="enable_raid_ad_snooze" style="cursor: pointer;">
                                             <input id="enable_raid_ad_snooze" type="checkbox" name="enable_raid_ad_snooze"
-                                                value="1" <?php echo (!empty($enable_raid_ad_snooze) ? 'checked' : ''); ?>
+                                                value="1"
                                                 style="display: none;">
-                                            <i class="fas fa-toggle-<?php echo (!empty($enable_raid_ad_snooze) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_raid_ad_snooze) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                            <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                         </label>
                                     </div>
                                 </div>
@@ -1482,7 +1486,7 @@ ob_start();
                                     </label>
                                     <input class="sp-input" type="number" name="raid_ad_snooze_window_minutes"
                                         id="raid_ad_snooze_window_minutes" min="1" max="30" step="1"
-                                        value="<?php echo (int)$raid_ad_snooze_window_minutes; ?>"
+                                        value="10"
                                         style="max-width:8rem;">
                                     <p class="field-help">
                                         <?= t('modules_raid_ad_snooze_window_help') ?>
@@ -1497,14 +1501,13 @@ ob_start();
                                         <label for="enable_raid_ad_snooze_message" style="cursor: pointer;">
                                             <input id="enable_raid_ad_snooze_message" type="checkbox"
                                                 name="enable_raid_ad_snooze_message" value="1"
-                                                <?php echo (!empty($enable_raid_ad_snooze_message) ? 'checked' : ''); ?>
                                                 style="display: none;">
-                                            <i class="fas fa-toggle-<?php echo (!empty($enable_raid_ad_snooze_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_raid_ad_snooze_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                            <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                         </label>
                                     </div>
                                     <textarea class="sp-textarea ad-notice-input" name="raid_ad_snooze_message"
                                         maxlength="255" placeholder="<?php echo t('modules_raid_ad_snooze_message_placeholder'); ?>"
-                                        rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($raid_ad_snooze_message ?? ''); ?></textarea>
+                                        rows="3" style="word-wrap: break-word; white-space: pre-wrap;"></textarea>
                                     <p class="field-help">
                                         <span class="char-count" data-field="raid_ad_snooze_message">0</span><?= t('modules_char_count_255') ?>
                                     </p>
@@ -1526,9 +1529,9 @@ ob_start();
                                         </div>
                                         <label for="enable_ad_notice" style="cursor: pointer;">
                                             <input id="enable_ad_notice" type="checkbox" name="enable_ad_notice"
-                                                value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>
+                                                value="1"
                                                 style="display: none;">
-                                            <i class="fas fa-toggle-<?php echo (!empty($enable_ad_notice) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_ad_notice) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                            <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                         </label>
                                     </div>
                                 </div>
@@ -1547,9 +1550,9 @@ ob_start();
                                         </div>
                                         <label for="enable_ai_ad_breaks" style="cursor: pointer;">
                                             <input id="enable_ai_ad_breaks" type="checkbox" name="enable_ai_ad_breaks"
-                                                value="1" <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>
+                                                value="1"
                                                 style="display: none;">
-                                            <i class="fas fa-toggle-<?php echo (!empty($enable_ai_ad_breaks) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_ai_ad_breaks) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                            <i class="fas fa-toggle-off fa-2x" style="color:var(--text-muted);"></i>
                                         </label>
                                     </div>
                                 </div>
@@ -1576,20 +1579,15 @@ ob_start();
                                 </div>
                                 <div class="sp-card-body">
                                     <!-- Storage Usage Info -->
-                                    <div class="sp-card" style="margin-bottom:1rem; background:var(--bg-card-hover);">
+                                    <div class="sp-card" style="margin-bottom:1rem; background:var(--bg-card-hover);" id="storageUsageHost" aria-busy="true">
                                         <div class="sp-card-body" style="padding:0.75rem;">
                                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
                                                 <span><i class="fas fa-database"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
-                                                <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+                                                <span id="storageUsageText"><span class="sp-skeleton-line w-50"></span></span>
                                             </div>
-                                            <progress style="width:100%; height:0.75rem;" value="<?php echo $storage_percentage; ?>" max="100"></progress>
+                                            <progress id="storageUsageBar" style="width:100%; height:0.75rem;" value="0" max="100"></progress>
                                         </div>
                                     </div>
-                                    <?php if (!empty($status)): ?>
-                                        <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
-                                            <?php echo $status; ?>
-                                        </div>
-                                    <?php endif; ?>
                                     <form action="/api/module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
                                         <!-- Custom drag/drop file input -->
                                         <div id="drag-area" style="border:2px dashed var(--border); border-radius:var(--radius); padding:2rem; text-align:center; cursor:pointer; background:var(--bg-card-hover); margin-bottom:1rem; transition:border-color 0.2s;">
@@ -1629,100 +1627,42 @@ ob_start();
                                     </div>
                                 </div>
                                 <div class="sp-card-body">
-                                    <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
-                                    if (!empty($walkon_files)): ?>
-                                        <form action="/api/module_data_post.php" method="POST" id="deleteForm">
-                                            <div class="sp-table-wrap">
-                                                <table class="sp-table" id="twitchAlertsTable">
-                                                    <thead>
-                                                        <tr>
-                                                            <th style="width:70px; text-align:center;"><?php echo t('modules_select'); ?></th>
-                                                            <th style="text-align:center;"><?php echo t('modules_file_name'); ?></th>
-                                                            <th style="text-align:center;"><?php echo t('modules_twitch_event'); ?></th>
-                                                            <th style="width:80px; text-align:center;"><?php echo t('modules_action'); ?></th>
-                                                            <th style="width:120px; text-align:center;"><?php echo t('modules_test_audio'); ?></th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <?php foreach ($walkon_files as $file): ?>
-                                                            <tr>
-                                                                <td style="text-align:center;"><input
-                                                                        type="checkbox"
-                                                                        name="delete_files[]"
-                                                                        value="<?php echo htmlspecialchars($file); ?>">
-                                                                </td>
-                                                                <td>
-                                                                    <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
-                                                                </td>
-                                                                <td style="text-align:center;">
-                                                                    <?php
-                                                                    $current_mapped = isset($twitchSoundAlertMappings[$file]) ? $twitchSoundAlertMappings[$file] : null;
-                                                                    $mappedEvents = [];
-                                                                    foreach ($twitchSoundAlertMappings as $mappedFile => $mappedEvent) {
-                                                                        if ($mappedFile !== $file && $mappedEvent) {
-                                                                            $mappedEvents[] = $mappedEvent;
-                                                                        }
-                                                                    }
-                                                                    $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
-                                                                    $availableEvents = array_diff($allEvents, $mappedEvents);
-                                                                    ?>
-                                                                    <?php if ($current_mapped): ?>
-                                                                        <em><?php echo t('modules_event_' . strtolower(str_replace(' ', '_', $current_mapped))); ?></em>
-                                                                    <?php else: ?>
-                                                                        <em><?php echo t('modules_not_mapped'); ?></em>
-                                                                    <?php endif; ?>
-                                                                    <form action="/api/module_data_post.php" method="POST" class="mapping-form" style="margin-top:0.5rem;">
-                                                                        <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                                                        <select name="twitch_alert_id" class="sp-select mapping-select">
-                                                                            <?php if ($current_mapped): ?>
-                                                                                <option value=""><?php echo t('modules_remove_mapping'); ?></option>
-                                                                            <?php endif; ?>
-                                                                            <option value=""><?php echo t('modules_select_event'); ?></option>
-                                                                            <?php
-                                                                            foreach ($allEvents as $evt) {
-                                                                                $isMapped = in_array($evt, $mappedEvents);
-                                                                                $isCurrent = ($current_mapped === $evt);
-                                                                                if ($isMapped && !$isCurrent) continue;
-                                                                                echo '<option value="' . htmlspecialchars($evt) . '"';
-                                                                                if ($isCurrent) echo ' selected';
-                                                                                echo '>' . t('modules_event_' . strtolower(str_replace(' ', '_', $evt))) . '</option>';
-                                                                            }
-                                                                            ?>
-                                                                        </select>
-                                                                    </form>
-                                                                </td>
-                                                                <td style="text-align:center;">
-                                                                    <button type="button"
-                                                                        class="delete-single sp-btn sp-btn-danger sp-btn-sm"
-                                                                        data-file="<?php echo htmlspecialchars($file); ?>">
-                                                                        <i class="fas fa-trash"></i>
-                                                                    </button>
-                                                                </td>
-                                                                <td style="text-align:center;">
-                                                                    <button type="button"
-                                                                        class="test-sound sp-btn sp-btn-primary sp-btn-sm"
-                                                                        data-file="twitch/<?php echo htmlspecialchars($file); ?>">
-                                                                        <i class="fas fa-play"></i>
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        <?php endforeach; ?>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                            <button type="submit" value="Delete Selected"
-                                                class="sp-btn sp-btn-danger" name="submit_delete" style="margin-top:0.75rem; display:none;">
-                                                <i class="fas fa-trash"></i>
-                                                <span><?php echo t('modules_delete_selected'); ?></span>
-                                            </button>
-                                        </form>
-                                    <?php else: ?>
-                                        <div style="text-align:center; padding:2.5rem 1rem;">
-                                            <h2 style="font-size:1rem; color:var(--text-muted);">
-                                                <?php echo t('modules_no_sound_alert_files_uploaded'); ?>
-                                            </h2>
+                                    <div id="soundAlertsEmpty" style="text-align:center; padding:2.5rem 1rem; display:none;">
+                                        <h2 style="font-size:1rem; color:var(--text-muted);">
+                                            <?php echo t('modules_no_sound_alert_files_uploaded'); ?>
+                                        </h2>
+                                    </div>
+                                    <form action="/api/module_data_post.php" method="POST" id="deleteForm">
+                                        <div class="sp-table-wrap">
+                                            <table class="sp-table" id="twitchAlertsTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width:70px; text-align:center;"><?php echo t('modules_select'); ?></th>
+                                                        <th style="text-align:center;"><?php echo t('modules_file_name'); ?></th>
+                                                        <th style="text-align:center;"><?php echo t('modules_twitch_event'); ?></th>
+                                                        <th style="width:80px; text-align:center;"><?php echo t('modules_action'); ?></th>
+                                                        <th style="width:120px; text-align:center;"><?php echo t('modules_test_audio'); ?></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="soundAlertsBody" aria-busy="true">
+                                                    <?php for ($sk = 0; $sk < 4; $sk++): ?>
+                                                    <tr aria-hidden="true">
+                                                        <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                                                        <td><span class="sp-skeleton-line w-70"></span></td>
+                                                        <td style="text-align:center;"><span class="sp-skeleton-line w-60"></span></td>
+                                                        <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                                                        <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                                                    </tr>
+                                                    <?php endfor; ?>
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    <?php endif; ?>
+                                        <button type="submit" value="Delete Selected"
+                                            class="sp-btn sp-btn-danger" name="submit_delete" style="margin-top:0.75rem; display:none;">
+                                            <i class="fas fa-trash"></i>
+                                            <span><?php echo t('modules_delete_selected'); ?></span>
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                         </div>
@@ -1756,7 +1696,7 @@ ob_start();
                                                 <?php echo t('modules_follower_alert'); ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="follower_alert" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="follower_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -1765,7 +1705,7 @@ ob_start();
                                                 <?php echo t('modules_cheer_alert'); ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="cheer_alert" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="cheer_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -1774,7 +1714,7 @@ ob_start();
                                                 <?php echo t('modules_raid_alert'); ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="raid_alert" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="raid_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
@@ -1797,7 +1737,7 @@ ob_start();
                                                 <span class="sp-badge sp-badge-red" style="font-size:0.7rem;">*</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="subscription_alert" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="subscription_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -1808,7 +1748,7 @@ ob_start();
                                                 <i class="fas fa-info-circle" style="color:var(--amber);" title="<?= htmlspecialchars(t('modules_gift_sub_info_tooltip')) ?>"></i>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="gift_subscription_alert" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="gift_subscription_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
@@ -1832,7 +1772,7 @@ ob_start();
                                                 <?php echo t('modules_hype_train_start'); ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="hype_train_start" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="hype_train_start">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -1841,7 +1781,7 @@ ob_start();
                                                 <?php echo t('modules_hype_train_end'); ?>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="hype_train_end" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="hype_train_end">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
@@ -1869,7 +1809,7 @@ ob_start();
                                                 <?= t('modules_gift_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="gift_paid_upgrade" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['gift_paid_upgrade']) ? $chat_alerts['gift_paid_upgrade'] : $default_chat_alerts['gift_paid_upgrade']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="gift_paid_upgrade">0</span><?= t('modules_char_count_255_placeholders_user_tier') ?></p>
                                         </div>
                                         <div class="sp-form-group">
@@ -1878,7 +1818,7 @@ ob_start();
                                                 <?= t('modules_prime_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="prime_paid_upgrade" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['prime_paid_upgrade']) ? $chat_alerts['prime_paid_upgrade'] : $default_chat_alerts['prime_paid_upgrade']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="prime_paid_upgrade">0</span><?= t('modules_char_count_255_placeholders_user_tier') ?></p>
                                         </div>
                                         <div class="sp-form-group" style="grid-column: 1 / -1;">
@@ -1887,7 +1827,7 @@ ob_start();
                                                 <?= t('modules_pay_it_forward_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="pay_it_forward" maxlength="255"
-                                                value="<?php echo htmlspecialchars(isset($chat_alerts['pay_it_forward']) ? $chat_alerts['pay_it_forward'] : $default_chat_alerts['pay_it_forward']); ?>">
+                                                value="">
                                             <p class="field-help"><span class="char-count" data-field="pay_it_forward">0</span><?= t('modules_char_count_255_placeholders_user_tier_gifter') ?></p>
                                         </div>
                                     </div>
@@ -1917,7 +1857,7 @@ ob_start();
                                         <div class="sp-form-group">
                                             <label class="sp-label"><?= t('modules_automated_shoutout_cooldown_label') ?></label>
                                             <input class="sp-input" type="number" name="cooldown_minutes"
-                                                value="<?php echo htmlspecialchars($automated_shoutout_cooldown); ?>"
+                                                value="60"
                                                 min="60" required>
                                             <p class="field-help"><?= t('modules_automated_shoutout_cooldown_help') ?></p>
                                         </div>
@@ -1936,11 +1876,11 @@ ob_start();
                                         <?= t('modules_users_on_cooldown') ?>
                                     </h3>
                                     <p style="color:var(--text-muted); margin:0 0 1rem;"><?= t('modules_users_on_cooldown_description') ?></p>
-                                    <div class="sp-alert sp-alert-info"<?php echo !empty($automated_shoutout_tracking) ? ' style="display:none;"' : ''; ?>>
+                                    <div id="shoutoutEmpty" class="sp-alert sp-alert-info" style="display:none;">
                                         <i class="fas fa-info-circle"></i>
                                         <?= t('modules_no_users_on_cooldown') ?>
                                     </div>
-                                    <div class="sp-table-wrap"<?php echo empty($automated_shoutout_tracking) ? ' style="display:none;"' : ''; ?>>
+                                    <div class="sp-table-wrap" id="shoutoutTableWrap">
                                         <table class="sp-table">
                                             <thead>
                                                 <tr>
@@ -1949,28 +1889,14 @@ ob_start();
                                                     <th><?= t('modules_table_cooldown_remaining') ?></th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
-                                                <?php foreach ($automated_shoutout_tracking as $tracking):
-                                                    $shoutout_time = new DateTime($tracking['shoutout_time'], new DateTimeZone($timezone));
-                                                    $now = new DateTime('now', new DateTimeZone($timezone));
-                                                    $diff = $now->getTimestamp() - $shoutout_time->getTimestamp();
-                                                    $cooldown_seconds = $automated_shoutout_cooldown * 60;
-                                                    $remaining_seconds = max(0, $cooldown_seconds - $diff);
-                                                    $remaining_minutes = ceil($remaining_seconds / 60);
-                                                    $is_expired = $remaining_seconds <= 0;
-                                                    ?>
-                                                    <tr<?php echo $is_expired ? ' style="color:var(--text-muted);"' : ''; ?>>
-                                                        <td><?php echo htmlspecialchars($tracking['user_name']); ?></td>
-                                                        <td><?php echo $shoutout_time->format('Y-m-d H:i:s'); ?></td>
-                                                        <td>
-                                                            <?php if ($is_expired): ?>
-                                                                <span class="sp-badge sp-badge-green"><?= t('modules_cooldown_ready') ?></span>
-                                                            <?php else: ?>
-                                                                <span class="sp-badge sp-badge-amber"><?php echo $remaining_minutes; ?> <?= t('modules_cooldown_min') ?></span>
-                                                            <?php endif; ?>
-                                                        </td>
-                                                    </tr>
-                                                <?php endforeach; ?>
+                                            <tbody id="shoutoutTrackingBody" aria-busy="true">
+                                                <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                                <tr aria-hidden="true">
+                                                    <td><span class="sp-skeleton-line w-50"></span></td>
+                                                    <td><span class="sp-skeleton-line w-70"></span></td>
+                                                    <td><span class="sp-skeleton-badge"></span></td>
+                                                </tr>
+                                                <?php endfor; ?>
                                             </tbody>
                                         </table>
                                     </div>
@@ -2008,18 +1934,18 @@ ob_start();
                                                 <i class="fas fa-volume-up"></i>
                                                 <?= t('modules_tts_voice_label') ?>
                                             </label>
-                                            <select class="sp-select" name="tts_voice" required>
-                                                <option value="Alloy" <?php echo ($tts_voice === 'Alloy') ? 'selected' : ''; ?>>Alloy <?= t('modules_tts_voice_default_suffix') ?></option>
-                                                <option value="Ash" <?php echo ($tts_voice === 'Ash') ? 'selected' : ''; ?>>Ash</option>
-                                                <option value="Ballad" <?php echo ($tts_voice === 'Ballad') ? 'selected' : ''; ?>>Ballad</option>
-                                                <option value="Coral" <?php echo ($tts_voice === 'Coral') ? 'selected' : ''; ?>>Coral</option>
-                                                <option value="Echo" <?php echo ($tts_voice === 'Echo') ? 'selected' : ''; ?>>Echo</option>
-                                                <option value="Fable" <?php echo ($tts_voice === 'Fable') ? 'selected' : ''; ?>>Fable</option>
-                                                <option value="Nova" <?php echo ($tts_voice === 'Nova') ? 'selected' : ''; ?>>Nova</option>
-                                                <option value="Onyx" <?php echo ($tts_voice === 'Onyx') ? 'selected' : ''; ?>>Onyx</option>
-                                                <option value="Sage" <?php echo ($tts_voice === 'Sage') ? 'selected' : ''; ?>>Sage</option>
-                                                <option value="Shimmer" <?php echo ($tts_voice === 'Shimmer') ? 'selected' : ''; ?>>Shimmer</option>
-                                                <option value="Verse" <?php echo ($tts_voice === 'Verse') ? 'selected' : ''; ?>>Verse</option>
+                                            <select class="sp-select" name="tts_voice" id="tts_voice" required>
+                                                <option value="Alloy">Alloy <?= t('modules_tts_voice_default_suffix') ?></option>
+                                                <option value="Ash">Ash</option>
+                                                <option value="Ballad">Ballad</option>
+                                                <option value="Coral">Coral</option>
+                                                <option value="Echo">Echo</option>
+                                                <option value="Fable">Fable</option>
+                                                <option value="Nova">Nova</option>
+                                                <option value="Onyx">Onyx</option>
+                                                <option value="Sage">Sage</option>
+                                                <option value="Shimmer">Shimmer</option>
+                                                <option value="Verse">Verse</option>
                                             </select>
                                             <p class="field-help"><?= t('modules_tts_voice_help') ?></p>
                                         </div>
@@ -2028,8 +1954,8 @@ ob_start();
                                                 <i class="fas fa-globe"></i>
                                                 <?= t('modules_tts_language_label') ?>
                                             </label>
-                                            <select class="sp-select" name="tts_language" required>
-                                                <option value="en" <?php echo ($tts_language === 'en') ? 'selected' : ''; ?>><?= t('modules_tts_language_english') ?></option>
+                                            <select class="sp-select" name="tts_language" id="tts_language" required>
+                                                <option value="en"><?= t('modules_tts_language_english') ?></option>
                                             </select>
                                             <p class="field-help"><?= t('modules_tts_language_help') ?></p>
                                         </div>
@@ -2113,54 +2039,32 @@ ob_start();
                                     <i class="fas fa-list" style="color:var(--blue);"></i>
                                     <?= t('modules_linked_bots') ?>
                                 </h3>
-                                <?php if (empty($moduleBots)): ?>
-                                    <div class="sp-alert sp-alert-info">
-                                        <i class="fas fa-info-circle"></i>
-                                        <?= t('modules_no_module_bots_linked') ?>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="sp-table-wrap">
-                                        <table class="sp-table">
-                                            <thead>
-                                                <tr>
-                                                    <th><?= t('modules_table_bot_username') ?></th>
-                                                    <th><?= t('modules_table_bot_id') ?></th>
-                                                    <th><?= t('modules_table_status') ?></th>
-                                                    <th style="text-align:right;"><?= t('modules_table_actions') ?></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php foreach ($moduleBots as $mb): ?>
-                                                <tr>
-                                                    <td>
-                                                        <i class="fas fa-robot"></i>
-                                                        <?php echo htmlspecialchars($mb['bot_username']); ?>
-                                                    </td>
-                                                    <td><code><?php echo htmlspecialchars($mb['bot_channel_id']); ?></code></td>
-                                                    <td>
-                                                        <?php if (intval($mb['is_verified']) === 1): ?>
-                                                            <span class="sp-badge sp-badge-green"><i class="fas fa-check-circle"></i> <?= t('modules_status_verified') ?></span>
-                                                        <?php else: ?>
-                                                            <span class="sp-badge sp-badge-amber"><i class="fas fa-clock"></i> <?= t('modules_status_pending_verification') ?></span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td style="text-align:right;">
-                                                        <?php $removeBotConfirm = json_encode(t('modules_js_confirm_remove_bot', ['name' => $mb['bot_username']]), JSON_HEX_QUOT | JSON_HEX_APOS | JSON_HEX_TAG | JSON_HEX_AMP); ?>
-                                                        <form method="post" style="display:inline;" onsubmit="return confirm(<?php echo htmlspecialchars($removeBotConfirm, ENT_QUOTES); ?>);">
-                                                            <input type="hidden" name="action" value="remove_module_bot">
-                                                            <input type="hidden" name="record_id" value="<?php echo intval($mb['id']); ?>">
-                                                            <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
-                                                                <i class="fas fa-trash-alt"></i>
-                                                                <span><?php echo t('protection_remove'); ?></span>
-                                                            </button>
-                                                        </form>
-                                                    </td>
-                                                </tr>
-                                                <?php endforeach; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                <?php endif; ?>
+                                <div id="moduleBotsEmpty" class="sp-alert sp-alert-info" style="display:none;">
+                                    <i class="fas fa-info-circle"></i>
+                                    <?= t('modules_no_module_bots_linked') ?>
+                                </div>
+                                <div class="sp-table-wrap" id="moduleBotsTableWrap">
+                                    <table class="sp-table">
+                                        <thead>
+                                            <tr>
+                                                <th><?= t('modules_table_bot_username') ?></th>
+                                                <th><?= t('modules_table_bot_id') ?></th>
+                                                <th><?= t('modules_table_status') ?></th>
+                                                <th style="text-align:right;"><?= t('modules_table_actions') ?></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="moduleBotsBody" aria-busy="true">
+                                            <?php for ($sk = 0; $sk < 3; $sk++): ?>
+                                            <tr aria-hidden="true">
+                                                <td><span class="sp-skeleton-line w-50"></span></td>
+                                                <td><span class="sp-skeleton-line w-40"></span></td>
+                                                <td><span class="sp-skeleton-badge"></span></td>
+                                                <td style="text-align:right;"><span class="sp-skeleton-badge"></span></td>
+                                            </tr>
+                                            <?php endfor; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2175,20 +2079,20 @@ ob_start();
                             <div class="sp-card-body">
                                 <form method="post" style="max-width: 440px; display: flex; flex-direction: column; gap: 0.75rem;">
                                     <label class="sp-label">
-                                        <input type="checkbox" name="enabled" <?php echo $spotify_enabled ? 'checked' : ''; ?>>
+                                        <input type="checkbox" name="enabled" id="spotify_enabled">
                                         <span><?php echo t('modules_spotify_song_requests_enabled'); ?></span>
                                     </label>
                                     <div class="sp-form-group">
                                         <label class="sp-label"><?php echo t('modules_spotify_song_requests_max_len'); ?></label>
-                                        <input class="sp-input" type="number" name="max_song_seconds" min="30" value="<?php echo htmlspecialchars($spotify_max_song_seconds); ?>" required>
+                                        <input class="sp-input" type="number" name="max_song_seconds" min="30" value="600" required>
                                     </div>
                                     <div class="sp-form-group">
                                         <label class="sp-label"><?php echo t('modules_spotify_song_requests_max_queue'); ?></label>
-                                        <input class="sp-input" type="number" name="max_queue_length" min="1" value="<?php echo htmlspecialchars($spotify_max_queue_length); ?>" required>
+                                        <input class="sp-input" type="number" name="max_queue_length" min="1" value="20" required>
                                     </div>
                                     <div class="sp-form-group">
                                         <label class="sp-label"><?php echo t('modules_spotify_song_requests_per_viewer_limit'); ?></label>
-                                        <input class="sp-input" type="number" name="per_viewer_limit" min="1" value="<?php echo htmlspecialchars($spotify_per_viewer_limit); ?>" required>
+                                        <input class="sp-input" type="number" name="per_viewer_limit" min="1" value="2" required>
                                     </div>
                                     <button class="sp-btn sp-btn-primary" type="submit" name="save_spotify_settings" value="1">
                                         <i class="fas fa-save"></i> <?php echo t('modules_spotify_song_requests_save'); ?>
@@ -2237,9 +2141,331 @@ ob_start();
         confirmDeleteSelected: <?php echo json_encode(t('modules_js_confirm_delete_selected')); ?>,
         confirmRemoveGame: <?php echo json_encode(t('modules_js_confirm_remove_game')); ?>,
         uploadingFiles: <?php echo json_encode(t('modules_js_uploading_files')); ?>,
-        uploadingPercent: <?php echo json_encode(t('modules_js_uploading_percent')); ?>
+        uploadingPercent: <?php echo json_encode(t('modules_js_uploading_percent')); ?>,
+        statusEnabled: <?php echo json_encode(t('builtin_commands_status_enabled')); ?>,
+        statusDisabled: <?php echo json_encode(t('builtin_commands_status_disabled')); ?>,
+        enableLabel: <?php echo json_encode(t('builtin_commands_enable')); ?>,
+        disableLabel: <?php echo json_encode(t('builtin_commands_disable')); ?>,
+        protectionRemove: <?php echo json_encode(t('protection_remove')); ?>,
+        noWhitelistedLinks: <?php echo json_encode(t('modules_no_whitelisted_links')); ?>,
+        noBlacklistedLinks: <?php echo json_encode(t('modules_no_blacklisted_links')); ?>,
+        noBlockedTerms: <?php echo json_encode(t('modules_no_blocked_terms')); ?>,
+        noIgnoredWords: <?php echo json_encode(t('modules_word_replace_no_ignored_words')); ?>,
+        noOptedOutUsers: <?php echo json_encode(t('modules_word_replace_no_opted_out_users')); ?>,
+        noGamesIgnored: <?php echo json_encode(t('modules_no_games_ignored')); ?>,
+        notMapped: <?php echo json_encode(t('modules_not_mapped')); ?>,
+        removeMapping: <?php echo json_encode(t('modules_remove_mapping')); ?>,
+        selectEvent: <?php echo json_encode(t('modules_select_event')); ?>,
+        statusVerified: <?php echo json_encode(t('modules_status_verified')); ?>,
+        statusPending: <?php echo json_encode(t('modules_status_pending_verification')); ?>,
+        confirmRemoveBot: <?php echo json_encode(t('modules_js_confirm_remove_bot')); ?>,
+        loadError: <?php echo json_encode(t('modules_js_unknown_error')); ?>
     };
+    var modulesSoundEvents = [];
+    var modulesSoundEventLabels = {};
+
+    function modulesEscapeHtml(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function modulesSetBusy(el, busy) {
+        if (el) el.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+
+    function modulesSetSelectValue(selector, value) {
+        var el = document.querySelector(selector);
+        if (el) el.value = value == null ? '' : String(value);
+    }
+
+    function modulesSetInputValue(selector, value) {
+        var el = document.querySelector(selector);
+        if (el) el.value = value == null ? '' : String(value);
+    }
+
+    function modulesSetToggle(id, on) {
+        var checkbox = document.getElementById(id);
+        if (!checkbox) return;
+        checkbox.checked = !!on;
+        var icon = document.querySelector('label[for="' + id + '"] i');
+        if (icon) {
+            icon.classList.toggle('fa-toggle-on', !!on);
+            icon.classList.toggle('fa-toggle-off', !on);
+            icon.style.color = on ? 'var(--green)' : 'var(--text-muted)';
+        }
+    }
+
+    function modulesRenderStatusToggle(opts) {
+        var enabled = !!opts.enabled;
+        if (opts.badge) {
+            opts.badge.className = 'sp-badge ' + (enabled ? 'sp-badge-green' : 'sp-badge-red');
+            opts.badge.removeAttribute('aria-hidden');
+            opts.badge.textContent = enabled ? MODULES_I18N.statusEnabled : MODULES_I18N.statusDisabled;
+        }
+        if (opts.valueInput) opts.valueInput.value = opts.offValue;
+        if (opts.button) {
+            opts.button.className = 'sp-btn sp-btn-sm ' + (enabled ? 'sp-btn-danger' : 'sp-btn-success');
+            var icon = opts.button.querySelector('i');
+            var label = opts.button.querySelector('span');
+            if (icon) icon.className = 'fas ' + (enabled ? 'fa-times' : 'fa-check');
+            if (label) label.textContent = enabled ? MODULES_I18N.disableLabel : MODULES_I18N.enableLabel;
+        }
+        if (opts.form) opts.form.style.display = 'inline';
+        modulesSetBusy(opts.host, false);
+    }
+
+    function modulesRenderLinkRows(tbodyId, links, removeName, emptyText) {
+        var tbody = document.getElementById(tbodyId);
+        if (!tbody) return;
+        modulesSetBusy(tbody, false);
+        if (!links.length) {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);"><i class="fas fa-info-circle"></i> ' + modulesEscapeHtml(emptyText) + '</td></tr>';
+            return;
+        }
+        tbody.innerHTML = links.map(function(link) {
+            return '<tr><td>' + modulesEscapeHtml(link) + '</td><td style="text-align:right;"><form action="/api/module_data_post.php" method="post" style="display:inline;"><input type="hidden" name="' + removeName + '" value="' + modulesEscapeHtml(link) + '"><button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i><span>' + modulesEscapeHtml(MODULES_I18N.protectionRemove) + '</span></button></form></td></tr>';
+        }).join('');
+    }
+
+    function modulesHydrate(data) {
+        var jokeEnabled = data.joke_command_status === 'Enabled';
+        modulesRenderStatusToggle({
+            enabled: jokeEnabled,
+            host: document.getElementById('jokeCommandHost'),
+            badge: document.getElementById('jokeCommandStatusBadge'),
+            form: document.getElementById('jokeCommandForm'),
+            valueInput: document.getElementById('jokeCommandStatusValue'),
+            button: document.getElementById('jokeCommandToggleBtn'),
+            offValue: jokeEnabled ? 'Disabled' : 'Enabled'
+        });
+        var blacklist = Array.isArray(data.current_blacklist) ? data.current_blacklist : [];
+        document.querySelectorAll('input[name="blacklist[]"]').forEach(function(box) {
+            box.checked = blacklist.indexOf(box.value) !== -1;
+        });
+
+        var welcome = data.welcome || {};
+        modulesRenderStatusToggle({
+            enabled: !!welcome.send_welcome_messages,
+            host: document.getElementById('welcomeStatusHost'),
+            badge: document.getElementById('welcomeStatusBadge'),
+            form: document.getElementById('welcomeStatusForm'),
+            valueInput: document.getElementById('welcomeStatusValue'),
+            button: document.getElementById('welcomeStatusToggleBtn'),
+            offValue: welcome.send_welcome_messages ? '0' : '1'
+        });
+        ['new_default_welcome_message', 'default_welcome_message', 'new_default_vip_welcome_message', 'default_vip_welcome_message', 'new_default_mod_welcome_message', 'default_mod_welcome_message'].forEach(function(name) {
+            modulesSetInputValue('input[name="' + name + '"]', welcome[name] || '');
+        });
+
+        var protection = data.protection || {};
+        modulesSetSelectValue('#url_blocking', protection.url_blocking || 'False');
+        modulesSetSelectValue('#term_blocking', protection.term_blocking || 'False');
+        modulesSetSelectValue('#block_first_message_commands', protection.block_first_message_commands || 'False');
+        modulesSetSelectValue('#block_first_message_command_mode', protection.block_first_message_command_mode || 'all');
+        var cmdSelect = document.getElementById('block_first_message_selected_commands');
+        var cmdHost = document.getElementById('blockCommandsHost');
+        if (cmdSelect) {
+            var selected = {};
+            (protection.block_first_message_selected_commands || []).forEach(function(cmd) { selected[cmd] = true; });
+            cmdSelect.innerHTML = (protection.available_commands || []).map(function(cmd) {
+                return '<option value="' + modulesEscapeHtml(cmd) + '"' + (selected[cmd] ? ' selected' : '') + '>!' + modulesEscapeHtml(cmd) + '</option>';
+            }).join('');
+            cmdSelect.style.display = '';
+        }
+        if (cmdHost) {
+            var skel = cmdHost.querySelector('.sp-skeleton-stack');
+            if (skel) skel.remove();
+            modulesSetBusy(cmdHost, false);
+        }
+
+        modulesRenderLinkRows('whitelistLinksBody', data.whitelist_links || [], 'remove_whitelist_link', MODULES_I18N.noWhitelistedLinks);
+        modulesRenderLinkRows('blacklistLinksBody', data.blacklist_links || [], 'remove_blacklist_link', MODULES_I18N.noBlacklistedLinks);
+        modulesRenderLinkRows('blockedTermsBody', data.blocked_terms || [], 'remove_blocked_term', MODULES_I18N.noBlockedTerms);
+
+        var wr = data.word_replace || {};
+        modulesSetSelectValue('#word_replace_enabled', wr.enabled || 'False');
+        modulesSetInputValue('input[name="word_replace_word"]', wr.word || 'fun');
+        modulesSetInputValue('input[name="word_replace_frequency"]', wr.frequency);
+        modulesSetInputValue('input[name="word_replace_rate"]', wr.rate);
+        modulesSetInputValue('input[name="word_replace_cooldown"]', wr.cooldown);
+        var wrWordsBody = document.getElementById('wordReplaceIgnoredWordsBody');
+        if (wrWordsBody) {
+            modulesSetBusy(wrWordsBody, false);
+            var wrWords = wr.ignored_words || [];
+            wrWordsBody.innerHTML = wrWords.length
+                ? wrWords.map(function(word) {
+                    return '<tr><td>' + modulesEscapeHtml(word) + '</td><td style="text-align:right;"><form action="/api/module_data_post.php" method="post" style="display:inline;"><input type="hidden" name="remove_word_replace_ignored_word" value="' + modulesEscapeHtml(word) + '"><button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i></button></form></td></tr>';
+                }).join('')
+                : '<tr><td style="text-align:center;color:var(--text-muted);">' + modulesEscapeHtml(MODULES_I18N.noIgnoredWords) + '</td></tr>';
+        }
+        var wrUsersBody = document.getElementById('wordReplaceIgnoredUsersBody');
+        if (wrUsersBody) {
+            modulesSetBusy(wrUsersBody, false);
+            var wrUsers = wr.ignored_users || [];
+            wrUsersBody.innerHTML = wrUsers.length
+                ? wrUsers.map(function(user) {
+                    return '<tr><td>' + modulesEscapeHtml(user.username) + '</td><td>' + modulesEscapeHtml(user.opted_out_at || '') + '</td><td>' + modulesEscapeHtml(user.source || 'chat') + '</td><td style="text-align:right;"><form action="/api/module_data_post.php" method="post" style="display:inline;"><input type="hidden" name="remove_word_replace_ignored_user" value="' + modulesEscapeHtml(user.username) + '"><button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i></button></form></td></tr>';
+                }).join('')
+                : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">' + modulesEscapeHtml(MODULES_I18N.noOptedOutUsers) + '</td></tr>';
+        }
+
+        var gamesHost = document.getElementById('ignoredGamesHost');
+        if (gamesHost) {
+            var games = data.ignored_games || [];
+            if (!games.length) {
+                gamesHost.innerHTML = '<p style="color:var(--text-muted);">' + modulesEscapeHtml(MODULES_I18N.noGamesIgnored) + '</p>';
+            } else {
+                gamesHost.innerHTML = '<div style="display:flex; flex-wrap:wrap; gap:0.5rem;">' + games.map(function(game) {
+                    return '<span class="sp-badge sp-badge-red" style="font-size:0.9rem; padding:0.3rem 0.6rem;">' + modulesEscapeHtml(game) + '<button type="button" onclick="removeIgnoredGame(\'' + String(game).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" style="background:none; border:none; cursor:pointer; color:inherit; margin-left:0.4rem; font-size:0.85rem;">&times;</button></span>';
+                }).join('') + '</div>';
+            }
+            modulesSetBusy(gamesHost, false);
+        }
+
+        var ad = data.ad || {};
+        ['enable_upcoming_ad_message', 'enable_1min_ad_message', 'enable_start_ad_message', 'enable_end_ad_message', 'enable_snoozed_ad_message', 'enable_raid_ad_snooze', 'enable_raid_ad_snooze_message', 'enable_ad_notice', 'enable_ai_ad_breaks'].forEach(function(id) {
+            modulesSetToggle(id, !!ad[id]);
+        });
+        ['ad_upcoming_message', 'ad_1min_message', 'ad_start_message', 'ad_end_message', 'ad_snoozed_message', 'raid_ad_snooze_message'].forEach(function(name) {
+            modulesSetInputValue('textarea[name="' + name + '"]', ad[name] || '');
+        });
+        modulesSetInputValue('#raid_ad_snooze_window_minutes', ad.raid_ad_snooze_window_minutes);
+
+        var storage = data.storage || {};
+        var storageText = document.getElementById('storageUsageText');
+        var storageBar = document.getElementById('storageUsageBar');
+        if (storageText) storageText.textContent = (storage.used_mb || 0) + 'MB / ' + (storage.max_mb || 0) + 'MB (' + (storage.percentage || 0) + '%)';
+        if (storageBar) storageBar.value = storage.percentage || 0;
+        modulesSetBusy(document.getElementById('storageUsageHost'), false);
+
+        modulesSoundEvents = data.sound_events || [];
+        modulesSoundEventLabels = data.sound_event_labels || {};
+        var soundBody = document.getElementById('soundAlertsBody');
+        var soundEmpty = document.getElementById('soundAlertsEmpty');
+        var soundForm = document.getElementById('deleteForm');
+        var files = data.sound_files || [];
+        var mappings = data.sound_mappings || {};
+        if (soundBody) {
+            modulesSetBusy(soundBody, false);
+            if (!files.length) {
+                if (soundEmpty) soundEmpty.style.display = '';
+                if (soundForm) soundForm.style.display = 'none';
+                soundBody.innerHTML = '';
+            } else {
+                if (soundEmpty) soundEmpty.style.display = 'none';
+                if (soundForm) soundForm.style.display = '';
+                soundBody.innerHTML = files.map(function(file) {
+                    var currentMapped = mappings[file] || null;
+                    var mappedElsewhere = {};
+                    Object.keys(mappings).forEach(function(mappedFile) {
+                        if (mappedFile !== file && mappings[mappedFile]) mappedElsewhere[mappings[mappedFile]] = true;
+                    });
+                    var label = currentMapped ? (modulesSoundEventLabels[currentMapped] || currentMapped) : MODULES_I18N.notMapped;
+                    var options = '';
+                    if (currentMapped) options += '<option value="">' + modulesEscapeHtml(MODULES_I18N.removeMapping) + '</option>';
+                    options += '<option value="">' + modulesEscapeHtml(MODULES_I18N.selectEvent) + '</option>';
+                    modulesSoundEvents.forEach(function(evt) {
+                        if (mappedElsewhere[evt] && currentMapped !== evt) return;
+                        options += '<option value="' + modulesEscapeHtml(evt) + '"' + (currentMapped === evt ? ' selected' : '') + '>' + modulesEscapeHtml(modulesSoundEventLabels[evt] || evt) + '</option>';
+                    });
+                    var base = String(file).replace(/\.[^/.]+$/, '');
+                    return '<tr><td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="' + modulesEscapeHtml(file) + '"></td><td>' + modulesEscapeHtml(base) + '</td><td style="text-align:center;"><em>' + modulesEscapeHtml(label) + '</em><form action="/api/module_data_post.php" method="POST" class="mapping-form" style="margin-top:0.5rem;"><input type="hidden" name="sound_file" value="' + modulesEscapeHtml(file) + '"><select name="twitch_alert_id" class="sp-select mapping-select">' + options + '</select></form></td><td style="text-align:center;"><button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + modulesEscapeHtml(file) + '"><i class="fas fa-trash"></i></button></td><td style="text-align:center;"><button type="button" class="test-sound sp-btn sp-btn-primary sp-btn-sm" data-file="twitch/' + modulesEscapeHtml(file) + '"><i class="fas fa-play"></i></button></td></tr>';
+                }).join('');
+            }
+        }
+
+        var chat = data.chat_alerts || {};
+        Object.keys(chat).forEach(function(name) {
+            modulesSetInputValue('input[name="' + name + '"]', chat[name]);
+        });
+
+        var shout = data.shoutouts || {};
+        modulesSetInputValue('input[name="cooldown_minutes"]', shout.cooldown_minutes || 60);
+        updateShoutoutCooldownTable({ tracking: shout.tracking || [] });
+        modulesSetBusy(document.getElementById('shoutoutTrackingBody'), false);
+
+        if (data.tts) {
+            modulesSetSelectValue('#tts_voice', data.tts.voice || 'Alloy');
+            modulesSetSelectValue('#tts_language', data.tts.language || 'en');
+        }
+
+        var botsBody = document.getElementById('moduleBotsBody');
+        var botsEmpty = document.getElementById('moduleBotsEmpty');
+        var botsWrap = document.getElementById('moduleBotsTableWrap');
+        var bots = data.module_bots || [];
+        if (botsBody) {
+            modulesSetBusy(botsBody, false);
+            if (!bots.length) {
+                if (botsEmpty) botsEmpty.style.display = '';
+                if (botsWrap) botsWrap.style.display = 'none';
+                botsBody.innerHTML = '';
+            } else {
+                if (botsEmpty) botsEmpty.style.display = 'none';
+                if (botsWrap) botsWrap.style.display = '';
+                botsBody.innerHTML = bots.map(function(bot) {
+                    var verified = parseInt(bot.is_verified, 10) === 1;
+                    var badge = verified
+                        ? '<span class="sp-badge sp-badge-green"><i class="fas fa-check-circle"></i> ' + modulesEscapeHtml(MODULES_I18N.statusVerified) + '</span>'
+                        : '<span class="sp-badge sp-badge-amber"><i class="fas fa-clock"></i> ' + modulesEscapeHtml(MODULES_I18N.statusPending) + '</span>';
+                    var confirmMsg = String(MODULES_I18N.confirmRemoveBot).replace(':name', bot.bot_username || '');
+                    return '<tr><td><i class="fas fa-robot"></i> ' + modulesEscapeHtml(bot.bot_username) + '</td><td><code>' + modulesEscapeHtml(bot.bot_channel_id) + '</code></td><td>' + badge + '</td><td style="text-align:right;"><form method="post" style="display:inline;" onsubmit="return confirm(' + JSON.stringify(confirmMsg) + ');"><input type="hidden" name="action" value="remove_module_bot"><input type="hidden" name="record_id" value="' + modulesEscapeHtml(bot.id) + '"><button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><i class="fas fa-trash-alt"></i><span>' + modulesEscapeHtml(MODULES_I18N.protectionRemove) + '</span></button></form></td></tr>';
+                }).join('');
+            }
+        }
+
+        var spotify = data.spotify || {};
+        var spotifyEnabled = document.getElementById('spotify_enabled');
+        if (spotifyEnabled) spotifyEnabled.checked = !!spotify.enabled;
+        modulesSetInputValue('input[name="max_song_seconds"]', spotify.max_song_seconds);
+        modulesSetInputValue('input[name="max_queue_length"]', spotify.max_queue_length);
+        modulesSetInputValue('input[name="per_viewer_limit"]', spotify.per_viewer_limit);
+
+        document.querySelectorAll('.chat-alert-input, .ad-notice-input, .welcome-message-input').forEach(function(input) {
+            var counter = document.querySelector('.char-count[data-field="' + input.getAttribute('name') + '"]');
+            if (counter) counter.textContent = String(input.value || '').length;
+        });
+        var cmdSelectEl = document.getElementById('block_first_message_commands');
+        var cmdModeEl = document.getElementById('block_first_message_command_mode');
+        var cmdWrapper = document.getElementById('block-first-message-selected-wrapper');
+        var cmdList = document.getElementById('block_first_message_selected_commands');
+        if (cmdSelectEl && cmdModeEl && cmdWrapper) {
+            var shouldShow = cmdSelectEl.value === 'True' && cmdModeEl.value === 'selected';
+            cmdWrapper.style.display = shouldShow ? '' : 'none';
+            if (cmdList) cmdList.disabled = !shouldShow;
+        }
+    }
+
+    function loadModulesList() {
+        var url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) throw new Error('bad');
+                modulesHydrate(data);
+            })
+            .catch(function() {
+                ['whitelistLinksBody', 'blacklistLinksBody', 'blockedTermsBody', 'wordReplaceIgnoredWordsBody', 'wordReplaceIgnoredUsersBody', 'soundAlertsBody', 'shoutoutTrackingBody', 'moduleBotsBody'].forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (el) {
+                        modulesSetBusy(el, false);
+                        el.innerHTML = '<tr><td colspan="5" style="text-align:center;">' + modulesEscapeHtml(MODULES_I18N.loadError) + '</td></tr>';
+                    }
+                });
+                var gamesHost = document.getElementById('ignoredGamesHost');
+                if (gamesHost) {
+                    modulesSetBusy(gamesHost, false);
+                    gamesHost.innerHTML = '<p style="color:var(--text-muted);">' + modulesEscapeHtml(MODULES_I18N.loadError) + '</p>';
+                }
+                modulesSetBusy(document.getElementById('jokeCommandHost'), false);
+                modulesSetBusy(document.getElementById('welcomeStatusHost'), false);
+                modulesSetBusy(document.getElementById('storageUsageHost'), false);
+                modulesSetBusy(document.getElementById('blockCommandsHost'), false);
+            });
+    }
     document.addEventListener('DOMContentLoaded', function () {
+        loadModulesList();
         // File upload handling
         let dropArea = document.getElementById('drag-area');
         let fileInput = document.getElementById('filesToUpload');
@@ -2346,17 +2572,16 @@ ob_start();
                 }
             });
         }
-        // Test sound buttons
-        document.querySelectorAll('.test-sound').forEach(function (button) {
-            button.addEventListener('click', function () {
-                const fileName = this.getAttribute('data-file');
-                sendStreamEvent('SOUND_ALERT', fileName);
-            });
-        });
-        // Delete single file buttons
-        document.querySelectorAll('.delete-single').forEach(function (button) {
-            button.addEventListener('click', function () {
-                const fileName = this.getAttribute('data-file');
+        // Test sound / delete-single buttons are rendered after ajax hydrate
+        document.addEventListener('click', function (e) {
+            var testBtn = e.target.closest('.test-sound');
+            if (testBtn) {
+                sendStreamEvent('SOUND_ALERT', testBtn.getAttribute('data-file'));
+                return;
+            }
+            var deleteBtn = e.target.closest('.delete-single');
+            if (deleteBtn) {
+                const fileName = deleteBtn.getAttribute('data-file');
                 if (confirm(MODULES_I18N.confirmDeleteFile.replace(':name', fileName))) {
                     let form = document.getElementById('deleteForm');
                     let input = document.createElement('input');
@@ -2366,7 +2591,7 @@ ob_start();
                     form.appendChild(input);
                     form.submit();
                 }
-            });
+            }
         });
         // Handle delete selected button for Twitch audio alerts
         $('#deleteSelectedBtn').on('click', function () {
@@ -2456,8 +2681,8 @@ ob_start();
                 }
             });
         });
-        // Add event listener for mapping select boxes
-        $('.mapping-select').on('change', function () {
+        // Mapping selects are rendered after ajax hydrate
+        $(document).on('change', '.mapping-select', function () {
             $(this).closest('form').submit();
         });
         // Character counter for chat alert inputs
@@ -2784,10 +3009,11 @@ ob_start();
             });
     }
     function updateShoutoutCooldownTable(data) {
-        const tableBody = document.querySelector('#automated-shoutouts tbody');
-        const noDataNotification = document.querySelector('#automated-shoutouts .sp-alert.sp-alert-info');
+        const tableBody = document.getElementById('shoutoutTrackingBody') || document.querySelector('#automated-shoutouts tbody');
+        const noDataNotification = document.getElementById('shoutoutEmpty') || document.querySelector('#automated-shoutouts .sp-alert.sp-alert-info');
         if (!tableBody) return;
-        if (data.tracking.length === 0) {
+        const tracking = (data && data.tracking) ? data.tracking : [];
+        if (tracking.length === 0) {
             // Show "no data" notification if exists, hide table
             if (noDataNotification) {
                 noDataNotification.style.display = 'block';
@@ -2807,16 +3033,16 @@ ob_start();
             }
             // Update table rows
             let html = '';
-            data.tracking.forEach(tracking => {
-                const isExpired = tracking.is_expired;
+            tracking.forEach(function(row) {
+                const isExpired = row.is_expired;
                 const rowClass = isExpired ? ' style="color:var(--text-muted);"' : '';
                 const statusTag = isExpired
                     ? `<span class="sp-badge sp-badge-green">${MODULES_I18N.cooldownReady}</span>`
-                    : `<span class="sp-badge sp-badge-amber">${tracking.remaining_minutes} ${MODULES_I18N.cooldownMin}</span>`;
+                    : `<span class="sp-badge sp-badge-amber">${row.remaining_minutes} ${MODULES_I18N.cooldownMin}</span>`;
                 html += `
                     <tr${rowClass}>
-                        <td>${escapeHtml(tracking.user_name)}</td>
-                        <td>${tracking.shoutout_time}</td>
+                        <td>${escapeHtml(row.user_name)}</td>
+                        <td>${row.shoutout_time}</td>
                         <td>${statusTag}</td>
                     </tr>
                 `;

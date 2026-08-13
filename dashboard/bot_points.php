@@ -10,31 +10,21 @@ $pageTitle = t('bot_points_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 
-// Get timezone first (needed for both AJAX and page display)
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
-
-// Early exit for AJAX requests to avoid unnecessary database queries
-if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+// Keep ?action=get_points_data as the existing poll hook (same query, legacy array shape).
+$isListAjax = isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list';
+$isLegacyPointsAjax = isset($_GET['action']) && $_GET['action'] == 'get_points_data';
+if ($isListAjax || $isLegacyPointsAjax) {
     header('Content-Type: application/json');
     try {
         if (!$db) {
             throw new Exception("Database connection not available");
         }
-        // Fetch users and their points from bot_points table (MySQLi)
         $pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
         if (!$pointsStmt) {
             throw new Exception("Prepare failed: " . $db->error);
@@ -51,15 +41,31 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_points_data') {
             $pointsData[] = $row;
         }
         $pointsStmt->close();
-        echo json_encode($pointsData);
+        if ($isListAjax) {
+            echo json_encode(['success' => true, 'points' => $pointsData]);
+        } else {
+            echo json_encode($pointsData);
+        }
         exit();
     } catch (Exception $e) {
         error_log("bot_points.php AJAX error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to load points data']);
+        if ($isListAjax) {
+            echo json_encode(['success' => false, 'error' => 'Failed to load points data']);
+        } else {
+            echo json_encode(['error' => 'Failed to load points data']);
+        }
         exit();
     }
 }
+
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
+date_default_timezone_set($timezone);
 
 $status = '';
 
@@ -116,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch settings (MySQLi)
+// Fetch settings (MySQLi) — cheap single-row query, fine as SSR
 $settingsStmt = $db->prepare("SELECT * FROM bot_settings WHERE id = 1");
 $settingsStmt->execute();
 $result = $settingsStmt->get_result();
@@ -124,19 +130,6 @@ $settings = $result->fetch_assoc();
 $settingsStmt->close();
 $pointsName = htmlspecialchars($settings['point_name']);
 $excludedUsers = htmlspecialchars($settings['excluded_users']);
-
-// Fetch users and their points for page display
-$pointsStmt = $db->prepare("SELECT user_name, points FROM bot_points ORDER BY points DESC");
-$pointsStmt->execute();
-$result = $pointsStmt->get_result();
-$pointsData = [];
-while ($row = $result->fetch_assoc()) {
-    $pointsData[] = $row;
-}
-$pointsStmt->close();
-
-// Show connected database name (MySQLi)
-$connectedDb = $db->query('select database()')->fetch_row()[0];
 
 // Start output buffering for layout template
 ob_start();
@@ -166,23 +159,14 @@ ob_start();
                 <th style="text-align:center;"><?php echo t('bot_points_actions'); ?></th>
               </tr>
             </thead>
-            <tbody id="pointsTableBody">
-              <?php foreach ($pointsData as $row): ?>
-                <tr>
-                  <td style="text-align:center; white-space:nowrap; vertical-align:middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                  <td style="text-align:center; white-space:nowrap; vertical-align:middle;"><?php echo htmlspecialchars($row['points']); ?></td>
-                  <td style="text-align:center; vertical-align:middle;">
-                    <form method="POST" action="" style="display:inline;">
-                      <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
-                      <div style="display:flex; gap:0.4rem; justify-content:center; align-items:center;">
-                        <input class="sp-input" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width:100px;">
-                        <button class="sp-btn sp-btn-primary" type="submit" name="update_points"><?php echo t('bot_points_update_btn'); ?></button>
-                        <button class="sp-btn sp-btn-danger" type="submit" name="remove_user"><?php echo t('bot_points_remove_btn'); ?></button>
-                      </div>
-                    </form>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
+            <tbody id="pointsTableBody" aria-busy="true">
+              <?php for ($sk = 0; $sk < 5; $sk++): ?>
+              <tr aria-hidden="true">
+                <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-40"></span></td>
+                <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-40"></span></td>
+                <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-70"></span></td>
+              </tr>
+              <?php endfor; ?>
             </tbody>
           </table>
         </div>
@@ -247,35 +231,61 @@ ob_start();
 ?>
 <script>
 let secondsAgo = 0;
-function updatePointsTable() {
-  $.ajax({
-    url: '?action=get_points_data',
-    method: 'GET',
-    success: function(data) {
-      const pointsData = JSON.parse(data);
-      let tableBody = '';
-      const updateLabel = <?php echo json_encode(t('bot_points_update_btn')); ?>;
-      const removeLabel = <?php echo json_encode(t('bot_points_remove_btn')); ?>;
-      pointsData.forEach(function(row) {
-        tableBody += `<tr>
-          <td style="text-align:center; white-space:nowrap; vertical-align:middle;">${row.user_name}</td>
-          <td style="text-align:center; white-space:nowrap; vertical-align:middle;">${row.points}</td>
-          <td style="text-align:center; vertical-align:middle;">
-            <form method="POST" action="" style="display:inline;">
-              <input type="hidden" name="user_name" value="${row.user_name}">
-              <div style="display:flex; gap:0.4rem; justify-content:center; align-items:center;">
-                <input class="sp-input" type="number" name="points" value="${row.points}" required style="width:100px;">
-                <button class="sp-btn sp-btn-primary" type="submit" name="update_points">${updateLabel}</button>
-                <button class="sp-btn sp-btn-danger" type="submit" name="remove_user">${removeLabel}</button>
-              </div>
-            </form>
-          </td>
-        </tr>`;
-      });
-      $('#pointsTableBody').html(tableBody);
-      secondsAgo = 0;
-    }
+const updateLabel = <?php echo json_encode(t('bot_points_update_btn')); ?>;
+const removeLabel = <?php echo json_encode(t('bot_points_remove_btn')); ?>;
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
   });
+}
+
+function renderPointsRows(pointsData) {
+  const tbody = document.getElementById('pointsTableBody');
+  if (!tbody) return;
+  tbody.setAttribute('aria-busy', 'false');
+  if (!pointsData.length) {
+    tbody.innerHTML = '';
+    return;
+  }
+  tbody.innerHTML = pointsData.map(function(row) {
+    const userName = escapeHtml(row.user_name);
+    const points = escapeHtml(row.points);
+    return '<tr>' +
+      '<td style="text-align:center; white-space:nowrap; vertical-align:middle;">' + userName + '</td>' +
+      '<td style="text-align:center; white-space:nowrap; vertical-align:middle;">' + points + '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' +
+        '<form method="POST" action="" style="display:inline;">' +
+          '<input type="hidden" name="user_name" value="' + userName + '">' +
+          '<div style="display:flex; gap:0.4rem; justify-content:center; align-items:center;">' +
+            '<input class="sp-input" type="number" name="points" value="' + points + '" required style="width:100px;">' +
+            '<button class="sp-btn sp-btn-primary" type="submit" name="update_points">' + escapeHtml(updateLabel) + '</button>' +
+            '<button class="sp-btn sp-btn-danger" type="submit" name="remove_user">' + escapeHtml(removeLabel) + '</button>' +
+          '</div>' +
+        '</form>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function updatePointsTable() {
+  const url = new URL(window.location.pathname, window.location.origin);
+  url.searchParams.set('ajax_action', 'list');
+  fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      const tbody = document.getElementById('pointsTableBody');
+      if (!data || !data.success || !Array.isArray(data.points)) {
+        if (tbody) tbody.setAttribute('aria-busy', 'false');
+        return;
+      }
+      renderPointsRows(data.points);
+      secondsAgo = 0;
+    })
+    .catch(function() {
+      const tbody = document.getElementById('pointsTableBody');
+      if (tbody) tbody.setAttribute('aria-busy', 'false');
+    });
 }
 
 function updateSecondsAgo() {

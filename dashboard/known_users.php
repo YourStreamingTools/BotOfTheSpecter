@@ -10,27 +10,49 @@ $pageTitle = t('known_users_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
-require_once '/var/www/config/database.php';
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) { die('Connection failed: ' . $db->connect_error); }
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $tzStmt = $db->prepare("SELECT timezone FROM profile");
+        $tzStmt->execute();
+        $tzRow = $tzStmt->get_result()->fetch_assoc();
+        $tzStmt->close();
+        date_default_timezone_set($tzRow['timezone'] ?? 'UTC');
+
+        $stmt = $db->prepare("SELECT id, username, first_seen, last_seen, welcome_message, status FROM seen_users ORDER BY id");
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        foreach ($rows as &$row) {
+            foreach (['first_seen', 'last_seen'] as $seenCol) {
+                $seenVal = $row[$seenCol] ?? '';
+                if (!empty($seenVal) && $seenVal !== '0000-00-00 00:00:00') {
+                    $row[$seenCol] = date('Y-m-d H:i:s', strtotime($seenVal));
+                } else {
+                    $row[$seenCol] = '';
+                }
+            }
+        }
+        unset($row);
+        echo json_encode(['success' => true, 'users' => $rows, 'total' => count($rows)]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
 
 // Fetch the total number of users in the seen_users table
 $totalUsersSTMT = $db->prepare("SELECT COUNT(*) as total_users FROM seen_users");
 $totalUsersSTMT->execute();
 $totalUsersResult = $totalUsersSTMT->get_result()->fetch_assoc();
-$totalUsers = $totalUsersResult['total_users'];
+$totalUsers = (int)($totalUsersResult['total_users'] ?? 0);
 $totalUsersSTMT->close();
 
 // Cache for banned users
@@ -124,15 +146,9 @@ if (isMobileDevice()) {
 }
 </script>
 <div id="knownUsersPageContent">
-  <div id="loadingNoticeBox" class="sp-alert <?php echo $totalUsers > 0 ? 'sp-alert-warning' : 'sp-alert-info'; ?>" style="margin-bottom:1rem;"<?php echo $totalUsers > 0 ? ' aria-busy="true"' : ''; ?>>
+  <div id="loadingNoticeBox" class="sp-alert sp-alert-warning" style="margin-bottom:1rem;" aria-busy="true">
     <p id="loadingNotice">
-      <?php 
-      if ($totalUsers > 0) {
-          echo t('known_users_loading', ['loaded' => 0, 'total' => $totalUsers]);
-      } else {
-          echo t('known_users_no_users');
-      }
-      ?>
+      <?php echo t('known_users_loading', ['loaded' => 0, 'total' => $totalUsers]); ?>
     </p>
   </div>
   <?php if ($cacheWarningMessage): ?>
@@ -183,7 +199,7 @@ if (isMobileDevice()) {
             <!-- Search Bar -->
             <input type="text" id="searchInput" class="sp-input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()" style="margin-bottom:1rem;">
             <div class="sp-table-wrap">
-              <table class="sp-table" id="commandsTable"<?php echo $totalUsers > 0 ? ' aria-busy="true"' : ''; ?>>
+              <table class="sp-table" id="commandsTable" aria-busy="true">
                 <thead>
                   <tr>
                     <th><?php echo t('counters_username_column'); ?></th>
@@ -197,96 +213,20 @@ if (isMobileDevice()) {
                     <th style="text-align:center;"><?php echo t('known_users_removing_column'); ?></th>
                   </tr>
                 </thead>
-                <tbody id="user-table">
-                  <?php foreach ($seenUsersData as $userData):
-                    $kuName = isset($userData['username']) ? (string)$userData['username'] : '';
-                    $kuBanCached = ($kuName !== '' && is_array($bannedUsersCache) && array_key_exists($kuName, $bannedUsersCache));
-                    $kuIsBanned = $kuBanCached ? !empty($bannedUsersCache[$kuName]) : false;
-                  ?>
-                    <tr>
-                      <td>
-                        <span class="username" data-username="<?php echo htmlspecialchars($kuName); ?>">
-                          <?php echo htmlspecialchars($kuName); ?>
-                        </span>
-                        <span class="banned-status"<?php echo $kuBanCached ? '' : ' data-ban-pending="1"'; ?>>
-                          <?php if ($kuBanCached && $kuIsBanned): ?>
-                            <em style="color:red">(<?php echo t('known_users_banned_label'); ?>)</em>
-                          <?php elseif (!$kuBanCached && $totalUsers > 0): ?>
-                            <span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;margin-left:0.35rem;vertical-align:middle;"></span>
-                          <?php endif; ?>
-                        </span>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <?php
-                          if (!empty($userData['first_seen']) && $userData['first_seen'] !== '0000-00-00 00:00:00') {
-                              echo date('Y-m-d H:i:s', strtotime($userData['first_seen']));
-                          } else {
-                              echo t('known_users_unknown');
-                          }
-                        ?>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <?php
-                          if (!empty($userData['last_seen']) && $userData['last_seen'] !== '0000-00-00 00:00:00') {
-                              echo date('Y-m-d H:i:s', strtotime($userData['last_seen']));
-                          } else {
-                              echo t('known_users_unknown');
-                          }
-                        ?>
-                      </td>
-                      <td>
-                        <div id="welcome-message-<?php echo $userData['id']; ?>">
-                          <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
-                        </div>
-                        <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-                          <textarea class="sp-input welcome-message" data-user-id="<?php echo $userData['id']; ?>" maxlength="255" style="height:auto; min-height:4rem;"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
-                          <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: var(--text-muted);">
-                            <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 <?php echo t('known_users_characters_label'); ?>
-                          </div>
-                        </div>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <span style="color: <?php echo $userData['status'] == 'True' ? 'var(--green)' : 'var(--red)'; ?>">
-                          <?php echo isset($userData['status']) ? t($userData['status'] == 'True' ? 'known_users_status_true' : 'known_users_status_false') : ''; ?>
-                        </span>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <label style="cursor:pointer;">
-                          <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)" style="display:none;">
-                          <span onclick="this.previousElementSibling.click();">
-                            <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                          </span>
-                        </label>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <div class="edit-action-group" style="display: flex; flex-direction: column; align-items: center; gap:0.25rem;">
-                          <button class="sp-btn sp-btn-primary sp-btn-sm edit-btn" data-user-id="<?php echo $userData['id']; ?>">
-                            <i class="fas fa-pencil-alt"></i>
-                          </button>
-                          <button class="sp-btn sp-btn-success sp-btn-sm save-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none;">
-                            <i class="fas fa-floppy-disk"></i>
-                          </button>
-                          <button class="sp-btn sp-btn-danger sp-btn-sm cancel-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none;">
-                            <i class="fas fa-xmark"></i>
-                          </button>
-                        </div>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <button class="sp-btn sp-btn-sm test-welcome-btn" style="background:var(--blue-bg); color:var(--blue); border-color:var(--blue);"
-                                data-username="<?php echo htmlspecialchars($userData['username']); ?>" 
-                                data-message="<?php echo htmlspecialchars($userData['welcome_message']); ?>"
-                                <?php echo $userData['status'] != 'True' ? 'disabled title="' . htmlspecialchars(t('known_users_user_inactive_title')) . '"' : ''; ?>>
-                          <i class="fas fa-paper-plane"></i>
-                        </button>
-                      </td>
-                      <td style="text-align:center; vertical-align:middle;">
-                        <form method="POST" style="display:inline;" class="delete-user-form">
-                          <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
-                          <button type="button" class="sp-btn sp-btn-danger sp-btn-sm delete-user-btn"><i class="fas fa-trash-alt"></i></button>
-                        </form>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
+                <tbody id="user-table" aria-busy="true">
+                  <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                  <tr aria-hidden="true">
+                    <td><span class="sp-skeleton-line w-60"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-70"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-70"></span></td>
+                    <td><span class="sp-skeleton-line w-80"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-40"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-30"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-30"></span></td>
+                    <td style="text-align:center; vertical-align:middle;"><span class="sp-skeleton-line w-30"></span></td>
+                  </tr>
+                  <?php endfor; ?>
                 </tbody>
               </table>
             </div>
@@ -301,176 +241,352 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-const totalUsers = <?php echo $totalUsers; ?>;
+let totalUsers = <?php echo (int)$totalUsers; ?>;
 let loadedUsers = 0;
-const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
+const bannedUsersCache = <?php echo json_encode(is_array($bannedUsersCache) ? $bannedUsersCache : []); ?> || {};
+const KU_I18N = {
+  noUsers: <?php echo json_encode(t('known_users_no_users')); ?>,
+  loadError: <?php echo json_encode(t('known_users_test_invalid_response')); ?>,
+  unknown: <?php echo json_encode(t('known_users_unknown')); ?>,
+  characters: <?php echo json_encode(t('known_users_characters_label')); ?>,
+  statusTrue: <?php echo json_encode(t('known_users_status_true')); ?>,
+  statusFalse: <?php echo json_encode(t('known_users_status_false')); ?>,
+  banned: <?php echo json_encode(t('known_users_banned_label')); ?>,
+  userInactive: <?php echo json_encode(t('known_users_user_inactive_title')); ?>,
+  loadingJs: <?php echo json_encode(t('known_users_loading_js')); ?>,
+  loadingDone: <?php echo json_encode(t('known_users_loading_done')); ?>,
+  deleteTitle: <?php echo json_encode(t('known_users_delete_confirm_title')); ?>,
+  deleteText: <?php echo json_encode(t('known_users_delete_confirm_text')); ?>,
+  deleteBtn: <?php echo json_encode(t('known_users_delete_confirm_btn')); ?>,
+  cancel: <?php echo json_encode(t('cancel')); ?>,
+  testSent: <?php echo json_encode(t('known_users_test_sent')); ?>,
+  testError: <?php echo json_encode(t('known_users_test_error')); ?>,
+  testFailed: <?php echo json_encode(t('known_users_test_failed')); ?>,
+  testInvalid: <?php echo json_encode(t('known_users_test_invalid_response')); ?>,
+  testFailedStatus: <?php echo json_encode(t('known_users_test_failed_status')); ?>
+};
 
-document.addEventListener('DOMContentLoaded', function() {
-  // Load Toastify library dynamically
-  function loadToastify() {
-    return new Promise(function(resolve) {
-      if (window.Toastify) return resolve();
-      var css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = 'https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css';
-      document.head.appendChild(css);
-      var script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/toastify-js';
-      script.onload = function() { resolve(); };
-      script.onerror = function() { resolve(); };
-      document.body.appendChild(script);
-    });
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
+
+function loadToastify() {
+  return new Promise(function(resolve) {
+    if (window.Toastify) return resolve();
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css';
+    document.head.appendChild(css);
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/toastify-js';
+    script.onload = function() { resolve(); };
+    script.onerror = function() { resolve(); };
+    document.body.appendChild(script);
+  });
+}
+
+function showToast(message, success) {
+  if (window.Toastify) {
+    Toastify({
+      text: message,
+      duration: 3500,
+      close: true,
+      gravity: 'top',
+      position: 'right',
+      style: { background: success ? '#48c774' : '#f14668' }
+    }).showToast();
+  } else {
+    alert(message);
   }
-  function showToast(message, success) {
-    if (window.Toastify) {
-      Toastify({
-        text: message,
-        duration: 3500,
-        close: true,
-        gravity: 'top',
-        position: 'right',
-        style: { background: success ? '#48c774' : '#f14668' }
-      }).showToast();
-    } else {
-      alert(message);
+}
+
+function renderKnownUsersTable(users) {
+  var tbody = document.getElementById('user-table');
+  var table = document.getElementById('commandsTable');
+  if (!tbody) return;
+  tbody.setAttribute('aria-busy', 'false');
+  if (table) table.setAttribute('aria-busy', users.length ? 'true' : 'false');
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">' + escapeHtml(KU_I18N.noUsers) + '</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(function(userData) {
+    var userId = String(userData.id == null ? '' : userData.id);
+    var kuName = String(userData.username == null ? '' : userData.username);
+    var welcome = String(userData.welcome_message == null ? '' : userData.welcome_message);
+    var isActive = userData.status === 'True';
+    var firstSeen = userData.first_seen ? String(userData.first_seen) : '';
+    var lastSeen = userData.last_seen ? String(userData.last_seen) : '';
+    var kuBanCached = kuName !== '' && Object.prototype.hasOwnProperty.call(bannedUsersCache, kuName);
+    var kuIsBanned = kuBanCached ? !!bannedUsersCache[kuName] : false;
+    var banHtml = '';
+    if (kuBanCached && kuIsBanned) {
+      banHtml = '<em style="color:red">(' + escapeHtml(KU_I18N.banned) + ')</em>';
+    } else if (!kuBanCached) {
+      banHtml = '<span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;margin-left:0.35rem;vertical-align:middle;"></span>';
     }
+    var testDisabled = isActive ? '' : ' disabled title="' + escapeHtml(KU_I18N.userInactive) + '"';
+    return '<tr>' +
+      '<td>' +
+        '<span class="username" data-username="' + escapeHtml(kuName) + '">' + escapeHtml(kuName) + '</span>' +
+        '<span class="banned-status"' + (kuBanCached ? '' : ' data-ban-pending="1"') + '>' + banHtml + '</span>' +
+      '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' + escapeHtml(firstSeen || KU_I18N.unknown) + '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' + escapeHtml(lastSeen || KU_I18N.unknown) + '</td>' +
+      '<td>' +
+        '<div id="welcome-message-' + escapeHtml(userId) + '">' + escapeHtml(welcome) + '</div>' +
+        '<div class="edit-box" id="edit-box-' + escapeHtml(userId) + '" style="display: none;">' +
+          '<textarea class="sp-input welcome-message" data-user-id="' + escapeHtml(userId) + '" maxlength="255" style="height:auto; min-height:4rem;">' + escapeHtml(welcome) + '</textarea>' +
+          '<div class="character-counter" id="counter-' + escapeHtml(userId) + '" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: var(--text-muted);">' +
+            '<span class="current-count">' + welcome.length + '</span>/255 ' + escapeHtml(KU_I18N.characters) +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' +
+        '<span style="color: ' + (isActive ? 'var(--green)' : 'var(--red)') + ';">' +
+          escapeHtml(isActive ? KU_I18N.statusTrue : KU_I18N.statusFalse) +
+        '</span>' +
+      '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' +
+        '<label style="cursor:pointer;">' +
+          '<input type="checkbox" class="toggle-checkbox" data-username="' + escapeHtml(kuName) + '"' + (isActive ? ' checked' : '') + ' style="display:none;">' +
+          '<span class="status-toggle-icon">' +
+            '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>' +
+          '</span>' +
+        '</label>' +
+      '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' +
+        '<div class="edit-action-group" style="display: flex; flex-direction: column; align-items: center; gap:0.25rem;">' +
+          '<button class="sp-btn sp-btn-primary sp-btn-sm edit-btn" data-user-id="' + escapeHtml(userId) + '">' +
+            '<i class="fas fa-pencil-alt"></i>' +
+          '</button>' +
+          '<button class="sp-btn sp-btn-success sp-btn-sm save-edit-btn" data-user-id="' + escapeHtml(userId) + '" style="display:none;">' +
+            '<i class="fas fa-floppy-disk"></i>' +
+          '</button>' +
+          '<button class="sp-btn sp-btn-danger sp-btn-sm cancel-edit-btn" data-user-id="' + escapeHtml(userId) + '" style="display:none;">' +
+            '<i class="fas fa-xmark"></i>' +
+          '</button>' +
+        '</div>' +
+      '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' +
+        '<button class="sp-btn sp-btn-sm test-welcome-btn" style="background:var(--blue-bg); color:var(--blue); border-color:var(--blue);" data-username="' + escapeHtml(kuName) + '" data-message="' + escapeHtml(welcome) + '"' + testDisabled + '>' +
+          '<i class="fas fa-paper-plane"></i>' +
+        '</button>' +
+      '</td>' +
+      '<td style="text-align:center; vertical-align:middle;">' +
+        '<form method="POST" style="display:inline;" class="delete-user-form">' +
+          '<input type="hidden" name="deleteUserId" value="' + escapeHtml(userId) + '">' +
+          '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm delete-user-btn"><i class="fas fa-trash-alt"></i></button>' +
+        '</form>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function renderKnownUsersError() {
+  var tbody = document.getElementById('user-table');
+  var table = document.getElementById('commandsTable');
+  var loadingNoticeBox = document.getElementById('loadingNoticeBox');
+  var loadingNotice = document.getElementById('loadingNotice');
+  if (tbody) {
+    tbody.setAttribute('aria-busy', 'false');
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">' + escapeHtml(KU_I18N.loadError) + '</td></tr>';
   }
-  // Editing functionality
-  document.querySelectorAll('.edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const userId = this.getAttribute('data-user-id');
-      const editBox = document.getElementById('edit-box-' + userId);
-      const welcomeMessage = document.getElementById('welcome-message-' + userId);
-      const editActionGroup = this.parentElement;
-      const saveBtn = editActionGroup.querySelector('.save-edit-btn');
-      const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
-      // Switch to editing mode
-      editBox.style.display = 'block';
-      welcomeMessage.style.display = 'none';
-      this.style.display = 'none';
+  if (table) table.removeAttribute('aria-busy');
+  if (loadingNotice) loadingNotice.innerText = KU_I18N.loadError;
+  if (loadingNoticeBox) {
+    loadingNoticeBox.classList.remove('sp-alert-warning', 'sp-alert-success', 'sp-alert-info');
+    loadingNoticeBox.classList.add('sp-alert-danger');
+    loadingNoticeBox.removeAttribute('aria-busy');
+  }
+}
+
+function showEmptyNotice() {
+  var table = document.getElementById('commandsTable');
+  var loadingNoticeBox = document.getElementById('loadingNoticeBox');
+  var loadingNotice = document.getElementById('loadingNotice');
+  if (table) table.removeAttribute('aria-busy');
+  if (loadingNotice) loadingNotice.innerText = KU_I18N.noUsers;
+  if (loadingNoticeBox) {
+    loadingNoticeBox.classList.remove('sp-alert-warning', 'sp-alert-success', 'sp-alert-danger');
+    loadingNoticeBox.classList.add('sp-alert-info');
+    loadingNoticeBox.removeAttribute('aria-busy');
+  }
+}
+
+function loadKnownUsers() {
+  var url = new URL(window.location.pathname, window.location.origin);
+  url.searchParams.set('ajax_action', 'list');
+  fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || !data.success) {
+        renderKnownUsersError();
+        return;
+      }
+      var users = Array.isArray(data.users) ? data.users : [];
+      totalUsers = users.length;
+      renderKnownUsersTable(users);
+      if (typeof searchFunction === 'function') {
+        searchFunction();
+      }
+      if (!users.length) {
+        showEmptyNotice();
+        return;
+      }
+      loadedUsers = 0;
+      updateLoadingNotice();
+      fetchBannedStatuses();
+    })
+    .catch(function() {
+      renderKnownUsersError();
+    });
+}
+
+function bindKnownUsersTableEvents() {
+  var tbody = document.getElementById('user-table');
+  if (!tbody || tbody.dataset.kuBound === '1') return;
+  tbody.dataset.kuBound = '1';
+  tbody.addEventListener('click', function(e) {
+    var toggleIcon = e.target.closest('.status-toggle-icon');
+    if (toggleIcon) {
+      var checkbox = toggleIcon.previousElementSibling;
+      if (checkbox) checkbox.click();
+      return;
+    }
+    var editBtn = e.target.closest('.edit-btn');
+    if (editBtn) {
+      var userId = editBtn.getAttribute('data-user-id');
+      var editBox = document.getElementById('edit-box-' + userId);
+      var welcomeMessage = document.getElementById('welcome-message-' + userId);
+      var editActionGroup = editBtn.parentElement;
+      var saveBtn = editActionGroup.querySelector('.save-edit-btn');
+      var cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
+      if (editBox) editBox.style.display = 'block';
+      if (welcomeMessage) welcomeMessage.style.display = 'none';
+      editBtn.style.display = 'none';
       if (saveBtn) saveBtn.style.display = '';
       if (cancelBtn) cancelBtn.style.display = '';
-    });
-  });
-  // Save edit functionality
-  document.querySelectorAll('.save-edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const userId = this.getAttribute('data-user-id');
-      const editBox = document.getElementById('edit-box-' + userId);
-      const newWelcomeMessage = editBox.querySelector('.welcome-message').value;
-      const editActionGroup = this.parentElement;
-      const editBtn = editActionGroup.querySelector('.edit-btn');
-      const cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
-      // Show loading state
-      const originalIcon = this.innerHTML;
-      this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-      this.disabled = true;
-      updateWelcomeMessage(userId, newWelcomeMessage, this, originalIcon, editBtn, cancelBtn);
-    });
-  });
-  // Cancel edit functionality
-  document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const userId = this.getAttribute('data-user-id');
-      const editActionGroup = this.parentElement;
-      const editBtn = editActionGroup.querySelector('.edit-btn');
-      const saveBtn = editActionGroup.querySelector('.save-edit-btn');
-      const editBox = document.getElementById('edit-box-' + userId);
-      const welcomeMessage = document.getElementById('welcome-message-' + userId);
-      // Revert UI to non-editing state
-      editBox.style.display = 'none';
-      welcomeMessage.style.display = '';
+      return;
+    }
+    var saveBtn = e.target.closest('.save-edit-btn');
+    if (saveBtn) {
+      var userId = saveBtn.getAttribute('data-user-id');
+      var editBox = document.getElementById('edit-box-' + userId);
+      var newWelcomeMessage = editBox ? editBox.querySelector('.welcome-message').value : '';
+      var editActionGroup = saveBtn.parentElement;
+      var editBtn = editActionGroup.querySelector('.edit-btn');
+      var cancelBtn = editActionGroup.querySelector('.cancel-edit-btn');
+      var originalIcon = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      saveBtn.disabled = true;
+      updateWelcomeMessage(userId, newWelcomeMessage, saveBtn, originalIcon, editBtn, cancelBtn);
+      return;
+    }
+    var cancelBtn = e.target.closest('.cancel-edit-btn');
+    if (cancelBtn) {
+      var userId = cancelBtn.getAttribute('data-user-id');
+      var editActionGroup = cancelBtn.parentElement;
+      var editBtn = editActionGroup.querySelector('.edit-btn');
+      var saveBtn = editActionGroup.querySelector('.save-edit-btn');
+      var editBox = document.getElementById('edit-box-' + userId);
+      var welcomeMessage = document.getElementById('welcome-message-' + userId);
+      if (editBox) editBox.style.display = 'none';
+      if (welcomeMessage) welcomeMessage.style.display = '';
       if (editBtn) editBtn.style.display = '';
       if (saveBtn) saveBtn.style.display = 'none';
-      this.style.display = 'none';
-    });
-  });
-  // SweetAlert2 for delete confirmation
-  document.querySelectorAll('.delete-user-btn').forEach(btn => {
-    btn.addEventListener('click', function(e) {
+      cancelBtn.style.display = 'none';
+      return;
+    }
+    var deleteBtn = e.target.closest('.delete-user-btn');
+    if (deleteBtn) {
       e.preventDefault();
-      const form = this.closest('form');
+      var form = deleteBtn.closest('form');
       Swal.fire({
-        title: '<?php echo t('known_users_delete_confirm_title'); ?>',
-        text: "<?php echo t('known_users_delete_confirm_text'); ?>",
+        title: KU_I18N.deleteTitle,
+        text: KU_I18N.deleteText,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
         cancelButtonColor: '#3085d6',
-        confirmButtonText: '<?php echo t('known_users_delete_confirm_btn'); ?>',
-        cancelButtonText: '<?php echo t('cancel'); ?>'
-      }).then((result) => {
-        if (result.isConfirmed) {
+        confirmButtonText: KU_I18N.deleteBtn,
+        cancelButtonText: KU_I18N.cancel
+      }).then(function(result) {
+        if (result.isConfirmed && form) {
           form.submit();
         }
       });
-    });
-  });
-  // Test welcome message button functionality
-  document.querySelectorAll('.test-welcome-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const username = this.getAttribute('data-username');
-      const message = this.getAttribute('data-message');
-      const button = this;
-      // Show loading state
-      const originalIcon = button.innerHTML;
-      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-      button.disabled = true;
-      // Make AJAX request
-      const xhr = new XMLHttpRequest();
+      return;
+    }
+    var testBtn = e.target.closest('.test-welcome-btn');
+    if (testBtn) {
+      var username = testBtn.getAttribute('data-username');
+      var message = testBtn.getAttribute('data-message');
+      var originalIcon = testBtn.innerHTML;
+      testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      testBtn.disabled = true;
+      var xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/send_welcome_message.php', true);
       xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
       xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
-          button.innerHTML = originalIcon;
-          button.disabled = false;
+          testBtn.innerHTML = originalIcon;
+          testBtn.disabled = false;
           if (xhr.status === 200) {
             try {
-              const response = JSON.parse(xhr.responseText);
+              var response = JSON.parse(xhr.responseText);
               if (response.success) {
                 loadToastify().then(function() {
-                  showToast(<?php echo json_encode(t('known_users_test_sent')); ?> + ': ' + response.message, true);
+                  showToast(KU_I18N.testSent + ': ' + response.message, true);
                 });
               } else {
                 loadToastify().then(function() {
-                  showToast(<?php echo json_encode(t('known_users_test_error')); ?> + ': ' + (response.message || <?php echo json_encode(t('known_users_test_failed')); ?>), false);
+                  showToast(KU_I18N.testError + ': ' + (response.message || KU_I18N.testFailed), false);
                 });
               }
-            } catch (e) {
+            } catch (err) {
               loadToastify().then(function() {
-                showToast(<?php echo json_encode(t('known_users_test_error')); ?> + ': ' + <?php echo json_encode(t('known_users_test_invalid_response')); ?>, false);
+                showToast(KU_I18N.testError + ': ' + KU_I18N.testInvalid, false);
               });
             }
           } else {
             loadToastify().then(function() {
-              showToast(<?php echo json_encode(t('known_users_test_error')); ?> + ': ' + <?php echo json_encode(t('known_users_test_failed_status')); ?> + ' ' + xhr.status, false);
+              showToast(KU_I18N.testError + ': ' + KU_I18N.testFailedStatus + ' ' + xhr.status, false);
             });
           }
         }
       };
       xhr.send('username=' + encodeURIComponent(username) + '&message=' + encodeURIComponent(message));
-    });
+    }
   });
-  // Character counter functionality
-  document.querySelectorAll('.welcome-message').forEach(textarea => {
-    textarea.addEventListener('input', function() {
-      const userId = this.getAttribute('data-user-id');
-      const counter = document.getElementById('counter-' + userId);
-      const currentCount = this.value.length;
-      const currentCountSpan = counter.querySelector('.current-count');
-      currentCountSpan.textContent = currentCount;
-      // Change color based on character count
-      if (currentCount >= 240) {
-        counter.style.color = '#ff3860'; // Red for near limit
-      } else if (currentCount >= 200) {
-        counter.style.color = '#ff9f43'; // Orange for warning
-      } else {
-        counter.style.color = '#ccc'; // Default gray
-      }
-    });
+  tbody.addEventListener('change', function(e) {
+    if (e.target.classList.contains('toggle-checkbox')) {
+      toggleStatus(e.target.getAttribute('data-username'), e.target.checked);
+    }
   });
-  // Fetch the banned status for each user asynchronously
-  fetchBannedStatuses();
+  tbody.addEventListener('input', function(e) {
+    if (!e.target.classList.contains('welcome-message')) return;
+    var userId = e.target.getAttribute('data-user-id');
+    var counter = document.getElementById('counter-' + userId);
+    if (!counter) return;
+    var currentCount = e.target.value.length;
+    var currentCountSpan = counter.querySelector('.current-count');
+    if (currentCountSpan) currentCountSpan.textContent = currentCount;
+    if (currentCount >= 240) {
+      counter.style.color = '#ff3860';
+    } else if (currentCount >= 200) {
+      counter.style.color = '#ff9f43';
+    } else {
+      counter.style.color = '#ccc';
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  bindKnownUsersTableEvents();
+  loadKnownUsers();
 });
 
 function setBanStatus(element, isBanned) {
@@ -617,7 +733,7 @@ function handleAllUsersProcessed(cacheWasModified) {
       console.error('Required UI elements for loading notice not found.');
       return;
   }
-  loadingNotice.innerText = '<?php echo t('known_users_loading_done'); ?>';
+  loadingNotice.innerText = KU_I18N.loadingDone;
   loadingNoticeBox.classList.remove('sp-alert-warning', 'sp-alert-info');
   loadingNoticeBox.classList.add('sp-alert-success');
   loadingNoticeBox.removeAttribute('aria-busy');
@@ -629,7 +745,7 @@ function handleAllUsersProcessed(cacheWasModified) {
 function updateLoadingNotice() {
   const loadingNotice = document.getElementById('loadingNotice');
   if (loadingNotice) {
-    loadingNotice.innerText = '<?php echo t('known_users_loading_js'); ?>'.replace('{loaded}', loadedUsers).replace('{total}', totalUsers);
+    loadingNotice.innerText = KU_I18N.loadingJs.replace('{loaded}', loadedUsers).replace('{total}', totalUsers);
   }
 }
 function updateWelcomeMessage(userId, newWelcomeMessage, button, originalIcon, editBtn, cancelBtn) {

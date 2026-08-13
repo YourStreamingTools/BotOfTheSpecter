@@ -11,41 +11,10 @@ $pageTitle = t('music_dashboard_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
-
-// Read persisted music preferences (defaults to 'system' source, all tracks enabled)
-$music_source = 'system';
-$music_playlist_filter = [];
-try {
-    $prefRes = $db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
-    if ($prefRes && ($row = $prefRes->fetch_assoc())) {
-        if (isset($row['music_source'])) {
-            $music_source = $row['music_source'];
-            if (!in_array($music_source, ['system', 'user', 'both'])) $music_source = 'system';
-        }
-        if (!empty($row['music_playlist_filter'])) {
-            $decoded = json_decode($row['music_playlist_filter'], true);
-            if (is_array($decoded)) {
-                $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
-            }
-        }
-    }
-} catch (Exception $e) {
-    // keep defaults if column missing or query fails
-}
 
 // Fetch the files from the local music directory with metadata
 function getLocalMusicFiles() {
@@ -64,19 +33,135 @@ function getLocalMusicFiles() {
             }
         }
     }
-    // Sort alphabetically by title
     usort($files, function($a, $b) {
         return strcasecmp($a['title'], $b['title']);
     });
     return $files;
 }
 
-// Fetch music files from local directory
-$musicFiles = getLocalMusicFiles();
+// Fetch user-uploaded music files (private to uploader)
+function getUserMusicFiles($dir) {
+    $files = [];
+    if (!is_dir($dir)) return $files;
+    $entries = scandir($dir);
+    foreach ($entries as $f) {
+        if (str_ends_with($f, '.mp3')) {
+            $full = $dir . '/' . $f;
+            $files[] = [
+                'filename' => $f,
+                'title' => pathinfo($f, PATHINFO_FILENAME),
+                'size' => file_exists($full) ? filesize($full) : 0,
+            ];
+        }
+    }
+    usort($files, function($a, $b) { return strcasecmp($a['title'], $b['title']); });
+    return $files;
+}
+
+function music_load_preferences($db) {
+    $music_source = 'system';
+    $music_playlist_filter = [];
+    try {
+        $prefRes = $db->query("SELECT music_source, music_playlist_filter FROM streamer_preferences WHERE id = 1");
+        if ($prefRes && ($row = $prefRes->fetch_assoc())) {
+            if (isset($row['music_source'])) {
+                $music_source = $row['music_source'];
+                if (!in_array($music_source, ['system', 'user', 'both'])) $music_source = 'system';
+            }
+            if (!empty($row['music_playlist_filter'])) {
+                $decoded = json_decode($row['music_playlist_filter'], true);
+                if (is_array($decoded)) {
+                    $music_playlist_filter = array_values(array_filter($decoded, fn($v) => is_string($v) && $v !== ''));
+                }
+            }
+        }
+    } catch (Exception $e) {
+        // keep defaults if column missing or query fails
+    }
+    return ['music_source' => $music_source, 'music_playlist_filter' => $music_playlist_filter];
+}
+
+function music_collect_lists($user_music_path = null, $public_user_music_path = null) {
+    $musicFiles = getLocalMusicFiles();
+    $userMusicFiles = [];
+    if (!empty($user_music_path)) {
+        $userMusicFiles = getUserMusicFiles($user_music_path);
+        // Reconcile public user music directory so existing uploads are reachable at
+        // https://music.botspecter.com/<username>/<file.mp3>
+        if (!empty($public_user_music_path) && is_dir($public_user_music_path)) {
+            foreach ($userMusicFiles as $f) {
+                $privateFile = $user_music_path . '/' . $f['filename'];
+                $publicFile = $public_user_music_path . '/' . $f['filename'];
+                if (!file_exists($publicFile) && file_exists($privateFile)) {
+                    if (!@symlink($privateFile, $publicFile)) {
+                        @copy($privateFile, $publicFile);
+                    }
+                    @chmod($publicFile, 0644);
+                }
+            }
+        }
+    }
+    return ['user' => $userMusicFiles, 'system' => $musicFiles];
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch rows + storage.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        include 'includes/storage_used.php';
+        $prefs = music_load_preferences($db);
+        $music_source = $prefs['music_source'];
+        $music_playlist_filter = $prefs['music_playlist_filter'];
+        $lists = music_collect_lists($user_music_path ?? null, $public_user_music_path ?? null);
+        $userMusicFiles = $lists['user'];
+        $musicFiles = $lists['system'];
+        $visibleCount = 0;
+        foreach ($userMusicFiles as $f) {
+            $key = 'USER:' . $f['filename'];
+            if (($music_source === 'user' || $music_source === 'both') && !in_array($key, $music_playlist_filter, true)) {
+                $visibleCount++;
+            }
+        }
+        foreach ($musicFiles as $f) {
+            if (($music_source === 'system' || $music_source === 'both') && !in_array($f['filename'], $music_playlist_filter, true)) {
+                $visibleCount++;
+            }
+        }
+        echo json_encode([
+            'success' => true,
+            'storage_used' => (int) $current_storage_used,
+            'max_storage' => (int) $max_storage_size,
+            'storage_percentage' => (float) $storage_percentage,
+            'music_source' => $music_source,
+            'playlist_filter' => array_values($music_playlist_filter),
+            'user_files' => $userMusicFiles,
+            'system_files' => $musicFiles,
+            'visible_count' => $visibleCount,
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
+date_default_timezone_set($timezone);
+
+$prefs = music_load_preferences($db);
+$music_source = $prefs['music_source'];
+$music_playlist_filter = $prefs['music_playlist_filter'];
 
 // User-uploaded music handling
-// $user_music_path is provided by storage_used.php (e.g. /var/www/private/music_user/<username>)
 $userMusicStatus = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES['userMusicFiles']) || isset($_POST['delete_user_music']))) {
+    include 'includes/storage_used.php';
+}
 // Handle uploads
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
     foreach ($_FILES['userMusicFiles']['tmp_name'] as $key => $tmp_name) {
@@ -164,65 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_music']))
     }
 }
 
-// Fetch user-uploaded music files (private to uploader)
-function getUserMusicFiles($dir) {
-    $files = [];
-    if (!is_dir($dir)) return $files;
-    $entries = scandir($dir);
-    foreach ($entries as $f) {
-        if (str_ends_with($f, '.mp3')) {
-            $full = $dir . '/' . $f;
-            $files[] = [
-                'filename' => $f,
-                'title' => pathinfo($f, PATHINFO_FILENAME),
-                'size' => file_exists($full) ? filesize($full) : 0,
-            ];
-        }
-    }
-    usort($files, function($a, $b) { return strcasecmp($a['title'], $b['title']); });
-    return $files;
-}
-
-$userMusicFiles = [];
-if (isset($user_music_path)) {
-    $userMusicFiles = getUserMusicFiles($user_music_path);
-    // Reconcile public user music directory so existing uploads are reachable at
-    // https://music.botspecter.com/<username>/<file.mp3>
-    if (isset($public_user_music_path) && is_dir($public_user_music_path)) {
-        foreach ($userMusicFiles as $f) {
-            $privateFile = $user_music_path . '/' . $f['filename'];
-            $publicFile = $public_user_music_path . '/' . $f['filename'];
-            if (!file_exists($publicFile) && file_exists($privateFile)) {
-                // Prefer symlink, fall back to copy
-                if (!@symlink($privateFile, $publicFile)) {
-                    @copy($privateFile, $publicFile);
-                }
-                @chmod($publicFile, 0644);
-            }
-        }
-    }
-}
-
-// Build playlist for client: prefix user files with "USER:" so JS serves them via secure endpoint
-$playlistForJs = [];
-foreach ($userMusicFiles as $f) { $playlistForJs[] = 'USER:' . $f['filename']; }
-foreach ($musicFiles as $f) { $playlistForJs[] = $f['filename']; }
-
-// Server-side active track count (source-visible and checkbox-enabled)
-$serverVisibleCount = 0;
-foreach ($userMusicFiles as $f) {
-    $key = 'USER:' . $f['filename'];
-    if (($music_source === 'user' || $music_source === 'both') && !in_array($key, $music_playlist_filter, true)) {
-        $serverVisibleCount++;
-    }
-}
-foreach ($musicFiles as $f) {
-    if (($music_source === 'system' || $music_source === 'both') && !in_array($f['filename'], $music_playlist_filter, true)) {
-        $serverVisibleCount++;
-    }
-}
-$visibleIndex = 0;
-
 ob_start();
 ?>
 <!-- Page Header -->
@@ -309,12 +335,12 @@ ob_start();
             <?php echo t('music_upload_disclaimer'); ?>
         </div>
         <!-- Storage Usage Info -->
-        <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+        <div class="sp-alert sp-alert-info" id="musicStorageHost" style="margin-bottom:1rem;" aria-busy="true">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
                 <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
-                <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+                <span id="musicStorageText"><span class="sp-skeleton-line w-40" aria-hidden="true"></span></span>
             </div>
-            <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
+            <progress class="progress" id="musicStorageProgress" value="0" max="100" style="width:100%;"></progress>
         </div>
         <?php if (!empty($userMusicStatus)) : ?>
             <div class="sp-alert sp-alert-info sp-notif" style="margin-bottom:1rem;">
@@ -355,7 +381,7 @@ ob_start();
             <span class="icon mr-2"><i class="fas fa-list-music"></i></span>
             <?php echo t('music_playlist'); ?>
         </p>
-        <span id="playlistCountTag" class="sp-badge sp-badge-blue" data-label="<?php echo t('music_songs'); ?>"><?php echo $serverVisibleCount; ?> <?php echo t('music_songs'); ?></span>
+        <span id="playlistCountTag" class="sp-badge sp-badge-blue" data-label="<?php echo t('music_songs'); ?>" aria-busy="true"><span class="sp-skeleton-line w-40" aria-hidden="true"></span></span>
     </header>
     <div class="sp-card-body">
         <!-- Search + bulk filter -->
@@ -394,80 +420,15 @@ ob_start();
                         <th style="text-align:right;white-space:nowrap;"><?php echo t('music_actions'); ?></th>
                     </tr>
                 </thead>
-                <tbody id="playlistBody">
-                    <?php /* Render user uploads first (private to uploader) */ ?>
-                    <?php foreach ($userMusicFiles as $uIndex => $fileData):
-                        $index = $uIndex;
-                        $fileKey = 'USER:' . $fileData['filename'];
-                        $isEnabled = !in_array($fileKey, $music_playlist_filter, true);
-                        $isVisible = ($music_source === 'user' || $music_source === 'both');
-                        if ($isVisible && $isEnabled) { $visibleIndex++; }
-                        $displayNumber = ($isVisible && $isEnabled) ? $visibleIndex : '';
-                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;';
-                        $filteredClass = $isEnabled ? '' : ' is-filtered-out'; ?>
-                        <tr data-index="<?php echo $index; ?>"
-                            data-file="<?php echo htmlspecialchars($fileKey); ?>"
-                            data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row user-upload<?php echo $filteredClass; ?>" style="<?php echo $displayStyle; ?>">
-                            <td style="text-align:center;">
-                                <label class="checkbox" style="display:inline-flex;margin:0;" title="<?php echo htmlspecialchars(t('music_playlist_include')); ?>">
-                                    <input type="checkbox" class="playlist-filter-cb" data-file="<?php echo htmlspecialchars($fileKey); ?>" <?php echo $isEnabled ? 'checked' : ''; ?>>
-                                </label>
-                            </td>
-                            <td style="text-align:center;font-weight:600;color:var(--text-muted);">
-                                <span class="row-number"><?php echo $displayNumber; ?></span>
-                                <span class="now-playing-icon" style="display:none;">
-                                    <i class="fas fa-play-circle" style="color:var(--green);"></i>
-                                </span>
-                            </td>
-                            <td class="song-title">
-                                <?php echo htmlspecialchars($fileData['title']); ?> <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;"><?php echo t('music_your_upload'); ?></span>
-                            </td>
-                            <td style="text-align:right;white-space:nowrap;">
-                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="<?php echo htmlspecialchars(t('music_play')); ?>">
-                                    <span class="icon is-small"><i class="fas fa-play"></i></span>
-                                </button>
-                                <button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" title="<?php echo htmlspecialchars(t('music_delete')); ?>">
-                                    <span class="icon is-small"><i class="fas fa-trash"></i></span>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <?php /* Now render global DMCA-free tracks */ ?>
-                    <?php foreach ($musicFiles as $gIndex => $fileData):
-                        $index = count($userMusicFiles) + $gIndex;
-                        $fileKey = $fileData['filename'];
-                        $isEnabled = !in_array($fileKey, $music_playlist_filter, true);
-                        $isVisible = ($music_source === 'system' || $music_source === 'both');
-                        if ($isVisible && $isEnabled) { $visibleIndex++; }
-                        $displayNumber = ($isVisible && $isEnabled) ? $visibleIndex : '';
-                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;';
-                        $filteredClass = $isEnabled ? '' : ' is-filtered-out'; ?>
-                        <tr data-index="<?php echo $index; ?>"
-                            data-file="<?php echo htmlspecialchars($fileKey); ?>"
-                            data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row<?php echo $filteredClass; ?>" style="<?php echo $displayStyle; ?>">
-                            <td style="text-align:center;">
-                                <label class="checkbox" style="display:inline-flex;margin:0;" title="<?php echo htmlspecialchars(t('music_playlist_include')); ?>">
-                                    <input type="checkbox" class="playlist-filter-cb" data-file="<?php echo htmlspecialchars($fileKey); ?>" <?php echo $isEnabled ? 'checked' : ''; ?>>
-                                </label>
-                            </td>
-                            <td style="text-align:center;font-weight:600;color:var(--text-muted);">
-                                <span class="row-number"><?php echo $displayNumber; ?></span>
-                                <span class="now-playing-icon" style="display:none;">
-                                    <i class="fas fa-play-circle" style="color:var(--green);"></i>
-                                </span>
-                            </td>
-                            <td class="song-title">
-                                <?php echo htmlspecialchars($fileData['title']); ?>
-                            </td>
-                            <td style="text-align:right;white-space:nowrap;">
-                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="<?php echo htmlspecialchars(t('music_play')); ?>">
-                                    <span class="icon is-small"><i class="fas fa-play"></i></span>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+                <tbody id="playlistBody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
+                        <td><span class="sp-skeleton-line w-80"></span></td>
+                        <td style="text-align:right;"><span class="sp-skeleton-line w-40"></span></td>
+                    </tr>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </div>
@@ -485,6 +446,14 @@ ob_start();
     // ===== STATE MANAGEMENT =====
     // Current uploader name (used to build public user-music URLs)
     const uploaderName = '<?php echo addslashes($_SESSION['username'] ?? ''); ?>';
+    const MUSIC_I18N = {
+        yourUpload: <?php echo json_encode(t('music_your_upload')); ?>,
+        play: <?php echo json_encode(t('music_play')); ?>,
+        delete: <?php echo json_encode(t('music_delete')); ?>,
+        include: <?php echo json_encode(t('music_playlist_include')); ?>,
+        noTracks: <?php echo json_encode(t('music_no_tracks_for_source')); ?>,
+        songs: <?php echo json_encode(t('music_songs')); ?>,
+    };
     const MusicPlayer = {
         socket: null,
         reconnectAttempts: 0,
@@ -499,7 +468,7 @@ ob_start();
             shuffle: false,
             localPlayback: false,
             currentIndex: -1,
-            playlist: <?php echo json_encode($playlistForJs); ?>,
+            playlist: [],
             currentSong: null,
             musicSource: <?php echo json_encode($music_source); ?>,
             excludedTracks: new Set(<?php echo json_encode(array_values($music_playlist_filter)); ?>),
@@ -1265,22 +1234,10 @@ ob_start();
                     if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('sp-btn-loading'); }
                     progressContainer.style.display = 'none';
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        // Replace playlist tbody with server-rendered version from response
                         try {
                             const parser = new DOMParser();
                             const doc = parser.parseFromString(xhr.responseText, 'text/html');
-                            const newTbody = doc.getElementById('playlistBody');
-                            if (newTbody) {
-                                document.getElementById('playlistBody').innerHTML = newTbody.innerHTML;
-                                // rebind playlist event handlers and rebuild client playlist state
-                                Events.initPlaylistEvents();
-                                DOM.rebuildPlaylistStateFromDOM();
-                                const ms = (document.getElementById('music-source-select') || {}).value || 'system';
-                                DOM.syncPlaylistFilterStyles();
-                                DOM.updatePlaylistForSource(ms);
-                            }
-                            // show any server messages for uploads
-                            const serverMsg = doc.querySelector('.sp-alert.sp-alert-info');
+                            const serverMsg = doc.querySelector('.sp-notif');
                             if (serverMsg) {
                                 responseEl.innerHTML = serverMsg.innerHTML;
                                 responseEl.style.display = 'block';
@@ -1288,7 +1245,7 @@ ob_start();
                         } catch (err) {
                             console.warn('Failed to parse upload response', err);
                         }
-                        // reset input
+                        loadMusicList();
                         fileInput.value = '';
                         if (fileListLabel) fileListLabel.textContent = <?php echo json_encode(t('sound_alerts_no_files_selected')); ?>;
                     } else {
@@ -1306,21 +1263,128 @@ ob_start();
             });
         },
     };
+    function escapeHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+    function applyMusicStorageBar(data) {
+        if (!data || typeof data.storage_used !== 'number' || typeof data.max_storage !== 'number') return;
+        const usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
+        const maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
+        const pct = typeof data.storage_percentage === 'number'
+            ? data.storage_percentage
+            : ((data.storage_used / data.max_storage) * 100);
+        const textEl = document.getElementById('musicStorageText');
+        const progEl = document.getElementById('musicStorageProgress');
+        const hostEl = document.getElementById('musicStorageHost');
+        if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + Number(pct).toFixed(2) + '%)';
+        if (progEl) progEl.value = pct;
+        if (hostEl) hostEl.setAttribute('aria-busy', 'false');
+    }
+    function playlistRowHtml(index, fileKey, title, isUser, isEnabled) {
+        const filteredClass = isEnabled ? '' : ' is-filtered-out';
+        const userClass = isUser ? ' user-upload' : '';
+        const safeKey = escapeHtml(fileKey);
+        const safeTitle = escapeHtml(title);
+        const safeTitleLower = escapeHtml(String(title).toLowerCase());
+        const safeFile = isUser ? escapeHtml(String(fileKey).replace(/^USER:/, '')) : '';
+        const badge = isUser
+            ? ' <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;">' + escapeHtml(MUSIC_I18N.yourUpload) + '</span>'
+            : '';
+        const deleteBtn = isUser
+            ? '<button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="' + safeFile + '" title="' + escapeHtml(MUSIC_I18N.delete) + '">' +
+              '<span class="icon is-small"><i class="fas fa-trash"></i></span></button>'
+            : '';
+        return '<tr data-index="' + index + '" data-file="' + safeKey + '" data-title="' + safeTitleLower + '" class="playlist-row' + userClass + filteredClass + '" style="cursor:pointer;">' +
+            '<td style="text-align:center;">' +
+                '<label class="checkbox" style="display:inline-flex;margin:0;" title="' + escapeHtml(MUSIC_I18N.include) + '">' +
+                    '<input type="checkbox" class="playlist-filter-cb" data-file="' + safeKey + '"' + (isEnabled ? ' checked' : '') + '>' +
+                '</label></td>' +
+            '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' +
+                '<span class="row-number"></span>' +
+                '<span class="now-playing-icon" style="display:none;"><i class="fas fa-play-circle" style="color:var(--green);"></i></span>' +
+            '</td>' +
+            '<td class="song-title">' + safeTitle + badge + '</td>' +
+            '<td style="text-align:right;white-space:nowrap;">' +
+                '<button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="' + index + '" title="' + escapeHtml(MUSIC_I18N.play) + '">' +
+                    '<span class="icon is-small"><i class="fas fa-play"></i></span></button>' +
+                deleteBtn +
+            '</td></tr>';
+    }
+    function renderPlaylistFromList(data) {
+        const tbody = document.getElementById('playlistBody');
+        if (!tbody) return;
+        const excluded = new Set(Array.isArray(data.playlist_filter) ? data.playlist_filter : []);
+        MusicPlayer.state.excludedTracks = excluded;
+        if (data.music_source) MusicPlayer.state.musicSource = data.music_source;
+        const userFiles = Array.isArray(data.user_files) ? data.user_files : [];
+        const systemFiles = Array.isArray(data.system_files) ? data.system_files : [];
+        let html = '';
+        let index = 0;
+        userFiles.forEach((fileData) => {
+            const filename = fileData.filename || '';
+            const title = fileData.title || filename.replace(/\.mp3$/i, '');
+            const fileKey = 'USER:' + filename;
+            html += playlistRowHtml(index, fileKey, title, true, !excluded.has(fileKey));
+            index++;
+        });
+        systemFiles.forEach((fileData) => {
+            const filename = fileData.filename || '';
+            const title = fileData.title || filename.replace(/\.mp3$/i, '');
+            html += playlistRowHtml(index, filename, title, false, !excluded.has(filename));
+            index++;
+        });
+        tbody.innerHTML = html;
+        tbody.setAttribute('aria-busy', 'false');
+        const countTag = document.getElementById('playlistCountTag');
+        if (countTag) countTag.setAttribute('aria-busy', 'false');
+        DOM.rebuildPlaylistStateFromDOM();
+        DOM.syncPlaylistFilterStyles();
+        const source = (document.getElementById('music-source-select') || {}).value || MusicPlayer.state.musicSource || 'system';
+        DOM.updatePlaylistForSource(source);
+    }
+    function finishMusicListError() {
+        const tbody = document.getElementById('playlistBody');
+        if (tbody) {
+            tbody.setAttribute('aria-busy', 'false');
+            tbody.innerHTML = '';
+        }
+        const hostEl = document.getElementById('musicStorageHost');
+        if (hostEl) hostEl.setAttribute('aria-busy', 'false');
+        const countTag = document.getElementById('playlistCountTag');
+        if (countTag) {
+            countTag.setAttribute('aria-busy', 'false');
+            countTag.textContent = '';
+        }
+    }
+    function loadMusicList() {
+        const url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => {
+                if (!data || !data.success) {
+                    finishMusicListError();
+                    return;
+                }
+                applyMusicStorageBar(data);
+                renderPlaylistFromList(data);
+            })
+            .catch(finishMusicListError);
+    }
     // ===== INITIALIZATION =====
     document.addEventListener('DOMContentLoaded', () => {
         console.log('Initializing Music Player...');
         DOM.cacheElements();
         Events.initializeAll();
         WebSocket.connect();
-        // Ensure playlist reflects persisted music source on load
-        const initialSource = (document.getElementById('music-source-select') || {}).value || 'system';
-        if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
-            DOM.updatePlaylistForSource(initialSource);
-        }
-
-        // Initialize button states
         DOM.updateButtonState(MusicPlayer.elements.repeatBtn, false);
         DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, false);
+        loadMusicList();
         console.log('Music Player initialized successfully');
     });
 </script>

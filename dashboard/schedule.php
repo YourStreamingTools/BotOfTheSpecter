@@ -12,10 +12,9 @@ $pageTitle = 'Twitch Schedule';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 include 'includes/userdata.php';
-session_write_close();
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+session_write_close();
 
 // Get user's timezone from profile (fallback to UTC)
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -25,6 +24,505 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
+
+function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first = 25, $maxPages = 5) {
+    $allSegments = [];
+    $scheduleData = ['segments' => [], 'vacation' => null];
+    $cursor = null;
+    $page = 0;
+
+    while (true) {
+        $query = [
+            'broadcaster_id' => $broadcasterId,
+            'first' => $first
+        ];
+        if (!empty($cursor)) {
+            $query['after'] = $cursor;
+        }
+        $url = 'https://api.twitch.tv/helix/schedule?' . http_build_query($query);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
+if ($resp === false) {
+            return [null, t('schedule_error_request_failed') . ' ' . htmlspecialchars($curlErr)];
+        }
+        if ($httpCode !== 200) {
+            if ($httpCode === 401) {
+                return [null, t('schedule_error_unauthorized')];
+            }
+            if ($httpCode === 404) {
+                return [null, t('schedule_error_no_schedule_found')];
+            }
+            return [null, t('schedule_error_twitch_http', [$httpCode])];
+        }
+
+        $data = json_decode($resp, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !isset($data['data'])) {
+            return [null, t('schedule_error_parse_response')];
+        }
+
+        $pageData = $data['data'];
+        if ($page === 0) {
+            $scheduleData = $pageData;
+        }
+        if (isset($pageData['vacation'])) {
+            $scheduleData['vacation'] = $pageData['vacation'];
+        }
+        $pageSegments = (isset($pageData['segments']) && is_array($pageData['segments'])) ? $pageData['segments'] : [];
+        if (!empty($pageSegments)) {
+            $allSegments = array_merge($allSegments, $pageSegments);
+        }
+
+        $cursor = null;
+        if (isset($data['pagination']['cursor']) && is_string($data['pagination']['cursor']) && $data['pagination']['cursor'] !== '') {
+            $cursor = $data['pagination']['cursor'];
+        }
+
+        $page++;
+        if (empty($cursor) || $page >= $maxPages) {
+            break;
+        }
+    }
+
+    $scheduleData['segments'] = $allSegments;
+    return [$scheduleData, null];
+}
+
+function fmt_dt($rfc3339, $tz, $format = 'D, j M Y - g:ia T') {
+    if (empty($rfc3339)) return '-';
+    try {
+        $dt = new DateTime($rfc3339, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone($tz));
+        return $dt->format($format);
+    } catch (Exception $e) {
+        return htmlspecialchars($rfc3339);
+    }
+}
+
+function segment_duration_minutes($startRfc3339, $endRfc3339) {
+    if (empty($startRfc3339) || empty($endRfc3339)) return null;
+    try {
+        $start = new DateTime($startRfc3339, new DateTimeZone('UTC'));
+        $end = new DateTime($endRfc3339, new DateTimeZone('UTC'));
+        return (int)floor(($end->getTimestamp() - $start->getTimestamp()) / 60);
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function fmt_duration_human($minutes) {
+    if (!is_numeric($minutes) || (int)$minutes <= 0) return '-';
+    $totalMinutes = (int)$minutes;
+    $hours = intdiv($totalMinutes, 60);
+    $mins = $totalMinutes % 60;
+    if ($hours > 0 && $mins > 0) {
+        return $hours . 'h ' . $mins . 'm';
+    }
+    if ($hours > 0) {
+        return $hours . 'h';
+    }
+    return $mins . 'm';
+}
+
+function schedule_local_datetime_value($rfc3339, $timezone) {
+    if (empty($rfc3339)) return '';
+    try {
+        $dt = new DateTime($rfc3339, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone($timezone));
+        return $dt->format('Y-m-d\TH:i');
+    } catch (Exception $e) {
+        return '';
+    }
+}
+
+function schedule_build_view($schedule, $timezone) {
+    $segments = (isset($schedule['segments']) && is_array($schedule['segments'])) ? $schedule['segments'] : [];
+    $segmentsByDay = [];
+    $orderedDayKeys = [];
+    $selectedDayKeys = [];
+    $initialDayKeySet = [];
+    $hasMoreDays = false;
+    $loadMoreDayBatchSize = 6;
+    $initialLoadMoreEvents = 0;
+    $nextSevenSummary = [
+        'total' => 0,
+        'recurring' => 0,
+        'canceled' => 0,
+        'vacation' => !empty($schedule['vacation'])
+    ];
+    try {
+        $tzObj = new DateTimeZone($timezone);
+    } catch (Exception $e) {
+        $tzObj = new DateTimeZone('UTC');
+    }
+    $nowLocal = new DateTime('now', $tzObj);
+    $todayKey = $nowLocal->format('Y-m-d');
+    $tomorrowLocal = clone $nowLocal;
+    $tomorrowLocal->modify('+1 day');
+    $tomorrowKey = $tomorrowLocal->format('Y-m-d');
+    foreach ($segments as $seg) {
+        try {
+            $startLocal = new DateTime($seg['start_time'] ?? '', new DateTimeZone('UTC'));
+            $startLocal->setTimezone($tzObj);
+        } catch (Exception $e) {
+            continue;
+        }
+        $dayKey = $startLocal->format('Y-m-d');
+        if ($dayKey === $todayKey) {
+            $dayLabel = 'Today';
+        } elseif ($dayKey === $tomorrowKey) {
+            $dayLabel = 'Tomorrow';
+        } else {
+            $dayLabel = $startLocal->format('l, j M Y');
+        }
+        if (!isset($segmentsByDay[$dayKey])) {
+            $segmentsByDay[$dayKey] = [
+                'label' => $dayLabel,
+                'sort_ts' => $startLocal->getTimestamp(),
+                'segments' => []
+            ];
+        }
+        $segmentsByDay[$dayKey]['segments'][] = $seg;
+    }
+    if (!empty($segmentsByDay)) {
+        uasort($segmentsByDay, function ($a, $b) {
+            return ($a['sort_ts'] ?? 0) <=> ($b['sort_ts'] ?? 0);
+        });
+        $orderedDayKeys = array_keys($segmentsByDay);
+        if (isset($segmentsByDay[$todayKey])) {
+            $selectedDayKeys[] = $todayKey;
+        }
+        if (isset($segmentsByDay[$tomorrowKey]) && !in_array($tomorrowKey, $selectedDayKeys, true)) {
+            $selectedDayKeys[] = $tomorrowKey;
+        }
+        $postTomorrowCount = 0;
+        foreach ($orderedDayKeys as $dayKey) {
+            if ($postTomorrowCount >= 7) {
+                break;
+            }
+            if (in_array($dayKey, $selectedDayKeys, true)) {
+                continue;
+            }
+            if ($dayKey <= $tomorrowKey) {
+                continue;
+            }
+            $selectedDayKeys[] = $dayKey;
+            $postTomorrowCount++;
+        }
+        $initialDayKeySet = !empty($selectedDayKeys) ? array_fill_keys($selectedDayKeys, true) : [];
+        $hasMoreDays = count($orderedDayKeys) > count($selectedDayKeys);
+        if ($hasMoreDays) {
+            $remainingDayKeys = [];
+            foreach ($orderedDayKeys as $dayKey) {
+                if (!isset($initialDayKeySet[$dayKey])) {
+                    $remainingDayKeys[] = $dayKey;
+                }
+            }
+            $nextLoadDayKeys = array_slice($remainingDayKeys, 0, $loadMoreDayBatchSize);
+            foreach ($nextLoadDayKeys as $dayKey) {
+                $initialLoadMoreEvents += count($segmentsByDay[$dayKey]['segments'] ?? []);
+            }
+        }
+    }
+
+    $nextSevenSummary['total'] = 0;
+    $nextSevenSummary['recurring'] = 0;
+    $nextSevenSummary['canceled'] = 0;
+    foreach ($segmentsByDay as $dayKey => $dayData) {
+        if (!empty($initialDayKeySet) && !isset($initialDayKeySet[$dayKey])) {
+            continue;
+        }
+        foreach (($dayData['segments'] ?? []) as $seg) {
+            $nextSevenSummary['total']++;
+            if (!empty($seg['is_recurring'])) $nextSevenSummary['recurring']++;
+            if (!empty($seg['is_canceled']) || !empty($seg['canceled_until'])) $nextSevenSummary['canceled']++;
+        }
+    }
+
+    $days = [];
+    $order = 0;
+    foreach ($segmentsByDay as $dayKey => $dayData) {
+        $isDayInitiallyVisible = empty($initialDayKeySet) || isset($initialDayKeySet[$dayKey]);
+        $daySegments = [];
+        foreach ($dayData['segments'] as $seg) {
+            $canceled = !empty($seg['is_canceled']) || !empty($seg['canceled_until']);
+            $durationMins = segment_duration_minutes($seg['start_time'] ?? null, $seg['end_time'] ?? null);
+            $startDateText = '-';
+            $startTimeText = '-';
+            $endTimeText = '-';
+            $endDateText = '';
+            try {
+                $startDtLocal = new DateTime($seg['start_time'] ?? '', new DateTimeZone('UTC'));
+                $startDtLocal->setTimezone(new DateTimeZone($timezone));
+                $endDtLocal = new DateTime($seg['end_time'] ?? '', new DateTimeZone('UTC'));
+                $endDtLocal->setTimezone(new DateTimeZone($timezone));
+                $startDateText = $startDtLocal->format('D, j M Y');
+                $startTimeText = $startDtLocal->format('g:ia');
+                $endTimeText = $endDtLocal->format('g:ia');
+                if ($startDtLocal->format('Y-m-d') !== $endDtLocal->format('Y-m-d')) {
+                    $endDateText = $endDtLocal->format('D, j M Y');
+                }
+            } catch (Exception $e) {
+            }
+            $daySegments[] = [
+                'id' => $seg['id'] ?? '',
+                'title' => $seg['title'] ?? '',
+                'category_name' => $seg['category']['name'] ?? '',
+                'category_id' => $seg['category']['id'] ?? '',
+                'is_recurring' => !empty($seg['is_recurring']),
+                'is_canceled' => $canceled,
+                'start_local' => schedule_local_datetime_value($seg['start_time'] ?? null, $timezone),
+                'end_local' => schedule_local_datetime_value($seg['end_time'] ?? null, $timezone),
+                'start_date_text' => $startDateText,
+                'start_time_text' => $startTimeText,
+                'end_time_text' => $endTimeText,
+                'end_date_text' => $endDateText,
+                'duration_mins' => $durationMins,
+                'duration_human' => fmt_duration_human($durationMins),
+            ];
+        }
+        $days[] = [
+            'day_key' => $dayKey,
+            'label' => $dayData['label'],
+            'order' => $order,
+            'initially_visible' => $isDayInitiallyVisible,
+            'segments' => $daySegments,
+        ];
+        $order++;
+    }
+
+    $vacation = null;
+    if (!empty($schedule['vacation'])) {
+        $vacation = [
+            'start_local' => schedule_local_datetime_value($schedule['vacation']['start_time'] ?? null, $timezone),
+            'end_local' => schedule_local_datetime_value($schedule['vacation']['end_time'] ?? null, $timezone),
+            'start_display' => fmt_dt($schedule['vacation']['start_time'] ?? null, $timezone),
+            'end_display' => fmt_dt($schedule['vacation']['end_time'] ?? null, $timezone),
+        ];
+    }
+
+    return [
+        'days' => $days,
+        'summary' => $nextSevenSummary,
+        'has_more_days' => $hasMoreDays,
+        'load_more_day_batch_size' => $loadMoreDayBatchSize,
+        'initial_load_more_events' => $initialLoadMoreEvents,
+        'vacation' => $vacation,
+    ];
+}
+
+function schedule_calendar_html(array $view, $timezone) {
+    if (empty($view['days'])) {
+        return '';
+    }
+    $nextSevenSummary = $view['summary'];
+    $hasMoreDays = !empty($view['has_more_days']);
+    $loadMoreDayBatchSize = (int)($view['load_more_day_batch_size'] ?? 6);
+    $initialLoadMoreEvents = (int)($view['initial_load_more_events'] ?? 0);
+    $vacation = $view['vacation'];
+    ob_start();
+    ?>
+    <div class="sp-card schedule-summary-box">
+        <div class="sp-card-body">
+            <p class="sp-card-title" style="margin-bottom:0.75rem;"><?= t('schedule_summary_title') ?></p>
+            <div class="schedule-summary-grid">
+                <div class="schedule-summary-item">
+                    <span><?= t('schedule_summary_streams') ?></span>
+                    <strong id="scheduleSummaryStreams"><?php echo (int)$nextSevenSummary['total']; ?></strong>
+                </div>
+                <div class="schedule-summary-item">
+                    <span><?= t('schedule_summary_recurring') ?></span>
+                    <strong class="sp-text-info" id="scheduleSummaryRecurring"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
+                </div>
+                <div class="schedule-summary-item">
+                    <span><?= t('schedule_summary_canceled') ?></span>
+                    <strong class="sp-text-danger" id="scheduleSummaryCanceled"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
+                </div>
+                <div class="schedule-summary-item">
+                    <span><?= t('schedule_summary_vacation') ?></span>
+                    <strong class="<?php echo !empty($nextSevenSummary['vacation']) ? 'sp-text-warning' : 'sp-text-success'; ?>"><?php echo !empty($nextSevenSummary['vacation']) ? t('schedule_status_active') : t('schedule_status_off'); ?></strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="schedule-day-columns">
+            <?php foreach ($view['days'] as $dayData): ?>
+                <?php
+                    $dayKey = $dayData['day_key'];
+                    $isDayInitiallyVisible = !empty($dayData['initially_visible']);
+                    $dayOrderIndex = (int)$dayData['order'];
+                ?>
+                <?php foreach ($dayData['segments'] as $segIndex => $seg):
+                            $isRecurring = !empty($seg['is_recurring']);
+                            $canceled = !empty($seg['is_canceled']);
+                            $durationMins = $seg['duration_mins'];
+                            $category = $seg['category_name'] ?? '';
+                            $startLocalValue = $seg['start_local'] ?? '';
+                            $endLocalValue = $seg['end_local'] ?? '';
+                            $startDateText = $seg['start_date_text'] ?? '-';
+                            $startTimeText = $seg['start_time_text'] ?? '-';
+                            $endTimeText = $seg['end_time_text'] ?? '-';
+                            $endDateText = $seg['end_date_text'] ?? '';
+                            ?>
+                <div class="sched-col<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>" data-segment-recurring="<?php echo $isRecurring ? '1' : '0'; ?>" data-segment-canceled="<?php echo $canceled ? '1' : '0'; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
+                    <div class="schedule-day-group mb-5">
+                        <?php if ($segIndex === 0): ?>
+                        <h2 class="sched-day-label"><?php echo htmlspecialchars($dayData['label']); ?></h2>
+                        <?php else: ?>
+                        <h2 class="sched-day-label" style="visibility:hidden;" aria-hidden="true">&nbsp;</h2>
+                        <?php endif; ?>
+                        <div class="sp-card schedule-segment-card<?php echo $canceled ? ' schedule-segment-card-canceled' : ''; ?>">
+                            <div class="sp-card-header">
+                                <span class="sp-card-title"><?php echo htmlspecialchars($seg['title'] ?: t('schedule_untitled')); ?></span>
+                                <span class="schedule-card-tags" aria-hidden="true">
+                                    <?php if ($isRecurring): ?>
+                                        <span class="sp-badge sp-badge-blue"><?= t('schedule_recurring_badge') ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($canceled): ?>
+                                        <span class="sp-badge sp-badge-red" data-role="canceled-tag"><?= t('schedule_canceled_badge') ?></span>
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                            <div class="sp-card-body">
+                                <p class="mb-1"><strong><?= t('schedule_field_start_date') ?></strong> <?php echo htmlspecialchars($startDateText); ?></p>
+                                <p class="mb-1"><strong><?= t('schedule_field_start_time') ?></strong> <?php echo htmlspecialchars($startTimeText); ?></p>
+                                <p class="mb-1"><strong><?= t('schedule_field_end_time') ?></strong> <?php echo htmlspecialchars($endTimeText); ?></p>
+                                <?php if ($endDateText !== ''): ?>
+                                    <p class="mb-1"><strong><?= t('schedule_field_end_date') ?></strong> <?php echo htmlspecialchars($endDateText); ?></p>
+                                <?php endif; ?>
+                                <p class="mb-1"><strong><?= t('schedule_field_duration') ?></strong><br><?php echo htmlspecialchars($seg['duration_human']); ?></p>
+                                <p class="mb-2"><strong><?= t('schedule_field_category') ?></strong><br><?php echo $category !== '' ? htmlspecialchars($category) : t('schedule_not_specified'); ?></p>
+                            </div>
+                            <div class="sp-card-body" style="border-top:1px solid var(--border); padding-top:1rem;">
+                                <form method="post" class="segment-edit-form" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">
+                                    <input type="hidden" name="segment_id" value="<?php echo htmlspecialchars($seg['id']); ?>" />
+                                    <div class="sp-form-group">
+                                        <div class="sp-field-row">
+                                            <input class="sp-input segment-start-input" type="datetime-local" name="segment_start" value="<?php echo htmlspecialchars($startLocalValue); ?>" />
+                                            <input class="sp-input segment-end-input" type="datetime-local" name="segment_end" value="<?php echo htmlspecialchars($endLocalValue); ?>" />
+                                            <input type="hidden" name="segment_duration" class="segment-duration-hidden" value="<?php echo ($durationMins !== null) ? (int)$durationMins : ''; ?>" />
+                                        </div>
+                                    </div>
+                                    <div class="schedule-duration-display sp-form-group">
+                                        <span class="sp-badge sp-badge-grey segment-duration-preview"><?= t('schedule_duration_prefix') ?> <?php echo htmlspecialchars($seg['duration_human']); ?></span>
+                                    </div>
+                                    <div class="sp-form-group" style="position:relative;">
+                                        <input class="sp-input segment-category-search" type="text" placeholder="<?= htmlspecialchars(t('schedule_category_search_short_placeholder')) ?>" value="<?php echo htmlspecialchars($seg['category_name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category_id'] ?? ''); ?>" autocomplete="off" />
+                                        <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category_id'] ?? ''); ?>" />
+                                        <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
+                                    </div>
+                                    <div class="sp-form-group">
+                                        <input class="sp-input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="<?= htmlspecialchars(t('schedule_title_placeholder')) ?>" />
+                                    </div>
+                                    <div class="sp-btn-group">
+                                        <button class="sp-btn sp-btn-primary segment-update-btn" type="submit" name="action" value="update_segment"><?= t('schedule_update_btn') ?></button>
+                                        <button class="sp-btn <?php echo $canceled ? 'sp-btn-warning' : 'sp-btn-danger'; ?>" type="submit" name="action" value="cancel_segment">
+                                            <?php echo $canceled ? t('schedule_uncancel_btn') : t('schedule_cancel_stream_btn'); ?>
+                                        </button>
+                                        <input type="hidden" name="cancel_state" value="<?php echo $canceled ? '0' : '1'; ?>" />
+                                        <button class="sp-btn sp-btn-danger" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>"><?= t('schedule_delete_btn') ?></button>
+                                    </div>
+                                    <span class="sp-help segment-duration-help"><?= t('schedule_segment_duration_help') ?></span>
+                                    <span class="sp-help"><?= t('schedule_cancel_stream_help') ?></span>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+            </div>
+        <?php if ($hasMoreDays): ?>
+            <div style="text-align:center; margin-top:1rem;">
+                <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? t('schedule_load_more_one') : t('schedule_load_more_count', [(int)$initialLoadMoreEvents]); ?>
+                <button type="button" class="sp-btn sp-btn-primary" id="loadMoreDaysBtn" data-day-batch-size="<?php echo (int)$loadMoreDayBatchSize; ?>"><?php echo htmlspecialchars($initialLoadMoreLabel); ?></button>
+            </div>
+        <?php endif; ?>
+        <?php if (!empty($vacation)): ?>
+            <div class="sp-card" style="margin-top:1rem;">
+                <div class="sp-card-body">
+                    <p class="sp-card-title" style="margin-bottom:0.5rem;"><?= t('schedule_vacation_label') ?></p>
+                    <p class="sp-text-muted"><?= t('schedule_vacation_from') ?> <?php echo htmlspecialchars($vacation['start_display']); ?> <?= t('schedule_vacation_to') ?> <?php echo htmlspecialchars($vacation['end_display']); ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+    <?php
+    return ob_get_clean();
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch Helix schedule.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    $listSuccess = null;
+    $broadcasterId = $_SESSION['twitchUserId'] ?? null;
+    if (empty($broadcasterId)) {
+        echo json_encode(['success' => false, 'error' => t('schedule_error_no_broadcaster_relogin')]);
+        exit();
+    }
+    list($schedule, $fetchError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'] ?? '', 25, 5);
+    if (!empty($fetchError)) {
+        echo json_encode(['success' => false, 'error' => $fetchError]);
+        exit();
+    }
+    if (!empty($schedule['vacation']['end_time'])) {
+        try {
+            $vacEndUtc = new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC'));
+            $nowUtc = new DateTime('now', new DateTimeZone('UTC'));
+            if ($nowUtc > $vacEndUtc) {
+                $autoCancelUrl = 'https://api.twitch.tv/helix/schedule/settings?' . http_build_query([
+                    'broadcaster_id' => $broadcasterId,
+                    'is_vacation_enabled' => 'false'
+                ]);
+                $chAuto = curl_init($autoCancelUrl);
+                curl_setopt($chAuto, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                curl_setopt($chAuto, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($chAuto, CURLOPT_TIMEOUT, 10);
+                curl_setopt($chAuto, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($chAuto, CURLOPT_HTTPHEADER, [
+                    'Client-ID: ' . $clientID,
+                    'Authorization: Bearer ' . ($_SESSION['access_token'] ?? '')
+                ]);
+                $autoResp = curl_exec($chAuto);
+                $autoCode = curl_getinfo($chAuto, CURLINFO_HTTP_CODE);
+                $autoErr = curl_error($chAuto);
+                if ($autoCode === 204) {
+                    $listSuccess = t('schedule_msg_vacation_auto_ended');
+                    list($refreshSchedule, $refreshError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'] ?? '', 25, 5);
+                    if (empty($refreshError) && !empty($refreshSchedule)) {
+                        $schedule = $refreshSchedule;
+                    }
+                } else {
+                    echo json_encode([
+                        'success' => false,
+                        'error' => t('schedule_error_auto_cancel_failed', [$autoCode]) . ' ' . htmlspecialchars($autoResp ?: $autoErr)
+                    ]);
+                    exit();
+                }
+            }
+        } catch (Exception $e) {
+            // Ignore invalid vacation timestamps; standard rendering/validation will continue.
+        }
+    }
+    $view = schedule_build_view($schedule, $timezone);
+    $html = schedule_calendar_html($view, $timezone);
+    echo json_encode([
+        'success' => true,
+        'error' => null,
+        'success_message' => $listSuccess,
+        'html' => $html,
+        'empty' => empty($view['days']),
+        'vacation' => $view['vacation']
+    ]);
+    exit();
+}
 
 // AJAX endpoints used by this page (category search / lookup)
 if (isset($_GET['ajax'])) {
@@ -450,268 +948,12 @@ if ($httpCode === 204) {
         }
     }
 }
-// Fetch schedule from Twitch Helix
-$schedule = null;
 if (!isset($error)) {
     $error = null;
 }
-function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first = 25, $maxPages = 5) {
-    $allSegments = [];
-    $scheduleData = ['segments' => [], 'vacation' => null];
-    $cursor = null;
-    $page = 0;
-
-    while (true) {
-        $query = [
-            'broadcaster_id' => $broadcasterId,
-            'first' => $first
-        ];
-        if (!empty($cursor)) {
-            $query['after'] = $cursor;
-        }
-        $url = 'https://api.twitch.tv/helix/schedule?' . http_build_query($query);
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Client-ID: ' . $clientID,
-            'Authorization: Bearer ' . $accessToken
-        ]);
-        $resp = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlErr = curl_error($ch);
-if ($resp === false) {
-            return [null, t('schedule_error_request_failed') . ' ' . htmlspecialchars($curlErr)];
-        }
-        if ($httpCode !== 200) {
-            if ($httpCode === 401) {
-                return [null, t('schedule_error_unauthorized')];
-            }
-            if ($httpCode === 404) {
-                return [null, t('schedule_error_no_schedule_found')];
-            }
-            return [null, t('schedule_error_twitch_http', [$httpCode])];
-        }
-
-        $data = json_decode($resp, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !isset($data['data'])) {
-            return [null, t('schedule_error_parse_response')];
-        }
-
-        $pageData = $data['data'];
-        if ($page === 0) {
-            $scheduleData = $pageData;
-        }
-        if (isset($pageData['vacation'])) {
-            $scheduleData['vacation'] = $pageData['vacation'];
-        }
-        $pageSegments = (isset($pageData['segments']) && is_array($pageData['segments'])) ? $pageData['segments'] : [];
-        if (!empty($pageSegments)) {
-            $allSegments = array_merge($allSegments, $pageSegments);
-        }
-
-        $cursor = null;
-        if (isset($data['pagination']['cursor']) && is_string($data['pagination']['cursor']) && $data['pagination']['cursor'] !== '') {
-            $cursor = $data['pagination']['cursor'];
-        }
-
-        $page++;
-        if (empty($cursor) || $page >= $maxPages) {
-            break;
-        }
-    }
-
-    $scheduleData['segments'] = $allSegments;
-    return [$scheduleData, null];
+if (!isset($success)) {
+    $success = null;
 }
-$broadcasterId = $_SESSION['twitchUserId'] ?? null;
-if (empty($broadcasterId)) {
-    $error = t('schedule_error_no_broadcaster_relogin');
-} else {
-    list($schedule, $fetchError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 5);
-    if (!empty($fetchError)) {
-        $error = $fetchError;
-    }
-    // Auto-disable vacation if Twitch still shows it active after end time has passed.
-    if (empty($error) && !empty($schedule['vacation']['end_time'])) {
-        try {
-            $vacEndUtc = new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC'));
-            $nowUtc = new DateTime('now', new DateTimeZone('UTC'));
-            if ($nowUtc > $vacEndUtc) {
-                $autoCancelUrl = 'https://api.twitch.tv/helix/schedule/settings?' . http_build_query([
-                    'broadcaster_id' => $broadcasterId,
-                    'is_vacation_enabled' => 'false'
-                ]);
-                $chAuto = curl_init($autoCancelUrl);
-                curl_setopt($chAuto, CURLOPT_CUSTOMREQUEST, 'PATCH');
-                curl_setopt($chAuto, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($chAuto, CURLOPT_TIMEOUT, 10);
-                curl_setopt($chAuto, CURLOPT_SSL_VERIFYPEER, true);
-                curl_setopt($chAuto, CURLOPT_HTTPHEADER, [
-                    'Client-ID: ' . $clientID,
-                    'Authorization: Bearer ' . $_SESSION['access_token']
-                ]);
-                $autoResp = curl_exec($chAuto);
-                $autoCode = curl_getinfo($chAuto, CURLINFO_HTTP_CODE);
-                $autoErr = curl_error($chAuto);
-if ($autoCode === 204) {
-                    $successMsg = t('schedule_msg_vacation_auto_ended');
-                    if (empty($success)) $success = $successMsg;
-                    else $success .= ' ' . $successMsg;
-                    // Refresh schedule data after auto-cancel so UI reflects current state.
-                    list($refreshSchedule, $refreshError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 5);
-                    if (empty($refreshError) && !empty($refreshSchedule)) {
-                        $schedule = $refreshSchedule;
-                    }
-                } elseif (empty($error)) {
-                    $error = t('schedule_error_auto_cancel_failed', [$autoCode]) . ' ' . htmlspecialchars($autoResp ?: $autoErr);
-                }
-            }
-        } catch (Exception $e) {
-            // Ignore invalid vacation timestamps; standard rendering/validation will continue.
-        }
-    }
-}
-// Helper: format RFC3339 -> localized date/time string
-function fmt_dt($rfc3339, $tz, $format = 'D, j M Y - g:ia T') {
-    if (empty($rfc3339)) return '-';
-    try {
-        $dt = new DateTime($rfc3339, new DateTimeZone('UTC'));
-        $dt->setTimezone(new DateTimeZone($tz));
-        return $dt->format($format);
-    } catch (Exception $e) {
-        return htmlspecialchars($rfc3339);
-    }
-}
-function segment_duration_minutes($startRfc3339, $endRfc3339) {
-    if (empty($startRfc3339) || empty($endRfc3339)) return null;
-    try {
-        $start = new DateTime($startRfc3339, new DateTimeZone('UTC'));
-        $end = new DateTime($endRfc3339, new DateTimeZone('UTC'));
-        return (int)floor(($end->getTimestamp() - $start->getTimestamp()) / 60);
-    } catch (Exception $e) {
-        return null;
-    }
-}
-function fmt_duration_human($minutes) {
-    if (!is_numeric($minutes) || (int)$minutes <= 0) return '-';
-    $totalMinutes = (int)$minutes;
-    $hours = intdiv($totalMinutes, 60);
-    $mins = $totalMinutes % 60;
-    if ($hours > 0 && $mins > 0) {
-        return $hours . 'h ' . $mins . 'm';
-    }
-    if ($hours > 0) {
-        return $hours . 'h';
-    }
-    return $mins . 'm';
-}
-$segments = (isset($schedule['segments']) && is_array($schedule['segments'])) ? $schedule['segments'] : [];
-$segmentsByDay = [];
-$orderedDayKeys = [];
-$selectedDayKeys = [];
-$initialDayKeySet = [];
-$dayOrderMap = [];
-$hasMoreDays = false;
-$loadMoreDayBatchSize = 6;
-$initialLoadMoreEvents = 0;
-$nextSevenSummary = [
-    'total' => 0,
-    'recurring' => 0,
-    'canceled' => 0,
-    'vacation' => !empty($schedule['vacation'])
-];
-try {
-    $tzObj = new DateTimeZone($timezone);
-} catch (Exception $e) {
-    $tzObj = new DateTimeZone('UTC');
-}
-$nowLocal = new DateTime('now', $tzObj);
-$todayKey = $nowLocal->format('Y-m-d');
-$tomorrowLocal = clone $nowLocal;
-$tomorrowLocal->modify('+1 day');
-$tomorrowKey = $tomorrowLocal->format('Y-m-d');
-foreach ($segments as $seg) {
-    try {
-        $startLocal = new DateTime($seg['start_time'] ?? '', new DateTimeZone('UTC'));
-        $startLocal->setTimezone($tzObj);
-    } catch (Exception $e) {
-        continue;
-    }
-    $dayKey = $startLocal->format('Y-m-d');
-    if ($dayKey === $todayKey) {
-        $dayLabel = 'Today';
-    } elseif ($dayKey === $tomorrowKey) {
-        $dayLabel = 'Tomorrow';
-    } else {
-        $dayLabel = $startLocal->format('l, j M Y');
-    }
-    if (!isset($segmentsByDay[$dayKey])) {
-        $segmentsByDay[$dayKey] = [
-            'label' => $dayLabel,
-            'sort_ts' => $startLocal->getTimestamp(),
-            'segments' => []
-        ];
-    }
-    $segmentsByDay[$dayKey]['segments'][] = $seg;
-}
-if (!empty($segmentsByDay)) {
-    uasort($segmentsByDay, function ($a, $b) {
-        return ($a['sort_ts'] ?? 0) <=> ($b['sort_ts'] ?? 0);
-    });
-    $orderedDayKeys = array_keys($segmentsByDay);
-    if (isset($segmentsByDay[$todayKey])) {
-        $selectedDayKeys[] = $todayKey;
-    }
-    if (isset($segmentsByDay[$tomorrowKey]) && !in_array($tomorrowKey, $selectedDayKeys, true)) {
-        $selectedDayKeys[] = $tomorrowKey;
-    }
-    $postTomorrowCount = 0;
-    foreach ($orderedDayKeys as $dayKey) {
-        if ($postTomorrowCount >= 7) {
-            break;
-        }
-        if (in_array($dayKey, $selectedDayKeys, true)) {
-            continue;
-        }
-        if ($dayKey <= $tomorrowKey) {
-            continue;
-        }
-        $selectedDayKeys[] = $dayKey;
-        $postTomorrowCount++;
-    }
-    $initialDayKeySet = !empty($selectedDayKeys) ? array_fill_keys($selectedDayKeys, true) : [];
-    $dayOrderMap = array_flip($orderedDayKeys);
-    $hasMoreDays = count($orderedDayKeys) > count($selectedDayKeys);
-    if ($hasMoreDays) {
-        $remainingDayKeys = [];
-        foreach ($orderedDayKeys as $dayKey) {
-            if (!isset($initialDayKeySet[$dayKey])) {
-                $remainingDayKeys[] = $dayKey;
-            }
-        }
-        $nextLoadDayKeys = array_slice($remainingDayKeys, 0, $loadMoreDayBatchSize);
-        foreach ($nextLoadDayKeys as $dayKey) {
-            $initialLoadMoreEvents += count($segmentsByDay[$dayKey]['segments'] ?? []);
-        }
-    }
-}
-
-$nextSevenSummary['total'] = 0;
-$nextSevenSummary['recurring'] = 0;
-$nextSevenSummary['canceled'] = 0;
-foreach ($segmentsByDay as $dayKey => $dayData) {
-    if (!empty($initialDayKeySet) && !isset($initialDayKeySet[$dayKey])) {
-        continue;
-    }
-    foreach (($dayData['segments'] ?? []) as $seg) {
-        $nextSevenSummary['total']++;
-        if (!empty($seg['is_recurring'])) $nextSevenSummary['recurring']++;
-        if (!empty($seg['is_canceled']) || !empty($seg['canceled_until'])) $nextSevenSummary['canceled']++;
-    }
-}
-
 // Render page content with output buffering
 ob_start();
 ?>
@@ -731,6 +973,16 @@ ob_start();
         <strong><?= t('schedule_success_label') ?></strong> <?php echo htmlspecialchars($success); ?>
     </div>
 <?php endif; ?>
+<div id="scheduleListError" class="sp-alert sp-alert-danger" style="display:none;" role="alert">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong><?= t('schedule_notice_label') ?></strong>
+    <span id="scheduleListErrorText"></span>
+</div>
+<div id="scheduleListSuccess" class="sp-alert sp-alert-success" style="display:none;" role="alert">
+    <i class="fas fa-check-circle"></i>
+    <strong><?= t('schedule_success_label') ?></strong>
+    <span id="scheduleListSuccessText"></span>
+</div>
 <!-- Vacation / Schedule settings + Add segment -->
 <div class="sp-card">
     <div class="sp-card-header">
@@ -741,12 +993,10 @@ ob_start();
             <div class="sp-form-group">
                 <label class="sp-label"><?= t('schedule_vacation_label') ?></label>
                 <div class="sp-field-row">
-                    <input class="sp-input" type="datetime-local" name="vacation_start" value="<?php echo isset($schedule['vacation']['start_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
-                    <input class="sp-input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
+                    <input class="sp-input" type="datetime-local" name="vacation_start" id="vacation_start" value="" />
+                    <input class="sp-input" type="datetime-local" name="vacation_end" id="vacation_end" value="" />
                     <button class="sp-btn sp-btn-primary" type="submit" name="action" value="save"><?= t('schedule_start_vacation_btn') ?></button>
-                    <?php if (!empty($schedule['vacation'])): ?>
-                    <button class="sp-btn sp-btn-danger" type="submit" name="action" value="clear"><?= t('schedule_cancel_vacation_btn') ?></button>
-                    <?php endif; ?>
+                    <button class="sp-btn sp-btn-danger" type="submit" name="action" value="clear" id="cancelVacationBtn" style="display:none;"><?= t('schedule_cancel_vacation_btn') ?></button>
                 </div>
                 <span class="sp-help"><?= t('schedule_timezone_help_prefix') ?> (<?php echo htmlspecialchars($timezone); ?>). <?= t('schedule_timezone_help_suffix') ?></span>
             </div>
@@ -778,152 +1028,53 @@ ob_start();
         </form>
     </div>
 </div>
-<?php if (empty($segmentsByDay)): ?>
-    <div class="sp-card" style="text-align:center; padding:2.5rem 1.25rem;">
-        <p style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><?= t('schedule_empty_title') ?></p>
-        <p class="sp-text-muted"><?= t('schedule_empty_body') ?></p>
-    </div>
-<?php else: ?>
+<div id="scheduleCalendarHost" aria-busy="true">
     <div class="sp-card schedule-summary-box">
         <div class="sp-card-body">
-            <p class="sp-card-title" style="margin-bottom:0.75rem;"><?= t('schedule_summary_title') ?></p>
+            <span class="sp-skeleton-line w-40"></span>
             <div class="schedule-summary-grid">
-                <div class="schedule-summary-item">
-                    <span><?= t('schedule_summary_streams') ?></span>
-                    <strong id="scheduleSummaryStreams"><?php echo (int)$nextSevenSummary['total']; ?></strong>
+                <div class="sp-skeleton-stat" aria-hidden="true">
+                    <span class="sp-skeleton-line w-55"></span>
+                    <span class="sp-skeleton-value"></span>
+                    <span class="sp-skeleton-line w-40"></span>
                 </div>
-                <div class="schedule-summary-item">
-                    <span><?= t('schedule_summary_recurring') ?></span>
-                    <strong class="sp-text-info" id="scheduleSummaryRecurring"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
+                <div class="sp-skeleton-stat" aria-hidden="true">
+                    <span class="sp-skeleton-line w-55"></span>
+                    <span class="sp-skeleton-value"></span>
+                    <span class="sp-skeleton-line w-40"></span>
                 </div>
-                <div class="schedule-summary-item">
-                    <span><?= t('schedule_summary_canceled') ?></span>
-                    <strong class="sp-text-danger" id="scheduleSummaryCanceled"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
+                <div class="sp-skeleton-stat" aria-hidden="true">
+                    <span class="sp-skeleton-line w-55"></span>
+                    <span class="sp-skeleton-value"></span>
+                    <span class="sp-skeleton-line w-40"></span>
                 </div>
-                <div class="schedule-summary-item">
-                    <span><?= t('schedule_summary_vacation') ?></span>
-                    <strong class="<?php echo !empty($nextSevenSummary['vacation']) ? 'sp-text-warning' : 'sp-text-success'; ?>"><?php echo !empty($nextSevenSummary['vacation']) ? t('schedule_status_active') : t('schedule_status_off'); ?></strong>
+                <div class="sp-skeleton-stat" aria-hidden="true">
+                    <span class="sp-skeleton-line w-55"></span>
+                    <span class="sp-skeleton-value"></span>
+                    <span class="sp-skeleton-line w-40"></span>
                 </div>
             </div>
         </div>
     </div>
     <div class="schedule-day-columns">
-            <?php foreach ($segmentsByDay as $dayKey => $dayData): ?>
-                <?php
-                    $isDayInitiallyVisible = empty($initialDayKeySet) || isset($initialDayKeySet[$dayKey]);
-                    $dayOrderIndex = isset($dayOrderMap[$dayKey]) ? (int)$dayOrderMap[$dayKey] : 0;
-                ?>
-                <?php foreach ($dayData['segments'] as $segIndex => $seg):
-                            $start = fmt_dt($seg['start_time'] ?? null, $timezone);
-                            $end = fmt_dt($seg['end_time'] ?? null, $timezone);
-                            $category = $seg['category']['name'] ?? null;
-                            $isRecurring = !empty($seg['is_recurring']) ? true : false;
-                            $canceled = !empty($seg['is_canceled']) || !empty($seg['canceled_until']);
-                            $durationMins = segment_duration_minutes($seg['start_time'] ?? null, $seg['end_time'] ?? null);
-                            $startLocalValue = isset($seg['start_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : '';
-                            $endLocalValue = isset($seg['end_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : '';
-                            $startDateText = '-';
-                            $startTimeText = '-';
-                            $endTimeText = '-';
-                            $endDateText = '';
-                            try {
-                                $startDtLocal = new DateTime($seg['start_time'] ?? '', new DateTimeZone('UTC'));
-                                $startDtLocal->setTimezone(new DateTimeZone($timezone));
-                                $endDtLocal = new DateTime($seg['end_time'] ?? '', new DateTimeZone('UTC'));
-                                $endDtLocal->setTimezone(new DateTimeZone($timezone));
-                                $startDateText = $startDtLocal->format('D, j M Y');
-                                $startTimeText = $startDtLocal->format('g:ia');
-                                $endTimeText = $endDtLocal->format('g:ia');
-                                if ($startDtLocal->format('Y-m-d') !== $endDtLocal->format('Y-m-d')) {
-                                    $endDateText = $endDtLocal->format('D, j M Y');
-                                }
-                            } catch (Exception $e) {
-                                // Keep fallback placeholders above.
-                            }
-                            ?>
-                <div class="sched-col<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>" data-segment-recurring="<?php echo $isRecurring ? '1' : '0'; ?>" data-segment-canceled="<?php echo $canceled ? '1' : '0'; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
-                    <div class="schedule-day-group mb-5">
-                        <?php if ($segIndex === 0): ?>
-                        <h2 class="sched-day-label"><?php echo htmlspecialchars($dayData['label']); ?></h2>
-                        <?php else: ?>
-                        <h2 class="sched-day-label" style="visibility:hidden;" aria-hidden="true">&nbsp;</h2>
-                        <?php endif; ?>
-                        <div class="sp-card schedule-segment-card<?php echo $canceled ? ' schedule-segment-card-canceled' : ''; ?>">
-                            <div class="sp-card-header">
-                                <span class="sp-card-title"><?php echo htmlspecialchars($seg['title'] ?: t('schedule_untitled')); ?></span>
-                                <span class="schedule-card-tags" aria-hidden="true">
-                                    <?php if ($isRecurring): ?>
-                                        <span class="sp-badge sp-badge-blue"><?= t('schedule_recurring_badge') ?></span>
-                                    <?php endif; ?>
-                                    <?php if ($canceled): ?>
-                                        <span class="sp-badge sp-badge-red" data-role="canceled-tag"><?= t('schedule_canceled_badge') ?></span>
-                                    <?php endif; ?>
-                                </span>
-                            </div>
-                            <div class="sp-card-body">
-                                <p class="mb-1"><strong><?= t('schedule_field_start_date') ?></strong> <?php echo htmlspecialchars($startDateText); ?></p>
-                                <p class="mb-1"><strong><?= t('schedule_field_start_time') ?></strong> <?php echo htmlspecialchars($startTimeText); ?></p>
-                                <p class="mb-1"><strong><?= t('schedule_field_end_time') ?></strong> <?php echo htmlspecialchars($endTimeText); ?></p>
-                                <?php if ($endDateText !== ''): ?>
-                                    <p class="mb-1"><strong><?= t('schedule_field_end_date') ?></strong> <?php echo htmlspecialchars($endDateText); ?></p>
-                                <?php endif; ?>
-                                <p class="mb-1"><strong><?= t('schedule_field_duration') ?></strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
-                                <p class="mb-2"><strong><?= t('schedule_field_category') ?></strong><br><?php echo $category ? htmlspecialchars($category) : t('schedule_not_specified'); ?></p>
-                            </div>
-                            <div class="sp-card-body" style="border-top:1px solid var(--border); padding-top:1rem;">
-                                <form method="post" class="segment-edit-form" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">
-                                    <input type="hidden" name="segment_id" value="<?php echo htmlspecialchars($seg['id']); ?>" />
-                                    <div class="sp-form-group">
-                                        <div class="sp-field-row">
-                                            <input class="sp-input segment-start-input" type="datetime-local" name="segment_start" value="<?php echo $startLocalValue; ?>" />
-                                            <input class="sp-input segment-end-input" type="datetime-local" name="segment_end" value="<?php echo $endLocalValue; ?>" />
-                                            <input type="hidden" name="segment_duration" class="segment-duration-hidden" value="<?php echo ($durationMins !== null) ? (int)$durationMins : ''; ?>" />
-                                        </div>
-                                    </div>
-                                    <div class="schedule-duration-display sp-form-group">
-                                        <span class="sp-badge sp-badge-grey segment-duration-preview"><?= t('schedule_duration_prefix') ?> <?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></span>
-                                    </div>
-                                    <div class="sp-form-group" style="position:relative;">
-                                        <input class="sp-input segment-category-search" type="text" placeholder="<?= htmlspecialchars(t('schedule_category_search_short_placeholder')) ?>" value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
-                                        <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" />
-                                        <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
-                                    </div>
-                                    <div class="sp-form-group">
-                                        <input class="sp-input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="<?= htmlspecialchars(t('schedule_title_placeholder')) ?>" />
-                                    </div>
-                                    <div class="sp-btn-group">
-                                        <button class="sp-btn sp-btn-primary segment-update-btn" type="submit" name="action" value="update_segment"><?= t('schedule_update_btn') ?></button>
-                                        <button class="sp-btn <?php echo $canceled ? 'sp-btn-warning' : 'sp-btn-danger'; ?>" type="submit" name="action" value="cancel_segment">
-                                            <?php echo $canceled ? t('schedule_uncancel_btn') : t('schedule_cancel_stream_btn'); ?>
-                                        </button>
-                                        <input type="hidden" name="cancel_state" value="<?php echo $canceled ? '0' : '1'; ?>" />
-                                        <button class="sp-btn sp-btn-danger" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>"><?= t('schedule_delete_btn') ?></button>
-                                    </div>
-                                    <span class="sp-help segment-duration-help"><?= t('schedule_segment_duration_help') ?></span>
-                                    <span class="sp-help"><?= t('schedule_cancel_stream_help') ?></span>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            <?php endforeach; ?>
+        <?php for ($sk = 0; $sk < 3; $sk++): ?>
+        <div class="sched-col" aria-hidden="true">
+            <div class="sp-skeleton-stack">
+                <span class="sp-skeleton-line w-40"></span>
+                <span class="sp-skeleton-line w-80"></span>
+                <span class="sp-skeleton-line w-70"></span>
+                <span class="sp-skeleton-line w-60"></span>
+                <span class="sp-skeleton-line w-50"></span>
+                <span class="sp-skeleton-badge"></span>
             </div>
-        <?php if ($hasMoreDays): ?>
-            <div style="text-align:center; margin-top:1rem;">
-                <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? t('schedule_load_more_one') : t('schedule_load_more_count', [(int)$initialLoadMoreEvents]); ?>
-                <button type="button" class="sp-btn sp-btn-primary" id="loadMoreDaysBtn" data-day-batch-size="<?php echo (int)$loadMoreDayBatchSize; ?>"><?php echo htmlspecialchars($initialLoadMoreLabel); ?></button>
-            </div>
-        <?php endif; ?>
-        <?php if (!empty($schedule['vacation'])): ?>
-            <div class="sp-card" style="margin-top:1rem;">
-                <div class="sp-card-body">
-                    <p class="sp-card-title" style="margin-bottom:0.5rem;"><?= t('schedule_vacation_label') ?></p>
-                    <p class="sp-text-muted"><?= t('schedule_vacation_from') ?> <?php echo fmt_dt($schedule['vacation']['start_time'] ?? null, $timezone); ?> <?= t('schedule_vacation_to') ?> <?php echo fmt_dt($schedule['vacation']['end_time'] ?? null, $timezone); ?></p>
-                </div>
-            </div>
-        <?php endif; ?>
-<?php endif; ?>
+        </div>
+        <?php endfor; ?>
+    </div>
+</div>
+<div id="scheduleEmptyState" class="sp-card" style="display:none; text-align:center; padding:2.5rem 1.25rem;">
+    <p style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><?= t('schedule_empty_title') ?></p>
+    <p class="sp-text-muted"><?= t('schedule_empty_body') ?></p>
+</div>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
@@ -956,7 +1107,8 @@ const SCHEDULE_I18N = {
     deleteConfirmBtn: <?php echo json_encode(t('schedule_js_delete_confirm')); ?>,
     cancelBtn: <?php echo json_encode(t('schedule_js_cancel')); ?>,
     loadMoreOne: <?php echo json_encode(t('schedule_load_more_one')); ?>,
-    loadMoreTemplate: <?php echo json_encode(t('schedule_js_load_more_template')); ?>
+    loadMoreTemplate: <?php echo json_encode(t('schedule_js_load_more_template')); ?>,
+    loadError: <?php echo json_encode(t('schedule_error_request_failed')); ?>
 };
 // Schedule page: category search + lookup (debounced to avoid Twitch rate limits)
 (function(){
@@ -1143,7 +1295,7 @@ const SCHEDULE_I18N = {
             }
         });
     }
-    // Per-segment search boxes
+    function bindScheduleCalendarInteractions() {
     document.querySelectorAll('.segment-category-search').forEach(function(input){
         const root = input.closest('.sp-form-group');
         const hidden = root.querySelector('.segment-category-id');
@@ -1388,6 +1540,87 @@ const SCHEDULE_I18N = {
         updateButtonState();
     }
     refreshSummaryCounts();
+    }
+
+    function applyVacationFields(vacation) {
+        const startInput = document.getElementById('vacation_start');
+        const endInput = document.getElementById('vacation_end');
+        const cancelBtn = document.getElementById('cancelVacationBtn');
+        if (vacation && typeof vacation === 'object') {
+            if (startInput) startInput.value = vacation.start_local || '';
+            if (endInput) endInput.value = vacation.end_local || '';
+            if (cancelBtn) cancelBtn.style.display = '';
+        } else {
+            if (startInput) startInput.value = '';
+            if (endInput) endInput.value = '';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        }
+    }
+
+    function showListMessage(kind, text) {
+        const errorBox = document.getElementById('scheduleListError');
+        const errorText = document.getElementById('scheduleListErrorText');
+        const successBox = document.getElementById('scheduleListSuccess');
+        const successText = document.getElementById('scheduleListSuccessText');
+        if (kind === 'error') {
+            if (errorText) errorText.textContent = text || '';
+            if (errorBox) errorBox.style.display = text ? '' : 'none';
+            return;
+        }
+        if (successText) successText.textContent = text || '';
+        if (successBox) successBox.style.display = text ? '' : 'none';
+    }
+
+    function renderScheduleLoadError(message) {
+        const host = document.getElementById('scheduleCalendarHost');
+        const emptyState = document.getElementById('scheduleEmptyState');
+        if (host) {
+            host.setAttribute('aria-busy', 'false');
+            host.innerHTML = '';
+        }
+        if (emptyState) emptyState.style.display = 'none';
+        showListMessage('error', message || SCHEDULE_I18N.loadError);
+    }
+
+    function loadSchedule() {
+        const host = document.getElementById('scheduleCalendarHost');
+        const emptyState = document.getElementById('scheduleEmptyState');
+        const url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || data.success === false) {
+                    renderScheduleLoadError((data && data.error) ? data.error : SCHEDULE_I18N.loadError);
+                    return;
+                }
+                if (data.error) {
+                    showListMessage('error', data.error);
+                }
+                if (data.success_message) {
+                    showListMessage('success', data.success_message);
+                }
+                applyVacationFields(data.vacation);
+                if (data.empty) {
+                    if (host) {
+                        host.setAttribute('aria-busy', 'false');
+                        host.innerHTML = '';
+                    }
+                    if (emptyState) emptyState.style.display = '';
+                    return;
+                }
+                if (emptyState) emptyState.style.display = 'none';
+                if (host) {
+                    host.setAttribute('aria-busy', 'false');
+                    host.innerHTML = data.html || '';
+                }
+                bindScheduleCalendarInteractions();
+            })
+            .catch(function() {
+                renderScheduleLoadError(SCHEDULE_I18N.loadError);
+            });
+    }
+    loadSchedule();
 })();
 </script>
 <?php

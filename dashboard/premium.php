@@ -10,20 +10,10 @@ $pageTitle = t('premium_features_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
 
 // Define plans with features
 $plans = [
@@ -59,73 +49,45 @@ $plans = [
     ],
 ];
 
-// Check beta access from database
-$betaAccess = false; // Default to false
-if (isset($twitchDisplayName) && !empty($twitchDisplayName)) {
-    try {
-        $stmt = $conn->prepare("SELECT beta_access FROM users WHERE twitch_display_name = ?");
-        if ($stmt) {
-            $stmt->bind_param("s", $twitchDisplayName);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($result && $row = $result->fetch_assoc()) { $betaAccess = ($row['beta_access'] == 1); } // Set beta access based on database value
-            $stmt->close();
-        }
-    } catch (Exception $e) {
-        // Log error but continue with default beta access = false
-        error_log("Error checking beta access for user $twitchDisplayName: " . $e->getMessage());
-    }
-}
+function premium_fetch_subscription_status(array $plans, bool $betaAccess): array
+{
+    $currentPlan = 'free';
+    $error_message = '';
+    $subscription_message = '';
 
-// Check Twitch subscription tier by calling check_subscription.php
-$currentPlan = 'free'; // Default to free
-$error_message = ''; // Initialize error message
-$subscription_message = ''; // Initialize subscription message
+    $checkUrl = "https://dashboard.botofthespecter.com/api/check_subscription.php";
+    $sessionCookie = session_name() . '=' . session_id();
+    $ch = curl_init($checkUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_COOKIE, $sessionCookie);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $subResponse = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
 
-// Make internal request to check subscription
-$checkUrl = "https://dashboard.botofthespecter.com/api/check_subscription.php";
-$sessionCookie = session_name() . '=' . session_id();
-session_write_close();
-$ch = curl_init($checkUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_COOKIE, $sessionCookie);
-curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-$subResponse = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-session_write_close();
-
-if ($subResponse !== false && $httpCode === 200) {
-    $subData = json_decode($subResponse, true);
-    if (isset($subData['subscribed']) && $subData['subscribed'] === true) {
-        $twitchSubTierString = (string) $subData['tier'];
-        if (array_key_exists($twitchSubTierString, $plans)) { 
-            $currentPlan = $twitchSubTierString;
-            if ($betaAccess) {
-                // Convert tier code to user-friendly name
-                $tierName = match($twitchSubTierString) {
-                    '1000' => t('premium_tier1_label'),
-                    '2000' => t('premium_tier2_label'),
-                    '3000' => t('premium_tier3_label'),
-                    default => t('premium_tier_generic', [$twitchSubTierString])
-                };
-                $subscription_message = t('premium_subscription_beta_subscribed', [$tierName]);
+    if ($subResponse !== false && $httpCode === 200) {
+        $subData = json_decode($subResponse, true);
+        if (isset($subData['subscribed']) && $subData['subscribed'] === true) {
+            $twitchSubTierString = (string) $subData['tier'];
+            if (array_key_exists($twitchSubTierString, $plans)) {
+                $currentPlan = $twitchSubTierString;
+                if ($betaAccess) {
+                    $tierName = match ($twitchSubTierString) {
+                        '1000' => t('premium_tier1_label'),
+                        '2000' => t('premium_tier2_label'),
+                        '3000' => t('premium_tier3_label'),
+                        default => t('premium_tier_generic', [$twitchSubTierString])
+                    };
+                    $subscription_message = t('premium_subscription_beta_subscribed', [$tierName]);
+                }
             }
-        }
-    } else {
-        // No subscription found
-        if ($betaAccess) {
+        } elseif ($betaAccess) {
             $subscription_message = t('premium_subscription_beta_unsubscribed');
         } else {
             $error_message = t('premium_subscription_not_subscribed');
         }
-    }
-} else {
-    // API call failed
-    if (!$betaAccess) {
+    } elseif (!$betaAccess) {
         $error_message = t('premium_subscription_unknown');
         if ($subResponse !== false) {
             $subData = json_decode($subResponse, true);
@@ -136,40 +98,50 @@ if ($subResponse !== false && $httpCode === 200) {
             $error_message .= ' ' . t('premium_subscription_error_details', [$curlError]);
         }
     }
+
+    return [
+        'current_plan' => $currentPlan,
+        'beta_access' => $betaAccess,
+        'subscription_message' => $subscription_message,
+        'error_message' => $error_message,
+    ];
 }
+
+// List endpoint first so the browser can paint skeletons, then fetch subscription.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        echo json_encode(array_merge(['success' => true], premium_fetch_subscription_status($plans, (bool) $betaAccess)));
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
+$stmt = $db->prepare("SELECT timezone FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$stmt->close();
+date_default_timezone_set($timezone);
 
 // Start output buffering for layout
 ob_start();
 ?>
-<?php if (isset($error_message) && !empty($error_message) && !$betaAccess): ?>
-    <div class="sp-alert sp-alert-warning" style="margin-bottom: 1.5rem;">
-        <i class="fas fa-exclamation-triangle"></i>
-        <?php echo htmlspecialchars($error_message); ?>
-    </div>
-<?php endif; ?>
+<div id="premiumAlertHost" aria-busy="true"></div>
 <div class="sp-plan-header">
     <h1 class="sp-plan-page-title"><?php echo t('premium_features_title'); ?></h1>
-    <div class="sp-plan-status-badges">
-        <?php if (isset($subscription_message) && !empty($subscription_message)): ?>
-            <span class="sp-badge sp-badge-blue">
-                <i class="fas fa-crown"></i>
-                <?php echo htmlspecialchars($subscription_message); ?>
-            </span>
-        <?php endif; ?>
-        <?php if (isset($error_message) && !empty($error_message) && !$betaAccess): ?>
-            <span class="sp-badge sp-badge-amber">
-                <i class="fas fa-exclamation-triangle"></i>
-                <?php echo htmlspecialchars($error_message); ?>
-            </span>
-        <?php endif; ?>
+    <div class="sp-plan-status-badges" id="premiumStatusBadges" aria-busy="true">
+        <span class="sp-skeleton-badge" aria-hidden="true"></span>
+        <span class="sp-skeleton-badge" aria-hidden="true"></span>
     </div>
 </div>
 <div class="sp-plan-grid">
     <!-- Free Plan Card -->
-    <div class="sp-card sp-plan-card <?php echo ($currentPlan === 'free') ? 'is-current' : ''; ?>">
-        <?php if ($currentPlan === 'free'): ?>
-            <div class="sp-plan-current-ribbon"><?php echo t('premium_current_ribbon'); ?></div>
-        <?php endif; ?>
+    <div class="sp-card sp-plan-card" data-plan-key="free">
+        <div class="sp-plan-current-ribbon" hidden><?php echo t('premium_current_ribbon'); ?></div>
         <div class="sp-card-body sp-plan-body">
             <div class="sp-plan-icon-area">
                 <div class="sp-plan-icon-wrap">
@@ -201,32 +173,19 @@ ob_start();
                 </li>
             </ul>
             <p class="sp-plan-note"><?php echo t('premium_plan_free_note'); ?></p>
-            <?php if ($currentPlan === 'free'): ?>
-                <?php if ($betaAccess): ?>
-                    <span class="sp-btn sp-btn-info sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">
-                        <i class="fas fa-flask"></i> <?php echo t('premium_beta_access'); ?>
-                    </span>
-                <?php else: ?>
-                    <span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none;">
-                        <i class="fas fa-check-circle"></i> <?php echo t('premium_current_plan'); ?>
-                    </span>
-                <?php endif; ?>
-            <?php endif; ?>
+            <div class="premium-plan-action" aria-busy="true">
+                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+            </div>
         </div>
     </div>
     <!-- Premium Plans -->
     <?php foreach ($plans as $planKey => $planDetails): ?>
-        <?php 
-        $trimmedCurrentPlan = trim((string)$currentPlan); 
-        $trimmedPlanKey = trim((string)$planKey);
-        $isCurrentPlan = ($trimmedCurrentPlan === $trimmedPlanKey);
+        <?php
         $planIcons = ['1000' => 'fas fa-star', '2000' => 'fas fa-crown', '3000' => 'fas fa-gem'];
         $planIconColors = ['1000' => 'var(--blue)', '2000' => 'var(--amber)', '3000' => 'var(--red)'];
         ?>
-        <div class="sp-card sp-plan-card <?php echo $isCurrentPlan ? 'is-current' : ''; ?>">
-            <?php if ($isCurrentPlan): ?>
-                <div class="sp-plan-current-ribbon"><?php echo t('premium_current_ribbon'); ?></div>
-            <?php endif; ?>
+        <div class="sp-card sp-plan-card" data-plan-key="<?php echo htmlspecialchars($planKey); ?>">
+            <div class="sp-plan-current-ribbon" hidden><?php echo t('premium_current_ribbon'); ?></div>
             <div class="sp-card-body sp-plan-body">
                 <div class="sp-plan-icon-area">
                     <div class="sp-plan-icon-wrap">
@@ -243,43 +202,8 @@ ob_start();
                         </li>
                     <?php endforeach; ?>
                 </ul>
-                <div>
-                    <?php if ($betaAccess): ?>
-                        <?php if ($isCurrentPlan): ?>
-                            <span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">
-                                <i class="fas fa-check-circle"></i> <?php echo t('premium_current_plan'); ?> <?php echo t('premium_plus_beta'); ?>
-                            </span>
-                        <?php else: ?>
-                            <span class="sp-btn sp-btn-info sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">
-                                <i class="fas fa-flask"></i> <?php echo t('premium_beta_access'); ?>
-                            </span>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <?php if ($isCurrentPlan): ?>
-                            <span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none;">
-                                <i class="fas fa-check-circle"></i> <?php echo t('premium_current_plan'); ?>
-                            </span>
-                        <?php else: ?>
-                            <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="sp-btn sp-btn-primary sp-btn-block">
-                                <?php if ($currentPlan === 'free'): ?>
-                                    <i class="fas fa-plus-circle"></i>
-                                <?php elseif ((int)$currentPlan < (int)$planKey): ?>
-                                    <i class="fas fa-arrow-up"></i>
-                                <?php else: ?>
-                                    <i class="fas fa-arrow-down"></i>
-                                <?php endif; ?>
-                                <?php
-                                if ($currentPlan === 'free') {
-                                    echo t('premium_subscribe');
-                                } elseif ((int)$currentPlan < (int)$planKey) {
-                                    echo t('premium_upgrade');
-                                } else {
-                                    echo t('premium_downgrade');
-                                }
-                                ?>
-                            </a>
-                        <?php endif; ?>
-                    <?php endif; ?>
+                <div class="premium-plan-action" aria-busy="true">
+                    <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
                 </div>
             </div>
         </div>
@@ -317,5 +241,139 @@ ob_start();
 <?php endif; ?>
 <?php
 $content = ob_get_clean();
+
+ob_start();
+?>
+<script>
+const PREMIUM_I18N = {
+    betaAccess: <?php echo !empty($betaAccess) ? 'true' : 'false'; ?>,
+    currentPlan: <?php echo json_encode(t('premium_current_plan')); ?>,
+    plusBeta: <?php echo json_encode(t('premium_plus_beta')); ?>,
+    betaAccessLabel: <?php echo json_encode(t('premium_beta_access')); ?>,
+    subscribe: <?php echo json_encode(t('premium_subscribe')); ?>,
+    upgrade: <?php echo json_encode(t('premium_upgrade')); ?>,
+    downgrade: <?php echo json_encode(t('premium_downgrade')); ?>,
+    unknown: <?php echo json_encode(t('premium_subscription_unknown')); ?>
+};
+
+function premiumEscapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function premiumActionHtml(planKey, currentPlan, betaAccess) {
+    var isCurrent = String(currentPlan) === String(planKey);
+    if (betaAccess) {
+        if (isCurrent) {
+            return '<span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">' +
+                '<i class="fas fa-check-circle"></i> ' + premiumEscapeHtml(PREMIUM_I18N.currentPlan) + ' ' + premiumEscapeHtml(PREMIUM_I18N.plusBeta) +
+                '</span>';
+        }
+        return '<span class="sp-btn sp-btn-info sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">' +
+            '<i class="fas fa-flask"></i> ' + premiumEscapeHtml(PREMIUM_I18N.betaAccessLabel) +
+            '</span>';
+    }
+    if (planKey === 'free') {
+        if (!isCurrent) return '';
+        return '<span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none;">' +
+            '<i class="fas fa-check-circle"></i> ' + premiumEscapeHtml(PREMIUM_I18N.currentPlan) +
+            '</span>';
+    }
+    if (isCurrent) {
+        return '<span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none;">' +
+            '<i class="fas fa-check-circle"></i> ' + premiumEscapeHtml(PREMIUM_I18N.currentPlan) +
+            '</span>';
+    }
+    var icon = 'fas fa-plus-circle';
+    var label = PREMIUM_I18N.subscribe;
+    if (currentPlan !== 'free') {
+        if (parseInt(currentPlan, 10) < parseInt(planKey, 10)) {
+            icon = 'fas fa-arrow-up';
+            label = PREMIUM_I18N.upgrade;
+        } else {
+            icon = 'fas fa-arrow-down';
+            label = PREMIUM_I18N.downgrade;
+        }
+    }
+    return '<a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="sp-btn sp-btn-primary sp-btn-block">' +
+        '<i class="' + icon + '"></i> ' + premiumEscapeHtml(label) +
+        '</a>';
+}
+
+function renderPremiumStatus(data) {
+    var currentPlan = data && data.current_plan ? String(data.current_plan) : 'free';
+    var betaAccess = !!(data && data.beta_access);
+    var subMsg = (data && data.subscription_message) ? String(data.subscription_message) : '';
+    var errMsg = (data && data.error_message) ? String(data.error_message) : '';
+
+    var alertHost = document.getElementById('premiumAlertHost');
+    if (alertHost) {
+        alertHost.setAttribute('aria-busy', 'false');
+        if (errMsg && !betaAccess) {
+            alertHost.innerHTML = '<div class="sp-alert sp-alert-warning" style="margin-bottom: 1.5rem;">' +
+                '<i class="fas fa-exclamation-triangle"></i> ' + premiumEscapeHtml(errMsg) + '</div>';
+        } else {
+            alertHost.innerHTML = '';
+        }
+    }
+
+    var badges = document.getElementById('premiumStatusBadges');
+    if (badges) {
+        badges.setAttribute('aria-busy', 'false');
+        var html = '';
+        if (subMsg) {
+            html += '<span class="sp-badge sp-badge-blue"><i class="fas fa-crown"></i> ' + premiumEscapeHtml(subMsg) + '</span>';
+        }
+        if (errMsg && !betaAccess) {
+            html += '<span class="sp-badge sp-badge-amber"><i class="fas fa-exclamation-triangle"></i> ' + premiumEscapeHtml(errMsg) + '</span>';
+        }
+        badges.innerHTML = html;
+    }
+
+    document.querySelectorAll('.sp-plan-card[data-plan-key]').forEach(function(card) {
+        var planKey = card.getAttribute('data-plan-key');
+        var isCurrent = String(currentPlan) === String(planKey);
+        card.classList.toggle('is-current', isCurrent);
+        var ribbon = card.querySelector('.sp-plan-current-ribbon');
+        if (ribbon) ribbon.hidden = !isCurrent;
+        var action = card.querySelector('.premium-plan-action');
+        if (action) {
+            action.setAttribute('aria-busy', 'false');
+            action.innerHTML = premiumActionHtml(planKey, currentPlan, betaAccess);
+        }
+    });
+}
+
+function renderPremiumError() {
+    renderPremiumStatus({
+        current_plan: 'free',
+        beta_access: PREMIUM_I18N.betaAccess,
+        subscription_message: '',
+        error_message: PREMIUM_I18N.betaAccess ? '' : PREMIUM_I18N.unknown
+    });
+}
+
+function loadPremiumStatus() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                renderPremiumError();
+                return;
+            }
+            renderPremiumStatus(data);
+        })
+        .catch(function() {
+            renderPremiumError();
+        });
+}
+
+loadPremiumStatus();
+</script>
+<?php
+$scripts = ob_get_clean();
 include 'layout.php';
 ?>

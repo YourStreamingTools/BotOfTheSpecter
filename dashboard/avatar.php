@@ -7,15 +7,26 @@ include_once __DIR__ . '/lang/i18n.php';
 require_once '/var/www/lib/require_auth.php';
 
 require_once '/var/www/config/db_connect.php';
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include 'includes/mod_access.php';
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+session_write_close();
+
+// Storage scan is the heavy work; paint the bar skeleton first, then fetch.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    include 'includes/storage_used.php';
+    echo json_encode([
+        'success' => true,
+        'storage_used' => (int) $current_storage_used,
+        'max_storage' => (int) $max_storage_size,
+        'storage_percentage' => (float) $storage_percentage,
+    ]);
+    exit();
+}
+
 include 'includes/file_paths.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
-session_write_close();
 
 $pageTitle = t('avatar_page_title');
 
@@ -83,6 +94,7 @@ if ($avStmt) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
+    include 'includes/storage_used.php';
     $slot = $_POST['slot'] ?? '';
     if (!isset($avatarUploadSlots[$slot])) {
         echo json_encode(['success' => false, 'error' => 'invalid_slot']);
@@ -263,12 +275,12 @@ $frameUrls = [
 
 ob_start();
 ?>
-<div class="sp-alert sp-alert-info media-storage-bar" id="avStorageBar">
+<div class="sp-alert sp-alert-info media-storage-bar" id="avStorageBar" aria-busy="true">
     <div class="media-storage-header">
         <span><i class="fas fa-database"></i> <strong><?= t('alerts_storage_usage') ?>:</strong></span>
-        <span id="avStorageText"><?= round($current_storage_used / 1024 / 1024, 2) ?>MB / <?= round($max_storage_size / 1024 / 1024, 2) ?>MB (<?= round($storage_percentage, 2) ?>%)</span>
+        <span id="avStorageText"><span class="sp-skeleton-line w-40" aria-hidden="true"></span></span>
     </div>
-    <progress class="progress" id="avStorageProgress" value="<?= $storage_percentage ?>" max="100"></progress>
+    <progress class="progress" id="avStorageProgress" value="0" max="100"></progress>
     <p class="av-help-text av-storage-note"><?= t('avatar_storage_note') ?></p>
 </div>
 
@@ -715,6 +727,40 @@ ob_start();
         });
     }
 
+    const applyStorageBar = (data) => {
+        if (!data || typeof data.storage_used !== 'number' || typeof data.max_storage !== 'number') return;
+        const usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
+        const maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
+        const pct = typeof data.storage_percentage === 'number'
+            ? data.storage_percentage.toFixed(2)
+            : ((data.storage_used / data.max_storage) * 100).toFixed(2);
+        const textEl = document.getElementById('avStorageText');
+        const progEl = document.getElementById('avStorageProgress');
+        const barEl = document.getElementById('avStorageBar');
+        if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + pct + '%)';
+        if (progEl) progEl.value = pct;
+        if (barEl) barEl.setAttribute('aria-busy', 'false');
+    };
+
+    const loadStorageBar = () => {
+        const url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => {
+                if (data && data.success) {
+                    applyStorageBar(data);
+                    return;
+                }
+                const barEl = document.getElementById('avStorageBar');
+                if (barEl) barEl.setAttribute('aria-busy', 'false');
+            })
+            .catch(() => {
+                const barEl = document.getElementById('avStorageBar');
+                if (barEl) barEl.setAttribute('aria-busy', 'false');
+            });
+    };
+
     const uploadImage = (slot, file) => {
         const fd = new FormData();
         fd.append('avatar_upload', '1');
@@ -734,17 +780,7 @@ ob_start();
                     const nameEl = input.parentElement && input.parentElement.querySelector('.av-file-name');
                     if (nameEl) nameEl.textContent = data.filename;
                     updatePreviewFrame();
-                    if (typeof data.storage_used === 'number' && typeof data.max_storage === 'number') {
-                        const usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
-                        const maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
-                        const pct = typeof data.storage_percentage === 'number'
-                            ? data.storage_percentage.toFixed(2)
-                            : ((data.storage_used / data.max_storage) * 100).toFixed(2);
-                        const textEl = document.getElementById('avStorageText');
-                        const progEl = document.getElementById('avStorageProgress');
-                        if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + pct + '%)';
-                        if (progEl) progEl.value = pct;
-                    }
+                    applyStorageBar(data);
                 } else if (data && data.error) {
                     alert(data.error);
                 }
@@ -861,6 +897,7 @@ ob_start();
 
     updatePreviewFrame();
     schedulePreviewBlink();
+    loadStorageBar();
 })();
 </script>
 <?php

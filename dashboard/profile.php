@@ -5,45 +5,35 @@ include_once __DIR__ . '/lang/i18n.php';
 
 require_once '/var/www/lib/require_auth.php';
 
-// Include necessary files
+// Page Title
+$pageTitle = t('profile_title');
+
+// Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-require_once "/var/www/config/twitch.php";
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-foreach ($profileData as $profile) {
-    $timezone = $profile['timezone'];
-    $weather = $profile['weather_location'];
-}
-date_default_timezone_set($timezone);
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
-
-// Fetch user data from database
-$userId = $_SESSION['user_id'] ?? 0;
-$userQuery = "SELECT * FROM users WHERE id = ?";
-$stmt = mysqli_prepare($conn, $userQuery);
-mysqli_stmt_bind_param($stmt, 'i', $userId);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-$user = mysqli_fetch_assoc($result);
-$isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
+$userId = (int) ($user_id ?? ($_SESSION['user_id'] ?? 0));
+$isTechnical = isset($user['is_technical']) ? (bool) $user['is_technical'] : false;
 $profileImageUrl = $user['profile_image'] ?? ($twitch_profile_image_url ?? ($_SESSION['profile_image'] ?? 'https://cdn.botofthespecter.com/logo.png'));
-
-// Include language file based on user preference
-$userLanguage = isset($user['language']) ? $user['language'] : 'EN';
-if (isset($_SESSION['language'])) {
+if (!isset($_SESSION['language']) && !empty($user['language'])) {
+    $userLanguage = $user['language'];
+} elseif (isset($_SESSION['language'])) {
     $userLanguage = $_SESSION['language'];
     $user['language'] = $_SESSION['language'];
 }
-include_once __DIR__ . '/lang/i18n.php';
 
-// Page title
-$pageTitle = t('profile_title');
+// Show session message after redirect (e.g. after language change or bot config save)
+$message = '';
+$alertClass = '';
+if (isset($_SESSION['profile_message'])) {
+    $message = $_SESSION['profile_message'];
+    $alertClass = $_SESSION['profile_alert_class'] ?? 'is-success';
+    unset($_SESSION['profile_message'], $_SESSION['profile_alert_class']);
+}
+
+session_write_close();
 
 function resolveTwitchUserId($username) {
     global $clientID, $authToken;
@@ -59,7 +49,8 @@ function resolveTwitchUserId($username) {
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
-if ($resp === false || $code !== 200) {
+    curl_close($ch);
+    if ($resp === false || $code !== 200) {
         return array(false, t('twitch_api_error') . ': ' . ($err ?: "HTTP {$code}"));
     }
     $data = json_decode($resp, true);
@@ -69,23 +60,6 @@ if ($resp === false || $code !== 200) {
     return array($data['data'][0]['id'], null);
 }
 
-// Fetch profile data
-$profileQuery = "SELECT * FROM profile";
-$stmt = mysqli_prepare($db, $profileQuery);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-$profileData = mysqli_fetch_assoc($result);
-
-// Fetch heart rate code independently
-$heartrateCode = null;
-$heartrateStmt = mysqli_prepare($db, "SELECT heartrate_code FROM profile");
-mysqli_stmt_execute($heartrateStmt);
-$heartrateResult = mysqli_stmt_get_result($heartrateStmt);
-if ($row = mysqli_fetch_assoc($heartrateResult)) {
-    $heartrateCode = $row['heartrate_code'];
-}
-
-// Format join and last login times
 function formatUserDate($datetime, $timezone) {
     if (!$datetime) return t('profile_unknown');
     try {
@@ -98,24 +72,125 @@ function formatUserDate($datetime, $timezone) {
     }
 }
 
-// Determine user's timezone preference (from profile, fallback to UTC)
-$userTimezone = isset($profileData['timezone']) && $profileData['timezone'] ? $profileData['timezone'] : 'UTC';
-$joinedFormatted = isset($user['signup_date']) ? formatUserDate($user['signup_date'], $userTimezone) : t('profile_unknown');
-$lastLoginFormatted = isset($user['last_login']) ? formatUserDate($user['last_login'], $userTimezone) : t('profile_unknown');
+function formatBytes($bytes, $precision = 2) {
+    $units = array('B', 'KB', 'MB', 'GB', 'TB');
+    $bytes = max($bytes, 0);
+    $pow = $bytes > 0 ? floor(log($bytes) / log(1024)) : 0;
+    $pow = min($pow, count($units) - 1);
+    $bytes /= pow(1024, $pow);
+    return round($bytes, $precision) . ' ' . $units[$pow];
+}
 
-// Handle profile update
-$message = '';
-$alertClass = '';
+// List endpoint first so the browser can paint skeletons, then fetch storage + link status.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
+            $checkUrl = 'https://' . $_SERVER['HTTP_HOST'] . '/api/check_subscription.php';
+            $ch = curl_init($checkUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_exec($ch);
+            if (is_resource($ch) || (is_object($ch) && get_class($ch) === 'CurlHandle')) {
+                curl_close($ch);
+            }
+        }
 
-// Show session message after redirect (e.g. after language change or bot config save)
-if (isset($_SESSION['profile_message'])) {
-    $message = $_SESSION['profile_message'];
-    $alertClass = $_SESSION['profile_alert_class'] ?? 'is-success';
-    unset($_SESSION['profile_message'], $_SESSION['profile_alert_class']);
+        include 'includes/storage_used.php';
+        $storageUsedFormatted = formatBytes($current_storage_used ?? 0);
+        $storageMaxFormatted = formatBytes($max_storage_size ?? 0);
+        $storagePercent = isset($storage_percentage) ? max(0, min(100, round($storage_percentage, 2))) : 0;
+
+        $discordLinked = false;
+        $discordStmt = $conn->prepare('SELECT 1 FROM discord_users WHERE user_id = ?');
+        if ($discordStmt) {
+            $discordStmt->bind_param('i', $userId);
+            $discordStmt->execute();
+            $discordLinked = ($discordStmt->get_result()->num_rows > 0);
+            $discordStmt->close();
+        }
+
+        $spotifyLinked = false;
+        $spotifyStmt = $conn->prepare('SELECT 1 FROM spotify_tokens WHERE user_id = ?');
+        if ($spotifyStmt) {
+            $spotifyStmt->bind_param('i', $userId);
+            $spotifyStmt->execute();
+            $spotifyLinked = ($spotifyStmt->get_result()->num_rows > 0);
+            $spotifyStmt->close();
+        }
+
+        $streamelementsLinked = false;
+        if (isset($_SESSION['twitchUserId'])) {
+            $streamelementsStmt = $conn->prepare('SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = ?');
+            if ($streamelementsStmt) {
+                $streamelementsStmt->bind_param('s', $_SESSION['twitchUserId']);
+                $streamelementsStmt->execute();
+                $streamelementsResult = $streamelementsStmt->get_result();
+                if ($streamelementsRow = $streamelementsResult->fetch_assoc()) {
+                    $accessToken = $streamelementsRow['access_token'];
+                    $ch = curl_init('https://api.streamelements.com/oauth2/validate');
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$accessToken}"]);
+                    $validate_response = curl_exec($ch);
+                    $validate_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $validate_data = json_decode($validate_response, true);
+                    if (is_resource($ch) || (is_object($ch) && get_class($ch) === 'CurlHandle')) {
+                        curl_close($ch);
+                    }
+                    if ($validate_code === 200 && isset($validate_data['channel_id'])) {
+                        $streamelementsLinked = true;
+                    }
+                }
+                $streamelementsStmt->close();
+            }
+        }
+
+        $streamlabsLinked = false;
+        if (isset($_SESSION['twitchUserId'])) {
+            $streamlabsStmt = $conn->prepare('SELECT 1 FROM streamlabs_tokens WHERE twitch_user_id = ?');
+            if ($streamlabsStmt) {
+                $streamlabsStmt->bind_param('s', $_SESSION['twitchUserId']);
+                $streamlabsStmt->execute();
+                $streamlabsLinked = ($streamlabsStmt->get_result()->num_rows > 0);
+                $streamlabsStmt->close();
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'storage' => [
+                'used' => (int) ($current_storage_used ?? 0),
+                'max' => (int) ($max_storage_size ?? 0),
+                'used_formatted' => $storageUsedFormatted,
+                'max_formatted' => $storageMaxFormatted,
+                'percent' => $storagePercent,
+                'tier' => $_SESSION['tier'] ?? 'None',
+                'beta_access' => !empty($user['beta_access']) && (int) $user['beta_access'] === 1,
+            ],
+            'links' => [
+                'discord' => $discordLinked,
+                'spotify' => $spotifyLinked,
+                'streamelements' => $streamelementsLinked,
+                'streamlabs' => $streamlabsLinked,
+            ],
+        ]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_start(); // Reopen session for flash messages / session writes
     $action = $_POST['action'] ?? '';
+    if ($action === 'resolve_bot_id' || $action === 'save_custom_bot') {
+        require_once '/var/www/config/twitch.php';
+    }
     // AJAX endpoint to resolve bot username to Twitch ID
     if ($action === 'resolve_bot_id') {
         header('Content-Type: application/json');
@@ -498,87 +573,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get timezone options
-$timezoneOptions = DateTimeZone::listIdentifiers();
-
-// Check if Discord is linked
-$discordLinked = false;
-$discord_userSTMT = $conn->prepare("SELECT 1 FROM discord_users WHERE user_id = ?");
-$discord_userSTMT->bind_param("i", $userId);
-$discord_userSTMT->execute();
-$discord_userResult = $discord_userSTMT->get_result();
-$discordLinked = ($discord_userResult->num_rows > 0);
-
-// Check if Spotify is linked
-$spotifyLinked = false;
-$spotifySTMT = $conn->prepare("SELECT 1 FROM spotify_tokens WHERE user_id = ?");
-$spotifySTMT->bind_param("i", $userId);
-$spotifySTMT->execute();
-$spotifyResult = $spotifySTMT->get_result();
-$spotifyLinked = ($spotifyResult->num_rows > 0);
-
-// Check if StreamElements is linked and token is valid
-$streamelementsLinked = false;
-if (isset($_SESSION['twitchUserId'])) {
-    $streamelementsSTMT = $conn->prepare("SELECT access_token, jwt_token FROM streamelements_tokens WHERE twitch_user_id = ?");
-    $streamelementsSTMT->bind_param("s", $_SESSION['twitchUserId']);
-    $streamelementsSTMT->execute();
-    $streamelementsResult = $streamelementsSTMT->get_result();
-    if ($streamelementsRow = $streamelementsResult->fetch_assoc()) {
-        $accessToken = $streamelementsRow['access_token'];
-        // Validate the token with StreamElements API
-        $ch = curl_init("https://api.streamelements.com/oauth2/validate");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$accessToken}"]);
-        $validate_response = curl_exec($ch);
-        $validate_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$validate_data = json_decode($validate_response, true);
-        if ($validate_code === 200 && isset($validate_data['channel_id'])) {
-            $streamelementsLinked = true;
-        }
+// Cheap shell data only — storage scan and link-status curl stay on ajax_action=list.
+$profileData = [];
+$heartrateCode = null;
+$profileStmt = $db->prepare('SELECT timezone, weather_location, heartrate_code FROM profile LIMIT 1');
+if ($profileStmt) {
+    $profileStmt->execute();
+    $profileResult = $profileStmt->get_result();
+    if ($profileRow = $profileResult->fetch_assoc()) {
+        $profileData = $profileRow;
+        $heartrateCode = $profileRow['heartrate_code'] ?? null;
     }
+    $profileStmt->close();
 }
 
-// Check if StreamLabs is linked
-$streamlabsLinked = false;
-if (isset($_SESSION['twitchUserId'])) {
-    $streamlabsSTMT = $conn->prepare("SELECT 1 FROM streamlabs_tokens WHERE twitch_user_id = ?");
-    $streamlabsSTMT->bind_param("s", $_SESSION['twitchUserId']);
-    $streamlabsSTMT->execute();
-    $streamlabsResult = $streamlabsSTMT->get_result();
-    $streamlabsLinked = ($streamlabsResult->num_rows > 0);
-}
+$userTimezone = !empty($profileData['timezone']) ? $profileData['timezone'] : 'UTC';
+date_default_timezone_set($userTimezone);
+$joinedFormatted = isset($user['signup_date']) ? formatUserDate($user['signup_date'], $userTimezone) : t('profile_unknown');
+$lastLoginFormatted = isset($user['last_login']) ? formatUserDate($user['last_login'], $userTimezone) : t('profile_unknown');
 
-// Calculate total storage used and max storage using storage_used.php
-$username = $_SESSION['username'] ?? '';
-
-// Force refresh tier by calling check_subscription.php
-if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
-    $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/api/check_subscription.php";
-    $ch = curl_init($checkUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    curl_exec($ch);
-}
-
-ob_start();
-include 'includes/storage_used.php';
-session_write_close();
-ob_end_clean();
-
-function formatBytes($bytes, $precision = 2) {
-    $units = array('B', 'KB', 'MB', 'GB', 'TB');
-    $bytes = max($bytes, 0);
-    $pow = $bytes > 0 ? floor(log($bytes) / log(1024)) : 0;
-    $pow = min($pow, count($units) - 1);
-    $bytes /= pow(1024, $pow);
-    return round($bytes, $precision) . ' ' . $units[$pow];
-}
-$storageUsedFormatted = formatBytes($current_storage_used ?? 0);
-$storageMaxFormatted = formatBytes($max_storage_size ?? 0);
-// Always show percentage as a number between 0 and 100 with up to 2 decimals
-$storagePercent = isset($storage_percentage) ? max(0, min(100, round($storage_percentage, 2))) : 0;
+$timezoneOptions = DateTimeZone::listIdentifiers();
 
 // Dashboard languages shown in the profile dropdown.
 // Codes are stored uppercase in users.language; lang files live at lang/{lowercase}.php.
@@ -830,7 +844,7 @@ ob_start();
             </div>
         </div>
     </div>
-    <div id="storage-usage">
+    <div id="storage-usage" aria-busy="true">
         <div class="sp-card" style="height:100%;display:flex;flex-direction:column;">
             <div class="sp-card-header">
                 <div style="display:flex;align-items:center;gap:0.75rem;justify-content:space-between;">
@@ -841,65 +855,17 @@ ob_start();
                             <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('storage_usage_help'); ?></p>
                         </div>
                     </div>
-                    <div style="display:inline-flex;gap:0.25rem;flex-wrap:wrap;">
-                        <?php
-                        $betaAccess = isset($user['beta_access']) ? ($user['beta_access'] == 1) : false;
-                        $tier = $_SESSION['tier'] ?? 'None';
-                        if ($tier !== 'None' && in_array($tier, ['1000', '2000', '3000'])):
-                            $tierLabel = match($tier) {
-                                '1000' => 'Tier 1',
-                                '2000' => 'Tier 2',
-                                '3000' => 'Tier 3',
-                                default => 'Tier'
-                            };
-                            $tierBadgeClass = match($tier) {
-                                '1000' => 'sp-badge sp-badge-blue',
-                                '2000' => 'sp-badge sp-badge-amber',
-                                '3000' => 'sp-badge sp-badge-red',
-                                default => 'sp-badge sp-badge-accent'
-                            };
-                        ?>
-                            <span class="<?php echo $tierBadgeClass; ?>">
-                                <i class="fas fa-crown" style="margin-right:0.25rem;"></i><?php echo $tierLabel; ?>
-                            </span>
-                        <?php endif; ?>
-                        <?php if ($betaAccess): ?>
-                            <span class="sp-badge sp-badge-accent">
-                                <i class="fas fa-flask" style="margin-right:0.25rem;"></i>Beta
-                            </span>
-                        <?php endif; ?>
+                    <div id="storage-tier-badges" style="display:inline-flex;gap:0.25rem;flex-wrap:wrap;">
+                        <span class="sp-skeleton-badge" aria-hidden="true"></span>
                     </div>
                 </div>
             </div>
-            <div class="sp-card-body" style="flex:1;">
-                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.75rem;">
-                    <span>
-                        <strong><?php echo $storageUsedFormatted; ?></strong>
-                        <span style="color:var(--text-muted);"> / <?php echo $storageMaxFormatted; ?></span>
-                    </span>
-                    <span style="font-weight:600;color:<?php echo $storagePercent >= 90 ? 'var(--red)' : ($storagePercent >= 70 ? 'var(--amber)' : 'var(--green)'); ?>;">
-                        <?php echo number_format($storagePercent, 2); ?><?php echo t('percent_used'); ?>
-                    </span>
+            <div class="sp-card-body" id="storage-meter-body" style="flex:1;">
+                <div class="sp-skeleton-stack" aria-hidden="true">
+                    <span class="sp-skeleton-line w-50"></span>
+                    <span class="sp-skeleton-line w-90"></span>
+                    <span class="sp-skeleton-line w-70"></span>
                 </div>
-                <div style="position:relative;height:10px;border-radius:100px;background:var(--border);overflow:hidden;margin-bottom:0.5rem;">
-                    <div style="position:absolute;top:0;left:0;height:100%;width:<?php echo $storagePercent; ?>%;border-radius:100px;background:<?php echo $storagePercent >= 90 ? 'var(--red)' : ($storagePercent >= 70 ? 'var(--amber)' : 'var(--accent)'); ?>;transition:width 0.4s ease;<?php echo $storagePercent > 0 && $storagePercent < 1 ? 'min-width:4px;' : ''; ?>"></div>
-                </div>
-                <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);">
-                    <span>0%</span>
-                    <span>25%</span>
-                    <span>50%</span>
-                    <span>75%</span>
-                    <span>100%</span>
-                </div>
-                <?php if ($storagePercent >= 100): ?>
-                    <div class="sp-alert sp-alert-danger" style="margin-top:1rem;margin-bottom:0;">
-                        <strong><?php echo t('storage_limit_reached'); ?></strong>
-                    </div>
-                <?php elseif ($storagePercent >= 90): ?>
-                    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;margin-bottom:0;">
-                        <strong><?php echo t('storage_almost_full'); ?></strong>
-                    </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -928,7 +894,7 @@ ob_start();
             </div>
         </div>
     </div>
-    <div style="grid-column:1/-1;" id="connections">
+    <div style="grid-column:1/-1;" id="connections" aria-busy="true">
         <div class="sp-card">
             <div class="sp-card-header">
                 <h2 class="sp-card-title"><?php echo t('connected_accounts_title'); ?></h2>
@@ -957,17 +923,9 @@ ob_start();
                                 </span>
                                 <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('discord'); ?></p>
                             </div>
-                            <?php if ($discordLinked): ?>
-                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectDiscord()">
-                                    <i class="fas fa-unlink"></i>
-                                    <span><?php echo t('disconnect'); ?></span>
-                                </button>
-                            <?php else: ?>
-                                <a href="discordbot.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
-                                    <i class="fas fa-link"></i>
-                                    <span><?php echo t('connect'); ?></span>
-                                </a>
-                            <?php endif; ?>
+                            <div id="discord-link-action" aria-busy="true">
+                                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="sp-card" style="margin-bottom:0;">
@@ -978,17 +936,9 @@ ob_start();
                                 </span>
                                 <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('spotify'); ?></p>
                             </div>
-                            <?php if ($spotifyLinked): ?>
-                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectSpotify()">
-                                    <i class="fas fa-unlink"></i>
-                                    <span><?php echo t('disconnect'); ?></span>
-                                </button>
-                            <?php else: ?>
-                                <a href="spotifylink.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
-                                    <i class="fas fa-link"></i>
-                                    <span><?php echo t('connect'); ?></span>
-                                </a>
-                            <?php endif; ?>
+                            <div id="spotify-link-action" aria-busy="true">
+                                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="sp-card" style="margin-bottom:0;">
@@ -999,17 +949,9 @@ ob_start();
                                 </span>
                                 <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('streamelements'); ?></p>
                             </div>
-                            <?php if ($streamelementsLinked): ?>
-                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectStreamelements()">
-                                    <i class="fas fa-unlink"></i>
-                                    <span><?php echo t('disconnect'); ?></span>
-                                </button>
-                            <?php else: ?>
-                                <a href="streamelements.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
-                                    <i class="fas fa-link"></i>
-                                    <span><?php echo t('connect'); ?></span>
-                                </a>
-                            <?php endif; ?>
+                            <div id="streamelements-link-action" aria-busy="true">
+                                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="sp-card" style="margin-bottom:0;">
@@ -1020,17 +962,9 @@ ob_start();
                                 </span>
                                 <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('streamlabs'); ?></p>
                             </div>
-                            <?php if ($streamlabsLinked): ?>
-                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectStreamlabs()">
-                                    <i class="fas fa-unlink"></i>
-                                    <span><?php echo t('disconnect'); ?></span>
-                                </button>
-                            <?php else: ?>
-                                <a href="streamlabs.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
-                                    <i class="fas fa-link"></i>
-                                    <span><?php echo t('connect'); ?></span>
-                                </a>
-                            <?php endif; ?>
+                            <div id="streamlabs-link-action" aria-busy="true">
+                                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="sp-card" style="margin-bottom:0;">
@@ -1174,6 +1108,114 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
+var PROFILE_I18N = {
+    percentUsed: <?php echo json_encode(t('percent_used')); ?>,
+    storageLimit: <?php echo json_encode(t('storage_limit_reached')); ?>,
+    storageAlmostFull: <?php echo json_encode(t('storage_almost_full')); ?>,
+    disconnect: <?php echo json_encode(t('disconnect')); ?>,
+    connect: <?php echo json_encode(t('connect')); ?>
+};
+
+function profileLinkActionHtml(linked, disconnectFn, connectHref) {
+    if (linked) {
+        return '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="' + disconnectFn + '()">' +
+            '<i class="fas fa-unlink"></i><span>' + PROFILE_I18N.disconnect + '</span></button>';
+    }
+    return '<a href="' + connectHref + '" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">' +
+        '<i class="fas fa-link"></i><span>' + PROFILE_I18N.connect + '</span></a>';
+}
+
+function profileTierBadgeHtml(tier, betaAccess) {
+    var html = '';
+    if (tier && tier !== 'None' && ['1000', '2000', '3000'].indexOf(tier) !== -1) {
+        var labels = { '1000': 'Tier 1', '2000': 'Tier 2', '3000': 'Tier 3' };
+        var classes = { '1000': 'sp-badge sp-badge-blue', '2000': 'sp-badge sp-badge-amber', '3000': 'sp-badge sp-badge-red' };
+        html += '<span class="' + classes[tier] + '"><i class="fas fa-crown" style="margin-right:0.25rem;"></i>' + labels[tier] + '</span>';
+    }
+    if (betaAccess) {
+        html += '<span class="sp-badge sp-badge-accent"><i class="fas fa-flask" style="margin-right:0.25rem;"></i>Beta</span>';
+    }
+    return html;
+}
+
+function profileRenderStorage(storage) {
+    var host = document.getElementById('storage-usage');
+    var body = document.getElementById('storage-meter-body');
+    var badges = document.getElementById('storage-tier-badges');
+    if (badges) {
+        badges.innerHTML = profileTierBadgeHtml(storage.tier, !!storage.beta_access);
+    }
+    if (!body) {
+        if (host) host.setAttribute('aria-busy', 'false');
+        return;
+    }
+    var percent = typeof storage.percent === 'number' ? storage.percent : 0;
+    var barColor = percent >= 90 ? 'var(--red)' : (percent >= 70 ? 'var(--amber)' : 'var(--accent)');
+    var textColor = percent >= 90 ? 'var(--red)' : (percent >= 70 ? 'var(--amber)' : 'var(--green)');
+    var minWidth = (percent > 0 && percent < 1) ? 'min-width:4px;' : '';
+    var alertHtml = '';
+    if (percent >= 100) {
+        alertHtml = '<div class="sp-alert sp-alert-danger" style="margin-top:1rem;margin-bottom:0;"><strong>' + PROFILE_I18N.storageLimit + '</strong></div>';
+    } else if (percent >= 90) {
+        alertHtml = '<div class="sp-alert sp-alert-warning" style="margin-top:1rem;margin-bottom:0;"><strong>' + PROFILE_I18N.storageAlmostFull + '</strong></div>';
+    }
+    body.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.75rem;">' +
+            '<span><strong>' + (storage.used_formatted || '') + '</strong>' +
+            '<span style="color:var(--text-muted);"> / ' + (storage.max_formatted || '') + '</span></span>' +
+            '<span style="font-weight:600;color:' + textColor + ';">' + Number(percent).toFixed(2) + PROFILE_I18N.percentUsed + '</span>' +
+        '</div>' +
+        '<div style="position:relative;height:10px;border-radius:100px;background:var(--border);overflow:hidden;margin-bottom:0.5rem;">' +
+            '<div style="position:absolute;top:0;left:0;height:100%;width:' + percent + '%;border-radius:100px;background:' + barColor + ';transition:width 0.4s ease;' + minWidth + '"></div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);">' +
+            '<span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>' +
+        '</div>' +
+        alertHtml;
+    if (host) host.setAttribute('aria-busy', 'false');
+}
+
+function profileRenderLinks(links) {
+    var map = {
+        discord: { id: 'discord-link-action', fn: 'disconnectDiscord', href: 'discordbot.php' },
+        spotify: { id: 'spotify-link-action', fn: 'disconnectSpotify', href: 'spotifylink.php' },
+        streamelements: { id: 'streamelements-link-action', fn: 'disconnectStreamelements', href: 'streamelements.php' },
+        streamlabs: { id: 'streamlabs-link-action', fn: 'disconnectStreamlabs', href: 'streamlabs.php' }
+    };
+    Object.keys(map).forEach(function(key) {
+        var el = document.getElementById(map[key].id);
+        if (!el) return;
+        el.innerHTML = profileLinkActionHtml(!!(links && links[key]), map[key].fn, map[key].href);
+        el.setAttribute('aria-busy', 'false');
+    });
+    var host = document.getElementById('connections');
+    if (host) host.setAttribute('aria-busy', 'false');
+}
+
+function loadProfileList() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) throw new Error('bad');
+            profileRenderStorage(data.storage || {});
+            profileRenderLinks(data.links || {});
+        })
+        .catch(function() {
+            var storageHost = document.getElementById('storage-usage');
+            var storageBody = document.getElementById('storage-meter-body');
+            if (storageBody) storageBody.innerHTML = '';
+            if (storageHost) storageHost.setAttribute('aria-busy', 'false');
+            ['discord-link-action', 'spotify-link-action', 'streamelements-link-action', 'streamlabs-link-action'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.setAttribute('aria-busy', 'false');
+            });
+            var connHost = document.getElementById('connections');
+            if (connHost) connHost.setAttribute('aria-busy', 'false');
+        });
+}
+
 (function(){
     const resolveBtn = document.getElementById('resolve-bot-btn');
     const usernameInput = document.getElementById('bot-username');
@@ -1357,6 +1399,7 @@ function showProcessingOverlay(message) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    loadProfileList();
     // Add processing indicator to forms that trigger page reload
     const formsWithReload = [
         { id: 'timezone-form', message: '<?php echo t('processing'); ?>...' },
