@@ -11,13 +11,27 @@ $pageTitle = t('navbar_edit_custom_commands');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $stmt = $db->prepare("SELECT * FROM custom_commands");
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        echo json_encode(['success' => true, 'commands' => $rows]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 $jsonText = file_get_contents(__DIR__ . '/../api/builtin_commands.json');
 $builtinCommands = json_decode($jsonText, true);
 $stmt = $db->prepare("SELECT timezone FROM profile");
@@ -242,11 +256,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $notification_status = "sp-alert-danger";
                 }
                 $updateSTMT->close();
-                $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-                $commandsSTMT->execute();
-                $result = $commandsSTMT->get_result();
-                $commands = $result->fetch_all(MYSQLI_ASSOC);
-                $commandsSTMT->close();
             } catch (Exception $e) {
                 $status = t('custom_commands_msg_update_error', [$command_to_edit]) . " " . $e->getMessage();
                 $notification_status = "sp-alert-danger";
@@ -316,11 +325,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $insertSTMT->bind_param("ssisss", $newCommand, $newResponse, $cooldown, $cooldown_bucket, $dbPermission, $aliases_value);
                     $insertSTMT->execute();
                     $insertSTMT->close();
-                    $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-                    $commandsSTMT->execute();
-                    $result = $commandsSTMT->get_result();
-                    $commands = $result->fetch_all(MYSQLI_ASSOC);
-                    $commandsSTMT->close();
                 } catch (Exception $e) {
                     $status = t('custom_commands_error_generic');
                     $notification_status = "sp-alert-danger";
@@ -378,18 +382,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $status = t('custom_commands_msg_remove_error') . " " . $e->getMessage();
         }
     }
-    // Refresh commands data after any database changes
-    if ($dataUpdated) {
-        $commands = $db->query("SELECT * FROM custom_commands")->fetch_all(MYSQLI_ASSOC);
-    }
-}
-
-if (!isset($commands)) {
-    $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-    $commandsSTMT->execute();
-    $result = $commandsSTMT->get_result();
-    $commands = $result->fetch_all(MYSQLI_ASSOC);
-    $commandsSTMT->close();
 }
 
 $twitchUsername = $username;
@@ -526,20 +518,27 @@ ob_start();
             </div>
         </form>
     </div>
-    <div class="sp-card">
-        <?php if (!empty($commands)): ?>
-            <form method="post" action="" style="display:flex; flex-direction:column; height:100%;">
-                <div class="sp-card-header">
-                    <div class="sp-card-title">
-                        <i class="fas fa-edit" style="color:var(--blue);"></i>
-                        <?php echo t('custom_commands_edit_title'); ?>
-                    </div>
-                    <button type="submit" class="sp-btn sp-btn-primary">
-                        <i class="fas fa-save"></i>
-                        <span><?php echo t('custom_commands_update_btn'); ?></span>
-                    </button>
-                </div>
-                <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
+    <div class="sp-card" id="editFormHost" aria-busy="true">
+        <div class="sp-card-header">
+            <div class="sp-card-title">
+                <i class="fas fa-edit" style="color:var(--blue);"></i>
+                <?php echo t('custom_commands_edit_title'); ?>
+            </div>
+            <button type="submit" form="editCommandForm" class="sp-btn sp-btn-primary" id="editSubmitBtn" style="display:none;">
+                <i class="fas fa-save"></i>
+                <span><?php echo t('custom_commands_update_btn'); ?></span>
+            </button>
+        </div>
+        <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
+            <div id="editFormSkeleton" class="sp-skeleton-stack" aria-hidden="true">
+                <span class="sp-skeleton-line w-40"></span>
+                <span class="sp-skeleton-line w-90"></span>
+                <span class="sp-skeleton-line w-50"></span>
+                <span class="sp-skeleton-line w-70"></span>
+                <span class="sp-skeleton-line w-80"></span>
+                <span class="sp-skeleton-line w-45"></span>
+            </div>
+            <form id="editCommandForm" method="post" action="" style="display:none; flex:1; flex-direction:column;">
                     <div class="sp-form-group">
                         <label class="sp-label" for="command_to_edit_search"><?php echo t('custom_commands_edit_select_label'); ?></label>
                         <div class="cc-combobox" id="commandToEditCombobox">
@@ -549,11 +548,7 @@ ob_start();
                                 <input class="sp-input cc-combobox-input" type="text" id="command_to_edit_search" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="command_to_edit_list" aria-autocomplete="list" placeholder="<?php echo t('custom_commands_edit_select_placeholder'); ?>">
                                 <i class="fas fa-chevron-down cc-combobox-caret"></i>
                             </div>
-                            <ul class="cc-combobox-list" id="command_to_edit_list" role="listbox">
-                                <?php foreach ($commands as $command): ?>
-                                    <li class="cc-combobox-option" role="option" data-value="<?php echo htmlspecialchars($command['command']); ?>">!<?php echo htmlspecialchars($command['command']); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
+                            <ul class="cc-combobox-list" id="command_to_edit_list" role="listbox"></ul>
                         </div>
                     </div>
                     <div class="sp-form-group">
@@ -621,19 +616,9 @@ ob_start();
                         </div>
                         <small class="sp-help"><?php echo t('custom_commands_aliases_help'); ?></small>
                     </div>
-                </div>
             </form>
-        <?php else: ?>
-            <div class="sp-card-header">
-                <div class="sp-card-title">
-                    <i class="fas fa-edit" style="color:var(--blue);"></i>
-                    <?php echo t('custom_commands_edit_title'); ?>
-                </div>
-            </div>
-            <div class="sp-card-body">
-                <p style="color:var(--text-muted);"><?php echo t('custom_commands_no_commands'); ?></p>
-            </div>
-        <?php endif; ?>
+            <p id="editEmptyState" style="color:var(--text-muted); display:none;"><?php echo t('custom_commands_no_commands'); ?></p>
+        </div>
     </div>
 </div>
 <div class="sp-card">
@@ -642,77 +627,39 @@ ob_start();
             <i class="fas fa-terminal"></i>
             <?php echo t('custom_commands_header'); ?>
         </div>
-        <?php if (!empty($commands)): ?>
-            <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="max-width:300px;">
-        <?php endif; ?>
+        <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="max-width:300px; display:none;">
     </div>
     <div class="sp-card-body">
-        <?php if (empty($commands)): ?>
-            <p><?php echo t('builtin_commands_no_commands'); ?></p>
-        <?php else: ?>
-            <div class="sp-table-wrap">
-                <table class="sp-table" id="commandsTable">
-                    <thead>
-                        <tr>
-                            <th><?php echo t('builtin_commands_table_command'); ?></th>
-                            <th><?php echo t('builtin_commands_table_description'); ?></th>
-                            <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
-                            <th style="text-align:center;"><?php echo t('custom_commands_cooldown_label'); ?></th>
-                            <th style="text-align:center;"><?php echo t('custom_commands_cooldown_bucket_label'); ?></th>
-                            <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
-                            <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
-                            <th style="text-align:center;"><?php echo t('custom_commands_remove'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($commands as $command): ?>
-                            <tr>
-                                <td>
-                                    !<?php echo htmlspecialchars($command['command']); ?>
-                                    <?php if (!empty($command['aliases'])): ?>
-                                        <div class="sp-help" style="margin-top:0.15rem;">
-                                            <i class="fas fa-tags" style="margin-right:0.25rem;"></i><?php
-                                                $aliasList = array_filter(array_map('trim', explode(',', $command['aliases'])));
-                                                echo htmlspecialchars(implode(', ', array_map(function ($a) { return '!' . $a; }, $aliasList)));
-                                            ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($command['response']); ?></td>
-                                <td style="text-align:center;"><?php echo $permissionsMapReverse[$command['permission']] ?? 'Everyone'; ?></td>
-                                <td style="text-align:center;"><?php echo (int)$command['cooldown']; ?><?php echo t('custom_commands_cooldown_seconds'); ?></td>
-                                <td style="text-align:center;">
-                                    <?php
-                                        $rowBucket = sanitize_cooldown_bucket($command['cooldown_bucket'] ?? 'default');
-                                        $rowBucketKey = $cooldownBucketOptions[$rowBucket] ?? 'custom_commands_cooldown_bucket_default';
-                                        echo t($rowBucketKey);
-                                    ?>
-                                </td>
-                                <td style="text-align:center;">
-                                    <span class="sp-badge <?php echo ($command['status'] == 'Enabled') ? 'sp-badge-green' : 'sp-badge-red'; ?>">
-                                        <?php echo t($command['status'] == 'Enabled' ? 'builtin_commands_status_enabled' : 'builtin_commands_status_disabled'); ?>
-                                    </span>
-                                </td>
-                                <td style="text-align:center;">
-                                    <label style="cursor:pointer;">
-                                        <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked, this)" style="display:none;">
-                                        <span onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();" style="font-size:1.3rem; color:<?php echo $command['status'] == 'Enabled' ? 'var(--green)' : 'var(--text-muted)'; ?>;">
-                                            <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                                        </span>
-                                    </label>
-                                </td>
-                                <td style="text-align:center;">
-                                    <form method="POST" style="display:inline;" class="remove-command-form">
-                                        <input type="hidden" name="remove_command" value="<?php echo htmlspecialchars($command['command']); ?>">
-                                        <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-command-btn" title="<?php echo t('custom_commands_remove'); ?>"><i class="fas fa-trash-alt"></i></button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
+        <div class="sp-table-wrap">
+            <table class="sp-table" id="commandsTable">
+                <thead>
+                    <tr>
+                        <th><?php echo t('builtin_commands_table_command'); ?></th>
+                        <th><?php echo t('builtin_commands_table_description'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
+                        <th style="text-align:center;"><?php echo t('custom_commands_cooldown_label'); ?></th>
+                        <th style="text-align:center;"><?php echo t('custom_commands_cooldown_bucket_label'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
+                        <th style="text-align:center;"><?php echo t('custom_commands_remove'); ?></th>
+                    </tr>
+                </thead>
+                <tbody id="commandsTableBody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td><span class="sp-skeleton-line w-50"></span></td>
+                        <td><span class="sp-skeleton-line w-80"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-50"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
+                        <td style="text-align:center;"><span class="sp-skeleton-line w-30"></span></td>
+                    </tr>
+                    <?php endfor; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
@@ -724,6 +671,147 @@ ob_start();
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
 <script>
+var commands = [];
+var commandComboboxInitialized = false;
+var permissionsMap = <?php echo json_encode(array_flip($permissionsMap)); ?>;
+var permissionsMapReverse = <?php echo json_encode($permissionsMapReverse); ?>;
+var cooldownBucketLabels = {
+    default: <?php echo json_encode(t('custom_commands_cooldown_bucket_default')); ?>,
+    user: <?php echo json_encode(t('custom_commands_cooldown_bucket_user')); ?>,
+    mod: <?php echo json_encode(t('custom_commands_cooldown_bucket_mod')); ?>
+};
+var CC_I18N = {
+    noCommands: <?php echo json_encode(t('builtin_commands_no_commands')); ?>,
+    loadError: <?php echo json_encode(t('custom_commands_error_generic')); ?>,
+    statusEnabled: <?php echo json_encode(t('builtin_commands_status_enabled')); ?>,
+    statusDisabled: <?php echo json_encode(t('builtin_commands_status_disabled')); ?>,
+    cooldownSeconds: <?php echo json_encode(t('custom_commands_cooldown_seconds')); ?>,
+    removeTitle: <?php echo json_encode(t('custom_commands_remove')); ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+
+function escapeAttr(str) {
+    return escapeHtml(str).replace(/`/g, '&#96;');
+}
+
+function populateEditCombobox() {
+    var list = document.getElementById('command_to_edit_list');
+    if (!list) return;
+    list.innerHTML = '';
+    commands.forEach(function(command) {
+        var li = document.createElement('li');
+        li.className = 'cc-combobox-option';
+        li.setAttribute('role', 'option');
+        li.setAttribute('data-value', command.command);
+        li.textContent = '!' + command.command;
+        list.appendChild(li);
+    });
+}
+
+function populateEditForm() {
+    var hasCommands = commands.length > 0;
+    var skeleton = document.getElementById('editFormSkeleton');
+    var form = document.getElementById('editCommandForm');
+    var empty = document.getElementById('editEmptyState');
+    var host = document.getElementById('editFormHost');
+    var submitBtn = document.getElementById('editSubmitBtn');
+    if (skeleton) skeleton.style.display = 'none';
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (form) form.style.display = hasCommands ? 'flex' : 'none';
+    if (empty) empty.style.display = hasCommands ? 'none' : '';
+    if (submitBtn) submitBtn.style.display = hasCommands ? '' : 'none';
+    populateEditCombobox();
+    if (!commandComboboxInitialized) {
+        initCommandToEditCombobox();
+        commandComboboxInitialized = true;
+    }
+}
+
+function renderCustomCommandsTable() {
+    var tbody = document.getElementById('commandsTableBody');
+    var searchInput = document.getElementById('searchInput');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (searchInput) searchInput.style.display = commands.length ? '' : 'none';
+    if (!commands.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">' + escapeHtml(CC_I18N.noCommands) + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = commands.map(function(command) {
+        var name = String(command.command || '');
+        var enabled = command.status === 'Enabled';
+        var aliasesHtml = '';
+        if (command.aliases) {
+            var aliasList = String(command.aliases).split(',').map(function(a) { return a.trim(); }).filter(Boolean);
+            if (aliasList.length) {
+                aliasesHtml = '<div class="sp-help" style="margin-top:0.15rem;"><i class="fas fa-tags" style="margin-right:0.25rem;"></i>' +
+                    escapeHtml(aliasList.map(function(a) { return '!' + a; }).join(', ')) + '</div>';
+            }
+        }
+        var bucket = String(command.cooldown_bucket || 'default').toLowerCase();
+        if (bucket === 'mods') bucket = 'mod';
+        if (['default', 'user', 'mod'].indexOf(bucket) === -1) bucket = 'default';
+        var permissionLabel = permissionsMapReverse[command.permission] || 'Everyone';
+        return '<tr>' +
+            '<td>!' + escapeHtml(name) + aliasesHtml + '</td>' +
+            '<td>' + escapeHtml(command.response) + '</td>' +
+            '<td style="text-align:center;">' + escapeHtml(permissionLabel) + '</td>' +
+            '<td style="text-align:center;">' + escapeHtml(parseInt(command.cooldown, 10) || 0) + escapeHtml(CC_I18N.cooldownSeconds) + '</td>' +
+            '<td style="text-align:center;">' + escapeHtml(cooldownBucketLabels[bucket] || cooldownBucketLabels.default) + '</td>' +
+            '<td style="text-align:center;"><span class="sp-badge ' + (enabled ? 'sp-badge-green' : 'sp-badge-red') + '">' +
+                escapeHtml(enabled ? CC_I18N.statusEnabled : CC_I18N.statusDisabled) + '</span></td>' +
+            '<td style="text-align:center;"><label style="cursor:pointer;">' +
+                '<input type="checkbox" class="toggle-checkbox"' + (enabled ? ' checked' : '') +
+                ' onchange="toggleStatus(\'' + escapeAttr(name) + '\', this.checked, this)" style="display:none;">' +
+                '<span onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();" style="font-size:1.3rem; color:' +
+                (enabled ? 'var(--green)' : 'var(--text-muted)') + ';">' +
+                '<i class="fa-solid ' + (enabled ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span></label></td>' +
+            '<td style="text-align:center;"><form method="POST" style="display:inline;" class="remove-command-form">' +
+                '<input type="hidden" name="remove_command" value="' + escapeAttr(name) + '">' +
+                '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-command-btn" title="' + escapeAttr(CC_I18N.removeTitle) + '">' +
+                '<i class="fas fa-trash-alt"></i></button></form></td>' +
+            '</tr>';
+    }).join('');
+    setupRemoveButtons();
+}
+
+function renderCustomCommandsError() {
+    commands = [];
+    populateEditForm();
+    var tbody = document.getElementById('commandsTableBody');
+    if (tbody) {
+        tbody.setAttribute('aria-busy', 'false');
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">' + escapeHtml(CC_I18N.loadError) + '</td></tr>';
+    }
+}
+
+function loadCustomCommands() {
+    var url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                renderCustomCommandsError();
+                return;
+            }
+            commands = Array.isArray(data.commands) ? data.commands : [];
+            populateEditForm();
+            renderCustomCommandsTable();
+            if (typeof searchFunction === 'function') {
+                searchFunction();
+            }
+        })
+        .catch(function() {
+            renderCustomCommandsError();
+        });
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     var searchInput = document.getElementById("searchInput");
     if (searchInput) {
@@ -732,22 +820,13 @@ document.addEventListener("DOMContentLoaded", function() {
             localStorage.setItem("searchTerm", this.value);
             searchFunction();
         });
-        // Use setTimeout to ensure table is fully rendered before searching
-        setTimeout(function() {
-            if (typeof searchFunction === "function") {
-                searchFunction();
-            }
-        }, 100);
     }
-    // SweetAlert2 for remove command
-    setupRemoveButtons();
-    // Initialize URL shortener for input fields
     yourLinksShortener.setSuppressPromptsAfterDecline(true);
     yourLinksShortener.initializeField('response');
     yourLinksShortener.initializeField('command_response');
     initializeRandomPickWatcher('response', 'command');
     initializeRandomPickWatcher('command_response', 'new_command_name');
-    initCommandToEditCombobox();
+    loadCustomCommands();
 });
 
 function sanitizeCommandName(commandName) {
@@ -1061,7 +1140,7 @@ function toggleStatus(command, isChecked, elem) {
     }
     elem.dataset.processing = 'true';
     var icon = elem.parentElement.querySelector('i');
-    var statusSpan = elem.closest('tr').querySelector('.tag');
+    var statusSpan = elem.closest('tr').querySelector('.sp-badge');
     icon.className = "fa-solid fa-spinner fa-spin";
     var status = isChecked ? 'Enabled' : 'Disabled';
     var xhr = new XMLHttpRequest();
@@ -1139,8 +1218,10 @@ function initCommandToEditCombobox() {
     var hidden = document.getElementById('command_to_edit');
     var search = document.getElementById('command_to_edit_search');
     var list = document.getElementById('command_to_edit_list');
-    var options = Array.prototype.slice.call(list.querySelectorAll('.cc-combobox-option'));
     var activeIndex = -1;
+    function options() {
+        return Array.prototype.slice.call(list.querySelectorAll('.cc-combobox-option'));
+    }
 
     function openList() {
         combobox.classList.add('is-open');
@@ -1150,15 +1231,15 @@ function initCommandToEditCombobox() {
         combobox.classList.remove('is-open');
         search.setAttribute('aria-expanded', 'false');
         activeIndex = -1;
-        options.forEach(function(opt) { opt.classList.remove('is-active'); });
+        options().forEach(function(opt) { opt.classList.remove('is-active'); });
     }
     function visibleOptions() {
-        return options.filter(function(opt) { return opt.style.display !== 'none'; });
+        return options().filter(function(opt) { return opt.style.display !== 'none'; });
     }
     function filterList() {
         var query = search.value.trim().toLowerCase().replace(/^!/, '');
         var anyVisible = false;
-        options.forEach(function(opt) {
+        options().forEach(function(opt) {
             var match = opt.getAttribute('data-value').toLowerCase().indexOf(query) > -1;
             opt.style.display = match ? '' : 'none';
             if (match) { anyVisible = true; }
@@ -1176,7 +1257,7 @@ function initCommandToEditCombobox() {
             empty.style.display = 'none';
         }
         activeIndex = -1;
-        options.forEach(function(opt) { opt.classList.remove('is-active'); });
+        options().forEach(function(opt) { opt.classList.remove('is-active'); });
     }
     function setActive(index) {
         var vis = visibleOptions();
@@ -1186,7 +1267,7 @@ function initCommandToEditCombobox() {
         if (index < 0) { index = vis.length - 1; }
         if (index >= vis.length) { index = 0; }
         activeIndex = index;
-        options.forEach(function(opt) { opt.classList.remove('is-active'); });
+        options().forEach(function(opt) { opt.classList.remove('is-active'); });
         vis[index].classList.add('is-active');
         vis[index].scrollIntoView({ block: 'nearest' });
     }
@@ -1197,7 +1278,7 @@ function initCommandToEditCombobox() {
         var value = opt.getAttribute('data-value');
         hidden.value = value;
         search.value = '!' + value;
-        options.forEach(function(item) { item.classList.remove('is-selected'); });
+        options().forEach(function(item) { item.classList.remove('is-selected'); });
         opt.classList.add('is-selected');
         closeList();
         showResponse();
@@ -1258,8 +1339,6 @@ function initCommandToEditCombobox() {
 
 function showResponse() {
     var command = document.getElementById('command_to_edit').value;
-    var commands = <?php echo json_encode($commands); ?>;
-    var permissionsMap = <?php echo json_encode(array_flip($permissionsMap)); ?>;
     var responseInput = document.getElementById('command_response');
     var cooldownInput = document.getElementById('cooldown_response');
     var cooldownBucketInput = document.getElementById('cooldown_bucket_response');

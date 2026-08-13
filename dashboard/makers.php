@@ -11,14 +11,78 @@ $pageTitle = t('makers_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
-require_once 'includes/upload_helpers.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+// List endpoint first so the browser can paint skeletons, then fetch project cards.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    while (ob_get_level()) { ob_end_clean(); }
+    header('Content-Type: application/json');
+    try {
+        $projects = [];
+        if ($res = $db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), updated_at DESC, id DESC")) {
+            while ($row = $res->fetch_assoc()) {
+                $row['id'] = (int)$row['id'];
+                $row['images'] = [];
+                $projects[$row['id']] = $row;
+            }
+            $res->free();
+        }
+
+        $pinnedId = 0;
+        if ($res = $db->query("SELECT current_project_id FROM maker_overlay_settings WHERE id = 1")) {
+            if ($row = $res->fetch_assoc()) {
+                $pinnedId = (int)($row['current_project_id'] ?? 0);
+            }
+            $res->free();
+        }
+
+        // Featured card = pinned current project, else most recently updated current project.
+        $featuredId = 0;
+        if ($pinnedId > 0 && isset($projects[$pinnedId]) && $projects[$pinnedId]['status'] === 'current') {
+            $featuredId = $pinnedId;
+        } else {
+            $featuredStamp = '';
+            foreach ($projects as $pid => $pr) {
+                if ($pr['status'] !== 'current') { continue; }
+                $stamp = (string)($pr['updated_at'] ?? '');
+                if ($featuredId === 0 || strcmp($stamp, $featuredStamp) > 0
+                    || ($stamp === $featuredStamp && $pid > $featuredId)) {
+                    $featuredId = $pid;
+                    $featuredStamp = $stamp;
+                }
+            }
+        }
+
+        if (!empty($projects)) {
+            if ($res = $db->query("SELECT id, project_id, media_file, caption FROM maker_project_images ORDER BY sort_order ASC, id ASC")) {
+                while ($img = $res->fetch_assoc()) {
+                    $pid = (int)$img['project_id'];
+                    if (isset($projects[$pid])) {
+                        $img['id'] = (int)$img['id'];
+                        $img['project_id'] = $pid;
+                        $projects[$pid]['images'][] = $img;
+                    }
+                }
+                $res->free();
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'featured_id' => $featuredId,
+            'projects' => array_values($projects),
+        ]);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
+require_once 'includes/upload_helpers.php';
 
 // API key for pushing live overlay updates (falls back to the session value).
 $makerApiKey = isset($api_key) && $api_key ? $api_key : ($_SESSION['api_key'] ?? '');
@@ -212,6 +276,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maker_action'])) {
 
     // Upload image file(s) and attach them to a project
     if ($action === 'upload_image') {
+        include 'includes/storage_used.php';
         $projectId = intval($_POST['project_id'] ?? 0);
         if ($projectId <= 0) { maker_json(['success' => false, 'error' => t('makers_err_invalid_project')]); }
         if (!isset($_FILES['imageFiles'])) { maker_json(['success' => false, 'error' => t('makers_err_no_files')]); }
@@ -319,49 +384,6 @@ $settings = [
 if ($res = $db->query("SELECT * FROM maker_overlay_settings WHERE id = 1")) {
     if ($row = $res->fetch_assoc()) { $settings = array_merge($settings, $row); }
     $res->free();
-}
-
-// Group by status (current → upcoming → finished), and within each group put the most
-// recently added/edited project first (updated_at DESC, id DESC) so the one you just
-// created or uploaded to is at the top instead of buried at the bottom of the list.
-$projects = [];
-if ($res = $db->query("SELECT id, title, description, status, link_url, completed_at, updated_at FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), updated_at DESC, id DESC")) {
-    while ($row = $res->fetch_assoc()) {
-        $row['images'] = [];
-        $projects[(int)$row['id']] = $row;
-    }
-    $res->free();
-}
-
-// Featured "current" card = the project the user pinned via "Feature now"
-// (maker_overlay_settings.current_project_id), as long as it still exists and is current.
-// Falls back to auto-track - the current-status project worked on most recently (newest
-// updated_at; newer id breaks ties) - when nothing valid is pinned. Mirrors overlay/maker.php
-// so the "Featured" badge here matches what viewers actually see.
-$featuredId = 0;
-$pinnedId = (int)($settings['current_project_id'] ?? 0);
-if ($pinnedId > 0 && isset($projects[$pinnedId]) && $projects[$pinnedId]['status'] === 'current') {
-    $featuredId = $pinnedId;
-} else {
-    $featuredStamp = '';
-    foreach ($projects as $pid => $pr) {
-        if ($pr['status'] !== 'current') { continue; }
-        $stamp = (string)($pr['updated_at'] ?? '');
-        if ($featuredId === 0 || strcmp($stamp, $featuredStamp) > 0
-            || ($stamp === $featuredStamp && $pid > $featuredId)) {
-            $featuredId = $pid;
-            $featuredStamp = $stamp;
-        }
-    }
-}
-if (!empty($projects)) {
-    if ($res = $db->query("SELECT id, project_id, media_file, caption FROM maker_project_images ORDER BY sort_order ASC, id ASC")) {
-        while ($img = $res->fetch_assoc()) {
-            $pid = (int)$img['project_id'];
-            if (isset($projects[$pid])) { $projects[$pid]['images'][] = $img; }
-        }
-        $res->free();
-    }
 }
 
 $mediaBase = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/';
@@ -543,80 +565,24 @@ ob_start();
 <!-- Project library -->
 <div class="sp-card">
     <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-layer-group"></i> <?= t('makers_library_title') ?></div></div>
-    <div class="sp-card-body">
-        <?php if (empty($projects)): ?>
-            <p style="color:var(--text-secondary);"><?= t('makers_empty') ?></p>
-        <?php else: ?>
-            <?php foreach ($projects as $p):
-                $pid = (int)$p['id'];
-                $isFeatured = ($featuredId === $pid);
-            ?>
-            <div class="sp-card" style="margin-bottom:1rem; border:1px solid var(--border, rgba(255,255,255,0.1));" data-project="<?= $pid ?>">
+    <div class="sp-card-body" id="makerLibraryHost" aria-busy="true">
+        <div id="makerLibrarySkeleton" aria-hidden="true">
+            <?php for ($sk = 0; $sk < 3; $sk++): ?>
+            <div class="sp-card" style="margin-bottom:1rem; border:1px solid var(--border, rgba(255,255,255,0.1));">
                 <div class="sp-card-body">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-                        <div>
-                            <span style="font-weight:700;">#<?= $pid ?> <?= htmlspecialchars($p['title']) ?></span>
-                            <span class="sp-badge" style="margin-left:0.5rem; text-transform:capitalize;"><?= htmlspecialchars($statusLabels[$p['status']] ?? $p['status']) ?></span>
-                            <?php if ($isFeatured): ?><span class="sp-badge" style="margin-left:0.25rem; background:var(--accent, #9146FF); color:#fff;"><?= t('makers_featured') ?></span><?php endif; ?>
-                        </div>
-                        <div style="display:flex; gap:0.4rem;">
-                            <?php if (!$isFeatured): ?>
-                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-set-current" data-id="<?= $pid ?>" title="<?= htmlspecialchars(t('makers_feature_tooltip')) ?>"><i class="fas fa-star"></i></button>
-                            <?php endif; ?>
-                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-edit-toggle" data-id="<?= $pid ?>"><i class="fas fa-edit"></i> <?= t('makers_edit') ?></button>
-                            <button type="button" class="sp-btn sp-btn-sm sp-btn-danger maker-delete" data-id="<?= $pid ?>"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- Inline edit form -->
-                    <form class="maker-edit-form" data-id="<?= $pid ?>" style="display:none; margin-top:0.75rem;">
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:0.75rem;">
-                            <div>
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_title') ?></label>
-                                <input type="text" name="title" class="sp-input" maxlength="255" value="<?= htmlspecialchars($p['title']) ?>">
-                            </div>
-                            <div>
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_status') ?></label>
-                                <select name="status" class="sp-input">
-                                    <?php foreach (['current', 'upcoming', 'finished'] as $st): ?>
-                                        <option value="<?= $st ?>" <?= ($p['status'] === $st) ? 'selected' : '' ?>><?= $statusLabels[$st] ?? ucfirst($st) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div style="grid-column:1/-1;">
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_description_context') ?></label>
-                                <textarea name="description" class="sp-input" rows="2" maxlength="2000"><?= htmlspecialchars($p['description'] ?? '') ?></textarea>
-                            </div>
-                            <div style="grid-column:1/-1;">
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_link_optional') ?></label>
-                                <input type="text" name="link_url" class="sp-input" maxlength="500" value="<?= htmlspecialchars($p['link_url'] ?? '') ?>" placeholder="https://...">
-                            </div>
-                        </div>
-                        <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
-                            <button type="submit" class="sp-btn sp-btn-sm sp-btn-primary"><i class="fas fa-save"></i> <?= t('makers_save') ?></button>
-                        </div>
-                    </form>
-
-                    <!-- Images -->
-                    <div style="margin-top:0.75rem;">
-                        <div style="font-weight:600; margin-bottom:0.4rem;"><?= t('makers_images') ?> (<?= count($p['images']) ?>)</div>
-                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
-                            <?php foreach ($p['images'] as $img): ?>
-                                <div style="position:relative; width:90px; height:90px; border-radius:8px; overflow:hidden; border:1px solid var(--border, rgba(255,255,255,0.12));">
-                                    <img src="<?= htmlspecialchars($mediaBase . rawurlencode($img['media_file'])) ?>" alt="" style="width:100%; height:100%; object-fit:cover;">
-                                    <button type="button" class="maker-delete-image" data-image="<?= (int)$img['id'] ?>" title="<?= htmlspecialchars(t('makers_remove')) ?>" style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:4px; cursor:pointer; padding:2px 6px;">&times;</button>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <form class="maker-upload-form" data-id="<?= $pid ?>" enctype="multipart/form-data" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
-                            <input type="file" name="imageFiles[]" accept="image/png,image/jpeg,image/gif" multiple class="sp-input" style="flex:1 1 200px;">
-                            <button type="submit" class="sp-btn sp-btn-sm sp-btn-secondary"><i class="fas fa-upload"></i> <?= t('makers_upload_images') ?></button>
-                        </form>
+                    <div class="sp-skeleton-stack">
+                        <span class="sp-skeleton-line w-70"></span>
+                        <span class="sp-skeleton-line w-50"></span>
+                        <span class="sp-skeleton-badge"></span>
+                        <span class="sp-skeleton-line w-80"></span>
+                        <span class="sp-skeleton-line w-40"></span>
                     </div>
                 </div>
             </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
+            <?php endfor; ?>
+        </div>
+        <p id="makerLibraryEmpty" style="color:var(--text-secondary); display:none;"><?= t('makers_empty') ?></p>
+        <div id="makerLibraryList"></div>
     </div>
 </div>
 <?php
@@ -639,6 +605,133 @@ document.addEventListener('DOMContentLoaded', function () {
                 catch (e) { return { success: false, error: <?= json_encode(t('makers_js_upload_too_big')) ?> }; }
             });
         });
+    }
+
+    function escapeHtml(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    var MAKER_I18N = {
+        featured: <?= json_encode(t('makers_featured')) ?>,
+        featureTooltip: <?= json_encode(t('makers_feature_tooltip')) ?>,
+        edit: <?= json_encode(t('makers_edit')) ?>,
+        title: <?= json_encode(t('makers_title')) ?>,
+        statusLabel: <?= json_encode(t('makers_status')) ?>,
+        status: <?= json_encode($statusLabels) ?>,
+        description: <?= json_encode(t('makers_description_context')) ?>,
+        link: <?= json_encode(t('makers_link_optional')) ?>,
+        save: <?= json_encode(t('makers_save')) ?>,
+        images: <?= json_encode(t('makers_images')) ?>,
+        remove: <?= json_encode(t('makers_remove')) ?>,
+        upload: <?= json_encode(t('makers_upload_images')) ?>,
+        failed: <?= json_encode(t('makers_js_failed')) ?>
+    };
+    var mediaBase = <?= json_encode($mediaBase) ?>;
+
+    function renderMakerLibrary(projects, featuredId) {
+        var host = document.getElementById('makerLibraryHost');
+        var skeleton = document.getElementById('makerLibrarySkeleton');
+        var empty = document.getElementById('makerLibraryEmpty');
+        var list = document.getElementById('makerLibraryList');
+        if (skeleton) { skeleton.style.display = 'none'; }
+        if (host) { host.setAttribute('aria-busy', 'false'); }
+        if (!list) { return; }
+        if (!projects.length) {
+            list.innerHTML = '';
+            if (empty) { empty.style.display = ''; }
+            return;
+        }
+        if (empty) { empty.style.display = 'none'; }
+        featuredId = Number(featuredId) || 0;
+        list.innerHTML = projects.map(function (p) {
+            var pid = Number(p.id);
+            var isFeatured = featuredId === pid;
+            var status = String(p.status || '');
+            var statusLabel = MAKER_I18N.status[status] || status;
+            var images = Array.isArray(p.images) ? p.images : [];
+            var title = escapeHtml(p.title || '');
+            var desc = escapeHtml(p.description || '');
+            var link = escapeHtml(p.link_url || '');
+            var html = '<div class="sp-card" style="margin-bottom:1rem; border:1px solid var(--border, rgba(255,255,255,0.1));" data-project="' + pid + '">';
+            html += '<div class="sp-card-body">';
+            html += '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">';
+            html += '<div><span style="font-weight:700;">#' + pid + ' ' + title + '</span>';
+            html += '<span class="sp-badge" style="margin-left:0.5rem; text-transform:capitalize;">' + escapeHtml(statusLabel) + '</span>';
+            if (isFeatured) {
+                html += '<span class="sp-badge" style="margin-left:0.25rem; background:var(--accent, #9146FF); color:#fff;">' + escapeHtml(MAKER_I18N.featured) + '</span>';
+            }
+            html += '</div><div style="display:flex; gap:0.4rem;">';
+            if (!isFeatured) {
+                html += '<button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-set-current" data-id="' + pid + '" title="' + escapeHtml(MAKER_I18N.featureTooltip) + '"><i class="fas fa-star"></i></button>';
+            }
+            html += '<button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-edit-toggle" data-id="' + pid + '"><i class="fas fa-edit"></i> ' + escapeHtml(MAKER_I18N.edit) + '</button>';
+            html += '<button type="button" class="sp-btn sp-btn-sm sp-btn-danger maker-delete" data-id="' + pid + '"><i class="fas fa-trash"></i></button>';
+            html += '</div></div>';
+            html += '<form class="maker-edit-form" data-id="' + pid + '" style="display:none; margin-top:0.75rem;">';
+            html += '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:0.75rem;">';
+            html += '<div><label style="display:block; font-weight:600; margin-bottom:0.2rem;">' + escapeHtml(MAKER_I18N.title) + '</label>';
+            html += '<input type="text" name="title" class="sp-input" maxlength="255" value="' + title + '"></div>';
+            html += '<div><label style="display:block; font-weight:600; margin-bottom:0.2rem;">' + escapeHtml(MAKER_I18N.statusLabel) + '</label>';
+            html += '<select name="status" class="sp-input">';
+            ['current', 'upcoming', 'finished'].forEach(function (st) {
+                html += '<option value="' + st + '"' + (status === st ? ' selected' : '') + '>' + escapeHtml(MAKER_I18N.status[st] || st) + '</option>';
+            });
+            html += '</select></div>';
+            html += '<div style="grid-column:1/-1;"><label style="display:block; font-weight:600; margin-bottom:0.2rem;">' + escapeHtml(MAKER_I18N.description) + '</label>';
+            html += '<textarea name="description" class="sp-input" rows="2" maxlength="2000">' + desc + '</textarea></div>';
+            html += '<div style="grid-column:1/-1;"><label style="display:block; font-weight:600; margin-bottom:0.2rem;">' + escapeHtml(MAKER_I18N.link) + '</label>';
+            html += '<input type="text" name="link_url" class="sp-input" maxlength="500" value="' + link + '" placeholder="https://..."></div>';
+            html += '</div>';
+            html += '<div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">';
+            html += '<button type="submit" class="sp-btn sp-btn-sm sp-btn-primary"><i class="fas fa-save"></i> ' + escapeHtml(MAKER_I18N.save) + '</button>';
+            html += '</div></form>';
+            html += '<div style="margin-top:0.75rem;">';
+            html += '<div style="font-weight:600; margin-bottom:0.4rem;">' + escapeHtml(MAKER_I18N.images) + ' (' + images.length + ')</div>';
+            html += '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">';
+            images.forEach(function (img) {
+                var src = mediaBase + encodeURIComponent(img.media_file || '');
+                html += '<div style="position:relative; width:90px; height:90px; border-radius:8px; overflow:hidden; border:1px solid var(--border, rgba(255,255,255,0.12));">';
+                html += '<img src="' + escapeHtml(src) + '" alt="" style="width:100%; height:100%; object-fit:cover;">';
+                html += '<button type="button" class="maker-delete-image" data-image="' + Number(img.id) + '" title="' + escapeHtml(MAKER_I18N.remove) + '" style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:4px; cursor:pointer; padding:2px 6px;">&times;</button>';
+                html += '</div>';
+            });
+            html += '</div>';
+            html += '<form class="maker-upload-form" data-id="' + pid + '" enctype="multipart/form-data" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">';
+            html += '<input type="file" name="imageFiles[]" accept="image/png,image/jpeg,image/gif" multiple class="sp-input" style="flex:1 1 200px;">';
+            html += '<button type="submit" class="sp-btn sp-btn-sm sp-btn-secondary"><i class="fas fa-upload"></i> ' + escapeHtml(MAKER_I18N.upload) + '</button>';
+            html += '</form></div></div></div>';
+            return html;
+        }).join('');
+    }
+
+    function renderMakerLibraryError() {
+        var host = document.getElementById('makerLibraryHost');
+        var skeleton = document.getElementById('makerLibrarySkeleton');
+        var empty = document.getElementById('makerLibraryEmpty');
+        var list = document.getElementById('makerLibraryList');
+        if (skeleton) { skeleton.style.display = 'none'; }
+        if (empty) { empty.style.display = 'none'; }
+        if (host) { host.setAttribute('aria-busy', 'false'); }
+        if (list) { list.innerHTML = '<p style="color:var(--red, #ff5252);">' + escapeHtml(MAKER_I18N.failed) + '</p>'; }
+    }
+
+    function loadMakerLibrary() {
+        var url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    renderMakerLibraryError();
+                    return;
+                }
+                renderMakerLibrary(Array.isArray(data.projects) ? data.projects : [], data.featured_id);
+            })
+            .catch(function () {
+                renderMakerLibraryError();
+            });
     }
 
     // Settings save
@@ -695,9 +788,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Edit form submit (delegation)
-    document.querySelectorAll('.maker-edit-form').forEach(function (form) {
-        form.addEventListener('submit', function (e) {
+    // Edit / upload submit (delegated — cards hydrate after ajax_action=list)
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (form.classList.contains('maker-edit-form')) {
             e.preventDefault();
             var fd = new FormData(form);
             fd.append('maker_action', 'update_project');
@@ -705,21 +799,16 @@ document.addEventListener('DOMContentLoaded', function () {
             post(fd, true).then(function (res) {
                 if (res.success) { location.reload(); } else { alert(res.error || <?= json_encode(t('makers_js_failed')) ?>); }
             });
-        });
-    });
-
-    // Image upload (delegation)
-    document.querySelectorAll('.maker-upload-form').forEach(function (form) {
-        form.addEventListener('submit', function (e) {
+        } else if (form.classList.contains('maker-upload-form')) {
             e.preventDefault();
-            var fd = new FormData(form);
-            fd.append('maker_action', 'upload_image');
-            fd.append('project_id', form.dataset.id);
-            post(fd, true).then(function (res) {
+            var uploadFd = new FormData(form);
+            uploadFd.append('maker_action', 'upload_image');
+            uploadFd.append('project_id', form.dataset.id);
+            post(uploadFd, true).then(function (res) {
                 if (res.success) { location.reload(); }
                 else { alert((res.errors && res.errors.join('\n')) || res.error || <?= json_encode(t('makers_js_upload_failed')) ?>); }
             });
-        });
+        }
     });
 
     // Overlay URL: masked display with copy + reveal (keeps the API key off-screen by default)
@@ -946,6 +1035,8 @@ document.addEventListener('DOMContentLoaded', function () {
         applyCanvasSize();
         syncDisabled();
     })();
+
+    loadMakerLibrary();
 });
 </script>
 <?php

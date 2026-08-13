@@ -8,12 +8,9 @@ require_once '/var/www/lib/require_auth.php';
 $pageTitle = t('point_store_title');
 
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 
 $status = '';
@@ -50,6 +47,11 @@ function point_store_unique_slug(mysqli $db, $baseSlug, $excludeId = null) {
         $slug = substr($baseSlug, 0, 140) . '-' . $n;
         $n++;
     }
+}
+
+function point_store_media_path() {
+    $username = $_SESSION['username'] ?? 'unknown';
+    return '/var/www/media/' . $username;
 }
 
 /**
@@ -149,22 +151,44 @@ function point_store_build_payload($itemType, $post, $mediaPath, $soundFiles, $v
     }
 }
 
-// Point name for display
-$pointName = 'Points';
-$pnStmt = $db->prepare("SELECT point_name FROM bot_settings LIMIT 1");
-if ($pnStmt) {
-    $pnStmt->execute();
-    $pnRow = $pnStmt->get_result()->fetch_assoc();
-    if ($pnRow && !empty($pnRow['point_name'])) {
-        $pointName = $pnRow['point_name'];
+function point_store_fetch_items(mysqli $db) {
+    $items = [];
+    $iStmt = $db->query("SELECT * FROM point_store_items ORDER BY sort_order ASC, cost ASC, title ASC");
+    if ($iStmt) {
+        while ($row = $iStmt->fetch_assoc()) {
+            $row['payload_decoded'] = [];
+            if (!empty($row['payload'])) {
+                $decoded = json_decode($row['payload'], true);
+                if (is_array($decoded)) {
+                    $row['payload_decoded'] = $decoded;
+                }
+            }
+            $items[] = $row;
+        }
     }
-    $pnStmt->close();
+    return $items;
 }
 
-// Unified media library (media.php) - not legacy soundalerts/videoalerts paths
-$storeMediaPath = $media_path ?? ('/var/www/media/' . ($_SESSION['username'] ?? ''));
-$soundFiles = point_store_list_media_library($storeMediaPath, ['mp3']);
-$videoFiles = point_store_list_media_library($storeMediaPath, ['mp4']);
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $storeMediaPath = point_store_media_path();
+        echo json_encode([
+            'success' => true,
+            'items' => point_store_fetch_items($db),
+            'sound_files' => point_store_list_media_library($storeMediaPath, ['mp3']),
+            'video_files' => point_store_list_media_library($storeMediaPath, ['mp4']),
+        ], JSON_UNESCAPED_UNICODE);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -188,6 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
     } elseif ($action === 'save_item') {
+        $storeMediaPath = point_store_media_path();
+        $soundFiles = point_store_list_media_library($storeMediaPath, ['mp3']);
+        $videoFiles = point_store_list_media_library($storeMediaPath, ['mp4']);
         $itemId = (int) ($_POST['item_id'] ?? 0);
         $title = trim((string) ($_POST['title'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
@@ -293,6 +320,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Point name for display
+$pointName = 'Points';
+$pnStmt = $db->prepare("SELECT point_name FROM bot_settings LIMIT 1");
+if ($pnStmt) {
+    $pnStmt->execute();
+    $pnRow = $pnStmt->get_result()->fetch_assoc();
+    if ($pnRow && !empty($pnRow['point_name'])) {
+        $pointName = $pnRow['point_name'];
+    }
+    $pnStmt->close();
+}
+
 // Load settings
 $settings = [
     'enabled' => 0,
@@ -311,30 +350,7 @@ if ($sStmt) {
     $sStmt->close();
 }
 
-// Load items
-$items = [];
-$iStmt = $db->query("SELECT * FROM point_store_items ORDER BY sort_order ASC, cost ASC, title ASC");
-if ($iStmt) {
-    while ($row = $iStmt->fetch_assoc()) {
-        $row['payload_decoded'] = [];
-        if (!empty($row['payload'])) {
-            $decoded = json_decode($row['payload'], true);
-            if (is_array($decoded)) {
-                $row['payload_decoded'] = $decoded;
-            }
-        }
-        $items[] = $row;
-    }
-}
-
 $membersStoreUrl = 'https://members.botofthespecter.com/' . rawurlencode($_SESSION['username'] ?? '') . '/store';
-
-$typeLabels = [
-    'sound_alert' => t('point_store_type_sound'),
-    'video_alert' => t('point_store_type_video'),
-    'tts' => t('point_store_type_tts'),
-    'chat_message' => t('point_store_type_chat'),
-];
 
 ob_start();
 ?>
@@ -426,93 +442,32 @@ ob_start();
         </button>
     </div>
     <div class="sp-card-body">
-        <?php if (empty($items)): ?>
-            <p style="color:var(--text-muted);margin:0;"><?php echo t('point_store_empty'); ?></p>
-        <?php else: ?>
-            <div class="sp-table-wrap">
-                <table class="sp-table">
-                    <thead>
-                        <tr>
-                            <th><?php echo t('point_store_col_title'); ?></th>
-                            <th><?php echo t('point_store_col_type'); ?></th>
-                            <th><?php echo t('point_store_col_cost', ['point_name' => htmlspecialchars($pointName)]); ?></th>
-                            <th><?php echo t('point_store_col_payload'); ?></th>
-                            <th><?php echo t('point_store_col_status'); ?></th>
-                            <th><?php echo t('point_store_col_actions'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($items as $item): ?>
-                            <?php
-                            $payloadSummary = '';
-                            $pd = $item['payload_decoded'];
-                            if (!empty($pd['sound'])) {
-                                $payloadSummary = $pd['sound'];
-                            } elseif (!empty($pd['video'])) {
-                                $payloadSummary = $pd['video'];
-                            } elseif (!empty($pd['text'])) {
-                                $payloadSummary = mb_strimwidth($pd['text'], 0, 48, '…');
-                            }
-                            ?>
-                            <tr>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($item['title']); ?></strong>
-                                    <?php if (!empty($item['slug'])): ?>
-                                        <div class="sp-help" style="margin:0;">!store <?php echo htmlspecialchars($item['slug']); ?></div>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($typeLabels[$item['item_type']] ?? $item['item_type']); ?></td>
-                                <td><?php echo (int) $item['cost']; ?></td>
-                                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?php echo htmlspecialchars($payloadSummary); ?>">
-                                    <?php echo htmlspecialchars($payloadSummary); ?>
-                                </td>
-                                <td>
-                                    <?php if (!empty($item['enabled'])): ?>
-                                        <span class="sp-badge sp-badge-green"><?php echo t('point_store_status_enabled'); ?></span>
-                                    <?php else: ?>
-                                        <span class="sp-badge sp-badge-grey"><?php echo t('point_store_status_disabled'); ?></span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
-                                        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm edit-item-btn"
-                                            data-item="<?php echo htmlspecialchars(json_encode([
-                                                'id' => (int) $item['id'],
-                                                'title' => $item['title'],
-                                                'description' => $item['description'] ?? '',
-                                                'cost' => (int) $item['cost'],
-                                                'item_type' => $item['item_type'],
-                                                'enabled' => (int) $item['enabled'],
-                                                'cooldown_seconds' => (int) $item['cooldown_seconds'],
-                                                'sort_order' => (int) $item['sort_order'],
-                                                'max_per_stream' => $item['max_per_stream'],
-                                                'stock' => $item['stock'],
-                                                'payload' => $item['payload_decoded'],
-                                            ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8'); ?>">
-                                            <i class="fas fa-edit"></i> <?php echo t('point_store_edit'); ?>
-                                        </button>
-                                        <form method="POST" action="" style="display:inline;margin:0;">
-                                            <input type="hidden" name="action" value="toggle_item">
-                                            <input type="hidden" name="item_id" value="<?php echo (int) $item['id']; ?>">
-                                            <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit">
-                                                <?php echo !empty($item['enabled']) ? t('point_store_disable') : t('point_store_enable'); ?>
-                                            </button>
-                                        </form>
-                                        <form method="POST" action="" style="display:inline;margin:0;" onsubmit="return confirm(<?php echo json_encode(t('point_store_delete_confirm')); ?>);">
-                                            <input type="hidden" name="action" value="delete_item">
-                                            <input type="hidden" name="item_id" value="<?php echo (int) $item['id']; ?>">
-                                            <button class="sp-btn sp-btn-danger sp-btn-sm" type="submit">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
+        <div class="sp-table-wrap">
+            <table class="sp-table">
+                <thead>
+                    <tr>
+                        <th><?php echo t('point_store_col_title'); ?></th>
+                        <th><?php echo t('point_store_col_type'); ?></th>
+                        <th><?php echo t('point_store_col_cost', ['point_name' => htmlspecialchars($pointName)]); ?></th>
+                        <th><?php echo t('point_store_col_payload'); ?></th>
+                        <th><?php echo t('point_store_col_status'); ?></th>
+                        <th><?php echo t('point_store_col_actions'); ?></th>
+                    </tr>
+                </thead>
+                <tbody id="pointStoreItemsBody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td><span class="sp-skeleton-line w-70"></span></td>
+                        <td><span class="sp-skeleton-line w-50"></span></td>
+                        <td><span class="sp-skeleton-line w-40"></span></td>
+                        <td><span class="sp-skeleton-line w-60"></span></td>
+                        <td><span class="sp-skeleton-badge"></span></td>
+                        <td><span class="sp-skeleton-line w-80"></span></td>
+                    </tr>
+                    <?php endfor; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -555,30 +510,26 @@ ob_start();
                     </div>
                 </div>
 
-                <div class="sp-form-group payload-field" data-type="sound_alert">
+                <div class="sp-form-group payload-field" data-type="sound_alert" id="soundFileHost" aria-busy="true">
                     <label class="sp-label" for="sound_file"><?php echo t('point_store_field_sound'); ?></label>
-                    <select class="sp-select" name="sound_file" id="sound_file">
+                    <div id="soundFileSkeleton" class="sp-skeleton-stack" aria-hidden="true">
+                        <span class="sp-skeleton-line w-90"></span>
+                    </div>
+                    <select class="sp-select" name="sound_file" id="sound_file" style="display:none;">
                         <option value=""><?php echo t('point_store_select_file'); ?></option>
-                        <?php foreach ($soundFiles as $f): ?>
-                            <option value="<?php echo htmlspecialchars($f); ?>"><?php echo htmlspecialchars($f); ?></option>
-                        <?php endforeach; ?>
                     </select>
-                    <?php if (empty($soundFiles)): ?>
-                        <span class="sp-help sp-help-warning"><?php echo t('point_store_no_sounds'); ?></span>
-                    <?php endif; ?>
+                    <span id="soundFileEmptyHelp" class="sp-help sp-help-warning" style="display:none;"><?php echo t('point_store_no_sounds'); ?></span>
                 </div>
 
-                <div class="sp-form-group payload-field" data-type="video_alert" style="display:none;">
+                <div class="sp-form-group payload-field" data-type="video_alert" id="videoFileHost" aria-busy="true" style="display:none;">
                     <label class="sp-label" for="video_file"><?php echo t('point_store_field_video'); ?></label>
-                    <select class="sp-select" name="video_file" id="video_file">
+                    <div id="videoFileSkeleton" class="sp-skeleton-stack" aria-hidden="true">
+                        <span class="sp-skeleton-line w-90"></span>
+                    </div>
+                    <select class="sp-select" name="video_file" id="video_file" style="display:none;">
                         <option value=""><?php echo t('point_store_select_file'); ?></option>
-                        <?php foreach ($videoFiles as $f): ?>
-                            <option value="<?php echo htmlspecialchars($f); ?>"><?php echo htmlspecialchars($f); ?></option>
-                        <?php endforeach; ?>
                     </select>
-                    <?php if (empty($videoFiles)): ?>
-                        <span class="sp-help sp-help-warning"><?php echo t('point_store_no_videos'); ?></span>
-                    <?php endif; ?>
+                    <span id="videoFileEmptyHelp" class="sp-help sp-help-warning" style="display:none;"><?php echo t('point_store_no_videos'); ?></span>
                 </div>
 
                 <div class="sp-form-group payload-field" data-type="tts" style="display:none;">
@@ -642,6 +593,179 @@ ob_start();
         add: <?php echo json_encode(t('point_store_add_item')); ?>,
         edit: <?php echo json_encode(t('point_store_edit_item')); ?>
     };
+    var typeLabels = {
+        sound_alert: <?php echo json_encode(t('point_store_type_sound')); ?>,
+        video_alert: <?php echo json_encode(t('point_store_type_video')); ?>,
+        tts: <?php echo json_encode(t('point_store_type_tts')); ?>,
+        chat_message: <?php echo json_encode(t('point_store_type_chat')); ?>
+    };
+    var I18N = {
+        empty: <?php echo json_encode(t('point_store_empty')); ?>,
+        loadError: <?php echo json_encode(t('point_store_error_generic')); ?>,
+        statusEnabled: <?php echo json_encode(t('point_store_status_enabled')); ?>,
+        statusDisabled: <?php echo json_encode(t('point_store_status_disabled')); ?>,
+        edit: <?php echo json_encode(t('point_store_edit')); ?>,
+        enable: <?php echo json_encode(t('point_store_enable')); ?>,
+        disable: <?php echo json_encode(t('point_store_disable')); ?>,
+        deleteConfirm: <?php echo json_encode(t('point_store_delete_confirm')); ?>,
+        selectFile: <?php echo json_encode(t('point_store_select_file')); ?>
+    };
+    var soundFiles = [];
+    var videoFiles = [];
+    var mediaLoaded = false;
+    var pendingEditData = null;
+
+    function escapeHtml(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function truncateText(str, maxLen) {
+        var value = String(str == null ? '' : str);
+        if (value.length <= maxLen) return value;
+        return value.slice(0, maxLen - 1) + '…';
+    }
+
+    function payloadSummary(pd) {
+        pd = pd || {};
+        if (pd.sound) return String(pd.sound);
+        if (pd.video) return String(pd.video);
+        if (pd.text) return truncateText(pd.text, 48);
+        return '';
+    }
+
+    function fillFileSelect(selectEl, files, placeholder) {
+        if (!selectEl) return;
+        var previous = selectEl.value;
+        selectEl.innerHTML = '';
+        var placeholderOpt = document.createElement('option');
+        placeholderOpt.value = '';
+        placeholderOpt.textContent = placeholder;
+        selectEl.appendChild(placeholderOpt);
+        (files || []).forEach(function (file) {
+            var opt = document.createElement('option');
+            opt.value = file;
+            opt.textContent = file;
+            selectEl.appendChild(opt);
+        });
+        if (previous && (files || []).indexOf(previous) !== -1) {
+            selectEl.value = previous;
+        }
+    }
+
+    function revealFileSelect(hostId, skeletonId, selectId, emptyId, files) {
+        var host = document.getElementById(hostId);
+        var skeleton = document.getElementById(skeletonId);
+        var selectEl = document.getElementById(selectId);
+        var emptyHelp = document.getElementById(emptyId);
+        if (skeleton) skeleton.style.display = 'none';
+        if (selectEl) selectEl.style.display = '';
+        if (emptyHelp) emptyHelp.style.display = files.length ? 'none' : '';
+        if (host) host.setAttribute('aria-busy', 'false');
+    }
+
+    function populateMediaSelects() {
+        fillFileSelect(document.getElementById('sound_file'), soundFiles, I18N.selectFile);
+        fillFileSelect(document.getElementById('video_file'), videoFiles, I18N.selectFile);
+        revealFileSelect('soundFileHost', 'soundFileSkeleton', 'sound_file', 'soundFileEmptyHelp', soundFiles);
+        revealFileSelect('videoFileHost', 'videoFileSkeleton', 'video_file', 'videoFileEmptyHelp', videoFiles);
+        mediaLoaded = true;
+        if (pendingEditData) {
+            applyPayloadFiles(pendingEditData);
+            pendingEditData = null;
+        }
+    }
+
+    function applyPayloadFiles(editData) {
+        var p = (editData && editData.payload) || {};
+        if (p.sound) document.getElementById('sound_file').value = p.sound;
+        if (p.video) document.getElementById('video_file').value = p.video;
+    }
+
+    function renderItemsError() {
+        var tbody = document.getElementById('pointStoreItemsBody');
+        if (!tbody) return;
+        tbody.setAttribute('aria-busy', 'false');
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);">' + escapeHtml(I18N.loadError) + '</td></tr>';
+    }
+
+    function renderItems(items) {
+        var tbody = document.getElementById('pointStoreItemsBody');
+        if (!tbody) return;
+        tbody.setAttribute('aria-busy', 'false');
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);">' + escapeHtml(I18N.empty) + '</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map(function (item) {
+            var pd = item.payload_decoded || {};
+            var summary = payloadSummary(pd);
+            var enabled = Number(item.enabled) === 1;
+            var typeLabel = typeLabels[item.item_type] || item.item_type;
+            var slugHtml = item.slug
+                ? '<div class="sp-help" style="margin:0;">!store ' + escapeHtml(item.slug) + '</div>'
+                : '';
+            var editPayload = {
+                id: Number(item.id),
+                title: item.title,
+                description: item.description || '',
+                cost: Number(item.cost),
+                item_type: item.item_type,
+                enabled: Number(item.enabled),
+                cooldown_seconds: Number(item.cooldown_seconds),
+                sort_order: Number(item.sort_order),
+                max_per_stream: item.max_per_stream,
+                stock: item.stock,
+                payload: pd
+            };
+            return '<tr>' +
+                '<td><strong>' + escapeHtml(item.title) + '</strong>' + slugHtml + '</td>' +
+                '<td>' + escapeHtml(typeLabel) + '</td>' +
+                '<td>' + escapeHtml(item.cost) + '</td>' +
+                '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(summary) + '">' + escapeHtml(summary) + '</td>' +
+                '<td>' + (enabled
+                    ? '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.statusEnabled) + '</span>'
+                    : '<span class="sp-badge sp-badge-grey">' + escapeHtml(I18N.statusDisabled) + '</span>') + '</td>' +
+                '<td><div style="display:flex;flex-wrap:wrap;gap:0.35rem;">' +
+                    '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm edit-item-btn" data-item="' + escapeHtml(JSON.stringify(editPayload)) + '">' +
+                        '<i class="fas fa-edit"></i> ' + escapeHtml(I18N.edit) +
+                    '</button>' +
+                    '<form method="POST" action="" style="display:inline;margin:0;">' +
+                        '<input type="hidden" name="action" value="toggle_item">' +
+                        '<input type="hidden" name="item_id" value="' + escapeHtml(item.id) + '">' +
+                        '<button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit">' +
+                            escapeHtml(enabled ? I18N.disable : I18N.enable) +
+                        '</button>' +
+                    '</form>' +
+                    '<form method="POST" action="" style="display:inline;margin:0;" onsubmit="return confirm(' + JSON.stringify(I18N.deleteConfirm) + ');">' +
+                        '<input type="hidden" name="action" value="delete_item">' +
+                        '<input type="hidden" name="item_id" value="' + escapeHtml(item.id) + '">' +
+                        '<button class="sp-btn sp-btn-danger sp-btn-sm" type="submit"><i class="fas fa-trash"></i></button>' +
+                    '</form>' +
+                '</div></td></tr>';
+        }).join('');
+    }
+
+    function loadPointStore() {
+        var url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    renderItemsError();
+                    return;
+                }
+                soundFiles = Array.isArray(data.sound_files) ? data.sound_files : [];
+                videoFiles = Array.isArray(data.video_files) ? data.video_files : [];
+                populateMediaSelects();
+                renderItems(Array.isArray(data.items) ? data.items : []);
+            })
+            .catch(function () {
+                renderItemsError();
+            });
+    }
 
     function showPayloadFields(type) {
         document.querySelectorAll('.payload-field').forEach(function (el) {
@@ -657,6 +781,7 @@ ob_start();
         document.getElementById('cooldown_seconds').value = '0';
         document.getElementById('sort_order').value = '0';
         showPayloadFields('sound_alert');
+        pendingEditData = null;
 
         if (editData) {
             titleEl.textContent = addLabels.edit;
@@ -672,10 +797,13 @@ ob_start();
             document.getElementById('stock').value = editData.stock != null ? editData.stock : '';
             showPayloadFields(editData.item_type || 'sound_alert');
             var p = editData.payload || {};
-            if (p.sound) document.getElementById('sound_file').value = p.sound;
-            if (p.video) document.getElementById('video_file').value = p.video;
             if (editData.item_type === 'tts' && p.text) document.getElementById('tts_text').value = p.text;
             if (editData.item_type === 'chat_message' && p.text) document.getElementById('chat_text').value = p.text;
+            if (mediaLoaded) {
+                applyPayloadFiles(editData);
+            } else {
+                pendingEditData = editData;
+            }
         } else {
             titleEl.textContent = addLabels.add;
         }
@@ -695,15 +823,17 @@ ob_start();
     document.getElementById('item_type').addEventListener('change', function () {
         showPayloadFields(this.value);
     });
-    document.querySelectorAll('.edit-item-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            try {
-                openModal(JSON.parse(btn.getAttribute('data-item')));
-            } catch (e) {
-                console.error(e);
-            }
-        });
+    document.getElementById('pointStoreItemsBody').addEventListener('click', function (e) {
+        var btn = e.target.closest('.edit-item-btn');
+        if (!btn) return;
+        try {
+            openModal(JSON.parse(btn.getAttribute('data-item')));
+        } catch (err) {
+            console.error(err);
+        }
     });
+
+    loadPointStore();
 })();
 </script>
 <?php

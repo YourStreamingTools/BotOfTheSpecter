@@ -11,28 +11,16 @@ $pageTitle = t('media_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
-include 'includes/storage_used.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
 session_write_close();
-$stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$media_migrated = (bool)($channelData['media_migrated'] ?? false);
-$stmt->close();
-date_default_timezone_set($timezone);
 
+$media_path = '/var/www/media/' . $username;
+$media_base_url = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/';
+$allTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
 $status = '';
-
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
-}
 
 if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
     header('Content-Type: application/json');
@@ -84,90 +72,41 @@ if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
     exit;
 }
 
-$soundAlertMappings = [];  // file => [reward_id, ...]
-if ($r = $db->query("SELECT reward_id, sound_mapping FROM sound_alerts")) {
-    while ($row = $r->fetch_assoc()) {
-        if ($row['sound_mapping']) {
-            $soundAlertMappings[$row['sound_mapping']][] = $row['reward_id'];
-        }
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if ((isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list')
+    || (($_GET['action'] ?? '') === 'list_media_files')) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        include __DIR__ . '/includes/storage_used.php';
+        echo json_encode(media_build_list_payload(
+            $db,
+            $media_path,
+            $media_base_url,
+            $allTwitchEvents,
+            $current_storage_used ?? 0,
+            $max_storage_size ?? 0,
+            $storage_percentage ?? 0
+        ), JSON_UNESCAPED_UNICODE);
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
-    $r->free();
+    exit;
 }
 
-$videoAlertMappings = [];  // file => [reward_id, ...]
-if ($r = $db->query("SELECT reward_id, video_mapping FROM video_alerts")) {
-    while ($row = $r->fetch_assoc()) {
-        if ($row['video_mapping']) {
-            $videoAlertMappings[$row['video_mapping']][] = $row['reward_id'];
-        }
-    }
-    $r->free();
-}
-
-$twitchSoundAlertMappings = [];  // file => [twitch_alert_id, ...]
-if ($r = $db->query("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts")) {
-    while ($row = $r->fetch_assoc()) {
-        if ($row['sound_mapping']) {
-            $twitchSoundAlertMappings[$row['sound_mapping']][] = $row['twitch_alert_id'];
-        }
-    }
-    $r->free();
-}
-
-$walkonsByFile = [];  // file => [{user_id, user_name, mode}, ...]
-if ($r = $db->query("SELECT twitch_user_id, twitch_user_name, media_file, mode FROM walkons")) {
-    while ($row = $r->fetch_assoc()) {
-        $walkonsByFile[$row['media_file']][] = [
-            'user_id'   => $row['twitch_user_id'],
-            'user_name' => $row['twitch_user_name'],
-            'mode'      => $row['mode'] ?? 'sound',
-        ];
-    }
-    $r->free();
-}
-
-// Flatten the reward-id lists for the "is this reward already used somewhere?" check
-// used by the modal's add-reward dropdown.
-$soundMappedRewards = [];
-foreach ($soundAlertMappings as $rids) {
-    foreach ($rids as $rid) $soundMappedRewards[] = $rid;
-}
-$videoMappedRewards = [];
-foreach ($videoAlertMappings as $rids) {
-    foreach ($rids as $rid) $videoMappedRewards[] = $rid;
-}
-
-// Alert builder usage (read-only display only)
-$alertMediaFiles = [];
-if ($r = $db->query("SELECT id, alert_category, variant_name, alert_image, alert_sound FROM twitch_alerts WHERE alert_image IS NOT NULL OR alert_sound IS NOT NULL")) {
-    while ($row = $r->fetch_assoc()) {
-        if ($row['alert_image']) {
-            $alertMediaFiles[$row['alert_image']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'image'];
-        }
-        if ($row['alert_sound']) {
-            $alertMediaFiles[$row['alert_sound']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'sound'];
-        }
-    }
-    $r->free();
-}
-
-// Seen-users cache for the walkon picker typeahead
-$seenUsers = [];
-if ($r = $db->query("SELECT DISTINCT username FROM seen_users WHERE username IS NOT NULL ORDER BY username ASC")) {
-    while ($row = $r->fetch_assoc()) {
-        $seenUsers[] = $row['username'];
-    }
-    $r->free();
-}
-
-// Create reward_id => reward_title lookup
-$rewardIdToTitle = [];
-foreach ($channelPointRewards as $reward) {
-    $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
-}
-
-// Available twitch events (kept inline - same list the old UI used)
-$allTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
+// Cheap leftover SSR: migrate banner + timezone only. Mappings, seen_users,
+// rewards, and the storage scan hydrate via ajax_action=list.
+$stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
+$stmt->execute();
+$result = $stmt->get_result();
+$channelData = $result->fetch_assoc();
+$timezone = $channelData['timezone'] ?? 'UTC';
+$media_migrated = (bool)($channelData['media_migrated'] ?? false);
+$stmt->close();
+date_default_timezone_set($timezone);
 
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
@@ -287,6 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if (isset($_FILES["filesToUpload"])) {
+        include __DIR__ . '/includes/storage_used.php';
         $remaining_storage = $max_storage_size - $current_storage_used;
         $uploadStatus = "";
         $uploadHadError = false;
@@ -393,8 +333,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $db->commit();
-        $current_storage_used = calculateStorageUsed([$media_path, $walkon_path, $videoalert_path, $user_music_path]);
-        $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
         $status .= $deleteStatus;
     }
 }
@@ -530,9 +468,81 @@ function media_render_file_list_html(
     return (string) ob_get_clean();
 }
 
-// AJAX: file list shell (scandir can be slow on remote media mounts)
-if (($_GET['action'] ?? '') === 'list_media_files') {
-    header('Content-Type: application/json; charset=utf-8');
+function media_build_list_payload(mysqli $db, $media_path, $media_base_url, array $allTwitchEvents, $current_storage_used, $max_storage_size, $storage_percentage): array {
+    $soundAlertMappings = [];
+    if ($r = $db->query("SELECT reward_id, sound_mapping FROM sound_alerts")) {
+        while ($row = $r->fetch_assoc()) {
+            if ($row['sound_mapping']) {
+                $soundAlertMappings[$row['sound_mapping']][] = $row['reward_id'];
+            }
+        }
+        $r->free();
+    }
+    $videoAlertMappings = [];
+    if ($r = $db->query("SELECT reward_id, video_mapping FROM video_alerts")) {
+        while ($row = $r->fetch_assoc()) {
+            if ($row['video_mapping']) {
+                $videoAlertMappings[$row['video_mapping']][] = $row['reward_id'];
+            }
+        }
+        $r->free();
+    }
+    $twitchSoundAlertMappings = [];
+    if ($r = $db->query("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts")) {
+        while ($row = $r->fetch_assoc()) {
+            if ($row['sound_mapping']) {
+                $twitchSoundAlertMappings[$row['sound_mapping']][] = $row['twitch_alert_id'];
+            }
+        }
+        $r->free();
+    }
+    $walkonsByFile = [];
+    if ($r = $db->query("SELECT twitch_user_id, twitch_user_name, media_file, mode FROM walkons")) {
+        while ($row = $r->fetch_assoc()) {
+            $walkonsByFile[$row['media_file']][] = [
+                'user_id'   => $row['twitch_user_id'],
+                'user_name' => $row['twitch_user_name'],
+                'mode'      => $row['mode'] ?? 'sound',
+            ];
+        }
+        $r->free();
+    }
+    $soundMappedRewards = [];
+    foreach ($soundAlertMappings as $rids) {
+        foreach ($rids as $rid) $soundMappedRewards[] = $rid;
+    }
+    $videoMappedRewards = [];
+    foreach ($videoAlertMappings as $rids) {
+        foreach ($rids as $rid) $videoMappedRewards[] = $rid;
+    }
+    $alertMediaFiles = [];
+    if ($r = $db->query("SELECT id, alert_category, variant_name, alert_image, alert_sound FROM twitch_alerts WHERE alert_image IS NOT NULL OR alert_sound IS NOT NULL")) {
+        while ($row = $r->fetch_assoc()) {
+            if ($row['alert_image']) {
+                $alertMediaFiles[$row['alert_image']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'image'];
+            }
+            if ($row['alert_sound']) {
+                $alertMediaFiles[$row['alert_sound']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'sound'];
+            }
+        }
+        $r->free();
+    }
+    $seenUsers = [];
+    if ($r = $db->query("SELECT DISTINCT username FROM seen_users WHERE username IS NOT NULL ORDER BY username ASC")) {
+        while ($row = $r->fetch_assoc()) {
+            $seenUsers[] = $row['username'];
+        }
+        $r->free();
+    }
+    $channelPointRewards = [];
+    $rewardIdToTitle = [];
+    if ($r = $db->query("SELECT reward_id, reward_title FROM channel_point_rewards ORDER BY CONVERT(reward_cost, UNSIGNED) ASC")) {
+        while ($row = $r->fetch_assoc()) {
+            $channelPointRewards[] = $row;
+            $rewardIdToTitle[$row['reward_id']] = $row['reward_title'];
+        }
+        $r->free();
+    }
     $all_media_files = media_scan_library_files($media_path);
     $html = media_render_file_list_html(
         $all_media_files,
@@ -544,12 +554,31 @@ if (($_GET['action'] ?? '') === 'list_media_files') {
         $walkonsByFile,
         $alertMediaFiles
     );
-    echo json_encode([
+    return [
         'success' => true,
         'count' => count($all_media_files),
         'html' => $html,
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+        'storage' => [
+            'used' => (int) $current_storage_used,
+            'max' => (int) $max_storage_size,
+            'used_mb' => round(((int) $current_storage_used) / 1024 / 1024, 2),
+            'max_mb' => round(((int) $max_storage_size) / 1024 / 1024, 2),
+            'percentage' => round((float) $storage_percentage, 2),
+        ],
+        'media_data' => [
+            'sound_alerts'        => $soundAlertMappings,
+            'video_alerts'        => $videoAlertMappings,
+            'twitch_events'       => $twitchSoundAlertMappings,
+            'walkons'             => $walkonsByFile,
+            'alert_builder'       => $alertMediaFiles,
+            'rewards'             => array_values($channelPointRewards),
+            'reward_titles'       => $rewardIdToTitle,
+            'reward_used_sound'   => array_values(array_unique($soundMappedRewards)),
+            'reward_used_video'   => array_values(array_unique($videoMappedRewards)),
+            'twitch_events_list'  => $allTwitchEvents,
+            'seen_users'          => $seenUsers,
+        ],
+    ];
 }
 
 // File list is filled client-side (skeleton → AJAX) so first paint is not blocked by scandir.
@@ -558,12 +587,12 @@ $all_media_files = [];
 ob_start();
 ?>
 <!-- Storage Usage (shared across all tabs) -->
-<div class="sp-alert sp-alert-info media-storage-bar">
+<div class="sp-alert sp-alert-info media-storage-bar" id="media-storage-bar" aria-busy="true">
     <div class="media-storage-header">
         <span><i class="fas fa-database"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
-        <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+        <span id="media-storage-text"><span class="sp-skeleton-line w-50"></span></span>
     </div>
-    <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100"></progress>
+    <progress class="progress" id="media-storage-progress" value="0" max="100"></progress>
 </div>
 <?php if (!empty($status)): ?>
     <div class="sp-alert sp-alert-info sp-notif media-notif">
@@ -703,20 +732,19 @@ ob_start();
 <?php
 $content = ob_get_clean();
 
-// Ship all mapping data to the client so the modal can render without
-// another round trip on open.
+// Empty mapping payload on first paint; ajax_action=list fills this.
 $mediaDataJson = json_encode([
-    'sound_alerts'        => $soundAlertMappings,
-    'video_alerts'        => $videoAlertMappings,
-    'twitch_events'       => $twitchSoundAlertMappings,
-    'walkons'             => $walkonsByFile,
-    'alert_builder'       => $alertMediaFiles,
-    'rewards'             => array_values($channelPointRewards),
-    'reward_titles'       => $rewardIdToTitle,
-    'reward_used_sound'   => array_values(array_unique($soundMappedRewards)),
-    'reward_used_video'   => array_values(array_unique($videoMappedRewards)),
+    'sound_alerts'        => (object) [],
+    'video_alerts'        => (object) [],
+    'twitch_events'       => (object) [],
+    'walkons'             => (object) [],
+    'alert_builder'       => (object) [],
+    'rewards'             => [],
+    'reward_titles'       => (object) [],
+    'reward_used_sound'   => [],
+    'reward_used_video'   => [],
     'twitch_events_list'  => $allTwitchEvents,
-    'seen_users'          => $seenUsers,
+    'seen_users'          => [],
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
 
 ob_start();
@@ -825,6 +853,37 @@ $(document).ready(function () {
         }
         return html;
     }
+    function applyStorage(storage) {
+        var host = document.getElementById('media-storage-bar');
+        var text = document.getElementById('media-storage-text');
+        var bar = document.getElementById('media-storage-progress');
+        if (storage && text) {
+            text.textContent = (storage.used_mb || 0) + 'MB / ' + (storage.max_mb || 0) + 'MB (' + (storage.percentage || 0) + '%)';
+        }
+        if (storage && bar) bar.value = storage.percentage || 0;
+        setBusy(host, false);
+    }
+    function applySeenUsers(users) {
+        var existing = document.getElementById('walkon-seen-users');
+        if (existing) existing.remove();
+        if (!users || !users.length) return;
+        var dl = document.createElement('datalist');
+        dl.id = 'walkon-seen-users';
+        users.forEach(function (u) {
+            var opt = document.createElement('option');
+            opt.value = u;
+            dl.appendChild(opt);
+        });
+        document.body.appendChild(dl);
+    }
+    function applyMediaData(payload) {
+        if (!payload || !payload.media_data) return;
+        Object.keys(payload.media_data).forEach(function (k) {
+            data[k] = payload.media_data[k];
+        });
+        window.__MEDIA_DATA = data;
+        applySeenUsers(data.seen_users);
+    }
     function loadMediaFileList() {
         var body = document.getElementById('media-library-body');
         var list = document.getElementById('media-file-list');
@@ -834,11 +893,12 @@ $(document).ready(function () {
         if (!list) return;
         mediaListReady = false;
         setBusy(body, true);
+        setBusy(document.getElementById('media-storage-bar'), true);
         if (empty) empty.style.display = 'none';
         if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
         if (form) form.style.display = '';
         list.innerHTML = skeletonMediaListHtml(8);
-        fetch('media.php?action=list_media_files', {
+        fetch('media.php?ajax_action=list', {
             method: 'GET',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
@@ -849,6 +909,8 @@ $(document).ready(function () {
             })
             .then(function (resp) {
                 if (!resp || !resp.success) throw new Error((resp && resp.message) || 'load failed');
+                applyMediaData(resp);
+                applyStorage(resp.storage);
                 mediaListReady = true;
                 var count = Number(resp.count || 0);
                 if (count < 1 || !resp.html) {
@@ -872,6 +934,7 @@ $(document).ready(function () {
                     errEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> ' + (I18N.list_load_error || 'Failed to load media library.');
                 }
                 setBusy(body, false);
+                setBusy(document.getElementById('media-storage-bar'), false);
             });
     }
     // Modal rendering
@@ -1193,18 +1256,6 @@ $(document).ready(function () {
             }, function () { input.val(''); status.text(''); });
         }, 'json').fail(function () { status.text(I18N.lookup_failed); });
     });
-    // Populate the seen_users datalist for typeahead
-    (function () {
-        if (!data.seen_users || !data.seen_users.length) return;
-        var dl = document.createElement('datalist');
-        dl.id = 'walkon-seen-users';
-        data.seen_users.forEach(function (u) {
-            var opt = document.createElement('option');
-            opt.value = u;
-            dl.appendChild(opt);
-        });
-        document.body.appendChild(dl);
-    })();
     var activeFilter = 'all';
     function applyFilter() {
         if (!mediaListReady) return;

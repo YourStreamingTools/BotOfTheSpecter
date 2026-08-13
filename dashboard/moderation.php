@@ -11,20 +11,141 @@ $pageTitle = t('moderation_page_title');
 // Includes
 require_once "/var/www/config/db_connect.php";
 include 'includes/userdata.php';
-session_write_close();
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-// Ensure per-user schema (including warnings) exists before we query it
-include_once 'includes/usr_database.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+session_write_close();
 
-// Set timezone from profile
-$stmt = $db->prepare("SELECT timezone FROM profile");
-$stmt->execute();
-$result = $stmt->get_result();
-$channelData = $result->fetch_assoc();
-$timezone = $channelData['timezone'] ?? 'UTC';
-$stmt->close();
-date_default_timezone_set($timezone);
+function moderation_format_when($when)
+{
+    if ($when !== '' && $when !== '0000-00-00 00:00:00') {
+        return date('Y-m-d H:i:s', strtotime($when));
+    }
+    return t('moderation_unknown_date');
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        $tzStmt = $db->prepare("SELECT timezone FROM profile");
+        if ($tzStmt) {
+            $tzStmt->execute();
+            $tzResult = $tzStmt->get_result();
+            $channelData = $tzResult ? $tzResult->fetch_assoc() : null;
+            date_default_timezone_set($channelData['timezone'] ?? 'UTC');
+            $tzStmt->close();
+        } else {
+            date_default_timezone_set('UTC');
+        }
+
+        $searchQuery = trim((string) ($_GET['q'] ?? ''));
+        $filterUser = trim((string) ($_GET['user'] ?? ''));
+        $warnings = [];
+        $topWarned = [];
+        $totalWarnings = 0;
+        $uniqueWarned = 0;
+        $warningsThisWeek = 0;
+
+        $statsRes = $db->query("SELECT COUNT(*) AS total, COUNT(DISTINCT COALESCE(NULLIF(user_id, ''), user_name)) AS unique_users FROM warnings");
+        if ($statsRes === false) {
+            echo json_encode(['success' => false, 'unavailable' => true]);
+            exit();
+        }
+        $statsRow = $statsRes->fetch_assoc();
+        $totalWarnings = (int) ($statsRow['total'] ?? 0);
+        $uniqueWarned = (int) ($statsRow['unique_users'] ?? 0);
+
+        $weekRes = $db->query("SELECT COUNT(*) AS week_count FROM warnings WHERE created_at >= (NOW() - INTERVAL 7 DAY)");
+        if ($weekRes) {
+            $weekRow = $weekRes->fetch_assoc();
+            $warningsThisWeek = (int) ($weekRow['week_count'] ?? 0);
+        }
+
+        $topRes = $db->query(
+            "SELECT user_name, user_id, COUNT(*) AS warning_count, MAX(created_at) AS last_warned_at
+             FROM warnings
+             GROUP BY user_name, user_id
+             ORDER BY warning_count DESC, last_warned_at DESC
+             LIMIT 10"
+        );
+        if ($topRes) {
+            $topWarned = $topRes->fetch_all(MYSQLI_ASSOC);
+            foreach ($topWarned as &$row) {
+                $row['last_display'] = moderation_format_when($row['last_warned_at'] ?? '');
+            }
+            unset($row);
+        }
+
+        if ($searchQuery !== '' || $filterUser !== '') {
+            $like = '%' . ($searchQuery !== '' ? $searchQuery : $filterUser) . '%';
+            $filterExact = $filterUser !== '' ? strtolower($filterUser) : null;
+            if ($filterExact !== null && $searchQuery === '') {
+                $stmtList = $db->prepare(
+                    "SELECT id, user_id, user_name, warned_by_id, warned_by_name, reason, created_at
+                     FROM warnings
+                     WHERE LOWER(user_name) = ? OR user_id = ?
+                     ORDER BY created_at DESC
+                     LIMIT 500"
+                );
+                if ($stmtList) {
+                    $stmtList->bind_param('ss', $filterExact, $filterExact);
+                    $stmtList->execute();
+                    $listRes = $stmtList->get_result();
+                    $warnings = $listRes ? $listRes->fetch_all(MYSQLI_ASSOC) : [];
+                    $stmtList->close();
+                }
+            } else {
+                $stmtList = $db->prepare(
+                    "SELECT id, user_id, user_name, warned_by_id, warned_by_name, reason, created_at
+                     FROM warnings
+                     WHERE user_name LIKE ? OR warned_by_name LIKE ? OR reason LIKE ? OR user_id LIKE ?
+                     ORDER BY created_at DESC
+                     LIMIT 500"
+                );
+                if ($stmtList) {
+                    $stmtList->bind_param('ssss', $like, $like, $like, $like);
+                    $stmtList->execute();
+                    $listRes = $stmtList->get_result();
+                    $warnings = $listRes ? $listRes->fetch_all(MYSQLI_ASSOC) : [];
+                    $stmtList->close();
+                }
+            }
+        } else {
+            $listRes = $db->query(
+                "SELECT id, user_id, user_name, warned_by_id, warned_by_name, reason, created_at
+                 FROM warnings
+                 ORDER BY created_at DESC
+                 LIMIT 500"
+            );
+            if ($listRes) {
+                $warnings = $listRes->fetch_all(MYSQLI_ASSOC);
+            }
+        }
+
+        foreach ($warnings as &$w) {
+            $w['when_display'] = moderation_format_when($w['created_at'] ?? '');
+        }
+        unset($w);
+
+        echo json_encode([
+            'success' => true,
+            'total' => $totalWarnings,
+            'unique' => $uniqueWarned,
+            'week' => $warningsThisWeek,
+            'warnings' => $warnings,
+            'top' => $topWarned,
+        ]);
+    } catch (mysqli_sql_exception $e) {
+        error_log('moderation.php warnings query failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'unavailable' => true, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        error_log('moderation.php warnings query failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'unavailable' => true, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
 
 $statusMessage = null;
 $statusType = 'is-info';
@@ -84,93 +205,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Filters
+// Filters (form chrome only — list rows load via ajax_action=list)
 $searchQuery = trim((string) ($_GET['q'] ?? ''));
 $filterUser = trim((string) ($_GET['user'] ?? ''));
-
-$warnings = [];
-$topWarned = [];
-$totalWarnings = 0;
-$uniqueWarned = 0;
-$warningsThisWeek = 0;
-$tableReady = true;
-
-try {
-    // Stats
-    $statsRes = $db->query("SELECT COUNT(*) AS total, COUNT(DISTINCT COALESCE(NULLIF(user_id, ''), user_name)) AS unique_users FROM warnings");
-    if ($statsRes) {
-        $statsRow = $statsRes->fetch_assoc();
-        $totalWarnings = (int) ($statsRow['total'] ?? 0);
-        $uniqueWarned = (int) ($statsRow['unique_users'] ?? 0);
-    }
-    $weekRes = $db->query("SELECT COUNT(*) AS week_count FROM warnings WHERE created_at >= (NOW() - INTERVAL 7 DAY)");
-    if ($weekRes) {
-        $weekRow = $weekRes->fetch_assoc();
-        $warningsThisWeek = (int) ($weekRow['week_count'] ?? 0);
-    }
-
-    // Top warned users (by count)
-    $topRes = $db->query(
-        "SELECT user_name, user_id, COUNT(*) AS warning_count, MAX(created_at) AS last_warned_at
-         FROM warnings
-         GROUP BY user_name, user_id
-         ORDER BY warning_count DESC, last_warned_at DESC
-         LIMIT 10"
-    );
-    if ($topRes) {
-        $topWarned = $topRes->fetch_all(MYSQLI_ASSOC);
-    }
-
-    // Warning log (optionally filtered)
-    if ($searchQuery !== '' || $filterUser !== '') {
-        $like = '%' . ($searchQuery !== '' ? $searchQuery : $filterUser) . '%';
-        $filterExact = $filterUser !== '' ? strtolower($filterUser) : null;
-        if ($filterExact !== null && $searchQuery === '') {
-            $stmtList = $db->prepare(
-                "SELECT id, user_id, user_name, warned_by_id, warned_by_name, reason, created_at
-                 FROM warnings
-                 WHERE LOWER(user_name) = ? OR user_id = ?
-                 ORDER BY created_at DESC
-                 LIMIT 500"
-            );
-            if ($stmtList) {
-                $stmtList->bind_param('ss', $filterExact, $filterExact);
-                $stmtList->execute();
-                $listRes = $stmtList->get_result();
-                $warnings = $listRes ? $listRes->fetch_all(MYSQLI_ASSOC) : [];
-                $stmtList->close();
-            }
-        } else {
-            $stmtList = $db->prepare(
-                "SELECT id, user_id, user_name, warned_by_id, warned_by_name, reason, created_at
-                 FROM warnings
-                 WHERE user_name LIKE ? OR warned_by_name LIKE ? OR reason LIKE ? OR user_id LIKE ?
-                 ORDER BY created_at DESC
-                 LIMIT 500"
-            );
-            if ($stmtList) {
-                $stmtList->bind_param('ssss', $like, $like, $like, $like);
-                $stmtList->execute();
-                $listRes = $stmtList->get_result();
-                $warnings = $listRes ? $listRes->fetch_all(MYSQLI_ASSOC) : [];
-                $stmtList->close();
-            }
-        }
-    } else {
-        $listRes = $db->query(
-            "SELECT id, user_id, user_name, warned_by_id, warned_by_name, reason, created_at
-             FROM warnings
-             ORDER BY created_at DESC
-             LIMIT 500"
-        );
-        if ($listRes) {
-            $warnings = $listRes->fetch_all(MYSQLI_ASSOC);
-        }
-    }
-} catch (Exception $e) {
-    $tableReady = false;
-    error_log('moderation.php warnings query failed: ' . $e->getMessage());
-}
 
 ob_start();
 ?>
@@ -190,19 +227,14 @@ ob_start();
     <p><?= t('moderation_page_subtitle') ?></p>
 </div>
 
-<div class="sp-stat-row mb-4">
-    <div class="sp-stat">
-        <div class="sp-stat-label"><?= t('moderation_stat_total') ?></div>
-        <div class="sp-stat-value"><?= (int) $totalWarnings ?></div>
+<div class="sp-stat-row mb-4" id="mod-stats" aria-busy="true">
+    <?php for ($sk = 0; $sk < 3; $sk++): ?>
+    <div class="sp-skeleton-stat" aria-hidden="true">
+        <span class="sp-skeleton-line w-55"></span>
+        <span class="sp-skeleton-line w-40"></span>
+        <span class="sp-skeleton-line w-40"></span>
     </div>
-    <div class="sp-stat">
-        <div class="sp-stat-label"><?= t('moderation_stat_unique') ?></div>
-        <div class="sp-stat-value"><?= (int) $uniqueWarned ?></div>
-    </div>
-    <div class="sp-stat">
-        <div class="sp-stat-label"><?= t('moderation_stat_week') ?></div>
-        <div class="sp-stat-value"><?= (int) $warningsThisWeek ?></div>
-    </div>
+    <?php endfor; ?>
 </div>
 
 <div class="sp-card mb-5">
@@ -246,13 +278,7 @@ ob_start();
                 </div>
             </form>
 
-            <?php if (!$tableReady): ?>
-                <p class="sp-text-muted"><?= t('moderation_table_unavailable') ?></p>
-            <?php elseif (empty($warnings)): ?>
-                <div style="text-align:center;padding:2.5rem 0;">
-                    <p class="sp-text-muted" style="font-size:1.05rem;"><?= t('moderation_no_warnings') ?></p>
-                </div>
-            <?php else: ?>
+            <div id="mod-log-host" aria-busy="true">
                 <div class="sp-table-wrap">
                     <table class="sp-table">
                         <thead>
@@ -264,48 +290,21 @@ ob_start();
                                 <th style="text-align:center;"><?= t('moderation_col_actions') ?></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php foreach ($warnings as $w): ?>
-                                <?php
-                                    $uid = (string) ($w['user_id'] ?? '');
-                                    $uname = (string) ($w['user_name'] ?? '');
-                                    $when = $w['created_at'] ?? '';
-                                    if ($when !== '' && $when !== '0000-00-00 00:00:00') {
-                                        $whenDisplay = date('Y-m-d H:i:s', strtotime($when));
-                                    } else {
-                                        $whenDisplay = t('moderation_unknown_date');
-                                    }
-                                ?>
-                                <tr>
-                                    <td>
-                                        <a href="moderation.php?user=<?= urlencode($uname) ?>" title="<?= htmlspecialchars(t('moderation_filter_user_title')) ?>">
-                                            <strong><?= htmlspecialchars($uname) ?></strong>
-                                        </a>
-                                        <?php if ($uid !== ''): ?>
-                                            <div class="sp-text-muted" style="font-size:0.8rem;">ID: <?= htmlspecialchars($uid) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="max-width:28rem; word-break:break-word;"><?= htmlspecialchars($w['reason'] ?? '') ?></td>
-                                    <td><?= htmlspecialchars($w['warned_by_name'] ?? '') ?></td>
-                                    <td><?= htmlspecialchars($whenDisplay) ?></td>
-                                    <td style="text-align:center; white-space:nowrap;">
-                                        <form method="post" action="moderation.php<?= $searchQuery !== '' ? '?q=' . urlencode($searchQuery) : ($filterUser !== '' ? '?user=' . urlencode($filterUser) : '') ?>" style="display:inline;" class="mod-delete-form" data-confirm="<?= htmlspecialchars(t('moderation_confirm_delete_one')) ?>">
-                                            <input type="hidden" name="action" value="delete_warning">
-                                            <input type="hidden" name="warning_id" value="<?= (int) $w['id'] ?>">
-                                            <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="<?= htmlspecialchars(t('moderation_delete_one')) ?>">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
+                        <tbody id="mod-log-body">
+                            <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                            <tr aria-hidden="true">
+                                <td><span class="sp-skeleton-line w-50"></span></td>
+                                <td><span class="sp-skeleton-line w-80"></span></td>
+                                <td><span class="sp-skeleton-line w-40"></span></td>
+                                <td><span class="sp-skeleton-line w-60"></span></td>
+                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                            </tr>
+                            <?php endfor; ?>
                         </tbody>
                     </table>
                 </div>
-                <?php if (count($warnings) >= 500): ?>
-                    <p class="sp-help mt-3"><?= t('moderation_limit_note') ?></p>
-                <?php endif; ?>
-            <?php endif; ?>
+                <p id="mod-limit-note" class="sp-help mt-3" style="display:none;"><?= t('moderation_limit_note') ?></p>
+            </div>
         </div>
     </div>
 
@@ -317,9 +316,7 @@ ob_start();
             </div>
         </header>
         <div class="sp-card-body">
-            <?php if (empty($topWarned)): ?>
-                <p class="sp-text-muted"><?= t('moderation_no_warnings') ?></p>
-            <?php else: ?>
+            <div id="mod-top-host" aria-busy="true">
                 <div class="sp-table-wrap">
                     <table class="sp-table">
                         <thead>
@@ -330,42 +327,19 @@ ob_start();
                                 <th style="text-align:center;"><?= t('moderation_col_actions') ?></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php foreach ($topWarned as $row): ?>
-                                <?php
-                                    $tu = (string) ($row['user_name'] ?? '');
-                                    $tid = (string) ($row['user_id'] ?? '');
-                                    $last = $row['last_warned_at'] ?? '';
-                                    $lastDisplay = ($last !== '' && $last !== '0000-00-00 00:00:00')
-                                        ? date('Y-m-d H:i:s', strtotime($last))
-                                        : t('moderation_unknown_date');
-                                ?>
-                                <tr>
-                                    <td>
-                                        <a href="moderation.php?user=<?= urlencode($tu) ?>">
-                                            <strong><?= htmlspecialchars($tu) ?></strong>
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <span class="sp-badge sp-badge-amber"><?= (int) $row['warning_count'] ?></span>
-                                    </td>
-                                    <td><?= htmlspecialchars($lastDisplay) ?></td>
-                                    <td style="text-align:center;">
-                                        <form method="post" action="moderation.php" style="display:inline;" class="mod-delete-form" data-confirm="<?= htmlspecialchars(t('moderation_confirm_clear_user', ['user' => $tu])) ?>">
-                                            <input type="hidden" name="action" value="clear_user_warnings">
-                                            <input type="hidden" name="user_id" value="<?= htmlspecialchars($tid) ?>">
-                                            <input type="hidden" name="user_name" value="<?= htmlspecialchars($tu) ?>">
-                                            <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="<?= htmlspecialchars(t('moderation_clear_user')) ?>">
-                                                <i class="fas fa-broom"></i>
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
+                        <tbody id="mod-top-body">
+                            <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                            <tr aria-hidden="true">
+                                <td><span class="sp-skeleton-line w-50"></span></td>
+                                <td><span class="sp-skeleton-badge"></span></td>
+                                <td><span class="sp-skeleton-line w-60"></span></td>
+                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                            </tr>
+                            <?php endfor; ?>
                         </tbody>
                     </table>
                 </div>
-            <?php endif; ?>
+            </div>
             <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
             <p class="sp-text-muted" style="font-size:0.9rem;margin:0;">
                 <?= t('moderation_related_links') ?>
@@ -382,15 +356,156 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.mod-delete-form').forEach(function (form) {
-        form.addEventListener('submit', function (e) {
-            var msg = form.getAttribute('data-confirm') || 'Are you sure?';
-            if (!window.confirm(msg)) {
-                e.preventDefault();
-            }
-        });
+var MOD_FILTER = {
+    q: <?= json_encode($searchQuery) ?>,
+    user: <?= json_encode($filterUser) ?>
+};
+var MOD_I18N = {
+    statTotal: <?= json_encode(t('moderation_stat_total')) ?>,
+    statUnique: <?= json_encode(t('moderation_stat_unique')) ?>,
+    statWeek: <?= json_encode(t('moderation_stat_week')) ?>,
+    noWarnings: <?= json_encode(t('moderation_no_warnings')) ?>,
+    tableUnavailable: <?= json_encode(t('moderation_table_unavailable')) ?>,
+    filterUserTitle: <?= json_encode(t('moderation_filter_user_title')) ?>,
+    deleteOne: <?= json_encode(t('moderation_delete_one')) ?>,
+    confirmDeleteOne: <?= json_encode(t('moderation_confirm_delete_one')) ?>,
+    clearUser: <?= json_encode(t('moderation_clear_user')) ?>,
+    confirmClearUser: <?= json_encode(t('moderation_confirm_clear_user')) ?>
+};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
     });
+}
+
+function filterActionQuery() {
+    if (MOD_FILTER.q) return '?q=' + encodeURIComponent(MOD_FILTER.q);
+    if (MOD_FILTER.user) return '?user=' + encodeURIComponent(MOD_FILTER.user);
+    return '';
+}
+
+function renderModStats(data) {
+    var host = document.getElementById('mod-stats');
+    if (!host) return;
+    host.setAttribute('aria-busy', 'false');
+    host.innerHTML =
+        '<div class="sp-stat"><div class="sp-stat-label">' + escapeHtml(MOD_I18N.statTotal) + '</div><div class="sp-stat-value">' + escapeHtml(data.total) + '</div></div>' +
+        '<div class="sp-stat"><div class="sp-stat-label">' + escapeHtml(MOD_I18N.statUnique) + '</div><div class="sp-stat-value">' + escapeHtml(data.unique) + '</div></div>' +
+        '<div class="sp-stat"><div class="sp-stat-label">' + escapeHtml(MOD_I18N.statWeek) + '</div><div class="sp-stat-value">' + escapeHtml(data.week) + '</div></div>';
+}
+
+function renderModLog(warnings) {
+    var host = document.getElementById('mod-log-host');
+    var tbody = document.getElementById('mod-log-body');
+    var limitNote = document.getElementById('mod-limit-note');
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (limitNote) limitNote.style.display = warnings.length >= 500 ? '' : 'none';
+    if (!tbody) return;
+    if (!warnings.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2.5rem 0;"><p class="sp-text-muted" style="font-size:1.05rem;">' + escapeHtml(MOD_I18N.noWarnings) + '</p></td></tr>';
+        return;
+    }
+    var actionQs = filterActionQuery();
+    tbody.innerHTML = warnings.map(function(w) {
+        var uid = String(w.user_id || '');
+        var uname = String(w.user_name || '');
+        var idHtml = uid !== '' ? '<div class="sp-text-muted" style="font-size:0.8rem;">ID: ' + escapeHtml(uid) + '</div>' : '';
+        return '<tr>' +
+            '<td><a href="moderation.php?user=' + encodeURIComponent(uname) + '" title="' + escapeHtml(MOD_I18N.filterUserTitle) + '"><strong>' + escapeHtml(uname) + '</strong></a>' + idHtml + '</td>' +
+            '<td style="max-width:28rem; word-break:break-word;">' + escapeHtml(w.reason || '') + '</td>' +
+            '<td>' + escapeHtml(w.warned_by_name || '') + '</td>' +
+            '<td>' + escapeHtml(w.when_display || '') + '</td>' +
+            '<td style="text-align:center; white-space:nowrap;">' +
+                '<form method="post" action="moderation.php' + actionQs + '" style="display:inline;" class="mod-delete-form" data-confirm="' + escapeHtml(MOD_I18N.confirmDeleteOne) + '">' +
+                    '<input type="hidden" name="action" value="delete_warning">' +
+                    '<input type="hidden" name="warning_id" value="' + escapeHtml(w.id) + '">' +
+                    '<button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="' + escapeHtml(MOD_I18N.deleteOne) + '"><i class="fas fa-trash"></i></button>' +
+                '</form>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function renderModTop(topWarned) {
+    var host = document.getElementById('mod-top-host');
+    var tbody = document.getElementById('mod-top-body');
+    if (host) host.setAttribute('aria-busy', 'false');
+    if (!tbody) return;
+    if (!topWarned.length) {
+        tbody.innerHTML = '<tr><td colspan="4"><p class="sp-text-muted">' + escapeHtml(MOD_I18N.noWarnings) + '</p></td></tr>';
+        return;
+    }
+    tbody.innerHTML = topWarned.map(function(row) {
+        var tu = String(row.user_name || '');
+        var tid = String(row.user_id || '');
+        var confirmMsg = String(MOD_I18N.confirmClearUser).replace(':user', tu);
+        return '<tr>' +
+            '<td><a href="moderation.php?user=' + encodeURIComponent(tu) + '"><strong>' + escapeHtml(tu) + '</strong></a></td>' +
+            '<td><span class="sp-badge sp-badge-amber">' + escapeHtml(row.warning_count) + '</span></td>' +
+            '<td>' + escapeHtml(row.last_display || '') + '</td>' +
+            '<td style="text-align:center;">' +
+                '<form method="post" action="moderation.php" style="display:inline;" class="mod-delete-form" data-confirm="' + escapeHtml(confirmMsg) + '">' +
+                    '<input type="hidden" name="action" value="clear_user_warnings">' +
+                    '<input type="hidden" name="user_id" value="' + escapeHtml(tid) + '">' +
+                    '<input type="hidden" name="user_name" value="' + escapeHtml(tu) + '">' +
+                    '<button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="' + escapeHtml(MOD_I18N.clearUser) + '"><i class="fas fa-broom"></i></button>' +
+                '</form>' +
+            '</td></tr>';
+    }).join('');
+}
+
+function renderModUnavailable() {
+    var stats = document.getElementById('mod-stats');
+    var logHost = document.getElementById('mod-log-host');
+    var topHost = document.getElementById('mod-top-host');
+    var limitNote = document.getElementById('mod-limit-note');
+    if (stats) {
+        stats.setAttribute('aria-busy', 'false');
+        stats.innerHTML =
+            '<div class="sp-stat"><div class="sp-stat-label">' + escapeHtml(MOD_I18N.statTotal) + '</div><div class="sp-stat-value">—</div></div>' +
+            '<div class="sp-stat"><div class="sp-stat-label">' + escapeHtml(MOD_I18N.statUnique) + '</div><div class="sp-stat-value">—</div></div>' +
+            '<div class="sp-stat"><div class="sp-stat-label">' + escapeHtml(MOD_I18N.statWeek) + '</div><div class="sp-stat-value">—</div></div>';
+    }
+    if (limitNote) limitNote.style.display = 'none';
+    if (logHost) {
+        logHost.setAttribute('aria-busy', 'false');
+        logHost.innerHTML = '<p class="sp-text-muted">' + escapeHtml(MOD_I18N.tableUnavailable) + '</p>';
+    }
+    if (topHost) {
+        topHost.setAttribute('aria-busy', 'false');
+        topHost.innerHTML = '<p class="sp-text-muted">' + escapeHtml(MOD_I18N.tableUnavailable) + '</p>';
+    }
+}
+
+function loadModeration() {
+    var url = new URL(window.location.href);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                renderModUnavailable();
+                return;
+            }
+            renderModStats(data);
+            renderModLog(Array.isArray(data.warnings) ? data.warnings : []);
+            renderModTop(Array.isArray(data.top) ? data.top : []);
+        })
+        .catch(function() {
+            renderModUnavailable();
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('submit', function (e) {
+        var form = e.target.closest ? e.target.closest('.mod-delete-form') : null;
+        if (!form) return;
+        var msg = form.getAttribute('data-confirm') || 'Are you sure?';
+        if (!window.confirm(msg)) {
+            e.preventDefault();
+        }
+    });
+    loadModeration();
 });
 </script>
 <?php

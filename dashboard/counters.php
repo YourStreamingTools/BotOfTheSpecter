@@ -22,14 +22,193 @@ $pageTitle = t('navbar_counters');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-require_once '/var/www/config/database.php';
-include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include 'includes/bot_control.php';
 include "includes/mod_access.php";
-include 'includes/user_db.php';
-include 'includes/storage_used.php';
+include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
+
+function counters_query_all(mysqli $db, string $sql): array
+{
+    $rows = [];
+    if ($result = $db->query($sql)) {
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+        $result->free();
+    }
+    return $rows;
+}
+
+function counters_format_lurk_duration(DateTime $startTime): array
+{
+    $interval = (new DateTime())->diff($startTime);
+    $totalDuration = ($interval->y * 365 * 24 * 3600)
+        + ($interval->m * 30 * 24 * 3600)
+        + ($interval->d * 24 * 3600)
+        + ($interval->h * 3600)
+        + ($interval->i * 60)
+        + $interval->s;
+    $timeStringParts = [];
+    if ($interval->y > 0) {
+        $timeStringParts[] = "{$interval->y} " . t('time_years');
+    }
+    if ($interval->m > 0) {
+        $timeStringParts[] = "{$interval->m} " . t('time_months');
+    }
+    if ($interval->d > 0) {
+        $timeStringParts[] = "{$interval->d} " . t('time_days');
+    }
+    if ($interval->h > 0) {
+        $timeStringParts[] = "{$interval->h} " . t('time_hours');
+    }
+    if ($interval->i > 0) {
+        $timeStringParts[] = "{$interval->i} " . t('time_minutes');
+    }
+    if ($interval->s > 0 || empty($timeStringParts)) {
+        $timeStringParts[] = "{$interval->s} " . t('time_seconds');
+    }
+    return [
+        'total_duration' => $totalDuration,
+        'lurk_duration' => implode(', ', $timeStringParts),
+    ];
+}
+
+function counters_helix_usernames(array $userIds, string $authToken): array
+{
+    $names = [];
+    $userIds = array_values(array_unique(array_filter($userIds, static function ($id) {
+        return $id !== null && $id !== '';
+    })));
+    if ($userIds === [] || $authToken === '') {
+        return $names;
+    }
+    $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+    foreach (array_chunk($userIds, 100) as $chunk) {
+        $url = 'https://api.twitch.tv/helix/users?id=' . implode('&id=', $chunk);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Client-ID: $clientID",
+            "Authorization: Bearer $authToken",
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        if ($response === false) {
+            continue;
+        }
+        $userData = json_decode($response, true);
+        if (!isset($userData['data']) || !is_array($userData['data'])) {
+            continue;
+        }
+        foreach ($userData['data'] as $helixUser) {
+            if (!isset($helixUser['id'])) {
+                continue;
+            }
+            $names[$helixUser['id']] = $helixUser['display_name'] ?? ($helixUser['login'] ?? '');
+        }
+    }
+    return $names;
+}
+
+function counters_decode_many_options(string $raw): array
+{
+    $items = [];
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return $items;
+    }
+    foreach ($decoded as $item) {
+        if (!is_scalar($item)) {
+            continue;
+        }
+        $value = trim((string) $item);
+        if ($value !== '') {
+            $items[] = $value;
+        }
+    }
+    return $items;
+}
+
+function counters_build_list_payload(mysqli $db, string $authToken): array
+{
+    $stmt = $db->prepare("SELECT timezone FROM profile");
+    $stmt->execute();
+    $channelData = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    date_default_timezone_set($channelData['timezone'] ?? 'UTC');
+
+    $lurkers = counters_query_all($db, "SELECT user_id, start_time FROM lurk_times");
+    foreach ($lurkers as $key => $lurker) {
+        try {
+            $formatted = counters_format_lurk_duration(new DateTime($lurker['start_time']));
+            $lurkers[$key]['total_duration'] = $formatted['total_duration'];
+            $lurkers[$key]['lurk_duration'] = $formatted['lurk_duration'];
+        } catch (Exception $e) {
+            $lurkers[$key]['total_duration'] = 0;
+            $lurkers[$key]['lurk_duration'] = t('counters_unknown_user');
+        }
+    }
+    usort($lurkers, static function ($a, $b) {
+        return ($b['total_duration'] ?? 0) - ($a['total_duration'] ?? 0);
+    });
+    $helixNames = counters_helix_usernames(array_column($lurkers, 'user_id'), $authToken);
+    foreach ($lurkers as $key => $lurker) {
+        $lurkers[$key]['username'] = $helixNames[$lurker['user_id']] ?? t('counters_unknown_user');
+    }
+
+    $totalDeaths = 0;
+    $stmt = $db->prepare("SELECT death_count FROM total_deaths LIMIT 1");
+    $stmt->execute();
+    $deathRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($deathRow) {
+        $totalDeaths = (int) $deathRow['death_count'];
+    }
+
+    $manyOptions = [];
+    foreach (counters_query_all($db, "SELECT command, many_options_enabled, options FROM custom_command_random_pick_options WHERE many_options_enabled = 1 ORDER BY command ASC") as $row) {
+        $items = counters_decode_many_options($row['options'] ?? '[]');
+        $manyOptions[] = [
+            'command' => $row['command'],
+            'items' => $items,
+            'items_count' => count($items),
+        ];
+    }
+
+    return [
+        'success' => true,
+        'lurkers' => $lurkers,
+        'typos' => counters_query_all($db, "SELECT username, typo_count FROM user_typos ORDER BY typo_count DESC"),
+        'deaths' => counters_query_all($db, "SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC"),
+        'hugs' => counters_query_all($db, "SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC"),
+        'kisses' => counters_query_all($db, "SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC"),
+        'highfives' => counters_query_all($db, "SELECT username, highfive_count FROM highfive_counts ORDER BY highfive_count DESC"),
+        'customCounts' => counters_query_all($db, "SELECT command, count FROM custom_counts ORDER BY count DESC"),
+        'userCounts' => counters_query_all($db, "SELECT command, user, count FROM user_counts"),
+        'rewardCounts' => counters_query_all($db, "SELECT rc.reward_id, rc.user, rc.count, cpr.reward_title FROM reward_counts rc LEFT JOIN channel_point_rewards cpr ON rc.reward_id = cpr.reward_id"),
+        'rewardStreaks' => counters_query_all($db, "SELECT rs.reward_id, rs.current_user, rs.streak, cpr.reward_title FROM reward_streaks rs LEFT JOIN channel_point_rewards cpr ON rs.reward_id COLLATE utf8mb4_unicode_ci = cpr.reward_id COLLATE utf8mb4_unicode_ci"),
+        'rewardUsage' => counters_query_all($db, "SELECT reward_title, usage_count FROM channel_point_rewards WHERE usage_count > 0"),
+        'watchTime' => counters_query_all($db, "SELECT * FROM watch_time"),
+        'quotes' => counters_query_all($db, "SELECT id, quote, added FROM quotes ORDER BY added DESC"),
+        'manyOptions' => $manyOptions,
+        'totalDeaths' => $totalDeaths,
+    ];
+}
+
+// List endpoint first so the browser can paint skeletons, then fetch rows.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    try {
+        echo json_encode(counters_build_list_payload($db, (string) ($authToken ?? '')));
+    } catch (mysqli_sql_exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -41,248 +220,30 @@ date_default_timezone_set($timezone);
 // Check for cookie consent
 $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent'] === 'accepted';
 
-// Fetch usernames from the user_typos table
-$usernames = [];
-if ($result = $db->query("SELECT username FROM user_typos")) {
-    while ($row = $result->fetch_assoc()) {
-        $usernames[] = $row['username'];
-    }
-    $result->free();
+// Get the default data type to display - either from cookie or default to 'lurkers'
+$defaultDataType = 'lurkers';
+if ($cookieConsent && isset($_COOKIE['preferred_data_type'])) {
+    $defaultDataType = $_COOKIE['preferred_data_type'];
 }
 
-// Fetch commands from the custom_counts table
-$commands = [];
-if ($result = $db->query("SELECT command FROM custom_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $commands[] = $row['command'];
-    }
-    $result->free();
+// Get the default mode - either from cookie or default to 'view'
+$defaultMode = 'view';
+if ($cookieConsent && isset($_COOKIE['preferred_mode'])) {
+    $defaultMode = $_COOKIE['preferred_mode'];
 }
 
-// Fetch games from the deaths table
-$games = [];
-if ($result = $db->query("SELECT game_name FROM game_deaths")) {
-    while ($row = $result->fetch_assoc()) {
-        $games[] = $row['game_name'];
-    }
-    $result->free();
+// Get the default edit tab - either from cookie or default to 'typos'
+$defaultEditTab = 'typos';
+if ($cookieConsent && isset($_COOKIE['preferred_edit_tab'])) {
+    $defaultEditTab = $_COOKIE['preferred_edit_tab'];
 }
-
-// Fetch total deaths
-$totalDeaths = 0;
-$stmt = $db->prepare("SELECT death_count FROM total_deaths LIMIT 1");
-$stmt->execute();
-$result = $stmt->get_result();
-if ($row = $result->fetch_assoc()) {
-    $totalDeaths = $row['death_count'];
-}
-$stmt->close();
-
-// Fetch hugs, kisses, highfives users
-$hugUsers = [];
-if ($result = $db->query("SELECT username FROM hug_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $hugUsers[] = $row['username'];
-    }
-    $result->free();
-}
-
-$kissUsers = [];
-if ($result = $db->query("SELECT username FROM kiss_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $kissUsers[] = $row['username'];
-    }
-    $result->free();
-}
-
-$highfiveUsers = [];
-if ($result = $db->query("SELECT username FROM highfive_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $highfiveUsers[] = $row['username'];
-    }
-    $result->free();
-}
-
-// Fetch user counts
-$userCountCommands = [];
-$userCountUsersByCommand = [];
-$userCountArr = [];
-if ($result = $db->query("SELECT command, user, count FROM user_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $cmd = $row['command'];
-        $user = $row['user'];
-        $count = $row['count'];
-        if (!in_array($cmd, $userCountCommands)) {
-            $userCountCommands[] = $cmd;
-        }
-        if (!isset($userCountUsersByCommand[$cmd])) {
-            $userCountUsersByCommand[$cmd] = [];
-        }
-        $userCountUsersByCommand[$cmd][] = $user;
-        $userCountArr[] = ['command' => $cmd, 'user' => $user, 'count' => $count];
-    }
-    $result->free();
-}
-
-// Fetch reward counts and reward titles
-$rewardCountsData = [];
-$rewardIds = [];
-$rewardUsersById = [];
-$rewardTitles = [];
-if ($result = $db->query("SELECT rc.reward_id, rc.user, rc.count, cpr.reward_title FROM reward_counts rc LEFT JOIN channel_point_rewards cpr ON rc.reward_id = cpr.reward_id")) {
-    while ($row = $result->fetch_assoc()) {
-        $rid = $row['reward_id'];
-        $user = $row['user'];
-        $count = $row['count'];
-        $title = $row['reward_title'] ?? $rid;
-        $rewardCountsData[] = ['reward_id' => $rid, 'user' => $user, 'count' => $count, 'reward_title' => $title];
-        if (!in_array($rid, $rewardIds)) {
-            $rewardIds[] = $rid;
-        }
-        if (!isset($rewardUsersById[$rid])) {
-            $rewardUsersById[$rid] = [];
-        }
-        $rewardUsersById[$rid][] = $user;
-        $rewardTitles[$rid] = $title;
-    }
-    $result->free();
-}
-
-// Fetch reward streaks data
-$rewardStreaksData = [];
-$rewardStreaksIds = [];
-if ($result = $db->query("SELECT rs.reward_id, rs.current_user, rs.streak, cpr.reward_title FROM reward_streaks rs LEFT JOIN channel_point_rewards cpr ON rs.reward_id COLLATE utf8mb4_unicode_ci = cpr.reward_id COLLATE utf8mb4_unicode_ci")) {
-    while ($row = $result->fetch_assoc()) {
-        $rewardStreaksData[] = $row;
-        if (!in_array($row['reward_id'], $rewardStreaksIds)) {
-            $rewardStreaksIds[] = $row['reward_id'];
-        }
-        if (!isset($rewardTitles[$row['reward_id']])) {
-            $rewardTitles[$row['reward_id']] = $row['reward_title'] ?? $row['reward_id'];
-        }
-    }
-    $result->free();
-}
-
-// Fetch reward usage data
-$rewardUsageData = [];
-$rewardUsageTitles = [];
-if ($result = $db->query("SELECT reward_title, usage_count FROM channel_point_rewards WHERE usage_count > 0")) {
-    while ($row = $result->fetch_assoc()) {
-        $rewardUsageData[] = $row;
-        $rewardUsageTitles[] = $row['reward_title'];
-    }
-    $result->free();
-}
-
-// Fetch initial data for all counters
-$typoData = [];
-$commandData = [];
-$deathData = [];
-$hugData = [];
-$kissData = [];
-$highfiveData = [];
-
-if ($result = $db->query("SELECT username, typo_count FROM user_typos")) {
-    while ($row = $result->fetch_assoc()) {
-        $typoData[] = $row;
-    }
-    $result->free();
-}
-
-if ($result = $db->query("SELECT command, count FROM custom_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $commandData[] = $row;
-    }
-    $result->free();
-}
-
-if ($result = $db->query("SELECT game_name, death_count FROM game_deaths")) {
-    while ($row = $result->fetch_assoc()) {
-        $deathData[] = $row;
-    }
-    $result->free();
-}
-
-if ($result = $db->query("SELECT username, hug_count FROM hug_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $hugData[] = $row;
-    }
-    $result->free();
-}
-
-if ($result = $db->query("SELECT username, kiss_count FROM kiss_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $kissData[] = $row;
-    }
-    $result->free();
-}
-
-if ($result = $db->query("SELECT username, highfive_count FROM highfive_counts")) {
-    while ($row = $result->fetch_assoc()) {
-        $highfiveData[] = $row;
-    }
-    $result->free();
-}
-
-// Fetch quotes from the quotes table
-$quotesData = [];
-if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DESC")) {
-    while ($row = $result->fetch_assoc()) {
-        $quotesData[] = $row;
-    }
-    $result->free();
-}
-
-  // Fetch many-options lists for custom command random pick mode
-  $manyOptionsData = [];
-  if ($result = $db->query("SELECT command, many_options_enabled, options FROM custom_command_random_pick_options WHERE many_options_enabled = 1 ORDER BY command ASC")) {
-    while ($row = $result->fetch_assoc()) {
-      $items = [];
-      $decoded = json_decode($row['options'] ?? '[]', true);
-      if (is_array($decoded)) {
-        foreach ($decoded as $item) {
-          if (!is_scalar($item)) {
-            continue;
-          }
-          $value = trim((string)$item);
-          if ($value !== '') {
-            $items[] = $value;
-          }
-        }
-      }
-      $manyOptionsData[] = [
-        'command' => $row['command'],
-        'items' => $items,
-        'items_count' => count($items),
-      ];
-    }
-    $result->free();
-  }
-
-// Prepare JS objects for reward counts and titles
-$rewardCountsJs = [];
-foreach ($rewardCountsData as $row) {
-    $key = $row['reward_id'] . '|' . $row['user'];
-    $rewardCountsJs[$key] = $row['count'];
-}
-$rewardTitlesJs = $rewardTitles;
-
-// Prepare JS objects for reward streaks
-$rewardStreaksJs = [];
-foreach ($rewardStreaksData as $row) {
-    $rewardStreaksJs[$row['reward_id']] = ['user' => $row['current_user'], 'streak' => $row['streak']];
-}
-
-// Prepare JS objects for reward usage
-$rewardUsageJs = array_column($rewardUsageData, 'usage_count', 'reward_title');
 
 // Handling form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     session_start(); // Reopen session for POST writes (flash messages)
     $action = $_POST['action'] ?? '';
     switch ($action) {
-        case 'update': 
+        case 'update':
             $formUsername = $_POST['typo-username'] ?? '';
             $typoCount = $_POST['typo_count'] ?? '';
             $formCommand = $_POST['command'] ?? '';
@@ -298,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $formUserCountCommand = $_POST['usercount-command'] ?? '';
             $formUserCountUser = $_POST['usercount-user'] ?? '';
             $userCountValue = $_POST['usercount_count'] ?? '';
-            
+
             // Update typo count
             if ($formUsername && is_numeric($typoCount)) {
                 $stmt = $db->prepare("UPDATE user_typos SET typo_count = ? WHERE username = ?");
@@ -330,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             // Update death count
             if ($formGame && is_numeric($deathCount)) {
                 $oldDeathCount = 0;
@@ -361,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                 }
             }
-            
+
             // Update hug, kiss, highfive counts
             if ($formHugUser && is_numeric($hugCount)) {
                 $stmt = $db->prepare("UPDATE hug_counts SET hug_count = ? WHERE username = ?");
@@ -374,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($formKissUser && is_numeric($kissCount)) {
                 $stmt = $db->prepare("UPDATE kiss_counts SET kiss_count = ? WHERE username = ?");
                 if ($stmt) {
@@ -386,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($formHighfiveUser && is_numeric($highfiveCount)) {
                 $stmt = $db->prepare("UPDATE highfive_counts SET highfive_count = ? WHERE username = ?");
                 if ($stmt) {
@@ -398,7 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             // Update user counts
             if ($formUserCountCommand && $formUserCountUser && is_numeric($userCountValue)) {
                 $stmt = $db->prepare("UPDATE user_counts SET count = ? WHERE command = ? AND user = ?");
@@ -411,11 +372,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             header('Location: counters.php');
             exit();
             break;
-            
+
         case 'remove':
             $typoUsernameRemove = $_POST['typo-username-remove'] ?? '';
             $commandRemove = $_POST['command-remove'] ?? '';
@@ -425,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $highfiveUsernameRemove = $_POST['highfive-username-remove'] ?? '';
             $usercountCommandRemove = $_POST['usercount-command-remove'] ?? '';
             $usercountUserRemove = $_POST['usercount-user-remove'] ?? '';
-            
+
             if ($typoUsernameRemove) {
                 $stmt = $db->prepare("DELETE FROM user_typos WHERE username = ?");
                 if ($stmt) {
@@ -437,7 +398,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($commandRemove) {
                 $stmt = $db->prepare("DELETE FROM custom_counts WHERE command = ?");
                 if ($stmt) {
@@ -449,7 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($deathGameRemove) {
                 $oldDeathCount = 0;
                 $stmt = $db->prepare("SELECT death_count FROM game_deaths WHERE game_name = ?");
@@ -477,7 +438,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($hugUsernameRemove) {
                 $stmt = $db->prepare("DELETE FROM hug_counts WHERE username = ?");
                 if ($stmt) {
@@ -489,7 +450,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($kissUsernameRemove) {
                 $stmt = $db->prepare("DELETE FROM kiss_counts WHERE username = ?");
                 if ($stmt) {
@@ -501,7 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($highfiveUsernameRemove) {
                 $stmt = $db->prepare("DELETE FROM highfive_counts WHERE username = ?");
                 if ($stmt) {
@@ -513,7 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             if ($usercountCommandRemove && $usercountUserRemove) {
                 $stmt = $db->prepare("DELETE FROM user_counts WHERE command = ? AND user = ?");
                 if ($stmt) {
@@ -525,11 +486,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->close();
                 }
             }
-            
+
             header('Location: counters.php');
             exit();
             break;
-            
+
         case 'add_death':
             $deathGameAdd = $_POST['death-game-add'] ?? '';
             $deathCountAdd = $_POST['death_count_add'] ?? 0;
@@ -624,104 +585,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-try {
-  // Calculate lurk durations for each user
-  foreach ($lurkers as $key => $lurker) {
-    $startTime = new DateTime($lurker['start_time']);
-    $currentTime = new DateTime();
-    $interval = $currentTime->diff($startTime);
-    // Calculate total duration in seconds for sorting
-    $totalDuration = ($interval->y * 365 * 24 * 3600) + 
-                    ($interval->m * 30 * 24 * 3600) + 
-                    ($interval->d * 24 * 3600) + 
-                    ($interval->h * 3600) + 
-                    ($interval->i * 60) +
-                    $interval->s;
-    $lurkers[$key]['total_duration'] = $totalDuration;
-    $timeStringParts = [];
-    if ($interval->y > 0) {
-      $timeStringParts[] = "{$interval->y} " . t('time_years');
-    }
-    if ($interval->m > 0) {
-      $timeStringParts[] = "{$interval->m} " . t('time_months');
-    }
-    if ($interval->d > 0) {
-      $timeStringParts[] = "{$interval->d} " . t('time_days');
-    }
-    if ($interval->h > 0) {
-      $timeStringParts[] = "{$interval->h} " . t('time_hours');
-    }
-    if ($interval->i > 0) {
-      $timeStringParts[] = "{$interval->i} " . t('time_minutes');
-    }
-    if ($interval->s > 0 || empty($timeStringParts)) {
-      $timeStringParts[] = "{$interval->s} " . t('time_seconds');
-    }
-    $lurkers[$key]['lurk_duration'] = implode(', ', $timeStringParts);
-  }
-  // Sort the lurkers array by total_duration (longest to shortest)
-  usort($lurkers, function ($a, $b) {
-    return $b['total_duration'] - $a['total_duration'];
-  });
-} catch (Exception $e) {
-  echo 'Error: ' . $e->getMessage();
-}
-
-// Prepare the Twitch API request for user data
-$userIds = array_column($lurkers, 'user_id');
-$userIdParams = implode('&id=', $userIds);
-$twitchApiUrl = "https://api.twitch.tv/helix/users?id=" . $userIdParams;
-$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
-$headers = [
-  "Client-ID: $clientID",
-  "Authorization: Bearer $authToken",
-];
-
-// Execute the Twitch API request
-$ch = curl_init($twitchApiUrl);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-$response = curl_exec($ch);
-// Decode the JSON response
-$userData = json_decode($response, true);
-
-// Check if data exists and is not null
-if (isset($userData['data']) && is_array($userData['data'])) {
-  // Map user IDs to usernames
-  $usernames = [];
-  foreach ($userData['data'] as $user) {
-    $usernames[$user['id']] = $user['display_name'];
-  }
-  // Map the Twitch usernames to the lurkers based on their user_id
-  foreach ($lurkers as $key => $lurker) {
-    if (isset($usernames[$lurker['user_id']])) {
-      $lurkers[$key]['username'] = $usernames[$lurker['user_id']];
-    } else {
-      $lurkers[$key]['username'] = t('counters_unknown_user'); // Fallback if username not found
-    }
-  }
-} else {
-  $usernames = [];
-}
-
-// Get the default data type to display - either from cookie or default to 'lurkers'
-$defaultDataType = 'lurkers';
-if ($cookieConsent && isset($_COOKIE['preferred_data_type'])) {
-  $defaultDataType = $_COOKIE['preferred_data_type'];
-}
-
-// Get the default mode - either from cookie or default to 'view'
-$defaultMode = 'view';
-if ($cookieConsent && isset($_COOKIE['preferred_mode'])) {
-  $defaultMode = $_COOKIE['preferred_mode'];
-}
-
-// Get the default edit tab - either from cookie or default to 'typos'
-$defaultEditTab = 'typos';
-if ($cookieConsent && isset($_COOKIE['preferred_edit_tab'])) {
-  $defaultEditTab = $_COOKIE['preferred_edit_tab'];
-}
-
 // Start output buffering for main content
 ob_start();
 ?>
@@ -769,17 +632,23 @@ ob_start();
         <button class="sp-btn sp-btn-info" data-type="manyOptions" onclick="loadData('manyOptions')"><?php echo t('counters_random_pick_lists'); ?></button>
       </div>
       <div class="sp-table-wrap">
-        <h3 id="table-title" style="font-size:1.1rem; font-weight:700; text-align:center; margin-bottom:0.75rem; color:var(--text-primary);"></h3>
+        <h3 id="table-title" style="font-size:1.1rem; font-weight:700; text-align:center; margin-bottom:0.75rem; color:var(--text-primary);"><span class="sp-skeleton-line w-40"></span></h3>
         <table class="sp-table" style="table-layout: fixed; width: 100%;">
           <thead>
             <tr>
-              <th id="info-column-data" style="width: 33%;"></th>
-              <th id="data-column-info" style="width: 33%;"></th>
+              <th id="info-column-data" style="width: 33%;"><span class="sp-skeleton-line w-50"></span></th>
+              <th id="data-column-info" style="width: 33%;"><span class="sp-skeleton-line w-50"></span></th>
               <th id="count-column" style="width: 33%; display: none;"></th>
             </tr>
           </thead>
-          <tbody id="table-body">
-            <!-- Content will be dynamically injected here -->
+          <tbody id="table-body" aria-busy="true">
+            <?php for ($sk = 0; $sk < 5; $sk++): ?>
+            <tr aria-hidden="true">
+              <td><span class="sp-skeleton-line w-70"></span></td>
+              <td><span class="sp-skeleton-line w-50"></span></td>
+              <td style="display:none;"><span class="sp-skeleton-line w-40"></span></td>
+            </tr>
+            <?php endfor; ?>
           </tbody>
         </table>
       </div>
@@ -803,13 +672,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_typos'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="typo-username" name="typo-username" required onchange="updateCurrentCount('typo', this.value); enableButton('typo-username','typo-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="typo-username" name="typo-username" required onchange="updateCurrentCount('typo', this.value); enableButton('typo-username','typo-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($usernames as $name): ?>
-                    <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -823,13 +690,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_typo'); ?></h4>
             <form action="" method="post" id="typo-remove-form" data-type="typo">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="typo-username-remove" name="typo-username-remove" required onchange="enableButton('typo-username-remove','typo-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="typo-username-remove" name="typo-username-remove" required onchange="enableButton('typo-username-remove','typo-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($usernames as $name): ?>
-                    <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="typo-remove-btn" disabled><?php echo t('edit_counters_remove_typo_btn'); ?></button>
@@ -844,13 +709,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_custom_counter'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
-                <select class="sp-select" id="command" name="command" required onchange="updateCurrentCount('command', this.value); enableButton('command','command-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="command" name="command" required onchange="updateCurrentCount('command', this.value); enableButton('command','command-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                  <?php foreach ($commands as $cmd): ?>
-                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -864,13 +727,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_custom_counter'); ?></h4>
             <form action="" method="post" id="command-remove-form">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
-                <select class="sp-select" id="command-remove" name="command-remove" required onchange="enableButton('command-remove','command-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="command-remove" name="command-remove" required onchange="enableButton('command-remove','command-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                  <?php foreach ($commands as $cmd): ?>
-                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="command-remove-btn" disabled><?php echo t('edit_counters_remove_command_btn'); ?></button>
@@ -882,20 +743,18 @@ ob_start();
       <div id="edit-tab-deaths" class="edit-tab-content" style="display:none;">
         <div class="sp-alert sp-alert-info" style="text-align:center; margin-bottom:1rem;">
           <strong><?php echo t('edit_counters_total_deaths'); ?>:</strong>
-          <span id="edit-total-deaths" style="font-weight:700; color:var(--red);"><?php echo (int)$totalDeaths; ?></span>
+          <span id="edit-total-deaths" aria-busy="true" style="font-weight:700; color:var(--red);"><span class="sp-skeleton-line w-40"></span></span>
         </div>
         <div class="sp-two-col">
           <div class="sp-card"><div class="sp-card-body">
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_game_deaths'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_game_label'); ?></label>
-                <select class="sp-select" id="death-game" name="death-game" required onchange="updateCurrentCount('death', this.value); enableButton('death-game','death-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="death-game" name="death-game" required onchange="updateCurrentCount('death', this.value); enableButton('death-game','death-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_game'); ?></option>
-                  <?php foreach ($games as $game): ?>
-                    <option value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -909,13 +768,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_game_death_counter'); ?></h4>
             <form action="" method="post" id="death-remove-form">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_game_label'); ?></label>
-                <select class="sp-select" id="death-game-remove" name="death-game-remove" required onchange="enableButton('death-game-remove','death-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="death-game-remove" name="death-game-remove" required onchange="enableButton('death-game-remove','death-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_game'); ?></option>
-                  <?php foreach ($games as $game): ?>
-                    <option value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="death-remove-btn" disabled><?php echo t('edit_counters_remove_game_death_btn'); ?></button>
@@ -930,13 +787,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_hugs'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="hug-username" name="hug-username" required onchange="updateCurrentCount('hug', this.value); enableButton('hug-username','hug-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="hug-username" name="hug-username" required onchange="updateCurrentCount('hug', this.value); enableButton('hug-username','hug-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($hugUsers as $user): ?>
-                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -950,13 +805,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_hug'); ?></h4>
             <form action="" method="post" id="hug-remove-form">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="hug-username-remove" name="hug-username-remove" required onchange="enableButton('hug-username-remove','hug-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="hug-username-remove" name="hug-username-remove" required onchange="enableButton('hug-username-remove','hug-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($hugUsers as $user): ?>
-                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="hug-remove-btn" disabled><?php echo t('edit_counters_remove_hug_btn'); ?></button>
@@ -971,13 +824,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_kisses'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="kiss-username" name="kiss-username" required onchange="updateCurrentCount('kiss', this.value); enableButton('kiss-username','kiss-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="kiss-username" name="kiss-username" required onchange="updateCurrentCount('kiss', this.value); enableButton('kiss-username','kiss-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($kissUsers as $user): ?>
-                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -991,13 +842,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_kiss'); ?></h4>
             <form action="" method="post" id="kiss-remove-form">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="kiss-username-remove" name="kiss-username-remove" required onchange="enableButton('kiss-username-remove','kiss-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="kiss-username-remove" name="kiss-username-remove" required onchange="enableButton('kiss-username-remove','kiss-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($kissUsers as $user): ?>
-                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="kiss-remove-btn" disabled><?php echo t('edit_counters_remove_kiss_btn'); ?></button>
@@ -1012,13 +861,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_highfives'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="highfive-username" name="highfive-username" required onchange="updateCurrentCount('highfive', this.value); enableButton('highfive-username','highfive-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="highfive-username" name="highfive-username" required onchange="updateCurrentCount('highfive', this.value); enableButton('highfive-username','highfive-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($highfiveUsers as $user): ?>
-                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -1032,13 +879,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_highfive'); ?></h4>
             <form action="" method="post" id="highfive-remove-form">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="highfive-username-remove" name="highfive-username-remove" required onchange="enableButton('highfive-username-remove','highfive-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="highfive-username-remove" name="highfive-username-remove" required onchange="enableButton('highfive-username-remove','highfive-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                  <?php foreach ($highfiveUsers as $user): ?>
-                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="highfive-remove-btn" disabled><?php echo t('edit_counters_remove_highfive_btn'); ?></button>
@@ -1053,18 +898,17 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_counts'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
-                <select class="sp-select" id="usercount-command" name="usercount-command" required onchange="updateUserCountUsers(this.value); enableButton('usercount-command','usercount-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="usercount-command" name="usercount-command" required onchange="updateUserCountUsers(this.value); enableButton('usercount-command','usercount-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                  <?php foreach ($userCountCommands as $cmd): ?>
-                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="usercount-user" name="usercount-user" required onchange="updateUserCountValue(); enableButton('usercount-user','usercount-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="usercount-user" name="usercount-user" required onchange="updateUserCountValue(); enableButton('usercount-user','usercount-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                 </select>
               </div>
@@ -1079,18 +923,17 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_count'); ?></h4>
             <form action="" method="post" id="usercount-remove-form">
               <input type="hidden" name="action" value="remove">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
-                <select class="sp-select" id="usercount-command-remove" name="usercount-command-remove" required onchange="updateUserCountUsersRemove(this.value); enableButton('usercount-command-remove','usercount-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="usercount-command-remove" name="usercount-command-remove" required onchange="updateUserCountUsersRemove(this.value); enableButton('usercount-command-remove','usercount-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                  <?php foreach ($userCountCommands as $cmd): ?>
-                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                  <?php endforeach; ?>
                 </select>
               </div>
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
-                <select class="sp-select" id="usercount-user-remove" name="usercount-user-remove" required onchange="enableButton('usercount-user-remove','usercount-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="usercount-user-remove" name="usercount-user-remove" required onchange="enableButton('usercount-user-remove','usercount-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_user'); ?></option>
                 </select>
               </div>
@@ -1119,15 +962,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_edit_quote'); ?></h4>
             <form action="" method="post">
               <input type="hidden" name="action" value="update_quote">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_select_quote'); ?></label>
-                <select class="sp-select" id="quote-id" name="quote_id" required onchange="updateQuoteText(this.value); enableButton('quote-id','quote-edit-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="quote-id" name="quote_id" required onchange="updateQuoteText(this.value); enableButton('quote-id','quote-edit-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
-                  <?php foreach ($quotesData as $quote): ?>
-                    <option value="<?php echo htmlspecialchars($quote['id']); ?>">
-                      #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
-                    </option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <div class="sp-form-group">
@@ -1142,15 +981,11 @@ ob_start();
             <h4 class="sp-card-title"><?php echo t('edit_counters_remove_quote'); ?></h4>
             <form action="" method="post" id="quote-remove-form">
               <input type="hidden" name="action" value="remove_quote">
-              <div class="sp-form-group">
+              <div class="sp-form-group counters-select-host" aria-busy="true">
                 <label class="sp-label"><?php echo t('edit_counters_select_quote'); ?></label>
-                <select class="sp-select" id="quote-id-remove" name="quote_id" required onchange="enableButton('quote-id-remove','quote-remove-btn');">
+                <span class="sp-skeleton-line w-90 counters-select-skeleton"></span>
+                <select class="sp-select" id="quote-id-remove" name="quote_id" required onchange="enableButton('quote-id-remove','quote-remove-btn');" style="display:none;">
                   <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
-                  <?php foreach ($quotesData as $quote): ?>
-                    <option value="<?php echo htmlspecialchars($quote['id']); ?>">
-                      #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
-                    </option>
-                  <?php endforeach; ?>
                 </select>
               </div>
               <button type="submit" class="sp-btn sp-btn-danger" id="quote-remove-btn" disabled><?php echo t('edit_counters_remove_quote_btn'); ?></button>
@@ -1168,27 +1003,15 @@ ob_start();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Set initial active button and load data
-  const defaultType = '<?php echo $defaultDataType; ?>';
-  const defaultMode = '<?php echo $defaultMode; ?>';
-  const defaultEditTab = '<?php echo $defaultEditTab; ?>';
-  // Restore last mode
+  const defaultType = <?php echo json_encode($defaultDataType); ?>;
+  const defaultMode = <?php echo json_encode($defaultMode); ?>;
+  const defaultEditTab = <?php echo json_encode($defaultEditTab); ?>;
+  currentType = defaultType;
   if (defaultMode === 'edit') {
     switchMode('edit', defaultEditTab);
   } else {
-    // Highlight the default button using data-type attribute
-    document.querySelectorAll('#view-mode .sp-btn').forEach(button => {
-      if (button.getAttribute('data-type') === defaultType) {
-        button.classList.remove('sp-btn-info');
-        button.classList.add('sp-btn-primary');
-      } else {
-        button.classList.remove('sp-btn-primary');
-        button.classList.add('sp-btn-info');
-      }
-    });
-    loadData(defaultType);
+    highlightViewType(defaultType);
   }
-  // Wire up remove form confirmations
   wireRemoveForm('typo-remove-form', 'typo-username-remove', <?php echo json_encode(t('counters_type_typo')); ?>);
   wireRemoveForm('command-remove-form', 'command-remove', <?php echo json_encode(t('counters_type_custom_command')); ?>);
   wireRemoveForm('death-remove-form', 'death-game-remove', <?php echo json_encode(t('counters_type_death_counter')); ?>);
@@ -1197,7 +1020,87 @@ document.addEventListener('DOMContentLoaded', function() {
   wireRemoveForm('highfive-remove-form', 'highfive-username-remove', <?php echo json_encode(t('counters_type_highfive')); ?>);
   wireRemoveForm('usercount-remove-form', 'usercount-user-remove', <?php echo json_encode(t('counters_type_user_count')); ?>);
   wireRemoveForm('quote-remove-form', 'quote-id-remove', <?php echo json_encode(t('counters_type_quote')); ?>);
+  loadCounters();
 });
+
+const COUNTERS_COOKIE_CONSENT = <?php echo $cookieConsent ? 'true' : 'false'; ?>;
+const COUNTERS_I18N = {
+  loadError: <?php echo json_encode(t('counters_flash_error', [''])); ?>,
+  selectUser: <?php echo json_encode(t('edit_counters_select_user')); ?>,
+  selectCommand: <?php echo json_encode(t('edit_counters_select_command')); ?>,
+  selectGame: <?php echo json_encode(t('edit_counters_select_game')); ?>,
+  selectQuote: <?php echo json_encode(t('edit_counters_select_quote')); ?>,
+  noOptions: <?php echo json_encode(t('counters_no_options_saved')); ?>,
+  viewAll: <?php echo json_encode(t('counters_view_all')); ?>,
+  hideList: <?php echo json_encode(t('counters_hide_list')); ?>,
+  lurkers: <?php echo json_encode(t('counters_lurkers')); ?>,
+  typos: <?php echo json_encode(t('edit_counters_edit_user_typos')); ?>,
+  deaths: <?php echo json_encode(t('counters_deaths')); ?>,
+  hugs: <?php echo json_encode(t('counters_hugs')); ?>,
+  kisses: <?php echo json_encode(t('counters_kisses')); ?>,
+  highfives: <?php echo json_encode(t('counters_highfives')); ?>,
+  customCounts: <?php echo json_encode(t('counters_custom_counts')); ?>,
+  userCounts: <?php echo json_encode(t('counters_user_counts')); ?>,
+  rewardCounts: <?php echo json_encode(t('counters_reward_counts')); ?>,
+  rewardStreaks: <?php echo json_encode(t('counters_reward_streaks')); ?>,
+  rewardUsage: <?php echo json_encode(t('counters_reward_usage')); ?>,
+  watchTime: <?php echo json_encode(t('counters_watch_time')); ?>,
+  quotes: <?php echo json_encode(t('counters_quotes')); ?>,
+  manyOptions: <?php echo json_encode(t('counters_random_pick_lists')); ?>,
+  timeColumn: <?php echo json_encode(t('counters_time_column')); ?>,
+  usernameColumn: <?php echo json_encode(t('counters_username_column')); ?>,
+  typoCountColumn: <?php echo json_encode(t('edit_counters_new_typo_count')); ?>,
+  countColumn: <?php echo json_encode(t('counters_count_column')); ?>,
+  gameColumn: <?php echo json_encode(t('counters_game_column')); ?>,
+  usedColumn: <?php echo json_encode(t('counters_used_column')); ?>,
+  commandColumn: <?php echo json_encode(t('counters_command_column')); ?>,
+  rewardNameColumn: <?php echo json_encode(t('counters_reward_name_column')); ?>,
+  rewardColumn: <?php echo json_encode(t('counters_reward_column')); ?>,
+  streakColumn: <?php echo json_encode(t('counters_streak_column')); ?>,
+  usageCountColumn: <?php echo json_encode(t('counters_usage_count_column')); ?>,
+  onlineWatchColumn: <?php echo json_encode(t('counters_online_watch_time_column')); ?>,
+  offlineWatchColumn: <?php echo json_encode(t('counters_offline_watch_time_column')); ?>,
+  idColumn: <?php echo json_encode(t('counters_id_column')); ?>,
+  saidColumn: <?php echo json_encode(t('counters_what_was_said_column')); ?>,
+  itemsColumn: <?php echo json_encode(t('counters_items_column')); ?>,
+  totalColumn: <?php echo json_encode(t('counters_total_column')); ?>,
+  usernameLabel: <?php echo json_encode(t('edit_counters_username_label')); ?>
+};
+
+let countersLoaded = false;
+let currentType = 'lurkers';
+let countersData = {
+  lurkers: [],
+  typos: [],
+  deaths: [],
+  hugs: [],
+  kisses: [],
+  highfives: [],
+  customCounts: [],
+  userCounts: [],
+  rewardCounts: [],
+  rewardStreaks: [],
+  rewardUsage: [],
+  watchTime: [],
+  quotes: [],
+  manyOptions: [],
+  totalDeaths: 0
+};
+let typoCounts = {};
+let commandCounts = {};
+let deathCounts = {};
+let hugCounts = {};
+let kissCounts = {};
+let highfiveCounts = {};
+let userCountUsersByCommand = {};
+let userCountData = [];
+let quotesData = [];
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
 
 function formatWatchTime(seconds) {
   if (seconds == 0) {
@@ -1229,118 +1132,7 @@ function formatWatchTime(seconds) {
   return `<span class='sp-text-success'>${parts.join(', ')}</span>`;
 }
 
-function loadData(type) {
-  let data;
-  let title;
-  let dataColumn;
-  let infoColumn;
-  let countColumnVisible = false;
-  let additionalColumnName;
-  let output = '';
-
-  // Store the user's preference in a cookie if consent is given
-  if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
-    setCookie('preferred_data_type', type, 30); // Store for 30 days
-  }
-
-  switch(type) {
-    case 'lurkers':
-      data = <?php echo json_encode($lurkers); ?>;
-      title = <?php echo json_encode(t('counters_lurkers')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_time_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      break;
-    case 'typos':
-      data = <?php echo json_encode($typos); ?>;
-      title = <?php echo json_encode(t('edit_counters_edit_user_typos')); ?>;
-      dataColumn = <?php echo json_encode(t('edit_counters_new_typo_count')); ?>;
-      infoColumn = <?php echo json_encode(t('edit_counters_username_label')); ?>;
-      break;
-    case 'deaths':
-      data = <?php echo json_encode($gameDeaths); ?>;
-      title = <?php echo json_encode(t('counters_deaths')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_count_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_game_column')); ?>;
-      break;
-    case 'hugs':
-      data = <?php echo json_encode($hugCounts); ?>;
-      title = <?php echo json_encode(t('counters_hugs')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_count_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      break;
-    case 'kisses':
-      data = <?php echo json_encode($kissCounts); ?>;
-      title = <?php echo json_encode(t('counters_kisses')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_count_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      break;
-    case 'highfives':
-      data = <?php echo json_encode($highfiveCounts); ?>;
-      title = <?php echo json_encode(t('counters_highfives')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_count_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      break;
-    case 'customCounts':
-      data = <?php echo json_encode($customCounts); ?>;
-      title = <?php echo json_encode(t('counters_custom_counts')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_used_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_command_column')); ?>;
-      break;
-    case 'userCounts':
-      data = <?php echo json_encode($userCounts); ?>;
-      countColumnVisible = true;
-      title = <?php echo json_encode(t('counters_user_counts')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_command_column')); ?>;
-      additionalColumnName = <?php echo json_encode(t('counters_count_column')); ?>;
-      break;
-    case 'rewardCounts':
-      data = <?php echo json_encode($rewardCountsData); ?>;
-      countColumnVisible = true;
-      title = <?php echo json_encode(t('counters_reward_counts')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_reward_name_column')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      additionalColumnName = <?php echo json_encode(t('counters_count_column')); ?>;
-      break;
-    case 'rewardStreaks':
-      data = <?php echo json_encode($rewardStreaksData); ?>;
-      countColumnVisible = true;
-      title = <?php echo json_encode(t('counters_reward_streaks')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_reward_column')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      additionalColumnName = <?php echo json_encode(t('counters_streak_column')); ?>;
-      break;
-    case 'rewardUsage':
-      data = <?php echo json_encode($rewardUsageData); ?>;
-      title = <?php echo json_encode(t('counters_reward_usage')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_usage_count_column')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_reward_name_column')); ?>;
-      break;
-    case 'watchTime':
-      data = <?php echo json_encode($watchTimeData); ?>;
-      title = <?php echo json_encode(t('counters_watch_time')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_username_column')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_online_watch_time_column')); ?>;
-      additionalColumnName = <?php echo json_encode(t('counters_offline_watch_time_column')); ?>;
-      countColumnVisible = true;
-      data.sort((a, b) => b.total_watch_time_live - a.total_watch_time_live || b.total_watch_time_offline - a.total_watch_time_offline);
-      break;
-    case 'quotes':
-      data = <?php echo json_encode($quotesData); ?>;
-      title = <?php echo json_encode(t('counters_quotes')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_id_column')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_what_was_said_column')); ?>;
-      break;
-    case 'manyOptions':
-      data = <?php echo json_encode($manyOptionsData); ?>;
-      countColumnVisible = true;
-      title = <?php echo json_encode(t('counters_random_pick_lists')); ?>;
-      infoColumn = <?php echo json_encode(t('counters_command_column')); ?>;
-      dataColumn = <?php echo json_encode(t('counters_items_column')); ?>;
-      additionalColumnName = <?php echo json_encode(t('counters_total_column')); ?>;
-      break;
-  }
-  // Update active button state using data-type attribute
+function highlightViewType(type) {
   document.querySelectorAll('#view-mode .sp-btn').forEach(button => {
     if (button.getAttribute('data-type') === type) {
       button.classList.remove('sp-btn-info');
@@ -1350,83 +1142,334 @@ function loadData(type) {
       button.classList.add('sp-btn-info');
     }
   });
+}
+
+function fillSelect(selectId, items, placeholder, getValue, getLabel) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const previous = select.value;
+  select.innerHTML = '';
+  const placeholderOpt = document.createElement('option');
+  placeholderOpt.value = '';
+  placeholderOpt.textContent = placeholder;
+  select.appendChild(placeholderOpt);
+  items.forEach(function(item) {
+    const opt = document.createElement('option');
+    opt.value = getValue(item);
+    opt.textContent = getLabel(item);
+    select.appendChild(opt);
+  });
+  if (previous) {
+    select.value = previous;
+  }
+}
+
+function quoteOptionLabel(quote) {
+  const text = String(quote.quote == null ? '' : quote.quote);
+  const preview = text.length > 50 ? text.slice(0, 50) + '...' : text;
+  return '#' + quote.id + ' - ' + preview;
+}
+
+function revealEditSelects() {
+  document.querySelectorAll('.counters-select-host').forEach(function(host) {
+    host.setAttribute('aria-busy', 'false');
+    const skeleton = host.querySelector('.counters-select-skeleton');
+    const select = host.querySelector('select');
+    if (skeleton) skeleton.style.display = 'none';
+    if (select) select.style.display = '';
+  });
+}
+
+function populateEditForms() {
+  fillSelect('typo-username', countersData.typos, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('typo-username-remove', countersData.typos, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('command', countersData.customCounts, COUNTERS_I18N.selectCommand, function(item) { return item.command; }, function(item) { return item.command; });
+  fillSelect('command-remove', countersData.customCounts, COUNTERS_I18N.selectCommand, function(item) { return item.command; }, function(item) { return item.command; });
+  fillSelect('death-game', countersData.deaths, COUNTERS_I18N.selectGame, function(item) { return item.game_name; }, function(item) { return item.game_name; });
+  fillSelect('death-game-remove', countersData.deaths, COUNTERS_I18N.selectGame, function(item) { return item.game_name; }, function(item) { return item.game_name; });
+  fillSelect('hug-username', countersData.hugs, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('hug-username-remove', countersData.hugs, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('kiss-username', countersData.kisses, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('kiss-username-remove', countersData.kisses, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('highfive-username', countersData.highfives, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  fillSelect('highfive-username-remove', countersData.highfives, COUNTERS_I18N.selectUser, function(item) { return item.username; }, function(item) { return item.username; });
+  const userCountCommands = Object.keys(userCountUsersByCommand);
+  fillSelect('usercount-command', userCountCommands, COUNTERS_I18N.selectCommand, function(item) { return item; }, function(item) { return item; });
+  fillSelect('usercount-command-remove', userCountCommands, COUNTERS_I18N.selectCommand, function(item) { return item; }, function(item) { return item; });
+  fillSelect('quote-id', countersData.quotes, COUNTERS_I18N.selectQuote, function(item) { return item.id; }, quoteOptionLabel);
+  fillSelect('quote-id-remove', countersData.quotes, COUNTERS_I18N.selectQuote, function(item) { return item.id; }, quoteOptionLabel);
+  const totalEl = document.getElementById('edit-total-deaths');
+  if (totalEl) {
+    totalEl.setAttribute('aria-busy', 'false');
+    totalEl.textContent = String(countersData.totalDeaths || 0);
+  }
+  revealEditSelects();
+}
+
+function applyCountersPayload(payload) {
+  countersData.lurkers = Array.isArray(payload.lurkers) ? payload.lurkers : [];
+  countersData.typos = Array.isArray(payload.typos) ? payload.typos : [];
+  countersData.deaths = Array.isArray(payload.deaths) ? payload.deaths : [];
+  countersData.hugs = Array.isArray(payload.hugs) ? payload.hugs : [];
+  countersData.kisses = Array.isArray(payload.kisses) ? payload.kisses : [];
+  countersData.highfives = Array.isArray(payload.highfives) ? payload.highfives : [];
+  countersData.customCounts = Array.isArray(payload.customCounts) ? payload.customCounts : [];
+  countersData.userCounts = Array.isArray(payload.userCounts) ? payload.userCounts : [];
+  countersData.rewardCounts = Array.isArray(payload.rewardCounts) ? payload.rewardCounts : [];
+  countersData.rewardStreaks = Array.isArray(payload.rewardStreaks) ? payload.rewardStreaks : [];
+  countersData.rewardUsage = Array.isArray(payload.rewardUsage) ? payload.rewardUsage : [];
+  countersData.watchTime = Array.isArray(payload.watchTime) ? payload.watchTime : [];
+  countersData.quotes = Array.isArray(payload.quotes) ? payload.quotes : [];
+  countersData.manyOptions = Array.isArray(payload.manyOptions) ? payload.manyOptions : [];
+  countersData.totalDeaths = Number(payload.totalDeaths || 0);
+  typoCounts = {};
+  countersData.typos.forEach(function(row) { typoCounts[row.username] = row.typo_count; });
+  commandCounts = {};
+  countersData.customCounts.forEach(function(row) { commandCounts[row.command] = row.count; });
+  deathCounts = {};
+  countersData.deaths.forEach(function(row) { deathCounts[row.game_name] = row.death_count; });
+  hugCounts = {};
+  countersData.hugs.forEach(function(row) { hugCounts[row.username] = row.hug_count; });
+  kissCounts = {};
+  countersData.kisses.forEach(function(row) { kissCounts[row.username] = row.kiss_count; });
+  highfiveCounts = {};
+  countersData.highfives.forEach(function(row) { highfiveCounts[row.username] = row.highfive_count; });
+  userCountUsersByCommand = {};
+  userCountData = countersData.userCounts.slice();
+  countersData.userCounts.forEach(function(row) {
+    if (!userCountUsersByCommand[row.command]) {
+      userCountUsersByCommand[row.command] = [];
+    }
+    userCountUsersByCommand[row.command].push(row.user);
+  });
+  quotesData = countersData.quotes.slice();
+  countersLoaded = true;
+  populateEditForms();
+  const viewMode = document.getElementById('view-mode');
+  if (!viewMode || viewMode.style.display !== 'none') {
+    loadData(currentType);
+  } else {
+    const tbody = document.getElementById('table-body');
+    if (tbody) tbody.setAttribute('aria-busy', 'false');
+  }
+}
+
+function renderCountersError(message) {
+  countersLoaded = false;
+  revealEditSelects();
+  const tbody = document.getElementById('table-body');
+  if (!tbody) return;
+  tbody.setAttribute('aria-busy', 'false');
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">' + escapeHtml(message || COUNTERS_I18N.loadError) + '</td></tr>';
+}
+
+function loadCounters() {
+  const url = new URL(window.location.pathname, window.location.origin);
+  url.searchParams.set('ajax_action', 'list');
+  fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || !data.success) {
+        renderCountersError(data && data.error ? data.error : COUNTERS_I18N.loadError);
+        return;
+      }
+      applyCountersPayload(data);
+    })
+    .catch(function() {
+      renderCountersError(COUNTERS_I18N.loadError);
+    });
+}
+
+function loadData(type) {
+  currentType = type;
+  if (COUNTERS_COOKIE_CONSENT) {
+    setCookie('preferred_data_type', type, 30);
+  }
+  highlightViewType(type);
+  if (!countersLoaded) {
+    return;
+  }
+
+  let data = [];
+  let title = '';
+  let dataColumn = '';
+  let infoColumn = '';
+  let countColumnVisible = false;
+  let additionalColumnName = '';
+  let output = '';
+
+  switch(type) {
+    case 'lurkers':
+      data = countersData.lurkers;
+      title = COUNTERS_I18N.lurkers;
+      dataColumn = COUNTERS_I18N.timeColumn;
+      infoColumn = COUNTERS_I18N.usernameColumn;
+      break;
+    case 'typos':
+      data = countersData.typos;
+      title = COUNTERS_I18N.typos;
+      dataColumn = COUNTERS_I18N.typoCountColumn;
+      infoColumn = COUNTERS_I18N.usernameLabel;
+      break;
+    case 'deaths':
+      data = countersData.deaths;
+      title = COUNTERS_I18N.deaths;
+      dataColumn = COUNTERS_I18N.countColumn;
+      infoColumn = COUNTERS_I18N.gameColumn;
+      break;
+    case 'hugs':
+      data = countersData.hugs;
+      title = COUNTERS_I18N.hugs;
+      dataColumn = COUNTERS_I18N.countColumn;
+      infoColumn = COUNTERS_I18N.usernameColumn;
+      break;
+    case 'kisses':
+      data = countersData.kisses;
+      title = COUNTERS_I18N.kisses;
+      dataColumn = COUNTERS_I18N.countColumn;
+      infoColumn = COUNTERS_I18N.usernameColumn;
+      break;
+    case 'highfives':
+      data = countersData.highfives;
+      title = COUNTERS_I18N.highfives;
+      dataColumn = COUNTERS_I18N.countColumn;
+      infoColumn = COUNTERS_I18N.usernameColumn;
+      break;
+    case 'customCounts':
+      data = countersData.customCounts;
+      title = COUNTERS_I18N.customCounts;
+      dataColumn = COUNTERS_I18N.usedColumn;
+      infoColumn = COUNTERS_I18N.commandColumn;
+      break;
+    case 'userCounts':
+      data = countersData.userCounts;
+      countColumnVisible = true;
+      title = COUNTERS_I18N.userCounts;
+      infoColumn = COUNTERS_I18N.usernameColumn;
+      dataColumn = COUNTERS_I18N.commandColumn;
+      additionalColumnName = COUNTERS_I18N.countColumn;
+      break;
+    case 'rewardCounts':
+      data = countersData.rewardCounts;
+      countColumnVisible = true;
+      title = COUNTERS_I18N.rewardCounts;
+      infoColumn = COUNTERS_I18N.rewardNameColumn;
+      dataColumn = COUNTERS_I18N.usernameColumn;
+      additionalColumnName = COUNTERS_I18N.countColumn;
+      break;
+    case 'rewardStreaks':
+      data = countersData.rewardStreaks;
+      countColumnVisible = true;
+      title = COUNTERS_I18N.rewardStreaks;
+      infoColumn = COUNTERS_I18N.rewardColumn;
+      dataColumn = COUNTERS_I18N.usernameColumn;
+      additionalColumnName = COUNTERS_I18N.streakColumn;
+      break;
+    case 'rewardUsage':
+      data = countersData.rewardUsage;
+      title = COUNTERS_I18N.rewardUsage;
+      dataColumn = COUNTERS_I18N.usageCountColumn;
+      infoColumn = COUNTERS_I18N.rewardNameColumn;
+      break;
+    case 'watchTime':
+      data = countersData.watchTime.slice();
+      title = COUNTERS_I18N.watchTime;
+      infoColumn = COUNTERS_I18N.usernameColumn;
+      dataColumn = COUNTERS_I18N.onlineWatchColumn;
+      additionalColumnName = COUNTERS_I18N.offlineWatchColumn;
+      countColumnVisible = true;
+      data.sort(function(a, b) {
+        return (b.total_watch_time_live - a.total_watch_time_live) || (b.total_watch_time_offline - a.total_watch_time_offline);
+      });
+      break;
+    case 'quotes':
+      data = countersData.quotes;
+      title = COUNTERS_I18N.quotes;
+      infoColumn = COUNTERS_I18N.idColumn;
+      dataColumn = COUNTERS_I18N.saidColumn;
+      break;
+    case 'manyOptions':
+      data = countersData.manyOptions;
+      countColumnVisible = true;
+      title = COUNTERS_I18N.manyOptions;
+      infoColumn = COUNTERS_I18N.commandColumn;
+      dataColumn = COUNTERS_I18N.itemsColumn;
+      additionalColumnName = COUNTERS_I18N.totalColumn;
+      break;
+  }
+
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
   if (countColumnVisible) {
-    document.getElementById('count-column').style.display = ''; // Ensure it's table-cell or empty for default
+    document.getElementById('count-column').style.display = '';
     document.getElementById('count-column').innerText = additionalColumnName;
   } else {
     document.getElementById('count-column').style.display = 'none';
   }
-  data.forEach(item => {
+  data.forEach(function(item) {
     output += `<tr>`;
     if (type === 'lurkers') {
-      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.lurk_duration}</span></td>`;
+      output += `<td>${escapeHtml(item.username)}</td><td><span class='sp-text-success'>${escapeHtml(item.lurk_duration)}</span></td>`;
     } else if (type === 'typos') {
-      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.typo_count}</span></td>`;
+      output += `<td>${escapeHtml(item.username)}</td><td><span class='sp-text-success'>${escapeHtml(item.typo_count)}</span></td>`;
     } else if (type === 'deaths') {
-      output += `<td>${item.game_name}</td><td><span class='sp-text-success'>${item.death_count}</span></td>`;
+      output += `<td>${escapeHtml(item.game_name)}</td><td><span class='sp-text-success'>${escapeHtml(item.death_count)}</span></td>`;
     } else if (type === 'hugs') {
-      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.hug_count}</span></td>`;
+      output += `<td>${escapeHtml(item.username)}</td><td><span class='sp-text-success'>${escapeHtml(item.hug_count)}</span></td>`;
     } else if (type === 'kisses') {
-      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.kiss_count}</span></td>`;
+      output += `<td>${escapeHtml(item.username)}</td><td><span class='sp-text-success'>${escapeHtml(item.kiss_count)}</span></td>`;
     } else if (type === 'highfives') {
-      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.highfive_count}</span></td>`;
+      output += `<td>${escapeHtml(item.username)}</td><td><span class='sp-text-success'>${escapeHtml(item.highfive_count)}</span></td>`;
     } else if (type === 'customCounts') {
-      output += `<td>${item.command}</td><td><span class='sp-text-success'>${item.count}</span></td>`;
+      output += `<td>${escapeHtml(item.command)}</td><td><span class='sp-text-success'>${escapeHtml(item.count)}</span></td>`;
     } else if (type === 'userCounts') {
-      output += `<td>${item.user}</td><td><span class='sp-text-success'>${item.command}</span></td><td><span class='sp-text-success'>${item.count}</span></td>`;
+      output += `<td>${escapeHtml(item.user)}</td><td><span class='sp-text-success'>${escapeHtml(item.command)}</span></td><td><span class='sp-text-success'>${escapeHtml(item.count)}</span></td>`;
     } else if (type === 'rewardCounts') {
-      output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='sp-text-success'>${item.count}</span></td>`;
+      output += `<td>${escapeHtml(item.reward_title)}</td><td>${escapeHtml(item.user)}</td><td><span class='sp-text-success'>${escapeHtml(item.count)}</span></td>`;
     } else if (type === 'rewardStreaks') {
-      output += `<td>${item.reward_title}</td><td>${item.current_user}</td><td><span class='sp-text-success'>${item.streak}</span></td>`;
+      output += `<td>${escapeHtml(item.reward_title)}</td><td>${escapeHtml(item.current_user)}</td><td><span class='sp-text-success'>${escapeHtml(item.streak)}</span></td>`;
     } else if (type === 'rewardUsage') {
-      output += `<td>${item.reward_title}</td><td><span class='sp-text-success'>${item.usage_count}</span></td>`;
-    } else if (type === 'watchTime') { 
-      output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
+      output += `<td>${escapeHtml(item.reward_title)}</td><td><span class='sp-text-success'>${escapeHtml(item.usage_count)}</span></td>`;
+    } else if (type === 'watchTime') {
+      output += `<td>${escapeHtml(item.username)}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
-      output += `<td>${item.id}</td><td><span class='sp-text-success'>${item.quote}</span></td>`;
+      output += `<td>${escapeHtml(item.id)}</td><td><span class='sp-text-success'>${escapeHtml(item.quote)}</span></td>`;
     } else if (type === 'manyOptions') {
       const optionItems = Array.isArray(item.items) ? item.items : [];
-      const escapedItems = optionItems.map(option =>
-        String(option)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-      );
-      let renderedOptions = "<span class='sp-text-muted'><?php echo t('counters_no_options_saved'); ?></span>";
+      const escapedItems = optionItems.map(function(option) { return escapeHtml(option); });
+      let renderedOptions = "<span class='sp-text-muted'>" + escapeHtml(COUNTERS_I18N.noOptions) + "</span>";
       if (escapedItems.length > 0) {
         if (escapedItems.length <= 5) {
           renderedOptions = escapedItems.join('<br>');
         } else {
           const preview = escapedItems.slice(0, 3).join(', ');
-          const allItemsHtml = escapedItems.map(option => `<div>${option}</div>`).join('');
+          const allItemsHtml = escapedItems.map(function(option) { return `<div>${option}</div>`; }).join('');
           renderedOptions =
             `<details ontoggle="toggleManyOptionsSummary(this)">` +
               `<summary style="cursor:pointer;">` +
                 `${preview}, ... ` +
-                `<span class="many-options-summary-closed">(<?php echo t('counters_view_all'); ?> ${escapedItems.length})</span>` +
-                `<span class="many-options-summary-open" style="display:none;">(<?php echo t('counters_hide_list'); ?> ${escapedItems.length})</span>` +
+                `<span class="many-options-summary-closed">(${escapeHtml(COUNTERS_I18N.viewAll)} ${escapedItems.length})</span>` +
+                `<span class="many-options-summary-open" style="display:none;">(${escapeHtml(COUNTERS_I18N.hideList)} ${escapedItems.length})</span>` +
               `</summary>` +
               `<div style="margin-top: 0.5rem;">${allItemsHtml}</div>` +
             `</details>`;
         }
       }
-      output += `<td>!${item.command}</td><td>${renderedOptions}</td><td><span class='sp-text-success'>${item.items_count}</span></td>`;
+      output += `<td>!${escapeHtml(item.command)}</td><td>${renderedOptions}</td><td><span class='sp-text-success'>${escapeHtml(item.items_count)}</span></td>`;
     }
-    // Ensure three cells are added if countColumn is visible and the type doesn't already add three
     if (countColumnVisible) {
         if (type !== 'userCounts' && type !== 'rewardCounts' && type !== 'rewardStreaks' && type !== 'watchTime' && type !== 'manyOptions') {
-             output += `<td></td>`; 
+             output += `<td></td>`;
         }
     }
     output += `</tr>`;
   });
+  const tbody = document.getElementById('table-body');
   document.getElementById('table-title').innerText = title;
-  document.getElementById('table-body').innerHTML = output;
+  tbody.setAttribute('aria-busy', 'false');
+  tbody.innerHTML = output;
 }
 
-// Function to set a cookie
 function setCookie(name, value, days) {
   const d = new Date();
   d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -1434,13 +1477,11 @@ function setCookie(name, value, days) {
   document.cookie = name + "=" + value + ";" + expires + ";path=/";
 }
 
-// Mode switching
 function switchMode(mode, editTab) {
   const viewMode = document.getElementById('view-mode');
   const editMode = document.getElementById('edit-mode');
   const tabs = document.querySelectorAll('.sp-tabs-nav li');
-  // Store mode preference in cookie if consent is given
-  if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
+  if (COUNTERS_COOKIE_CONSENT) {
     setCookie('preferred_mode', mode, 30);
   }
   if (mode === 'view') {
@@ -1448,17 +1489,18 @@ function switchMode(mode, editTab) {
     editMode.style.display = 'none';
     tabs[0].classList.add('is-active');
     tabs[1].classList.remove('is-active');
+    if (countersLoaded) {
+      loadData(currentType);
+    }
   } else {
     viewMode.style.display = 'none';
     editMode.style.display = 'block';
     tabs[0].classList.remove('is-active');
     tabs[1].classList.add('is-active');
-    // Use provided editTab or default to 'typos'
     showEditTab(editTab || 'typos');
   }
 }
 
-// Edit tab switching
 function showEditTab(type) {
   document.querySelectorAll('.edit-tab-content').forEach(tab => {
     tab.style.display = 'none';
@@ -1476,21 +1518,10 @@ function showEditTab(type) {
       button.classList.add('sp-btn-info');
     }
   });
-  if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
+  if (COUNTERS_COOKIE_CONSENT) {
     setCookie('preferred_edit_tab', type, 30);
   }
 }
-
-// Helper functions for edit forms
-const typoCounts = <?php echo json_encode(array_column($typoData, 'typo_count', 'username')); ?>;
-const commandCounts = <?php echo json_encode(array_column($commandData, 'count', 'command')); ?>;
-const deathCounts = <?php echo json_encode(array_column($deathData, 'death_count', 'game_name')); ?>;
-const hugCounts = <?php echo json_encode(array_column($hugData, 'hug_count', 'username')); ?>;
-const kissCounts = <?php echo json_encode(array_column($kissData, 'kiss_count', 'username')); ?>;
-const highfiveCounts = <?php echo json_encode(array_column($highfiveData, 'highfive_count', 'username')); ?>;
-const userCountUsersByCommand = <?php echo json_encode($userCountUsersByCommand); ?>;
-const userCountData = <?php echo json_encode($userCountArr); ?>;
-const quotesData = <?php echo json_encode($quotesData); ?>;
 
 function updateCurrentCount(type, value) {
   let count = 0;
@@ -1555,10 +1586,9 @@ function wireRemoveForm(formId, selectId, type) {
   });
 }
 
-// User count functions
 function updateUserCountUsers(command) {
   const userSelect = document.getElementById('usercount-user');
-  userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+  userSelect.innerHTML = '<option value="">' + escapeHtml(COUNTERS_I18N.selectUser) + '</option>';
   if (command && userCountUsersByCommand[command]) {
     userCountUsersByCommand[command].forEach(user => {
       const option = document.createElement('option');
@@ -1567,7 +1597,6 @@ function updateUserCountUsers(command) {
       userSelect.appendChild(option);
     });
   }
-  // Reset count and disable button
   document.getElementById('usercount_count').value = '';
   const btn = document.getElementById('usercount-edit-btn');
   if (btn) btn.disabled = true;
@@ -1575,7 +1604,7 @@ function updateUserCountUsers(command) {
 
 function updateUserCountUsersRemove(command) {
   const userSelect = document.getElementById('usercount-user-remove');
-  userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
+  userSelect.innerHTML = '<option value="">' + escapeHtml(COUNTERS_I18N.selectUser) + '</option>';
   if (command && userCountUsersByCommand[command]) {
     userCountUsersByCommand[command].forEach(user => {
       const option = document.createElement('option');
@@ -1584,7 +1613,6 @@ function updateUserCountUsersRemove(command) {
       userSelect.appendChild(option);
     });
   }
-  // Disable button
   const btn = document.getElementById('usercount-remove-btn');
   if (btn) btn.disabled = true;
 }
@@ -1600,7 +1628,6 @@ function updateUserCountValue() {
   }
 }
 
-// Quote functions
 function updateQuoteText(quoteId) {
   if (quoteId) {
     const quote = quotesData.find(q => q.id == quoteId);
@@ -1634,4 +1661,3 @@ $scripts = ob_get_clean();
 // Use layout.php to render the page
 include 'layout.php';
 ?>
-
