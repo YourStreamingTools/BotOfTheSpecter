@@ -1953,7 +1953,7 @@ return [
     'modules_tts_style_label' => 'TTS-Stil',
     'modules_tts_style_normal' => 'Normal',
     'modules_tts_style_expressive' => 'Expressiv',
-    'modules_tts_style_help' => 'Normal ist ein ruhiges Vorlesen. Expressiv fügt Schreien bei GROSSBUCHSTABEN und Lachen bei lol oder haha hinzu.',
+    'modules_tts_style_help' => 'Normal ist ein ruhiges Vorlesen. Expressiv ist mehrsprachig und fügt Schreien bei GROSSBUCHSTABEN sowie Lachen bei lol oder haha hinzu.',
     'modules_tts_expressive_voice_label' => 'Expressive Stimme',
     'modules_tts_expressive_voice_help' => 'Wähle die Stimme, die bei Expressivem TTS verwendet wird.',
     'modules_tts_expressive_voice_placeholder' => 'Stimme auswählen',

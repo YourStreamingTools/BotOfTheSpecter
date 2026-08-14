@@ -2012,7 +2012,7 @@ return [
     'modules_tts_style_label' => 'TTS Style',
     'modules_tts_style_normal' => 'Normal',
     'modules_tts_style_expressive' => 'Expressive',
-    'modules_tts_style_help' => 'Normal is a steady read. Expressive adds shouting from ALL CAPS and laughter from lol or haha.',
+    'modules_tts_style_help' => 'Normal is a steady read. Expressive is multilingual, adds shouting from ALL CAPS, and laughter from lol or haha.',
     'modules_tts_expressive_voice_label' => 'Expressive Voice',
     'modules_tts_expressive_voice_help' => 'Select the voice used when Expressive TTS is on.',
     'modules_tts_expressive_voice_placeholder' => 'Select a voice',

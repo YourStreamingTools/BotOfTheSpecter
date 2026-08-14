@@ -2012,7 +2012,7 @@ return [
     'modules_tts_style_label' => 'Estilo TTS',
     'modules_tts_style_normal' => 'Normal',
     'modules_tts_style_expressive' => 'Expresivo',
-    'modules_tts_style_help' => 'Normal es una lectura estable. Expresivo añade gritos con MAYÚSCULAS y risa con lol o haha.',
+    'modules_tts_style_help' => 'Normal es una lectura estable. Expresivo es multilingüe, añade gritos con MAYÚSCULAS y risa con lol o haha.',
     'modules_tts_expressive_voice_label' => 'Voz expresiva',
     'modules_tts_expressive_voice_help' => 'Selecciona la voz que se usa cuando el TTS expresivo está activo.',
     'modules_tts_expressive_voice_placeholder' => 'Selecciona una voz',

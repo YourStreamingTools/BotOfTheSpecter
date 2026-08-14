@@ -1960,7 +1960,7 @@ return [
     'modules_tts_style_label' => 'TTS 风格',
     'modules_tts_style_normal' => '普通',
     'modules_tts_style_expressive' => '表现力',
-    'modules_tts_style_help' => '普通为平稳朗读。表现力会把全大写读成喊叫，并把 lol 或 haha 读成笑声。',
+    'modules_tts_style_help' => '普通为平稳朗读。表现力支持多语言，会把全大写读成喊叫，并把 lol 或 haha 读成笑声。',
     'modules_tts_expressive_voice_label' => '表现力语音',
     'modules_tts_expressive_voice_help' => '选择启用表现力 TTS 时使用的语音。',
     'modules_tts_expressive_voice_placeholder' => '选择语音',
