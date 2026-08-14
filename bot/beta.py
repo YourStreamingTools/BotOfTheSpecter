@@ -1990,27 +1990,8 @@ async def process_twitch_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"[EVENTSUB] Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            safe_create_task(deny_automod_message(messageHoldID))
                             safe_create_task(ban_user(messageAuthor, messageAuthorID))
-                            # Deny the message via Twitch API
-                            try:
-                                # Determine which user ID to use for the API request
-                                use_streamer = False  # Use bot token to make it appear as bot denied
-                                api_user_id = CHANNEL_ID if use_streamer else "971436498"
-                                # Fetch settings from the twitch_bot_access table
-                                await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
-                                result = await cursor.fetchone()
-                                # Use the token from the database if found, otherwise default to CHANNEL_AUTH
-                                api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
-                                async with httpClientSession() as session:
-                                    headers = {"Authorization": f"Bearer {api_user_auth}", "Client-Id": CLIENT_ID, "Content-Type": "application/json"}
-                                    body = {"user_id": messageAuthorID, "msg_id": messageHoldID, "action": "DENY"}
-                                    async with session.post("https://api.twitch.tv/helix/moderation/automod/message", headers=headers, json=body) as response:
-                                        if response.status == 204:
-                                            twitch_logger.info(f"[EVENTSUB] Denied message with ID {messageHoldID} for spam pattern.")
-                                        else:
-                                            twitch_logger.error(f"[EVENTSUB] Failed to deny message {messageHoldID}: {response.status}")
-                            except Exception as e:
-                                twitch_logger.error(f"[EVENTSUB] Error denying message {messageHoldID}: {e}")
                 # User Message Hold Event
                 elif event_type == "channel.chat.user_message_hold":
                     event_logger.info(f"[EVENTSUB] Got a User Message Hold in Chat: {event_data}")
@@ -2022,27 +2003,8 @@ async def process_twitch_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"[EVENTSUB] Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                            safe_create_task(deny_automod_message(messageHoldID))
                             safe_create_task(ban_user(messageAuthor, messageAuthorID))
-                            # Deny the message via Twitch API
-                            try:
-                                # Determine which user ID to use for the API request
-                                use_streamer = False  # Use bot token to make it appear as bot denied
-                                api_user_id = CHANNEL_ID if use_streamer else "971436498"
-                                # Fetch settings from the twitch_bot_access table
-                                await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
-                                result = await cursor.fetchone()
-                                # Use the token from the database if found, otherwise default to CHANNEL_AUTH
-                                api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
-                                async with httpClientSession() as session:
-                                    headers = {"Authorization": f"Bearer {api_user_auth}", "Client-Id": CLIENT_ID, "Content-Type": "application/json"}
-                                    body = {"user_id": messageAuthorID, "msg_id": messageHoldID, "action": "DENY"}
-                                    async with session.post("https://api.twitch.tv/helix/moderation/automod/message", headers=headers, json=body) as response:
-                                        if response.status == 204:
-                                            twitch_logger.info(f"[EVENTSUB] Denied message with ID {messageHoldID} for spam pattern.")
-                                        else:
-                                            twitch_logger.error(f"[EVENTSUB] Failed to deny message {messageHoldID}: {response.status}")
-                            except Exception as e:
-                                twitch_logger.error(f"[EVENTSUB] Error denying message {messageHoldID}: {e}")
                 # Suspicious User Message Event
                 elif event_type == "channel.suspicious_user.message":
                     spam_pattern = await get_spam_patterns()
@@ -16316,6 +16278,35 @@ async def ban_user(username, user_id, use_streamer=False):
                     else:
                         error_text = await response.text()
                         twitch_logger.error(f"[BAN] Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
+    finally:
+        if connection:
+            await connection.close()
+
+# Function to deny an AutoMod-held message using the same token source as ban_user
+async def deny_automod_message(msg_id, use_streamer=False):
+    connection = None
+    try:
+        connection = await mysql_connection(db_name="website")
+        async with connection.cursor(DictCursor) as cursor:
+            api_user_id = CHANNEL_ID if use_streamer else "971436498"
+            await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (api_user_id,))
+            result = await cursor.fetchone()
+            api_user_auth = result.get('twitch_access_token') if result else CHANNEL_AUTH
+            headers = {
+                "Client-ID": CLIENT_ID,
+                "Authorization": f"Bearer {api_user_auth}",
+                "Content-Type": "application/json",
+            }
+            body = {"user_id": api_user_id, "msg_id": msg_id, "action": "DENY"}
+            async with httpClientSession() as session:
+                async with session.post("https://api.twitch.tv/helix/moderation/automod/message", headers=headers, json=body) as response:
+                    if response.status == 204:
+                        twitch_logger.info(f"[EVENTSUB] Denied AutoMod-held message {msg_id}.")
+                    else:
+                        error_text = await response.text()
+                        twitch_logger.error(f"[EVENTSUB] Failed to deny AutoMod-held message {msg_id}. Status Code: {response.status}, Response: {error_text}")
+    except Exception as e:
+        twitch_logger.error(f"[EVENTSUB] Error denying AutoMod-held message {msg_id}: {e}")
     finally:
         if connection:
             await connection.close()
