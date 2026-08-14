@@ -12,7 +12,11 @@ MODEL_NAME = "gpt-4o-mini-tts"
 DEFAULT_VOICE = "alloy"
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_MODEL = "eleven_v3"
-LAUGH_RE = re.compile(r"\b(lols?|lmao+|haha+h?|hahah+|hehe+)\b", re.IGNORECASE)
+LAUGH_RE = re.compile(
+    r"(?i)(?<![a-z0-9])(?:lo+ls?|lulz?|lmao+|lmfao+|rofl+|he(?:he)+h?|ha(?:ha)+h?|ha(?:\s+ha)+)(?![a-z0-9])"
+)
+LAUGH_RUN_RE = re.compile(r"(?:\s*\[laughs\])+")
+SPACE_RE = re.compile(r"\s{2,}")
 SHOUT_WORD_RE = re.compile(r"\b[A-Z]{3,}\b")
 # OpenAI gpt-4o-mini-tts voice ids (lowercase). "verse" is used by several streamers.
 AVAILABLE_VOICES = [
@@ -130,7 +134,10 @@ class TTSHandler:
     def apply_expressive_tags(self, text):
         if not text:
             return text
-        tagged = LAUGH_RE.sub("[laughs]", text)
+        # Drop lol/haha/etc from the spoken line; keep only a laugh cue
+        tagged = LAUGH_RE.sub(" [laughs] ", text)
+        tagged = LAUGH_RUN_RE.sub(" [laughs] ", tagged)
+        tagged = SPACE_RE.sub(" ", tagged).strip()
         letters = [c for c in tagged if c.isalpha()]
         if letters and len(letters) >= 3 and all(c.isupper() for c in letters):
             if "[shouts]" not in tagged.lower():
