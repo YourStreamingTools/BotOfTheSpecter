@@ -933,7 +933,33 @@ $ttsVoices = [
     'onyx'    => 'Smooth and sophisticated',
     'sage'    => 'Thoughtful and calm',
     'shimmer' => 'Gentle and uplifting',
+    'verse'   => 'Bright and conversational',
 ];
+
+function support_expressive_tts_voices(): array
+{
+    $paths = [
+        dirname(__DIR__) . '/cdn/help/tts/expressive/voices.json',
+        __DIR__ . '/../cdn/help/tts/expressive/voices.json',
+    ];
+    foreach ($paths as $path) {
+        if (is_file($path)) {
+            $data = json_decode((string) file_get_contents($path), true);
+            if (is_array($data)) {
+                return $data;
+            }
+        }
+    }
+    $cdn = @file_get_contents('https://cdn.botofthespecter.com/help/tts/expressive/voices.json');
+    if (is_string($cdn) && $cdn !== '') {
+        $data = json_decode($cdn, true);
+        if (is_array($data)) {
+            return $data;
+        }
+    }
+    return [];
+}
+$expressiveTtsVoices = support_expressive_tts_voices();
 ?>
 <div class="sp-tab-panel sp-doc-content" data-panel="tts">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
@@ -953,7 +979,7 @@ $ttsVoices = [
     <h3>Setting Up TTS</h3>
     <ol>
         <li>Navigate to the <strong>TTS Settings</strong> section in the BotOfTheSpecter dashboard.</li>
-        <li>Choose your preferred voice from the available options (see the Available Voices section below).</li>
+        <li>Choose <strong>Normal</strong> or <strong>Expressive</strong>, then pick a voice (see the samples below).</li>
         <li>Set up your audio overlay to hear TTS output - see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
         <li>Test your setup with a sample message.</li>
     </ol>
@@ -973,8 +999,8 @@ $ttsVoices = [
 
     <hr class="sp-divider">
 
-    <h2>Available Voices</h2>
-    <p>Click the play button next to each voice to hear a sample:</p>
+    <h2>Normal Voices</h2>
+    <p>Normal is a steady read. Click play next to each voice to hear a sample:</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1rem;">
         <?php foreach ($ttsVoices as $voiceKey => $voiceDesc):
             $voiceLabel = ucfirst($voiceKey);
@@ -995,6 +1021,44 @@ $ttsVoices = [
         </div>
         <?php endforeach; ?>
     </div>
+
+    <hr class="sp-divider">
+
+    <h2>Expressive Voices</h2>
+    <p>Expressive is multilingual. It follows the language of the message, reads ALL CAPS as shouting, and treats <code>lol</code> / <code>haha</code> as laughter. If expressive generation fails, that line falls back to your Normal voice.</p>
+    <?php if ($expressiveTtsVoices): ?>
+    <p>Click the play button next to each voice to hear a sample:</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1rem;">
+        <?php foreach ($expressiveTtsVoices as $exVoice):
+            $exSlug = preg_replace('/[^a-z0-9\-]+/', '', strtolower((string) ($exVoice['slug'] ?? '')));
+            $exName = (string) ($exVoice['name'] ?? '');
+            $exFile = (string) ($exVoice['file'] ?? ($exSlug . '_sample.mp3'));
+            if ($exSlug === '' || $exName === '') {
+                continue;
+            }
+            $audioId = 'expressive-' . $exSlug;
+        ?>
+        <div class="sp-card">
+            <div class="sp-card-header"><?php echo htmlspecialchars($exName); ?></div>
+            <div class="sp-card-body">
+                <p style="color:var(--text-secondary);font-size:0.9rem;">Multilingual expressive voice</p>
+                <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm voice-play-button" style="margin-top:0.75rem;"
+                        data-voice="<?php echo htmlspecialchars($audioId); ?>">
+                    <i class="fa-solid fa-play"></i> Play Sample
+                </button>
+                <audio id="audio-<?php echo htmlspecialchars($audioId); ?>" preload="none" style="display:none;">
+                    <source src="https://cdn.botofthespecter.com/help/tts/expressive/<?php echo htmlspecialchars($exFile); ?>" type="audio/mpeg">
+                </audio>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>Expressive voice samples will appear here once they are published to the CDN.</div>
+    </div>
+    <?php endif; ?>
 
     <hr class="sp-divider">
 
