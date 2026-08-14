@@ -36,7 +36,7 @@ function wh_default_header($mode) {
     return ($mode === 'hmac') ? 'X-Webhook-Signature' : 'X-Webhook-Secret';
 }
 
-$validScopes = ['channel', 'global'];
+$validScopes = ['channel', 'global', 'discord_logs'];
 $validModes  = ['none', 'secret', 'hmac'];
 
 // Create
@@ -51,12 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
     $secret_header = trim($_POST['secret_header'] ?? '');
 
     if ($name === '')            wh_json(['success' => false, 'message' => t('admin_webhooks_err_name_required')]);
+    if ($slug === '' && $verify_mode === 'none') $slug = bin2hex(random_bytes(16));
     if ($slug === '')            wh_json(['success' => false, 'message' => t('admin_webhooks_err_slug_required')]);
     if (!preg_match('/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/', $slug)) wh_json(['success' => false, 'message' => t('admin_webhooks_err_slug_format')]);
     if ($service === '')         wh_json(['success' => false, 'message' => t('admin_webhooks_err_service_required')]);
     if ($event_name === '')      wh_json(['success' => false, 'message' => t('admin_webhooks_err_event_required')]);
     if ($scope === 'channel' && $target === '') wh_json(['success' => false, 'message' => t('admin_webhooks_err_target_required')]);
-    if ($scope === 'global' && $verify_mode === 'none') wh_json(['success' => false, 'message' => t('admin_webhooks_err_global_needs_secret')]);
+    if (in_array($scope, ['global', 'discord_logs'], true) && $verify_mode === 'none') wh_json(['success' => false, 'message' => t('admin_webhooks_err_global_needs_secret')]);
 
     // Uniqueness check
     $chk = $conn->prepare("SELECT id FROM custom_webhooks WHERE slug = ? LIMIT 1");
@@ -67,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
     $chk->close();
 
     if ($secret_header === '') $secret_header = wh_default_header($verify_mode);
-    $secret = ($verify_mode === 'none') ? null : wh_make_secret();
+    $pasted_secret = trim((string) ($_POST['secret'] ?? ''));
+    $secret = ($verify_mode === 'none') ? null : ($pasted_secret !== '' ? $pasted_secret : wh_make_secret());
     $target_val = ($scope === 'channel') ? $target : null;
     $created_by = $_SESSION['username'] ?? '';
     $enabled = 1;
@@ -80,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
         if ($stmt->execute()) {
             $stmt->close();
             admin_audit_log('custom_webhook_create', 'success', ['slug' => $slug, 'service' => $service, 'scope' => $scope, 'verify_mode' => $verify_mode], 'custom_webhook', $slug);
-            wh_json(['success' => true, 'message' => t('admin_webhooks_msg_created'), 'secret' => $secret, 'secret_header' => $secret_header]);
+            wh_json(['success' => true, 'message' => t('admin_webhooks_msg_created'), 'secret' => $secret, 'secret_header' => $secret_header, 'url' => $apiBase . '/webhook/' . $slug]);
         } else {
             $err = $stmt->error; $stmt->close();
             wh_json(['success' => false, 'message' => t('admin_webhooks_err_generic', [$err])]);
@@ -106,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_webhook'])) {
     if ($service === '')         wh_json(['success' => false, 'message' => t('admin_webhooks_err_service_required')]);
     if ($event_name === '')      wh_json(['success' => false, 'message' => t('admin_webhooks_err_event_required')]);
     if ($scope === 'channel' && $target === '') wh_json(['success' => false, 'message' => t('admin_webhooks_err_target_required')]);
-    if ($scope === 'global' && $verify_mode === 'none') wh_json(['success' => false, 'message' => t('admin_webhooks_err_global_needs_secret')]);
+    if (in_array($scope, ['global', 'discord_logs'], true) && $verify_mode === 'none') wh_json(['success' => false, 'message' => t('admin_webhooks_err_global_needs_secret')]);
 
     // Load current row (need slug for audit + current secret state)
     $cur = $conn->prepare("SELECT slug, secret FROM custom_webhooks WHERE id = ? LIMIT 1");
@@ -120,9 +122,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_webhook'])) {
     if ($secret_header === '') $secret_header = wh_default_header($verify_mode);
     $target_val = ($scope === 'channel') ? $target : null;
 
-    // If switching to a verifying mode without an existing secret, mint one.
+    // Pasted secret wins; otherwise mint if this row has none and verify is on.
     $newSecret = null;
-    if ($verify_mode !== 'none' && empty($curRow['secret'])) {
+    $pasted_secret = trim((string) ($_POST['secret'] ?? ''));
+    if ($verify_mode !== 'none' && $pasted_secret !== '') {
+        $newSecret = $pasted_secret;
+    } elseif ($verify_mode !== 'none' && empty($curRow['secret'])) {
         $newSecret = wh_make_secret();
     }
 
@@ -220,6 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_secret']))
 // Fetch all webhooks for display
 $webhooks = [];
 if ($conn) {
+    $conn->query("ALTER TABLE custom_webhooks MODIFY scope ENUM('channel','global','discord_logs') NOT NULL DEFAULT 'channel'");
     $result = $conn->query("SELECT id, slug, name, service, event_name, scope, target_username, verify_mode, secret, secret_header, enabled, last_received_at, received_count FROM custom_webhooks ORDER BY name");
     if ($result) {
         while ($row = $result->fetch_assoc()) { $webhooks[] = $row; }
@@ -252,8 +258,15 @@ ob_start();
         </div>
         <div class="sp-form-group" id="slugGroup">
             <label class="sp-label"><?php echo t('admin_webhooks_field_slug'); ?></label>
-            <input class="sp-input" type="text" name="slug" id="f_slug" placeholder="<?php echo htmlspecialchars(t('admin_webhooks_field_slug_ph')); ?>" style="font-family:monospace;">
-            <p class="sp-help"><?php echo t('admin_webhooks_field_slug_help'); ?></p>
+            <div class="sp-btn-group">
+                <input class="sp-input" type="text" name="slug" id="f_slug" placeholder="<?php echo htmlspecialchars(t('admin_webhooks_field_slug_ph')); ?>" style="flex:1;font-family:monospace;min-width:200px;">
+                <button type="button" class="sp-btn" id="genSlugBtn" title="<?php echo htmlspecialchars(t('admin_webhooks_generate_slug')); ?>">
+                    <i class="fas fa-dice"></i>
+                    <span><?php echo t('admin_webhooks_generate_slug'); ?></span>
+                </button>
+            </div>
+            <p class="sp-help" id="slugHelpNormal"><?php echo t('admin_webhooks_field_slug_help'); ?></p>
+            <p class="sp-help" id="slugHelpSecretUrl" style="display:none;"><?php echo t('admin_webhooks_field_slug_help_none'); ?></p>
         </div>
         <div class="sp-form-group">
             <label class="sp-label"><?php echo t('admin_webhooks_field_service'); ?></label>
@@ -271,6 +284,7 @@ ob_start();
                 <select class="sp-input" name="scope" id="f_scope">
                     <option value="channel"><?php echo t('admin_webhooks_scope_channel'); ?></option>
                     <option value="global"><?php echo t('admin_webhooks_scope_global'); ?></option>
+                    <option value="discord_logs"><?php echo t('admin_webhooks_scope_discord_logs'); ?></option>
                 </select>
             </div>
             <p class="sp-help"><?php echo t('admin_webhooks_scope_help'); ?></p>
@@ -294,6 +308,17 @@ ob_start();
             <label class="sp-label"><?php echo t('admin_webhooks_field_secret_header'); ?></label>
             <input class="sp-input" type="text" name="secret_header" id="f_header" placeholder="X-Webhook-Secret" style="font-family:monospace;">
             <p class="sp-help"><?php echo t('admin_webhooks_field_secret_header_help'); ?></p>
+        </div>
+        <div class="sp-form-group" id="secretGroup">
+            <label class="sp-label"><?php echo t('admin_webhooks_field_secret'); ?></label>
+            <div class="sp-btn-group">
+                <input class="sp-input" type="text" name="secret" id="f_secret" placeholder="<?php echo htmlspecialchars(t('admin_webhooks_field_secret_ph')); ?>" style="flex:1;font-family:monospace;min-width:200px;" autocomplete="off">
+                <button type="button" class="sp-btn" id="genSecretBtn" title="<?php echo htmlspecialchars(t('admin_webhooks_generate_secret')); ?>">
+                    <i class="fas fa-dice"></i>
+                    <span><?php echo t('admin_webhooks_generate_secret'); ?></span>
+                </button>
+            </div>
+            <p class="sp-help"><?php echo t('admin_webhooks_field_secret_help'); ?></p>
         </div>
         <div class="sp-form-group">
             <button type="submit" class="sp-btn sp-btn-primary" id="submitBtn">
@@ -357,6 +382,8 @@ ob_start();
                             <td>
                                 <?php if ($wh['scope'] === 'global'): ?>
                                     <span class="sp-badge sp-badge-info"><?php echo t('admin_webhooks_scope_global'); ?></span>
+                                <?php elseif ($wh['scope'] === 'discord_logs'): ?>
+                                    <span class="sp-badge sp-badge-amber"><?php echo t('admin_webhooks_scope_discord_logs'); ?></span>
                                 <?php else: ?>
                                     <span class="sp-badge sp-badge-info"><?php echo t('admin_webhooks_scope_channel'); ?></span><br>
                                     <span class="sp-help"><?php echo htmlspecialchars($wh['target_username'] ?? ''); ?></span>
@@ -414,7 +441,8 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteConfirmBtn:  <?php echo json_encode(t('admin_webhooks_js_delete_confirm_btn')); ?>,
         regenConfirmTitle: <?php echo json_encode(t('admin_webhooks_js_regen_confirm_title')); ?>,
         regenConfirmText:  <?php echo json_encode(t('admin_webhooks_js_regen_confirm_text')); ?>,
-        regenConfirmBtn:   <?php echo json_encode(t('admin_webhooks_js_regen_confirm_btn')); ?>
+        regenConfirmBtn:   <?php echo json_encode(t('admin_webhooks_js_regen_confirm_btn')); ?>,
+        urlLabel:          <?php echo json_encode(t('admin_webhooks_js_url_label')); ?>
     };
 
     const form        = document.getElementById('webhookForm');
@@ -426,19 +454,57 @@ document.addEventListener('DOMContentLoaded', function() {
     const verifySel   = document.getElementById('f_verify');
     const headerGroup = document.getElementById('headerGroup');
     const headerField = document.getElementById('f_header');
+    const secretGroup = document.getElementById('secretGroup');
+    const secretField = document.getElementById('f_secret');
+    const serviceField = document.getElementById('f_service');
     const heading     = document.getElementById('formHeading');
     const submitText  = document.getElementById('submitBtnText');
     const cancelBtn   = document.getElementById('cancelEditBtn');
 
+    function randomHex(bytes) {
+        var arr = new Uint8Array(bytes);
+        crypto.getRandomValues(arr);
+        return Array.from(arr, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
     function refreshConditionalFields() {
+        var noneMode = verifySel.value === 'none';
         targetGroup.style.display = (scopeSel.value === 'channel') ? '' : 'none';
-        headerGroup.style.display = (verifySel.value === 'none') ? 'none' : '';
+        headerGroup.style.display = noneMode ? 'none' : '';
+        if (secretGroup) secretGroup.style.display = noneMode ? 'none' : '';
+        var slugHelpNormal = document.getElementById('slugHelpNormal');
+        var slugHelpSecretUrl = document.getElementById('slugHelpSecretUrl');
+        if (slugHelpNormal) slugHelpNormal.style.display = noneMode ? 'none' : '';
+        if (slugHelpSecretUrl) slugHelpSecretUrl.style.display = noneMode ? '' : 'none';
         if (!headerField.value) {
             headerField.placeholder = (verifySel.value === 'hmac') ? 'X-Webhook-Signature' : 'X-Webhook-Secret';
         }
     }
+    var genSlugBtn = document.getElementById('genSlugBtn');
+    if (genSlugBtn && slugField) {
+        genSlugBtn.addEventListener('click', function () {
+            slugField.value = randomHex(16);
+            slugField.focus();
+        });
+    }
+    var genSecretBtn = document.getElementById('genSecretBtn');
+    if (genSecretBtn && secretField) {
+        genSecretBtn.addEventListener('click', function () {
+            secretField.value = randomHex(24);
+            secretField.focus();
+        });
+    }
+    function applyElevenLabsPreset() {
+        var svc = (serviceField && serviceField.value ? serviceField.value : '').trim().toLowerCase();
+        if (svc !== 'elevenlabs') return;
+        verifySel.value = 'hmac';
+        headerField.value = 'ElevenLabs-Signature';
+        if (scopeSel.value === 'channel') scopeSel.value = 'discord_logs';
+        refreshConditionalFields();
+    }
     scopeSel.addEventListener('change', refreshConditionalFields);
     verifySel.addEventListener('change', refreshConditionalFields);
+    if (serviceField) serviceField.addEventListener('change', applyElevenLabsPreset);
+    if (serviceField) serviceField.addEventListener('blur', applyElevenLabsPreset);
     refreshConditionalFields();
 
     function resetToCreate() {
@@ -454,16 +520,17 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelBtn.addEventListener('click', resetToCreate);
 
     // Show a generated secret once, then reload
-    function showSecretThenReload(title, message, secret, header) {
-        if (!secret) {
-            Swal.fire({ icon: 'success', title: title, text: message }).then(() => location.reload());
-            return;
+    function showSecretThenReload(title, message, secret, header, url) {
+        var extras = '';
+        if (url) {
+            extras += `
+                <div class="sp-form-group" style="text-align:left;">
+                    <label class="sp-label">${I18N.urlLabel}</label>
+                    <input class="sp-input" style="font-family:monospace;" type="text" value="${url}" readonly>
+                </div>`;
         }
-        Swal.fire({
-            icon: 'success',
-            title: title,
-            html: `
-                <p>${message}</p>
+        if (secret) {
+            extras += `
                 <div class="sp-form-group" style="text-align:left;">
                     <label class="sp-label">${I18N.headerLabel}</label>
                     <input class="sp-input" style="font-family:monospace;" type="text" value="${header || ''}" readonly>
@@ -472,8 +539,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <label class="sp-label">${I18N.secretLabel}</label>
                     <input class="sp-input" style="font-family:monospace;" type="text" value="${secret}" readonly>
                     <p class="sp-help sp-help-danger" style="margin-top:0.5rem;">${I18N.secretWarning}</p>
-                </div>
-            `,
+                </div>`;
+        }
+        if (!extras) {
+            Swal.fire({ icon: 'success', title: title, text: message }).then(() => location.reload());
+            return;
+        }
+        Swal.fire({
+            icon: 'success',
+            title: title,
+            html: `<p>${message}</p>${extras}`,
             confirmButtonText: I18N.okBtn
         }).then(() => location.reload());
     }
@@ -505,7 +580,8 @@ document.addEventListener('DOMContentLoaded', function() {
             scope: scopeSel.value,
             target_username: document.getElementById('f_target').value,
             verify_mode: verifySel.value,
-            secret_header: headerField.value
+            secret_header: headerField.value,
+            secret: secretField ? secretField.value : ''
         };
         if (editing) {
             payload.update_webhook = '1';
@@ -514,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             payload.create_webhook = '1';
             payload.slug = slugField.value;
-            postAction(payload, { onSuccess: (d) => showSecretThenReload(I18N.createdTitle, d.message, d.secret, d.secret_header) });
+            postAction(payload, { onSuccess: (d) => showSecretThenReload(I18N.createdTitle, d.message, d.secret, d.secret_header, d.url) });
         }
     });
 

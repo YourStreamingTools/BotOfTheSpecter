@@ -2210,7 +2210,7 @@ async def _get_admin_key_for_service(service: str) -> str | None:
     try:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT api_key FROM admin_api_keys WHERE service = %s LIMIT 1",
+                "SELECT api_key FROM admin_api_keys WHERE LOWER(service) = LOWER(%s) LIMIT 1",
                 (service,)
             )
             row = await cur.fetchone()
@@ -2297,6 +2297,29 @@ async def receive_kick_webhook(username: str, request: Request):
 # event - routed to a specific channel or to admin global-listeners. This lets a
 # new integration go live WITHOUT editing api.py or restarting the API server.
 
+def _verify_elevenlabs_signature(secret: str, provided: str, raw_body: bytes) -> bool:
+    # ElevenLabs-Signature: t=<unix>,v0=<hex hmac of "{t}.{raw_body}">
+    parts = {}
+    for piece in str(provided).split(","):
+        if "=" not in piece:
+            continue
+        key, val = piece.strip().split("=", 1)
+        parts[key] = val
+    timestamp = parts.get("t")
+    digest = parts.get("v0")
+    if not timestamp or not digest:
+        return False
+    try:
+        ts = int(timestamp)
+    except (TypeError, ValueError):
+        return False
+    if abs(_time.time() - ts) > 1800:
+        return False
+    body = raw_body.decode("utf-8") if isinstance(raw_body, (bytes, bytearray)) else str(raw_body or "")
+    computed = hmac.new(secret.encode("utf-8"), f"{timestamp}.{body}".encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(computed.lower(), digest.lower())
+
+
 def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, request: Request, raw_body: bytes) -> bool:
     # Constant-time verification of an inbound custom webhook request.
     if verify_mode == "none":
@@ -2310,6 +2333,9 @@ def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, re
     if verify_mode == "secret":
         return hmac.compare_digest(str(provided), str(secret))
     if verify_mode == "hmac":
+        header_l = (header_name or "").lower()
+        if header_l == "elevenlabs-signature" or ("t=" in provided and "v0=" in provided):
+            return _verify_elevenlabs_signature(secret, provided, raw_body)
         sig = provided[len("sha256="):] if provided.startswith("sha256=") else provided
         computed = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
         return hmac.compare_digest(sig.lower(), computed.lower())
@@ -2364,10 +2390,10 @@ async def receive_custom_webhook(slug: str, request: Request):
     # clients). global -> the service-scoped admin key (reaches admin global-
     # listeners; the WebSocket server identifies the service by this key). We never
     # forward the super-admin/master key, so it can't end up in WS access logs.
-    if scope == "global":
+    if scope in ("global", "discord_logs"):
         code = await _get_admin_key_for_service(service)
         if not code:
-            logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} global scope but no admin key exists for service={service!r}")
+            logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} scope={scope!r} but no admin key exists for service={service!r}")
             return {"status": "ok", "note": "service admin key not configured"}
         channel_label = service
     else:
@@ -2389,6 +2415,7 @@ async def receive_custom_webhook(slug: str, request: Request):
                 "event":   event_name,
                 "service": service,
                 "channel": channel_label,
+                "scope":   scope,
                 "data":    json.dumps(payload),
             }
             url = f"https://websocket.botofthespecter.com/notify?{urlencode(params)}"

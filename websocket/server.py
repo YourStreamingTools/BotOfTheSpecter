@@ -1338,6 +1338,7 @@ class BotOfTheSpecter_WebsocketServer:
         voice_name = request.query.get("voice_name") or request.query.get("voice") or None
         tts_style = request.query.get("style") or None
         expressive_voice = request.query.get("expressive_voice") or None
+        webhook_scope = (request.query.get("scope") or "").strip().lower()
         # Validate mandatory parameters
         if not code:
             raise web.HTTPBadRequest(text="400 Bad Request: API Key is missing")
@@ -1452,9 +1453,13 @@ class BotOfTheSpecter_WebsocketServer:
             # 'code' (the admin key) so it is never echoed to any client.
             svc = admin_info.get('service') or "unknown"
             safe_data = {k: v for k, v in data.items() if k != 'code'}
+            payload = {**safe_data, "channel_code": svc, "webhook_event": event}
+            logs_only = webhook_scope == "discord_logs" or (safe_data.get("scope") or "").strip().lower() == "discord_logs"
             for listener in self.global_listeners:
-                await self.sio.emit(event, {**safe_data, "channel_code": svc}, to=listener['sid'])
-                self.logger.info(f"Emitted service event '{event}' to global listener SID [{listener['sid']}] (service: {svc})")
+                if not logs_only:
+                    await self.sio.emit(event, payload, to=listener['sid'])
+                await self.sio.emit("WEBHOOK_LOG", payload, to=listener['sid'])
+                self.logger.info(f"Emitted {'WEBHOOK_LOG' if logs_only else event + ' + WEBHOOK_LOG'} to global listener SID [{listener['sid']}] (service: {svc})")
                 count += 1
             self.logger.info(f"Broadcasted service event '{event}' to {count} global listeners")
         else:
