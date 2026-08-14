@@ -70,7 +70,7 @@ class Config:
         # URLs
         self.websocket_url = "wss://websocket.botofthespecter.com"
         self.api_base_url = "https://api.botofthespecter.com"
-        self.webhook_logs_channel_id = (os.getenv("DISCORD_WEBHOOK_LOGS_CHANNEL") or "").strip()
+        self.webhook_logs_channel_id = (os.getenv("DISCORD_WEBHOOK_LOGS_CHANNEL") or "1537759711729025095").strip()
         # Music player settings
         self.typing_speed = 50
         self.volume_default = 0.1
