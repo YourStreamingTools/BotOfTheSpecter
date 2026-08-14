@@ -1336,6 +1336,8 @@ class BotOfTheSpecter_WebsocketServer:
         language_code = request.query.get("language_code") or request.query.get("language") or None
         gender = request.query.get("gender") or None
         voice_name = request.query.get("voice_name") or request.query.get("voice") or None
+        tts_style = request.query.get("style") or None
+        expressive_voice = request.query.get("expressive_voice") or None
         # Validate mandatory parameters
         if not code:
             raise web.HTTPBadRequest(text="400 Bad Request: API Key is missing")
@@ -1398,7 +1400,7 @@ class BotOfTheSpecter_WebsocketServer:
             await self.broadcast_event_with_globals(event, data, code)
         elif event == "TTS" and text:
             # Add TTS request to queue with additional parameters
-            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
+            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name, tts_style, expressive_voice)
             self.logger.info(f"TTS request added to queue: {text}")
             count = 1
         elif event == "FOURTHWALL":
@@ -1654,8 +1656,10 @@ class BotOfTheSpecter_WebsocketServer:
         language_code = data.get("language_code") or data.get("language")
         gender = data.get("gender")
         voice_name = data.get("voice_name") or data.get("voice")
+        tts_style = data.get("style")
+        expressive_voice = data.get("expressive_voice")
         if text and code:
-            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name)
+            await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name, tts_style, expressive_voice)
             self.logger.info(f"TTS request added to queue: {text}")
         else:
             self.logger.warning(f"TTS event missing required parameters: text={text}, code={code}")

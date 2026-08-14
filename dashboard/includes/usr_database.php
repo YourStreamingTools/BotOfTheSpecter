@@ -643,7 +643,9 @@ try {
             CREATE TABLE IF NOT EXISTS tts_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 voice VARCHAR(50),
-                language VARCHAR(10)
+                language VARCHAR(10),
+                style VARCHAR(20) NOT NULL DEFAULT 'normal',
+                expressive_voice VARCHAR(64) DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'streamer_preferences' => "
             CREATE TABLE IF NOT EXISTS streamer_preferences (

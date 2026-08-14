@@ -4861,26 +4861,34 @@ async def websocket_tts(
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = valid
+    tts_style = "normal"
+    expressive_voice = None
     # If either setting is missing, load defaults from the user's tts_settings table
-    if not voice or not language:
+    try:
+        conn = await get_mysql_connection_user(username)
         try:
-            conn = await get_mysql_connection_user(username)
-            try:
-                async with conn.cursor(aiomysql.DictCursor) as cur:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                try:
+                    await cur.execute("SELECT voice, language, style, expressive_voice FROM tts_settings LIMIT 1")
+                except Exception:
                     await cur.execute("SELECT voice, language FROM tts_settings LIMIT 1")
-                    row = await cur.fetchone()
-            finally:
-                conn.close()
-            if row:
-                if not voice:
-                    voice = row.get("voice") or "Alloy"
-                if not language:
-                    language = row.get("language") or "en"
-        except Exception as e:
-            logging.warning(f"Could not load TTS settings for '{username}': {e}")
-        voice = voice or "Alloy"
-        language = language or "en"
-    params = {"event": "TTS", "text": text, "voice": voice, "language": language}
+                row = await cur.fetchone()
+        finally:
+            conn.close()
+        if row:
+            if not voice:
+                voice = row.get("voice") or "Alloy"
+            if not language:
+                language = row.get("language") or "en"
+            tts_style = row.get("style") or "normal"
+            expressive_voice = row.get("expressive_voice")
+    except Exception as e:
+        logging.warning(f"Could not load TTS settings for '{username}': {e}")
+    voice = voice or "Alloy"
+    language = language or "en"
+    params = {"event": "TTS", "text": text, "voice": voice, "language": language, "style": tts_style}
+    if expressive_voice:
+        params["expressive_voice"] = expressive_voice
     await websocket_notice("TTS", params, api_key)
     return {"status": "success"}
 
