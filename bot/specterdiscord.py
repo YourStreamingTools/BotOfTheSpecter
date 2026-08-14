@@ -70,6 +70,7 @@ class Config:
         # URLs
         self.websocket_url = "wss://websocket.botofthespecter.com"
         self.api_base_url = "https://api.botofthespecter.com"
+        self.webhook_logs_channel_id = (os.getenv("DISCORD_WEBHOOK_LOGS_CHANNEL") or "").strip()
         # Music player settings
         self.typing_speed = 50
         self.volume_default = 0.1
@@ -876,13 +877,20 @@ class WebsocketListener:
         async def freestuff_announcement(data):
             self.logger.info("FREESTUFF_ANNOUNCEMENT event handler called!")
             await handle_freestuff_announcement(self.bot, data)
+        # Global custom webhooks (admin page) → operator logs channel
+        @self.specterSocket.on('WEBHOOK_LOG')
+        async def webhook_log(data):
+            await handle_webhook_log(self.bot, data)
+        @self.specterSocket.on('ELEVENLABS')
+        async def elevenlabs_webhook(data):
+            await handle_webhook_log(self.bot, data)
         # Log all other events generically
         @self.specterSocket.on('*')
         async def catch_all(event, data):
             if event and event.startswith('OBS_'):
                 # Ignore OBS-related events since Discord bot doesn't need to process them
                 return
-            if event == 'CHAT_MESSAGE':
+            if event in ('CHAT_MESSAGE', 'WEBHOOK_LOG', 'ELEVENLABS'):
                 return
             self.logger.info(f"Received websocket event '{event}': {data}")
 
@@ -1324,6 +1332,60 @@ class ChannelMapping:
                 self.logger.info(f"Auto-created {created_count} missing channel mappings")
         except Exception as e:
             self.logger.error(f"Error in populate_missing_mappings_from_users: {e}")
+
+async def handle_webhook_log(bot, data):
+    logger = bot.logger if hasattr(bot, 'logger') else logging.getLogger('WebhookLog')
+    channel_id = getattr(config, 'webhook_logs_channel_id', '') or ''
+    if not channel_id:
+        logger.warning("DISCORD_WEBHOOK_LOGS_CHANNEL is not set — dropping webhook log")
+        return
+    try:
+        channel = bot.get_channel(int(channel_id))
+    except (TypeError, ValueError):
+        logger.error(f"Invalid DISCORD_WEBHOOK_LOGS_CHANNEL: {channel_id}")
+        return
+    if not channel:
+        logger.warning(f"Webhook logs channel {channel_id} not found")
+        return
+    data = data or {}
+    service = data.get('service') or data.get('channel_code') or 'unknown'
+    event_name = data.get('webhook_event') or data.get('event') or 'WEBHOOK'
+    raw = data.get('data')
+    payload = raw
+    if isinstance(raw, str):
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            payload = {"raw": raw[:500]}
+    if not isinstance(payload, dict):
+        payload = {"data": payload}
+    el_type = payload.get('type')
+    inner = payload.get('data') if isinstance(payload.get('data'), dict) else {}
+    desc_lines = [f"**Service:** {service}", f"**Event:** `{event_name}`"]
+    if el_type:
+        desc_lines.append(f"**Type:** `{el_type}`")
+    if inner.get('status'):
+        desc_lines.append(f"**Status:** {inner.get('status')}")
+    if inner.get('conversation_id'):
+        desc_lines.append(f"**Conversation:** `{inner.get('conversation_id')}`")
+    if inner.get('voice_id'):
+        desc_lines.append(f"**Voice:** `{inner.get('voice_id')}`")
+    embed = discord.Embed(
+        title=f"Webhook · {service}",
+        description="\n".join(desc_lines),
+        color=discord.Color.orange(),
+        timestamp=datetime.now(timezone.utc),
+    )
+    blob = json.dumps(payload, indent=2, default=str)
+    if len(blob) > 900:
+        blob = blob[:897] + "..."
+    embed.add_field(name="Payload", value=f"```json\n{blob}\n```", inline=False)
+    embed.set_footer(text="Global inbound webhook")
+    try:
+        await channel.send(embed=embed)
+        logger.info(f"Posted webhook log for {service}/{event_name} to channel {channel_id}")
+    except Exception as e:
+        logger.error(f"Failed to post webhook log: {e}")
 
 async def handle_freestuff_announcement(bot, data):
     try:
