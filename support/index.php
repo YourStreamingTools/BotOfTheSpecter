@@ -1025,7 +1025,14 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     <hr class="sp-divider">
 
     <h2>Expressive Voices</h2>
-    <p>Expressive is multilingual. It follows the language of the message, reads ALL CAPS as shouting, and treats <code>lol</code> / <code>haha</code> as laughter. If expressive generation fails, that line falls back to your Normal voice.</p>
+    <p>Expressive is multilingual. It follows the language of the message and reads ALL CAPS as shouting. If expressive generation fails, that line falls back to your Normal voice.</p>
+    <p>These laugh words are <strong>not spoken</strong>. The voice laughs instead:</p>
+    <ul>
+        <li><code>lol</code>, <code>lols</code>, <code>lul</code>, <code>lulz</code></li>
+        <li><code>lmao</code>, <code>lmfao</code>, <code>rofl</code></li>
+        <li><code>haha</code>, <code>hahaha</code>, <code>hahah</code>, <code>ha ha</code></li>
+        <li><code>hehe</code></li>
+    </ul>
     <?php if ($expressiveTtsVoices): ?>
     <p>Click the play button next to each voice to hear a sample:</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1rem;">
