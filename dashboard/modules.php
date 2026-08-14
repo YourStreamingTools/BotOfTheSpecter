@@ -90,6 +90,16 @@ function modules_expressive_voices(): array
     return $voices;
 }
 
+function modules_default_expressive_voice_id(array $voices): string
+{
+    foreach ($voices as $voice) {
+        if (strcasecmp((string) ($voice['name'] ?? ''), 'Callum') === 0) {
+            return (string) $voice['id'];
+        }
+    }
+    return '';
+}
+
 function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $username): array
 {
     $timezone = 'UTC';
@@ -1998,6 +2008,10 @@ ob_start();
                                     $expressiveVoices = modules_expressive_voices();
                                     $tts_style = isset($tts_style) ? $tts_style : 'normal';
                                     $tts_expressive_voice = isset($tts_expressive_voice) ? $tts_expressive_voice : '';
+                                    $callumVoiceId = modules_default_expressive_voice_id($expressiveVoices);
+                                    if ($tts_expressive_voice === '' && $callumVoiceId !== '') {
+                                        $tts_expressive_voice = $callumVoiceId;
+                                    }
                                     ?>
                                     <div class="sp-form-group">
                                         <label class="sp-label" for="tts_style">
@@ -2049,8 +2063,13 @@ ob_start();
                                         </label>
                                         <select class="sp-select" name="tts_expressive_voice" id="tts_expressive_voice">
                                             <option value=""><?= t('modules_tts_expressive_voice_placeholder') ?></option>
-                                            <?php foreach ($expressiveVoices as $exVoice): ?>
-                                                <option value="<?= htmlspecialchars($exVoice['id']) ?>" <?= $tts_expressive_voice === $exVoice['id'] ? 'selected' : '' ?>><?= htmlspecialchars($exVoice['name']) ?></option>
+                                            <?php foreach ($expressiveVoices as $exVoice):
+                                                $exLabel = $exVoice['name'];
+                                                if (strcasecmp($exVoice['name'], 'Callum') === 0) {
+                                                    $exLabel .= ' ' . t('modules_tts_voice_default_suffix');
+                                                }
+                                            ?>
+                                                <option value="<?= htmlspecialchars($exVoice['id']) ?>" <?= $tts_expressive_voice === $exVoice['id'] ? 'selected' : '' ?>><?= htmlspecialchars($exLabel) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                         <p class="field-help">
@@ -2276,6 +2295,18 @@ ob_start();
         if (el) el.value = value == null ? '' : String(value);
     }
 
+    function modulesDefaultExpressiveVoice() {
+        var sel = document.getElementById('tts_expressive_voice');
+        if (!sel || sel.value) return;
+        for (var i = 0; i < sel.options.length; i++) {
+            var label = (sel.options[i].text || '').replace(/\s*\[.*?\]\s*$/, '').trim().toLowerCase();
+            if (label === 'callum') {
+                sel.value = sel.options[i].value;
+                return;
+            }
+        }
+    }
+
     function modulesSyncTtsStyleFields() {
         var styleEl = document.getElementById('tts_style');
         var normalEl = document.getElementById('tts-normal-fields');
@@ -2284,6 +2315,7 @@ ob_start();
         var expressive = styleEl.value === 'expressive';
         normalEl.style.display = expressive ? 'none' : 'grid';
         expressiveEl.style.display = expressive ? '' : 'none';
+        if (expressive) modulesDefaultExpressiveVoice();
     }
 
     function modulesSetInputValue(selector, value) {
