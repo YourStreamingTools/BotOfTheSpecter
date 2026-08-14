@@ -1953,7 +1953,7 @@ return [
     'modules_tts_style_label' => 'Style TTS',
     'modules_tts_style_normal' => 'Normal',
     'modules_tts_style_expressive' => 'Expressif',
-    'modules_tts_style_help' => 'Normal est une lecture posée. Expressif ajoute des cris pour les MAJUSCULES et des rires pour lol ou haha.',
+    'modules_tts_style_help' => 'Normal est une lecture posée. Expressif est multilingue, ajoute des cris pour les MAJUSCULES et des rires pour lol ou haha.',
     'modules_tts_expressive_voice_label' => 'Voix expressive',
     'modules_tts_expressive_voice_help' => 'Sélectionnez la voix utilisée lorsque le TTS expressif est activé.',
     'modules_tts_expressive_voice_placeholder' => 'Sélectionner une voix',
