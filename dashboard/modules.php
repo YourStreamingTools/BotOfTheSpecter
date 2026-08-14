@@ -45,6 +45,51 @@ function modules_query_all(mysqli $db, string $sql): array
     return $rows;
 }
 
+function modules_expressive_voices(): array
+{
+    $voices = [];
+    $cfgPath = is_file('/var/www/config/elevenlabs.php')
+        ? '/var/www/config/elevenlabs.php'
+        : dirname(__DIR__) . '/config/elevenlabs.php';
+    if (!is_file($cfgPath)) {
+        return $voices;
+    }
+    include $cfgPath;
+    $key = isset($elevenlabs_api_key) ? trim((string) $elevenlabs_api_key) : '';
+    if ($key === '') {
+        return $voices;
+    }
+    $ch = curl_init('https://api.elevenlabs.io/v1/voices');
+    if ($ch === false) {
+        return $voices;
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['xi-api-key: ' . $key],
+        CURLOPT_TIMEOUT => 8,
+    ]);
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code !== 200 || !is_string($raw) || $raw === '') {
+        return $voices;
+    }
+    $data = json_decode($raw, true);
+    if (!is_array($data) || empty($data['voices']) || !is_array($data['voices'])) {
+        return $voices;
+    }
+    foreach ($data['voices'] as $voice) {
+        if (!is_array($voice) || empty($voice['voice_id']) || empty($voice['name'])) {
+            continue;
+        }
+        $voices[] = [
+            'id' => (string) $voice['voice_id'],
+            'name' => (string) $voice['name'],
+        ];
+    }
+    return $voices;
+}
+
 function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $username): array
 {
     $timezone = 'UTC';
@@ -280,16 +325,35 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
 
     $tts_voice = 'Alloy';
     $tts_language = 'en';
-    $stmt = $db->prepare("SELECT voice, language FROM tts_settings LIMIT 1");
+    $tts_style = 'normal';
+    $tts_expressive_voice = '';
+    $stmt = $db->prepare("SELECT voice, language, style, expressive_voice FROM tts_settings LIMIT 1");
+    if (!$stmt) {
+        $stmt = $db->prepare("SELECT voice, language FROM tts_settings LIMIT 1");
+    }
     if ($stmt) {
         $stmt->execute();
-        $stmt->bind_result($tts_voice_db, $tts_language_db);
+        $meta = $stmt->result_metadata();
+        $fieldCount = $meta ? $meta->field_count : 2;
+        if ($fieldCount >= 4) {
+            $stmt->bind_result($tts_voice_db, $tts_language_db, $tts_style_db, $tts_expressive_voice_db);
+        } else {
+            $tts_style_db = 'normal';
+            $tts_expressive_voice_db = '';
+            $stmt->bind_result($tts_voice_db, $tts_language_db);
+        }
         if ($stmt->fetch()) {
             if (!empty($tts_voice_db)) {
                 $tts_voice = $tts_voice_db;
             }
             if (!empty($tts_language_db)) {
                 $tts_language = $tts_language_db;
+            }
+            if (!empty($tts_style_db) && in_array($tts_style_db, ['normal', 'expressive'], true)) {
+                $tts_style = $tts_style_db;
+            }
+            if (!empty($tts_expressive_voice_db)) {
+                $tts_expressive_voice = $tts_expressive_voice_db;
             }
         }
         $stmt->close();
@@ -424,6 +488,8 @@ function modules_build_list_payload(mysqli $db, mysqli $conn, $user_id, $usernam
         'tts' => [
             'voice' => $tts_voice,
             'language' => $tts_language,
+            'style' => $tts_style,
+            'expressive_voice' => $tts_expressive_voice,
         ],
         'module_bots' => $moduleBots,
         'spotify' => [
@@ -1928,13 +1994,29 @@ ob_start();
                                         <i class="fas fa-info-circle"></i>
                                         <?= t('modules_tts_help_choosing_voice') ?>
                                     </div>
-                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+                                    <?php
+                                    $expressiveVoices = modules_expressive_voices();
+                                    $tts_style = isset($tts_style) ? $tts_style : 'normal';
+                                    $tts_expressive_voice = isset($tts_expressive_voice) ? $tts_expressive_voice : '';
+                                    ?>
+                                    <div class="sp-form-group">
+                                        <label class="sp-label" for="tts_style">
+                                            <i class="fas fa-sliders"></i>
+                                            <?= t('modules_tts_style_label') ?>
+                                        </label>
+                                        <select class="sp-select" name="tts_style" id="tts_style">
+                                            <option value="normal" <?= $tts_style === 'expressive' ? '' : 'selected' ?>><?= t('modules_tts_style_normal') ?></option>
+                                            <option value="expressive" <?= $tts_style === 'expressive' ? 'selected' : '' ?>><?= t('modules_tts_style_expressive') ?></option>
+                                        </select>
+                                        <p class="field-help"><?= t('modules_tts_style_help') ?></p>
+                                    </div>
+                                    <div id="tts-normal-fields" style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-volume-up"></i>
                                                 <?= t('modules_tts_voice_label') ?>
                                             </label>
-                                            <select class="sp-select" name="tts_voice" id="tts_voice" required>
+                                            <select class="sp-select" name="tts_voice" id="tts_voice">
                                                 <option value="Alloy">Alloy <?= t('modules_tts_voice_default_suffix') ?></option>
                                                 <option value="Ash">Ash</option>
                                                 <option value="Ballad">Ballad</option>
@@ -1954,11 +2036,26 @@ ob_start();
                                                 <i class="fas fa-globe"></i>
                                                 <?= t('modules_tts_language_label') ?>
                                             </label>
-                                            <select class="sp-select" name="tts_language" id="tts_language" required>
+                                            <select class="sp-select" name="tts_language" id="tts_language">
                                                 <option value="en"><?= t('modules_tts_language_english') ?></option>
                                             </select>
                                             <p class="field-help"><?= t('modules_tts_language_help') ?></p>
                                         </div>
+                                    </div>
+                                    <div id="tts-expressive-fields" class="sp-form-group">
+                                        <label class="sp-label" for="tts_expressive_voice">
+                                            <i class="fas fa-volume-up"></i>
+                                            <?= t('modules_tts_expressive_voice_label') ?>
+                                        </label>
+                                        <select class="sp-select" name="tts_expressive_voice" id="tts_expressive_voice">
+                                            <option value=""><?= t('modules_tts_expressive_voice_placeholder') ?></option>
+                                            <?php foreach ($expressiveVoices as $exVoice): ?>
+                                                <option value="<?= htmlspecialchars($exVoice['id']) ?>" <?= $tts_expressive_voice === $exVoice['id'] ? 'selected' : '' ?>><?= htmlspecialchars($exVoice['name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <p class="field-help">
+                                            <?= $expressiveVoices ? t('modules_tts_expressive_voice_help') : t('modules_tts_expressive_voice_empty') ?>
+                                        </p>
                                     </div>
                                     <div style="margin-top:1rem;">
                                         <button type="submit" class="sp-btn sp-btn-success">
@@ -2179,6 +2276,16 @@ ob_start();
         if (el) el.value = value == null ? '' : String(value);
     }
 
+    function modulesSyncTtsStyleFields() {
+        var styleEl = document.getElementById('tts_style');
+        var normalEl = document.getElementById('tts-normal-fields');
+        var expressiveEl = document.getElementById('tts-expressive-fields');
+        if (!styleEl || !normalEl || !expressiveEl) return;
+        var expressive = styleEl.value === 'expressive';
+        normalEl.style.display = expressive ? 'none' : 'grid';
+        expressiveEl.style.display = expressive ? '' : 'none';
+    }
+
     function modulesSetInputValue(selector, value) {
         var el = document.querySelector(selector);
         if (el) el.value = value == null ? '' : String(value);
@@ -2388,6 +2495,11 @@ ob_start();
         if (data.tts) {
             modulesSetSelectValue('#tts_voice', data.tts.voice || 'Alloy');
             modulesSetSelectValue('#tts_language', data.tts.language || 'en');
+            modulesSetSelectValue('#tts_style', data.tts.style || 'normal');
+            if (data.tts.expressive_voice) {
+                modulesSetSelectValue('#tts_expressive_voice', data.tts.expressive_voice);
+            }
+            modulesSyncTtsStyleFields();
         }
 
         var botsBody = document.getElementById('moduleBotsBody');
@@ -2465,6 +2577,11 @@ ob_start();
             });
     }
     document.addEventListener('DOMContentLoaded', function () {
+        var ttsStyle = document.getElementById('tts_style');
+        if (ttsStyle) {
+            ttsStyle.addEventListener('change', modulesSyncTtsStyleFields);
+            modulesSyncTtsStyleFields();
+        }
         loadModulesList();
         // File upload handling
         let dropArea = document.getElementById('drag-area');

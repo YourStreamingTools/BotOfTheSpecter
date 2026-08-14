@@ -582,14 +582,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $activeTab = "tts-settings";
         $tts_voice = $_POST['tts_voice'];
         $tts_language = $_POST['tts_language'];
-        $stmt = $db->prepare("INSERT INTO tts_settings (id, voice, language) VALUES (1, ?, ?) ON DUPLICATE KEY UPDATE voice = ?, language = ?");
-        $stmt->bind_param('ssss', $tts_voice, $tts_language, $tts_voice, $tts_language);
-        if ($stmt->execute()) {
-            $_SESSION['update_message'] = "TTS settings updated successfully. Voice: " . htmlspecialchars($tts_voice) . ", Language: " . htmlspecialchars($tts_language);
+        $tts_style = (isset($_POST['tts_style']) && $_POST['tts_style'] === 'expressive') ? 'expressive' : 'normal';
+        $tts_expressive_voice = isset($_POST['tts_expressive_voice']) ? trim((string) $_POST['tts_expressive_voice']) : '';
+        $stmt = $db->prepare("INSERT INTO tts_settings (id, voice, language, style, expressive_voice) VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE voice = ?, language = ?, style = ?, expressive_voice = ?");
+        if ($stmt) {
+            $stmt->bind_param('ssssssss', $tts_voice, $tts_language, $tts_style, $tts_expressive_voice, $tts_voice, $tts_language, $tts_style, $tts_expressive_voice);
+            if ($stmt->execute()) {
+                $_SESSION['update_message'] = "TTS settings updated successfully.";
+            } else {
+                $_SESSION['update_message'] = "Error updating TTS settings: " . $stmt->error;
+            }
+            $stmt->close();
         } else {
-            $_SESSION['update_message'] = "Error updating TTS settings: " . $stmt->error;
+            $_SESSION['update_message'] = "Error updating TTS settings: " . $db->error;
         }
-        $stmt->close();
     }
     // Handle Chat Protection Settings
     elseif (isset($_POST['url_blocking'])) {

@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import asyncio
 import shutil
@@ -9,6 +10,10 @@ import aiohttp
 OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
 MODEL_NAME = "gpt-4o-mini-tts"
 DEFAULT_VOICE = "alloy"
+ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+ELEVENLABS_MODEL = "eleven_v3"
+LAUGH_RE = re.compile(r"\b(lols?|lmao+|haha+h?|hahah+|hehe+)\b", re.IGNORECASE)
+SHOUT_WORD_RE = re.compile(r"\b[A-Z]{3,}\b")
 # OpenAI gpt-4o-mini-tts voice ids (lowercase). "verse" is used by several streamers.
 AVAILABLE_VOICES = [
     "alloy", "ash", "ballad", "coral", "echo", "fable",
@@ -39,6 +44,9 @@ class TTSHandler:
         self.openai_api_key = os.getenv("OPENAI_KEY")
         if not self.openai_api_key:
             self.logger.error("OPENAI_KEY env var not set - TTS will not work")
+        self.elevenlabs_api_key = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
+        if not self.elevenlabs_api_key:
+            self.logger.warning("ELEVENLABS_API_KEY env var not set - expressive TTS will fall back to normal")
         self.model_name = MODEL_NAME
         self.default_voice = DEFAULT_VOICE
         self.available_voices = AVAILABLE_VOICES
@@ -119,18 +127,31 @@ class TTSHandler:
             self.processing_task = None
             self.logger.info("TTS queue processing stopped")
 
-    async def add_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
+    def apply_expressive_tags(self, text):
+        if not text:
+            return text
+        tagged = LAUGH_RE.sub("[laughs]", text)
+        letters = [c for c in tagged if c.isalpha()]
+        if letters and len(letters) >= 3 and all(c.isupper() for c in letters):
+            if "[shouts]" not in tagged.lower():
+                tagged = "[shouts] " + tagged
+            return tagged
+        return SHOUT_WORD_RE.sub(lambda m: f"[shouts] {m.group(0)}", tagged)
+
+    async def add_tts_request(self, text, code, language_code=None, gender=None, voice_name=None, style=None, expressive_voice=None):
         if not text:
             self.logger.warning(f"add_tts_request called with empty/None text for code={code}; ignoring")
             return
         request_id = uuid.uuid4().hex[:8]
-        self.logger.info(f"[TTS-ADD-{request_id}] add_tts_request called with text='{text[:50]}...', code={code}, voice={voice_name}")
+        self.logger.info(f"[TTS-ADD-{request_id}] add_tts_request called with text='{text[:50]}...', code={code}, voice={voice_name}, style={style}")
         await self.tts_queue.put({
             "text": text,
             "code": code,
             "language_code": language_code,
             "gender": gender,
             "voice_name": voice_name,
+            "style": (style or "normal").strip().lower(),
+            "expressive_voice": expressive_voice,
             "request_id": request_id
         })
         queue_size = self.tts_queue.qsize()
@@ -170,11 +191,7 @@ class TTSHandler:
         # Create tasks for concurrent API calls
         tasks = []
         for request_data in batch:
-            task = self.generate_api_tts(
-                request_data.get('text'),
-                request_data.get('code'),
-                request_data.get('voice_name')
-            )
+            task = self.generate_tts_audio(request_data)
             tasks.append(task)
         # Execute all API calls concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -218,10 +235,15 @@ class TTSHandler:
         except Exception as e:
             self.logger.error(f"Error cleaning up TTS file: {e}")
 
-    async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
+    async def process_tts_request(self, text, code, language_code=None, gender=None, voice_name=None, style=None, expressive_voice=None):
         self.logger.info(f"Processing TTS request for code {code} with text: {text}")
-        # Generate TTS using OpenAI API
-        audio_file = await self.generate_api_tts(text, code, voice_name)
+        audio_file = await self.generate_tts_audio({
+            "text": text,
+            "code": code,
+            "voice_name": voice_name,
+            "style": style,
+            "expressive_voice": expressive_voice,
+        })
         if audio_file is None:
             self.logger.error(f"Failed to generate TTS audio for code {code}")
             return
@@ -245,6 +267,70 @@ class TTSHandler:
             await self.cleanup_tts_file(audio_file)
         except Exception as e:
             self.logger.error(f"Error cleaning up TTS file: {e}")
+
+    async def generate_tts_audio(self, request_data):
+        text = request_data.get("text")
+        code = request_data.get("code")
+        voice_name = request_data.get("voice_name")
+        style = (request_data.get("style") or "normal").strip().lower()
+        expressive_voice = request_data.get("expressive_voice")
+        if style == "expressive" and expressive_voice:
+            tagged = self.apply_expressive_tags(text)
+            audio_file = await self.generate_elevenlabs_tts(tagged, code, expressive_voice)
+            if audio_file:
+                return audio_file
+            self.logger.warning("Expressive TTS failed; falling back to normal TTS")
+        return await self.generate_api_tts(text, code, voice_name)
+
+    async def generate_elevenlabs_tts(self, text, code, voice_id):
+        if not self.elevenlabs_api_key:
+            self.logger.error("ELEVENLABS_API_KEY not set")
+            return None
+        if not voice_id:
+            self.logger.error("Expressive TTS missing voice id")
+            return None
+        if len(text) > 5000:
+            self.logger.error(f"Text too long for expressive TTS: {len(text)} characters")
+            return None
+        unique_id = uuid.uuid4().hex[:8]
+        code_tag = (code or "anon")[:12]
+        filename = f'tts_output_{code_tag}_{unique_id}.mp3'
+        filepath = os.path.join(self.tts_dir, filename)
+        url = ELEVENLABS_TTS_URL.format(voice_id=voice_id)
+        headers = {
+            "xi-api-key": self.elevenlabs_api_key,
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "text": text,
+            "model_id": ELEVENLABS_MODEL,
+        }
+        try:
+            os.makedirs(self.tts_dir, exist_ok=True)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url,
+                    params={"output_format": "mp3_44100_128"},
+                    headers=headers,
+                    json=body,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as response:
+                    if response.status != 200:
+                        err_text = await response.text()
+                        self.logger.error(f"Expressive TTS API error {response.status}: {err_text[:500]}")
+                        return None
+                    with open(filepath, "wb") as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            f.write(chunk)
+            self.logger.info(f"Expressive TTS audio generated and saved: {filepath}")
+            return filepath
+        except asyncio.TimeoutError:
+            self.logger.error("Expressive TTS API timeout after 60s")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error generating expressive TTS: {e}")
+            return None
 
     async def generate_api_tts(self, text, code, voice_name=None):
         if not self.openai_api_key:
