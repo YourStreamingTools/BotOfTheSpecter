@@ -16,3 +16,7 @@ Whenever the **stable** bot (`./bot/bot.py`) is changed (it only gets critical f
 5. `./docs/README.md` — prepend `[Version x.y.z](x.y.z.md)` to the top of the ChangeLog list.
 
 Patch increments (5.7.12 → 5.7.13) for fixes. Beta version is tracked separately in versions.json (`beta_version`) and is NOT bumped for a stable fix. After editing, `python -m py_compile bot/bot.py` and validate `versions.json` parses. Leave it all uncommitted ([[feedback_no_commits]]).
+
+**Changelog scope (HARD):** A stable dump/`docs/<ver>.md` is the public note for that fix. Do **not** also append the same item to `docs/5.8.md` (or invent a v6 version note). `5.8.md` is only for beta-only / day-to-day beta-track work that is **not** shipping as a stable patch.
+
+**Never name the reporting channel** (or a channel-specific DB like `<channel>.twitch_bot_access`) in public version notes. Describe the failure generically.

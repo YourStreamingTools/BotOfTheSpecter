@@ -6,7 +6,7 @@ Three Twitch bot files exist for a reason. Pick the right target before editing.
 
 | File | Status | Edit when... |
 | ---- | ------ | ------------ |
-| `./bot/bot.py` | **STABLE** (v5.7.16, TwitchIO 2.10.0) | **Critical bug fix only.** Never add features here. |
+| `./bot/bot.py` | **STABLE** (v5.7.17, TwitchIO 2.10.0) | **Critical bug fix only.** Never add features here. |
 | `./bot/beta.py` | **BETA** (v5.8, TwitchIO 2.10.0) | New features, normal day-to-day work. |
 | `./bot/beta-v6.py` | **REWRITE / beta track** (v6.0.0, TwitchIO **3.3.2**) | Forward-looking work using TwitchIO 3.x (`from twitchio import eventsub`). Docs: https://twitchio.dev/en/stable/ |
 
