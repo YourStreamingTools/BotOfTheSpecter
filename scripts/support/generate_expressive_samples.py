@@ -10,7 +10,7 @@ import urllib.request
 VOICES_URL = "https://api.elevenlabs.io/v1/voices"
 TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128"
 MODEL_ID = "eleven_v3"
-SAMPLE_TEXT = "Hey chat, lol that was amazing. WAIT, don't go anywhere!"
+SAMPLE_TEXT = "[cheerfully] Hello I'm Bot Of The Specter, this is the TTS voice you'd hear if you select me"
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DIR = os.path.join(REPO_ROOT, "cdn", "help", "tts", "expressive")
 SLUG_RE = re.compile(r"[^a-z0-9]+")
