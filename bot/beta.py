@@ -3313,6 +3313,9 @@ async def process_stream_bingo_message(data):
                     event="STREAM_BINGO_EXTRA_CARD",
                     additional_data={"player_name": player_name, "bits": bits}
                 ))
+                # Extension bits do not fire channel.bits.use; emit the same cheer notice Discord/alerts/ticker use.
+                if player_name and bits:
+                    safe_create_task(websocket_notice(event="TWITCH_CHEER", user=player_name, cheer_amount=bits))
             elif event_type == 'VOTE_STARTED':
                 # Handle vote started
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: Voting has started")
@@ -3340,6 +3343,9 @@ async def process_stream_bingo_message(data):
                     event="STREAM_BINGO_EXTRA_CARD",
                     additional_data={"player_name": player_name, "bits": bits, "is_vote": True}
                 ))
+                # Extension bits do not fire channel.bits.use; emit the same cheer notice Discord/alerts/ticker use.
+                if player_name and bits:
+                    safe_create_task(websocket_notice(event="TWITCH_CHEER", user=player_name, cheer_amount=bits))
             elif event_type == 'VOTE_ENDED':
                 # Handle vote ended
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: Voting has ended")
