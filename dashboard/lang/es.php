@@ -2019,7 +2019,7 @@ return [
     'modules_tts_expressive_voice_empty' => 'No hay voces expresivas disponibles ahora mismo.',
     'modules_voice_configuration' => 'Configuración de voz',
     'modules_tts_help_choosing_voice' => '<strong>¿Necesitas ayuda para elegir una voz?</strong><br>
-                                        Visite nuestra Guía de configuración <a href="https://help.botofthespecter.com/tts_setup.php" target="_blank" style="color:var(--accent);"><strong>TTS</strong></a> para escuchar muestras de voz y obtener más información sobre cada opción.',
+                                        Visite nuestra Guía de configuración <a href="https://support.botofthespecter.com/#tts" target="_blank" rel="noopener" style="color:var(--accent);"><strong>TTS</strong></a> para escuchar muestras de voz y obtener más información sobre cada opción.',
     'modules_tts_voice_label' => 'TTS Voz',
     'modules_tts_voice_default_suffix' => '[por defecto]',
     'modules_tts_voice_help' => 'Selecciona la voz que leerá los mensajes TTS en tu canal.',

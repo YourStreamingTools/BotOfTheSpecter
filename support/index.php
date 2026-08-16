@@ -72,7 +72,7 @@ ob_start();
     <a href="#" class="sp-doc-card" data-goto="tts">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-microphone"></i></div>
         <div class="sp-doc-card-title">Text-to-Speech</div>
-        <div class="sp-doc-card-desc">Voices, Channel Points TTS, and setup tips.</div>
+        <div class="sp-doc-card-desc">Normal and Expressive voices, Channel Points TTS, and setup tips.</div>
     </a>
     <a href="#" class="sp-doc-card" data-goto="obs-audio">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-headphones"></i></div>
@@ -788,7 +788,7 @@ ob_start();
                 <tr><td><strong><i class="fa-solid fa-cloud-sun" style="color:#4aa3f0;"></i> OpenWeatherMap</strong></td><td>Fetches live weather for any location via <code>!weather &lt;city&gt;</code>.</td></tr>
                 <tr><td><strong><i class="fa-solid fa-user-tag"></i> Pronouns (alejo.io)</strong></td><td>Looks up and caches viewer-set pronouns, using them naturally when the bot mentions a viewer by name.</td></tr>
                 <tr><td><strong><i class="fa-brands fa-discord" style="color:#5865F2;"></i> Discord</strong></td><td>A companion Discord bot handles stream announcements, reaction roles, support tickets, voice music playback, and Twitch account linking.</td></tr>
-                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Converts viewer messages to speech using AI voices (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer) through an OBS browser source overlay.</td></tr>
+                <tr><td><strong><i class="fa-solid fa-microphone"></i> Text-to-Speech (TTS)</strong></td><td>Reads viewer messages through an OBS overlay. <strong>Normal</strong> is a steady English read (Alloy, Ash, Ballad, Coral, Echo, Fable, Nova, Onyx, Sage, Shimmer, Verse). <strong>Expressive</strong> is multilingual, with shouting and laughter from the message text (beta).</td></tr>
                 <tr><td><strong><i class="fa-solid fa-ruler-combined" style="color:#f0a500;"></i> Unit &amp; Currency Conversion</strong></td><td>Powered by the Pint unit library for length, weight, temperature, volume, speed, and more - plus live currency exchange rates via the ExchangeRate API - all through <code>!convert</code> (e.g. <code>!convert 10 km mi</code> or <code>!convert $10 USD AUD</code>).</td></tr>
             </tbody>
         </table>
@@ -974,14 +974,16 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     </div>
 
     <h2>What is TTS &amp; How to Set It Up</h2>
-    <p>The Text-to-Speech (TTS) module allows BotOfTheSpecter to read messages aloud in your stream. You can customize which voice is used, and the TTS will play through your audio overlay. This is perfect for announcements, alerts, and enhancing viewer engagement.</p>
+    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the audio overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
 
     <h3>Setting Up TTS</h3>
     <ol>
-        <li>Navigate to the <strong>TTS Settings</strong> section in the BotOfTheSpecter dashboard.</li>
-        <li>Choose <strong>Normal</strong> or <strong>Expressive</strong>, then pick a voice (see the samples below).</li>
-        <li>Set up your audio overlay to hear TTS output - see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
-        <li>Test your setup with a sample message.</li>
+        <li>Open the dashboard and go to <strong>Modules → TTS Settings</strong>.</li>
+        <li>Choose <strong>Normal</strong> or <strong>Expressive</strong>.</li>
+        <li>Pick a voice. The first time you switch to Expressive, <strong>Callum</strong> is selected by default. Expressive has no language picker — it follows the viewer’s text.</li>
+        <li>Save TTS settings.</li>
+        <li>Add your audio overlay in OBS and enable monitoring — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li>Test with a Channel Point redemption or a <code>(tts)</code> variable.</li>
     </ol>
 
     <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
@@ -992,10 +994,10 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     </div>
 
     <h3 style="margin-top:1.25rem;">Using TTS with Channel Points</h3>
-    <p>TTS is triggered through Twitch Channel Points redemptions. Viewers can redeem a Channel Point reward to have a message read aloud using the voice you've selected in TTS settings.</p>
+    <p>TTS is triggered through Twitch Channel Points redemptions. Viewers redeem a reward to have their message read with the <strong>style and voice</strong> you saved in TTS settings.</p>
 
     <h3 style="margin-top:1.25rem;">Using TTS with the Point Store <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
-    <p>On the beta bot, viewers can also trigger TTS by buying a TTS item from your <strong>Point Store</strong>, spending their bot loyalty points instead of Twitch Channel Points. Their message is read aloud with the same voice configured in your TTS settings.</p>
+    <p>On the beta bot, viewers can also trigger TTS by buying a TTS item from your <strong>Point Store</strong>, spending bot loyalty points instead of Twitch Channel Points. Their message uses the same style and voice as Channel Points TTS.</p>
 
     <hr class="sp-divider">
 
@@ -1024,8 +1026,8 @@ $expressiveTtsVoices = support_expressive_tts_voices();
 
     <hr class="sp-divider">
 
-    <h2>Expressive Voices</h2>
-    <p>Expressive is multilingual. It follows the language of the message and reads ALL CAPS as shouting. If expressive generation fails, that line falls back to your Normal voice.</p>
+    <h2>Expressive Voices <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h2>
+    <p>Expressive is multilingual: it follows the language of the message (including mixed-language lines when it can). Words in ALL CAPS with three or more letters are shouted. If Expressive cannot generate a line, that line falls back to your saved Normal voice.</p>
     <p>These laugh words are <strong>not spoken</strong>. The voice laughs instead:</p>
     <ul>
         <li><code>lol</code>, <code>lols</code>, <code>lul</code>, <code>lulz</code></li>
@@ -1072,9 +1074,10 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     <h2>Troubleshooting TTS</h2>
     <ul>
         <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
-        <li><strong>Wrong voice playing:</strong> Check that you've saved the correct voice in TTS settings on the dashboard.</li>
+        <li><strong>Wrong voice or style:</strong> In <strong>Modules → TTS Settings</strong>, confirm style (Normal or Expressive), the matching voice, and that you clicked Save. Expressive is beta-only.</li>
+        <li><strong>Laugh words still spoken:</strong> Those tokens are stripped only on Expressive. On Normal, <code>lol</code> is read as text.</li>
         <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the audio overlay source in OBS.</li>
-        <li><strong>TTS not responding:</strong> Ensure the TTS module is enabled on the dashboard and the bot has proper channel permissions.</li>
+        <li><strong>TTS not responding:</strong> Ensure the bot is running (beta if you use Expressive) and the overlay is connected.</li>
     </ul>
 </div>
 <script>
@@ -3225,7 +3228,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">How do I set up Text-to-Speech (TTS)?</div>
-        <div class="sp-faq-a">Pick a voice in dashboard TTS settings, add your audio overlay in OBS with monitoring enabled, and trigger TTS via Channel Points. Full voice samples and tips are in the <a href="#" data-goto="tts">Text-to-Speech</a> guide.</div>
+        <div class="sp-faq-a">Go to <strong>Modules → TTS Settings</strong>, pick Normal or Expressive and a voice, add your audio overlay in OBS with monitoring enabled, then trigger TTS via Channel Points or <code>(tts)</code>. Full voice samples and laugh-word list are in the <a href="#" data-goto="tts">Text-to-Speech</a> guide.</div>
     </div>
     <div class="sp-faq-item">
         <div class="sp-faq-q">What built-in commands are there for the bot?</div>
@@ -3305,6 +3308,7 @@ pip install -r api/requirements.txt --upgrade</code></pre>
         <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="obs-audio">audio monitoring is configured correctly</a>.</li>
         <li>If you hear an echo, set Audio Monitoring to <strong>Monitor Only (mute output)</strong> and test again - everyone's audio setup differs.</li>
         <li>Confirm you've entered the correct API key, found on your <strong>Specter Profile</strong> page in the dashboard.</li>
+        <li>For voice or style issues, see the <a href="#" data-goto="tts">Text-to-Speech</a> guide (Normal vs Expressive, laugh words, and samples).</li>
     </ul>
 
     <h2>Still Stuck?</h2>
