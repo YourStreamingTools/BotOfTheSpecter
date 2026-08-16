@@ -1960,7 +1960,7 @@ return [
     'modules_tts_expressive_voice_empty' => 'Derzeit sind keine expressiven Stimmen verfügbar.',
     'modules_voice_configuration' => 'Stimmkonfiguration',
     'modules_tts_help_choosing_voice' => '<strong>Brauchst du Hilfe bei der Wahl einer Stimme?</strong><br>
-                                        Besuche unseren <a href="https://help.botofthespecter.com/tts_setup.php" target="_blank" style="color:var(--accent);"><strong>TTS-Einrichtungsleitfaden</strong></a>, um Stimmproben anzuhören und mehr über jede Option zu erfahren.',
+                                        Besuche unseren <a href="https://support.botofthespecter.com/#tts" target="_blank" rel="noopener" style="color:var(--accent);"><strong>TTS-Einrichtungsleitfaden</strong></a>, um Stimmproben anzuhören und mehr über jede Option zu erfahren.',
     'modules_tts_voice_label' => 'TTS-Stimme',
     'modules_tts_voice_default_suffix' => '[Standard]',
     'modules_tts_voice_help' => 'Wähle die Stimme aus, die TTS-Nachrichten in deinem Kanal vorliest.',

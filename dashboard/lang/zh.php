@@ -1966,7 +1966,7 @@ return [
     'modules_tts_expressive_voice_placeholder' => '选择语音',
     'modules_tts_expressive_voice_empty' => '当前没有可用的表现力语音。',
     'modules_voice_configuration' => '语音配置',
-    'modules_tts_help_choosing_voice' => '<strong>需要帮助选择声音吗？</strong><br> 请访问我们的《3》《4》《7》设置指南《5》《6》聆听语音样本并了解有关每个选项的更多信息。',
+    'modules_tts_help_choosing_voice' => '<strong>需要帮助选择声音吗？</strong><br> 请访问我们的 <a href="https://support.botofthespecter.com/#tts" target="_blank" rel="noopener" style="color:var(--accent);"><strong>TTS 设置指南</strong></a>，聆听语音样本并了解每个选项。',
     'modules_tts_voice_label' => 'TTS 语音',
     'modules_tts_voice_default_suffix' => '[默认]',
     'modules_tts_voice_help' => '选择将在您的频道中朗读 TTS 消息的语音。',
