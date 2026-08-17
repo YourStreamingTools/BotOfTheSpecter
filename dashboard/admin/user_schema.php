@@ -328,6 +328,7 @@ document.addEventListener('DOMContentLoaded', function () {
             logBody.textContent = '';
         }
         applyBtn.disabled = current;
+        paintFleetRow(username, data);
     }
 
     function escapeHtml(value) {
@@ -343,6 +344,24 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!data.db_exists) return I18N.missingDb;
         if (data.current) return I18N.current;
         return I18N.pending;
+    }
+
+    function fleetRowFor(username) {
+        const user = USERS.find(function (u) { return u.username === username; });
+        if (!user) return null;
+        return fleetBody.querySelector('tr[data-user-id="' + user.id + '"]');
+    }
+
+    function paintFleetRow(username, data) {
+        const tr = fleetRowFor(username);
+        if (!tr) return;
+        const pendingCount = (data && data.pending && data.pending.length) || 0;
+        const ok = !!data && data.ok !== false && data.success !== false;
+        const label = ok ? statusLabel(data) : I18N.failed;
+        tr.innerHTML = '<td><code>' + escapeHtml(username) + '</code></td>'
+            + '<td><span class="mig-pill ' + (ok && data.current ? 'mig-applied' : 'mig-pending') + '">' + escapeHtml(label) + '</span></td>'
+            + '<td>' + (ok ? pendingCount : '—') + '</td>'
+            + '<td><button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" data-open-user="' + escapeHtml(username) + '">' + escapeHtml(I18N.open) + '</button></td>';
     }
 
     async function checkUser(username, silent) {
@@ -448,15 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 done += 1;
                 scanProgress.textContent = I18N.scanProgress.replace('%d', String(done)).replace('%t', String(USERS.length));
-                const tr = fleetBody.querySelector('tr[data-user-id="' + user.id + '"]');
-                if (!tr) continue;
-                const pendingCount = (data.pending && data.pending.length) || 0;
-                const ok = !!data.success && data.ok !== false;
-                const label = ok ? statusLabel(data) : I18N.failed;
-                tr.innerHTML = '<td><code>' + escapeHtml(user.username) + '</code></td>'
-                    + '<td><span class="mig-pill ' + (ok && data.current ? 'mig-applied' : 'mig-pending') + '">' + escapeHtml(label) + '</span></td>'
-                    + '<td>' + (ok ? pendingCount : '—') + '</td>'
-                    + '<td><button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" data-open-user="' + escapeHtml(user.username) + '">' + escapeHtml(I18N.open) + '</button></td>';
+                paintFleetRow(user.username, data);
             }
         }
         await Promise.all([worker(), worker(), worker()]);
