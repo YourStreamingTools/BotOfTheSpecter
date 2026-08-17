@@ -3,17 +3,39 @@
 include '/var/www/config/database.php';
 $dbname = $_SESSION['username'] ?? '';
 
-// $dbname is used as a MySQL identifier in CREATE DATABASE / SHOW TABLES / INFORMATION_SCHEMA lookups
-// throughout this file and cannot be parameterized. Reject anything outside the Twitch username charset
-// to keep those unparameterized splices safe.
+// $dbname is a MySQL identifier (CREATE DATABASE / SHOW TABLES / INFORMATION_SCHEMA) and cannot be parameterized; reject anything outside the Twitch username charset.
 if (!preg_match('/^[a-zA-Z0-9_]{1,64}$/', $dbname)) {
     error_log('usr_database.php: refusing unsafe dbname: ' . var_export($dbname, true));
     return;
 }
 
-// Fast path: already bootstrapped this PHP session for this user DB.
-// layout.php runs this after the HTML shell is sent; skipping on later navigations
-// is the main win for first-paint + subsequent page TTFB.
+// Collect schema console messages for /api/usr_schema.php; echoed <script> tags never reach the browser after first paint.
+if (!isset($GLOBALS['usr_schema_logs']) || !is_array($GLOBALS['usr_schema_logs'])) {
+    $GLOBALS['usr_schema_logs'] = [];
+}
+if (!function_exists('usr_schema_log')) {
+    function usr_schema_log($message, $level = 'log')
+    {
+        $GLOBALS['usr_schema_logs'][] = [
+            'level' => ($level === 'error') ? 'error' : 'log',
+            'message' => (string) $message,
+        ];
+    }
+}
+if (!function_exists('usr_schema_persist_logs')) {
+    function usr_schema_persist_logs($dbname = null, $mark_ok = false)
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+        $_SESSION['usr_schema_console'] = $GLOBALS['usr_schema_logs'] ?? [];
+        if ($mark_ok && is_string($dbname) && $dbname !== '') {
+            $_SESSION['usr_schema_ok'] = $dbname;
+        }
+    }
+}
+
+// Fast path: skip schema work when this PHP session already bootstrapped this user DB.
 $__usrSchemaSessionWasClosed = false;
 if (session_status() === PHP_SESSION_NONE) {
     // Pages commonly call session_write_close() before layout — reopen only for this flag.
@@ -37,6 +59,8 @@ try {
     // Check connection
     if ($usrDBconn->connect_error) {
         error_log('usr_database.php connection failed: ' . $usrDBconn->connect_error);
+        usr_schema_log('usr_database.php connection failed: ' . $usrDBconn->connect_error, 'error');
+        usr_schema_persist_logs();
         if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
             @session_write_close();
         }
@@ -47,9 +71,11 @@ try {
     if ($result->num_rows === 0) {
         $sql = "CREATE DATABASE `$dbname`";
         if ($usrDBconn->query($sql) === TRUE) {
-            // no-op: HTML may already be finished when this runs
+            usr_schema_log("Created database $dbname.");
         } else {
             error_log('usr_database.php create database failed: ' . $usrDBconn->error);
+            usr_schema_log('usr_database.php create database failed: ' . $usrDBconn->error, 'error');
+            usr_schema_persist_logs();
             if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
                 @session_write_close();
             }
@@ -63,11 +89,14 @@ try {
     // Check connection again
     if ($usrDBconn->connect_error) {
         error_log('usr_database.php reconnection failed: ' . $usrDBconn->connect_error);
+        usr_schema_log('usr_database.php reconnection failed: ' . $usrDBconn->connect_error, 'error');
+        usr_schema_persist_logs();
         if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
             @session_write_close();
         }
         return;
     }
+    usr_schema_log("Checking per-user database schema for $dbname...");
     // List of table creation statements
     $tables = [
         'auto_record_settings' => "
@@ -1255,14 +1284,11 @@ try {
         $tableExists = $usrDBconn->query("SHOW TABLES LIKE '$table_name'")->num_rows > 0;
         // Create the table if it doesn't exist
         if (!$tableExists) {
-            echo "<script>console.log('Table $table_name does not exist, creating it...');</script>
-            ";
+            usr_schema_log('Table $table_name does not exist, creating it...');
             if ($usrDBconn->query($sql) === TRUE) {
-                echo "<script>console.log('Table $table_name created successfully.');</script>
-                ";
+                usr_schema_log('Table $table_name created successfully.');
             } else {
-                echo "<script>console.error('Error creating table $table_name: " . addslashes($usrDBconn->error) . "');</script>
-                ";
+                usr_schema_log('Error creating table $table_name: ' . $usrDBconn->error, 'error');
                 continue;
             }
         }
@@ -1272,17 +1298,17 @@ try {
             foreach ($columns[$table_name] as $column_name => $column_definition) {
                 $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
                 if (!$result) {
-                    echo "<script>console.error('Error checking column existence in table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                    usr_schema_log('Error checking column existence in table $table_name: ' . $usrDBconn->error, 'error');
                     continue;
                 }
                 if ($result->num_rows == 0) {
                     // Column doesn't exist, log and alter table to add it
                     $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
-                    echo "<script>console.log('Column $column_name does not exist, adding it to table $table_name...');</script>";
+                    usr_schema_log('Column $column_name does not exist, adding it to table $table_name...');
                     if ($usrDBconn->query($alter_sql) === TRUE) {
-                        echo "<script>console.log('Column $column_name added to $table_name successfully.');</script>";
+                        usr_schema_log('Column $column_name added to $table_name successfully.');
                     } else {
-                        echo "<script>console.error('Error adding column $column_name to table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                        usr_schema_log('Error adding column $column_name to table $table_name: ' . $usrDBconn->error, 'error');
                     }
                 }
             }
@@ -1299,35 +1325,35 @@ try {
                     // Safety checks: do not drop primary key columns
                     $pkCheck = $usrDBconn->query("SHOW INDEX FROM `$table_name` WHERE Key_name = 'PRIMARY' AND Column_name = '$extraCol'");
                     if ($pkCheck && $pkCheck->num_rows > 0) {
-                        echo "<script>console.log('Skipping drop of primary key column $extraCol on $table_name');</script>";
+                        usr_schema_log('Skipping drop of primary key column $extraCol on $table_name');
                         continue;
                     }
                     // Don't drop columns that participate in foreign key constraints
                     $fkCheck = $usrDBconn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table_name' AND COLUMN_NAME = '$extraCol' AND REFERENCED_TABLE_NAME IS NOT NULL");
                     if ($fkCheck && $fkCheck->num_rows > 0) {
-                        echo "<script>console.log('Skipping drop of FK column $extraCol on $table_name');</script>";
+                        usr_schema_log('Skipping drop of FK column $extraCol on $table_name');
                         continue;
                     }
                     // Prevent accidental removal of core audit columns if they exist in multiple places (id handled above)
                     $safe_to_drop = true;
                     $reserved = ['created_at','updated_at','timestamp','source'];
                     if (in_array($extraCol, $reserved)) {
-                        echo "<script>console.log('Skipping drop of reserved column $extraCol on $table_name');</script>";
+                        usr_schema_log('Skipping drop of reserved column $extraCol on $table_name');
                         $safe_to_drop = false;
                     }
                     if (!$safe_to_drop) continue;
                     // Attempt to drop the column
                     $drop_sql = "ALTER TABLE `$table_name` DROP COLUMN `$extraCol`";
-                    echo "<script>console.log('Extra column $extraCol found on $table_name, attempting to drop it...');</script>";
+                    usr_schema_log('Extra column $extraCol found on $table_name, attempting to drop it...');
                     if ($usrDBconn->query($drop_sql) === TRUE) {
-                        echo "<script>console.log('Dropped extra column $extraCol from $table_name successfully.');</script>";
+                        usr_schema_log('Dropped extra column $extraCol from $table_name successfully.');
                     } else {
-                        echo "<script>console.error('Error dropping column $extraCol from table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                        usr_schema_log('Error dropping column $extraCol from table $table_name: ' . $usrDBconn->error, 'error');
                         // continue without failing entire migration
                     }
                 }
             } else {
-                echo "<script>console.error('Error fetching existing columns for table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                usr_schema_log('Error fetching existing columns for table $table_name: ' . $usrDBconn->error, 'error');
             }
         }
     }
@@ -1339,49 +1365,48 @@ try {
             $existing_table_name = $table_row[0];
             if (!in_array($existing_table_name, $managed_tables, true)) {
                 if ($usrDBconn->query("DROP TABLE IF EXISTS `$existing_table_name`") === TRUE) {
-                    echo "<script>console.log('Unmanaged table $existing_table_name removed.');</script>";
+                    usr_schema_log('Unmanaged table $existing_table_name removed.');
                 } else {
-                    echo "<script>console.error('Error removing unmanaged table $existing_table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                    usr_schema_log('Error removing unmanaged table $existing_table_name: ' . $usrDBconn->error, 'error');
                 }
             }
         }
     } else {
-        echo "<script>console.error('Error listing existing tables for schema pruning: " . addslashes($usrDBconn->error) . "');</script>";
+        usr_schema_log('Error listing existing tables for schema pruning: ' . $usrDBconn->error, 'error');
     }
     // Special handling for chat_history table - remove primary key if it exists
     $checkPrimaryKey = $usrDBconn->query("SHOW INDEX FROM chat_history WHERE Key_name = 'PRIMARY'");
     if ($checkPrimaryKey && $checkPrimaryKey->num_rows > 0) {
-        echo "<script>console.log('Primary key found on chat_history table, removing it...');</script>";
+        usr_schema_log('Primary key found on chat_history table, removing it...');
         if ($usrDBconn->query("ALTER TABLE chat_history DROP PRIMARY KEY") === TRUE) {
-            echo "<script>console.log('Primary key removed from chat_history table successfully.');</script>";
+            usr_schema_log('Primary key removed from chat_history table successfully.');
         } else {
-            echo "<script>console.error('Error removing primary key from chat_history table: " . addslashes($usrDBconn->error) . "');</script>";
+            usr_schema_log('Error removing primary key from chat_history table: ' . $usrDBconn->error, 'error');
         }
     }
     // Migration: add media_migrated column to profile if missing
     $col_check = $usrDBconn->query("SHOW COLUMNS FROM profile LIKE 'media_migrated'");
     if ($col_check && $col_check->num_rows == 0) {
         $usrDBconn->query("ALTER TABLE profile ADD COLUMN media_migrated TINYINT(1) DEFAULT 0");
-        echo "<script>console.log('Added media_migrated column to profile table.');</script>";
+        usr_schema_log('Added media_migrated column to profile table.');
     }
     // Special handling for profile table - remove deprecated discord columns
     $deprecated_columns = ['discord_alert', 'discord_mod', 'discord_alert_online'];
     foreach ($deprecated_columns as $column) {
         $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = 'profile' AND COLUMN_NAME = '$column'");
         if ($result && $result->num_rows > 0) {
-            echo "<script>console.log('Deprecated column $column found in profile table, removing it...');</script>";
+            usr_schema_log('Deprecated column $column found in profile table, removing it...');
             if ($usrDBconn->query("ALTER TABLE profile DROP COLUMN `$column`") === TRUE) {
-                echo "<script>console.log('Column $column removed from profile table successfully.');</script>";
+                usr_schema_log('Column $column removed from profile table successfully.');
             } else {
-                echo "<script>console.error('Error removing column $column from profile table: " . addslashes($usrDBconn->error) . "');</script>";
+                usr_schema_log('Error removing column $column from profile table: ' . $usrDBconn->error, 'error');
             }
         }
     }
     // Function to log messages asynchronously
     function async_log($message)
     {
-        echo "<script>setTimeout(function() { console.log('$message'); }, 0);</script>
-        ";
+        usr_schema_log($message);
     }
     // Ensure 'Default' category exists
     if ($usrDBconn->query("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')") === TRUE && $usrDBconn->affected_rows > 0) {
@@ -1752,18 +1777,20 @@ try {
         }
     }
 
+    usr_schema_log('Schema check complete.');
+
     // Close the connection
     $usrDBconn->close();
 
     // Mark schema OK for the rest of this session so later pages skip the work.
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['usr_schema_ok'] = $dbname;
-        if ($__usrSchemaSessionWasClosed) {
-            @session_write_close();
-        }
+    usr_schema_persist_logs($dbname, true);
+    if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
+        @session_write_close();
     }
 } catch (Exception $e) {
     error_log('usr_database.php exception: ' . $e->getMessage());
+    usr_schema_log('Schema check failed: ' . $e->getMessage(), 'error');
+    usr_schema_persist_logs();
     if (!empty($__usrSchemaSessionWasClosed) && session_status() === PHP_SESSION_ACTIVE) {
         @session_write_close();
     }
