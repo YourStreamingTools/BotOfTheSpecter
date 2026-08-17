@@ -3439,6 +3439,82 @@ label.switch .check { display: none; }
     align-items: center;
     justify-content: space-between;
 }
+.media-library-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+.media-folder-nav {
+    display: none;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+}
+.media-folder-nav.is-visible {
+    display: flex;
+}
+.media-folder-crumb {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: inherit;
+}
+.media-folder-crumb:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+.media-folder-sep {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+.media-folder-current {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.media-folder-row {
+    cursor: pointer;
+}
+.media-folder-row:hover {
+    background: var(--bg-card-hover);
+}
+.media-folder-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--amber);
+    font-size: 1.35rem;
+    opacity: 1;
+    border-style: solid;
+}
+.media-folder-name {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.media-folder-name:hover {
+    color: var(--accent-hover);
+}
+.media-file-check-spacer {
+    width: 1rem;
+    min-width: 1rem;
+}
+.media-file-path {
+    color: var(--text-muted);
+}
 
 .media-file-list {
     list-style: none;

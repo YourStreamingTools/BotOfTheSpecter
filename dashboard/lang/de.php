@@ -2425,6 +2425,11 @@ return [
     'media_in_use_title' => 'Diese Datei wird verwendet. Entferne ihre Verknüpfungen vor dem Löschen.',
     'media_delete_file' => 'Datei löschen',
     'media_no_files_match_filter' => 'Keine Dateien entsprechen dem aktuellen Filter.',
+    'media_breadcrumb_library' => 'Bibliothek',
+    'media_folder_file' => '1 Datei',
+    'media_folder_files' => '%s Dateien',
+    'media_folder_empty' => 'Dieser Ordner ist leer.',
+    'media_open_folder' => 'Ordner öffnen',
     'media_modal_close' => 'Schließen',
     // channel_rewards.php
     'channel_rewards_sync_result' => 'Synchronisierungsergebnis:',
