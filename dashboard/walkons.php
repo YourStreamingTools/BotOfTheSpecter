@@ -86,9 +86,10 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
 // Define empty variable for status
 $status = '';
 
-// Handle file upload / delete (storage scan only when mutating)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) || isset($_POST['delete_files']))) {
+// Handle file upload / rename / delete (storage scan only when mutating)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) || isset($_POST['delete_files']) || isset($_POST['rename_file']))) {
     include 'includes/storage_used.php';
+    require_once __DIR__ . '/includes/upload_helpers.php';
     $remaining_storage = $max_storage_size - $current_storage_used;
     $max_upload_size = $remaining_storage;
 
@@ -113,6 +114,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) ||
             }
         }
         $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
+    }
+
+    if (isset($_POST['rename_file'])) {
+        $result = upload_rename_file($walkon_path, $_POST['rename_file'], $_POST['new_name'] ?? '', 'login');
+        if (!empty($result['ok'])) {
+            $status .= t('upload_rename_success', [htmlspecialchars($result['new_base'])]) . "<br>";
+        } else {
+            $status .= htmlspecialchars(upload_rename_error_message($result['error'] ?? 'failed')) . "<br>";
+        }
+        if (upload_rename_is_ajax()) {
+            upload_rename_json($result);
+        }
     }
 
     if (isset($_POST['delete_files'])) {
@@ -218,7 +231,7 @@ ob_start();
                         <tr>
                             <th style="width:70px; text-align:center;"><?php echo t('walkons_select'); ?></th>
                             <th style="text-align:center;"><?php echo t('walkons_file_name'); ?></th>
-                            <th style="width:100px; text-align:center;"><?php echo t('walkons_action'); ?></th>
+                            <th style="width:150px; text-align:center;"><?php echo t('walkons_action'); ?></th>
                             <th style="width:150px; text-align:center;"><?php echo t('walkons_test_audio'); ?></th>
                         </tr>
                     </thead>
@@ -362,6 +375,32 @@ $(document).ready(function() {
         }
         $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('walkons_no_files_selected'); ?>');
     });
+    $(document).on('click', '.rename-single', function() {
+        var fileName = $(this).data('file');
+        if (!fileName || typeof specterPromptRename !== 'function') return;
+        specterPromptRename({
+            currentName: fileName,
+            title: WALKONS_I18N.renameTitle,
+            hint: WALKONS_I18N.renameHint,
+            confirmText: WALKONS_I18N.renameConfirm,
+            cancelText: WALKONS_I18N.renameCancel,
+            emptyError: WALKONS_I18N.renameEmpty
+        }).then(function(nextName) {
+            if (!nextName) return;
+            return specterPostRename(window.location.pathname, {
+                rename_file: fileName,
+                new_name: nextName
+            }).then(function(data) {
+                if (data && data.success) {
+                    loadWalkons();
+                } else {
+                    Swal.fire({ icon: 'error', title: WALKONS_I18N.failed, text: specterRenameMessage(data, WALKONS_I18N) });
+                }
+            });
+        }).catch(function() {
+            Swal.fire({ icon: 'error', title: WALKONS_I18N.failed, text: WALKONS_I18N.failed });
+        });
+    });
     // Single delete button with SweetAlert2 (delegated for AJAX rows)
     $(document).on('click', '.delete-single', function() {
         let fileName = $(this).data('file');
@@ -392,7 +431,19 @@ $(document).ready(function() {
 
 var WALKONS_I18N = {
     empty: <?php echo json_encode(t('walkons_no_files_uploaded')); ?>,
-    loadError: <?php echo json_encode(t('walkons_upload_error')); ?>
+    loadError: <?php echo json_encode(t('walkons_upload_error')); ?>,
+    rename: <?php echo json_encode(t('upload_rename')); ?>,
+    renameTitle: <?php echo json_encode(t('upload_rename_title')); ?>,
+    renameHint: <?php echo json_encode(t('upload_rename_hint_walkon')); ?>,
+    renameConfirm: <?php echo json_encode(t('upload_rename_confirm')); ?>,
+    renameCancel: <?php echo json_encode(t('upload_rename_cancel')); ?>,
+    renameEmpty: <?php echo json_encode(t('upload_rename_empty')); ?>,
+    success: <?php echo json_encode(t('upload_rename_success')); ?>,
+    failed: <?php echo json_encode(t('upload_rename_failed')); ?>,
+    exists: <?php echo json_encode(t('upload_rename_exists')); ?>,
+    invalid: <?php echo json_encode(t('upload_rename_invalid')); ?>,
+    missing: <?php echo json_encode(t('upload_rename_missing')); ?>,
+    same: <?php echo json_encode(t('upload_rename_same')); ?>
 };
 
 function escapeHtml(str) {
@@ -443,9 +494,13 @@ function renderWalkonsTable(files) {
             '</td>' +
             '<td>' + escapeHtml(display) + '</td>' +
             '<td style="text-align:center;">' +
+                '<span class="file-row-actions">' +
+                '<button type="button" class="rename-single sp-btn sp-btn-secondary sp-btn-sm" data-file="' + escapeHtml(name) + '" title="' + escapeHtml(WALKONS_I18N.rename) + '">' +
+                    '<i class="fas fa-pencil-alt"></i>' +
+                '</button>' +
                 '<button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + escapeHtml(name) + '">' +
                     '<i class="fas fa-trash"></i>' +
-                '</button>' +
+                '</button></span>' +
             '</td>' +
             '<td style="text-align:center;">' +
                 '<button type="button" class="test-walkon sp-btn sp-btn-primary sp-btn-sm" data-file="' + escapeHtml(testName) + '">' +

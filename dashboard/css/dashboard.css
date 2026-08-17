@@ -3525,6 +3525,12 @@ label.switch .check { display: none; }
     visibility: hidden;
     pointer-events: none;
 }
+.file-row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
 
 /* Per-file modal contents */
 .media-modal {

@@ -159,8 +159,9 @@ $music_playlist_filter = $prefs['music_playlist_filter'];
 
 // User-uploaded music handling
 $userMusicStatus = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES['userMusicFiles']) || isset($_POST['delete_user_music']))) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES['userMusicFiles']) || isset($_POST['delete_user_music']) || isset($_POST['rename_user_music']))) {
     include 'includes/storage_used.php';
+    require_once __DIR__ . '/includes/upload_helpers.php';
 }
 // Handle uploads
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
@@ -219,6 +220,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
     // Recalculate storage percentage
     if ($max_storage_size > 0) {
         $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+    }
+}
+
+// Handle rename of user-uploaded music (filename is the playlist title)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rename_user_music'])) {
+    $result = upload_rename_file($user_music_path, $_POST['rename_user_music'], $_POST['new_name'] ?? '', 'title');
+    if (!empty($result['ok'])) {
+        upload_rename_music_public(
+            $user_music_path,
+            $public_user_music_path ?? '',
+            $result['old_base'],
+            $result['new_base']
+        );
+        upload_rename_music_filter($db, $result['old_base'], $result['new_base']);
+        $userMusicStatus .= t('upload_rename_success', [htmlspecialchars($result['new_base'])]) . "<br>";
+    } else {
+        $userMusicStatus .= htmlspecialchars(upload_rename_error_message($result['error'] ?? 'failed')) . "<br>";
+    }
+    if (upload_rename_is_ajax()) {
+        upload_rename_json($result);
     }
 }
 
@@ -450,6 +471,18 @@ ob_start();
         yourUpload: <?php echo json_encode(t('music_your_upload')); ?>,
         play: <?php echo json_encode(t('music_play')); ?>,
         delete: <?php echo json_encode(t('music_delete')); ?>,
+        rename: <?php echo json_encode(t('upload_rename')); ?>,
+        renameTitle: <?php echo json_encode(t('upload_rename_title')); ?>,
+        renameHint: <?php echo json_encode(t('upload_rename_hint_music')); ?>,
+        renameConfirm: <?php echo json_encode(t('upload_rename_confirm')); ?>,
+        renameCancel: <?php echo json_encode(t('upload_rename_cancel')); ?>,
+        renameEmpty: <?php echo json_encode(t('upload_rename_empty')); ?>,
+        success: <?php echo json_encode(t('upload_rename_success')); ?>,
+        failed: <?php echo json_encode(t('upload_rename_failed')); ?>,
+        exists: <?php echo json_encode(t('upload_rename_exists')); ?>,
+        invalid: <?php echo json_encode(t('upload_rename_invalid')); ?>,
+        missing: <?php echo json_encode(t('upload_rename_missing')); ?>,
+        same: <?php echo json_encode(t('upload_rename_same')); ?>,
         include: <?php echo json_encode(t('music_playlist_include')); ?>,
         noTracks: <?php echo json_encode(t('music_no_tracks_for_source')); ?>,
         songs: <?php echo json_encode(t('music_songs')); ?>,
@@ -959,6 +992,39 @@ ob_start();
                     DOM.setPlaylistFilter(cb.getAttribute('data-file'), cb.checked);
                 });
                 tbody.addEventListener('click', async (e) => {
+                    const renameBtn = e.target.closest('.rename-user-music');
+                    if (renameBtn) {
+                        e.stopPropagation();
+                        const file = renameBtn.getAttribute('data-file');
+                        if (!file || typeof specterPromptRename !== 'function') return;
+                        const nextName = await specterPromptRename({
+                            currentName: file,
+                            title: MUSIC_I18N.renameTitle,
+                            hint: MUSIC_I18N.renameHint,
+                            confirmText: MUSIC_I18N.renameConfirm,
+                            cancelText: MUSIC_I18N.renameCancel,
+                            emptyError: MUSIC_I18N.renameEmpty,
+                        });
+                        if (!nextName) return;
+                        try {
+                            const data = await specterPostRename(window.location.pathname, {
+                                rename_user_music: file,
+                                new_name: nextName,
+                            });
+                            if (data && data.success) {
+                                await loadMusicList();
+                                if (typeof Events !== 'undefined' && Events.persistPlaylistFilter) {
+                                    Events.persistPlaylistFilter();
+                                }
+                            } else {
+                                Swal.fire({ icon: 'error', title: MUSIC_I18N.failed, text: specterRenameMessage(data, MUSIC_I18N) });
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            Swal.fire({ icon: 'error', title: MUSIC_I18N.failed, text: MUSIC_I18N.failed });
+                        }
+                        return;
+                    }
                     const delBtn = e.target.closest('.delete-user-music');
                     if (delBtn) {
                         e.stopPropagation();
@@ -1296,8 +1362,11 @@ ob_start();
             ? ' <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;">' + escapeHtml(MUSIC_I18N.yourUpload) + '</span>'
             : '';
         const deleteBtn = isUser
-            ? '<button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="' + safeFile + '" title="' + escapeHtml(MUSIC_I18N.delete) + '">' +
-              '<span class="icon is-small"><i class="fas fa-trash"></i></span></button>'
+            ? '<span class="file-row-actions">' +
+              '<button class="sp-btn sp-btn-secondary sp-btn-sm rename-user-music" data-file="' + safeFile + '" title="' + escapeHtml(MUSIC_I18N.rename) + '">' +
+              '<span class="icon is-small"><i class="fas fa-pencil-alt"></i></span></button>' +
+              '<button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="' + safeFile + '" title="' + escapeHtml(MUSIC_I18N.delete) + '">' +
+              '<span class="icon is-small"><i class="fas fa-trash"></i></span></button></span>'
             : '';
         return '<tr data-index="' + index + '" data-file="' + safeKey + '" data-title="' + safeTitleLower + '" class="playlist-row' + userClass + filteredClass + '" style="cursor:pointer;">' +
             '<td style="text-align:center;">' +
@@ -1364,7 +1433,7 @@ ob_start();
     function loadMusicList() {
         const url = new URL(window.location.pathname, window.location.origin);
         url.searchParams.set('ajax_action', 'list');
-        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        return fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
             .then((r) => r.json())
             .then((data) => {
                 if (!data || !data.success) {
