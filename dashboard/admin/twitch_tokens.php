@@ -1082,40 +1082,31 @@ ob_start();
                 }
             }
 
-            // Next, include module bots from custom_module_bots (may not have tokens yet)
-            $msql = "SELECT id, bot_username, bot_channel_id, is_verified FROM custom_module_bots ORDER BY bot_username ASC";
+            // Next, include module bots from custom_module_bots (tokens live on this table)
+            $msql = "SELECT id, bot_username, bot_channel_id, is_verified, access_token, token_expires FROM custom_module_bots ORDER BY bot_username ASC";
             $mres = $conn->query($msql);
             if ($mres && $mres->num_rows > 0) {
                 while ($mrow = $mres->fetch_assoc()) {
                     $mbUsername = htmlspecialchars($mrow['bot_username'] ?? '');
                     $mbChannelId = htmlspecialchars($mrow['bot_channel_id'] ?? '');
-                    $isVerified = intval($mrow['is_verified']) ? 'Yes' : 'No';
+                    $isVerified = intval($mrow['is_verified']) === 1;
                     // Skip if already displayed from custom_bots (match by channel id or username)
                     $skip = false;
                     if (!empty($mbChannelId) && in_array($mbChannelId, $displayedBotIds, true)) $skip = true;
                     if (!$skip && !empty($mbUsername) && in_array(strtolower($mbUsername), $displayedBotUsernames, true)) $skip = true;
                     if ($skip) continue;
                     $foundAny = true;
-                    // Try to find any stored token in custom_bots for this module bot
-                    $accessToken = '';
-                    $expiresAt = '-';
-                    $checkStmt = $conn->prepare("SELECT access_token, token_expires FROM custom_bots WHERE bot_channel_id = ? OR bot_username = ? LIMIT 1");
-                    if ($checkStmt) {
-                        $checkStmt->bind_param('ss', $mbChannelId, $mbUsername);
-                        $checkStmt->execute();
-                        $cres = $checkStmt->get_result();
-                        if ($cres && $cres->num_rows > 0) {
-                            $crow = $cres->fetch_assoc();
-                            $accessToken = $crow['access_token'] ?? '';
-                            $expiresAt = $crow['token_expires'] ?? '-';
-                        }
-                        $checkStmt->close();
-                    }
+                    $accessToken = $mrow['access_token'] ?? '';
+                    $expiresAt = $mrow['token_expires'] ?? '-';
                     $tokenId = md5(($mbChannelId ?: $mbUsername) . ($accessToken ?? '') . 'module');
                     echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($mbChannelId) . "' data-bot-username='" . htmlspecialchars($mbUsername) . "'>";
                     echo "<td>$mbUsername <small style='color:#666'> " . htmlspecialchars(t('admin_twitch_tokens_module_tag')) . "</small></td>";
                     echo "<td>$mbChannelId</td>";
-                    echo "<td id='status-custom-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . ($isVerified ? " (<span class='sp-text-success'>" . htmlspecialchars(t('admin_twitch_tokens_verified')) . "</span>)" : "") . "</td>";
+                    if (trim((string)$accessToken) !== '') {
+                        echo "<td id='status-custom-$tokenId' aria-busy='true'><span class='sp-skeleton-badge' aria-hidden='true' style='width:5rem;'></span></td>";
+                    } else {
+                        echo "<td id='status-custom-$tokenId'>" . htmlspecialchars(t('admin_twitch_tokens_status_not_validated')) . ($isVerified ? " (<span class='sp-text-success'>" . htmlspecialchars(t('admin_twitch_tokens_verified')) . "</span>)" : "") . "</td>";
+                    }
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
                     echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_validate')) . "</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$mbChannelId\", \"$tokenId\")'>" . htmlspecialchars(t('admin_twitch_tokens_btn_renew')) . "</button></td>";
                     echo "</tr>";
