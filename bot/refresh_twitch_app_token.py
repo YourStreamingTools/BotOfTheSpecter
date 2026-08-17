@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import json
 import asyncio
 import logging
 from datetime import datetime, timedelta
@@ -12,7 +13,9 @@ import aiomysql
 import aiohttp
 from dotenv import load_dotenv
 
-load_dotenv()
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(_SCRIPT_DIR, ".env"))
+load_dotenv(os.path.join(os.getenv("BOT_HOME", "/home/botofthespecter"), ".env"))
 
 SQL_HOST = os.getenv("SQL_HOST")
 SQL_USER = os.getenv("SQL_USER")
@@ -55,7 +58,7 @@ def _setup_logging():
     file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10485760, backupCount=5, encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
@@ -179,7 +182,7 @@ async def validate_token(session, token):
     async with session.get(VALIDATE_URL, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
         body_text = await resp.text()
         try:
-            body = await resp.json(content_type=None)
+            body = json.loads(body_text) if body_text else None
         except Exception:
             body = None
         return resp.status, body, body_text
@@ -196,7 +199,7 @@ async def mint_app_token(session):
         if resp.status != 200:
             raise RuntimeError(f"client_credentials failed: HTTP {resp.status} - {body_text[:300]}")
         try:
-            body = await resp.json(content_type=None)
+            body = json.loads(body_text) if body_text else None
         except Exception as e:
             raise RuntimeError(f"client_credentials returned non-JSON: {e}") from e
         access_token = (body or {}).get("access_token")
@@ -275,7 +278,10 @@ async def ensure_twitch_app_token():
 
             raise RuntimeError(f"oauth2/validate unexpected status {status}: {body_text[:300]}")
     finally:
-        connection.close()
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 
 async def main():
@@ -293,6 +299,7 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         logger.error(f"Twitch app token check failed: {e}")
+        print(f"Twitch app token check failed: {e}", file=sys.stderr, flush=True)
         sys.exit(1)
 else:
     _setup_logging()

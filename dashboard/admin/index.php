@@ -574,13 +574,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_token_script']
     $mapped = $scriptMap[$scriptKey];
     $resp = bots_api_run_script($mapped['api']);
     $data = is_array($resp['data'] ?? null) ? $resp['data'] : [];
+    $err = $resp['error'] ?? null;
+    if (is_array($err) && (isset($err['output']) || isset($err['message']) || array_key_exists('success', $err))) {
+        $data = $err;
+    } elseif (is_array($data) && isset($data['detail']) && is_array($data['detail'])) {
+        $data = $data['detail'];
+    }
     $success = !empty($resp['ok']) && (($data['success'] ?? true) !== false);
     if (isset($data['output']) && $data['output'] !== '') {
         $output = (string) $data['output'];
     } elseif (!empty($data['message'])) {
         $output = (string) $data['message'];
-    } elseif (!empty($resp['error'])) {
-        $output = is_string($resp['error']) ? $resp['error'] : json_encode($resp['error']);
+    } elseif (is_string($err) && $err !== '') {
+        $output = $err;
+    } elseif (is_array($err)) {
+        $output = json_encode($err);
     } else {
         $output = '';
     }
