@@ -74,7 +74,7 @@ function bots_api_resolve_control_key(): string {
 /**
  * @return array{ok:bool,status:int,data:mixed,error?:string}
  */
-function bots_api_request(string $method, string $path, ?array $jsonBody = null, ?array $query = null): array {
+function bots_api_request(string $method, string $path, ?array $jsonBody = null, ?array $query = null, ?int $timeout = null): array {
     $cfg = bots_api_config();
     $key = bots_api_resolve_control_key();
     if ($key === '') {
@@ -89,6 +89,7 @@ function bots_api_request(string $method, string $path, ?array $jsonBody = null,
     if ($query) {
         $url .= (str_contains($url, '?') ? '&' : '?') . http_build_query($query);
     }
+    $timeoutSec = $timeout !== null ? max(1, $timeout) : (int)$cfg['timeout'];
     $ch = curl_init($url);
     $headers = [
         'Accept: application/json',
@@ -98,8 +99,8 @@ function bots_api_request(string $method, string $path, ?array $jsonBody = null,
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => strtoupper($method),
-        CURLOPT_TIMEOUT => $cfg['timeout'],
-        CURLOPT_CONNECTTIMEOUT => min(5, $cfg['timeout']),
+        CURLOPT_TIMEOUT => $timeoutSec,
+        CURLOPT_CONNECTTIMEOUT => min(5, $timeoutSec),
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_SSL_VERIFYPEER => true,
     ];
@@ -195,8 +196,8 @@ function bots_api_online_marker(string $channel): array {
 }
 
 // Allowlisted bot-host maintenance script (refresh_spotify|refresh_streamelements|refresh_discord|refresh_custom_bot|refresh_twitch_app_token).
-function bots_api_run_script(string $script): array {
-    return bots_api_request('POST', '/api/ops/run_script', ['script' => $script]);
+function bots_api_run_script(string $script, int $timeout = 120): array {
+    return bots_api_request('POST', '/api/ops/run_script', ['script' => $script], null, $timeout);
 }
 
 /**
