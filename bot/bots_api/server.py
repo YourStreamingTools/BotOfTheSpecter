@@ -291,10 +291,7 @@ async def api_run_script(body: RunScriptBody) -> dict[str, Any]:
     # Allowlisted maintenance script only (no arbitrary shell).
     result = await run_allowlisted_script(body.script)
     if not result.get("success"):
-        raise HTTPException(
-            status_code=400,
-            detail=result.get("message") or "script failed",
-        )
+        raise HTTPException(status_code=400, detail=result)
     return result
 
 

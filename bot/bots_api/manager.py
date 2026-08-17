@@ -661,13 +661,19 @@ def read_online_marker(channel: str) -> str | None:
     return None
 
 
+def _ops_python() -> str:
+    venv_py = VENV_ROOT / "stable" / "bin" / "python"
+    return str(venv_py) if venv_py.is_file() else "python3"
+
+
+_OPS_PY = _ops_python()
 # Allowlisted maintenance scripts (admin ops via bots API; no arbitrary shell)
 OPS_SCRIPTS: dict[str, list[str]] = {
-    "refresh_spotify": ["python3", str(BOT_HOME / "refresh_spotify_tokens.py")],
-    "refresh_streamelements": ["python3", str(BOT_HOME / "refresh_streamelements_tokens.py")],
-    "refresh_discord": ["python3", str(BOT_HOME / "refresh_discord_tokens.py")],
-    "refresh_custom_bot": ["python3", str(BOT_HOME / "refresh_custom_bot_tokens.py")],
-    "refresh_twitch_app_token": ["python3", str(BOT_HOME / "refresh_twitch_app_token.py")],
+    "refresh_spotify": [_OPS_PY, "-u", str(BOT_HOME / "refresh_spotify_tokens.py")],
+    "refresh_streamelements": [_OPS_PY, "-u", str(BOT_HOME / "refresh_streamelements_tokens.py")],
+    "refresh_discord": [_OPS_PY, "-u", str(BOT_HOME / "refresh_discord_tokens.py")],
+    "refresh_custom_bot": [_OPS_PY, "-u", str(BOT_HOME / "refresh_custom_bot_tokens.py")],
+    "refresh_twitch_app_token": [_OPS_PY, "-u", str(BOT_HOME / "refresh_twitch_app_token.py")],
 }
 
 
