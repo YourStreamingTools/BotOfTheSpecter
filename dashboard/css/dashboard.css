@@ -393,6 +393,9 @@ ul { list-style: none; margin: 0; padding: 0; }
     text-overflow: ellipsis;
     max-width: 100%;
 }
+.sp-topbar-tag[hidden] {
+    display: none !important;
+}
 
 .sp-topbar-tag-admin {
     background: rgba(248, 113, 113, 0.12);

@@ -1,8 +1,5 @@
 <?php
-/**
- * Lightweight JSON probe for the dashboard topbar "dev stream online" badge.
- * Runs after first paint (client fetch) so layout.php never blocks on Helix/API.
- */
+// After-paint probe for the topbar Dev Stream Online badge so layout.php does not block on Helix/API.
 require_once '/var/www/lib/session_bootstrap.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -17,7 +14,7 @@ $online = false;
 try {
     include '/var/www/config/admin_actions.php';
     if (!empty($admin_key)) {
-        $apiUrl = 'https://api.botofthespecter.com/v2/streamonline?channel=gfaundead';
+        $apiUrl = 'https://api.botofthespecter.com/v2/dashboard/live?channel=gfaundead';
         $ch = curl_init($apiUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);

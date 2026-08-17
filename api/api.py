@@ -5384,6 +5384,8 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
                                 if items:
                                     stream_title = items[0].get("title")
                                     game_name = items[0].get("game_name")
+                                else:
+                                    is_online = False
                             else:
                                 twitch_error = await response.text()
                                 logging.warning(f"Twitch Helix stream lookup failed for '{username}' with status {response.status}: {twitch_error}")
