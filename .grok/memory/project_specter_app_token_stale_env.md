@@ -18,3 +18,5 @@ Fixed so far:
 - `bot/custom_channel_modules/gfaundead.py` — `send_module_message` (JesterCatBot) + `_send_as_specter`; added module-level `_get_website_app_credentials()` using `self.mysql_handler`.
 
 Still on env (check before assuming fixed): `beta-v6.py`, other `custom_channel_modules/*`. Related: [[project_php_twitch_credentials]] (PHP side: client ID comes from config/twitch.php, NOT this DB table).
+
+The stored app token itself is reminted by `./bot/refresh_twitch_app_token.py` (scheduler, every 15 min) when `oauth2/validate` says invalid or ≤24h left — visiting twitch_tokens.php is no longer the only remint path. See [[project-twitch-tokens-admin-page]].

@@ -194,7 +194,7 @@ function bots_api_online_marker(string $channel): array {
     return bots_api_request('GET', '/api/online/' . rawurlencode($channel));
 }
 
-// Allowlisted bot-host maintenance script (refresh_spotify|refresh_streamelements|refresh_discord|refresh_custom_bot).
+// Allowlisted bot-host maintenance script (refresh_spotify|refresh_streamelements|refresh_discord|refresh_custom_bot|refresh_twitch_app_token).
 function bots_api_run_script(string $script): array {
     return bots_api_request('POST', '/api/ops/run_script', ['script' => $script]);
 }

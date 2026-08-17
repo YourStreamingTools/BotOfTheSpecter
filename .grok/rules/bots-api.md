@@ -35,7 +35,7 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 | POST | `/api/bot/start` | JSON body: channel, bot_type, channel_id, token, refresh, apitoken, custom?, botusername?, self?, version?, `load_custom_module`? (if true and module file exists, pass `-load-custom-module` to beta/v6) |
 | POST | `/api/bot/stop` | JSON: `{ "channel", "bot_type" }` |
 | POST | `/api/bot/restart` | Same body as start |
-| POST | `/api/ops/run_script` | Allowlisted ops only (`refresh_spotify`, `refresh_streamelements`, `refresh_discord`, `refresh_custom_bot`) |
+| POST | `/api/ops/run_script` | Allowlisted ops only (`refresh_spotify`, `refresh_streamelements`, `refresh_discord`, `refresh_custom_bot`, `refresh_twitch_app_token`) |
 
 `bot_type`: `stable` | `beta` | `v6` (+ `custom` for status/stop matching). Channel = Twitch **login** (lowercased).
 

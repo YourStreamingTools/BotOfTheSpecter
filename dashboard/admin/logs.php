@@ -633,6 +633,7 @@ if (isset($_GET['admin_token_log_type'])) {
         'refresh_discord_tokens' => '/home/botofthespecter/logs/refresh_discord_tokens.log',
         'custom_bot_token_refresh_cron' => '/home/botofthespecter/logs/custom_bot_token_refresh_cron.log',
         'custom_bot_token_refresh' => '/home/botofthespecter/logs/custom_bot_token_refresh.log',
+        'refresh_twitch_app_token' => '/home/botofthespecter/logs/refresh_twitch_app_token.log',
     ];
     if (!isset($map[$logType])) {
         echo json_encode(['error' => 'invalid_log_type']);
@@ -767,6 +768,7 @@ ob_start();
                             <option value="refresh_discord_tokens"><?php echo t('admin_logs_token_discord'); ?></option>
                             <option value="custom_bot_token_refresh_cron"><?php echo t('admin_logs_token_custom_bot_cron'); ?></option>
                             <option value="custom_bot_token_refresh"><?php echo t('admin_logs_token_custom_bot_manual'); ?></option>
+                            <option value="refresh_twitch_app_token"><?php echo t('admin_logs_token_twitch_app'); ?></option>
                         </select>
         </div><!-- /token-log-type-control -->
         <button class="sp-btn sp-btn-info" id="admin-log-reload" disabled><?php echo t('admin_logs_btn_reload'); ?></button>
