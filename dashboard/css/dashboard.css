@@ -3482,15 +3482,6 @@ label.switch .check { display: none; }
 .media-folder-row:hover {
     background: var(--bg-card-hover);
 }
-.media-folder-thumb {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--amber);
-    font-size: 1.35rem;
-    opacity: 1;
-    border-style: solid;
-}
 .media-folder-name {
     background: transparent;
     border: none;
@@ -3548,6 +3539,32 @@ label.switch .check { display: none; }
 .media-file-thumb-empty {
     border-style: dashed;
     opacity: 0.35;
+}
+.media-file-thumb.media-folder-thumb,
+.media-file-thumb.media-file-thumb-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    opacity: 1;
+    border-style: solid;
+}
+.media-file-thumb.media-folder-thumb {
+    color: var(--amber);
+    background: var(--amber-bg);
+}
+.media-file-thumb.media-file-thumb-icon {
+    color: var(--text-muted);
+}
+.media-file-thumb.media-folder-thumb i,
+.media-file-thumb.media-folder-thumb svg,
+.media-file-thumb.media-file-thumb-icon i,
+.media-file-thumb.media-file-thumb-icon svg {
+    width: 1.35rem;
+    height: 1.35rem;
+    font-size: 1.35rem;
+    line-height: 1;
+    flex: none;
 }
 .media-file-row:last-child { border-bottom: none; }
 .media-file-check {

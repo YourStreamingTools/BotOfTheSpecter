@@ -373,6 +373,12 @@ function media_is_previewable_image($filename) {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
     return in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true);
 }
+function media_type_icon($type) {
+    if ($type === 'audio') return 'fa-music';
+    if ($type === 'video') return 'fa-film';
+    if ($type === 'image') return 'fa-image';
+    return 'fa-file';
+}
 function media_file_size($path) {
     return is_file($path) ? filesize($path) : 0;
 }
@@ -450,7 +456,7 @@ function media_render_file_list_html(
                     tabindex="0"
                     aria-label="<?php echo htmlspecialchars(t('media_open_folder') . ': ' . $folderName); ?>">
                     <span class="media-file-check-spacer" aria-hidden="true"></span>
-                    <span class="media-file-thumb media-folder-thumb" aria-hidden="true"><i class="fas fa-folder"></i></span>
+                    <span class="media-file-thumb media-folder-thumb" aria-hidden="true"><i class="fa-solid fa-folder"></i></span>
                     <span class="media-folder-name"><?php echo htmlspecialchars($folderName); ?></span>
                     <span class="media-file-meta"><?php echo htmlspecialchars($countLabel); ?></span>
                     <span class="media-file-summary"></span>
@@ -496,7 +502,9 @@ function media_render_file_list_html(
                         <img src="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" alt="" loading="lazy" decoding="async">
                     </a>
                     <?php else: ?>
-                    <span class="media-file-thumb media-file-thumb-empty" aria-hidden="true"></span>
+                    <span class="media-file-thumb media-file-thumb-icon" aria-hidden="true">
+                        <i class="fa-solid <?php echo media_type_icon($type); ?>"></i>
+                    </span>
                     <?php endif; ?>
                     <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>" title="<?php echo htmlspecialchars($file); ?>">
                         <?php if ($folder !== ''): ?>
