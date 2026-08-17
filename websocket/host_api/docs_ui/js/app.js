@@ -15,9 +15,8 @@
             header: { label: "X-API-KEY header", headerName: "X-API-KEY", queryName: null },
             query: { label: "api_key query", headerName: null, queryName: "api_key" },
             bots: {
-                label: "X-API-KEY or X-BOTS-CONTROL-KEY",
+                label: "X-API-KEY header",
                 headerName: "X-API-KEY",
-                headerNameAlt: "X-BOTS-CONTROL-KEY",
                 queryName: null,
             },
         },
@@ -255,7 +254,7 @@
         const pathParams = merged.filter((p) => p.in === "path");
         const queryParams = merged.filter((p) => p.in === "query" && p.name !== "api_key");
         const headerParams = merged.filter((p) => p.in === "header" &&
-            !["x-api-key", "x-bots-control-key"].includes(String(p.name).toLowerCase()));
+            String(p.name).toLowerCase() !== "x-api-key");
 
         let bodySchema = null;
         if (endpoint.requestBody && endpoint.requestBody.content) {
