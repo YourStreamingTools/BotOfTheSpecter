@@ -433,12 +433,52 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         })();
     </script>
     <?php endif; ?>
+    <?php
+    // Replay usr_database.php console messages after paint; schema runs after the HTML response finishes.
+    $usrSchemaNeedsConsole = (!defined('BOTS_SKIP_USR_DATABASE') || !BOTS_SKIP_USR_DATABASE)
+        && !empty($_SESSION['username'])
+        && (
+            empty($_SESSION['usr_schema_ok'])
+            || (string) $_SESSION['usr_schema_ok'] !== (string) $_SESSION['username']
+        );
+    if ($usrSchemaNeedsConsole):
+    ?>
+    <script>
+        (function () {
+            var attempts = 0;
+            var maxAttempts = 240;
+            function printLogs(logs) {
+                if (!logs || !logs.length) return;
+                if (console.group) console.group('Per-user schema');
+                logs.forEach(function (entry) {
+                    var msg = (entry && typeof entry === 'object') ? (entry.message || '') : String(entry);
+                    if (!msg) return;
+                    if (entry && entry.level === 'error') console.error(msg);
+                    else console.log(msg);
+                });
+                if (console.groupEnd) console.groupEnd();
+            }
+            function tick() {
+                fetch('/api/usr_schema.php', { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        if (!d) return;
+                        if (d.pending) {
+                            if (attempts++ < maxAttempts) setTimeout(tick, 250);
+                            return;
+                        }
+                        if (!d.skipped) printLogs(d.logs);
+                    })
+                    .catch(function () { /* ignore */ });
+            }
+            tick();
+        })();
+    </script>
+    <?php endif; ?>
 </body>
 </html>
 <?php
-// Per-user schema bootstrap runs AFTER the full HTML document is closed so the
-// browser can paint the shell (and skeletons) while CREATE TABLE work continues.
-// Prefer finishing the HTTP response first when running under php-fpm.
+// Per-user schema bootstrap after </html> so the shell can paint first.
 if (!defined('BOTS_SKIP_USR_DATABASE') || !BOTS_SKIP_USR_DATABASE) {
     if (function_exists('fastcgi_finish_request')) {
         @fastcgi_finish_request();
