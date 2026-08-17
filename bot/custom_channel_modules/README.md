@@ -6,11 +6,10 @@ This folder holds custom, channel-specific modules that are written exclusively 
 
 Modules are **not** auto-imported for every bot process.
 
-1. Operator deploys `{channel_login}.py` under this directory on the bot host  
-   (server path: `/home/botofthespecter/custom_channel_modules/{channel}.py`).
-2. Bots API reports `custom_module_available: true` on `GET /api/bot/status` when that file exists.
-3. Channel owner enables **Custom Module** on the dashboard Bot page (stored as `users.use_custom_module`).
-4. On start, bots API passes `-load-custom-module` only if the flag is set **and** the file exists.
+1. Operator deploys `{channel_login}.py` under this directory on the bot host.
+2. The bot host reports whether that file is present.
+3. Channel owner enables **Custom Module** on the dashboard Bot page.
+4. On start, the module loads only if the flag is set **and** the file exists.
 5. **beta** / **v6** import **only** that channel’s package; other channels’ modules are never imported.
 
 Stable does not load custom modules. Changing the toggle requires a **bot restart**.
