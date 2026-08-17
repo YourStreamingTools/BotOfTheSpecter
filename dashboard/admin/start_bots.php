@@ -78,6 +78,229 @@ function removeTokenCacheEntry($filePath, $twitchId)
     return true;
 }
 
+function admin_start_bots_twitch_validate($accessToken)
+{
+    $accessToken = trim((string) $accessToken);
+    if ($accessToken === '') {
+        return ['ok' => false, 'expires_in' => 0];
+    }
+    $ch = curl_init('https://id.twitch.tv/oauth2/validate');
+    if (!$ch) {
+        return ['ok' => false, 'expires_in' => 0];
+    }
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: OAuth ' . $accessToken]);
+    $response = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpCode !== 200) {
+        return ['ok' => false, 'expires_in' => 0];
+    }
+    $data = json_decode((string) $response, true);
+    if (!is_array($data)) {
+        return ['ok' => false, 'expires_in' => 0];
+    }
+    return ['ok' => true, 'expires_in' => (int) ($data['expires_in'] ?? 0)];
+}
+
+function admin_start_bots_load_token_pair($conn, $twitchUserId)
+{
+    $empty = ['login_access' => '', 'refresh' => '', 'bot_access' => ''];
+    if (!$conn || $twitchUserId === '') {
+        return $empty;
+    }
+    $stmt = $conn->prepare(
+        'SELECT u.access_token, u.refresh_token, tba.twitch_access_token
+         FROM users u
+         LEFT JOIN twitch_bot_access tba ON tba.twitch_user_id = u.twitch_user_id
+         WHERE u.twitch_user_id = ? LIMIT 1'
+    );
+    if (!$stmt) {
+        return $empty;
+    }
+    $stmt->bind_param('s', $twitchUserId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return $empty;
+    }
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    if (!$row) {
+        return $empty;
+    }
+    return [
+        'login_access' => trim((string) ($row['access_token'] ?? '')),
+        'refresh' => trim((string) ($row['refresh_token'] ?? '')),
+        'bot_access' => trim((string) ($row['twitch_access_token'] ?? '')),
+    ];
+}
+
+function admin_start_bots_refresh_grant($clientId, $clientSecret, $refreshToken)
+{
+    $refreshToken = trim((string) $refreshToken);
+    if ($refreshToken === '' || $clientId === '' || $clientSecret === '') {
+        return ['ok' => false];
+    }
+    $ch = curl_init('https://id.twitch.tv/oauth2/token');
+    if (!$ch) {
+        return ['ok' => false];
+    }
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'client_id' => $clientId,
+        'client_secret' => $clientSecret,
+        'grant_type' => 'refresh_token',
+        'refresh_token' => $refreshToken,
+    ]));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $response = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpCode !== 200) {
+        return ['ok' => false];
+    }
+    $data = json_decode((string) $response, true);
+    $access = is_array($data) ? trim((string) ($data['access_token'] ?? '')) : '';
+    if ($access === '') {
+        return ['ok' => false];
+    }
+    return [
+        'ok' => true,
+        'access_token' => $access,
+        'refresh_token' => trim((string) ($data['refresh_token'] ?? $refreshToken)),
+        'expires_in' => (int) ($data['expires_in'] ?? 0),
+    ];
+}
+
+function admin_start_bots_write_login_token($conn, $twitchUserId, $accessToken, $refreshToken = null)
+{
+    $accessToken = trim((string) $accessToken);
+    $twitchUserId = trim((string) $twitchUserId);
+    if ($accessToken === '' || $twitchUserId === '' || !$conn) {
+        return false;
+    }
+    if ($refreshToken !== null && $refreshToken !== '') {
+        $stmt = $conn->prepare('UPDATE users SET access_token = ?, refresh_token = ? WHERE twitch_user_id = ? LIMIT 1');
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('sss', $accessToken, $refreshToken, $twitchUserId);
+    } else {
+        $stmt = $conn->prepare('UPDATE users SET access_token = ? WHERE twitch_user_id = ? LIMIT 1');
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('ss', $accessToken, $twitchUserId);
+    }
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
+}
+
+function admin_start_bots_write_bot_token($conn, $twitchUserId, $accessToken)
+{
+    $accessToken = trim((string) $accessToken);
+    $twitchUserId = trim((string) $twitchUserId);
+    if ($accessToken === '' || $twitchUserId === '' || !$conn) {
+        return false;
+    }
+    $stmt = $conn->prepare('INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (?, ?) ON DUPLICATE KEY UPDATE twitch_access_token = VALUES(twitch_access_token)');
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('ss', $twitchUserId, $accessToken);
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
+}
+
+function admin_start_bots_write_refresh_token($conn, $twitchUserId, $refreshToken)
+{
+    $refreshToken = trim((string) $refreshToken);
+    $twitchUserId = trim((string) $twitchUserId);
+    if ($refreshToken === '' || $twitchUserId === '' || !$conn) {
+        return false;
+    }
+    $stmt = $conn->prepare('UPDATE users SET refresh_token = ? WHERE twitch_user_id = ? LIMIT 1');
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('ss', $refreshToken, $twitchUserId);
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
+}
+
+// Login/start = users.access_token. Bot/API = twitch_bot_access. Repair only the dead store.
+function admin_start_bots_ensure_token_pair($conn, $twitchUserId, $clientId, $clientSecret)
+{
+    $pair = admin_start_bots_load_token_pair($conn, $twitchUserId);
+    $loginCheck = admin_start_bots_twitch_validate($pair['login_access']);
+    $botCheck = admin_start_bots_twitch_validate($pair['bot_access']);
+    $loginOk = !empty($loginCheck['ok']);
+    $botOk = !empty($botCheck['ok']);
+    $repaired = [];
+
+    if ((!$loginOk || !$botOk) && $pair['refresh'] !== '') {
+        $refreshed = admin_start_bots_refresh_grant($clientId, $clientSecret, $pair['refresh']);
+        if (!empty($refreshed['ok'])) {
+            $newAccess = $refreshed['access_token'];
+            $newRefresh = $refreshed['refresh_token'];
+            if ($newRefresh !== '' && $newRefresh !== $pair['refresh']) {
+                admin_start_bots_write_refresh_token($conn, $twitchUserId, $newRefresh);
+                $pair['refresh'] = $newRefresh;
+            }
+            if (!$loginOk) {
+                admin_start_bots_write_login_token($conn, $twitchUserId, $newAccess, $pair['refresh']);
+                $pair['login_access'] = $newAccess;
+                $loginCheck = ['ok' => true, 'expires_in' => (int) ($refreshed['expires_in'] ?? 0)];
+                $loginOk = true;
+                $repaired[] = 'login';
+            }
+            if (!$botOk) {
+                admin_start_bots_write_bot_token($conn, $twitchUserId, $newAccess);
+                $pair['bot_access'] = $newAccess;
+                $botCheck = ['ok' => true, 'expires_in' => (int) ($refreshed['expires_in'] ?? 0)];
+                $botOk = true;
+                $repaired[] = 'bot';
+            }
+        }
+    }
+
+    if (!$loginOk && !$botOk) {
+        $message = t('admin_start_bots_token_both_invalid');
+    } elseif (!$loginOk) {
+        $message = t('admin_start_bots_token_login_invalid');
+    } elseif (!$botOk) {
+        $message = t('admin_start_bots_token_bot_invalid');
+    } else {
+        $message = t('admin_start_bots_token_both_valid');
+    }
+
+    $loginExpires = $loginOk ? (int) ($loginCheck['expires_in'] ?? 0) : 0;
+    $botExpires = $botOk ? (int) ($botCheck['expires_in'] ?? 0) : 0;
+    $expiresIn = 0;
+    if ($loginOk && $botOk) {
+        $expiresIn = min($loginExpires, $botExpires);
+    }
+
+    return [
+        'ok' => $loginOk && $botOk,
+        'login_valid' => $loginOk,
+        'bot_valid' => $botOk,
+        'login_expires_in' => $loginExpires,
+        'bot_expires_in' => $botExpires,
+        'expires_in' => $expiresIn,
+        'login_token' => $pair['login_access'],
+        'bot_token' => $pair['bot_access'],
+        'repaired' => $repaired,
+        'message' => $message,
+    ];
+}
+
 function get_admin_beta_mode_params($conn, $channelLookupId, $useCustom = false, $useSelf = false, $legacyTwitchUserId = null) {
     $params = [
         'use_custom_bot' => false,
@@ -394,23 +617,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
             echo json_encode(['success' => false, 'message' => 'Missing twitch_user_id']);
             exit;
         }
-        // Fetch the user's access token from database
-        $stmt = $conn->prepare("SELECT access_token FROM users WHERE twitch_user_id = ?");
-        $stmt->bind_param("s", $twitch_user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows === 0) {
-            echo json_encode(['success' => false, 'message' => 'No token found for user']);
-            exit;
-        }
-        $row = $result->fetch_assoc();
-        $access_token = $row['access_token'];
-        $stmt->close();
-        // Check cache first. If cache indicates token is valid AND shows is_mod=true, return immediately.
-        // If cache indicates is_mod is false/unknown, continue and perform a fresh validation+mod check
         $cacheEntry = getTokenCacheEntry($tokenCacheFile, $twitch_user_id);
-        if ($cacheEntry && isset($cacheEntry['expires_at']) && $cacheEntry['expires_at'] > time() && !empty($cacheEntry['is_mod'])) {
-            $expires_in = $cacheEntry['expires_at'] - time();
+        if (
+            $cacheEntry
+            && !empty($cacheEntry['login_expires_at']) && $cacheEntry['login_expires_at'] > time()
+            && !empty($cacheEntry['bot_expires_at']) && $cacheEntry['bot_expires_at'] > time()
+            && !empty($cacheEntry['is_mod'])
+        ) {
+            $expires_in = min(
+                (int) $cacheEntry['login_expires_at'] - time(),
+                (int) $cacheEntry['bot_expires_at'] - time()
+            );
             $is_mod = $cacheEntry['is_mod'] ?? false;
             $debug = ob_get_clean();
             echo json_encode([
@@ -418,25 +635,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_user_token']
                 'valid' => true,
                 'expires_in' => $expires_in,
                 'is_mod' => $is_mod,
-                'message' => 'Token is valid (cached)',
+                'login_valid' => true,
+                'bot_valid' => true,
+                'message' => t('admin_start_bots_token_both_valid'),
                 'debug' => $debug
             ]);
             exit;
         }
-        // Validate the token with Twitch
-        $url = "https://id.twitch.tv/oauth2/validate";
-        $headers = ["Authorization: OAuth $access_token"];
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlErr = curl_error($ch);
-if ($httpCode === 200) {
-            $data = json_decode($response, true);
-            $expires = isset($data['expires_in']) ? (int) $data['expires_in'] : 0;
-            // Check mod status using the same token
+        $ensured = admin_start_bots_ensure_token_pair($conn, $twitch_user_id, $clientID ?? '', $clientSecret ?? '');
+        if (!empty($ensured['ok'])) {
+            $access_token = $ensured['bot_token'] !== '' ? $ensured['bot_token'] : $ensured['login_token'];
+            $expires = (int) ($ensured['expires_in'] ?? 0);
+            // Mod/API checks use the bot token, not the login/start token
             $bot_user_id = '971436498';
             $mod_url = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id={$twitch_user_id}&user_id={$bot_user_id}";
             $mod_headers = [
@@ -473,12 +683,13 @@ if ($ban_httpCode === 200) {
                     }
                 }
             }
-            // Update cache with expires_at and mod status
             if ($expires > 0) {
                 $entry = [
-                    'access_token' => $access_token,
+                    'login_expires_at' => time() + (int) ($ensured['login_expires_in'] ?? $expires),
+                    'bot_expires_at' => time() + (int) ($ensured['bot_expires_in'] ?? $expires),
                     'expires_at' => time() + $expires,
-                    'is_mod' => $is_mod
+                    'is_mod' => $is_mod,
+                    'repaired' => $ensured['repaired'] ?? [],
                 ];
                 @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
             }
@@ -486,21 +697,25 @@ if ($ban_httpCode === 200) {
             echo json_encode([
                 'success' => true,
                 'valid' => true,
-                'expires_in' => $data['expires_in'] ?? 0,
+                'expires_in' => $expires,
                 'is_mod' => $is_mod,
                 'is_banned' => $is_banned,
                 'ban_reason' => $ban_reason,
-                'message' => 'Token is valid',
+                'login_valid' => true,
+                'bot_valid' => true,
+                'repaired' => $ensured['repaired'] ?? [],
+                'message' => $ensured['message'],
                 'debug' => $debug
             ]);
         } else {
-            // Remove potentially stale cache entry
             @removeTokenCacheEntry($tokenCacheFile, $twitch_user_id);
             $debug = ob_get_clean();
             echo json_encode([
                 'success' => true,
                 'valid' => false,
-                'message' => 'Token is invalid or expired',
+                'login_valid' => !empty($ensured['login_valid']),
+                'bot_valid' => !empty($ensured['bot_valid']),
+                'message' => $ensured['message'] ?? t('admin_start_bots_token_both_invalid'),
                 'debug' => $debug
             ]);
         }
@@ -526,69 +741,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_user_token'])) 
             echo json_encode(['success' => false, 'message' => 'Missing twitch_user_id']);
             exit;
         }
-        // Fetch the user's refresh token from database
-        $stmt = $conn->prepare("SELECT refresh_token FROM users WHERE twitch_user_id = ?");
-        $stmt->bind_param("s", $twitch_user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows === 0) {
-            echo json_encode(['success' => false, 'message' => 'No refresh token found for user']);
-            exit;
-        }
-        $row = $result->fetch_assoc();
-        $refresh_token = $row['refresh_token'];
-        $stmt->close();
-        // Renew the token with Twitch
-        $url = "https://id.twitch.tv/oauth2/token";
-        $postFields = http_build_query([
-            'client_id' => $clientID,
-            'client_secret' => $clientSecret,
-            'grant_type' => 'refresh_token',
-            'refresh_token' => $refresh_token
-        ]);
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $response = curl_exec($ch);
-        $curlError = curl_error($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-if ($httpCode === 200) {
-            $data = json_decode($response, true);
-            $new_access_token = $data['access_token'];
-            $new_refresh_token = $data['refresh_token'];
-            // Update the database with new tokens
-            $stmt = $conn->prepare("UPDATE users SET access_token = ?, refresh_token = ? WHERE twitch_user_id = ?");
-            $stmt->bind_param("sss", $new_access_token, $new_refresh_token, $twitch_user_id);
-            if ($stmt->execute()) {
-                $stmt->close();
-                // Update cache with new token expiry
-                $expires = isset($data['expires_in']) ? (int) $data['expires_in'] : 0;
-                if ($expires > 0) {
-                    $entry = ['access_token' => $new_access_token, 'expires_at' => time() + $expires];
-                    @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
+        $ensured = admin_start_bots_ensure_token_pair($conn, $twitch_user_id, $clientID ?? '', $clientSecret ?? '');
+        if (!empty($ensured['ok'])) {
+            $expires = (int) ($ensured['expires_in'] ?? 0);
+            if ($expires > 0) {
+                $entry = [
+                    'login_expires_at' => time() + (int) ($ensured['login_expires_in'] ?? $expires),
+                    'bot_expires_at' => time() + (int) ($ensured['bot_expires_in'] ?? $expires),
+                    'expires_at' => time() + $expires,
+                ];
+                $cacheEntry = getTokenCacheEntry($tokenCacheFile, $twitch_user_id);
+                if (is_array($cacheEntry)) {
+                    $entry = array_merge($cacheEntry, $entry);
                 }
-                $debug = ob_get_clean();
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Token renewed successfully',
-                    'expires_in' => $data['expires_in'] ?? 0,
-                    'debug' => $debug
-                ]);
-            } else {
-                // Log DB update failure for debugging (sent to client console)
-                $dbErr = $stmt->error;
-                client_console_log('Failed to update auth tokens for twitch_user_id=' . $twitch_user_id . ' stmt_error=' . $dbErr);
-                $stmt->close();
-                $debug = ob_get_clean();
-                echo json_encode(['success' => false, 'message' => 'Failed to update database', 'debug' => $debug, 'error_details' => ['db_error' => $dbErr]]);
+                @setTokenCacheEntry($tokenCacheFile, $twitch_user_id, $entry);
             }
-        } else {
-            // Log Twitch renewal failure for debugging
-            $respSnippet = substr((string) $response, 0, 200);
             $debug = ob_get_clean();
-            echo json_encode(['success' => false, 'message' => 'Failed to renew token with Twitch', 'debug' => $debug, 'error_details' => ['http_code' => $httpCode, 'curl_error' => $curlError, 'response' => $respSnippet]]);
+            echo json_encode([
+                'success' => true,
+                'message' => $ensured['message'],
+                'expires_in' => $expires,
+                'login_valid' => true,
+                'bot_valid' => true,
+                'repaired' => $ensured['repaired'] ?? [],
+                'debug' => $debug
+            ]);
+        } else {
+            @removeTokenCacheEntry($tokenCacheFile, $twitch_user_id);
+            $debug = ob_get_clean();
+            echo json_encode([
+                'success' => false,
+                'message' => $ensured['message'] ?? t('admin_start_bots_token_both_invalid'),
+                'login_valid' => !empty($ensured['login_valid']),
+                'bot_valid' => !empty($ensured['bot_valid']),
+                'debug' => $debug
+            ]);
         }
     } catch (Exception $e) {
         $debug = ob_get_clean();
@@ -611,18 +798,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'
             echo json_encode(['success' => false, 'message' => 'Missing twitch_user_id']);
             exit;
         }
-        // Fetch the user's access token from database
-        $stmt = $conn->prepare("SELECT access_token FROM users WHERE twitch_user_id = ?");
-        $stmt->bind_param("s", $twitch_user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows === 0) {
+        $pair = admin_start_bots_load_token_pair($conn, $twitch_user_id);
+        $access_token = $pair['bot_access'] !== '' ? $pair['bot_access'] : $pair['login_access'];
+        if ($access_token === '') {
             echo json_encode(['success' => false, 'message' => 'No token found for user']);
             exit;
         }
-        $row = $result->fetch_assoc();
-        $access_token = $row['access_token'];
-        $stmt->close();
         // BotOfTheSpecter's Twitch user ID
         $bot_user_id = '971436498';
         // Check if bot is a moderator using Twitch API
@@ -701,18 +882,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_bot_mod'])) {
             echo json_encode(['success' => false, 'message' => 'Missing twitch_user_id']);
             exit;
         }
-        // Fetch the user's access token from database
-        $stmt = $conn->prepare("SELECT access_token FROM users WHERE twitch_user_id = ?");
-        $stmt->bind_param("s", $twitch_user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows === 0) {
+        $pair = admin_start_bots_load_token_pair($conn, $twitch_user_id);
+        $access_token = $pair['bot_access'] !== '' ? $pair['bot_access'] : $pair['login_access'];
+        if ($access_token === '') {
             echo json_encode(['success' => false, 'message' => 'No token found for user']);
             exit;
         }
-        $row = $result->fetch_assoc();
-        $access_token = $row['access_token'];
-        $stmt->close();
         // BotOfTheSpecter's Twitch user ID
         $bot_user_id = '971436498';
         // Make bot a moderator using Twitch API
@@ -2061,7 +2236,7 @@ ob_start();
                 } else {
                     tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
                     tokenTag.removeAttribute('aria-busy');
-                    tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(SB_I18N.renewalFailed) + '</span>';
+                    tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>' + escapeHtml(data.message || SB_I18N.renewalFailed) + '</span>';
                     const modTag = row.querySelector('.mod-status-tag');
                     if (modTag && modTag.getAttribute('aria-busy') === 'true') {
                         modTag.className = 'sp-badge mod-status-tag';
