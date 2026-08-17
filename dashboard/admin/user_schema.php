@@ -85,12 +85,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 $users = [];
-$userStmt = $conn->prepare("SELECT username FROM users ORDER BY username ASC");
+$userStmt = $conn->prepare("SELECT id, username FROM users ORDER BY id ASC");
 if ($userStmt) {
     $userStmt->execute();
     $userRes = $userStmt->get_result();
     while ($row = $userRes->fetch_assoc()) {
-        $users[] = $row['username'];
+        $users[] = [
+            'id' => (int) $row['id'],
+            'username' => $row['username'],
+        ];
     }
     $userStmt->close();
 }
@@ -253,17 +256,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderList(filter) {
         const q = (filter || '').toLowerCase();
-        const matches = USERS.filter(function (u) { return !q || u.toLowerCase().indexOf(q) !== -1; }).slice(0, 40);
+        const matches = USERS.filter(function (u) {
+            return !q || u.username.toLowerCase().indexOf(q) !== -1;
+        }).slice(0, 40);
         list.innerHTML = '';
         matches.forEach(function (u) {
             const li = document.createElement('li');
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'usr-schema-user-item' + (u === selectedUser ? ' is-selected' : '');
-            btn.textContent = u;
+            btn.className = 'usr-schema-user-item' + (u.username === selectedUser ? ' is-selected' : '');
+            btn.textContent = u.username;
             btn.addEventListener('click', function () {
-                selectedUser = u;
-                search.value = u;
+                selectedUser = u.username;
+                search.value = u.username;
                 lastInspect = null;
                 applyBtn.disabled = true;
                 list.hidden = true;
@@ -272,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function () {
             li.appendChild(btn);
             list.appendChild(li);
         });
-        list.hidden = matches.length === 0 || (matches.length === 1 && matches[0] === search.value);
+        list.hidden = matches.length === 0 || (matches.length === 1 && matches[0].username === search.value);
     }
 
     function renderInspect(username, data, logs) {
@@ -351,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     search.addEventListener('input', function () {
-        selectedUser = USERS.indexOf(this.value) !== -1 ? this.value : '';
+        selectedUser = USERS.some(function (u) { return u.username === search.value; }) ? search.value : '';
         applyBtn.disabled = true;
         lastInspect = null;
         clearBtn.hidden = this.value === '';
@@ -421,28 +426,37 @@ document.addEventListener('DOMContentLoaded', function () {
     scanBtn.addEventListener('click', async function () {
         scanBtn.disabled = true;
         fleetBody.innerHTML = '';
+        USERS.forEach(function (user) {
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-user-id', String(user.id));
+            tr.innerHTML = '<td><code>' + escapeHtml(user.username) + '</code></td>'
+                + '<td><span class="mig-pill mig-pending">…</span></td>'
+                + '<td>—</td>'
+                + '<td></td>';
+            fleetBody.appendChild(tr);
+        });
         let done = 0;
         const queue = USERS.slice();
         async function worker() {
             while (queue.length) {
-                const username = queue.shift();
+                const user = queue.shift();
                 let data;
                 try {
-                    data = await checkUser(username, true);
+                    data = await checkUser(user.username, true);
                 } catch (e) {
                     data = { success: false, message: e.message };
                 }
                 done += 1;
                 scanProgress.textContent = I18N.scanProgress.replace('%d', String(done)).replace('%t', String(USERS.length));
-                const tr = document.createElement('tr');
+                const tr = fleetBody.querySelector('tr[data-user-id="' + user.id + '"]');
+                if (!tr) continue;
                 const pendingCount = (data.pending && data.pending.length) || 0;
                 const ok = !!data.success && data.ok !== false;
                 const label = ok ? statusLabel(data) : I18N.failed;
-                tr.innerHTML = '<td><code>' + escapeHtml(username) + '</code></td>'
+                tr.innerHTML = '<td><code>' + escapeHtml(user.username) + '</code></td>'
                     + '<td><span class="mig-pill ' + (ok && data.current ? 'mig-applied' : 'mig-pending') + '">' + escapeHtml(label) + '</span></td>'
                     + '<td>' + (ok ? pendingCount : '—') + '</td>'
-                    + '<td><button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" data-open-user="' + escapeHtml(username) + '">' + escapeHtml(I18N.open) + '</button></td>';
-                fleetBody.appendChild(tr);
+                    + '<td><button type="button" class="sp-btn sp-btn-sm sp-btn-secondary" data-open-user="' + escapeHtml(user.username) + '">' + escapeHtml(I18N.open) + '</button></td>';
             }
         }
         await Promise.all([worker(), worker(), worker()]);
