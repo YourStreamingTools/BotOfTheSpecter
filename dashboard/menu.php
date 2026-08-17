@@ -102,6 +102,7 @@ function getMenuItems($role = 'default') {
         [ 'label' => t('menu_admin_webhooks'), 'icon' => 'fas fa-satellite-dish', 'href' => 'webhooks.php' ],
         [ 'label' => t('menu_admin_spam_patterns'), 'icon' => 'fas fa-ban', 'href' => 'spam_patterns.php' ],
         [ 'label' => t('menu_admin_migrations'), 'icon' => 'fas fa-database', 'href' => 'migrations.php' ],
+        [ 'label' => t('menu_admin_user_schema'), 'icon' => 'fas fa-user-check', 'href' => 'user_schema.php' ],
         [ 'label' => t('menu_admin_known_bots'), 'icon' => 'fas fa-robot', 'href' => 'known_bots.php' ],
         [ 'divider' => true ],
         [ 'label' => t('menu_admin_caddy'), 'icon' => 'fas fa-server', 'href' => 'caddy.php' ],
