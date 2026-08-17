@@ -1,9 +1,6 @@
 # BotOfTheSpecter - bot host crontab.
 #
-# Single entry point for all OAuth token refresh jobs (custom bot, Spotify,
-# Discord, StreamElements) - see token_refresh_scheduler.py for the per-job
-# intervals and scheduling logic. Runs every minute; the script itself is a
-# fast no-op for any job that isn't due yet.
+# Token refresh jobs (Twitch app, custom bot, Spotify, Discord, StreamElements); see token_refresh_scheduler.py.
 #
 # Install (as the botofthespecter user):
 #   crontab /home/botofthespecter/crontab

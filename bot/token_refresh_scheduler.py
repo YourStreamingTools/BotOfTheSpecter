@@ -5,6 +5,7 @@ cron. Each job runs on its own interval, tracked in a small local state file
 (intervals are a safety margin before the provider's real token expiry, not
 the expiry itself):
 
+  Twitch app token    every 15 minutes  (shared Helix chat token; remint if invalid or <24h)
   custom bot tokens   every 45 minutes  (Twitch access tokens last ~4h;
                                          script only refreshes rows within
                                          1h of expiry — job must run inside
@@ -15,7 +16,7 @@ the expiry itself):
   Discord             every 6 days      (Discord access tokens last 7d)
   StreamElements      every 29 days     (StreamElements access tokens last 30d)
 
-This replaces four separate cron lines with one, and replaces cron's
+This replaces separate cron lines with one, and replaces cron's
 day-of-month field (which drifts at month boundaries and can't express
 "every 6 days" or "every 29 days" cleanly) with a state file that tracks
 each job's actual last-run time.
@@ -23,7 +24,7 @@ each job's actual last-run time.
 Failed jobs do not advance last_run, so the next minute's cron retries them
 instead of waiting a full interval with dead tokens.
 
-The four refresh_*.py scripts are untouched and stay independently runnable
+The refresh_*.py scripts are untouched and stay independently runnable
 (the admin dashboard's manual "Refresh Tokens" buttons invoke them directly).
 This script just imports each one's main() and calls it when due.
 """
@@ -43,6 +44,8 @@ STATE_FILE = SCRIPT_DIR / "logs" / "token_refresh_state.json"
 LOCK_FILE = SCRIPT_DIR / "logs" / "token_refresh_scheduler.lock"
 
 JOBS = [
+    # Shared Helix chat token: live-validate every 15 min; remint if invalid or within 24h.
+    ("twitch_app_token", 15 * 60, "refresh_twitch_app_token"),
     # Custom bots store token_expires and only refresh when within 1h of
     # expiry. The job itself must therefore run *inside* that window (not
     # every 4h at full lifetime). 45 min cadence leaves ~15+ min remaining.

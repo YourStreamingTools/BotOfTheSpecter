@@ -667,6 +667,7 @@ OPS_SCRIPTS: dict[str, list[str]] = {
     "refresh_streamelements": ["python3", str(BOT_HOME / "refresh_streamelements_tokens.py")],
     "refresh_discord": ["python3", str(BOT_HOME / "refresh_discord_tokens.py")],
     "refresh_custom_bot": ["python3", str(BOT_HOME / "refresh_custom_bot_tokens.py")],
+    "refresh_twitch_app_token": ["python3", str(BOT_HOME / "refresh_twitch_app_token.py")],
 }
 
 

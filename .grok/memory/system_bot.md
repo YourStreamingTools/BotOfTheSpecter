@@ -323,7 +323,7 @@ See also: `.grok/rules/bots-api.md`
 - **Main Entry**: `./bot/bot.py` (~10.4k lines, STABLE)
 - **Beta**: `./bot/beta.py` (~18.7k lines), `./bot/beta-v6.py` (~16.9k lines)
 - **Custom Modules**: `./bot/custom_channel_modules/*.py`
-- **Token Refresh Scripts**: `./bot/refresh_custom_bot_tokens.py`, `./bot/refresh_spotify_tokens.py`, `./bot/refresh_streamelements_tokens.py`, `./bot/refresh_discord_tokens.py` (Twitch refresh is **in-process** `twitch_token_refresh()` - there is no `refresh_twitch_tokens.py`)
+- **Token Refresh Scripts**: `./bot/refresh_custom_bot_tokens.py`, `./bot/refresh_spotify_tokens.py`, `./bot/refresh_streamelements_tokens.py`, `./bot/refresh_discord_tokens.py`, `./bot/refresh_twitch_app_token.py` (Twitch **user** token refresh is **in-process** `twitch_token_refresh()` — there is no `refresh_twitch_tokens.py`. The shared Specter **app** token in `website.bot_chat_token` is checked by `refresh_twitch_app_token.py` via `token_refresh_scheduler` every 15 minutes.)
 - **Bots control API**: `./bot/bots_api/` (private process control on bot host)
 - **Auxiliary Scripts**: `./bot/setup.py`, `./bot/status.py`, `./bot/status_monitor.py`, `./bot/running_bots.py`, `./bot/export_queue_worker.py`, `./bot/export_user_data.py`, `./bot/sync-channel-rewards.py`, `./bot/system_boot_marker.py`
 - **Discord Bot**: `./bot/specterdiscord.py`

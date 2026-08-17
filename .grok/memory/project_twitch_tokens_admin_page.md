@@ -25,4 +25,6 @@ Work on dashboard/admin/twitch_tokens.php (2026-06-28, **SHIPPED** — committed
 
 **Pre-existing nits (NOT fixed, flagged to user)**: (1) no-token branch in `validateToken`/`validateCustomToken` sets statusNoToken then `Promise.reject` → `.catch` overwrites to red "Error"; now more visible via auto-validate. (2) `curl_close($ch)` missing in all 4 curl blocks (lines ~98/260/447/780). (3) stray `;;` in validateBtn JS.
 
+**Scheduled remint (2026-08-17):** `oauth2/validate` can report ~8 days remaining and the token can still die minutes later (fleet-wide Helix Send Chat Message 401s 21:51 → 21:57 local). The admin page remints only when someone opens it. `./bot/refresh_twitch_app_token.py` now live-validates the shared `bot_chat_token` app token every 15 minutes via `token_refresh_scheduler` and remints if invalid or within 24h. Log: `/home/botofthespecter/logs/refresh_twitch_app_token.log` (admin Token Logs). Bots API key: `refresh_twitch_app_token`.
+
 Custom-bot "fresh-expiry but invalid" is NOT cross-table token invalidation (see [[reference-twitch-oauth-token-semantics]]); needs evidence from `/home/botofthespecter/logs/custom_bot_token_refresh.log` (HTTP 400s) + DB shared-refresh-lineage check. Related: [[project-php-twitch-credentials]], [[project-specter-app-token-stale-env]].
