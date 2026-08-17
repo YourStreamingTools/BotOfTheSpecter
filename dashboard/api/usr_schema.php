@@ -9,9 +9,12 @@ header('Cache-Control: no-store');
 $username = (string) ($_SESSION['username'] ?? '');
 $ok = (string) ($_SESSION['usr_schema_ok'] ?? '');
 $logs = $_SESSION['usr_schema_console'] ?? null;
+$peek = isset($_GET['peek']);
 
 if (is_array($logs)) {
-    unset($_SESSION['usr_schema_console']);
+    if (!$peek) {
+        unset($_SESSION['usr_schema_console']);
+    }
     session_write_close();
     echo json_encode([
         'ok' => true,
