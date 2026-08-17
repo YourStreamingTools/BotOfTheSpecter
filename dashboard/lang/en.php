@@ -2485,6 +2485,11 @@ return [
     'media_in_use_title' => 'This file is in use. Remove its links before deleting.',
     'media_delete_file' => 'Delete file',
     'media_no_files_match_filter' => 'No files match the current filter.',
+    'media_breadcrumb_library' => 'Library',
+    'media_folder_file' => '1 file',
+    'media_folder_files' => '%s files',
+    'media_folder_empty' => 'This folder is empty.',
+    'media_open_folder' => 'Open folder',
     'media_modal_close' => 'Close',
     // channel_rewards.php
     'channel_rewards_sync_result' => 'Sync Result:',

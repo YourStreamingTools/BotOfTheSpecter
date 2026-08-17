@@ -410,6 +410,12 @@ function media_scan_library_files($media_path) {
     return $all_media_files;
 }
 
+function media_file_parent_folder($file) {
+    $file = str_replace('\\', '/', (string) $file);
+    $pos = strrpos($file, '/');
+    return $pos === false ? '' : substr($file, 0, $pos);
+}
+
 function media_render_file_list_html(
     array $all_media_files,
     $media_path,
@@ -420,7 +426,39 @@ function media_render_file_list_html(
     array $walkonsByFile,
     array $alertMediaFiles
 ) {
+    $folders = [];
+    foreach ($all_media_files as $file) {
+        $folder = media_file_parent_folder($file);
+        if ($folder === '') {
+            continue;
+        }
+        if (!isset($folders[$folder])) {
+            $folders[$folder] = 0;
+        }
+        $folders[$folder]++;
+    }
+    ksort($folders, SORT_STRING | SORT_FLAG_CASE);
+
     ob_start();
+    foreach ($folders as $folderName => $fileCount) {
+        $countLabel = t($fileCount === 1 ? 'media_folder_file' : 'media_folder_files', [$fileCount]);
+        ?>
+                <li class="media-file-row media-folder-row"
+                    data-folder="<?php echo htmlspecialchars($folderName); ?>"
+                    data-type="folder"
+                    role="button"
+                    tabindex="0"
+                    aria-label="<?php echo htmlspecialchars(t('media_open_folder') . ': ' . $folderName); ?>">
+                    <span class="media-file-check-spacer" aria-hidden="true"></span>
+                    <span class="media-file-thumb media-folder-thumb" aria-hidden="true"><i class="fas fa-folder"></i></span>
+                    <span class="media-folder-name"><?php echo htmlspecialchars($folderName); ?></span>
+                    <span class="media-file-meta"><?php echo htmlspecialchars($countLabel); ?></span>
+                    <span class="media-file-summary"></span>
+                    <span class="sp-btn sp-btn-sm media-test-btn-placeholder">&nbsp;</span>
+                    <span class="file-row-actions"></span>
+                </li>
+        <?php
+    }
     foreach ($all_media_files as $file) {
         if (!is_file($media_path . '/' . $file)) {
             continue;
@@ -428,6 +466,7 @@ function media_render_file_list_html(
         $size = media_file_size($media_path . '/' . $file);
         $type = media_file_type($file);
         $fileBase = basename($file);
+        $folder = media_file_parent_folder($file);
         $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? [])
             + count($soundAlertMappings[$fileBase] ?? []) + count($videoAlertMappings[$fileBase] ?? []);
         $eventCount  = count($twitchSoundAlertMappings[$file] ?? []) + count($twitchSoundAlertMappings[$fileBase] ?? []);
@@ -441,8 +480,9 @@ function media_render_file_list_html(
         if ($alertCount  > 0) $summaryParts[] = t($alertCount === 1 ? 'media_summary_alert' : 'media_summary_alert_plural', [$alertCount]);
         $summary = empty($summaryParts) ? t('media_summary_unused') : implode(' · ', $summaryParts);
         ?>
-                <li class="media-file-row"
+                <li class="media-file-row media-file-item"
                     data-file="<?php echo htmlspecialchars($file); ?>"
+                    data-folder="<?php echo htmlspecialchars($folder); ?>"
                     data-type="<?php echo htmlspecialchars($type); ?>"
                     data-has-rewards="<?php echo $rewardCount > 0 ? '1' : '0'; ?>"
                     data-has-events="<?php echo $eventCount > 0 ? '1' : '0'; ?>"
@@ -458,8 +498,11 @@ function media_render_file_list_html(
                     <?php else: ?>
                     <span class="media-file-thumb media-file-thumb-empty" aria-hidden="true"></span>
                     <?php endif; ?>
-                    <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>">
-                        <?php echo htmlspecialchars($file); ?>
+                    <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>" title="<?php echo htmlspecialchars($file); ?>">
+                        <?php if ($folder !== ''): ?>
+                        <span class="media-file-path" hidden><?php echo htmlspecialchars($folder); ?>/</span>
+                        <?php endif; ?>
+                        <?php echo htmlspecialchars($fileBase); ?>
                     </button>
                     <span class="media-file-meta"><?php echo strtoupper(pathinfo($file, PATHINFO_EXTENSION)); ?> · <?php echo format_bytes($size); ?></span>
                     <span class="media-file-summary<?php echo $totalCount === 0 ? ' is-unused' : ''; ?>"><?php echo htmlspecialchars($summary); ?></span>
@@ -704,7 +747,14 @@ ob_start();
 <!-- Files list -->
 <div class="sp-card media-files-card">
     <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-folder-open"></i> <?= t('media_library_title') ?></span>
+        <div class="media-library-heading">
+            <span class="sp-card-title"><i class="fas fa-folder-open"></i> <?= t('media_library_title') ?></span>
+            <nav class="media-folder-nav" id="media-folder-nav" aria-label="<?= htmlspecialchars(t('media_breadcrumb_library')) ?>">
+                <button type="button" class="media-folder-crumb" id="media-folder-root"><?= t('media_breadcrumb_library') ?></button>
+                <span class="media-folder-sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                <span class="media-folder-current" id="media-folder-current"></span>
+            </nav>
+        </div>
         <button class="sp-btn sp-btn-danger media-delete-selected-btn" disabled>
             <i class="fas fa-trash"></i> <span><?= t('media_delete_selected') ?></span>
         </button>
@@ -733,6 +783,9 @@ ob_start();
             </ul>
             <div class="media-empty-filter" id="media-empty-filter" style="display:none;">
                 <p><?= t('media_no_files_match_filter') ?></p>
+            </div>
+            <div class="media-empty-filter" id="media-empty-folder" style="display:none;">
+                <p><?= t('media_folder_empty') ?></p>
             </div>
         </form>
     </div>
@@ -954,6 +1007,11 @@ $(document).ready(function () {
                     if (empty) empty.style.display = 'none';
                     if (form) form.style.display = '';
                     list.innerHTML = resp.html;
+                    if (currentFolder && !document.querySelector('.media-folder-row[data-folder="' + CSS.escape(currentFolder) + '"]')) {
+                        currentFolder = '';
+                        try { sessionStorage.removeItem('mediaLibraryFolder'); } catch (e) {}
+                    }
+                    updateFolderNav();
                     applyFilter();
                 }
                 setBusy(body, false);
@@ -986,6 +1044,30 @@ $(document).ready(function () {
         if (ext === 'mp3') return 'audio';
         if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'webm'].indexOf(ext) !== -1) return 'image';
         return 'other';
+    }
+    function fileBaseName(file) {
+        var s = String(file || '');
+        var i = s.lastIndexOf('/');
+        return i === -1 ? s : s.slice(i + 1);
+    }
+    function mappingsFor(map, file) {
+        map = map || {};
+        var base = fileBaseName(file);
+        var out = [];
+        var seen = {};
+        function add(arr) {
+            (arr || []).forEach(function (item) {
+                var key = (item && typeof item === 'object')
+                    ? String(item.user_id || item.id || JSON.stringify(item))
+                    : String(item);
+                if (seen[key]) return;
+                seen[key] = true;
+                out.push(item);
+            });
+        }
+        add(map[file]);
+        if (base !== file) add(map[base]);
+        return out;
     }
     function mediaPublicUrl(file) {
         return (window.__MEDIA_CTX.mediaBase || '') + String(file).split('/').map(encodeURIComponent).join('/');
@@ -1042,7 +1124,7 @@ $(document).ready(function () {
         modalTitle.textContent = file;
         var type = fileType(file);
         var ext  = (file.split('.').pop() || '').toLowerCase();
-        var alertBuilder = data.alert_builder[file] || [];
+        var alertBuilder = mappingsFor(data.alert_builder, file);
         var html = '';
         // Header
         var headerLabel = type === 'video' ? I18N.header_video
@@ -1070,9 +1152,9 @@ $(document).ready(function () {
             modalBody.innerHTML = html;
             return;
         }
-        var rewards     = (type === 'video' ? data.video_alerts[file] : data.sound_alerts[file]) || [];
-        var events      = data.twitch_events[file] || [];
-        var walkons     = data.walkons[file]       || [];
+        var rewards     = mappingsFor(type === 'video' ? data.video_alerts : data.sound_alerts, file);
+        var events      = mappingsFor(data.twitch_events, file);
+        var walkons     = mappingsFor(data.walkons, file);
         // Channel point rewards (sound for audio, video for video)
         var availRewards = availableRewards(rewards);
         var rewardChips = rewards.map(function (rid) {
@@ -1194,11 +1276,11 @@ $(document).ready(function () {
         });
     }
     function updateRowSummary(file) {
-        var row = document.querySelector('.media-file-row[data-file="' + CSS.escape(file) + '"]');
+        var row = document.querySelector('.media-file-item[data-file="' + CSS.escape(file) + '"]');
         if (!row) return;
-        var r = (data.sound_alerts[file] || []).length + (data.video_alerts[file] || []).length;
-        var e = (data.twitch_events[file] || []).length;
-        var w = (data.walkons[file] || []).length;
+        var r = mappingsFor(data.sound_alerts, file).length + mappingsFor(data.video_alerts, file).length;
+        var e = mappingsFor(data.twitch_events, file).length;
+        var w = mappingsFor(data.walkons, file).length;
         // Alert builder count is managed in alerts.php - keep what the row was rendered with
         var a = parseInt(row.dataset.alertCount || '0', 10);
         var total = r + e + w + a;
@@ -1290,30 +1372,86 @@ $(document).ready(function () {
         }, 'json').fail(function () { status.text(I18N.lookup_failed); });
     });
     var activeFilter = 'all';
+    var currentFolder = '';
+    try { currentFolder = sessionStorage.getItem('mediaLibraryFolder') || ''; } catch (e) { currentFolder = ''; }
+
+    function rowMatchesLens(row) {
+        var type = row.dataset.type;
+        switch (activeFilter) {
+            case 'rewards': return row.dataset.hasRewards === '1';
+            case 'events':  return row.dataset.hasEvents  === '1';
+            case 'walkons': return row.dataset.hasWalkons === '1';
+            case 'unused':  return row.dataset.total === '0';
+            case 'videos':  return type === 'video';
+            case 'images':  return type === 'image';
+            default:        return true;
+        }
+    }
+    function syncDeleteButton() {
+        var checked = $('#mediaDeleteForm .media-file-check:checked').filter(function () {
+            return $(this).closest('.media-file-row').css('display') !== 'none';
+        }).length;
+        $('.media-delete-selected-btn').prop('disabled', checked < 1);
+    }
+    function updateFolderNav() {
+        var nav = document.getElementById('media-folder-nav');
+        var cur = document.getElementById('media-folder-current');
+        if (!nav) return;
+        nav.classList.toggle('is-visible', !!currentFolder);
+        if (cur) cur.textContent = currentFolder || '';
+    }
+    function setCurrentFolder(folder) {
+        currentFolder = folder || '';
+        try {
+            if (currentFolder) sessionStorage.setItem('mediaLibraryFolder', currentFolder);
+            else sessionStorage.removeItem('mediaLibraryFolder');
+        } catch (e) {}
+        updateFolderNav();
+        applyFilter();
+    }
     function applyFilter() {
         if (!mediaListReady) return;
-        var search = (document.getElementById('media-search-input').value || '').toLowerCase();
-        var rows = document.querySelectorAll('.media-file-row:not(.media-file-row-skeleton)');
+        var searchInput = document.getElementById('media-search-input');
+        var search = ((searchInput && searchInput.value) || '').toLowerCase();
+        var items = document.querySelectorAll('.media-file-item');
+        var folders = document.querySelectorAll('.media-folder-row');
         var visible = 0;
-        rows.forEach(function (row) {
+        var folderMatchCounts = {};
+
+        items.forEach(function (row) {
             var file = (row.dataset.file || '').toLowerCase();
-            var type = row.dataset.type;
-            var match = true;
-            switch (activeFilter) {
-                case 'rewards': match = row.dataset.hasRewards === '1'; break;
-                case 'events':  match = row.dataset.hasEvents  === '1'; break;
-                case 'walkons': match = row.dataset.hasWalkons === '1'; break;
-                case 'unused':  match = row.dataset.total === '0'; break;
-                case 'videos':  match = type === 'video'; break;
-                case 'images':  match = type === 'image'; break;
-                default:        match = true;
+            var folder = row.dataset.folder || '';
+            var contentOk = rowMatchesLens(row) && (!search || file.indexOf(search) !== -1);
+            if (contentOk && folder) {
+                folderMatchCounts[folder] = (folderMatchCounts[folder] || 0) + 1;
             }
-            if (match && search) match = file.indexOf(search) !== -1;
-            row.style.display = match ? '' : 'none';
-            if (match) visible++;
+            var show = search ? contentOk : (contentOk && folder === currentFolder);
+            row.style.display = show ? '' : 'none';
+            if (!show) {
+                var cb = row.querySelector('.media-file-check');
+                if (cb) cb.checked = false;
+            } else {
+                visible++;
+            }
+            var pathHint = row.querySelector('.media-file-path');
+            if (pathHint) pathHint.hidden = !search;
         });
-        var empty = document.getElementById('media-empty-filter') || document.querySelector('.media-empty-filter');
-        if (empty) empty.style.display = (visible === 0 && rows.length > 0) ? 'block' : 'none';
+
+        folders.forEach(function (row) {
+            var name = row.dataset.folder || '';
+            var show = !currentFolder && !search && (folderMatchCounts[name] > 0);
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+
+        var emptyFilter = document.getElementById('media-empty-filter');
+        var emptyFolder = document.getElementById('media-empty-folder');
+        var hasRows = items.length > 0 || folders.length > 0;
+        var folderEmpty = visible === 0 && !!currentFolder && !search && activeFilter === 'all';
+        if (emptyFolder) emptyFolder.style.display = folderEmpty ? 'block' : 'none';
+        if (emptyFilter) emptyFilter.style.display = (visible === 0 && hasRows && !folderEmpty) ? 'block' : 'none';
+        syncDeleteButton();
+        updateFolderNav();
     }
     $(document).on('click', '.media-filter-btn', function () {
         $('.media-filter-btn').removeClass('is-active');
@@ -1322,6 +1460,18 @@ $(document).ready(function () {
         applyFilter();
     });
     $('#media-search-input').on('input', applyFilter);
+    $(document).on('click', '.media-folder-row', function (e) {
+        if ($(e.target).closest('a, input').length) return;
+        var folder = this.getAttribute('data-folder') || '';
+        if (folder) setCurrentFolder(folder);
+    });
+    $(document).on('keydown', '.media-folder-row', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        var folder = this.getAttribute('data-folder') || '';
+        if (folder) setCurrentFolder(folder);
+    });
+    $('#media-folder-root').on('click', function () { setCurrentFolder(''); });
     loadMediaFileList();
     if ($('.sp-notif').length) {
         setTimeout(function () {
@@ -1396,14 +1546,16 @@ $(document).ready(function () {
         });
     });
     $(document).on('change', '.media-file-check', function () {
-        var checked = $('.media-file-check:checked').length;
-        $('.media-delete-selected-btn').prop('disabled', checked < 1);
+        syncDeleteButton();
     });
     // Delete selected (bulk) - refuse if any selection is still linked
     $(document).on('click', '.media-delete-selected-btn', function () {
         var form = $('#mediaDeleteForm');
-        var checked = form.find('.media-file-check:checked');
+        var checked = form.find('.media-file-check:checked').filter(function () {
+            return $(this).closest('.media-file-row').css('display') !== 'none';
+        });
         if (checked.length === 0) return;
+        form.find('.media-file-check:checked').not(checked).prop('checked', false);
         var locked = [];
         checked.each(function () {
             var row = $(this).closest('.media-file-row');

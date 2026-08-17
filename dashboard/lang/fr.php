@@ -2425,6 +2425,11 @@ return [
     'media_in_use_title' => 'Ce fichier est utilisé. Supprimez ses liens avant de le supprimer.',
     'media_delete_file' => 'Supprimer le fichier',
     'media_no_files_match_filter' => 'Aucun fichier ne correspond au filtre actuel.',
+    'media_breadcrumb_library' => 'Bibliothèque',
+    'media_folder_file' => '1 fichier',
+    'media_folder_files' => '%s fichiers',
+    'media_folder_empty' => 'Ce dossier est vide.',
+    'media_open_folder' => 'Ouvrir le dossier',
     'media_modal_close' => 'Fermer',
     // channel_rewards.php
     'channel_rewards_sync_result' => 'Résultat de la synchronisation :',

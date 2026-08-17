@@ -2426,6 +2426,11 @@ return [
     'media_in_use_title' => '该文件正在使用中。删除前先删除其链接。',
     'media_delete_file' => '删除文件',
     'media_no_files_match_filter' => '没有文件与当前过滤器匹配。',
+    'media_breadcrumb_library' => '媒体库',
+    'media_folder_file' => '1 个文件',
+    'media_folder_files' => '%s 个文件',
+    'media_folder_empty' => '此文件夹为空。',
+    'media_open_folder' => '打开文件夹',
     'media_modal_close' => '关闭',
     // channel_rewards.php
     'channel_rewards_sync_result' => '同步结果：',
