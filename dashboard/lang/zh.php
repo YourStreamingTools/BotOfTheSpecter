@@ -2431,6 +2431,7 @@ return [
     'media_folder_files' => '%s 个文件',
     'media_folder_empty' => '此文件夹为空。',
     'media_open_folder' => '打开文件夹',
+    'media_preview' => '预览',
     'media_modal_close' => '关闭',
     // channel_rewards.php
     'channel_rewards_sync_result' => '同步结果：',

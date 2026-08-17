@@ -2489,6 +2489,7 @@ return [
     'media_folder_files' => '%s archivos',
     'media_folder_empty' => 'Esta carpeta está vacía.',
     'media_open_folder' => 'Abrir carpeta',
+    'media_preview' => 'Vista previa',
     'media_modal_close' => 'Cerrar',
     // channel_rewards.php
     'channel_rewards_sync_result' => 'Resultado de sincronización:',
