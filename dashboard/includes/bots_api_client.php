@@ -132,6 +132,31 @@ function bots_api_request(string $method, string $path, ?array $jsonBody = null,
     ];
 }
 
+function bots_api_health(): array {
+    $cfg = bots_api_config();
+    $url = $cfg['base_url'] . '/health';
+    $timeout = min(5, max(2, (int)($cfg['timeout'] ?? 15)));
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_CONNECTTIMEOUT => $timeout,
+        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $raw = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $err = curl_error($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($errno) {
+        return ['ok' => false, 'status' => 0, 'data' => null, 'error' => "curl error: $err"];
+    }
+    $data = json_decode((string)$raw, true);
+    $ok = $status >= 200 && $status < 300 && is_array($data) && !empty($data['ok']);
+    return ['ok' => $ok, 'status' => $status, 'data' => is_array($data) ? $data : null, 'error' => $ok ? null : (string)$raw];
+}
+
 function bots_api_running_bots(): array {
     return bots_api_request('GET', '/api/running_bots');
 }

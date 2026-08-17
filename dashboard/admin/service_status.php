@@ -5,6 +5,7 @@ require_once __DIR__ . '/admin_access.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 require_once __DIR__ . '/../includes/websocket_control_client.php';
+require_once __DIR__ . '/../includes/bots_api_client.php';
 
 // Load translations so user-facing JSON messages are localized.
 if (!function_exists('t')) {
@@ -165,6 +166,15 @@ if (!empty($config['fixed_status'])) {
         'status' => $config['fixed_status'],
         'pid' => $config['fixed_pid'] ?? 'N/A',
     ]);
+    exit();
+}
+if ($service === 'bots_api') {
+    $health = bots_api_health();
+    if (!empty($health['ok'])) {
+        echo json_encode(['status' => 'Running', 'pid' => 'N/A']);
+    } else {
+        echo json_encode(['status' => 'Error', 'pid' => 'N/A', 'error' => $health['error'] ?? 'bots API health failed']);
+    }
     exit();
 }
 // WebSocket host: status via private control API (no SSH)
