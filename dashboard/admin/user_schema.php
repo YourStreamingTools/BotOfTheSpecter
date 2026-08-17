@@ -120,6 +120,7 @@ ob_start();
                 <button type="button" class="sp-btn sp-btn-primary" id="usr-schema-check"><i class="fas fa-stethoscope"></i> <?php echo t('admin_user_schema_check'); ?></button>
                 <button type="button" class="sp-btn sp-btn-success" id="usr-schema-apply" disabled><i class="fas fa-play"></i> <?php echo t('admin_user_schema_apply'); ?></button>
                 <button type="button" class="sp-btn sp-btn-secondary" id="usr-schema-scan"><i class="fas fa-list-check"></i> <?php echo t('admin_user_schema_scan_all'); ?></button>
+                <button type="button" class="sp-btn sp-btn-warning" id="usr-schema-fix-all"><i class="fas fa-wrench"></i> <?php echo t('admin_user_schema_fix_all'); ?></button>
             </div>
         </div>
         <ul class="usr-schema-user-list" id="usr-schema-user-list" hidden></ul>
@@ -197,6 +198,12 @@ document.addEventListener('DOMContentLoaded', function () {
         confirmBtn: <?php echo json_encode(t('admin_user_schema_js_confirm_btn')); ?>,
         cancelBtn: <?php echo json_encode(t('admin_user_schema_js_cancel_btn')); ?>,
         scanProgress: <?php echo json_encode(t('admin_user_schema_scan_progress')); ?>,
+        fixProgress: <?php echo json_encode(t('admin_user_schema_fix_progress')); ?>,
+        fixAllTitle: <?php echo json_encode(t('admin_user_schema_js_fix_all_title')); ?>,
+        fixAllText: <?php echo json_encode(t('admin_user_schema_js_fix_all_text')); ?>,
+        fixAllDestructive: <?php echo json_encode(t('admin_user_schema_js_fix_all_destructive')); ?>,
+        fixAllNone: <?php echo json_encode(t('admin_user_schema_js_fix_all_none')); ?>,
+        fixAllDone: <?php echo json_encode(t('admin_user_schema_js_fix_all_done')); ?>,
         open: <?php echo json_encode(t('admin_user_schema_open')); ?>,
         kinds: {
             create_database: <?php echo json_encode(t('admin_user_schema_kind_create_database')); ?>,
@@ -218,6 +225,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const checkBtn = document.getElementById('usr-schema-check');
     const applyBtn = document.getElementById('usr-schema-apply');
     const scanBtn = document.getElementById('usr-schema-scan');
+    const fixAllBtn = document.getElementById('usr-schema-fix-all');
     const resultCard = document.getElementById('usr-schema-result');
     const resultTitle = document.getElementById('usr-schema-result-title');
     const summary = document.getElementById('usr-schema-summary');
@@ -232,6 +240,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let selectedUser = '';
     let lastInspect = null;
+    const fleetState = {};
 
     function fail(msg) {
         Swal.fire({ icon: 'error', title: I18N.errorTitle, text: msg || I18N.errorTitle });
@@ -353,6 +362,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function paintFleetRow(username, data) {
+        fleetState[username] = data || {};
         const tr = fleetRowFor(username);
         if (!tr) return;
         const pendingCount = (data && data.pending && data.pending.length) || 0;
@@ -472,6 +482,90 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         await Promise.all([worker(), worker(), worker()]);
         scanBtn.disabled = false;
+    });
+
+    function usersNeedingFix() {
+        const scanned = Object.keys(fleetState);
+        if (!scanned.length) return USERS.slice();
+        return USERS.filter(function (user) {
+            const data = fleetState[user.username];
+            if (!data) return true;
+            if (data.success === false || data.ok === false) return true;
+            return !data.current;
+        });
+    }
+
+    function ensureFleetRows() {
+        if (fleetBody.children.length) return;
+        USERS.forEach(function (user) {
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-user-id', String(user.id));
+            tr.innerHTML = '<td><code>' + escapeHtml(user.username) + '</code></td>'
+                + '<td><span class="mig-pill mig-pending">…</span></td>'
+                + '<td>—</td>'
+                + '<td></td>';
+            fleetBody.appendChild(tr);
+        });
+    }
+
+    fixAllBtn.addEventListener('click', async function () {
+        const targets = usersNeedingFix();
+        if (!targets.length) {
+            Swal.fire({ icon: 'info', title: I18N.fixAllNone });
+            return;
+        }
+        const destructive = targets.some(function (user) {
+            const data = fleetState[user.username];
+            return data && Array.isArray(data.pending) && data.pending.some(function (c) { return c.destructive; });
+        });
+        const confirm = await Swal.fire({
+            icon: 'warning',
+            title: I18N.fixAllTitle,
+            text: (destructive ? I18N.fixAllDestructive : I18N.fixAllText).replace('%d', String(targets.length)),
+            showCancelButton: true,
+            confirmButtonText: I18N.confirmBtn,
+            cancelButtonText: I18N.cancelBtn,
+            confirmButtonColor: destructive ? '#f14668' : undefined
+        });
+        if (!confirm.isConfirmed) return;
+        fixAllBtn.disabled = true;
+        scanBtn.disabled = true;
+        applyBtn.disabled = true;
+        ensureFleetRows();
+        let done = 0;
+        let failed = 0;
+        const queue = targets.slice();
+        async function worker() {
+            while (queue.length) {
+                const user = queue.shift();
+                try {
+                    const data = await post({ action: 'apply', username: user.username });
+                    if (!data.success) {
+                        failed += 1;
+                        paintFleetRow(user.username, { success: false, ok: false });
+                    } else {
+                        const inspect = Object.assign({ success: true }, data.inspect || {});
+                        paintFleetRow(user.username, inspect);
+                        if (selectedUser === user.username) {
+                            renderInspect(user.username, inspect, data.logs || []);
+                        }
+                    }
+                } catch (e) {
+                    failed += 1;
+                    paintFleetRow(user.username, { success: false, ok: false });
+                }
+                done += 1;
+                scanProgress.textContent = I18N.fixProgress.replace('%d', String(done)).replace('%t', String(targets.length));
+            }
+        }
+        await Promise.all([worker(), worker()]);
+        fixAllBtn.disabled = false;
+        scanBtn.disabled = false;
+        applyBtn.disabled = !lastInspect || !!lastInspect.current;
+        Swal.fire({
+            icon: failed ? 'warning' : 'success',
+            title: I18N.fixAllDone.replace('%d', String(done)).replace('%e', String(failed))
+        });
     });
 });
 </script>
