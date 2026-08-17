@@ -30,7 +30,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from manager import ALLOWED_UNITS, control_unit, list_services, unit_status
+from manager import control_unit, list_services, unit_status
 
 load_dotenv("/home/botofthespecter/.env")
 load_dotenv()
@@ -105,8 +105,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="BotOfTheSpecter WebSocket Host Control API",
     description=(
-        "Private process-control API for the WebSocket host. Not for end users. "
-        f"Authenticate with an admin API key (service={WS_ADMIN_SERVICE!r} or admin)."
+        "Host operator API. Authenticate with an authorized admin API key."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -141,7 +140,7 @@ async def themed_docs():
     if index is None:
         raise HTTPException(
             status_code=500,
-            detail=f"Docs UI not installed (expected {_DOCS_UI_DIR / 'index.html'})",
+            detail="Docs UI is not available.",
         )
     return FileResponse(index)
 
@@ -153,26 +152,9 @@ async def themed_docs_static(asset_path: str):
     if file_path is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Docs asset not found: {asset_path!r} under {_DOCS_UI_DIR}",
+            detail="Asset not found.",
         )
     return FileResponse(file_path)
-
-
-@app.get("/api/docs-assets", include_in_schema=False)
-async def docs_assets_debug() -> dict[str, Any]:
-    """Operator check: which docs_ui files the process can see (no auth)."""
-    names = ["index.html", "css/docs.css", "js/app.js", "js/openapi.js"]
-    return {
-        "docs_ui_dir": str(_DOCS_UI_DIR),
-        "docs_ui_dir_exists": _DOCS_UI_DIR.is_dir(),
-        "files": {
-            n: {
-                "ok": _docs_asset(n) is not None,
-                "path": str(_DOCS_UI_DIR / n),
-            }
-            for n in names
-        },
-    }
 
 
 async def _admin_key_allowed(api_key: str) -> bool:
@@ -199,13 +181,13 @@ async def _admin_key_allowed(api_key: str) -> bool:
 
 async def require_control_key(
     x_api_key: str | None = Header(None, alias="X-API-KEY"),
-    x_ws_key: str | None = Header(None, alias="X-WS-CONTROL-KEY"),
+    x_ws_key: str | None = Header(None, alias="X-WS-CONTROL-KEY", include_in_schema=False),
 ) -> None:
     provided = (x_ws_key or x_api_key or "").strip()
     if not provided:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Missing X-API-KEY (use admin key with service={WS_ADMIN_SERVICE})",
+            detail="Missing X-API-KEY",
         )
     if await _admin_key_allowed(provided):
         return
@@ -213,12 +195,12 @@ async def require_control_key(
         return
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=f"Invalid key — create service '{WS_ADMIN_SERVICE}' on Admin → API Keys",
+        detail="Invalid key",
     )
 
 
 class UnitBody(BaseModel):
-    unit: str = Field(..., description="Allowlisted unit basename: websocket | caddy | websocket-control")
+    unit: str = Field(..., description="Service identifier to inspect or control")
 
 
 @app.get("/health")
@@ -226,11 +208,8 @@ async def health() -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     return {
         "ok": True,
-        "service": "websocket-host-control",
         "started_at": _process_started_at.strftime("%Y-%m-%d %H:%M:%S"),
-        "started_at_utc": _process_started_at.isoformat(),
         "uptime_seconds": int((now - _process_started_at).total_seconds()),
-        "allowlisted": list(ALLOWED_UNITS.keys()),
     }
 
 
@@ -240,7 +219,7 @@ async def api_list_services() -> dict[str, Any]:
 
 
 @app.get("/api/service/status", dependencies=[Depends(require_control_key)])
-async def api_service_status(unit: str = Query(..., description="websocket | caddy | …")) -> dict[str, Any]:
+async def api_service_status(unit: str = Query(..., description="Service identifier")) -> dict[str, Any]:
     result = unit_status(unit)
     if not result.get("ok") and result.get("error", "").startswith("Unit not allowlisted"):
         raise HTTPException(status_code=400, detail=result["error"])

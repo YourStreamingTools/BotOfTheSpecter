@@ -6,7 +6,6 @@
     <title>WebSocket Host Control API Docs</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/favicon.ico">
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css">
-    <!-- Prefixed for Caddy handle_path /control/* -->
     <link rel="stylesheet" href="/control/docs-static/css/docs.css">
 </head>
 <body>
@@ -63,7 +62,7 @@
                     authMode: "bots"
                 }
             ],
-            bannerHtml: "Private control plane for the <strong>WebSocket host</strong> — not for streamer user keys. Use an admin key with <code class=\"docs-code\">service=websocket</code> or <code class=\"docs-code\">admin</code> via <code class=\"docs-code\">X-API-KEY</code> (or <code class=\"docs-code\">X-WS-CONTROL-KEY</code>). Allowlisted units: <code class=\"docs-code\">websocket</code>, <code class=\"docs-code\">caddy</code>, <code class=\"docs-code\">websocket-control</code>."
+            bannerHtml: "Operator API. Authenticate with an authorized admin key via the <code class=\"docs-code\">X-API-KEY</code> header. Streamer user keys are not accepted."
         };
     </script>
     <script src="/control/docs-static/js/openapi.js"></script>
