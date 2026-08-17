@@ -2163,7 +2163,7 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     <hr class="sp-divider">
 
     <h2>Endpoint Quick Reference</h2>
-    <p>BotOfTheSpecter's API provides several endpoint groups. Some are public; others require a user API key or admin key. For <code>/v2/</code> endpoints, prefer the <code>X-API-KEY</code> header.</p>
+    <p>BotOfTheSpecter's API provides several endpoint groups. Some are public; others require your user API key. For <code>/v2/</code> endpoints, prefer the <code>X-API-KEY</code> header.</p>
     <div class="sp-card" style="margin-top:1rem;">
         <div class="sp-card-header">Authenticated Endpoint Highlights (v2)</div>
         <div class="sp-card-body">
@@ -2203,16 +2203,6 @@ $expressiveTtsVoices = support_expressive_tts_voices();
                 <span class="sp-badge" style="background:#6c757d;color:white;">POST /patreon</span>
                 <span class="sp-badge" style="background:#6c757d;color:white;">POST /kofi</span>
                 <span class="sp-badge" style="background:#6c757d;color:white;">POST /fourthwall</span>
-                <span style="width:100%;margin:16px 0 8px 0;font-size:0.95rem;color:#5a3e00;font-weight:700;">
-                    Admin Only
-                </span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /freestuff</span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /github</span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">GET /v2/authorizedusers</span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">GET /v2/discord/linked</span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">GET /v2/discord/twitch-link</span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /v2/discord/twitch-link/request</span>
-                <span class="sp-badge" style="background:#5a3e00;color:#ffd080;">POST /v2/discord/twitch-link/unlink</span>
             </div>
         </div>
     </div>
@@ -2246,7 +2236,6 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     </ul>
 
     <h3>Commands (requires user API key)</h3>
-    <p>Admins can query any user's data with the <code>channel</code> parameter.</p>
     <ul>
         <li><code>GET /v2/quotes</code> - Get a random quote</li>
         <li><code>GET /v2/fortune</code> - Get a random fortune</li>
@@ -2264,7 +2253,6 @@ $expressiveTtsVoices = support_expressive_tts_voices();
     </ul>
 
     <h3>User Account (requires user API key)</h3>
-    <p>Admins can query any user's data with the <code>channel</code> parameter.</p>
     <ul>
         <li><code>GET /v2/account</code> - Get account information</li>
         <li><code>GET /v2/checkkey</code> - Check if the API key is valid</li>
@@ -2285,18 +2273,6 @@ $expressiveTtsVoices = support_expressive_tts_voices();
         <li><code>GET /v2/websocket/raffle_winner</code> - Trigger Raffle Winner via API</li>
         <li><code>GET /v2/websocket/stream_offline</code> - Trigger Stream Offline via API</li>
         <li><code>POST /v2/SEND_OBS_EVENT</code> - Pass OBS events to the websocket server</li>
-    </ul>
-
-    <h3>Admin Only (requires admin API key)</h3>
-    <p>Administrative endpoints that require admin API key. Service-specific admin keys are restricted to their designated service.</p>
-    <ul>
-        <li><code>POST /freestuff</code> - Receive and process FreeStuff Webhook Requests</li>
-        <li><code>POST /github</code> - Receive and process GitHub Webhook Requests</li>
-        <li><code>GET /v2/authorizedusers</code> - Get a list of authorized users for full beta access to the entire Specter Ecosystem</li>
-        <li><code>GET /v2/discord/linked</code> - Check if Discord user is linked</li>
-        <li><code>GET /v2/discord/twitch-link</code> - Get Discord to Twitch link</li>
-        <li><code>POST /v2/discord/twitch-link/request</code> - Create one-time Twitch link token for a Discord user</li>
-        <li><code>POST /v2/discord/twitch-link/unlink</code> - Unlink Discord user from Twitch account</li>
     </ul>
 
     <hr class="sp-divider">
@@ -2537,491 +2513,43 @@ System.out.println(resp.body());</code></pre>
 
     <hr class="sp-divider">
 
-    <h2>Prerequisites (All Servers)</h2>
-    <p>Before deploying to individual servers, ensure each Linux server has the following installed:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code># Update system packages (All Servers)
-sudo apt update &amp;&amp; sudo apt upgrade -y
-
-# Install common dependencies (All Servers)
-sudo apt install -y curl wget git build-essential openssl ssl-cert
-
-# Create botofthespecter user (All Servers)
-sudo useradd -m -s /bin/bash botofthespecter
-sudo usermod -aG sudo botofthespecter
-
-# For Servers 1, 2, 3, 5 - Install Python and pip
-sudo apt install -y python3 python3-pip python3-venv
-
-# For Server 1 Only - Install PHP and Caddy
-sudo apt install -y php php-cli php-fpm php-curl php-json php-mysql php-ssh2 caddy
-
-# For Server 4 Only - Install MySQL
-sudo apt install -y mysql-server</code></pre>
-
-    <hr class="sp-divider">
-
-    <h2>Step 1: Clone the Repository (Servers 1, 2, 3, 5)</h2>
-    <p>Clone the BotOfTheSpecter repository to a temporary directory on each server (except Server 4 - Database):</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>cd /tmp
-git clone https://github.com/YourStreamingTools/BotOfTheSpecter.git botofthespecter-temp
-cd botofthespecter-temp</code></pre>
-    <p style="margin-top:1rem;">Then move the appropriate files to their destinations based on your server type:</p>
-
-    <h3>For Server 1 (Web/Dashboard):</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo rm -rf /var/www/html
-sudo cp -r /tmp/botofthespecter-temp/dashboard /var/www/
-sudo cp -r /tmp/botofthespecter-temp/home /var/www/
-sudo cp -r /tmp/botofthespecter-temp/html /var/www/
-sudo cp -r /tmp/botofthespecter-temp/overlay /var/www/
-sudo cp -r /tmp/botofthespecter-temp/roadmap /var/www/
-sudo cp -r /tmp/botofthespecter-temp/tts /var/www/
-sudo cp -r /tmp/botofthespecter-temp/walkons /var/www/
-sudo cp -r /tmp/botofthespecter-temp/videoalerts /var/www/
-sudo cp -r /tmp/botofthespecter-temp/soundalerts /var/www/
-sudo cp -r /tmp/botofthespecter-temp/config /var/www/
-sudo cp -r /tmp/botofthespecter-temp/cdn /var/www/
-sudo chown -R www-data:www-data /var/www</code></pre>
-
-    <h3 style="margin-top:1rem;">For Server 2 (API):</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo cp -r /tmp/botofthespecter-temp/api /home/botofthespecter/
-sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
-
-    <h3 style="margin-top:1rem;">For Server 3 (WebSocket):</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo cp -r /tmp/botofthespecter-temp/websocket /home/botofthespecter/
-sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
-
-    <h3 style="margin-top:1rem;">For Server 5 (Bot):</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>sudo cp -r /tmp/botofthespecter-temp/bot /home/botofthespecter/
-sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
-
-    <h3 style="margin-top:1rem;">Clean up temporary directory (All Servers):</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;"><code>rm -rf /tmp/botofthespecter-temp</code></pre>
-
-    <hr class="sp-divider">
-
-    <h2>Step 2: Configure Database Server (Server 4 Only)</h2>
-    <p>Server 4 does not require application files from the repository - it only needs MySQL installed and configured. Specter uses <strong>two database scopes</strong>:</p>
+    <h2>Self-host outline</h2>
+    <p>Advanced users can run a private copy from the public source. The hosted production layout is <strong>not</strong> documented here. Use your own service user, install prefix (for example <code>/opt/specter</code>), and domain names.</p>
     <ol>
-        <li><strong>Central / system databases</strong> - you create these once by hand (<code>website</code>, <code>spam_pattern</code>, optional <code>roadmap</code> / <code>specterdiscordbot</code>).</li>
-        <li><strong>Per-user databases</strong> - one MySQL database <strong>per Twitch username</strong> (DB name = username). These are <strong>never</strong> created by hand; the dashboard creates them on first login.</li>
+        <li>Clone <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" rel="noopener">the GitHub repository</a>.</li>
+        <li>Split the web frontend, API, realtime hub, chat bot, and database onto one machine or several — whichever you can operate.</li>
+        <li>Create a dedicated, <strong>non-sudo</strong> service account. Do not copy production usernames or home directories.</li>
+        <li>Point each process at a local virtualenv and its own requirements file from the repo.</li>
     </ol>
 
-    <h3>Central databases (create manually)</h3>
+    <h3 style="margin-top:1.5rem;">Configuration</h3>
+    <p>Keep secrets in an environment file that is <strong>not</strong> committed and is readable only by the service account. A self-host typically needs:</p>
     <ul>
-        <li><strong>spam_pattern</strong> - global spam phrases for auto-ban (table: <code>spam_patterns</code>)</li>
-        <li><strong>website</strong> - accounts, OAuth tokens, API keys, admin keys, system tables</li>
-        <li><strong>specterdiscordbot</strong> - Discord bot state <em>(optional)</em></li>
-        <li><strong>roadmap</strong> - roadmap site <em>(optional)</em></li>
+        <li>A database DSN (host, name, user, password) — prefer localhost unless you have a private network</li>
+        <li>Your own Twitch application client ID and client secret</li>
+        <li>A user API key you generate for that instance</li>
     </ul>
-    <p>Minimal bootstrap SQL for the core DBs (expand as needed; full <code>website</code> tables also grow via <code>migrations/website/</code>):</p>
-    <details style="margin-top:1rem;">
-        <summary style="cursor:pointer;padding:0.75rem 1rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);font-weight:600;">View central database bootstrap SQL (click to expand)</summary>
-        <pre style="background:var(--bg-surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:1rem;overflow-x:auto;margin:0;"><code>sudo mysql -u root -p
+    <p>Optional integrations (weather, Spotify, Discord, object storage, email) use the credentials those providers issue to <em>you</em>. Do not reuse keys from the hosted service.</p>
 
--- spam_pattern (DB name) + spam_patterns (table)
-CREATE DATABASE IF NOT EXISTS spam_pattern;
-USE spam_pattern;
-CREATE TABLE IF NOT EXISTS spam_patterns (
-    id INT NOT NULL AUTO_INCREMENT,
-    spam_pattern TEXT NOT NULL,
-    PRIMARY KEY (id)
-);
-
--- roadmap (optional)
-CREATE DATABASE IF NOT EXISTS roadmap;
-USE roadmap;
-CREATE TABLE IF NOT EXISTS roadmap_items (
-    id INT NOT NULL AUTO_INCREMENT,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    category ENUM('REQUESTS','IN PROGRESS','BETA TESTING','COMPLETED','REJECTED') NOT NULL DEFAULT 'REQUESTS',
-    subcategory ENUM('TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER') NOT NULL,
-    priority ENUM('LOW','MEDIUM','HIGH','CRITICAL') NOT NULL DEFAULT 'MEDIUM',
-    website_type ENUM('DASHBOARD','OVERLAYS') DEFAULT NULL,
-    completed_date DATE DEFAULT NULL,
-    created_by VARCHAR(255) DEFAULT NULL,
-    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
-);
-CREATE TABLE IF NOT EXISTS roadmap_comments (
-    id INT NOT NULL AUTO_INCREMENT,
-    item_id INT NOT NULL,
-    username VARCHAR(255) NOT NULL,
-    comment TEXT NOT NULL,
-    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    CONSTRAINT roadmap_comments_ibfk_1 FOREIGN KEY (item_id) REFERENCES roadmap_items (id) ON DELETE CASCADE
-);
-
--- specterdiscordbot (optional - full schema in repo)
-CREATE DATABASE IF NOT EXISTS specterdiscordbot;
-
--- website (accounts + system tables; users row is the minimum for login)
-CREATE DATABASE IF NOT EXISTS website;
-USE website;
-CREATE TABLE IF NOT EXISTS users (
-    id INT NOT NULL AUTO_INCREMENT,
-    username VARCHAR(50) NOT NULL,
-    twitch_display_name VARCHAR(50) DEFAULT NULL,
-    twitch_user_id VARCHAR(255) NOT NULL,
-    access_token VARCHAR(255) DEFAULT NULL,
-    refresh_token VARCHAR(255) DEFAULT NULL,
-    api_key VARCHAR(32) NOT NULL,
-    is_admin TINYINT(1) NOT NULL DEFAULT 0,
-    beta_access TINYINT(1) NOT NULL DEFAULT 0,
-    is_technical TINYINT(1) NOT NULL DEFAULT 0,
-    signup_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    profile_image VARCHAR(255) NOT NULL DEFAULT 'https://cdn.botofthespecter.com/noimage.png',
-    email VARCHAR(255) DEFAULT NULL,
-    app_password VARCHAR(50) DEFAULT NULL,
-    language VARCHAR(5) NOT NULL DEFAULT 'EN',
-    PRIMARY KEY (id),
-    UNIQUE KEY username (username),
-    UNIQUE KEY api_key (api_key),
-    KEY idx_twitch_user_id (twitch_user_id)
-);</code></pre>
-    </details>
-
-    <p style="margin-top:1rem;">Then create your MySQL application user (must be able to create databases - per-user DBs need <code>CREATE</code>):</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%' WITH GRANT OPTION;
+    <h3 style="margin-top:1.5rem;">Database</h3>
+    <p>The installer / first dashboard login creates the system database and each channel database. Do not publish or copy a schema dump, and do not grant a remote user all privileges.</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.75rem;"><code>CREATE USER 'specter'@'localhost' IDENTIFIED BY 'your-strong-password';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, ALTER ON specter.* TO 'specter'@'localhost';
 FLUSH PRIVILEGES;</code></pre>
+    <p style="margin-top:0.75rem;">Leave MySQL listening on localhost unless you have a private network and know you need otherwise. Do not bind the database to the public internet.</p>
 
-    <div class="sp-alert sp-alert-danger" style="margin-top:1rem;">
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <div>
-            <strong>DO NOT manually create per-user databases or their tables.</strong>
-            <p style="margin-top:0.5rem;margin-bottom:0;">On first dashboard login for a channel, <code>dashboard/includes/usr_database.php</code> creates a MySQL database named after the Twitch username (e.g. <code>gfaundead</code>), creates ~100 tables if missing, migrates columns, and seeds default settings. Manual creation will drift from the live schema.</p>
-        </div>
-    </div>
+    <h3 style="margin-top:1.5rem;">Web frontend and TLS</h3>
+    <p>Serve the dashboard and overlays over HTTPS on your own domain. Use any reverse proxy you already operate. Keep TLS certificates and DNS tokens in the proxy's private config, not in public documentation.</p>
 
-    <h3 style="margin-top:1.5rem;">Per-user databases (auto-created)</h3>
-    <p>Source of truth: <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/blob/main/dashboard/includes/usr_database.php" target="_blank" rel="noopener"><code>dashboard/includes/usr_database.php</code></a>.</p>
+    <h3 style="margin-top:1.5rem;">Starting processes</h3>
+    <p>Run the API, realtime hub, and bot under your process manager. Point the start command at your prefix and virtualenv — there is no required production path. Start the database with the distro service manager. Start the chat bot from the dashboard once the API is up.</p>
+
+    <h3 style="margin-top:1.5rem;">Networking</h3>
     <ul>
-        <li><strong>Database name</strong> = Twitch login / session username (letters, numbers, underscore only; max 64 chars).</li>
-        <li><strong>When</strong> - first successful dashboard session for that user (and again on later loads to create any missing tables / columns).</li>
-        <li><strong>What runs</strong> - <code>CREATE DATABASE</code> if the schema does not exist, then <code>CREATE TABLE IF NOT EXISTS</code> for every table below, then column checks, then default seed rows.</li>
+        <li>Expose only HTTPS (and HTTP for certificate issuance if you use it) to the public internet</li>
+        <li>Keep the database on localhost or a private network</li>
+        <li>Allow only the hosts that must talk to each other</li>
     </ul>
-
-    <h4>Tables created in each user database</h4>
-    <p>Grouped for readability (names match the code):</p>
-    <div class="sp-table-wrap" style="margin-top:0.75rem;">
-        <table class="sp-table">
-            <thead>
-                <tr><th style="width:28%;">Area</th><th>Tables</th></tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Commands</strong></td>
-                    <td><code>custom_commands</code>, <code>custom_user_commands</code>, <code>builtin_commands</code>, <code>command_options</code>, <code>custom_command_random_pick_options</code>, <code>timed_messages</code>, <code>custom_counts</code>, <code>user_counts</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Points &amp; store</strong></td>
-                    <td><code>bot_points</code>, <code>bot_settings</code>, <code>point_store_settings</code>, <code>point_store_items</code>, <code>point_store_purchases</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Channel points / rewards</strong></td>
-                    <td><code>channel_point_rewards</code>, <code>reward_counts</code>, <code>reward_streaks</code>, <code>stored_redeems</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Social counters</strong></td>
-                    <td><code>user_typos</code>, <code>lurk_times</code>, <code>hug_counts</code>, <code>highfive_counts</code>, <code>kiss_counts</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Deaths</strong></td>
-                    <td><code>total_deaths</code>, <code>per_stream_deaths</code>, <code>game_deaths</code>, <code>game_deaths_settings</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Events / analytics</strong></td>
-                    <td><code>bits_data</code>, <code>subscription_data</code>, <code>followers_data</code>, <code>raid_data</code>, <code>analytic_raids</code>, <code>analytic_stream_watch_streak</code>, <code>message_counts</code>, <code>watch_time</code>, <code>watch_time_excluded_users</code>, <code>shoutout_history</code>, <code>stream_session_stats</code>, <code>song_request_analytics</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Chat &amp; presence</strong></td>
-                    <td><code>chat_history</code>, <code>seen_users</code>, <code>seen_today</code>, <code>everyone</code>, <code>groups</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Protection</strong></td>
-                    <td><code>protection</code>, <code>link_whitelist</code>, <code>link_blacklisting</code>, <code>blocked_terms</code>, <code>word_replace_ignored_users</code>, <code>word_replace_ignored_words</code>, <code>joke_settings</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Alerts &amp; media</strong></td>
-                    <td><code>twitch_alerts</code>, <code>twitch_alert_category_settings</code>, <code>twitch_chat_alerts</code>, <code>sound_alerts</code>, <code>twitch_sound_alerts</code>, <code>video_alerts</code>, <code>walkons</code>, <code>tts_settings</code>, <code>stream_credits</code>, <code>credits_overlay_settings</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Overlays / prefs</strong></td>
-                    <td><code>profile</code>, <code>streamer_preferences</code>, <code>streaming_settings</code>, <code>ad_notice_settings</code>, <code>closed_captions_settings</code>, <code>closed_captions_corrections</code>, <code>avatar_settings</code>, <code>working_study_overlay_settings</code>, <code>maker_overlay_settings</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Raffles / lotto / VIP</strong></td>
-                    <td><code>raffles</code>, <code>raffle_entries</code>, <code>raffle_winners</code>, <code>stream_lotto</code>, <code>stream_lotto_winning_numbers</code>, <code>vip_today</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Subathon / stream</strong></td>
-                    <td><code>subathon_settings</code>, <code>subathon</code>, <code>stream_status</code>, <code>active_timers</code>, <code>poll_results</code>, <code>auto_record_settings</code>, <code>stream_forward_settings</code>, <code>eventsub_sessions</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Quotes / tips / categories</strong></td>
-                    <td><code>quotes</code>, <code>quote_category</code>, <code>tipping_settings</code>, <code>tipping</code>, <code>categories</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Tasks / pomodoro / makers</strong></td>
-                    <td><code>todos</code>, <code>showobs</code>, <code>streamer_tasks</code>, <code>user_tasks</code>, <code>task_reward_log</code>, <code>task_settings</code>, <code>user_active_project</code>, <code>user_projects</code>, <code>user_timers</code>, <code>maker_projects</code>, <code>maker_project_images</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Bingo / Tanggle</strong></td>
-                    <td><code>bingo_games</code>, <code>bingo_winners</code>, <code>bingo_players</code>, <code>tanggle_room_completions</code>, <code>tanggle_puzzle_stats</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Media queue</strong></td>
-                    <td><code>media_queue</code>, <code>media_request_settings</code>, <code>media_banlist</code></td>
-                </tr>
-                <tr>
-                    <td><strong>Other</strong></td>
-                    <td><code>member_streams</code>, <code>automated_shoutout_settings</code>, <code>automated_shoutout_tracking</code></td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <h4 style="margin-top:1.25rem;">Default seed data (first creation)</h4>
-    <p><code>usr_database.php</code> also inserts defaults when tables are empty, including:</p>
-    <ul>
-        <li><strong>groups</strong> - Moderators, VIPs, Subscribers, Bots</li>
-        <li><strong>categories</strong> - Default</li>
-        <li><strong>bot_settings</strong> - point name <code>Points</code>, chat/follow/sub/cheer/raid amounts, 2× sub multiplier, excluded users include <code>botofthespecter</code> and the channel username</li>
-        <li><strong>point_store_settings</strong>, <strong>subathon_settings</strong>, <strong>protection</strong>, <strong>joke_settings</strong>, <strong>watch_time_excluded_users</strong>, <strong>stream_status</strong></li>
-        <li><strong>ad_notice_settings</strong> - default ad start/end/upcoming messages with variables like <code>(duration)</code> / <code>(minutes)</code></li>
-        <li><strong>streamer_preferences</strong> - welcome message defaults, music source</li>
-        <li><strong>twitch_chat_alerts</strong> - gift/prime upgrade, pay-it-forward, watch streak templates</li>
-        <li><strong>task_settings</strong>, <strong>credits_overlay_settings</strong>, <strong>closed_captions_settings</strong>, <strong>avatar_settings</strong>, <strong>working_study_overlay_settings</strong>, <strong>automated_shoutout_settings</strong>, <strong>tanggle_puzzle_stats</strong>, <strong>showobs</strong></li>
-    </ul>
-    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
-        <i class="fa-solid fa-circle-info"></i>
-        <div>
-            Column definitions change over time. On each dashboard load, <code>usr_database.php</code> compares live columns to the CREATE TABLE definitions and <code>ALTER TABLE … ADD COLUMN</code> for missing ones. Always deploy the latest <code>usr_database.php</code> with the dashboard - do not copy an old SQL dump as the permanent user schema.
-        </div>
-    </div>
-
-    <p style="margin-top:1rem;">Finally, configure MySQL to accept connections from other servers by editing <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code>:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>bind-address = 0.0.0.0</code></pre>
-
-    <hr class="sp-divider">
-
-    <h2>Step 3: Set Up Python Environment (Servers 2, 3 &amp; 5)</h2>
-    <p>All application servers share the same repository path: <code>/home/botofthespecter</code>. Create the virtual environment in that directory and use the venv's pip/python directly so commands are deterministic and work the same on every server.</p>
-    <p><strong>Recommended venv location:</strong> <code>/home/botofthespecter/botofthespecter</code></p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code># create the venv (run as the botofthespecter user)
-python3 -m venv botofthespecter
-# install all required packages
-/home/botofthespecter/botofthespecter/bin/pip install -r /home/botofthespecter/requirements.txt</code></pre>
-    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
-        <i class="fa-solid fa-circle-info"></i>
-        <div>
-            <strong>Production notes:</strong>
-            <ul style="margin:0.5rem 0 0;padding-left:1.25rem;">
-                <li>Reference the virtualenv executables directly in systemd unit files. Example: <code>ExecStart=/home/botofthespecter/botofthespecter/bin/python /home/botofthespecter/api/api.py</code></li>
-                <li>Always run the venv creation and package installs as the <code>botofthespecter</code> user to ensure correct file ownership.</li>
-            </ul>
-        </div>
-    </div>
-
-    <hr class="sp-divider">
-
-    <h2>Step 4: Configure Environment Variables (All Servers)</h2>
-    <p>Create a <code>.env</code> file in <code>/home/botofthespecter</code> with your configuration. Replace the placeholders with your actual values:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code># SQL Data
-SQL_HOST=
-SQL_USER=
-SQL_PASSWORD=
-SQL_PORT=
-# API STUFF
-SHAZAM_API=
-WEATHER_API=
-STEAM_API=
-OPENAI_KEY=
-OPENAI_VECTOR_ID=
-STREAMELEMENTS_CLIENT_ID=
-STREAMELEMENTS_SECRET_KEY=
-HYPERATE_API_KEY=
-# Twitch Bot
-OAUTH_TOKEN=oauth:
-TWITCH_OAUTH_API_TOKEN=
-TWITCH_OAUTH_API_CLIENT_ID=
-CLIENT_ID=
-CLIENT_SECRET=
-TWITCH_GQL=
-TIMEZONE_API=
-EXCHANGE_RATE_API=
-SPOTIFY_CLIENT_ID=
-SPOTIFY_CLIENT_SECRET=
-BOT_ID=
-# Discord Bot
-DISCORD_TOKEN=
-DISCORD_PUBLIC_KEY=
-API_KEY=
-DISCORD_CLIENT_ID=
-DISCORD_CLIENT_SECRET=
-# Guided Bot
-GUIDED_BOT_USER_ID=
-GUIDED_BOT_TOKEN=
-# ADMINS
-ADMIN_KEY=
-# BACKUP SYSTEM
-USE_BACKUP_SYSTEM=False
-BACKUP_CLIENT_ID=
-BACKUP_SECRET_KEY=
-# SSH Settings
-SSH_USERNAME=
-SSH_PASSWORD=
-API-HOST=
-WEBSOCKET-HOST=
-BOT-SRV-HOST=
-SQL-HOST=
-WEB-HOST=
-BILLING-HOST=
-STREAM-AU-EAST-1-HOST=
-STREAM-US-EAST-1-HOST=
-STREAM-US-WEST-1-HOST=
-# SMTP Email Settings
-SMTP_HOST=
-SMTP_PORT=465
-SMTP_FROM_NAME=
-SMTP_USERNAME=
-SMTP_PASSWORD=
-# S3 Bucket Settings for Exports Only
-S3_ENDPOINT_HOSTNAME=
-S3_CUSTOM_DOMAIN=
-S3_BUCKET_NAME=
-S3_ACCESS_KEY=
-S3_SECRET_KEY=
-S3_ALWAYS_UPLOAD=True</code></pre>
-    <h3 style="margin-top:1rem;">Required Variables</h3>
-    <ul>
-        <li><strong>SQL_*</strong> - Database connection details (must match Server 4 config)</li>
-        <li><strong>CLIENT_ID &amp; CLIENT_SECRET</strong> - Your Twitch application credentials</li>
-        <li><strong>OAUTH_TOKEN</strong> - Bot account OAuth token</li>
-        <li><strong>API_KEY</strong> - Generate a secure random key for internal service authentication</li>
-    </ul>
-    <h3>Optional Variables</h3>
-    <ul>
-        <li><strong>WEATHER_API</strong> - For weather commands (OpenWeatherMap)</li>
-        <li><strong>SPOTIFY_*</strong> - For Spotify integration</li>
-        <li><strong>DISCORD_*</strong> - For Discord bot functionality</li>
-        <li><strong>OPENAI_KEY</strong> - For AI features</li>
-        <li><strong>S3_*</strong> - For user data exports to object storage</li>
-        <li><strong>SMTP_*</strong> - For email notifications</li>
-    </ul>
-    <h3>Server Host Variables</h3>
-    <ul>
-        <li><strong>API-HOST, WEBSOCKET-HOST, etc.</strong> - Set these to the IP addresses or hostnames of your respective servers for inter-server communication</li>
-    </ul>
-
-    <hr class="sp-divider">
-
-    <h2>Step 5: Verify WebSocket Dependencies (Server 3)</h2>
-    <p>Install Python dependencies for the WebSocket server:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>cd /home/botofthespecter
-source /home/botofthespecter/botofthespecter/bin/activate
-/home/botofthespecter/botofthespecter/bin/pip install -r /home/botofthespecter/requirements.txt</code></pre>
-
-    <hr class="sp-divider">
-
-    <h2>Step 6: Set Up Web Server (Server 1)</h2>
-    <p>Configure Caddy to serve the PHP dashboard and static assets. Caddy auto-issues and auto-renews Let's Encrypt certificates, so you do not need a separate ACME client:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:1rem;"><code>sudo apt install -y caddy
-# Install the Caddyfile from the repo (the repo ships a ready-made one under web/Caddyfile)
-sudo cp /home/botofthespecter/web/Caddyfile /etc/caddy/Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile</code></pre>
-    <p style="margin-top:1rem;">The shipped <code>web/Caddyfile</code> expects each surface on its own docroot under <code>/var/www/</code> and talks to PHP over the FPM socket. Update the hostnames in <code>/etc/caddy/Caddyfile</code> to your own domain, then add a Cloudflare DNS API token to <code>/etc/caddy/caddy.env</code> if you need wildcard certificates:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code># /etc/caddy/caddy.env  (systemd drop-in; Caddy reads it via {env.X})
-CF_API_TOKEN=your_cloudflare_dns_api_token
-STORAGE_HOST=your-object-storage-host
-STORAGE_PREFIX=your-bucket-prefix</code></pre>
-    <p style="margin-top:1rem;">You must serve the dashboard and related assets under your domain. Recommended subdomains to configure:</p>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>example.com
-dashboard.example.com
-overlay.example.com
-videoalert.example.com
-soundalert.example.com
-tts.example.com</code></pre>
-    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
-        <i class="fa-solid fa-circle-info"></i>
-        <div>Caddy auto-issues Let's Encrypt certificates via HTTP-01 (apex + standard subdomains) and via Cloudflare DNS-01 (wildcards). Ensure port 80 and 443 are reachable from the public internet so issuance succeeds.</div>
-    </div>
-
-    <hr class="sp-divider">
-
-    <h2>Running the Services</h2>
-
-    <h3>Server 1: Start the Web/Dashboard Server</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>sudo systemctl enable caddy
-sudo systemctl start caddy
-sudo systemctl status caddy
-# After editing /etc/caddy/caddy.env you must restart (env is read once at process start);
-# a plain reload will not pick up the new CF_API_TOKEN.
-sudo systemctl restart caddy</code></pre>
-
-    <h3 style="margin-top:1rem;">Server 2: Start the API Server</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>cd /home/botofthespecter
-source /home/botofthespecter/botofthespecter/bin/activate
-# Run with TLS (replace cert paths with your domain)
-python -m uvicorn api.api:app --host 0.0.0.0 --port 443 \
-  --ssl-keyfile=/etc/letsencrypt/live/api.example.com/privkey.pem \
-  --ssl-certfile=/etc/letsencrypt/live/api.example.com/fullchain.pem</code></pre>
-    <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
-        <i class="fa-solid fa-circle-info"></i>
-        <div>TLS is required for the API server. For production, create a systemd service unit so the API starts automatically on boot.</div>
-    </div>
-
-    <h3 style="margin-top:1rem;">Server 3: Start the WebSocket Server</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>cd /home/botofthespecter
-source /home/botofthespecter/botofthespecter/bin/activate
-python /home/botofthespecter/server.py</code></pre>
-
-    <h3 style="margin-top:1rem;">Server 4: Start the Database</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>sudo systemctl enable mysql
-sudo systemctl start mysql
-sudo systemctl status mysql</code></pre>
-
-    <h3 style="margin-top:1rem;">Server 5: Bot Service</h3>
-    <p>The bot is controlled and started from the dashboard (Server 1). No manual startup is required on Server 5 - it is ready once the Python environment and <code>.env</code> configuration are complete.</p>
-
-    <hr class="sp-divider">
-
-    <h2>Inter-Server Networking</h2>
-    <ul>
-        <li><strong>Internal Network:</strong> Use private IP addresses for inter-server communication</li>
-        <li><strong>DNS/Hostnames:</strong> Set up DNS or <code>/etc/hosts</code> entries for server-to-server connections</li>
-        <li><strong>Firewall Rules:</strong> Only allow necessary ports between servers</li>
-        <li><strong>SSL/TLS:</strong> Encrypt communication between services</li>
-    </ul>
-    <h3>Firewall Configuration Example</h3>
-    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code># Server 1 (Web) - Allow HTTP/HTTPS and communication with other services
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw allow from 10.10.10.2:443   # API Server
-sudo ufw allow from 10.10.10.3:443   # WebSocket Server
-sudo ufw allow from 10.10.10.4:3306  # Database Server
-
-# Server 2 (API) - Allow inbound from Web and Bot servers
-sudo ufw allow from 10.10.10.1:any   # Web Server
-sudo ufw allow from 10.10.10.5:any   # Bot Server
-
-# Server 3 (WebSocket) - Allow inbound from Web and Bot servers
-sudo ufw allow from 10.10.10.1:any   # Web Server
-sudo ufw allow from 10.10.10.5:any   # Bot Server
-
-# Server 4 (Database) - Allow inbound from all services
-sudo ufw allow from 10.10.10.1:any   # Web Server
-sudo ufw allow from 10.10.10.2:any   # API Server
-sudo ufw allow from 10.10.10.5:any   # Bot Server
-
-# Server 5 (Bot) - Allow outbound to API, WebSocket, and Database
-sudo ufw allow to 10.10.10.2:443     # API Server
-sudo ufw allow to 10.10.10.3:443     # WebSocket Server
-sudo ufw allow to 10.10.10.4:3306    # Database Server</code></pre>
 
     <hr class="sp-divider">
 
