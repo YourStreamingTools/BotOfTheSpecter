@@ -831,6 +831,24 @@ _V2_DOCS_PATHS = {
     "/v2/redoc",
 }
 
+# Hidden from V1 OpenAPI; still served as /v2<PATH> via the rewrite middleware.
+_V2_ONLY_PATHS = {
+    "/account/app-login",
+    "/channel/twitch/raids/start",
+    "/channel/twitch/raids/cancel",
+    "/channel/twitch/shoutout",
+    "/channel/twitch/redeems",
+    "/channel/twitch/redeems/store",
+    "/channel/twitch/redeems/store/{id}",
+    "/channel/twitch/bits",
+}
+
+
+def _is_v2_only_path(path: str) -> bool:
+    if path in _V2_ONLY_PATHS:
+        return True
+    return path.startswith("/channel/")
+
 _V2_OPENAPI_VERSION = "2.0.0"
 _V2_OPENAPI_DESCRIPTION = (
     "API Endpoints for BotOfTheSpecter \n\n"
@@ -1000,6 +1018,10 @@ def custom_openapi():
         "url": "https://botofthespecter.com/",
         "email": "questions@botofthespecter.com",
     }
+    paths = openapi_schema.get("paths") or {}
+    for path in list(paths.keys()):
+        if _is_v2_only_path(path):
+            paths.pop(path, None)
     app.openapi_schema = _ensure_standard_openapi_responses(openapi_schema)
     return app.openapi_schema
 
