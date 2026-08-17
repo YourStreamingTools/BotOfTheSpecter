@@ -50,25 +50,27 @@ if (isset($_GET['act_as'])) {
     }
 }
 
-function format_pretty_date($dateStr) {
-    if (!$dateStr) return '-';
-    try {
-        $dt = new DateTime($dateStr);
-    } catch (Exception $e) {
-        return '-';
-    }
-    $day = (int)$dt->format('j');
-    if ($day >= 11 && $day <= 13) {
-        $suffix = 'th';
-    } else {
-        switch ($day % 10) {
-            case 1: $suffix = 'st'; break;
-            case 2: $suffix = 'nd'; break;
-            case 3: $suffix = 'rd'; break;
-            default: $suffix = 'th';
+if (!function_exists('format_pretty_date')) {
+    function format_pretty_date($dateStr) {
+        if (!$dateStr) return '-';
+        try {
+            $dt = new DateTime($dateStr);
+        } catch (Exception $e) {
+            return '-';
         }
+        $day = (int)$dt->format('j');
+        if ($day >= 11 && $day <= 13) {
+            $suffix = 'th';
+        } else {
+            switch ($day % 10) {
+                case 1: $suffix = 'st'; break;
+                case 2: $suffix = 'nd'; break;
+                case 3: $suffix = 'rd'; break;
+                default: $suffix = 'th';
+            }
+        }
+        return '<span class="admin-date-line">' . $day . $suffix . ' ' . $dt->format('M Y') . '</span><br><span class="admin-time-line">' . $dt->format('g:ia') . '</span>';
     }
-    return '<span class="admin-date-line">' . $day . $suffix . ' ' . $dt->format('M Y') . '</span><br><span class="admin-time-line">' . $dt->format('g:ia') . '</span>';
 }
 
 function admin_users_send_json($payload) {
