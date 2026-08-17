@@ -208,6 +208,7 @@ if ($isLoggedIn) {
         "use strict";
         var API = 'https://api.botofthespecter.com';
         var CODE = <?php echo json_encode($_SESSION['api_key'] ?? ''); ?>;
+        var SCHEMA_PENDING = <?php echo json_encode(!empty($_SESSION['username']) && (empty($_SESSION['usr_schema_ok']) || (string) $_SESSION['usr_schema_ok'] !== (string) $_SESSION['username'])); ?>;
         var I18N = {
             live: <?php echo json_encode(t('dashboard_js_live')); ?>,
             offline: <?php echo json_encode(t('dashboard_js_offline')); ?>,
@@ -653,12 +654,33 @@ if ($isLoggedIn) {
             setTimeout(connectWebSocket, delay);
         }
 
+        function whenSchemaReady(done) {
+            // Act-as (and first session load) runs usr_database.php after paint; FastAPI /dashboard/* 500s if that user DB/tables are not ready yet.
+            if (!SCHEMA_PENDING) { done(); return; }
+            var attempts = 0;
+            var maxAttempts = 240;
+            function tick() {
+                fetch('/api/usr_schema.php?peek=1', { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        if (d && d.pending && attempts++ < maxAttempts) {
+                            setTimeout(tick, 250);
+                            return;
+                        }
+                        done();
+                    })
+                    .catch(function () { done(); });
+            }
+            tick();
+        }
         document.addEventListener('DOMContentLoaded', function () {
             sessionSince = getCookie('dbLastVisit');
-            loadLive();
-            loadInitial();
-            loadBoards();
-            loadActivity();
+            whenSchemaReady(function () {
+                loadLive();
+                loadInitial();
+                loadBoards();
+                loadActivity();
+            });
             connectWebSocket();
             setInterval(updatePulse, 5000);
             var sw = $('dbWindowSwitch');
