@@ -147,8 +147,8 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="BotOfTheSpecter Bot Host Control API",
     description=(
-        "Private process-control API for the bot server. Not for end users. "
-        f"Authenticate with an admin API key (service={BOTS_ADMIN_SERVICE!r} or admin)."
+        "Authenticated API for managing chat bot processes. "
+        "Use an authorized API key in the X-API-KEY header."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -197,13 +197,13 @@ async def _admin_key_allowed(api_key: str) -> bool:
 
 async def require_control_key(
     x_api_key: str | None = Header(None, alias="X-API-KEY"),
-    x_bots_key: str | None = Header(None, alias="X-BOTS-CONTROL-KEY"),
+    x_bots_key: str | None = Header(None, alias="X-BOTS-CONTROL-KEY", include_in_schema=False),
 ) -> None:
     provided = (x_bots_key or x_api_key or "").strip()
     if not provided:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing X-API-KEY (use admin key with service=bots)",
+            detail="Missing X-API-KEY",
         )
     if await _admin_key_allowed(provided):
         return
@@ -212,7 +212,7 @@ async def require_control_key(
         return
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=f"Invalid key — create service '{BOTS_ADMIN_SERVICE}' on Admin → API Keys",
+        detail="Invalid key",
     )
 
 
@@ -244,10 +244,10 @@ class StopBody(BaseModel):
 
 
 class RunScriptBody(BaseModel):
-    # Allowlisted ops scripts: refresh_spotify | refresh_streamelements | refresh_discord | refresh_custom_bot
+    # Name must match an approved maintenance job in the operator allowlist.
     script: str = Field(
         ...,
-        description="Logical name: refresh_spotify | refresh_streamelements | refresh_discord | refresh_custom_bot",
+        description="Name of an approved maintenance job.",
     )
 
 
