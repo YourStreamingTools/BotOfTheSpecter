@@ -5,11 +5,11 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/../lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include '../includes/userdata.php';
-session_write_close();
 $pageTitle = t('admin_user_management_title');
 $currentAdminUserId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 $currentAdminIsSuperAdmin = false;
+$helixAccessToken = (string) ($_SESSION['access_token'] ?? '');
+$helixClientId = isset($clientID) ? (string) $clientID : '';
 
 if ($currentAdminUserId > 0) {
     $stmt = $conn->prepare("SELECT super_admin FROM users WHERE id = ? LIMIT 1");
@@ -49,30 +49,95 @@ if (isset($_GET['act_as'])) {
             break;
     }
 }
-ob_start();
 
-function getTwitchSubTier($twitch_user_id) {
-    global $clientID;
-    $accessToken = $_SESSION['access_token'];
-    if (empty($twitch_user_id)) {
-        return null;
+function format_pretty_date($dateStr) {
+    if (!$dateStr) return '-';
+    try {
+        $dt = new DateTime($dateStr);
+    } catch (Exception $e) {
+        return '-';
     }
-    $broadcaster_id = "140296994";
-    $url = "https://api.twitch.tv/helix/subscriptions?broadcaster_id={$broadcaster_id}&user_id={$twitch_user_id}";
-    $headers = [ "Client-ID: $clientID", "Authorization: Bearer $accessToken" ];
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $response = curl_exec($ch);
-    if ($response === false) {
-return null;
+    $day = (int)$dt->format('j');
+    if ($day >= 11 && $day <= 13) {
+        $suffix = 'th';
+    } else {
+        switch ($day % 10) {
+            case 1: $suffix = 'st'; break;
+            case 2: $suffix = 'nd'; break;
+            case 3: $suffix = 'rd'; break;
+            default: $suffix = 'th';
+        }
     }
-    $data = json_decode($response, true);
-// Check if we have subscription data in the response
-    if (isset($data['data']) && is_array($data['data']) && count($data['data']) > 0) {
-        return $data['data'][0]['tier'];
+    return '<span class="admin-date-line">' . $day . $suffix . ' ' . $dt->format('M Y') . '</span><br><span class="admin-time-line">' . $dt->format('g:ia') . '</span>';
+}
+
+function admin_users_send_json($payload) {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
     }
-    return null;
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload);
+    exit;
+}
+
+function admin_users_restricted_map($conn) {
+    $restricted_users = [];
+    $restricted_result = $conn->query("SELECT username, twitch_user_id FROM restricted_users");
+    if ($restricted_result) {
+        while ($row = $restricted_result->fetch_assoc()) {
+            if (!empty($row['username'])) {
+                $restricted_users[$row['username']] = true;
+            }
+            if (!empty($row['twitch_user_id'])) {
+                $restricted_users[$row['twitch_user_id']] = true;
+            }
+        }
+    }
+    return $restricted_users;
+}
+
+function getTwitchSubTiers(array $twitchUserIds, $clientID, $accessToken) {
+    $tiers = [];
+    $ids = [];
+    foreach ($twitchUserIds as $id) {
+        $id = trim((string) $id);
+        if ($id !== '') {
+            $ids[$id] = true;
+        }
+    }
+    $ids = array_keys($ids);
+    if ($ids === [] || $clientID === '' || $accessToken === '') {
+        return $tiers;
+    }
+    $broadcaster_id = '140296994';
+    foreach (array_chunk($ids, 100) as $chunk) {
+        $query = http_build_query(['broadcaster_id' => $broadcaster_id]);
+        foreach ($chunk as $uid) {
+            $query .= '&user_id=' . rawurlencode($uid);
+        }
+        $ch = curl_init('https://api.twitch.tv/helix/subscriptions?' . $query);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . $accessToken,
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        if ($response === false) {
+            continue;
+        }
+        $data = json_decode($response, true);
+        if (!isset($data['data']) || !is_array($data['data'])) {
+            continue;
+        }
+        foreach ($data['data'] as $sub) {
+            if (!empty($sub['user_id'])) {
+                $tiers[(string) $sub['user_id']] = (string) ($sub['tier'] ?? '');
+            }
+        }
+    }
+    return $tiers;
 }
 
 function mask_email($email) {
@@ -87,25 +152,68 @@ function mask_api_key($api_key) {
     return str_repeat('�', strlen($api_key));
 }
 
-// Fetch users from database
-$users = [];
-$stmt = $conn->prepare("SELECT * FROM users");
-$stmt->execute();
-$result = $stmt->get_result();
-while ($row = $result->fetch_assoc()) {
-    $row['twitch_user_id'] = (!empty($row['twitch_user_id'])) ? $row['twitch_user_id'] : null;
-    $users[] = $row;
-}
-$stmt->close();
+$isListAjax = isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list';
+$isPremiumAjax = isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'premium';
+$isAjaxPost = ($_SERVER['REQUEST_METHOD'] === 'POST');
 
-// Fetch restricted users into an array for quick lookup
-$restricted_users = [];
-$restricted_result = $conn->query("SELECT username, twitch_user_id FROM restricted_users");
-while ($row = $restricted_result->fetch_assoc()) {
-    $restricted_users[$row['username']] = true;
-    if ($row['twitch_user_id']) {
-        $restricted_users[$row['twitch_user_id']] = true;
+// Release the session lock before Helix / list work so the shell request is not blocked.
+if ($isListAjax || $isPremiumAjax || $isAjaxPost) {
+    session_write_close();
+}
+
+if ($isListAjax) {
+    $users = [];
+    $restricted_users = admin_users_restricted_map($conn);
+    $stmt = $conn->prepare("SELECT * FROM users ORDER BY id ASC");
+    if (!$stmt) {
+        admin_users_send_json(['success' => false, 'error' => t('admin_users_load_failed')]);
     }
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $usernameKey = (string) ($row['username'] ?? '');
+        $twitchKey = !empty($row['twitch_user_id']) ? (string) $row['twitch_user_id'] : '';
+        $users[] = [
+            'id' => (int) $row['id'],
+            'username' => $row['username'] ?? '',
+            'twitch_display_name' => $row['twitch_display_name'] ?? '',
+            'twitch_user_id' => $twitchKey !== '' ? $twitchKey : null,
+            'profile_image' => $row['profile_image'] ?? '',
+            'is_admin' => (int) ($row['is_admin'] ?? 0),
+            'super_admin' => (int) ($row['super_admin'] ?? 0),
+            'beta_access' => (int) ($row['beta_access'] ?? 0),
+            'beta_programs' => $row['beta_programs'] ?? '[]',
+            'is_deceased' => (int) ($row['is_deceased'] ?? 0),
+            'deceased_date' => $row['deceased_date'] ?? null,
+            'signup_date' => $row['signup_date'] ?? null,
+            'last_login' => $row['last_login'] ?? null,
+            'email' => $row['email'] ?? '',
+            'api_key' => $row['api_key'] ?? '',
+            'is_restricted' => ($usernameKey !== '' && isset($restricted_users[$usernameKey]))
+                || ($twitchKey !== '' && isset($restricted_users[$twitchKey])),
+            'signup_html' => format_pretty_date($row['signup_date'] ?? ''),
+            'last_login_html' => format_pretty_date($row['last_login'] ?? ''),
+        ];
+    }
+    $stmt->close();
+    admin_users_send_json([
+        'success' => true,
+        'users' => $users,
+        'current_admin_id' => $currentAdminUserId,
+        'is_super_admin' => $currentAdminIsSuperAdmin,
+    ]);
+}
+
+if ($isPremiumAjax) {
+    $twitchIds = [];
+    $idResult = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id <> ''");
+    if ($idResult) {
+        while ($idRow = $idResult->fetch_assoc()) {
+            $twitchIds[] = $idRow['twitch_user_id'];
+        }
+    }
+    $tiers = getTwitchSubTiers($twitchIds, $helixClientId, $helixAccessToken);
+    admin_users_send_json(['success' => true, 'tiers' => $tiers]);
 }
 
 // Handle AJAX delete request
@@ -390,6 +498,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
     echo json_encode($response);
     exit;
 }
+
+include '../includes/userdata.php';
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+ob_start();
 ?>
 <?php if ($actAsNotice): ?>
     <?php $alertClass = str_replace('is-', '', $actAsNoticeClass); ?>
@@ -423,191 +537,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         <th style="text-align:center;"><?php echo t('admin_users_th_actions'); ?></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php
-                    function format_pretty_date($dateStr) {
-                        if (!$dateStr) return '-';
-                        $dt = new DateTime($dateStr);
-                        $day = (int)$dt->format('j');
-                        if ($day >= 11 && $day <= 13) {
-                            $suffix = 'th';
-                        } else {
-                            switch ($day % 10) {
-                                case 1: $suffix = 'st'; break;
-                                case 2: $suffix = 'nd'; break;
-                                case 3: $suffix = 'rd'; break;
-                                default: $suffix = 'th';
-                            }
-                        }
-                        return '<span class="admin-date-line">' . $day . $suffix . ' ' . $dt->format('M Y') . '</span><br><span class="admin-time-line">' . $dt->format('g:ia') . '</span>';
-                    }
-                    foreach ($users as $user):
-                        $is_restricted =
-                            (isset($user['username']) && isset($restricted_users[$user['username']]))
-                            || (isset($user['twitch_user_id']) && isset($restricted_users[$user['twitch_user_id']]));
-                        $is_super_admin = isset($user['super_admin']) && (int) $user['super_admin'] === 1;
-                        $is_admin_user = isset($user['is_admin']) && (int) $user['is_admin'] === 1;
-                        $can_restrict_user = !$is_super_admin && (!$is_admin_user || $currentAdminIsSuperAdmin);
-                        $can_delete_user = ((int) $user['id'] !== $currentAdminUserId)
-                            && ($currentAdminIsSuperAdmin || (!$is_admin_user && !$is_super_admin));
-                        // Normal admins cannot control anything on super admin rows except Act As and Memorial
-                        $target_locked_for_admin = $is_super_admin && !$currentAdminIsSuperAdmin;
-                        $is_deceased = isset($user['is_deceased']) && (int) $user['is_deceased'] === 1;
-                    ?>
-                    <?php
-                    $rowClass = '';
-                    if ($is_deceased) $rowClass = 'is-memorial-row';
-                    elseif ($is_restricted) $rowClass = 'is-restricted-row';
-                    ?>
-                    <tr<?php if ($rowClass) echo ' class="' . htmlspecialchars($rowClass) . '"'; ?>>
-                        <td style="text-align:center;vertical-align:middle;"><?php echo htmlspecialchars($user['id']); ?></td>
+                <tbody id="admin-users-tbody" aria-busy="true">
+                    <?php for ($sk = 0; $sk < 8; $sk++): ?>
+                    <tr aria-hidden="true">
+                        <td style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-line w-40"></span></td>
                         <td style="vertical-align:middle;">
                             <div style="display:flex;align-items:center;gap:0.5rem;">
-                                <img src="<?php echo htmlspecialchars($user['profile_image']); ?>" alt="" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:28px;height:28px;border-radius:50%;flex-shrink:0;">
-                                <span><?php echo htmlspecialchars($user['username']); ?></span>
-                                <?php if ($is_deceased): ?>
-                                    <span class="sp-badge memorial-label"><i class="fas fa-dove"></i>&nbsp;<?php echo t('admin_users_label_memorial'); ?></span>
-                                <?php elseif ($is_restricted): ?>
-                                    <span class="sp-badge sp-badge-amber restricted-label"><?php echo t('admin_users_label_restricted'); ?></span>
-                                <?php endif; ?>
+                                <span class="sp-skeleton-avatar"></span>
+                                <span class="sp-skeleton-line w-60"></span>
                             </div>
                         </td>
-                        <td style="text-align:center;vertical-align:middle;">
-                            <?php if ($user['is_admin']): ?>
-                                <span class="sp-badge sp-badge-green" title="<?php echo htmlspecialchars(t('admin_users_th_admin')); ?>"><i class="fas fa-check"></i></span>
-                            <?php else: ?>
-                                <span class="sp-badge sp-badge-grey" title="<?php echo htmlspecialchars(t('admin_users_title_not_admin')); ?>"><i class="fas fa-minus"></i></span>
-                            <?php endif; ?>
-                        </td>
-                        <td style="text-align:center;vertical-align:middle;">
-                            <?php if ($is_super_admin): ?>
-                                <span class="sp-badge sp-badge-green" title="<?php echo htmlspecialchars(t('admin_users_th_super_admin')); ?>"><i class="fas fa-check"></i></span>
-                            <?php else: ?>
-                                <span class="sp-badge sp-badge-grey" title="<?php echo htmlspecialchars(t('admin_users_title_not_super_admin')); ?>"><i class="fas fa-minus"></i></span>
-                            <?php endif; ?>
-                        </td>
-                        <td style="text-align:center;vertical-align:middle;">
-                            <?php if ($user['beta_access']): ?>
-                                <span class="sp-badge sp-badge-blue" title="<?php echo htmlspecialchars(t('admin_users_title_beta_access')); ?>"><i class="fas fa-check"></i></span>
-                            <?php else: ?>
-                                <span class="sp-badge sp-badge-grey" title="<?php echo htmlspecialchars(t('admin_users_title_no_beta_access')); ?>"><i class="fas fa-minus"></i></span>
-                            <?php endif; ?>
-                        </td>
-                        <td style="text-align:center;vertical-align:middle;">
-                            <?php
-                            $userPrograms = json_decode($user['beta_programs'] ?? '[]', true) ?? [];
-                            if (!empty($userPrograms)):
-                                foreach ($userPrograms as $prog):
-                                    echo '<span class="sp-badge sp-badge-blue" style="margin:1px;">' . htmlspecialchars($prog) . '</span>';
-                                endforeach;
-                            else:
-                            ?>
-                                <span class="sp-badge sp-badge-grey"><i class="fas fa-minus"></i></span>
-                            <?php endif; ?>
-                        </td>
-                        <td style="text-align:center;vertical-align:middle;">
-                            <?php
-                            if (!empty($user['twitch_user_id'])) {
-                                $tier = getTwitchSubTier($user['twitch_user_id']);
-                                if ($tier === "1000") {
-                                    echo '<span class="sp-badge sp-badge-amber">' . htmlspecialchars(t('admin_users_tier_1')) . '</span>';
-                                } elseif ($tier === "2000") {
-                                    echo '<span class="sp-badge sp-badge-blue">' . htmlspecialchars(t('admin_users_tier_2')) . '</span>';
-                                } elseif ($tier === "3000") {
-                                    echo '<span class="sp-badge sp-badge-red">' . htmlspecialchars(t('admin_users_tier_3')) . '</span>';
-                                } else {
-                                    echo '<span class="sp-badge sp-badge-grey">' . htmlspecialchars(t('admin_users_tier_none')) . '</span>';
-                                }
-                            } else {
-                                echo '<span class="sp-badge sp-badge-grey">' . htmlspecialchars(t('admin_users_tier_none')) . '</span>';
-                            }
-                            ?>
-                        </td>
-                        <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><?php echo format_pretty_date($user['signup_date']); ?></td>
-                        <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
+                        <td style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                        <td style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-badge"></span></td>
+                        <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-line w-70"></span></td>
+                        <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><span class="sp-skeleton-line w-70"></span></td>
                         <td style="text-align:center;vertical-align:middle;">
                             <div class="actions-wrap">
-                                <button class="sp-btn sp-btn-sm" title="<?php echo htmlspecialchars(t('admin_users_btn_view_details')); ?>" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
-                                    <span class="icon"><i class="fas fa-eye"></i></span>
-                                </button>
-                                <?php
-                                $deleteTitle = t('admin_users_btn_delete_user');
-                                if ((int) $user['id'] === $currentAdminUserId) $deleteTitle = t('admin_users_title_cannot_delete_self');
-                                elseif (!$currentAdminIsSuperAdmin && ($is_admin_user || $is_super_admin)) $deleteTitle = t('admin_users_title_only_super_delete_admin');
-                                elseif ($is_deceased) $deleteTitle = t('admin_users_title_memorial_cannot_delete');
-                                ?>
-                                <button class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo htmlspecialchars($deleteTitle); ?>" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if (!$can_delete_user || $is_deceased): ?>disabled<?php endif; ?>>
-                                    <span class="icon"><i class="fas fa-trash"></i></span>
-                                </button>
-                                <?php if ((int) $user['is_admin']): ?>
-                                    <button
-                                        class="sp-btn sp-btn-warning sp-btn-sm"
-                                        onclick="removeAdminAccess(<?php echo (int) $user['id']; ?>)"
-                                        title="<?php echo htmlspecialchars(t('admin_users_btn_remove_admin')); ?>"
-                                        <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
-                                    >
-                                        <span class="icon"><i class="fas fa-user-shield"></i></span>
-                                    </button>
-                                <?php else: ?>
-                                    <button
-                                        class="sp-btn sp-btn-primary sp-btn-sm"
-                                        onclick="grantAdminAccess(<?php echo (int) $user['id']; ?>)"
-                                        title="<?php echo htmlspecialchars(t('admin_users_btn_give_admin')); ?>"
-                                        <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
-                                    >
-                                        <span class="icon"><i class="fas fa-user-shield"></i></span>
-                                    </button>
-                                <?php endif; ?>
-                                <?php if ((int) $user['beta_access']): ?>
-                                    <button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo htmlspecialchars($target_locked_for_admin ? t('admin_users_title_only_super_manage_super') : t('admin_users_btn_remove_beta')); ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
-                                        <span class="icon"><i class="fas fa-flask"></i></span>
-                                    </button>
-                                <?php else: ?>
-                                    <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo htmlspecialchars($target_locked_for_admin ? t('admin_users_title_only_super_manage_super') : t('admin_users_btn_give_beta')); ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
-                                        <span class="icon"><i class="fas fa-flask"></i></span>
-                                    </button>
-                                <?php endif; ?>
-                                <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="manageBetaPrograms(<?php echo (int) $user['id']; ?>)" title="<?php echo htmlspecialchars(t('admin_users_btn_manage_beta_programs')); ?>" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
-                                    <span class="icon"><i class="fas fa-list-check"></i></span>
-                                </button>
-                                <?php if ($is_restricted): ?>
-                                    <button class="sp-btn sp-btn-warning sp-btn-sm" title="<?php echo htmlspecialchars(t('admin_users_btn_unrestrict')); ?>"
-                                        onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
-                                        <span class="icon"><i class="fas fa-user-lock"></i></span>
-                                    </button>
-                                <?php else: ?>
-                                    <button class="sp-btn sp-btn-sm" title="<?php echo htmlspecialchars($can_restrict_user ? t('admin_users_btn_restrict') : t('admin_users_title_cannot_restrict')); ?>"
-                                        onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)"
-                                        <?php if (!$can_restrict_user || $is_deceased): ?>disabled<?php endif; ?>>
-                                        <span class="icon"><i class="fas fa-user-lock"></i></span>
-                                    </button>
-                                <?php endif; ?>
-                                <?php if ($is_deceased): ?>
-                                    <button class="sp-btn sp-btn-sm memorial-action-btn" title="<?php echo htmlspecialchars(t('admin_users_btn_remove_memorial')); ?>"
-                                        onclick="unmarkDeceased(<?php echo (int) $user['id']; ?>)"
-                                        <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
-                                        <span class="icon"><i class="fas fa-dove"></i></span>
-                                    </button>
-                                <?php else: ?>
-                                    <button class="sp-btn sp-btn-sm memorial-action-btn" title="<?php echo htmlspecialchars(t('admin_users_btn_mark_memorial')); ?>"
-                                        onclick="markDeceased(<?php echo (int) $user['id']; ?>)"
-                                        <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
-                                        <span class="icon"><i class="fas fa-dove"></i></span>
-                                    </button>
-                                <?php endif; ?>
-                                <?php if ((int) $user['id'] !== $currentAdminUserId): ?>
-                                    <a class="sp-btn sp-btn-info sp-btn-sm" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="<?php echo htmlspecialchars(t('admin_users_btn_act_as')); ?>">
-                                        <span class="icon"><i class="fas fa-user-secret"></i></span>
-                                    </a>
-                                <?php else: ?>
-                                    <button class="sp-btn sp-btn-info sp-btn-sm" type="button" disabled title="<?php echo htmlspecialchars(t('admin_users_title_already_own_dashboard')); ?>">
-                                        <span class="icon"><i class="fas fa-user-secret"></i></span>
-                                    </button>
-                                <?php endif; ?>
+                                <span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>
+                                <span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>
+                                <span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>
+                                <span class="sp-skeleton-badge" style="width:2rem;height:1.75rem;"></span>
                             </div>
                         </td>
                     </tr>
-                    <?php endforeach; ?>
+                    <?php endfor; ?>
                 </tbody>
             </table>
         </div>
@@ -630,10 +586,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
     </div>
 </div>
 <script>
-const usersData = <?php echo json_encode($users); ?>;
+let usersData = [];
+let premiumTiers = {};
+let premiumLoaded = false;
+const currentAdminUserId = <?php echo (int) $currentAdminUserId; ?>;
+const currentAdminIsSuperAdmin = <?php echo $currentAdminIsSuperAdmin ? 'true' : 'false'; ?>;
 const T = {
     twitch_id: <?php echo json_encode(t('admin_users_modal_twitch_id')); ?>,
     th_admin: <?php echo json_encode(t('admin_users_th_admin')); ?>,
+    th_super_admin: <?php echo json_encode(t('admin_users_th_super_admin')); ?>,
     beta_access: <?php echo json_encode(t('admin_users_modal_beta_access')); ?>,
     beta_programs: <?php echo json_encode(t('admin_users_th_beta_programs')); ?>,
     premium_access: <?php echo json_encode(t('admin_users_modal_premium_access')); ?>,
@@ -738,8 +699,245 @@ const T = {
     export_started: <?php echo json_encode(t('admin_users_js_export_started')); ?>,
     could_not_start_export: <?php echo json_encode(t('admin_users_js_could_not_start_export')); ?>,
     could_not_reach_export: <?php echo json_encode(t('admin_users_js_could_not_reach_export')); ?>,
-    profile_alt: <?php echo json_encode(t('admin_users_modal_profile_alt')); ?>
+    profile_alt: <?php echo json_encode(t('admin_users_modal_profile_alt')); ?>,
+    none_found: <?php echo json_encode(t('admin_users_none_found')); ?>,
+    load_failed: <?php echo json_encode(t('admin_users_load_failed')); ?>,
+    label_memorial: <?php echo json_encode(t('admin_users_label_memorial')); ?>,
+    label_restricted: <?php echo json_encode(t('admin_users_label_restricted')); ?>,
+    title_not_admin: <?php echo json_encode(t('admin_users_title_not_admin')); ?>,
+    title_not_super_admin: <?php echo json_encode(t('admin_users_title_not_super_admin')); ?>,
+    title_beta_access: <?php echo json_encode(t('admin_users_title_beta_access')); ?>,
+    title_no_beta_access: <?php echo json_encode(t('admin_users_title_no_beta_access')); ?>,
+    btn_view_details: <?php echo json_encode(t('admin_users_btn_view_details')); ?>,
+    btn_delete_user: <?php echo json_encode(t('admin_users_btn_delete_user')); ?>,
+    title_cannot_delete_self: <?php echo json_encode(t('admin_users_title_cannot_delete_self')); ?>,
+    title_only_super_delete_admin: <?php echo json_encode(t('admin_users_title_only_super_delete_admin')); ?>,
+    title_memorial_cannot_delete: <?php echo json_encode(t('admin_users_title_memorial_cannot_delete')); ?>,
+    btn_remove_admin: <?php echo json_encode(t('admin_users_btn_remove_admin')); ?>,
+    btn_give_admin: <?php echo json_encode(t('admin_users_btn_give_admin')); ?>,
+    title_only_super_manage_super: <?php echo json_encode(t('admin_users_title_only_super_manage_super')); ?>,
+    btn_remove_beta: <?php echo json_encode(t('admin_users_btn_remove_beta')); ?>,
+    btn_give_beta: <?php echo json_encode(t('admin_users_btn_give_beta')); ?>,
+    btn_manage_beta_programs: <?php echo json_encode(t('admin_users_btn_manage_beta_programs')); ?>,
+    btn_restrict: <?php echo json_encode(t('admin_users_btn_restrict')); ?>,
+    title_cannot_restrict: <?php echo json_encode(t('admin_users_title_cannot_restrict')); ?>,
+    btn_remove_memorial: <?php echo json_encode(t('admin_users_btn_remove_memorial')); ?>,
+    btn_mark_memorial: <?php echo json_encode(t('admin_users_btn_mark_memorial')); ?>,
+    btn_act_as: <?php echo json_encode(t('admin_users_btn_act_as')); ?>,
+    title_already_own_dashboard: <?php echo json_encode(t('admin_users_title_already_own_dashboard')); ?>
 };
+function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
+function parseAjaxJson(text) {
+    try {
+        return JSON.parse(String(text || '').replace(/^\uFEFF/, ''));
+    } catch (e) {
+        return null;
+    }
+}
+function isTruthyFlag(value) {
+    return value === true || value === 1 || value === '1';
+}
+function userPrograms(user) {
+    if (!user) return [];
+    if (Array.isArray(user.beta_programs)) return user.beta_programs;
+    try {
+        const parsed = JSON.parse(user.beta_programs || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+function flagBadge(on, onClass, onTitle, offTitle) {
+    if (on) {
+        return '<span class="sp-badge ' + onClass + '" title="' + escapeHtml(onTitle) + '"><i class="fas fa-check"></i></span>';
+    }
+    return '<span class="sp-badge sp-badge-grey" title="' + escapeHtml(offTitle) + '"><i class="fas fa-minus"></i></span>';
+}
+function premiumBadgeHtml(twitchUserId) {
+    if (!premiumLoaded) {
+        return '<span class="sp-skeleton-badge" aria-hidden="true"></span>';
+    }
+    const tier = twitchUserId ? (premiumTiers[String(twitchUserId)] || null) : null;
+    if (tier === '1000') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(T.tier_1) + '</span>';
+    if (tier === '2000') return '<span class="sp-badge sp-badge-blue">' + escapeHtml(T.tier_2) + '</span>';
+    if (tier === '3000') return '<span class="sp-badge sp-badge-red">' + escapeHtml(T.tier_3) + '</span>';
+    return '<span class="sp-badge sp-badge-grey">' + escapeHtml(T.tier_none) + '</span>';
+}
+function applyPremiumTiers(tiers) {
+    premiumTiers = tiers || {};
+    premiumLoaded = true;
+    usersData.forEach(function(user) {
+        user.twitch_sub_tier = user.twitch_user_id ? (premiumTiers[String(user.twitch_user_id)] || null) : null;
+    });
+    document.querySelectorAll('[data-premium-cell]').forEach(function(el) {
+        el.innerHTML = premiumBadgeHtml(el.getAttribute('data-premium-cell'));
+    });
+}
+function renderUserRow(user) {
+    const userId = Number(user.id);
+    const isRestricted = isTruthyFlag(user.is_restricted);
+    const isSuperAdmin = isTruthyFlag(user.super_admin);
+    const isAdminUser = isTruthyFlag(user.is_admin);
+    const isDeceased = isTruthyFlag(user.is_deceased);
+    const hasBeta = isTruthyFlag(user.beta_access);
+    const canRestrictUser = !isSuperAdmin && (!isAdminUser || currentAdminIsSuperAdmin);
+    const canDeleteUser = (userId !== currentAdminUserId)
+        && (currentAdminIsSuperAdmin || (!isAdminUser && !isSuperAdmin));
+    const targetLockedForAdmin = isSuperAdmin && !currentAdminIsSuperAdmin;
+    const rowClass = isDeceased ? 'is-memorial-row' : (isRestricted ? 'is-restricted-row' : '');
+    const programs = userPrograms(user);
+    let statusBadge = '';
+    if (isDeceased) {
+        statusBadge = '<span class="sp-badge memorial-label"><i class="fas fa-dove"></i>&nbsp;' + escapeHtml(T.label_memorial) + '</span>';
+    } else if (isRestricted) {
+        statusBadge = '<span class="sp-badge sp-badge-amber restricted-label">' + escapeHtml(T.label_restricted) + '</span>';
+    }
+    const programHtml = programs.length
+        ? programs.map(function(prog) {
+            return '<span class="sp-badge sp-badge-blue" style="margin:1px;">' + escapeHtml(prog) + '</span>';
+        }).join('')
+        : '<span class="sp-badge sp-badge-grey"><i class="fas fa-minus"></i></span>';
+    let deleteTitle = T.btn_delete_user;
+    if (userId === currentAdminUserId) deleteTitle = T.title_cannot_delete_self;
+    else if (!currentAdminIsSuperAdmin && (isAdminUser || isSuperAdmin)) deleteTitle = T.title_only_super_delete_admin;
+    else if (isDeceased) deleteTitle = T.title_memorial_cannot_delete;
+    const avatar = user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png';
+    const twitchId = user.twitch_user_id ? String(user.twitch_user_id) : '';
+    const betaTitle = targetLockedForAdmin
+        ? T.title_only_super_manage_super
+        : (hasBeta ? T.btn_remove_beta : T.btn_give_beta);
+    const restrictTitle = isRestricted
+        ? T.unrestrict_word
+        : (canRestrictUser ? T.btn_restrict : T.title_cannot_restrict);
+    let actions = '';
+    actions += '<button class="sp-btn sp-btn-sm" title="' + escapeHtml(T.btn_view_details) + '" onclick="showSensitiveModal(' + userId + ')">'
+        + '<span class="icon"><i class="fas fa-eye"></i></span></button>';
+    actions += '<button class="sp-btn sp-btn-danger sp-btn-sm" title="' + escapeHtml(deleteTitle) + '" onclick="deleteUser(' + userId + ')"'
+        + ((!canDeleteUser || isDeceased) ? ' disabled' : '') + '>'
+        + '<span class="icon"><i class="fas fa-trash"></i></span></button>';
+    if (isAdminUser) {
+        actions += '<button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeAdminAccess(' + userId + ')" title="'
+            + escapeHtml(T.btn_remove_admin) + '"'
+            + ((!currentAdminIsSuperAdmin || isDeceased) ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-user-shield"></i></span></button>';
+    } else {
+        actions += '<button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantAdminAccess(' + userId + ')" title="'
+            + escapeHtml(T.btn_give_admin) + '"'
+            + ((!currentAdminIsSuperAdmin || isDeceased) ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-user-shield"></i></span></button>';
+    }
+    if (hasBeta) {
+        actions += '<button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(' + userId + ')" title="'
+            + escapeHtml(betaTitle) + '"'
+            + ((isDeceased || targetLockedForAdmin) ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-flask"></i></span></button>';
+    } else {
+        actions += '<button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(' + userId + ')" title="'
+            + escapeHtml(betaTitle) + '"'
+            + ((isDeceased || targetLockedForAdmin) ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-flask"></i></span></button>';
+    }
+    actions += '<button class="sp-btn sp-btn-primary sp-btn-sm" onclick="manageBetaPrograms(' + userId + ')" title="'
+        + escapeHtml(T.btn_manage_beta_programs) + '"'
+        + (isDeceased ? ' disabled' : '') + '>'
+        + '<span class="icon"><i class="fas fa-list-check"></i></span></button>';
+    if (isRestricted) {
+        actions += '<button class="sp-btn sp-btn-warning sp-btn-sm" title="' + escapeHtml(restrictTitle) + '" onclick="toggleRestrictUser(' + userId + ', false)"'
+            + (isDeceased ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-user-lock"></i></span></button>';
+    } else {
+        actions += '<button class="sp-btn sp-btn-sm" title="' + escapeHtml(restrictTitle) + '" onclick="toggleRestrictUser(' + userId + ', true)"'
+            + ((!canRestrictUser || isDeceased) ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-user-lock"></i></span></button>';
+    }
+    if (isDeceased) {
+        actions += '<button class="sp-btn sp-btn-sm memorial-action-btn" title="' + escapeHtml(T.btn_remove_memorial) + '" onclick="unmarkDeceased(' + userId + ')"'
+            + (!currentAdminIsSuperAdmin ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-dove"></i></span></button>';
+    } else {
+        actions += '<button class="sp-btn sp-btn-sm memorial-action-btn" title="' + escapeHtml(T.btn_mark_memorial) + '" onclick="markDeceased(' + userId + ')"'
+            + (!currentAdminIsSuperAdmin ? ' disabled' : '') + '>'
+            + '<span class="icon"><i class="fas fa-dove"></i></span></button>';
+    }
+    if (userId !== currentAdminUserId) {
+        actions += '<a class="sp-btn sp-btn-info sp-btn-sm" href="act_as_user.php?user_id=' + userId + '" title="'
+            + escapeHtml(T.btn_act_as) + '"><span class="icon"><i class="fas fa-user-secret"></i></span></a>';
+    } else {
+        actions += '<button class="sp-btn sp-btn-info sp-btn-sm" type="button" disabled title="'
+            + escapeHtml(T.title_already_own_dashboard) + '"><span class="icon"><i class="fas fa-user-secret"></i></span></button>';
+    }
+    return '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>'
+        + '<td style="text-align:center;vertical-align:middle;">' + escapeHtml(user.id) + '</td>'
+        + '<td style="vertical-align:middle;"><div style="display:flex;align-items:center;gap:0.5rem;">'
+        + '<img src="' + escapeHtml(avatar) + '" alt="" onerror="this.src=\'https://cdn.botofthespecter.com/logo.png\';" style="width:28px;height:28px;border-radius:50%;flex-shrink:0;">'
+        + '<span>' + escapeHtml(user.username) + '</span>'
+        + statusBadge
+        + '</div></td>'
+        + '<td style="text-align:center;vertical-align:middle;">' + flagBadge(isAdminUser, 'sp-badge-green', T.th_admin, T.title_not_admin) + '</td>'
+        + '<td style="text-align:center;vertical-align:middle;">' + flagBadge(isSuperAdmin, 'sp-badge-green', T.th_super_admin, T.title_not_super_admin) + '</td>'
+        + '<td style="text-align:center;vertical-align:middle;">' + flagBadge(hasBeta, 'sp-badge-blue', T.title_beta_access, T.title_no_beta_access) + '</td>'
+        + '<td style="text-align:center;vertical-align:middle;">' + programHtml + '</td>'
+        + '<td style="text-align:center;vertical-align:middle;" data-premium-cell="' + escapeHtml(twitchId) + '">' + premiumBadgeHtml(twitchId) + '</td>'
+        + '<td class="admin-date-cell" style="text-align:center;vertical-align:middle;">' + (user.signup_html || '-') + '</td>'
+        + '<td class="admin-date-cell" style="text-align:center;vertical-align:middle;">' + (user.last_login_html || '-') + '</td>'
+        + '<td style="text-align:center;vertical-align:middle;"><div class="actions-wrap">' + actions + '</div></td>'
+        + '</tr>';
+}
+function renderUsersTable() {
+    const tbody = document.getElementById('admin-users-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!usersData.length) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">' + escapeHtml(T.none_found) + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = usersData.map(renderUserRow).join('');
+    filterUsers();
+}
+function renderUsersError() {
+    const tbody = document.getElementById('admin-users-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">' + escapeHtml(T.load_failed) + '</td></tr>';
+}
+function loadAdminUsers() {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'list');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+            const data = parseAjaxJson(text);
+            if (!data || !data.success || !Array.isArray(data.users)) {
+                renderUsersError();
+                return;
+            }
+            usersData = data.users;
+            if (premiumLoaded) {
+                applyPremiumTiers(premiumTiers);
+            }
+            renderUsersTable();
+        })
+        .catch(function() {
+            renderUsersError();
+        });
+}
+function loadPremiumTiers() {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('ajax_action', 'premium');
+    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+            const data = parseAjaxJson(text);
+            applyPremiumTiers((data && data.success && data.tiers) ? data.tiers : {});
+        })
+        .catch(function() {
+            applyPremiumTiers({});
+        });
+}
 function maskEmail(email) {
     if (!email) return '';
     const atPos = email.indexOf('@');
@@ -772,10 +970,10 @@ function showSensitiveModal(userId) {
     <div class="sp-card">
       <div class="sp-card-body">
         <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;">
-            <img class="admin-bot-avatar" src="${user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png'}" alt="${T.profile_alt}" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:48px;height:48px;flex-shrink:0;">
+            <img class="admin-bot-avatar" src="${escapeHtml(user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png')}" alt="${escapeHtml(T.profile_alt)}" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:48px;height:48px;flex-shrink:0;">
             <div>
-                <p style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;">${user.twitch_display_name ? user.twitch_display_name : ''}</p>
-                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">${T.twitch_id} <span class="sp-text-danger">${user.twitch_user_id}</span></p>
+                <p style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;">${escapeHtml(user.twitch_display_name || '')}</p>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">${T.twitch_id} <span class="sp-text-danger">${escapeHtml(user.twitch_user_id || '')}</span></p>
             </div>
         </div>
         <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">
@@ -784,28 +982,21 @@ function showSensitiveModal(userId) {
                 <tbody>
                     <tr>
                         <th>${T.th_admin}</th>
-                        <td>${user.is_admin ? `<span class="sp-badge sp-badge-green">${T.val_true}</span>` : `<span class="sp-badge sp-badge-red">${T.val_false}</span>`}</td>
+                        <td>${isTruthyFlag(user.is_admin) ? `<span class="sp-badge sp-badge-green">${T.val_true}</span>` : `<span class="sp-badge sp-badge-red">${T.val_false}</span>`}</td>
                     </tr>
                     <tr>
                         <th>${T.beta_access}</th>
-                        <td>${user.beta_access ? `<span class="sp-badge sp-badge-green">${T.val_true}</span>` : `<span class="sp-badge sp-badge-red">${T.val_false}</span>`}</td>
+                        <td>${isTruthyFlag(user.beta_access) ? `<span class="sp-badge sp-badge-green">${T.val_true}</span>` : `<span class="sp-badge sp-badge-red">${T.val_false}</span>`}</td>
                     </tr>
                     <tr>
                         <th>${T.beta_programs}</th>
-                        <td>${(user.beta_programs && JSON.parse(user.beta_programs || '[]').length) ? JSON.parse(user.beta_programs).map(p => `<span class="sp-badge sp-badge-blue">${p}</span>`).join(' ') : `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`}</td>
+                        <td>${userPrograms(user).length ? userPrograms(user).map(p => `<span class="sp-badge sp-badge-blue">${escapeHtml(p)}</span>`).join(' ') : `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`}</td>
                     </tr>
                     <tr>
                         <th>${T.premium_access}</th>
                         <td>
                             ${
-                                user.twitch_user_id
-                                ? (() => {
-                                    if (user.twitch_sub_tier === "1000") return `<span class="sp-badge sp-badge-amber">${T.tier_1}</span>`;
-                                    if (user.twitch_sub_tier === "2000") return `<span class="sp-badge sp-badge-blue">${T.tier_2}</span>`;
-                                    if (user.twitch_sub_tier === "3000") return `<span class="sp-badge sp-badge-red">${T.tier_3}</span>`;
-                                    return `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`;
-                                })()
-                                : `<span class="sp-badge sp-badge-grey">${T.tier_none}</span>`
+                                premiumBadgeHtml(user.twitch_user_id)
                             }
                         </td>
                     </tr>
@@ -821,8 +1012,8 @@ function showSensitiveModal(userId) {
                         <th>${T.email}</th>
                         <td>
                             ${user.email ? `
-                                <span id="modal-email-masked">${maskEmail(user.email)}</span>
-                                <span id="modal-email-unmasked" style="display:none;">${user.email}</span>
+                                <span id="modal-email-masked">${escapeHtml(maskEmail(user.email))}</span>
+                                <span id="modal-email-unmasked" style="display:none;">${escapeHtml(user.email)}</span>
                                 <button class="sp-btn sp-btn-sm ml-2" id="modal-email-eye" onclick="toggleModalInfo('email', true)" style="vertical-align:middle;">
                                     <span class="icon"><i class="fas fa-eye"></i></span>
                                 </button>
@@ -835,8 +1026,8 @@ function showSensitiveModal(userId) {
                     <tr>
                         <th>${T.api_key}</th>
                         <td>
-                            <span id="modal-api-masked">${maskApiKey(user.api_key)}</span>
-                            <span id="modal-api-unmasked" style="display:none;">${user.api_key}</span>
+                            <span id="modal-api-masked">${escapeHtml(maskApiKey(user.api_key))}</span>
+                            <span id="modal-api-unmasked" style="display:none;">${escapeHtml(user.api_key)}</span>
                             <button class="sp-btn sp-btn-sm ml-2" id="modal-api-eye" onclick="toggleModalInfo('api', true)" style="vertical-align:middle;">
                                 <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
@@ -901,8 +1092,11 @@ function toggleModalInfo(type, reveal) {
     }
 }
 function filterUsers() {
-    const input = document.getElementById('user-search').value.toLowerCase();
-    const table = document.querySelector('.sp-table tbody');
+    const tbody = document.getElementById('admin-users-tbody');
+    if (!tbody || tbody.getAttribute('aria-busy') === 'true') return;
+    const searchEl = document.getElementById('user-search');
+    const input = searchEl ? searchEl.value.toLowerCase() : '';
+    const table = tbody;
     const rows = table.getElementsByTagName('tr');
     for (let row of rows) {
         const usernameCell = row.cells[1];
@@ -924,7 +1118,7 @@ function filterUsers() {
 function deleteUser(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
-    const memorialWarning = user.is_deceased ? `<br><br><span style="color:#7b2fa8;"><strong>&#128540; ${T.memorial_delete_warning}</strong></span>` : '';
+    const memorialWarning = isTruthyFlag(user.is_deceased) ? `<br><br><span style="color:#7b2fa8;"><strong>&#128540; ${T.memorial_delete_warning}</strong></span>` : '';
     Swal.fire({
         title: T.delete_user_title,
         html: `${T.delete_user_html.replace(':name', `<b>${user.username}</b>`)}${memorialWarning}`,
@@ -990,7 +1184,11 @@ function deleteUser(userId) {
         }
     });
 }
-function toggleRestrictUser(userId, username, twitch_user_id, restrict) {
+function toggleRestrictUser(userId, restrict) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    const username = user.username || '';
+    const twitch_user_id = user.twitch_user_id || '';
     const action = restrict ? 'restrict' : 'unrestrict';
     const actionText = restrict ? T.action_restrict_word : T.action_unrestrict_word;
     const confirmText = restrict ? T.confirm_restrict_word : T.unrestrict_word;
@@ -1089,7 +1287,7 @@ function removeBetaAccess(userId) {
 function manageBetaPrograms(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
-    const programs = JSON.parse(user.beta_programs || '[]');
+    const programs = userPrograms(user);
     const currentList = programs.length
         ? programs.map(p => `<span class="sp-badge sp-badge-blue" style="margin:2px;cursor:pointer;" onclick="removeBetaProgram(${userId},'${p}')">${p} &times;</span>`).join(' ')
         : `<em>${T.none_em}</em>`;
@@ -1198,14 +1396,14 @@ document.getElementById('user-search').addEventListener('input', function() {
     if (clearBtn) clearBtn.style.display = this.value ? '' : 'none';
     filterUsers();
 });
-// If the search box was pre-filled from ?search= query param, run the filter and show the clear button.
 (function () {
     const searchEl  = document.getElementById('user-search');
     const clearBtn  = document.getElementById('user-search-clear');
-    if (searchEl && searchEl.value) {
-        if (clearBtn) clearBtn.style.display = '';
-        filterUsers();
+    if (searchEl && searchEl.value && clearBtn) {
+        clearBtn.style.display = '';
     }
+    loadAdminUsers();
+    loadPremiumTiers();
 }());
 function markDeceased(userId) {
     const user = usersData.find(u => u.id == userId);
