@@ -77,9 +77,8 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="BotOfTheSpecter SQL Data API",
     description=(
-        "Tenant-scoped data plane for SpecterBotApp and similar clients. "
-        "Authenticate with a user API key (X-API-KEY). "
-        "The key determines which MySQL database may be accessed — never trust Host."
+        "Tenant-scoped data API. Authenticate with X-API-KEY. "
+        "Each key can only access its own data."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -96,17 +95,14 @@ class AuthContext(BaseModel):
 
 async def require_tenant(
     x_api_key: str | None = Header(None, alias="X-API-KEY"),
-    x_channel: str | None = Header(None, alias="X-Channel"),
-    channel: str | None = Query(
-        None,
-        description="Admin only: act as this Twitch login / tenant DB name",
-    ),
+    x_channel: str | None = Header(None, alias="X-Channel", include_in_schema=False),
+    channel: str | None = Query(None, include_in_schema=False),
 ) -> AuthContext:
     provided = (x_api_key or "").strip()
     if not provided:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing X-API-KEY (user API key from website.users)",
+            detail="Missing X-API-KEY",
         )
     principal = await dbmod.resolve_api_key(provided)
     if not principal:
