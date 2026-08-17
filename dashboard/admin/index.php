@@ -556,6 +556,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_token_script'])) {
+    $scriptMap = [
+        'spotify' => ['api' => 'refresh_spotify', 'file' => 'refresh_spotify_tokens.py'],
+        'streamelements' => ['api' => 'refresh_streamelements', 'file' => 'refresh_streamelements_tokens.py'],
+        'discord' => ['api' => 'refresh_discord', 'file' => 'refresh_discord_tokens.py'],
+        'custom_bot' => ['api' => 'refresh_custom_bot', 'file' => 'refresh_custom_bot_tokens.py'],
+        'twitch_app' => ['api' => 'refresh_twitch_app_token', 'file' => 'refresh_twitch_app_token.py'],
+    ];
+    $scriptKey = trim((string) $_POST['refresh_token_script']);
+    ob_clean();
+    header('Content-Type: application/json');
+    if (!isset($scriptMap[$scriptKey])) {
+        echo json_encode(['success' => false, 'output' => t('admin_stream_command_invalid_script')]);
+        exit;
+    }
+    $mapped = $scriptMap[$scriptKey];
+    $resp = bots_api_run_script($mapped['api']);
+    $data = is_array($resp['data'] ?? null) ? $resp['data'] : [];
+    $success = !empty($resp['ok']) && (($data['success'] ?? true) !== false);
+    if (isset($data['output']) && $data['output'] !== '') {
+        $output = (string) $data['output'];
+    } elseif (!empty($data['message'])) {
+        $output = (string) $data['message'];
+    } elseif (!empty($resp['error'])) {
+        $output = is_string($resp['error']) ? $resp['error'] : json_encode($resp['error']);
+    } else {
+        $output = '';
+    }
+    admin_audit_log(
+        'refresh_token_script',
+        $success ? 'success' : 'failed',
+        ['script_key' => $scriptKey, 'output_preview' => mb_substr($output, 0, 300)],
+        'script',
+        $mapped['file']
+    );
+    echo json_encode(['success' => $success, 'output' => $output]);
+    exit;
+}
+
 // Handle bot stop action (bots API only — no SSH kill)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
     $pid = intval($_POST['pid'] ?? 0);
@@ -2757,14 +2796,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     // Generic function to stream command output via SSE
+    function resetTokenRefreshButton(button, buttonSelector) {
+        if (!button) return;
+        button.disabled = false;
+        let label = adminI18n.refreshDiscordBtn;
+        if (buttonSelector.includes('Spotify')) label = adminI18n.refreshSpotifyBtn;
+        else if (buttonSelector.includes('StreamElements')) label = adminI18n.refreshStreamElementsBtn;
+        else if (buttonSelector.includes('CustomBot')) label = adminI18n.refreshCustomBotBtn;
+        else if (buttonSelector.includes('TwitchApp')) label = adminI18n.refreshTwitchAppBtn;
+        button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + label + '</span>';
+    }
     function streamCommand(scriptKey, serviceName, buttonSelector) {
         const button = document.querySelector(buttonSelector);
         if (button) {
             button.disabled = true;
             button.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + adminI18n.refreshing + '</span>';
         }
-        // Create modal with an output container
-        let outputHtml = '<div style="text-align:left; max-height:500px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">' + adminI18n.connecting + '\n</div>';
+        let outputHtml = '<div style="text-align:left; max-height:500px; overflow:auto; white-space:pre-wrap; font-family: monospace;" id="stream-output">' + adminI18n.refreshing + '\n</div>';
         Swal.fire({
             title: serviceName + ' - ' + adminI18n.liveOutputSuffix,
             html: outputHtml,
@@ -2774,37 +2822,32 @@ document.addEventListener('DOMContentLoaded', function() {
             width: 800,
             didOpen: () => {
                 const outputEl = document.getElementById('stream-output');
-                const es = new EventSource('stream_command.php?script=' + encodeURIComponent(scriptKey));
-                es.onmessage = function(e) {
-                    // Generic messages
-                    outputEl.textContent += e.data + '\n';
-                    outputEl.scrollTop = outputEl.scrollHeight;
-                };
-                es.addEventListener('error', function(e) {
-                    outputEl.textContent += '[ERROR] ' + (e.data || adminI18n.anErrorOccurred) + '\n';
-                    outputEl.scrollTop = outputEl.scrollHeight;
-                });
-                es.addEventListener('done', function(e) {
+                const formData = new FormData();
+                formData.append('refresh_token_script', scriptKey);
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(async response => {
+                    const text = await response.text();
+                    let data;
                     try {
-                        const info = JSON.parse(e.data);
-                        outputEl.textContent += '\n' + adminI18n.processDone + ' ' + (info.success ? adminI18n.success : adminI18n.failed) + '\n';
+                        data = JSON.parse(text);
                     } catch (err) {
-                        outputEl.textContent += '\n' + adminI18n.processDone + '\n';
+                        outputEl.textContent = text || adminI18n.invalidJson;
+                        resetTokenRefreshButton(button, buttonSelector);
+                        return;
                     }
+                    const output = (data.output || '').trim();
+                    const status = (data.success ? adminI18n.success : adminI18n.failed);
+                    outputEl.textContent = (output ? output + '\n\n' : '') + adminI18n.processDone + ' ' + status + '\n';
                     outputEl.scrollTop = outputEl.scrollHeight;
-                    es.close();
-                    if (button) {
-                        button.disabled = false;
-                        // reset button label based on selector
-                        if (buttonSelector.includes('Spotify')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshSpotifyBtn + '</span>';
-                        else if (buttonSelector.includes('StreamElements')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshStreamElementsBtn + '</span>';
-                        else if (buttonSelector.includes('CustomBot')) button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshCustomBotBtn + '</span>';
-                        else button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.refreshDiscordBtn + '</span>';
-                    }
+                    resetTokenRefreshButton(button, buttonSelector);
+                })
+                .catch(error => {
+                    outputEl.textContent = '[ERROR] ' + (error.message || adminI18n.anErrorOccurred) + '\n';
+                    resetTokenRefreshButton(button, buttonSelector);
                 });
-                es.onerror = function(ev) {
-                    // Some browsers call onerror on stream end, so keep it lightweight
-                };
             }
         });
     }
