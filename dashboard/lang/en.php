@@ -2490,6 +2490,7 @@ return [
     'media_folder_files' => '%s files',
     'media_folder_empty' => 'This folder is empty.',
     'media_open_folder' => 'Open folder',
+    'media_preview' => 'Preview',
     'media_modal_close' => 'Close',
     // channel_rewards.php
     'channel_rewards_sync_result' => 'Sync Result:',

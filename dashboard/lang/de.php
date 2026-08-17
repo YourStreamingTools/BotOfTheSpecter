@@ -2430,6 +2430,7 @@ return [
     'media_folder_files' => '%s Dateien',
     'media_folder_empty' => 'Dieser Ordner ist leer.',
     'media_open_folder' => 'Ordner öffnen',
+    'media_preview' => 'Vorschau',
     'media_modal_close' => 'Schließen',
     // channel_rewards.php
     'channel_rewards_sync_result' => 'Synchronisierungsergebnis:',

@@ -373,6 +373,13 @@ function media_is_previewable_image($filename) {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
     return in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true);
 }
+function media_preview_kind($filename) {
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true)) return 'image';
+    if (in_array($ext, ['mp4', 'webm'], true)) return 'video';
+    if ($ext === 'mp3') return 'audio';
+    return '';
+}
 function media_type_icon($type) {
     if ($type === 'audio') return 'fa-music';
     if ($type === 'video') return 'fa-film';
@@ -497,10 +504,17 @@ function media_render_file_list_html(
                     data-alert-count="<?php echo $alertCount; ?>"
                     data-total="<?php echo $totalCount; ?>">
                     <input type="checkbox" class="media-file-check" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                    <?php if (media_is_previewable_image($file)): ?>
-                    <a class="media-file-thumb" href="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" target="_blank" rel="noopener" title="<?php echo htmlspecialchars($file); ?>">
+                    <?php
+                    $previewKind = media_preview_kind($file);
+                    $previewLabel = t('media_preview') . ': ' . $fileBase;
+                    if (media_is_previewable_image($file)): ?>
+                    <button type="button" class="media-file-thumb media-file-preview-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-preview="<?php echo htmlspecialchars($previewKind); ?>" title="<?php echo htmlspecialchars(t('media_preview')); ?>" aria-label="<?php echo htmlspecialchars($previewLabel); ?>">
                         <img src="<?php echo htmlspecialchars(media_public_url($media_base_url, $file)); ?>" alt="" loading="lazy" decoding="async">
-                    </a>
+                    </button>
+                    <?php elseif ($previewKind !== ''): ?>
+                    <button type="button" class="media-file-thumb media-file-thumb-icon media-file-preview-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-preview="<?php echo htmlspecialchars($previewKind); ?>" title="<?php echo htmlspecialchars(t('media_preview')); ?>" aria-label="<?php echo htmlspecialchars($previewLabel); ?>">
+                        <i class="fa-solid <?php echo media_type_icon($type); ?>"></i>
+                    </button>
                     <?php else: ?>
                     <span class="media-file-thumb media-file-thumb-icon" aria-hidden="true">
                         <i class="fa-solid <?php echo media_type_icon($type); ?>"></i>
@@ -812,6 +826,17 @@ ob_start();
     </div>
 </div>
 
+<!-- In-page media preview (never a new tab; audio/video do not autoplay) -->
+<div class="sp-modal-backdrop media-preview-backdrop" id="media-preview-backdrop" style="display:none;">
+    <div class="sp-modal media-preview-modal" role="dialog" aria-modal="true" aria-labelledby="media-preview-title">
+        <header class="sp-modal-head">
+            <span class="sp-modal-title" id="media-preview-title"><?= t('media_preview') ?></span>
+            <button type="button" class="sp-modal-close" id="media-preview-close" aria-label="<?= htmlspecialchars(t('media_modal_close')) ?>">&times;</button>
+        </header>
+        <div class="sp-modal-body media-preview-body" id="media-preview-body"></div>
+    </div>
+</div>
+
 <?php
 $content = ob_get_clean();
 
@@ -848,6 +873,7 @@ window.__MEDIA_I18N = {
     header_audio:          <?php echo json_encode(t('media_js_header_audio')); ?>,
     header_image:          <?php echo json_encode(t('media_js_header_image')); ?>,
     header_file:           <?php echo json_encode(t('media_js_header_file')); ?>,
+    preview:               <?php echo json_encode(t('media_preview')); ?>,
     section_rewards:       <?php echo json_encode(t('media_js_section_rewards')); ?>,
     section_rewards_video: <?php echo json_encode(t('media_js_section_rewards_video')); ?>,
     section_events:        <?php echo json_encode(t('media_js_section_events')); ?>,
@@ -1243,10 +1269,67 @@ $(document).ready(function () {
     }
     document.getElementById('media-modal-close').addEventListener('click', closeModal);
     modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modal.style.display !== 'none') closeModal(); });
-    // Open the modal when a filename is clicked
+    var previewBackdrop = document.getElementById('media-preview-backdrop');
+    var previewBody = document.getElementById('media-preview-body');
+    var previewTitle = document.getElementById('media-preview-title');
+    function previewKind(file) {
+        var ext = (String(file || '').split('.').pop() || '').toLowerCase();
+        if (['png', 'jpg', 'jpeg', 'gif', 'webp'].indexOf(ext) !== -1) return 'image';
+        if (ext === 'mp4' || ext === 'webm') return 'video';
+        if (ext === 'mp3') return 'audio';
+        return '';
+    }
+    function stopPreviewMedia() {
+        if (!previewBody) return;
+        Array.prototype.forEach.call(previewBody.querySelectorAll('audio, video'), function (el) {
+            el.pause();
+            el.removeAttribute('src');
+            while (el.firstChild) el.removeChild(el.firstChild);
+            el.load();
+        });
+        previewBody.innerHTML = '';
+    }
+    function closePreview() {
+        stopPreviewMedia();
+        if (previewBackdrop) previewBackdrop.style.display = 'none';
+    }
+    function openPreview(file) {
+        var kind = previewKind(file);
+        if (!kind || !previewBackdrop || !previewBody) return;
+        stopPreviewMedia();
+        var url = mediaPublicUrl(file);
+        var name = fileBaseName(file);
+        if (previewTitle) previewTitle.textContent = name;
+        if (kind === 'image') {
+            previewBody.innerHTML = '<img src="' + escapeHtml(url) + '" alt="">';
+        } else if (kind === 'video') {
+            previewBody.innerHTML = '<video controls preload="metadata" playsinline controlslist="nodownload"><source src="' + escapeHtml(url) + '"></video>';
+        } else {
+            previewBody.innerHTML = '<audio controls preload="metadata" controlslist="nodownload"><source src="' + escapeHtml(url) + '"></audio>';
+        }
+        previewBackdrop.style.display = 'flex';
+    }
+    document.getElementById('media-preview-close').addEventListener('click', closePreview);
+    previewBackdrop.addEventListener('click', function (e) { if (e.target === previewBackdrop) closePreview(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (previewBackdrop && previewBackdrop.style.display !== 'none') {
+            closePreview();
+            return;
+        }
+        if (modal.style.display !== 'none') closeModal();
+    });
+    // Open the mapping modal when a filename is clicked
     $(document).on('click', '.media-file-name', function () {
         openModal($(this).data('file'));
+    });
+    $(document).on('click', '.media-file-preview-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openPreview($(this).data('file'));
+    });
+    $(document).on('click', '.media-modal-preview img', function () {
+        if (activeFile) openPreview(activeFile);
     });
     function postMapping(payload, onSuccess) {
         $.ajax({
