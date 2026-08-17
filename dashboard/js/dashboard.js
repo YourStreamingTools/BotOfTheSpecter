@@ -355,3 +355,67 @@ function showNotification(message, type = 'info', duration = 3000) {
         }, 300);
     }, duration);
 }
+
+// Shared "rename an uploaded file" prompt used by media, music, sound/video
+// alerts, walk-ons, and modules. Pages pass translated strings; the helper
+// only talks to SweetAlert2 (loaded in layout.php before this file).
+window.specterPromptRename = function (opts) {
+    opts = opts || {};
+    var current = String(opts.currentName || '');
+    var stem = current.replace(/\\/g, '/');
+    var slash = stem.lastIndexOf('/');
+    if (slash >= 0) stem = stem.slice(slash + 1);
+    stem = stem.replace(/\.[A-Za-z0-9]+$/, '');
+    var hint = opts.hint ? '<p style="margin:0 0 0.75rem;color:var(--text-secondary);font-size:0.9rem;">' + opts.hint + '</p>' : '';
+    return Swal.fire({
+        title: opts.title || 'Rename file',
+        html: hint || undefined,
+        input: 'text',
+        inputValue: stem,
+        showCancelButton: true,
+        confirmButtonText: opts.confirmText || 'Rename',
+        cancelButtonText: opts.cancelText || 'Cancel',
+        confirmButtonColor: '#7c5cbf',
+        preConfirm: function (value) {
+            if (!value || !String(value).trim()) {
+                Swal.showValidationMessage(opts.emptyError || 'Enter a name.');
+                return false;
+            }
+            return String(value).trim();
+        }
+    }).then(function (result) {
+        if (!result.isConfirmed || !result.value) return null;
+        return result.value;
+    });
+};
+
+window.specterPostRename = function (url, fields) {
+    var fd = new FormData();
+    Object.keys(fields || {}).forEach(function (key) {
+        fd.append(key, fields[key]);
+    });
+    return fetch(url, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (response) {
+        return response.json().then(function (data) {
+            return data || { success: false, error: 'failed' };
+        }).catch(function () {
+            return { success: false, error: 'failed' };
+        });
+    });
+};
+
+window.specterRenameMessage = function (data, i18n) {
+    i18n = i18n || {};
+    if (data && data.success) {
+        var name = (data.new || '').split('/').pop();
+        return data.message || String(i18n.success || 'Renamed to %s').replace('%s', name);
+    }
+    var code = data && data.error;
+    if (code && i18n[code]) return i18n[code];
+    if (data && data.message) return data.message;
+    return i18n.failed || 'Could not rename the file.';
+};

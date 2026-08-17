@@ -1716,7 +1716,7 @@ ob_start();
                                                         <th style="width:70px; text-align:center;"><?php echo t('modules_select'); ?></th>
                                                         <th style="text-align:center;"><?php echo t('modules_file_name'); ?></th>
                                                         <th style="text-align:center;"><?php echo t('modules_twitch_event'); ?></th>
-                                                        <th style="width:80px; text-align:center;"><?php echo t('modules_action'); ?></th>
+                                                        <th style="width:130px; text-align:center;"><?php echo t('modules_action'); ?></th>
                                                         <th style="width:120px; text-align:center;"><?php echo t('modules_test_audio'); ?></th>
                                                     </tr>
                                                 </thead>
@@ -2255,6 +2255,18 @@ ob_start();
         uploadMp3Files: <?php echo json_encode(t('modules_upload_mp3_files')); ?>,
         confirmDeleteFile: <?php echo json_encode(t('modules_js_confirm_delete_file')); ?>,
         confirmDeleteSelected: <?php echo json_encode(t('modules_js_confirm_delete_selected')); ?>,
+        rename: <?php echo json_encode(t('upload_rename')); ?>,
+        renameTitle: <?php echo json_encode(t('upload_rename_title')); ?>,
+        renameHint: <?php echo json_encode(t('upload_rename_prompt')); ?>,
+        renameConfirm: <?php echo json_encode(t('upload_rename_confirm')); ?>,
+        renameCancel: <?php echo json_encode(t('upload_rename_cancel')); ?>,
+        renameEmpty: <?php echo json_encode(t('upload_rename_empty')); ?>,
+        success: <?php echo json_encode(t('upload_rename_success')); ?>,
+        failed: <?php echo json_encode(t('upload_rename_failed')); ?>,
+        exists: <?php echo json_encode(t('upload_rename_exists')); ?>,
+        invalid: <?php echo json_encode(t('upload_rename_invalid')); ?>,
+        missing: <?php echo json_encode(t('upload_rename_missing')); ?>,
+        same: <?php echo json_encode(t('upload_rename_same')); ?>,
         confirmRemoveGame: <?php echo json_encode(t('modules_js_confirm_remove_game')); ?>,
         uploadingFiles: <?php echo json_encode(t('modules_js_uploading_files')); ?>,
         uploadingPercent: <?php echo json_encode(t('modules_js_uploading_percent')); ?>,
@@ -2509,7 +2521,7 @@ ob_start();
                         options += '<option value="' + modulesEscapeHtml(evt) + '"' + (currentMapped === evt ? ' selected' : '') + '>' + modulesEscapeHtml(modulesSoundEventLabels[evt] || evt) + '</option>';
                     });
                     var base = String(file).replace(/\.[^/.]+$/, '');
-                    return '<tr><td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="' + modulesEscapeHtml(file) + '"></td><td>' + modulesEscapeHtml(base) + '</td><td style="text-align:center;"><em>' + modulesEscapeHtml(label) + '</em><form action="/api/module_data_post.php" method="POST" class="mapping-form" style="margin-top:0.5rem;"><input type="hidden" name="sound_file" value="' + modulesEscapeHtml(file) + '"><select name="twitch_alert_id" class="sp-select mapping-select">' + options + '</select></form></td><td style="text-align:center;"><button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + modulesEscapeHtml(file) + '"><i class="fas fa-trash"></i></button></td><td style="text-align:center;"><button type="button" class="test-sound sp-btn sp-btn-primary sp-btn-sm" data-file="twitch/' + modulesEscapeHtml(file) + '"><i class="fas fa-play"></i></button></td></tr>';
+                    return '<tr><td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="' + modulesEscapeHtml(file) + '"></td><td>' + modulesEscapeHtml(base) + '</td><td style="text-align:center;"><em>' + modulesEscapeHtml(label) + '</em><form action="/api/module_data_post.php" method="POST" class="mapping-form" style="margin-top:0.5rem;"><input type="hidden" name="sound_file" value="' + modulesEscapeHtml(file) + '"><select name="twitch_alert_id" class="sp-select mapping-select">' + options + '</select></form></td><td style="text-align:center;"><span class="file-row-actions"><button type="button" class="rename-single sp-btn sp-btn-secondary sp-btn-sm" data-file="' + modulesEscapeHtml(file) + '" title="' + modulesEscapeHtml(MODULES_I18N.rename) + '"><i class="fas fa-pencil-alt"></i></button><button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + modulesEscapeHtml(file) + '"><i class="fas fa-trash"></i></button></span></td><td style="text-align:center;"><button type="button" class="test-sound sp-btn sp-btn-primary sp-btn-sm" data-file="twitch/' + modulesEscapeHtml(file) + '"><i class="fas fa-play"></i></button></td></tr>';
                 }).join('');
             }
         }
@@ -2726,6 +2738,34 @@ ob_start();
             var testBtn = e.target.closest('.test-sound');
             if (testBtn) {
                 sendStreamEvent('SOUND_ALERT', testBtn.getAttribute('data-file'));
+                return;
+            }
+            var renameBtn = e.target.closest('.rename-single');
+            if (renameBtn) {
+                var renameFile = renameBtn.getAttribute('data-file');
+                if (!renameFile || typeof specterPromptRename !== 'function') return;
+                specterPromptRename({
+                    currentName: renameFile,
+                    title: MODULES_I18N.renameTitle,
+                    hint: MODULES_I18N.renameHint,
+                    confirmText: MODULES_I18N.renameConfirm,
+                    cancelText: MODULES_I18N.renameCancel,
+                    emptyError: MODULES_I18N.renameEmpty
+                }).then(function (nextName) {
+                    if (!nextName) return;
+                    return specterPostRename('/api/module_data_post.php', {
+                        rename_file: renameFile,
+                        new_name: nextName
+                    }).then(function (data) {
+                        if (data && data.success) {
+                            loadModulesList();
+                        } else {
+                            Swal.fire({ icon: 'error', title: MODULES_I18N.failed, text: specterRenameMessage(data, MODULES_I18N) });
+                        }
+                    });
+                }).catch(function () {
+                    Swal.fire({ icon: 'error', title: MODULES_I18N.failed, text: MODULES_I18N.failed });
+                });
                 return;
             }
             var deleteBtn = e.target.closest('.delete-single');

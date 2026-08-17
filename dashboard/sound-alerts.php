@@ -140,9 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
     $db->commit();
 }
 
-// Disk scan only when an upload or delete actually needs paths / quota.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) || isset($_POST['delete_files']))) {
+// Disk scan only when an upload, rename, or delete actually needs paths / quota.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES["filesToUpload"]) || isset($_POST['delete_files']) || isset($_POST['rename_file']))) {
     include 'includes/storage_used.php';
+    require_once __DIR__ . '/includes/upload_helpers.php';
 }
 
 // Handle file upload
@@ -166,6 +167,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
         } else {
             $status .= t('sound_alerts_status_upload_error', ['file' => htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
         }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rename_file'])) {
+    $result = upload_rename_file($soundalert_path, $_POST['rename_file'], $_POST['new_name'] ?? '', 'safe');
+    if (!empty($result['ok'])) {
+        upload_rename_update_refs($db, $result['old_base'], $result['new_base']);
+        $status = t('upload_rename_success', [htmlspecialchars($result['new_base'])]) . "<br>";
+    } else {
+        $status = htmlspecialchars(upload_rename_error_message($result['error'] ?? 'failed')) . "<br>";
+    }
+    if (upload_rename_is_ajax()) {
+        upload_rename_json($result);
     }
 }
 
@@ -285,7 +299,7 @@ ob_start();
                                 <th style="width:70px;text-align:center;"><?php echo t('sound_alerts_select'); ?></th>
                                 <th style="text-align:center;"><?php echo t('sound_alerts_file_name'); ?></th>
                                 <th style="text-align:center;"><?php echo t('sound_alerts_channel_point_reward'); ?></th>
-                                <th style="width:80px;text-align:center;"><?php echo t('sound_alerts_action'); ?></th>
+                                <th style="width:130px;text-align:center;"><?php echo t('sound_alerts_action'); ?></th>
                                 <th style="width:120px;text-align:center;"><?php echo t('sound_alerts_test_audio'); ?></th>
                             </tr>
                         </thead>
@@ -337,7 +351,19 @@ const SA_I18N = {
     deleteConfirm: <?php echo json_encode(t('sound_alerts_delete_file_confirm')); ?>,
     deleteSelectedConfirm: <?php echo json_encode(t('sound_alerts_delete_selected_confirm')); ?>,
     deleteConfirmBtn: <?php echo json_encode(t('sound_alerts_delete_file_confirm_btn')); ?>,
-    deleteCancelBtn: <?php echo json_encode(t('sound_alerts_delete_file_cancel_btn')); ?>
+    deleteCancelBtn: <?php echo json_encode(t('sound_alerts_delete_file_cancel_btn')); ?>,
+    rename: <?php echo json_encode(t('upload_rename')); ?>,
+    renameTitle: <?php echo json_encode(t('upload_rename_title')); ?>,
+    renameHint: <?php echo json_encode(t('upload_rename_prompt')); ?>,
+    renameConfirm: <?php echo json_encode(t('upload_rename_confirm')); ?>,
+    renameCancel: <?php echo json_encode(t('upload_rename_cancel')); ?>,
+    renameEmpty: <?php echo json_encode(t('upload_rename_empty')); ?>,
+    success: <?php echo json_encode(t('upload_rename_success')); ?>,
+    failed: <?php echo json_encode(t('upload_rename_failed')); ?>,
+    exists: <?php echo json_encode(t('upload_rename_exists')); ?>,
+    invalid: <?php echo json_encode(t('upload_rename_invalid')); ?>,
+    missing: <?php echo json_encode(t('upload_rename_missing')); ?>,
+    same: <?php echo json_encode(t('upload_rename_same')); ?>
 };
 
 function escapeHtml(str) {
@@ -432,9 +458,13 @@ function renderSoundAlertsTable(data) {
                     '</div>' +
                 '</td>' +
                 '<td style="text-align:center;">' +
+                    '<span class="file-row-actions">' +
+                    '<button type="button" class="rename-single sp-btn sp-btn-secondary sp-btn-sm" data-file="' + safeFile + '" title="' + escapeHtml(SA_I18N.rename) + '">' +
+                        '<i class="fas fa-pencil-alt"></i>' +
+                    '</button>' +
                     '<button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + safeFile + '">' +
                         '<i class="fas fa-trash"></i>' +
-                    '</button>' +
+                    '</button></span>' +
                 '</td>' +
                 '<td style="text-align:center;">' +
                     '<button type="button" class="test-sound sp-btn sp-btn-primary sp-btn-sm" data-file="' + safeFile + '">' +
@@ -627,6 +657,32 @@ $(document).ready(function() {
                     confirmButtonColor: '#3273dc'
                 });
             }
+        });
+    });
+    $(document).on('click', '.rename-single', function() {
+        var fileName = $(this).data('file');
+        if (!fileName || typeof specterPromptRename !== 'function') return;
+        specterPromptRename({
+            currentName: fileName,
+            title: SA_I18N.renameTitle,
+            hint: SA_I18N.renameHint,
+            confirmText: SA_I18N.renameConfirm,
+            cancelText: SA_I18N.renameCancel,
+            emptyError: SA_I18N.renameEmpty
+        }).then(function(nextName) {
+            if (!nextName) return;
+            return specterPostRename(window.location.pathname, {
+                rename_file: fileName,
+                new_name: nextName
+            }).then(function(data) {
+                if (data && data.success) {
+                    loadSoundAlertsList();
+                } else {
+                    Swal.fire({ icon: 'error', title: SA_I18N.failed, text: specterRenameMessage(data, SA_I18N) });
+                }
+            });
+        }).catch(function() {
+            Swal.fire({ icon: 'error', title: SA_I18N.failed, text: SA_I18N.failed });
         });
     });
     // Single delete button with SweetAlert2

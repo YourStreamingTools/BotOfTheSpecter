@@ -110,9 +110,10 @@ date_default_timezone_set($timezone);
 
 $status = '';
 
-// Storage scan only when upload/delete need paths + quotas.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES['filesToUpload']) || isset($_POST['delete_files']))) {
+// Storage scan only when upload/rename/delete need paths + quotas.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_FILES['filesToUpload']) || isset($_POST['delete_files']) || isset($_POST['rename_file']))) {
     include 'includes/storage_used.php';
+    require_once __DIR__ . '/includes/upload_helpers.php';
 }
 
 // Handle channel point reward mapping
@@ -205,6 +206,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
                 'error' => ''
             ]) . "<br>";
         }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rename_file'])) {
+    $result = upload_rename_file($videoalert_path, $_POST['rename_file'], $_POST['new_name'] ?? '', 'safe');
+    if (!empty($result['ok'])) {
+        upload_rename_update_refs($db, $result['old_base'], $result['new_base']);
+        $status = t('upload_rename_success', [htmlspecialchars($result['new_base'])]) . "<br>";
+    } else {
+        $status = htmlspecialchars(upload_rename_error_message($result['error'] ?? 'failed')) . "<br>";
+    }
+    if (upload_rename_is_ajax()) {
+        upload_rename_json($result);
     }
 }
 
@@ -339,7 +353,7 @@ ob_start();
                             <th style="width:70px;text-align:center;"><?php echo t('video_alerts_select'); ?></th>
                             <th style="text-align:center;"><?php echo t('video_alerts_file_name'); ?></th>
                             <th style="text-align:center;"><?php echo t('video_alerts_channel_point_reward'); ?></th>
-                            <th style="width:80px;text-align:center;"><?php echo t('video_alerts_action'); ?></th>
+                            <th style="width:130px;text-align:center;"><?php echo t('video_alerts_action'); ?></th>
                             <th style="width:120px;text-align:center;"><?php echo t('video_alerts_test_video'); ?></th>
                         </tr>
                     </thead>
@@ -373,7 +387,19 @@ ob_start();
 const VA_I18N = {
     notMapped: <?php echo json_encode(t('video_alerts_not_mapped')); ?>,
     removeMapping: <?php echo json_encode(t('video_alerts_remove_mapping')); ?>,
-    selectReward: <?php echo json_encode(t('video_alerts_select_reward')); ?>
+    selectReward: <?php echo json_encode(t('video_alerts_select_reward')); ?>,
+    rename: <?php echo json_encode(t('upload_rename')); ?>,
+    renameTitle: <?php echo json_encode(t('upload_rename_title')); ?>,
+    renameHint: <?php echo json_encode(t('upload_rename_prompt')); ?>,
+    renameConfirm: <?php echo json_encode(t('upload_rename_confirm')); ?>,
+    renameCancel: <?php echo json_encode(t('upload_rename_cancel')); ?>,
+    renameEmpty: <?php echo json_encode(t('upload_rename_empty')); ?>,
+    success: <?php echo json_encode(t('upload_rename_success')); ?>,
+    failed: <?php echo json_encode(t('upload_rename_failed')); ?>,
+    exists: <?php echo json_encode(t('upload_rename_exists')); ?>,
+    invalid: <?php echo json_encode(t('upload_rename_invalid')); ?>,
+    missing: <?php echo json_encode(t('upload_rename_missing')); ?>,
+    same: <?php echo json_encode(t('upload_rename_same')); ?>
 };
 
 function escapeHtml(str) {
@@ -444,9 +470,13 @@ function renderVideoAlertsTable(data) {
                     '<select name="reward_id" class="sp-select mapping-select" style="width:100%;">' + options + '</select>' +
                 '</form></td>' +
             '<td style="text-align:center;vertical-align:middle;">' +
+                '<span class="file-row-actions">' +
+                '<button type="button" class="rename-single sp-btn sp-btn-secondary sp-btn-sm" data-file="' + escapeHtml(file.file) + '" title="' + escapeHtml(VA_I18N.rename) + '">' +
+                    '<span class="icon"><i class="fas fa-pencil-alt"></i></span>' +
+                '</button>' +
                 '<button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="' + escapeHtml(file.file) + '">' +
                     '<span class="icon"><i class="fas fa-trash"></i></span>' +
-                '</button></td>' +
+                '</button></span></td>' +
             '<td style="text-align:center;vertical-align:middle;">' +
                 '<button type="button" class="test-video sp-btn sp-btn-primary sp-btn-sm" data-file="' + escapeHtml(file.file) + '">' +
                     '<span class="icon"><i class="fas fa-play"></i></span>' +
@@ -601,6 +631,32 @@ $(document).ready(function() {
         const form = $(this).closest('form');
         $.post('', form.serialize(), function(data) {
             location.reload();
+        });
+    });
+    $(document).on('click', '.rename-single', function() {
+        var fileName = $(this).data('file');
+        if (!fileName || typeof specterPromptRename !== 'function') return;
+        specterPromptRename({
+            currentName: fileName,
+            title: VA_I18N.renameTitle,
+            hint: VA_I18N.renameHint,
+            confirmText: VA_I18N.renameConfirm,
+            cancelText: VA_I18N.renameCancel,
+            emptyError: VA_I18N.renameEmpty
+        }).then(function(nextName) {
+            if (!nextName) return;
+            return specterPostRename(window.location.pathname, {
+                rename_file: fileName,
+                new_name: nextName
+            }).then(function(data) {
+                if (data && data.success) {
+                    loadVideoAlertsList();
+                } else {
+                    Swal.fire({ icon: 'error', title: VA_I18N.failed, text: specterRenameMessage(data, VA_I18N) });
+                }
+            });
+        }).catch(function() {
+            Swal.fire({ icon: 'error', title: VA_I18N.failed, text: VA_I18N.failed });
         });
     });
     // Single delete button with SweetAlert2

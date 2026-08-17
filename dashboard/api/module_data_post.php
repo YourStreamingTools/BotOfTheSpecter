@@ -351,6 +351,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['update_message'] = $status;
     }
 
+    if (isset($_POST['rename_file']) && isset($_POST['new_name'])) {
+        require_once __DIR__ . '/../includes/upload_helpers.php';
+        $activeTab = "twitch-audio-alerts";
+        $result = upload_rename_file($twitch_sound_alert_path, $_POST['rename_file'], $_POST['new_name'], 'safe');
+        if (!empty($result['ok'])) {
+            upload_rename_update_refs($db, $result['old_base'], $result['new_base']);
+        }
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => !empty($result['ok']),
+                'old' => $result['old'] ?? '',
+                'new' => $result['new'] ?? '',
+                'error' => empty($result['ok']) ? ($result['error'] ?? 'failed') : null,
+            ]);
+            exit;
+        }
+        $_SESSION['update_message'] = !empty($result['ok'])
+            ? ('Renamed to ' . htmlspecialchars($result['new_base']))
+            : 'Rename failed.';
+    }
+
     // Handle section-specific chat alert saves
     if (isset($_POST['section_save'])) {
         $section = $_POST['section_save'];

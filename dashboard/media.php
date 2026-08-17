@@ -225,6 +225,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ajax_respond_mappings($file, $db, $isAjax);
         }
     }
+    if ($action === 'rename') {
+        $result = upload_rename_file($media_path, $_POST['old_file'] ?? '', $_POST['new_name'] ?? '', 'safe');
+        if (!empty($result['ok'])) {
+            $db->begin_transaction();
+            upload_rename_update_refs($db, $result['old'], $result['new']);
+            if ($result['old_base'] !== $result['old']) {
+                upload_rename_update_refs($db, $result['old_base'], $result['new_base']);
+            }
+            $db->commit();
+            $status .= t('upload_rename_success', [htmlspecialchars($result['new'])]) . "<br>";
+        } else {
+            $status .= htmlspecialchars(upload_rename_error_message($result['error'] ?? 'failed')) . "<br>";
+        }
+        if ($isAjax || upload_rename_is_ajax()) {
+            upload_rename_json($result);
+        }
+    }
     if (isset($_FILES["filesToUpload"])) {
         include __DIR__ . '/includes/storage_used.php';
         $remaining_storage = $max_storage_size - $current_storage_used;
@@ -453,6 +470,10 @@ function media_render_file_list_html(
                     <?php else: ?>
                     <span class="sp-btn sp-btn-sm media-test-btn-placeholder" title="<?php echo htmlspecialchars(t('media_images_managed_via_builder')); ?>">&nbsp;</span>
                     <?php endif; ?>
+                    <span class="file-row-actions">
+                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm media-rename-btn" data-file="<?php echo htmlspecialchars($file); ?>" title="<?php echo htmlspecialchars(t('upload_rename')); ?>">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
                     <?php if ($totalCount > 0): ?>
                     <button type="button" class="sp-btn sp-btn-sm media-delete-locked" data-file="<?php echo htmlspecialchars($file); ?>" data-summary="<?php echo htmlspecialchars($summary); ?>" title="<?php echo htmlspecialchars(t('media_in_use_title')); ?>">
                         <i class="fas fa-lock"></i>
@@ -462,6 +483,7 @@ function media_render_file_list_html(
                         <i class="fas fa-trash"></i>
                     </button>
                     <?php endif; ?>
+                    </span>
                 </li>
         <?php
     }
@@ -810,6 +832,17 @@ window.__MEDIA_I18N = {
     delete_file_text:      <?php echo json_encode(t('media_js_delete_file_text')); ?>,
     confirm_delete:        <?php echo json_encode(t('media_js_confirm_delete')); ?>,
     cancel:                <?php echo json_encode(t('media_js_cancel')); ?>,
+    rename:                <?php echo json_encode(t('upload_rename')); ?>,
+    rename_title:          <?php echo json_encode(t('upload_rename_title')); ?>,
+    rename_hint:           <?php echo json_encode(t('upload_rename_prompt')); ?>,
+    rename_confirm:        <?php echo json_encode(t('upload_rename_confirm')); ?>,
+    rename_empty:          <?php echo json_encode(t('upload_rename_empty')); ?>,
+    success:               <?php echo json_encode(t('upload_rename_success')); ?>,
+    failed:                <?php echo json_encode(t('upload_rename_failed')); ?>,
+    exists:                <?php echo json_encode(t('upload_rename_exists')); ?>,
+    invalid:               <?php echo json_encode(t('upload_rename_invalid')); ?>,
+    missing:               <?php echo json_encode(t('upload_rename_missing')); ?>,
+    same:                  <?php echo json_encode(t('upload_rename_same')); ?>,
     locked_title:          <?php echo json_encode(t('media_js_locked_title')); ?>,
     locked_body:           <?php echo json_encode(t('media_js_locked_body')); ?>,
     migrate_title:         <?php echo json_encode(t('media_js_migrate_title')); ?>,
@@ -1397,6 +1430,33 @@ $(document).ready(function () {
             icon: 'warning', showCancelButton: true,
             confirmButtonColor: '#d33', confirmButtonText: I18N.confirm_delete, cancelButtonText: I18N.cancel
         }).then(function (result) { if (result.isConfirmed) form.submit(); });
+    });
+    $(document).on('click', '.media-rename-btn', function () {
+        var fileName = $(this).data('file');
+        if (!fileName || typeof specterPromptRename !== 'function') return;
+        specterPromptRename({
+            currentName: fileName,
+            title: I18N.rename_title,
+            hint: I18N.rename_hint,
+            confirmText: I18N.rename_confirm,
+            cancelText: I18N.cancel,
+            emptyError: I18N.rename_empty,
+        }).then(function (nextName) {
+            if (!nextName) return;
+            return specterPostRename('media.php', {
+                action: 'rename',
+                old_file: fileName,
+                new_name: nextName
+            }).then(function (data) {
+                if (data && data.success) {
+                    loadMediaFileList();
+                } else {
+                    Swal.fire({ icon: 'error', title: I18N.failed, text: specterRenameMessage(data, I18N) });
+                }
+            });
+        }).catch(function () {
+            Swal.fire({ icon: 'error', title: I18N.failed, text: I18N.failed });
+        });
     });
     // Delete single
     $(document).on('click', '.media-delete-single', function () {
