@@ -230,6 +230,7 @@ Plus companion bots (separate platforms, share databases/integrations):
 **Shoutout System**:
 - 2-min global cooldown, 60-min per-user cooldown
 - Deduplication via `shoutout_tracker` dict
+- Queue membership via `shoutout_queued_ids` (outgoing only; `!so` tells the mod if the user is already waiting)
 - Queue-based processing with Worker pattern
 - Uses Twitch Shoutout API
 
