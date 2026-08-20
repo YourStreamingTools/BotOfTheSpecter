@@ -81,6 +81,8 @@ TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
 TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+KICK_CLIENT_ID = os.getenv('KICK_CLIENT_ID')
+KICK_CLIENT_SECRET = os.getenv('KICK_CLIENT_SECRET')
 DISCORD_TWITCH_LINK_BASE_URL = os.getenv('DISCORD_TWITCH_LINK_BASE_URL', 'https://botofthespecter.com/discord_twitch_link.php')
 DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES = int(os.getenv('DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES', '30'))
 
@@ -342,6 +344,7 @@ BOT_SCRIPT_PATHS = {
     "stable": "bot.py",
     "beta": "beta.py",
     "v6": "beta-v6.py",
+    "kick": "kick.py",
 }
 
 async def _get_bots_control_key() -> str:
@@ -434,6 +437,58 @@ async def _get_user_bot_launch_credentials(username: str) -> dict | None:
                 "use_custom": int(row.get("use_custom") or 0) == 1,
                 "use_self": int(row.get("use_self") or 0) == 1,
                 "use_custom_module": int(row.get("use_custom_module") or 0) == 1,
+            }
+    finally:
+        conn.close()
+
+
+async def _ensure_kick_bot_tokens_table(cur) -> None:
+    await cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS kick_bot_tokens (
+            channel_name VARCHAR(64) NOT NULL,
+            kick_username VARCHAR(255) NOT NULL DEFAULT '',
+            kick_user_id VARCHAR(64) NOT NULL DEFAULT '',
+            chatroom_id VARCHAR(64) NOT NULL DEFAULT '',
+            access_token TEXT NOT NULL,
+            refresh_token TEXT NOT NULL,
+            PRIMARY KEY (channel_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+    )
+
+
+async def _get_kick_bot_launch_credentials(username: str) -> dict | None:
+    """Kick OAuth row from website.kick_bot_tokens, keyed by Twitch login."""
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await _ensure_kick_bot_tokens_table(cur)
+            await cur.execute(
+                """
+                SELECT kick_username, kick_user_id, chatroom_id, access_token, refresh_token
+                FROM kick_bot_tokens
+                WHERE channel_name = %s
+                LIMIT 1
+                """,
+                (username.lower(),),
+            )
+            row = await cur.fetchone()
+            if not row:
+                return None
+            kick_username = (row.get("kick_username") or "").strip()
+            kick_user_id = str(row.get("kick_user_id") or "").strip()
+            chatroom_id = str(row.get("chatroom_id") or "").strip()
+            access_token = (row.get("access_token") or "").strip()
+            refresh_token = (row.get("refresh_token") or "").strip()
+            if not all([kick_username, kick_user_id, chatroom_id, access_token, refresh_token]):
+                return None
+            return {
+                "kick_username": kick_username.lower(),
+                "kick_user_id": kick_user_id,
+                "chatroom_id": chatroom_id,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
             }
     finally:
         conn.close()
@@ -6333,6 +6388,7 @@ async def get_bot_status_via_bots_api(username: str) -> dict:
         "beta": latest_versions.get("beta_version"),
         "v6": latest_versions.get("v6_version") or latest_versions.get("beta_version"),
         "custom": latest_versions.get("beta_version") or latest_versions.get("stable_version"),
+        "kick": latest_versions.get("kick_bot"),
     }
     t0 = _time.monotonic()
     try:
@@ -6443,7 +6499,7 @@ class BotActionResponse(BaseModel):
 )
 async def start_bot(
     api_key: str = Query(..., description="Your API key for authentication"),
-    bot_type: str = Query("stable", description="Bot variant to start (stable or beta)."),
+    bot_type: str = Query("stable", description="Bot variant to start (stable, beta, v6, or kick)."),
     custom: bool = Query(False, description="Beta only: launch with -custom mode using the channel's verified custom bot account. Mutually exclusive with self."),
     self_mode: bool = Query(False, alias="self", description="Beta only: launch with the -self flag. Mutually exclusive with custom."),
     channel: str = Query(None),
@@ -6470,6 +6526,51 @@ async def start_bot(
     creds = await _get_user_bot_launch_credentials(username)
     if not creds:
         raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+    if bot_type == "kick":
+        if not creds.get("api_key"):
+            raise HTTPException(status_code=400, detail="Missing required user data: api_key")
+        kick_creds = await _get_kick_bot_launch_credentials(username)
+        if not kick_creds:
+            raise HTTPException(
+                status_code=400,
+                detail="Kick is not connected for this channel.",
+            )
+        if not KICK_CLIENT_ID or not KICK_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=500,
+                detail="Kick app credentials are not configured.",
+            )
+        latest = _load_latest_bot_versions()
+        version = latest.get("kick_bot") or "1.0.2"
+        body = {
+            "channel": username,
+            "bot_type": "kick",
+            "channel_id": kick_creds["kick_user_id"],
+            "token": kick_creds["access_token"],
+            "refresh": kick_creds["refresh_token"],
+            "apitoken": creds["api_key"],
+            "version": version,
+            "kick_username": kick_creds["kick_username"],
+            "chatroom_id": kick_creds["chatroom_id"],
+            "client_id": KICK_CLIENT_ID,
+            "client_secret": KICK_CLIENT_SECRET,
+        }
+        try:
+            data = await _bots_api_request("POST", "/api/bot/start", json_body=body)
+            return BotActionResponse(
+                success=bool(data.get("success", True)),
+                state=str(data.get("state") or "started"),
+                running=bool(data.get("running")),
+                pid=data.get("pid"),
+                bot_type=str(data.get("bot_type") or bot_type),
+                version=data.get("version"),
+                message=str(data.get("message") or "OK"),
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Bot start failed for '{username}' ({bot_type}): {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Bot start failed: {e}")
     missing = [k for k in ("twitch_user_id", "access_token", "refresh_token", "api_key") if not creds.get(k)]
     if missing:
         raise HTTPException(status_code=400, detail=f"Missing required user data: {', '.join(missing)}")
@@ -6553,7 +6654,7 @@ async def start_bot(
 )
 async def stop_bot(
     api_key: str = Query(..., description="Your API key for authentication"),
-    bot_type: str = Query("stable", description="Bot variant to stop (stable, beta, or v6)."),
+    bot_type: str = Query("stable", description="Bot variant to stop (stable, beta, v6, or kick)."),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
