@@ -66,7 +66,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.19"
+VERSION = "5.7.20"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -2196,6 +2196,7 @@ class TwitchBot(commands.Bot):
                 await self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContent)
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
+        global stream_online
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
@@ -2264,8 +2265,8 @@ class TwitchBot(commands.Bot):
                     default_mod_welcome_message = preferences["default_mod_welcome_message"]
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
-                # If user has not been seen today, insert them and (conditionally) send welcome message
-                if not already_seen_today:
+                # If user has not been seen today and the stream is live, insert them and (conditionally) send welcome
+                if not already_seen_today and stream_online:
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
