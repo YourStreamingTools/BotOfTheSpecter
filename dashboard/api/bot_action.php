@@ -39,7 +39,7 @@ if (!in_array($action, ['run', 'stop', 'status'])) {
   exit();
 }
 
-if (!in_array($bot, ['stable', 'beta', 'v6'])) {
+if (!in_array($bot, ['stable', 'beta', 'v6', 'kick'], true)) {
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => t('bot_action_invalid_bot_type')]);
@@ -71,8 +71,8 @@ if (empty($username)) {
   echo json_encode(['success' => false, 'message' => t('bot_action_username_not_found')]);
   exit();
 }
-// If attempting to start a bot, check if bot is banned
-if (($actionMap[$action] ?? '') === 'run' && $username !== 'botofthespecter') {
+// If attempting to start a Twitch bot, check if Specter is banned / not a mod
+if (($actionMap[$action] ?? '') === 'run' && $bot !== 'kick' && $username !== 'botofthespecter') {
   // Check if bot is a moderator first
   $modCheckUrl = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=" . urlencode($twitchUserId);
   $modHeaders = ['Authorization: Bearer ' . $authToken, 'Client-ID: ' . $clientID];
@@ -173,6 +173,39 @@ $params = [
   'use_self' => (isset($_POST['use_self']) && ($_POST['use_self'] === 'true' || $_POST['use_self'] === '1')) ? true : false,
   'load_custom_module' => $loadCustomModule,
 ];
+
+if ($bot === 'kick' && ($actionMap[$action] ?? '') === 'run') {
+  require_once __DIR__ . '/../includes/kick_bot.php';
+  $kickConfigPath = '/var/www/config/kick.php';
+  if (!is_file($kickConfigPath)) {
+    $kickConfigPath = __DIR__ . '/../../config/kick.php';
+  }
+  if (is_file($kickConfigPath)) {
+    require_once $kickConfigPath;
+  }
+  $kickTokens = kick_bot_get_tokens($conn, $username);
+  if (!$kickTokens) {
+    ob_clean();
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => t('bot_kick_not_connected')]);
+    exit();
+  }
+  $kickClientId = isset($kick_client_id) ? trim((string)$kick_client_id) : '';
+  $kickClientSecret = isset($kick_client_secret) ? trim((string)$kick_client_secret) : '';
+  if ($kickClientId === '' || $kickClientSecret === '') {
+    ob_clean();
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => t('bot_kick_app_not_configured')]);
+    exit();
+  }
+  $params['twitch_user_id'] = $kickTokens['kick_user_id'];
+  $params['auth_token'] = $kickTokens['access_token'];
+  $params['refresh_token'] = $kickTokens['refresh_token'];
+  $params['kick_username'] = $kickTokens['kick_username'];
+  $params['kick_chatroom_id'] = $kickTokens['chatroom_id'];
+  $params['kick_client_id'] = $kickClientId;
+  $params['kick_client_secret'] = $kickClientSecret;
+}
 
 // Perform the bot action with timeout monitoring
 $startTime = time();

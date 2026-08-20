@@ -218,10 +218,10 @@ async def require_control_key(
 
 class StartBody(BaseModel):
     channel: str = Field(..., description="Twitch login / channel name")
-    bot_type: str = Field("stable", description="stable | beta | v6")
-    channel_id: str = Field(..., description="Twitch user id")
-    token: str = Field(..., description="Twitch user access token")
-    refresh: str = Field(..., description="Twitch user refresh token")
+    bot_type: str = Field("stable", description="stable | beta | v6 | kick")
+    channel_id: str = Field(..., description="Twitch user id, or Kick broadcaster user id when bot_type=kick")
+    token: str = Field(..., description="Twitch user access token, or Kick OAuth access token when bot_type=kick")
+    refresh: str = Field(..., description="Twitch user refresh token, or Kick OAuth refresh token when bot_type=kick")
     apitoken: str = Field(..., description="Specter per-user API key (bot -apitoken)")
     custom: bool = False
     botusername: str | None = None
@@ -234,6 +234,10 @@ class StartBody(BaseModel):
             "-load-custom-module so beta/v6 load that channel's module only"
         ),
     )
+    kick_username: str | None = Field(None, description="Kick channel slug; required when bot_type=kick")
+    chatroom_id: str | None = Field(None, description="Kick chatroom id; required when bot_type=kick")
+    client_id: str | None = Field(None, description="Kick app client id; required when bot_type=kick")
+    client_secret: str | None = Field(None, description="Kick app client secret; required when bot_type=kick")
 
     model_config = {"populate_by_name": True}
 
@@ -333,7 +337,7 @@ async def api_running_bots_snapshot() -> dict[str, Any]:
 @app.get("/api/bot/status", dependencies=[Depends(require_control_key)])
 async def api_bot_status(
     channel: str = Query(..., min_length=1),
-    bot_type: str | None = Query(None, description="Optional: stable|beta|v6|custom"),
+    bot_type: str | None = Query(None, description="Optional: stable|beta|v6|custom|kick"),
 ) -> dict[str, Any]:
     return await asyncio.to_thread(status_for_channel, channel, bot_type)
 
@@ -352,6 +356,10 @@ async def api_bot_start(body: StartBody) -> dict[str, Any]:
         self_mode=body.self_mode,
         version=body.version,
         load_custom_module=body.load_custom_module,
+        kick_username=body.kick_username,
+        chatroom_id=body.chatroom_id,
+        client_id=body.client_id,
+        client_secret=body.client_secret,
     )
     if not result.get("success") and result.get("state") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "start failed")
@@ -380,6 +388,10 @@ async def api_bot_restart(body: StartBody) -> dict[str, Any]:
         self_mode=body.self_mode,
         version=body.version,
         load_custom_module=body.load_custom_module,
+        kick_username=body.kick_username,
+        chatroom_id=body.chatroom_id,
+        client_id=body.client_id,
+        client_secret=body.client_secret,
     )
     if not result.get("success") and result.get("state") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "restart failed")

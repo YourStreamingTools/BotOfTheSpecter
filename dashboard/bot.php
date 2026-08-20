@@ -17,23 +17,42 @@ $v6NewVersion = '';
 $BotIsMod = false;
 $BotModMessage = "";
 
+$cookieOpts = [
+  'expires' => time() + (86400 * 30),
+  'path' => '/',
+  'secure' => true,
+  'httponly' => true,
+  'samesite' => 'Lax',
+];
+$selectedPlatform = $_GET['platform'] ?? null;
+if (isset($_GET['platform']) && in_array($_GET['platform'], ['twitch', 'kick'], true)) {
+  setcookie('selectedPlatform', $_GET['platform'], $cookieOpts);
+  $selectedPlatform = $_GET['platform'];
+} elseif (isset($_COOKIE['selectedPlatform']) && in_array($_COOKIE['selectedPlatform'], ['twitch', 'kick'], true)) {
+  $selectedPlatform = $_COOKIE['selectedPlatform'];
+} else {
+  $selectedPlatform = 'twitch';
+}
+if (!in_array($selectedPlatform, ['twitch', 'kick'], true)) {
+  $selectedPlatform = 'twitch';
+}
+
 $selectedBot = $_GET['bot'] ?? null;
-if (isset($_GET['bot'])) {
-  if (in_array($_GET['bot'], ['stable', 'beta', 'v6'])) {
-    setcookie('selectedBot', $_GET['bot'], [
-      'expires' => time() + (86400 * 30),
-      'path' => '/',
-      'secure' => true,
-      'httponly' => true,
-      'samesite' => 'Lax',
-    ]);
+if ($selectedPlatform === 'kick') {
+  $selectedBot = 'kick';
+} else {
+  if (isset($_GET['bot']) && in_array($_GET['bot'], ['stable', 'beta', 'v6'], true)) {
+    setcookie('selectedBot', $_GET['bot'], $cookieOpts);
+    $selectedBot = $_GET['bot'];
+  } elseif (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'v6'], true)) {
+    $selectedBot = $_COOKIE['selectedBot'];
+  } else {
+    $selectedBot = 'stable';
+  }
+  if (!in_array($selectedBot, ['stable', 'beta', 'v6'], true)) {
+    $selectedBot = 'stable';
   }
 }
-else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'v6'])) {
-  $selectedBot = $_COOKIE['selectedBot'];
-}
-else { $selectedBot = 'stable'; }
-if (!in_array($selectedBot, ['stable', 'beta', 'v6'])) { $selectedBot = 'stable'; }
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -180,6 +199,17 @@ if (isset($user_id)) {
   }
 }
 
+require_once __DIR__ . '/includes/kick_bot.php';
+$kickConnected = false;
+$kickChannelName = '';
+if (isset($username, $conn) && $username !== '') {
+  $kickRow = kick_bot_get_tokens($conn, $username);
+  if ($kickRow) {
+    $kickConnected = true;
+    $kickChannelName = $kickRow['kick_username'];
+  }
+}
+
 // Start output buffering for layout template
 ob_start();
 ?>
@@ -215,6 +245,8 @@ ob_start();
             <?php echo t('bot_stable_version_info'); ?>
           <?php elseif ($selectedBot === 'beta'): ?>
             <?php echo t('bot_beta_version_info'); ?>
+          <?php elseif ($selectedBot === 'kick'): ?>
+            <?php echo t('bot_kick_version_info'); ?>
           <?php endif; ?>
         </p>
         <div class="version-meta" id="bot-version-meta" aria-busy="true">
@@ -320,7 +352,15 @@ ob_start();
                   <span><?= t('bot_use_custom_module') ?></span>
                 </label>
               </div>
-              <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;">
+              <select id="platform-selector" class="sp-select" onchange="changePlatformSelection(this.value)" style="width:auto;">
+                  <option value="twitch" <?php if($selectedPlatform === 'twitch') echo 'selected'; ?>>
+                    <?php echo t('bot_platform_twitch'); ?>
+                  </option>
+                  <option value="kick" <?php if($selectedPlatform === 'kick') echo 'selected'; ?>>
+                    <?php echo t('bot_platform_kick'); ?>
+                  </option>
+                </select>
+              <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;<?php echo $selectedPlatform === 'kick' ? ' display:none;' : ''; ?>">
                   <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
                     <?php echo t('bot_stable_bot'); ?>
                   </option>
@@ -377,11 +417,28 @@ ob_start();
               <i class="fas fa-info-circle"></i>
               <span class="custom-module-note-text"><?= t('bot_use_custom_module_note_disabled') ?></span>
             </div>
+          <?php elseif ($selectedBot === 'kick'): ?>
+            <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
+              <?php echo t('bot_kick_controls'); ?> <span id="bot-kick-version-label" style="color:var(--blue);"></span>
+            </h3>
+            <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
+              <?php echo t('bot_kick_description'); ?>
+            </p>
+            <?php if ($kickChannelName !== ''): ?>
+            <p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin-bottom:1rem;">
+              <?php echo t('bot_kick_channel_label'); ?>: <?php echo htmlspecialchars($kickChannelName); ?>
+            </p>
+            <?php endif; ?>
+            <?php if (!$kickConnected): ?>
+            <div class="sp-alert sp-alert-warning" style="text-align:center;">
+              <?php echo t('bot_kick_not_connected'); ?>
+            </div>
+            <?php endif; ?>
           <?php endif; ?>
           <?php 
           // Only show bot status and controls if the bot is properly configured
           $showBotControls = false;
-          if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6') {
+          if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6' || $selectedBot === 'kick') {
             $showBotControls = true;
           } 
           ?>
@@ -568,11 +625,15 @@ ob_start();
 const latestStableVersion = <?php echo json_encode($newVersion); ?>;
 const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
 const latestV6Version = <?php echo json_encode($v6NewVersion); ?>;
+const latestKickVersion = '';
 const serverSelectedBot = <?php echo json_encode($selectedBot); ?>;
+const serverSelectedPlatform = <?php echo json_encode($selectedPlatform); ?>;
+window.kickConnected = <?php echo $kickConnected ? 'true' : 'false'; ?>;
 // Make versions accessible globally for updates
 window.latestStableVersion = latestStableVersion;
 window.latestBetaVersion = latestBetaVersion;
 window.latestV6Version = latestV6Version;
+window.latestKickVersion = latestKickVersion;
 // Track which update notifications we've already shown to avoid duplicates
 window._seenUpdateNotifications = window._seenUpdateNotifications || new Set();
 const serverStableVersion = <?php echo json_encode($versionRunning); ?>;
@@ -882,6 +943,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function getCurrentBotType() {
     const urlParams = new URLSearchParams(window.location.search);
+    const platform = urlParams.get('platform') || getCookie('selectedPlatform') || serverSelectedPlatform || 'twitch';
+    if (platform === 'kick' || serverSelectedBot === 'kick') {
+      return 'kick';
+    }
     let bot = urlParams.get('bot');
     if (!bot) {
       bot = getCookie('selectedBot');
@@ -889,7 +954,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!bot) {
       bot = serverSelectedBot;
     }
-    if (!bot) {
+    if (!bot || bot === 'kick') {
       bot = 'stable';
     }
     return bot;
@@ -903,6 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bot === 'stable') handleStableBotAction('stop');
         else if (bot === 'beta') handleBetaBotAction('stop');
         else if (bot === 'v6') handleV6BotAction('stop');
+        else if (bot === 'kick') handleKickBotAction('stop');
       });
     }
     if (runBotBtn) {
@@ -911,6 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bot === 'stable') handleStableBotAction('run');
         else if (bot === 'beta') handleBetaBotAction('run');
         else if (bot === 'v6') handleV6BotAction('run');
+        else if (bot === 'kick') handleKickBotAction('run');
       });
     }
   }
@@ -1176,6 +1243,72 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 10);
   }
+  function handleKickBotAction(action) {
+    if (isActingAs) {
+      showNotification(<?php echo json_encode(t('bot_acting_as_disabled')); ?>, 'danger');
+      return;
+    }
+    if (action === 'run' && !window.kickConnected) {
+      showNotification(<?php echo json_encode(t('bot_kick_not_connected')); ?>, 'danger');
+      return;
+    }
+    const btn = action === 'stop' ? stopBotBtn : runBotBtn;
+    const originalContent = btn.innerHTML;
+    showNotification(<?php echo json_encode(t('bot_command_sent_kick', [':action' => ':action'])); ?>.replace(':action', action), 'info');
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
+    btn.disabled = true;
+    if (action === 'run') {
+      botRunOperationInProgress = true;
+      currentBotBeingStarted = 'kick';
+    }
+    setTimeout(() => {
+      fetchWithTimeout('/api/bot_action.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `action=${encodeURIComponent(action)}&bot=kick`
+      }, 8000)
+        .then(response => response.json())
+        .then(data => {
+          if (data.redirect) {
+            showNotification(<?php echo json_encode(t('bot_session_expired_redirect')); ?>, 'warning');
+            setTimeout(() => { window.location.href = data.redirect; }, 1500);
+            return;
+          }
+          if (data.success) {
+            const expectedRunning = (action === 'run');
+            updateUIOptimistically(expectedRunning, 'Kick');
+            window.botProcessRunning = expectedRunning;
+            if (data.message) {
+              showNotification(data.message, 'success');
+            }
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            startStatusVerification('kick', expectedRunning, 0);
+            if (action === 'run') {
+              botRunOperationInProgress = false;
+              currentBotBeingStarted = null;
+            }
+          } else {
+            if (action === 'run') {
+              botRunOperationInProgress = false;
+              currentBotBeingStarted = null;
+            }
+            showNotification(<?php echo json_encode(t('bot_action_failed_kick', [':action' => ':action', ':message' => ':message'])); ?>.replace(':action', action).replace(':message', data.message), 'danger');
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+          }
+        })
+        .catch(error => {
+          if (action === 'run') {
+            botRunOperationInProgress = false;
+            currentBotBeingStarted = null;
+          }
+          showNotification(<?php echo json_encode(t('bot_error_processing_request', [':error' => ':error'])); ?>.replace(':error', error), 'danger');
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+        });
+    }, 10);
+  }
   // Non-blocking polling function using setInterval instead of recursion
   function startPollingBotStatus(botType, maxAttempts) {
     let currentAttempt = 0;
@@ -1280,7 +1413,7 @@ document.addEventListener('DOMContentLoaded', function() {
               showNotification(<?php echo json_encode(t('bot_action_success_status', [':bot' => ':bot', ':action' => ':action', ':status' => ':status'])); ?>.replace(':bot', botType).replace(':action', actionText).replace(':status', statusText), 'success');
               // If bot just started, remove update notifications since the restart has occurred
               if (expectedRunning) {
-                const latestVersion = botType.toLowerCase() === 'beta' ? window.latestBetaVersion : window.latestStableVersion;
+                const latestVersion = botType.toLowerCase() === 'beta' ? window.latestBetaVersion : botType.toLowerCase() === 'kick' ? window.latestKickVersion : window.latestStableVersion;
                 removeUpdateNotificationsForBot(botType.toLowerCase(), latestVersion);
               }
               return; // Stop verification
@@ -1469,7 +1602,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // Show Run button
         buttonContainer.innerHTML = `
-          <button id="run-bot-btn" class="sp-btn sp-btn-success" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
+          <button id="run-bot-btn" class="sp-btn sp-btn-success" ${((selectedBot === 'kick' ? !window.kickConnected : !isBotMod) || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
             <i class="fas fa-play"></i>
             <span><?php echo addslashes(t('bot_run')); ?></span>
           </button>
@@ -1507,6 +1640,9 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log('V6 version updated from', latestV6Version, 'to', data.v6_version);
           // Update the global variable
           window.latestV6Version = data.v6_version;
+        }
+        if (data.kick_bot) {
+          window.latestKickVersion = data.kick_bot;
         }
         applyLatestVersionLabels();
         return data;
@@ -1623,7 +1759,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.botProcessRunning = data.running === true;
             try { updateCustomModuleToggleVisibility(); } catch (e) { /* ignore if not defined yet */ }
             // Check for version updates and code-on-disk newer than last run
-            const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : selectedBot === 'v6' ? window.latestV6Version : window.latestStableVersion;
+            const latestVersion = selectedBot === 'beta' ? window.latestBetaVersion : selectedBot === 'v6' ? window.latestV6Version : selectedBot === 'kick' ? window.latestKickVersion : window.latestStableVersion;
             // Normalize versions to compare (strip whitespace / leading 'v')
             function normalizeVersion(v) {
               if (!v && v !== 0) return '';
@@ -1741,7 +1877,7 @@ document.addEventListener('DOMContentLoaded', function() {
               } else {
                 // Show Run button
                 buttonContainer.innerHTML = `
-                  <button id="run-bot-btn" class="sp-btn sp-btn-success" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
+                  <button id="run-bot-btn" class="sp-btn sp-btn-success" ${((selectedBot === 'kick' ? !window.kickConnected : !isBotMod) || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
                     <i class="fas fa-play"></i>
                     <span><?php echo addslashes(t('bot_run')); ?></span>
                   </button>
@@ -1815,7 +1951,7 @@ document.addEventListener('DOMContentLoaded', function() {
               lastRunElement.textContent = txtErrorLoading;
             }
             if (runningVersionElement) {
-              const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
+              const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : selectedBot === 'v6' ? (serverV6Version || window.latestV6Version) : selectedBot === 'kick' ? (window.latestKickVersion || '') : (serverStableVersion || window.latestStableVersion);
               runningVersionElement.textContent = fallbackVersion;
             }
             setBotStatusBusy(false);
@@ -1834,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', function() {
             lastRunElement.textContent = txtErrorLoading;
           }
           if (runningVersionElement) {
-            const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
+            const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : selectedBot === 'v6' ? (serverV6Version || window.latestV6Version) : selectedBot === 'kick' ? (window.latestKickVersion || '') : (serverStableVersion || window.latestStableVersion);
             runningVersionElement.textContent = fallbackVersion;
           }
           setBotStatusBusy(false);
@@ -1858,7 +1994,7 @@ document.addEventListener('DOMContentLoaded', function() {
           lastRunElement.textContent = txtErrorLoading;
         }
         if (runningVersionElement) {
-          const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : (serverStableVersion || window.latestStableVersion);
+          const fallbackVersion = selectedBot === 'beta' ? (serverBetaVersion || window.latestBetaVersion) : selectedBot === 'v6' ? (serverV6Version || window.latestV6Version) : selectedBot === 'kick' ? (window.latestKickVersion || '') : (serverStableVersion || window.latestStableVersion);
           runningVersionElement.textContent = fallbackVersion;
         }
         setBotStatusBusy(false);
@@ -2288,6 +2424,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (v6Label && v6) {
       v6Label.textContent = '(v' + v6 + ')';
     }
+    const kick = window.latestKickVersion || latestKickVersion;
+    const kickLabel = document.getElementById('bot-kick-version-label');
+    if (kickLabel && kick) {
+      kickLabel.textContent = '(v' + kick + ')';
+    }
     const changelog = document.getElementById('bot-changelog-link');
     if (changelog && stable) {
       const parts = String(stable).replace(/^v/i, '').split('.');
@@ -2611,6 +2752,26 @@ document.addEventListener('DOMContentLoaded', function() {
       return message;
     }
   });
+  window.changePlatformSelection = function(platform) {
+    if (botRunOperationInProgress) {
+      const switchBotName = currentBotBeingStarted ? currentBotBeingStarted.charAt(0).toUpperCase() + currentBotBeingStarted.slice(1) : NOTIF_MARKERS.botWord;
+      showNotification(<?php echo json_encode(t('bot_cannot_switch_warning', [':bot' => ':bot'])); ?>.replace(':bot', switchBotName), 'warning');
+      const platformSelector = document.getElementById('platform-selector');
+      if (platformSelector) {
+        platformSelector.value = serverSelectedPlatform || 'twitch';
+      }
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('platform', platform);
+    if (platform === 'kick') {
+      url.searchParams.delete('bot');
+    } else {
+      const twitchBot = getCookie('selectedBot') || 'stable';
+      url.searchParams.set('bot', ['stable', 'beta', 'v6'].includes(twitchBot) ? twitchBot : 'stable');
+    }
+    window.location.href = url.toString();
+  };
   window.changeBotSelection = function(bot) {
     // Check if a bot run operation is in progress
     if (botRunOperationInProgress) {
@@ -2636,6 +2797,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return; // Don't proceed with the change
     }
     const url = new URL(window.location.href);
+    url.searchParams.set('platform', 'twitch');
     url.searchParams.set('bot', bot);
     window.location.href = url.toString();
   };

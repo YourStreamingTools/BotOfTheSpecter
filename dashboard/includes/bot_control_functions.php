@@ -124,6 +124,7 @@ function performBotAction($action, $botType, $params) {
         if ($botType === 'stable')     { $version = $versionsData['stable_version'] ?? ''; }
         elseif ($botType === 'beta')   { $version = $versionsData['beta_version']   ?? ''; }
         elseif ($botType === 'v6')     { $version = $versionsData['v6_version']      ?? '6.0.0'; }
+        elseif ($botType === 'kick')   { $version = $versionsData['kick_bot']       ?? ''; }
         else                           { $version = $versionsData['stable_version'] ?? ''; }
     }
 
@@ -140,7 +141,15 @@ function performBotAction($action, $botType, $params) {
         require_once __DIR__ . '/bots_api_client.php';
     }
     if ($action === 'run') {
-        if (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
+        if ($botType === 'kick') {
+            $kickMissing = empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)
+                || empty($params['kick_username'] ?? '') || empty($params['kick_chatroom_id'] ?? '')
+                || empty($params['kick_client_id'] ?? '') || empty($params['kick_client_secret'] ?? '');
+            if ($kickMissing) {
+                $result['message'] = 'Kick is not connected or Kick app credentials are missing.';
+                return $result;
+            }
+        } elseif (empty($username) || empty($twitchUserId) || empty($authToken) || empty($refreshToken) || empty($apiKey)) {
             $result['message'] = 'Missing required bot parameters (username, tokens, etc.)';
             return $result;
         }
@@ -158,6 +167,12 @@ function performBotAction($action, $botType, $params) {
             // beta/v6 only; bots API also requires the {channel}.py file on the host
             'load_custom_module' => (bool)($loadCustomModule && in_array($botType, ['beta', 'v6'], true)),
         ];
+        if ($botType === 'kick') {
+            $payload['kick_username'] = $params['kick_username'] ?? '';
+            $payload['chatroom_id'] = $params['kick_chatroom_id'] ?? '';
+            $payload['client_id'] = $params['kick_client_id'] ?? '';
+            $payload['client_secret'] = $params['kick_client_secret'] ?? '';
+        }
         $resp = bots_api_start_bot($payload);
         if (!$resp['ok']) {
             $result['message'] = is_string($resp['error']) ? $resp['error'] : 'Failed to start bot via bots API';
