@@ -18804,8 +18804,8 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                 else:
                     chat_logger.error(f"No data in response; text={resp_text}")
                     return False
-            if status in (401, 403) and CUSTOM_MODE:
-                chat_logger.warning(f"App Access Token rejected ({status}) for custom bot {BOT_USERNAME}. Force-refreshing and retrying.")
+            if status in (401, 403) and not SELF_MODE:
+                chat_logger.warning(f"App Access Token rejected ({status}). Force-refreshing from website DB and retrying.")
                 fresh_website = await get_website_twitch_app_credentials(force_refresh=True)
                 fresh_token = fresh_website.get("access_token") or TWITCH_OAUTH_API_TOKEN
                 if not fresh_token or fresh_token == access_token:

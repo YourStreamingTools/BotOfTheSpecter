@@ -66,7 +66,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.18"
+VERSION = "5.7.19"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -10729,6 +10729,31 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                         return False
                 else:
                     error_text = await response.text()
+                    if response.status in (401, 403):
+                        chat_logger.warning(f"App Access Token rejected ({response.status}). Force-refreshing from website DB and retrying.")
+                        fresh_website = await get_website_twitch_app_credentials(force_refresh=True)
+                        fresh_token = fresh_website.get("access_token") or TWITCH_OAUTH_API_TOKEN
+                        fresh_client_id = fresh_website.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
+                        if not fresh_token or fresh_token == access_token:
+                            chat_logger.error(f"App token unchanged after refresh; cannot send message: {response.status} - {error_text}")
+                            return False
+                        headers["Authorization"] = f"Bearer {fresh_token}"
+                        if fresh_client_id:
+                            headers["Client-Id"] = fresh_client_id
+                        async with httpClientSession() as retry_session:
+                            async with retry_session.post(url, headers=headers, json=data) as retry_response:
+                                if retry_response.status == 200:
+                                    retry_data = await retry_response.json()
+                                    if retry_data.get("data") and retry_data["data"][0].get("is_sent"):
+                                        retry_id = retry_data["data"][0].get("message_id")
+                                        chat_logger.info(f"Sent chat message after app token refresh: {message} (ID: {retry_id})")
+                                        await track_chat_message()
+                                        return True
+                                    chat_logger.error(f"Failed on retry after app token refresh: {retry_response.status}")
+                                    return False
+                                retry_text = await retry_response.text()
+                                chat_logger.error(f"Retry failed after app token refresh: {retry_response.status} - {retry_text}")
+                                return False
                     chat_logger.error(f"Failed to send chat message: {response.status} - {error_text}")
                     return False
     except Exception as e:
