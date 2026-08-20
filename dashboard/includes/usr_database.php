@@ -166,7 +166,7 @@ try {
         'lurk_times' => "
             CREATE TABLE IF NOT EXISTS lurk_times (
                 user_id VARCHAR(255),
-                start_time VARCHAR(255) NOT NULL,
+                start_time DATETIME NOT NULL,
                 source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB",
@@ -1514,6 +1514,23 @@ try {
                     async_log('streamer_tasks: added pending to status ENUM.');
                 } else {
                     async_log('Error altering streamer_tasks status ENUM: ' . $usrDBconn->error);
+                }
+            }
+        }
+    }
+    // Migration: lurk_times.start_time must be DATETIME so MySQL and the bot agree on the type
+    $lurk_times_exists = $usrDBconn->query("SHOW TABLES LIKE 'lurk_times'")->num_rows > 0;
+    if ($lurk_times_exists) {
+        $lurkStartCol = $usrDBconn->query("SHOW COLUMNS FROM lurk_times LIKE 'start_time'");
+        if ($lurkStartCol && $lurkStartCol->num_rows > 0) {
+            $lurkStartRow = $lurkStartCol->fetch_assoc();
+            $lurkStartType = strtolower((string) ($lurkStartRow['Type'] ?? ''));
+            if (strpos($lurkStartType, 'datetime') === false && strpos($lurkStartType, 'timestamp') === false) {
+                $usrDBconn->query("DELETE FROM lurk_times WHERE STR_TO_DATE(REPLACE(LEFT(TRIM(CAST(start_time AS CHAR)), 19), 'T', ' '), '%Y-%m-%d %H:%i:%s') IS NULL");
+                if ($usrDBconn->query("ALTER TABLE lurk_times MODIFY COLUMN start_time DATETIME NOT NULL") === TRUE) {
+                    async_log('lurk_times: converted start_time to DATETIME.');
+                } else {
+                    async_log('Error converting lurk_times.start_time to DATETIME: ' . $usrDBconn->error);
                 }
             }
         }

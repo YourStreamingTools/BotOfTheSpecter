@@ -4,7 +4,7 @@ from asyncio import Queue, CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone, timedelta
 from urllib.parse import urlencode, quote
 from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
@@ -184,6 +184,25 @@ def time_right_now(tz=None):
     if tz:
         return datetime.now(tz)
     return datetime.now()
+
+def parse_lurk_start_time(value):
+    if value is None:
+        raise TypeError("start_time is empty")
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo is not None else value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    text = str(value).strip()
+    if not text:
+        raise ValueError("start_time is empty")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+    iso = text[:-1] + '+00:00' if text.endswith('Z') else text
+    parsed = datetime.fromisoformat(iso)
+    return parsed.replace(tzinfo=None) if parsed.tzinfo is not None else parsed
 
 async def get_http_session() -> httpClientSession:
     global _shared_http_session
@@ -1191,13 +1210,16 @@ async def cmd_unlurk(ctx: _Ctx):
             await cur.execute("SELECT start_time FROM lurk_times WHERE user_id=%s", (ctx.user_id,))
             row = await cur.fetchone()
             if row:
-                duration   = datetime.now() - row["start_time"]
-                hours, rem = divmod(int(duration.total_seconds()), 3600)
-                mins, secs = divmod(rem, 60)
+                try:
+                    duration   = datetime.now() - parse_lurk_start_time(row["start_time"])
+                    hours, rem = divmod(int(duration.total_seconds()), 3600)
+                    mins, secs = divmod(rem, 60)
+                    lurk_msg = f"Welcome back @{ctx.user_name}! You lurked for {hours}h {mins}m {secs}s."
+                except (TypeError, ValueError) as parse_err:
+                    bot_logger.error(f"[UNLURK] Could not parse start_time for {ctx.user_name}: {parse_err}")
+                    lurk_msg = f"Welcome back @{ctx.user_name}!"
                 await cur.execute("DELETE FROM lurk_times WHERE user_id=%s", (ctx.user_id,))
-                await send_chat_message(
-                    f"Welcome back @{ctx.user_name}! You lurked for {hours}h {mins}m {secs}s."
-                )
+                await send_chat_message(lurk_msg)
             else:
                 await send_chat_message(f"Welcome back @{ctx.user_name}!")
 
@@ -1215,10 +1237,14 @@ async def cmd_lurklead(_ctx: _Ctx):
             await cur.execute("SELECT user_name, start_time FROM lurk_times ORDER BY start_time ASC LIMIT 1")
             row = await cur.fetchone()
     if row:
-        duration   = datetime.now() - row["start_time"]
-        hours, rem = divmod(int(duration.total_seconds()), 3600)
-        mins, secs = divmod(rem, 60)
-        await send_chat_message(f"{row['user_name']} is the lurk leader with {hours}h {mins}m {secs}s!")
+        try:
+            duration   = datetime.now() - parse_lurk_start_time(row["start_time"])
+            hours, rem = divmod(int(duration.total_seconds()), 3600)
+            mins, secs = divmod(rem, 60)
+            await send_chat_message(f"{row['user_name']} is the lurk leader with {hours}h {mins}m {secs}s!")
+        except (TypeError, ValueError) as parse_err:
+            bot_logger.error(f"[LURK LEAD] Could not parse start_time: {parse_err}")
+            await send_chat_message("Nobody is lurking right now.")
     else:
         await send_chat_message("Nobody is lurking right now.")
 

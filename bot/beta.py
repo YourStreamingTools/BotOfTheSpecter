@@ -7,7 +7,7 @@ from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone, timedelta
 from urllib.parse import urlencode, quote
 from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
@@ -7387,7 +7387,7 @@ class TwitchBot(commands.Bot):
                         await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                         lurk_result = await cursor.fetchone()
                         if lurk_result:
-                            previous_start_time = datetime.strptime(lurk_result["start_time"], "%Y-%m-%d %H:%M:%S")
+                            previous_start_time = parse_lurk_start_time(lurk_result["start_time"])
                             lurk_duration = now - previous_start_time
                             time_string = format_lurk_time(lurk_duration)
                             lurk_message = (f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
@@ -7446,7 +7446,7 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
-                        start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
+                        start_time = parse_lurk_start_time(result["start_time"])
                         elapsed_time = time_right_now() - start_time
                         time_string = format_lurk_time(elapsed_time)
                         # Send the lurk time message
@@ -7497,8 +7497,11 @@ class TwitchBot(commands.Bot):
                         now = time_right_now()
                         for lurker in lurkers:
                             user_id = lurker['user_id']
-                            start_time_str = lurker['start_time']
-                            start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
+                            try:
+                                start_time = parse_lurk_start_time(lurker['start_time'])
+                            except (TypeError, ValueError) as parse_err:
+                                chat_logger.error(f"[LURK LEAD] Could not parse lurk start_time for user {user_id}: {parse_err}")
+                                continue
                             lurk_duration = now - start_time
                             if longest_lurk is None or lurk_duration.total_seconds() > longest_lurk.total_seconds():
                                 longest_lurk = lurk_duration
@@ -7572,7 +7575,7 @@ class TwitchBot(commands.Bot):
                         time_string = None
                         if timer_enabled:
                             try:
-                                start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
+                                start_time = parse_lurk_start_time(result["start_time"])
                                 time_string = format_lurk_time(time_right_now() - start_time)
                             except (ValueError, TypeError) as parse_err:
                                 chat_logger.error(f"[UNLURK] Could not parse start_time '{result['start_time']}' for {ctx.author.name}: {parse_err}")
@@ -13110,6 +13113,26 @@ async def resume_active_pomos():
     finally:
         if connection:
             await connection.close()
+
+# Function to parse lurk start_time from MySQL (datetime object or string)
+def parse_lurk_start_time(value):
+    if value is None:
+        raise TypeError("start_time is empty")
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo is not None else value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    text = str(value).strip()
+    if not text:
+        raise ValueError("start_time is empty")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+    iso = text[:-1] + '+00:00' if text.endswith('Z') else text
+    parsed = datetime.fromisoformat(iso)
+    return parsed.replace(tzinfo=None) if parsed.tzinfo is not None else parsed
 
 # Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
