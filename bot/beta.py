@@ -19419,9 +19419,10 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                 else:
                     chat_logger.error(f"[SEND MESSAGE] No data in response; text={resp_text}")
                     return False
-            # Handle token expiry - force-refresh the App Access Token and retry once
-            if status in (401, 403) and CUSTOM_MODE:
-                chat_logger.warning(f"[SEND MESSAGE] App Access Token rejected ({status}) for custom bot {BOT_USERNAME}. Force-refreshing and retrying.")
+            # App-token senders (Specter + custom): re-read bot_chat_token and retry once.
+            # Self-mode uses the streamer's user token, which the bot already refreshes on its own.
+            if status in (401, 403) and not SELF_MODE:
+                chat_logger.warning(f"[SEND MESSAGE] App Access Token rejected ({status}). Force-refreshing from website DB and retrying.")
                 fresh_website = await get_website_twitch_app_credentials(force_refresh=True)
                 fresh_token = fresh_website.get("access_token") or TWITCH_OAUTH_API_TOKEN
                 if not fresh_token or fresh_token == access_token:
