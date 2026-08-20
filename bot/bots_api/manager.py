@@ -50,6 +50,8 @@ VERSIONS_URL = os.getenv("API_VERSIONS_URL", "https://api.botofthespecter.com/ve
 _snapshot_lock = threading.Lock()
 
 BOT_TYPES = ("stable", "beta", "v6")
+KICK_TYPE = "kick"
+CONTROL_TYPES = BOT_TYPES + (KICK_TYPE,)
 
 SCRIPT_BY_TYPE = {
     "stable": "bot.py",
@@ -80,11 +82,15 @@ SCRIPT_TYPE_FOR_MTIME = {
     "beta": "beta",
     "v6": "v6",
     "custom": "beta",  # custom flag runs beta.py
+    "kick": "kick",
 }
 
 
-def screen_session_name(channel: str) -> str:
-    return "specter_" + re.sub(r"[^a-zA-Z0-9_]", "_", channel.lower())
+def screen_session_name(channel: str, bot_type: str = "stable") -> str:
+    safe = re.sub(r"[^a-zA-Z0-9_]", "_", channel.lower())
+    if bot_type == KICK_TYPE:
+        return f"specter_kick_{safe}"
+    return f"specter_{safe}"
 
 
 def _script_basename(path_or_name: str) -> str:
@@ -420,11 +426,12 @@ def snapshot_mark_started(
     with _snapshot_lock:
         data = load_snapshot()
         entries = dict(data.get("entries") or {})
-        # start_bot kills other variants for the same channel
-        for other in ("stable", "beta", "v6", "custom"):
-            if other == bot_type:
-                continue
-            entries.pop(_snapshot_key(other, channel), None)
+        # Twitch variants replace each other; Kick runs alongside Twitch.
+        if bot_type != KICK_TYPE:
+            for other in ("stable", "beta", "v6", "custom"):
+                if other == bot_type:
+                    continue
+                entries.pop(_snapshot_key(other, channel), None)
         prev = entries.get(key) if isinstance(entries.get(key), dict) else {}
         entries[key] = {
             "channel": channel,
@@ -804,7 +811,7 @@ def _kill_pids(pids: list[int]) -> tuple[list[int], list[int]]:
 
 async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
     channel = channel.lower()
-    if bot_type not in BOT_TYPES and bot_type != "custom":
+    if bot_type not in CONTROL_TYPES and bot_type != "custom":
         return {"success": False, "state": "error", "message": f"Invalid bot_type: {bot_type}"}
 
     # For beta, also catch custom-flag processes on beta.py
@@ -812,7 +819,7 @@ async def stop_bot(channel: str, bot_type: str) -> dict[str, Any]:
     if bot_type == "beta":
         pids = list(dict.fromkeys(pids + find_pids("custom", channel)))
 
-    session = screen_session_name(channel)
+    session = screen_session_name(channel, bot_type)
     if not pids:
         await _run(f"screen -S {session} -X quit 2>/dev/null; true", shell=True)
         await _run(f"tmux kill-session -t {session} 2>/dev/null; true", shell=True)
@@ -895,9 +902,13 @@ async def start_bot(
     self_mode: bool = False,
     version: str | None = None,
     load_custom_module: bool = False,
+    kick_username: str | None = None,
+    chatroom_id: str | None = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> dict[str, Any]:
     channel = channel.lower()
-    if bot_type not in BOT_TYPES:
+    if bot_type not in CONTROL_TYPES:
         return {"success": False, "state": "error", "message": f"Invalid bot_type: {bot_type}"}
     if custom and self_mode:
         return {"success": False, "state": "error", "message": "custom and self are mutually exclusive"}
@@ -911,6 +922,13 @@ async def start_bot(
         ("refresh", refresh),
         ("apitoken", apitoken),
     ) if not v]
+    if bot_type == KICK_TYPE:
+        missing.extend(n for n, v in (
+            ("kick_username", kick_username),
+            ("chatroom_id", chatroom_id),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+        ) if not v)
     if missing:
         return {"success": False, "state": "error", "message": f"Missing fields: {', '.join(missing)}"}
 
@@ -926,16 +944,17 @@ async def start_bot(
         return {"success": False, "state": "error", "message": f"Bot script missing: {script}"}
 
     other_msg = ""
-    for other in BOT_TYPES:
-        if other == bot_type:
-            continue
-        other_pids = find_pids(other, channel)
-        if other == "beta":
-            other_pids = list(dict.fromkeys(other_pids + find_pids("custom", channel)))
-        if other_pids:
-            killed, _denied = _kill_pids(other_pids)
-            other_msg += f"Stopped {other} bot (PIDs: {', '.join(str(p) for p in killed)}). "
-            await asyncio.sleep(0.4)
+    if bot_type != KICK_TYPE:
+        for other in BOT_TYPES:
+            if other == bot_type:
+                continue
+            other_pids = find_pids(other, channel)
+            if other == "beta":
+                other_pids = list(dict.fromkeys(other_pids + find_pids("custom", channel)))
+            if other_pids:
+                killed, _denied = _kill_pids(other_pids)
+                other_msg += f"Stopped {other} bot (PIDs: {', '.join(str(p) for p in killed)}). "
+                await asyncio.sleep(0.4)
 
     existing = find_pids(bot_type, channel)
     if bot_type == "beta":
@@ -962,30 +981,55 @@ async def start_bot(
             "channel": channel,
         }
 
-    crash_log = CRASH_DIR / f"{channel}.log"
+    crash_log = CRASH_DIR / (f"{channel}_kick.log" if bot_type == KICK_TYPE else f"{channel}.log")
     crash_log.parent.mkdir(parents=True, exist_ok=True)
 
     # Build argv without shell-quoting for the python process itself;
     # outer shell only wraps tee + screen.
-    argv = [
-        str(python_bin),
-        "-u",
-        str(script),
-        "-channel",
-        channel,
-        "-channelid",
-        str(channel_id),
-        "-token",
-        token,
-        "-refresh",
-        refresh,
-        "-apitoken",
-        apitoken,
-    ]
-    if custom and botusername:
-        argv.extend(["-custom", "-botusername", botusername])
-    if self_mode:
-        argv.append("-self")
+    if bot_type == KICK_TYPE:
+        argv = [
+            str(python_bin),
+            "-u",
+            str(script),
+            "-twitchusername",
+            channel,
+            "-kickusername",
+            str(kick_username).lower(),
+            "-channelid",
+            str(channel_id),
+            "-chatroomid",
+            str(chatroom_id),
+            "-token",
+            token,
+            "-refresh",
+            refresh,
+            "-clientid",
+            str(client_id),
+            "-clientsecret",
+            str(client_secret),
+        ]
+        if apitoken:
+            argv.extend(["-apitoken", apitoken])
+    else:
+        argv = [
+            str(python_bin),
+            "-u",
+            str(script),
+            "-channel",
+            channel,
+            "-channelid",
+            str(channel_id),
+            "-token",
+            token,
+            "-refresh",
+            refresh,
+            "-apitoken",
+            apitoken,
+        ]
+        if custom and botusername:
+            argv.extend(["-custom", "-botusername", botusername])
+        if self_mode:
+            argv.append("-self")
     # Opt-in custom channel module: only pass CLI flag when requested and file exists.
     # beta/v6 honor -load-custom-module; stable ignores unknown flags if ever passed.
     module_will_load = False
@@ -1006,7 +1050,7 @@ async def start_bot(
 
     inner = " ".join(sh_quote(a) for a in argv)
     tee_cmd = f"{inner} 2>&1 | tee -a {sh_quote(str(crash_log))}"
-    session = screen_session_name(channel)
+    session = screen_session_name(channel, bot_type)
     start_cmd = f"screen -dmS {sh_quote(session)} bash -c {sh_quote(tee_cmd)}"
 
     code, out, err = await _run(start_cmd, shell=True)
