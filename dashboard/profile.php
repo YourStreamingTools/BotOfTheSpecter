@@ -157,6 +157,9 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             }
         }
 
+        require_once __DIR__ . '/includes/kick_bot.php';
+        $kickLinked = kick_bot_is_linked($conn, (string)($username ?? ''));
+
         echo json_encode([
             'success' => true,
             'storage' => [
@@ -173,6 +176,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
                 'spotify' => $spotifyLinked,
                 'streamelements' => $streamelementsLinked,
                 'streamlabs' => $streamlabsLinked,
+                'kick' => $kickLinked,
             ],
         ]);
     } catch (mysqli_sql_exception $e) {
@@ -360,6 +364,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alertClass = 'is-success';
         } else {
             $message = t('discord_disconnect_error') . ': ' . mysqli_error($conn);
+            $alertClass = 'is-danger';
+        }
+    } elseif ($action === 'disconnect_kick') {
+        require_once __DIR__ . '/includes/kick_bot.php';
+        $kickChannel = strtolower((string)($username ?? ''));
+        if (kick_bot_delete_tokens($conn, $kickChannel)) {
+            $botsClient = __DIR__ . '/includes/bots_api_client.php';
+            if (is_file($botsClient)) {
+                require_once $botsClient;
+                if (function_exists('bots_api_stop_bot')) {
+                    bots_api_stop_bot($kickChannel, 'kick');
+                }
+            }
+            $message = t('kick_disconnected_success');
+            $alertClass = 'is-success';
+        } else {
+            $message = t('kick_disconnect_error');
             $alertClass = 'is-danger';
         }
     } elseif ($action === 'disconnect_spotify') {
@@ -971,9 +992,9 @@ ob_start();
                         <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
                             <div style="display:flex;align-items:center;gap:0.75rem;">
                                 <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
-                                    <img src="https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041" alt="YouTube" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
+                                    <img src="https://cdn.brandfetch.io/id3gkQXO6j/w/400/h/400/theme/dark/icon.jpeg" alt="Kick" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
                                 </span>
-                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('youtube'); ?></p>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('kick'); ?></p>
                             </div>
                             <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" style="width:100%;" disabled>
                                 <i class="fas fa-clock"></i>
@@ -985,9 +1006,9 @@ ob_start();
                         <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
                             <div style="display:flex;align-items:center;gap:0.75rem;">
                                 <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
-                                    <img src="https://cdn.brandfetch.io/id3gkQXO6j/w/400/h/400/theme/dark/icon.jpeg" alt="Kick" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
+                                    <img src="https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041" alt="YouTube" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
                                 </span>
-                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('kick'); ?></p>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('youtube'); ?></p>
                             </div>
                             <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" style="width:100%;" disabled>
                                 <i class="fas fa-clock"></i>
