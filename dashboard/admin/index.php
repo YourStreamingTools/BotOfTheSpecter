@@ -603,6 +603,122 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_token_script']
     exit;
 }
 
+function admin_index_days_until_reset_day($reset_day) {
+    $rd = intval($reset_day);
+    if ($rd < 1 || $rd > 31) {
+        return null;
+    }
+    try {
+        $today = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $year = (int) $today->format('Y');
+        $month = (int) $today->format('n');
+        $day = (int) $today->format('j');
+        if ($day >= $rd) {
+            $month++;
+            if ($month > 12) {
+                $month = 1;
+                $year++;
+            }
+        }
+        $monthStart = new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month), new DateTimeZone('UTC'));
+        $useDay = min($rd, (int) $monthStart->format('t'));
+        $next = $monthStart->setDate($year, $month, $useDay);
+        return max(0, (int) $today->diff($next)->days);
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function admin_index_resolve_exchangerate_sync_key() {
+    global $conn, $admin_key;
+    if (isset($conn) && $conn) {
+        $sql = "SELECT api_key FROM admin_api_keys
+                WHERE LOWER(service) IN ('exchangerate', 'admin')
+                ORDER BY CASE WHEN LOWER(service) = 'exchangerate' THEN 0 ELSE 1 END
+                LIMIT 1";
+        $res = $conn->query($sql);
+        if ($res) {
+            $row = $res->fetch_assoc();
+            if ($row && !empty($row['api_key'])) {
+                return (string) $row['api_key'];
+            }
+        }
+    }
+    if (!empty($admin_key)) {
+        return (string) $admin_key;
+    }
+    return '';
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['check_exchangerate_quota'])) {
+    $success = false;
+    $message = '';
+    $payload = [
+        'requests_remaining' => null,
+        'reset_day' => null,
+        'days_remaining' => null,
+        'plan_quota' => null,
+        'updated' => null,
+        'quota_reached' => false,
+    ];
+    $syncKey = admin_index_resolve_exchangerate_sync_key();
+    if ($syncKey === '') {
+        $message = t('admin_index_exchangerate_no_admin_key');
+    } else {
+        $url = 'https://api.botofthespecter.com/v2/api/exchangerate/quota-sync';
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'X-API-KEY: ' . $syncKey,
+            'Accept: application/json',
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        if ($response === false || $curlError) {
+            $message = t('admin_index_exchangerate_sync_failed') . ' ' . $curlError;
+        } else {
+            $data = json_decode($response, true);
+            if (!is_array($data)) {
+                $message = t('admin_index_invalid_json');
+            } elseif ($httpCode >= 200 && $httpCode < 300 && !empty($data['success'])) {
+                $success = true;
+                $payload['requests_remaining'] = isset($data['requests_remaining']) ? (int) $data['requests_remaining'] : null;
+                $payload['reset_day'] = isset($data['reset_day']) ? (int) $data['reset_day'] : null;
+                $payload['days_remaining'] = isset($data['days_remaining']) ? (int) $data['days_remaining'] : null;
+                $payload['plan_quota'] = isset($data['plan_quota']) ? (int) $data['plan_quota'] : null;
+                $payload['updated'] = !empty($data['updated']) ? (string) $data['updated'] : date('Y-m-d H:i:s');
+                $payload['quota_reached'] = !empty($data['quota_reached']);
+                $message = t('admin_index_exchangerate_synced');
+            } else {
+                $detail = '';
+                if (isset($data['detail'])) {
+                    $detail = is_string($data['detail']) ? $data['detail'] : json_encode($data['detail']);
+                }
+                $message = trim(t('admin_index_exchangerate_sync_failed') . ' ' . $detail);
+            }
+        }
+    }
+    admin_audit_log(
+        'check_exchangerate_quota',
+        $success ? 'success' : 'failed',
+        [
+            'requests_remaining' => $payload['requests_remaining'],
+            'reset_day' => $payload['reset_day'],
+            'message_preview' => mb_substr((string) $message, 0, 300),
+        ],
+        'api',
+        'exchangerate_quota_sync'
+    );
+    ob_clean();
+    header('Content-Type: application/json');
+    echo json_encode(array_merge(['success' => $success, 'message' => $message], $payload));
+    exit;
+}
+
 // Handle bot stop action (bots API only — no SSH kill)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
     $pid = intval($_POST['pid'] ?? 0);
@@ -1352,6 +1468,22 @@ if ($conn) {
                 'last_updated' => $row['last_updated']
             ];
         }
+    }
+}
+
+$exchangerateQuota = [
+    'count' => null,
+    'reset_day' => null,
+    'days_remaining' => null,
+    'updated' => null,
+];
+if ($conn) {
+    $erRes = $conn->query("SELECT count, reset_day, updated FROM api_counts WHERE type = 'exchangerate' LIMIT 1");
+    if ($erRes && ($erRow = $erRes->fetch_assoc())) {
+        $exchangerateQuota['count'] = isset($erRow['count']) ? (int) $erRow['count'] : null;
+        $exchangerateQuota['reset_day'] = isset($erRow['reset_day']) ? (int) $erRow['reset_day'] : null;
+        $exchangerateQuota['days_remaining'] = admin_index_days_until_reset_day($exchangerateQuota['reset_day']);
+        $exchangerateQuota['updated'] = !empty($erRow['updated']) ? $erRow['updated'] : null;
     }
 }
 
@@ -2134,6 +2266,44 @@ ob_start();
     </div>
 </div>
 <?php
+$erRemainingDisplay = $exchangerateQuota['count'] === null ? '--' : number_format($exchangerateQuota['count']);
+$erResetDayDisplay = $exchangerateQuota['reset_day'] ? (string) $exchangerateQuota['reset_day'] : '--';
+$erDaysDisplay = $exchangerateQuota['days_remaining'] === null ? '--' : (string) $exchangerateQuota['days_remaining'];
+$erUpdatedDisplay = t('admin_index_no_data_yet');
+if (!empty($exchangerateQuota['updated']) && $exchangerateQuota['updated'] !== '0000-00-00 00:00:00') {
+    $erTs = strtotime($exchangerateQuota['updated']);
+    if ($erTs) {
+        $erUpdatedDisplay = t('admin_index_last_updated_prefix') . ' ' . date('M d, Y H:i:s', $erTs);
+    }
+}
+?>
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="sp-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+        <h2 class="sp-card-title" style="margin:0;"><span class="icon"><i class="fas fa-coins"></i></span> <?php echo t('admin_index_exchangerate_quota'); ?></h2>
+        <button id="exchangerate-check-now" type="button" class="sp-btn sp-btn-sm sp-btn-primary">
+            <span class="icon"><i class="fas fa-sync"></i></span>
+            <span><?php echo t('admin_index_exchangerate_check_now'); ?></span>
+        </button>
+    </div>
+    <div class="sp-card-body">
+        <div class="sp-stat-row" style="margin-bottom:0.75rem;">
+            <div class="sp-stat">
+                <div class="sp-stat-label"><?php echo t('admin_index_exchangerate_remaining'); ?></div>
+                <div class="sp-stat-value" id="exchangerate-remaining"><?php echo htmlspecialchars($erRemainingDisplay); ?></div>
+            </div>
+            <div class="sp-stat">
+                <div class="sp-stat-label"><?php echo t('admin_index_exchangerate_reset_day'); ?></div>
+                <div class="sp-stat-value" id="exchangerate-reset-day"><?php echo htmlspecialchars($erResetDayDisplay); ?></div>
+            </div>
+            <div class="sp-stat">
+                <div class="sp-stat-label"><?php echo t('admin_index_exchangerate_days_remaining'); ?></div>
+                <div class="sp-stat-value" id="exchangerate-days-remaining"><?php echo htmlspecialchars($erDaysDisplay); ?></div>
+            </div>
+        </div>
+        <p class="sp-help" id="exchangerate-updated"><?php echo htmlspecialchars($erUpdatedDisplay); ?></p>
+    </div>
+</div>
+<?php
 $botIconMap = [
     'discordbot'     => ['icon' => 'fab fa-discord',  'color' => 'sp-text-info'],
     'twitch_stable'  => ['icon' => 'fab fa-twitch',   'color' => 'sp-text-accent'],
@@ -2347,6 +2517,11 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshCustomBotBtn: <?php echo json_encode(t('admin_index_refresh_custom_bot_tokens')); ?>,
         twitchAppTokenService: <?php echo json_encode(t('admin_index_twitch_app_token')); ?>,
         refreshTwitchAppBtn: <?php echo json_encode(t('admin_index_refresh_twitch_app_token')); ?>,
+        exchangerateCheckNow: <?php echo json_encode(t('admin_index_exchangerate_check_now')); ?>,
+        exchangerateChecking: <?php echo json_encode(t('admin_index_exchangerate_checking')); ?>,
+        exchangerateSynced: <?php echo json_encode(t('admin_index_exchangerate_synced')); ?>,
+        exchangerateSyncFailed: <?php echo json_encode(t('admin_index_exchangerate_sync_failed')); ?>,
+        noDataYet: <?php echo json_encode(t('admin_index_no_data_yet')); ?>,
         connecting: <?php echo json_encode(t('admin_index_connecting')); ?>,
         liveOutputSuffix: <?php echo json_encode(t('admin_index_live_output_suffix')); ?>,
         closeBtn: <?php echo json_encode(t('admin_index_close')); ?>,
@@ -2758,6 +2933,89 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     };
+    function formatExchangerateUpdated(raw) {
+        if (!raw) return adminI18n.noDataYet;
+        const parsed = new Date(String(raw).replace(' ', 'T'));
+        if (isNaN(parsed.getTime())) {
+            return adminI18n.lastUpdatedPrefix + ' ' + raw;
+        }
+        const formatted = parsed.toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        return adminI18n.lastUpdatedPrefix + ' ' + formatted;
+    }
+    function setExchangerateQuotaDisplay(data) {
+        const remainingEl = document.getElementById('exchangerate-remaining');
+        const resetEl = document.getElementById('exchangerate-reset-day');
+        const daysEl = document.getElementById('exchangerate-days-remaining');
+        const updatedEl = document.getElementById('exchangerate-updated');
+        if (remainingEl && data.requests_remaining !== null && data.requests_remaining !== undefined) {
+            remainingEl.textContent = Number(data.requests_remaining).toLocaleString();
+        }
+        if (resetEl && data.reset_day !== null && data.reset_day !== undefined) {
+            resetEl.textContent = String(data.reset_day);
+        }
+        if (daysEl && data.days_remaining !== null && data.days_remaining !== undefined) {
+            daysEl.textContent = String(data.days_remaining);
+        }
+        if (updatedEl) {
+            updatedEl.textContent = formatExchangerateUpdated(data.updated);
+        }
+    }
+    const exchangerateCheckBtn = document.getElementById('exchangerate-check-now');
+    if (exchangerateCheckBtn) {
+        exchangerateCheckBtn.addEventListener('click', function() {
+            if (exchangerateCheckBtn.disabled) return;
+            exchangerateCheckBtn.disabled = true;
+            exchangerateCheckBtn.classList.add('sp-btn-loading');
+            exchangerateCheckBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>' + adminI18n.exchangerateChecking + '</span>';
+            const formData = new FormData();
+            formData.append('check_exchangerate_quota', '1');
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.success) {
+                    setExchangerateQuotaDisplay(data);
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: data.message || adminI18n.exchangerateSynced,
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                } else {
+                    Swal.fire({
+                        title: adminI18n.errorTitle,
+                        text: (data && data.message) ? data.message : adminI18n.exchangerateSyncFailed,
+                        icon: 'error',
+                        confirmButtonText: adminI18n.okBtn
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    title: adminI18n.errorTitle,
+                    text: adminI18n.netErrorPrefix + ' ' + error.message,
+                    icon: 'error',
+                    confirmButtonText: adminI18n.okBtn
+                });
+            })
+            .finally(() => {
+                exchangerateCheckBtn.disabled = false;
+                exchangerateCheckBtn.classList.remove('sp-btn-loading');
+                exchangerateCheckBtn.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + adminI18n.exchangerateCheckNow + '</span>';
+            });
+        });
+    }
     // Function to refresh Spotify tokens
     window.refreshSpotifyTokens = function() {
         const button = document.querySelector('button[onclick="refreshSpotifyTokens()"]');

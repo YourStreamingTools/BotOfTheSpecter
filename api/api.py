@@ -701,12 +701,39 @@ async def update_api_count(count_type, new_count, reset_day=None):
     finally:
         conn.close()
 
+def _days_until_reset_day(reset_day):
+    try:
+        rd = int(reset_day)
+    except (TypeError, ValueError):
+        return None
+    if rd < 1 or rd > 31:
+        return None
+    today = datetime.now(timezone.utc)
+    try:
+        if today.day >= rd:
+            next_month = today.month + 1 if today.month < 12 else 1
+            next_year = today.year + 1 if today.month == 12 else today.year
+            next_reset = datetime(next_year, next_month, rd, tzinfo=timezone.utc)
+        else:
+            next_reset = datetime(today.year, today.month, rd, tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return max(0, (next_reset - today).days)
+
+_exchangerate_quota_lock = asyncio.Lock()
+
 async def sync_exchangerate_quota():
+    """Reconcile local exchangerate remaining with upstream /quota (costs 1 request)."""
+    async with _exchangerate_quota_lock:
+        return await _sync_exchangerate_quota_unlocked()
+
+async def _sync_exchangerate_quota_unlocked():
     api_key = (os.getenv("EXCHANGE_RATE_API") or "").strip()
     if not api_key:
         logging.error("EXCHANGE_RATE_API is not set; skipping exchangerate quota sync")
-        return False
+        return {"ok": False, "error": "EXCHANGE_RATE_API is not set"}
     url = f"https://v6.exchangerate-api.com/v6/{api_key}/quota"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         timeout = aiohttp.ClientTimeout(total=20)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -715,21 +742,21 @@ async def sync_exchangerate_quota():
                     data = await response.json(content_type=None)
                 except Exception:
                     logging.error(f"exchangerate /quota returned non-JSON (HTTP {response.status})")
-                    return False
+                    return {"ok": False, "error": f"non-JSON response (HTTP {response.status})"}
     except Exception as e:
         sanitized_error = str(e).replace(api_key, "[EXCHANGE_RATE_API_KEY]")
         logging.error(f"Failed to fetch exchangerate quota: {sanitized_error}")
-        return False
+        return {"ok": False, "error": sanitized_error}
     if not isinstance(data, dict):
         logging.error("exchangerate /quota returned a non-object JSON body")
-        return False
+        return {"ok": False, "error": "non-object JSON body"}
     result = data.get("result")
     if result == "success":
         try:
             remaining = int(data.get("requests_remaining"))
         except (TypeError, ValueError):
             logging.error("exchangerate /quota missing or invalid requests_remaining")
-            return False
+            return {"ok": False, "error": "missing or invalid requests_remaining"}
         # /quota itself counts against usage, so local remaining is one less than reported.
         local_remaining = max(0, remaining - 1)
         reset_day = None
@@ -739,23 +766,43 @@ async def sync_exchangerate_quota():
                 reset_day = refresh_day
         except (TypeError, ValueError):
             reset_day = None
+        plan_quota = None
+        try:
+            if data.get("plan_quota") is not None:
+                plan_quota = int(data.get("plan_quota"))
+        except (TypeError, ValueError):
+            plan_quota = None
         await get_api_count("exchangerate")
         await update_api_count("exchangerate", local_remaining, reset_day=reset_day)
-        plan_quota = data.get("plan_quota")
         reset_note = f", reset_day={reset_day}" if reset_day is not None else ""
         logging.info(
             f"Synced exchangerate quota: plan_quota={plan_quota}, upstream remaining={remaining}, "
             f"local remaining={local_remaining} (minus quota call){reset_note}"
         )
-        return True
+        return {
+            "ok": True,
+            "requests_remaining": local_remaining,
+            "upstream_remaining": remaining,
+            "plan_quota": plan_quota,
+            "reset_day": reset_day,
+            "updated": now_str,
+        }
     error_type = data.get("error-type", "unknown")
     if error_type == "quota-reached":
         await get_api_count("exchangerate")
         await update_api_count("exchangerate", 0)
         logging.warning("exchangerate /quota reports quota-reached; set remaining to 0")
-        return True
+        return {
+            "ok": True,
+            "requests_remaining": 0,
+            "upstream_remaining": 0,
+            "plan_quota": None,
+            "reset_day": None,
+            "updated": now_str,
+            "quota_reached": True,
+        }
     logging.error(f"exchangerate /quota error: {error_type}")
-    return False
+    return {"ok": False, "error": f"upstream error: {error_type}", "error_type": error_type}
 
 # Midnight function
 async def midnight():
@@ -3261,19 +3308,42 @@ async def api_exchangerate():
     try:
         # Get count from database
         count, reset_day = await get_api_count("exchangerate")
-        # Calculate days until reset (based on UTC now)
-        reset_day = int(reset_day)
-        today = datetime.now(timezone.utc)
-        if today.day >= reset_day:
-            next_month = today.month + 1 if today.month < 12 else 1
-            next_year = today.year + 1 if today.month == 12 else today.year
-            next_reset = datetime(next_year, next_month, reset_day, tzinfo=timezone.utc)
-        else:
-            next_reset = datetime(today.year, today.month, reset_day, tzinfo=timezone.utc)
-        days_until_reset = (next_reset - today).days
+        days_until_reset = _days_until_reset_day(reset_day)
+        if days_until_reset is None:
+            days_until_reset = 0
         return {"requests_remaining": str(count), "days_remaining": days_until_reset}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving exchangerate API count: {str(e)}")
+
+@app.post(
+    "/api/exchangerate/quota-sync",
+    summary="Reconcile ExchangeRate remaining from upstream /quota",
+    description="Admin only. Calls ExchangeRate-API /quota once, stores remaining minus one (the quota check itself costs 1), and updates reset_day from refresh_day_of_month.",
+    tags=["Admin Only"],
+    operation_id="sync_exchangerate_quota"
+)
+async def api_exchangerate_quota_sync(api_key: str = Query(...)):
+    key_info = await verify_key(api_key, service="exchangerate")
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    result = await sync_exchangerate_quota()
+    if not result or not result.get("ok"):
+        error = (result or {}).get("error") or "ExchangeRate quota sync failed"
+        raise HTTPException(status_code=502, detail=error)
+    reset_day = result.get("reset_day")
+    if reset_day is None:
+        _, stored_reset_day = await get_api_count("exchangerate")
+        reset_day = stored_reset_day
+    return {
+        "success": True,
+        "requests_remaining": result.get("requests_remaining"),
+        "upstream_remaining": result.get("upstream_remaining"),
+        "plan_quota": result.get("plan_quota"),
+        "reset_day": reset_day,
+        "days_remaining": _days_until_reset_day(reset_day),
+        "updated": result.get("updated"),
+        "quota_reached": bool(result.get("quota_reached")),
+    }
 
 # Public API Requests Remaining (for weather)
 @app.get(
