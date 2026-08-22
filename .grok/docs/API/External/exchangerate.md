@@ -505,7 +505,7 @@ All four share the same single `EXCHANGE_RATE_API` env var and therefore the sam
 
 Returns the local cached count from `website.api_counts` (`type='exchangerate'`). Not a live call upstream. Used by the dashboard to display remaining requests and days until reset.
 
-After each successful conversion call, every bot callsite decrements the `api_counts` row by 1. At UTC midnight the API server calls `/v6/{KEY}/quota` once (`sync_exchangerate_quota()`), stores `max(0, requests_remaining - 1)` because that check itself costs 1 request, and writes `refresh_day_of_month` into `reset_day`. The old hardcoded refill to 1500 on day 14 is gone — `/quota` is the source of truth for remaining and reset day. Crashes mid-call or calls from multiple processes can still cause the local count to drift during the day until the next midnight sync.
+After each successful conversion call, every bot callsite decrements the `api_counts` row by 1. At UTC midnight the API server calls `/v6/{KEY}/quota` once (`sync_exchangerate_quota()`), stores `max(0, requests_remaining - 1)` because that check itself costs 1 request, and writes `refresh_day_of_month` into `reset_day`. The same sync is available on demand as admin-only `POST /api/exchangerate/quota-sync` (dashboard Admin → Check now). The old hardcoded refill to 1500 on day 14 is gone — `/quota` is the source of truth for remaining and reset day. Crashes mid-call or calls from multiple processes can still cause the local count to drift during the day until the next midnight or Check now sync.
 
 ### Key loading
 

@@ -272,14 +272,14 @@ No per-second rate limits documented. Rates update **once per UTC day** on every
 Current usage:
 - `!convert` command in all four bots calls `/pair/{FROM}/{TO}/{AMOUNT}` (endpoint 4)
 - Dashboard quota widget reads the **local** `website.api_counts` row via `GET /api/exchangerate` - does NOT call `/quota` upstream
-- API midnight task calls `/quota` once per UTC day (`sync_exchangerate_quota()`), stores `requests_remaining - 1`, and updates `reset_day`
+- API midnight task and admin Check now (`POST /api/exchangerate/quota-sync`) call `/quota`, store `requests_remaining - 1`, and update `reset_day`
 
 Rules for any new ExchangeRate-API integration:
 
 1. **Always scrub the key on logged errors.** Every new error path: `str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')`. The key is in the URL - exception strings often include it.
 2. **Always check `result == "success"`.** HTTP 200 doesn't guarantee success on this API.
 3. **Decrement `api_counts` on every successful conversion call.** One key, four bot processes, one shared monthly quota - local counting is how the dashboard shows "remaining" between midnight syncs. See the existing `!convert` callsites for the pattern.
-4. **Call `/quota` once per UTC day from the API midnight task, never from the bots.** It has a 5–60 min reporting lag AND each call burns 1 quota. Store `max(0, requests_remaining - 1)` and update `reset_day` from `refresh_day_of_month`. Do not poll it from convert, the dashboard, or a tighter timer.
+4. **Call `/quota` only from the API midnight task and the admin Check now button, never from the bots.** It has a 5–60 min reporting lag AND each call burns 1 quota. Store `max(0, requests_remaining - 1)` and update `reset_day` from `refresh_day_of_month`. Do not poll it from convert, the public dashboard widget, or a tighter timer. Admin Check now is `POST /api/exchangerate/quota-sync` (admin key, service `admin` or `exchangerate`).
 5. **Don't add `/history` or `/enriched` calls without a plan upgrade.** Both return `plan-upgrade-required` on Free. If a feature genuinely needs them, confirm the upgrade first.
 6. **Validate currency codes against `/codes`** (cached) before user-driven conversion calls. Saves quota on `unsupported-code` errors and gives better UX.
 7. **Cache rates client-side using `time_next_update_unix`.** If displaying the same rate to many users, hit `/pair` once before that timestamp and reuse - rates can't change before then.
@@ -296,7 +296,7 @@ Rules for any new ExchangeRate-API integration:
 | Accessing `response["error-type"]` without the quotes | Hyphen → must use bracket notation, not `.error_type` |
 | Padding months/days with leading zeros on `/history` | `/3/9`, not `/03/09` |
 | Hardcoding the currency list | Fetch `/codes` and cache; ISO codes change |
-| Calling `/quota` to display remaining requests | Use the local `api_counts` counter - `/quota` lags 5–60 min and burns quota. The API midnight task is the only allowed `/quota` caller |
+| Calling `/quota` to display remaining requests | Use the local `api_counts` counter - `/quota` lags 5–60 min and burns quota. Only the API midnight task and admin Check now may call `/quota` |
 | Polling for fresh rates inside the same UTC day | Rates update 1×/day - use `time_next_update_unix` as a cache TTL |
 | Assuming "market rate" for ARS/LYD/SSP/SYP/VES/YER/ZWL | These are central-bank rates - they can diverge wildly from parallel-market rates |
 | Calling `/history` or `/enriched` from this project | Free plan returns `plan-upgrade-required` |
