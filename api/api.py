@@ -669,25 +669,93 @@ async def get_api_count(count_type):
         conn.close()
 
 # Function to update API count in database
-async def update_api_count(count_type, new_count):
+async def update_api_count(count_type, new_count, reset_day=None):
     conn = await get_mysql_connection()
     try:
         async with conn.cursor() as cur:
             local_now = datetime.now()  # local system time
             local_now_str = local_now.strftime('%Y-%m-%d %H:%M:%S')
-            await cur.execute("""
-                UPDATE api_counts
-                SET count = %s,
-                    updated = %s
-                WHERE type = %s
-            """, (new_count, local_now_str, count_type))
+            if reset_day is None:
+                await cur.execute("""
+                    UPDATE api_counts
+                    SET count = %s,
+                        updated = %s
+                    WHERE type = %s
+                """, (new_count, local_now_str, count_type))
+            else:
+                await cur.execute("""
+                    UPDATE api_counts
+                    SET count = %s,
+                        reset_day = %s,
+                        updated = %s
+                    WHERE type = %s
+                """, (new_count, reset_day, local_now_str, count_type))
             await conn.commit()
-            logging.info(f"Successfully updated {count_type} count to {new_count}")
+            if reset_day is None:
+                logging.info(f"Successfully updated {count_type} count to {new_count}")
+            else:
+                logging.info(f"Successfully updated {count_type} count to {new_count} (reset_day={reset_day})")
     except Exception as e:
         logging.error(f"Error updating API count for {count_type}: {e}")
         raise
     finally:
         conn.close()
+
+async def sync_exchangerate_quota():
+    api_key = (os.getenv("EXCHANGE_RATE_API") or "").strip()
+    if not api_key:
+        logging.error("EXCHANGE_RATE_API is not set; skipping exchangerate quota sync")
+        return False
+    url = f"https://v6.exchangerate-api.com/v6/{api_key}/quota"
+    try:
+        timeout = aiohttp.ClientTimeout(total=20)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                try:
+                    data = await response.json(content_type=None)
+                except Exception:
+                    logging.error(f"exchangerate /quota returned non-JSON (HTTP {response.status})")
+                    return False
+    except Exception as e:
+        sanitized_error = str(e).replace(api_key, "[EXCHANGE_RATE_API_KEY]")
+        logging.error(f"Failed to fetch exchangerate quota: {sanitized_error}")
+        return False
+    if not isinstance(data, dict):
+        logging.error("exchangerate /quota returned a non-object JSON body")
+        return False
+    result = data.get("result")
+    if result == "success":
+        try:
+            remaining = int(data.get("requests_remaining"))
+        except (TypeError, ValueError):
+            logging.error("exchangerate /quota missing or invalid requests_remaining")
+            return False
+        # /quota itself counts against usage, so local remaining is one less than reported.
+        local_remaining = max(0, remaining - 1)
+        reset_day = None
+        try:
+            refresh_day = int(data.get("refresh_day_of_month"))
+            if 1 <= refresh_day <= 31:
+                reset_day = refresh_day
+        except (TypeError, ValueError):
+            reset_day = None
+        await get_api_count("exchangerate")
+        await update_api_count("exchangerate", local_remaining, reset_day=reset_day)
+        plan_quota = data.get("plan_quota")
+        reset_note = f", reset_day={reset_day}" if reset_day is not None else ""
+        logging.info(
+            f"Synced exchangerate quota: plan_quota={plan_quota}, upstream remaining={remaining}, "
+            f"local remaining={local_remaining} (minus quota call){reset_note}"
+        )
+        return True
+    error_type = data.get("error-type", "unknown")
+    if error_type == "quota-reached":
+        await get_api_count("exchangerate")
+        await update_api_count("exchangerate", 0)
+        logging.warning("exchangerate /quota reports quota-reached; set remaining to 0")
+        return True
+    logging.error(f"exchangerate /quota error: {error_type}")
+    return False
 
 # Midnight function
 async def midnight():
@@ -730,28 +798,25 @@ async def midnight():
                             except Exception as e:
                                 logging.error(f"Failed to reset weather count: {e}")
                             # Reset API counts for types that reset on a specific day (day-of-month in UTC)
-                            await cur.execute("SELECT type, reset_day FROM api_counts WHERE type in ('shazam', 'exchangerate')")
-                            reset_days = await cur.fetchall()
-                            for api_type, reset_day in reset_days:
+                            await cur.execute("SELECT reset_day FROM api_counts WHERE type = 'shazam'")
+                            shazam_row = await cur.fetchone()
+                            if shazam_row:
                                 try:
-                                    rd = int(reset_day)
+                                    rd = int(shazam_row[0])
                                 except Exception:
-                                    # Skip invalid reset_day values
-                                    continue
-                                # If the reset_day equals today's UTC day-of-month, reset that API count
+                                    rd = None
                                 if rd == now_utc.day:
-                                    if api_type == "shazam":
-                                        try:
-                                            await update_api_count("shazam", 500)
-                                        except Exception as e:
-                                            logging.error(f"Failed to reset shazam count: {e}")
-                                    elif api_type == "exchangerate":
-                                        try:
-                                            await update_api_count("exchangerate", 1500)
-                                        except Exception as e:
-                                            logging.error(f"Failed to reset exchangerate count: {e}")
+                                    try:
+                                        await update_api_count("shazam", 500)
+                                    except Exception as e:
+                                        logging.error(f"Failed to reset shazam count: {e}")
                     finally:
                         conn.close()
+                    # ExchangeRate remaining comes from upstream /quota (once per UTC day).
+                    try:
+                        await sync_exchangerate_quota()
+                    except Exception as e:
+                        logging.error(f"Failed to sync exchangerate quota: {e}")
                     last_utc_reset = now_utc.date()
             except asyncio.CancelledError:
                 # Allow cancellation to propagate so shutdown is clean

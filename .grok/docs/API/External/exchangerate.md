@@ -470,7 +470,7 @@ GET /v6/{KEY}/quota
 | `requests_remaining` | integer | Requests remaining until quota reset |
 | `refresh_day_of_month` | integer | Day of the month the quota resets (anniversary of sign-up date, not necessarily the 1st) |
 
-**Reporting delay:** Usage takes 5–60 minutes to appear here after calls are made. Do not rely on this for real-time counting - the local `api_counts` table in `website` DB is more current.
+**Reporting delay:** Usage takes 5–60 minutes to appear here after calls are made. Do not rely on this for real-time counting - the local `api_counts` table in `website` DB is more current during the day. The API midnight task is the only caller of this endpoint.
 
 ---
 
@@ -501,23 +501,24 @@ All four share the same single `EXCHANGE_RATE_API` env var and therefore the sam
 
 ### Internal proxy endpoint
 
-`./api/api.py:2814–2838` - `GET /api/exchangerate`
+`./api/api.py` - `GET /api/exchangerate`
 
-Returns the local cached count from `website.api_counts` (`type='exchangerate'`). Not a live call upstream. Used by the dashboard to display "X of 1500 requests remaining; resets in N days." The monthly reset background task is at `./api/api.py:580–597`.
+Returns the local cached count from `website.api_counts` (`type='exchangerate'`). Not a live call upstream. Used by the dashboard to display remaining requests and days until reset.
 
-After each successful upstream call, every callsite decrements the `api_counts` row by 1. Crashes mid-call or calls from multiple processes can cause the local count to drift from real upstream usage.
+After each successful conversion call, every bot callsite decrements the `api_counts` row by 1. At UTC midnight the API server calls `/v6/{KEY}/quota` once (`sync_exchangerate_quota()`), stores `max(0, requests_remaining - 1)` because that check itself costs 1 request, and writes `refresh_day_of_month` into `reset_day`. The old hardcoded refill to 1500 on day 14 is gone — `/quota` is the source of truth for remaining and reset day. Crashes mid-call or calls from multiple processes can still cause the local count to drift during the day until the next midnight sync.
 
 ### Key loading
 
 - Env var: `EXCHANGE_RATE_API`
-- Documented in `./bot/.env.example:23` and `./help/run_yourself.php:1196`
-- Loaded at startup: `./bot/bot.py:77,9889`, `./bot/beta.py:105,13941`, `./bot/beta-v6.py:99,11371`, `./bot/kick.py:78`
+- Documented in `./bot/.env.example`
+- Loaded at startup in the bots: `./bot/bot.py`, `./bot/beta.py`, `./bot/beta-v6.py`, `./bot/kick.py`
+- Read at call time by the API midnight quota sync in `./api/api.py`
 
 ### Operational notes
 
-- **Key in path, not header.** All error paths must scrub with `.replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')` to prevent key leakage in log files.
+- **Key in path, not header.** All error paths must scrub with `.replace(api_key, '[EXCHANGE_RATE_API_KEY]')` to prevent key leakage in log files.
 - **`result` is a string.** Compare with `== "success"`. A 200 HTTP response can still carry `"result": "error"`.
-- **One key, four bots.** Stable, beta, v6, and Kick all draw from the same quota.
+- **One key, four bots plus the API midnight sync.** Stable, beta, v6, and Kick all draw from the same quota. The API server uses one extra request per UTC day for `/quota`.
 - **Amount in URL = distinct cache key per amount.** If a caching layer is ever added, cache the rate-only form (`/pair/{FROM}/{TO}`) and multiply locally.
 - **No automatic key rotation.** Rotating the key requires updating `/home/botofthespecter/.env` (server) and restarting all four processes that imported it at startup.
 - **Enriched and Historical endpoints are not available on the Free plan.** Adding calls to those endpoints will return `plan-upgrade-required` until the account is upgraded.
