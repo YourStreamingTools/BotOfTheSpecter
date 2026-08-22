@@ -280,7 +280,7 @@ These accept the **user** API key, then the public API calls the private bots co
 **Daily/Monthly Resets** (via midnight task):
 - **Weather**: 1000 requests/day (UTC midnight reset)
 - **Shazam**: 500 requests/month (reset on specific day)
-- **ExchangeRate**: 1500 requests/month (reset on specific day)
+- **ExchangeRate**: UTC midnight calls upstream `/quota` once, stores `max(0, requests_remaining - 1)` (the quota check itself costs 1), and writes `refresh_day_of_month` into `reset_day`. Bots still decrement the local row on each `!convert`.
 
 **Tracking**: `api_counts` table with `updated` timestamp
 

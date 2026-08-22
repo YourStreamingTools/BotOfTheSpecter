@@ -7,7 +7,7 @@ description: Use when calling, extending, or debugging ExchangeRate-API v6 - the
 
 JSON REST API for currency conversion. Base URL `https://v6.exchangerate-api.com`, all paths prefixed `/v6/`. HTTPS only.
 
-This file documents the API surface. For BotOfTheSpecter-specific integration detail (every callsite, the `api_counts` local counter, the monthly-reset background task, key-loading lines), see `./.grok/docs/API/External/exchangerate.md`.
+This file documents the API surface. For BotOfTheSpecter-specific integration detail (every callsite, the `api_counts` local counter, the UTC midnight `/quota` sync, key-loading lines), see `./.grok/docs/API/External/exchangerate.md`.
 
 ## When to use this skill
 
@@ -52,8 +52,9 @@ Available on all plans. Mechanical swap: drop the `{KEY}/` segment from the URL,
 ### Key source in this repo
 
 - Env var: `EXCHANGE_RATE_API` (loaded from `/home/botofthespecter/.env` on the server)
-- Module-level variable in code: `EXCHANGE_RATE_API_KEY`
-- Loaded at startup in `./bot/bot.py:77,9889`, `./bot/beta.py:105,13941`, `./bot/beta-v6.py:99,11371`, `./bot/kick.py:78`
+- Module-level variable in the bots: `EXCHANGE_RATE_API_KEY`
+- Loaded at startup in `./bot/bot.py`, `./bot/beta.py`, `./bot/beta-v6.py`, `./bot/kick.py`
+- Read at call time in `./api/api.py` `sync_exchangerate_quota()` (UTC midnight `/quota` reconciliation)
 - Never hardcoded, never logged. See `secrets.md`.
 
 ## The 7 endpoints
@@ -234,9 +235,9 @@ Available on all plans. Returns the account's billing state:
 | `requests_remaining` | Requests left until reset |
 | `refresh_day_of_month` | Day of the month quota resets - **anniversary of sign-up date**, not the 1st |
 
-**This call counts against the quota itself.** Per the docs, this was originally free, but users put it in `while(1){}` loops and generated tens of millions of useless requests - so the API team made it billable. Don't poll it.
+**This call counts against the quota itself.** Per the docs, this was originally free, but users put it in `while(1){}` loops and generated tens of millions of useless requests - so the API team made it billable. Call it once per UTC day from the API midnight task; do not poll it.
 
-**5–60 minute reporting delay** - usage takes time to surface here, so this lags reality. Useful for occasional health checks, not for real-time counting.
+**5–60 minute reporting delay** - usage takes time to surface here, so this lags reality. Useful for the nightly reconcile, not for real-time counting.
 
 **Narrower error set than the other endpoints.** `/quota` only returns three `error-type` values:
 - `invalid-key`
@@ -245,7 +246,7 @@ Available on all plans. Returns the account's billing state:
 
 It will never return `unsupported-code`, `malformed-request`, `no-data-available`, or `plan-upgrade-required` (the path takes no currency, no date, and isn't gated by plan).
 
-For real-time counting in this project, the local `website.api_counts` row (`type='exchangerate'`) decremented on every call is more current than `/quota`. See `./api/api.py:2814–2838` (the proxy endpoint that exposes the local count) and `./api/api.py:580–597` (the monthly reset task). Treat `/quota` as a reconciliation check at most - e.g., compare against the local counter once a day.
+For real-time counting in this project, the local `website.api_counts` row (`type='exchangerate'`) decremented on every `!convert` is more current than `/quota` during the day. See `./api/api.py` `GET /api/exchangerate` (the proxy that exposes the local count) and `sync_exchangerate_quota()` in the UTC midnight task. Once per UTC day the API server calls `/quota`, stores `max(0, requests_remaining - 1)` (the quota check itself costs 1), and writes `refresh_day_of_month` into `reset_day`. Do not poll `/quota` more often than that.
 
 ## Plan tiers (relevant fields only)
 
@@ -270,14 +271,15 @@ No per-second rate limits documented. Rates update **once per UTC day** on every
 
 Current usage:
 - `!convert` command in all four bots calls `/pair/{FROM}/{TO}/{AMOUNT}` (endpoint 4)
-- Dashboard quota widget reads the **local** `website.api_counts` row via the proxy at `./api/api.py:2814–2838` - does NOT call `/quota` upstream
+- Dashboard quota widget reads the **local** `website.api_counts` row via `GET /api/exchangerate` - does NOT call `/quota` upstream
+- API midnight task calls `/quota` once per UTC day (`sync_exchangerate_quota()`), stores `requests_remaining - 1`, and updates `reset_day`
 
 Rules for any new ExchangeRate-API integration:
 
 1. **Always scrub the key on logged errors.** Every new error path: `str(e).replace(EXCHANGE_RATE_API_KEY, '[EXCHANGE_RATE_API_KEY]')`. The key is in the URL - exception strings often include it.
 2. **Always check `result == "success"`.** HTTP 200 doesn't guarantee success on this API.
-3. **Decrement `api_counts` on every successful call.** One key, four bot processes, one shared 1,500/month quota - local counting is how the dashboard shows "remaining". See the existing callsites for the pattern.
-4. **Don't call `/quota` on a timer.** It has a 5–60 min reporting lag AND each call burns 1 quota. Trust the local counter.
+3. **Decrement `api_counts` on every successful conversion call.** One key, four bot processes, one shared monthly quota - local counting is how the dashboard shows "remaining" between midnight syncs. See the existing `!convert` callsites for the pattern.
+4. **Call `/quota` once per UTC day from the API midnight task, never from the bots.** It has a 5–60 min reporting lag AND each call burns 1 quota. Store `max(0, requests_remaining - 1)` and update `reset_day` from `refresh_day_of_month`. Do not poll it from convert, the dashboard, or a tighter timer.
 5. **Don't add `/history` or `/enriched` calls without a plan upgrade.** Both return `plan-upgrade-required` on Free. If a feature genuinely needs them, confirm the upgrade first.
 6. **Validate currency codes against `/codes`** (cached) before user-driven conversion calls. Saves quota on `unsupported-code` errors and gives better UX.
 7. **Cache rates client-side using `time_next_update_unix`.** If displaying the same rate to many users, hit `/pair` once before that timestamp and reuse - rates can't change before then.
@@ -294,7 +296,7 @@ Rules for any new ExchangeRate-API integration:
 | Accessing `response["error-type"]` without the quotes | Hyphen → must use bracket notation, not `.error_type` |
 | Padding months/days with leading zeros on `/history` | `/3/9`, not `/03/09` |
 | Hardcoding the currency list | Fetch `/codes` and cache; ISO codes change |
-| Calling `/quota` to display remaining requests | Use the local `api_counts` counter - `/quota` lags 5–60 min and burns quota |
+| Calling `/quota` to display remaining requests | Use the local `api_counts` counter - `/quota` lags 5–60 min and burns quota. The API midnight task is the only allowed `/quota` caller |
 | Polling for fresh rates inside the same UTC day | Rates update 1×/day - use `time_next_update_unix` as a cache TTL |
 | Assuming "market rate" for ARS/LYD/SSP/SYP/VES/YER/ZWL | These are central-bank rates - they can diverge wildly from parallel-market rates |
 | Calling `/history` or `/enriched` from this project | Free plan returns `plan-upgrade-required` |
