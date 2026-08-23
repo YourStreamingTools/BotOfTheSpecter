@@ -35,6 +35,7 @@ $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key);
 $overlayLinkMasked = $overlayLink . '?code=' . str_repeat('•', 24);
 
 $allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'custom'];
+$allowedWeather = ['off', 'winter', 'spring', 'summer', 'autumn', 'rain'];
 $avatarImageExts = ['png', 'webp'];
 $avatarMediaDir = rtrim($media_path, '/\\') . '/avatar';
 $avatarMediaUrl = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/avatar/';
@@ -68,13 +69,34 @@ $av = [
     'blink_interval_max' => 6,
     'bounce_enabled' => 1,
     'bounce_intensity' => 5,
+    'weather' => 'off',
+    'weather_intensity' => 5,
 ];
+
+$avTableCheck = $db->query("SHOW TABLES LIKE 'avatar_settings'");
+if ($avTableCheck && $avTableCheck->num_rows > 0) {
+    $avWeatherCol = $db->query("SHOW COLUMNS FROM avatar_settings LIKE 'weather'");
+    if ($avWeatherCol && $avWeatherCol->num_rows === 0) {
+        $db->query("ALTER TABLE avatar_settings ADD weather VARCHAR(16) NOT NULL DEFAULT 'off'");
+    }
+    $avWeatherIntCol = $db->query("SHOW COLUMNS FROM avatar_settings LIKE 'weather_intensity'");
+    if ($avWeatherIntCol && $avWeatherIntCol->num_rows === 0) {
+        $db->query("ALTER TABLE avatar_settings ADD weather_intensity TINYINT UNSIGNED NOT NULL DEFAULT 5");
+    }
+}
 
 $avStmt = $db->prepare(
     'SELECT enabled, closed_image, open_image, closed_blink_image, open_blink_image, position, pos_x, pos_y, scale, flip, '
     . 'mic_threshold, attack_ms, release_ms, blink_enabled, blink_interval_min, blink_interval_max, '
-    . 'bounce_enabled, bounce_intensity FROM avatar_settings WHERE id = 1'
+    . 'bounce_enabled, bounce_intensity, weather, weather_intensity FROM avatar_settings WHERE id = 1'
 );
+if (!$avStmt) {
+    $avStmt = $db->prepare(
+        'SELECT enabled, closed_image, open_image, closed_blink_image, open_blink_image, position, pos_x, pos_y, scale, flip, '
+        . 'mic_threshold, attack_ms, release_ms, blink_enabled, blink_interval_min, blink_interval_max, '
+        . 'bounce_enabled, bounce_intensity FROM avatar_settings WHERE id = 1'
+    );
+}
 if (!$avStmt) {
     $avStmt = $db->prepare(
         'SELECT enabled, closed_image, open_image, position, pos_x, pos_y, scale, flip, '
@@ -90,6 +112,10 @@ if ($avStmt) {
     }
     $avStmt->close();
 }
+if (!in_array((string) ($av['weather'] ?? 'off'), $allowedWeather, true)) {
+    $av['weather'] = 'off';
+}
+$av['weather_intensity'] = max(1, min(10, (int) ($av['weather_intensity'] ?? 5)));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_upload'])) {
     while (ob_get_level()) { ob_end_clean(); }
@@ -258,6 +284,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_save'])) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avatar_weather_save'])) {
+    while (ob_get_level()) { ob_end_clean(); }
+    header('Content-Type: application/json');
+    $weather = in_array($_POST['weather'] ?? '', $allowedWeather, true) ? $_POST['weather'] : 'off';
+    $weatherIntensity = max(1, min(10, (int) ($_POST['weather_intensity'] ?? 5)));
+    $weatherStmt = $db->prepare(
+        'INSERT INTO avatar_settings (id, weather, weather_intensity) VALUES (1, ?, ?) '
+        . 'ON DUPLICATE KEY UPDATE weather = VALUES(weather), weather_intensity = VALUES(weather_intensity)'
+    );
+    if (!$weatherStmt) {
+        echo json_encode(['success' => false, 'error' => $db->error]);
+        exit;
+    }
+    if (!$weatherStmt->bind_param('si', $weather, $weatherIntensity)) {
+        echo json_encode(['success' => false, 'error' => $weatherStmt->error ?: 'bind_param failed']);
+        $weatherStmt->close();
+        exit;
+    }
+    if ($weatherStmt->execute()) {
+        echo json_encode(['success' => true, 'weather' => $weather, 'weather_intensity' => $weatherIntensity]);
+    } else {
+        echo json_encode(['success' => false, 'error' => $weatherStmt->error]);
+    }
+    $weatherStmt->close();
+    exit;
+}
+
 while (ob_get_level()) { ob_end_clean(); }
 
 $avatarFrameUrl = function ($filename) use ($avatarMediaUrl) {
@@ -327,7 +380,10 @@ ob_start();
                 <div class="av-preview-wrap">
                     <div class="av-preview-label"><?= t('avatar_live_preview') ?></div>
                     <div class="av-preview-stage" id="avPreview">
-                        <img class="av-preview-img" id="avPreviewImg" alt="" <?php if ($frameUrls['idle_open']): ?>src="<?= htmlspecialchars($frameUrls['idle_open']) ?>"<?php endif; ?>>
+                        <div class="av-preview-character" id="avPreviewCharacter">
+                            <img class="av-preview-img" id="avPreviewImg" alt="" <?php if ($frameUrls['idle_open']): ?>src="<?= htmlspecialchars($frameUrls['idle_open']) ?>"<?php endif; ?>>
+                            <canvas class="av-preview-weather" id="avPreviewWeather" width="1" height="1" aria-hidden="true"></canvas>
+                        </div>
                         <span class="av-preview-placeholder" id="avPreviewPlaceholder"><?= t('avatar_preview_placeholder') ?></span>
                     </div>
                 </div>
@@ -447,6 +503,32 @@ ob_start();
                 </div>
             </div>
 
+            <div class="av-weather-block">
+                <p class="av-help-text av-weather-intro"><strong><?= t('avatar_weather_title') ?></strong> - <?= t('avatar_weather_help') ?></p>
+                <div class="av-weather-toggles" id="avWeatherToggles">
+                    <?php
+                    $weatherToggles = [
+                        'winter' => 'avatar_weather_winter',
+                        'spring' => 'avatar_weather_spring',
+                        'summer' => 'avatar_weather_summer',
+                        'autumn' => 'avatar_weather_autumn',
+                        'rain' => 'avatar_weather_rain',
+                    ];
+                    $currentWeather = (string) ($av['weather'] ?? 'off');
+                    foreach ($weatherToggles as $weatherKey => $weatherLabel):
+                    ?>
+                    <label class="sp-checkbox-label">
+                        <input type="checkbox" class="av-weather-toggle" data-weather="<?= htmlspecialchars($weatherKey) ?>" <?= $currentWeather === $weatherKey ? 'checked' : '' ?>>
+                        <?= t($weatherLabel) ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <div class="av-weather-intensity" id="avWeatherIntensityWrap" data-disabled="<?= $currentWeather === 'off' ? '1' : '0' ?>">
+                    <label for="avWeatherIntensity"><?= t('avatar_weather_intensity_label') ?> (<span id="avWeatherIntensityVal"><?= (int) $av['weather_intensity'] ?></span>)</label>
+                    <input type="range" id="avWeatherIntensity" min="1" max="10" step="1" value="<?= (int) $av['weather_intensity'] ?>" class="sp-input" <?= $currentWeather === 'off' ? 'disabled' : '' ?>>
+                </div>
+            </div>
+
             <div class="av-save-row">
                 <span class="av-save-status" id="avSaveStatus"></span>
                 <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-save"></i> <?= t('avatar_save') ?></button>
@@ -460,6 +542,7 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+<script src="js/avatar-weather.js?v=<?= filemtime(__DIR__ . '/js/avatar-weather.js') ?>"></script>
 <script>
 (function () {
     const apiKey = <?php echo json_encode($api_key); ?>;
@@ -561,6 +644,14 @@ ob_start();
     const stopBtn = document.getElementById('avStopBtn');
     const previewImg = document.getElementById('avPreviewImg');
     const previewPlaceholder = document.getElementById('avPreviewPlaceholder');
+    const previewWeatherCanvas = document.getElementById('avPreviewWeather');
+    const weatherToggles = Array.from(document.querySelectorAll('.av-weather-toggle'));
+    const weatherIntensityEl = document.getElementById('avWeatherIntensity');
+    const weatherIntensityVal = document.getElementById('avWeatherIntensityVal');
+    const weatherIntensityWrap = document.getElementById('avWeatherIntensityWrap');
+    const allowedWeather = ['off', 'winter', 'spring', 'summer', 'autumn', 'rain'];
+    let weatherEngine = null;
+    let weatherSaveTimer = null;
 
     const pickFrameUrl = () => {
         const talking = mouthState === 'talking';
@@ -578,6 +669,78 @@ ob_start();
         micStatus.className = 'status-indicator ' + state;
     };
 
+    const currentWeatherKind = () => {
+        const on = weatherToggles.find((el) => el.checked);
+        const kind = on ? on.getAttribute('data-weather') : 'off';
+        return allowedWeather.includes(kind) ? kind : 'off';
+    };
+
+    const currentWeatherIntensity = () => {
+        const n = parseInt(weatherIntensityEl?.value || '5', 10);
+        return Math.max(1, Math.min(10, isNaN(n) ? 5 : n));
+    };
+
+    const ensurePreviewWeather = () => {
+        if (weatherEngine) return weatherEngine;
+        if (!previewWeatherCanvas || typeof SpecterAvatarWeather !== 'function') return null;
+        weatherEngine = new SpecterAvatarWeather(previewWeatherCanvas);
+        return weatherEngine;
+    };
+
+    const applyPreviewWeather = () => {
+        const engine = ensurePreviewWeather();
+        if (!engine) return;
+        const hasImg = !!(previewImg && previewImg.getAttribute('src') && !previewImg.classList.contains('av-hidden'));
+        const kind = hasImg ? currentWeatherKind() : 'off';
+        engine.set({ kind: kind, intensity: currentWeatherIntensity() });
+        engine.resize();
+        if (previewWeatherCanvas) {
+            previewWeatherCanvas.style.display = kind === 'off' ? 'none' : '';
+        }
+    };
+
+    const setWeatherIntensityEnabled = (on) => {
+        if (weatherIntensityEl) weatherIntensityEl.disabled = !on;
+        if (weatherIntensityWrap) weatherIntensityWrap.setAttribute('data-disabled', on ? '0' : '1');
+    };
+
+    const saveWeather = () => {
+        const fd = new FormData();
+        fd.set('avatar_weather_save', '1');
+        fd.set('weather', currentWeatherKind());
+        fd.set('weather_intensity', String(currentWeatherIntensity()));
+        return fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then((r) => r.json())
+            .then((data) => {
+                if (data && data.success && socket && socketReady) {
+                    socket.emit('AVATAR_SETTINGS_UPDATE', { code: apiKey });
+                }
+                if (!saveStatus) return data;
+                if (data && data.success) {
+                    saveStatus.textContent = avLang.saved;
+                    saveStatus.className = 'av-save-status is-success';
+                } else {
+                    saveStatus.textContent = avLang.saveError;
+                    saveStatus.className = 'av-save-status is-error';
+                }
+                return data;
+            })
+            .catch(() => {
+                if (saveStatus) {
+                    saveStatus.textContent = avLang.saveError;
+                    saveStatus.className = 'av-save-status is-error';
+                }
+            });
+    };
+
+    const scheduleWeatherSave = () => {
+        if (weatherSaveTimer) clearTimeout(weatherSaveTimer);
+        weatherSaveTimer = setTimeout(() => {
+            weatherSaveTimer = null;
+            saveWeather();
+        }, 180);
+    };
+
     const updatePreviewFrame = () => {
         const url = pickFrameUrl();
         if (previewImg) {
@@ -592,6 +755,7 @@ ob_start();
         if (previewPlaceholder) {
             previewPlaceholder.style.display = url ? 'none' : '';
         }
+        applyPreviewWeather();
     };
 
     const stopPreviewBlink = () => {
@@ -812,6 +976,38 @@ ob_start();
 
     const form = document.getElementById('avSettingsForm');
     const saveStatus = document.getElementById('avSaveStatus');
+
+    weatherToggles.forEach((el) => {
+        el.addEventListener('change', () => {
+            if (el.checked) {
+                weatherToggles.forEach((other) => {
+                    if (other !== el) other.checked = false;
+                });
+            }
+            setWeatherIntensityEnabled(currentWeatherKind() !== 'off');
+            applyPreviewWeather();
+            saveWeather();
+        });
+    });
+    if (weatherIntensityEl) {
+        weatherIntensityEl.addEventListener('input', () => {
+            if (weatherIntensityVal) weatherIntensityVal.textContent = weatherIntensityEl.value;
+            applyPreviewWeather();
+            scheduleWeatherSave();
+        });
+        weatherIntensityEl.addEventListener('change', () => {
+            if (weatherSaveTimer) {
+                clearTimeout(weatherSaveTimer);
+                weatherSaveTimer = null;
+            }
+            saveWeather();
+        });
+    }
+    if (previewImg) {
+        previewImg.addEventListener('load', () => applyPreviewWeather());
+    }
+    setWeatherIntensityEnabled(currentWeatherKind() !== 'off');
+
     const avBlinkEl = document.getElementById('avBlink');
     const avBlinkMinEl = document.getElementById('avBlinkMin');
     const avBlinkMaxEl = document.getElementById('avBlinkMax');

@@ -25,6 +25,8 @@ $av_settings = [
     'blink_interval_max' => 6,
     'bounce_enabled' => 1,
     'bounce_intensity' => 5,
+    'weather' => 'off',
+    'weather_intensity' => 5,
     'active_expression' => 'default',
 ];
 
@@ -66,9 +68,17 @@ if (!$error_html) {
         if ($table_exists) {
             $settingsStmt = $user_db->prepare(
                 'SELECT enabled, closed_image, open_image, closed_blink_image, open_blink_image, position, pos_x, pos_y, scale, flip, '
-                . 'blink_enabled, blink_interval_min, blink_interval_max, bounce_enabled, bounce_intensity, active_expression '
+                . 'blink_enabled, blink_interval_min, blink_interval_max, bounce_enabled, bounce_intensity, '
+                . 'weather, weather_intensity, active_expression '
                 . 'FROM avatar_settings WHERE id = 1'
             );
+            if (!$settingsStmt) {
+                $settingsStmt = $user_db->prepare(
+                    'SELECT enabled, closed_image, open_image, closed_blink_image, open_blink_image, position, pos_x, pos_y, scale, flip, '
+                    . 'blink_enabled, blink_interval_min, blink_interval_max, bounce_enabled, bounce_intensity, active_expression '
+                    . 'FROM avatar_settings WHERE id = 1'
+                );
+            }
             if (!$settingsStmt) {
                 $settingsStmt = $user_db->prepare(
                     'SELECT enabled, closed_image, open_image, position, pos_x, pos_y, scale, flip, '
@@ -88,6 +98,7 @@ if (!$error_html) {
 }
 
 $allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'custom'];
+$allowedWeather = ['off', 'winter', 'spring', 'summer', 'autumn', 'rain'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
     ob_end_clean();
@@ -131,6 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
                 'blink_interval_max' => max(1, (int) $av_settings['blink_interval_max']),
                 'bounce_enabled' => (int) $av_settings['bounce_enabled'],
                 'bounce_intensity' => max(0, min(10, (int) $av_settings['bounce_intensity'])),
+                'weather' => in_array((string) ($av_settings['weather'] ?? 'off'), $allowedWeather, true)
+                    ? (string) $av_settings['weather']
+                    : 'off',
+                'weather_intensity' => max(1, min(10, (int) ($av_settings['weather_intensity'] ?? 5))),
                 'expression' => (string) $av_settings['active_expression'],
             ],
         ]);
@@ -150,6 +165,7 @@ ob_end_clean();
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script src="js/specter-ws.js"></script>
+    <script src="js/avatar-weather.js?v=<?php echo filemtime(__DIR__ . '/js/avatar-weather.js'); ?>"></script>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="avatar-overlay-page">
@@ -157,6 +173,7 @@ ob_end_clean();
     <div class="avatar-overlay-page-root" id="avatarRoot" data-enabled="false" data-state="idle" data-position="bottom-right">
         <div class="avatar-overlay-page-stage" id="avatarStage">
             <img class="avatar-overlay-page-img is-visible" id="avatarFrame" alt="" decoding="async">
+            <canvas class="avatar-overlay-page-weather" id="avatarWeather" width="1" height="1" aria-hidden="true"></canvas>
         </div>
     </div>
     <script>
@@ -188,8 +205,11 @@ ob_end_clean();
             const root = document.getElementById('avatarRoot');
             const stage = document.getElementById('avatarStage');
             const imgFrame = document.getElementById('avatarFrame');
+            const weatherCanvas = document.getElementById('avatarWeather');
             const connectionStatus = document.getElementById('connectionStatus');
             if (!root || !stage || !imgFrame) return;
+            const allowedWeather = ['off', 'winter', 'spring', 'summer', 'autumn', 'rain'];
+            let weatherEngine = null;
 
             const allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'custom'];
             const settings = {
@@ -205,6 +225,8 @@ ob_end_clean();
                 blinkMax: 6,
                 bounceEnabled: true,
                 bounceIntensity: 5,
+                weather: 'off',
+                weatherIntensity: 5,
             };
             let mouthState = 'idle';
             let blinkTimer = null;
@@ -240,6 +262,25 @@ ob_end_clean();
                 root.style.setProperty('--av-bounce-px', (bounce * 0.35) + 'px');
                 root.style.setProperty('--av-bounce-rot', (bounce * 0.35) + 'deg');
                 root.dataset.bounce = bounce > 0 ? 'on' : 'off';
+                root.dataset.flip = settings.flip ? '1' : '0';
+            };
+
+            const ensureWeather = () => {
+                if (weatherEngine) return weatherEngine;
+                if (!weatherCanvas || typeof SpecterAvatarWeather !== 'function') return null;
+                weatherEngine = new SpecterAvatarWeather(weatherCanvas);
+                return weatherEngine;
+            };
+
+            const applyWeather = () => {
+                const engine = ensureWeather();
+                if (!engine) return;
+                const show = settings.enabled && hasAnyFrame() && settings.weather !== 'off';
+                engine.set({
+                    kind: show ? settings.weather : 'off',
+                    intensity: settings.weatherIntensity,
+                });
+                engine.resize();
             };
 
             const preload = (url) => {
@@ -271,13 +312,16 @@ ob_end_clean();
                     lastRenderedUrl = '';
                     imgFrame.removeAttribute('src');
                     imgFrame.classList.remove('is-visible');
+                    applyWeather();
                     return;
                 }
                 if (lastRenderedUrl !== url) {
                     lastRenderedUrl = url;
                     imgFrame.src = url;
+                    imgFrame.onload = () => applyWeather();
                 }
                 imgFrame.classList.add('is-visible');
+                applyWeather();
             };
 
             const scheduleBlink = () => {
@@ -303,6 +347,7 @@ ob_end_clean();
                 applyPlacement();
                 await applyImages();
                 scheduleBlink();
+                applyWeather();
             };
 
             const handleAvatarState = (payload) => {
@@ -341,6 +386,8 @@ ob_end_clean();
                     settings.blinkMax = Number(d.blink_interval_max) || 6;
                     settings.bounceEnabled = Number(d.bounce_enabled) !== 0;
                     settings.bounceIntensity = Number(d.bounce_intensity) || 0;
+                    settings.weather = allowedWeather.includes(d.weather) ? d.weather : 'off';
+                    settings.weatherIntensity = Math.max(1, Math.min(10, Number(d.weather_intensity) || 5));
                     await applySettings();
                 } catch (e) {
                     console.error('[Avatar Overlay] Unable to load settings:', e);
