@@ -868,6 +868,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
         if (strlen($message) > 255) {
             $error_message = t('admin_index_msg_too_long', [strlen($message)]);
         } else {
+            $runningCheck = assertChannelHasRunningTwitchBot($conn, (string)$channel_id);
+            if (!$runningCheck['ok']) {
+                $error_message = $runningCheck['error'];
+            } else {
             // Send message directly via Twitch API using bot token
             $url = "https://api.twitch.tv/helix/chat/messages";
             $headers = [
@@ -919,6 +923,7 @@ if ($curl_errno) {
                     }
                 }
             }
+            }
         }
     } else {
         if (empty($chatClientId) || empty($chatOAuth)) {
@@ -968,6 +973,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
     } elseif (!preg_match('/^[a-z0-9_]{3,25}$/', $target_login)) {
         $response_message = t('admin_index_invalid_username_format');
     } else {
+        $runningCheck = assertChannelHasRunningTwitchBot($conn, $from_broadcaster_id);
+        if (!$runningCheck['ok']) {
+            $response_message = $runningCheck['error'];
+        } else {
         $lookup_url = 'https://api.twitch.tv/helix/users?login=' . rawurlencode($target_login);
         $headers = [
             'Authorization: Bearer ' . $chatOAuth,
@@ -1032,6 +1041,7 @@ if ($shoutout_curl_errno) {
                 }
             }
         }
+        }
     }
     admin_audit_log(
         'send_shoutout',
@@ -1057,6 +1067,80 @@ if ($shoutout_curl_errno) {
         'chat_message_sent' => $chat_message_sent
     ]);
     exit;
+}
+
+// Live Twitch bot inventory keyed by channel login (stable/beta/v6/custom). Kick is excluded.
+function getRunningTwitchBotInventory(): array {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $client = __DIR__ . '/../includes/bots_api_client.php';
+    if (!is_file($client)) {
+        $cached = ['ok' => false, 'channels' => [], 'error' => 'bots_api_client.php missing'];
+        return $cached;
+    }
+    require_once $client;
+    $resp = bots_api_running_bots();
+    if (empty($resp['ok']) || !is_array($resp['data'])) {
+        $err = $resp['error'] ?? 'Bots API request failed';
+        if (!is_string($err) || $err === '') {
+            $err = 'Bots API request failed';
+        }
+        $cached = ['ok' => false, 'channels' => [], 'error' => $err];
+        return $cached;
+    }
+    $bots = $resp['data']['bots'] ?? [];
+    if (!is_array($bots)) {
+        $bots = [];
+    }
+    $isBucketMap = isset($bots['stable']) || isset($bots['beta']) || isset($bots['v6']) || isset($bots['custom']);
+    if (!$isBucketMap && $bots !== [] && array_keys($bots) === range(0, count($bots) - 1)) {
+        $bots = ['stable' => $bots];
+    }
+    $channels = [];
+    foreach (['stable', 'beta', 'v6', 'custom'] as $botType) {
+        foreach ((array)($bots[$botType] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $ch = strtolower(trim((string)($entry['channel'] ?? '')));
+            if ($ch === '' || isset($channels[$ch])) {
+                continue;
+            }
+            $channels[$ch] = (string)($entry['bot_type'] ?? $botType);
+        }
+    }
+    $cached = ['ok' => true, 'channels' => $channels, 'error' => null];
+    return $cached;
+}
+
+function lookupUsernameByTwitchUserId($conn, string $twitchUserId): string {
+    if (!$conn || $twitchUserId === '') {
+        return '';
+    }
+    $stmt = $conn->prepare("SELECT username FROM users WHERE twitch_user_id = ? LIMIT 1");
+    if (!$stmt) {
+        return '';
+    }
+    $stmt->bind_param("s", $twitchUserId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+    return strtolower(trim((string)($row['username'] ?? '')));
+}
+
+function assertChannelHasRunningTwitchBot($conn, string $twitchUserId): array {
+    $inventory = getRunningTwitchBotInventory();
+    if (!$inventory['ok']) {
+        return ['ok' => false, 'error' => t('admin_index_err_bots_inventory')];
+    }
+    $login = lookupUsernameByTwitchUserId($conn, $twitchUserId);
+    if ($login === '' || !isset($inventory['channels'][$login])) {
+        return ['ok' => false, 'error' => t('admin_index_bot_not_running')];
+    }
+    return ['ok' => true, 'username' => $login, 'bot_type' => $inventory['channels'][$login]];
 }
 
 // Function to check if a channel is online
@@ -1186,22 +1270,47 @@ if (isset($_GET['ajax'])) {
         ]);
         exit;
     } elseif ($ajax === 'online_channels') {
-        // Build channels list (online or all based on parameter)
+        // Live (or all, with include_offline) channels that currently have a Twitch bot running.
         $channels = [];
         $include_offline = isset($_GET['include_offline']) && $_GET['include_offline'] == '1';
-        if ($conn && isset($_SESSION['access_token'])) {
-            $result = $conn->query("SELECT id, twitch_user_id, twitch_display_name FROM users");
+        $inventory = getRunningTwitchBotInventory();
+        if (!$inventory['ok']) {
+            echo json_encode([
+                'channels' => [],
+                'error' => 'bots_inventory'
+            ]);
+            exit;
+        }
+        $running = $inventory['channels'];
+        if ($conn && isset($_SESSION['access_token']) && !empty($running)) {
+            $result = $conn->query("SELECT id, username, twitch_user_id, twitch_display_name FROM users");
             if ($result) {
                 $user_ids = [];
                 $user_data = [];
                 while ($row = $result->fetch_assoc()) {
-                    $user_ids[] = $row['twitch_user_id'];
-                    $user_data[$row['twitch_user_id']] = $row;
+                    $login = strtolower(trim((string)($row['username'] ?? '')));
+                    if ($login === '' || !isset($running[$login])) {
+                        continue;
+                    }
+                    $twitchUserId = (string)($row['twitch_user_id'] ?? '');
+                    if ($twitchUserId === '') {
+                        continue;
+                    }
+                    $user_ids[] = $twitchUserId;
+                    $user_data[$twitchUserId] = [
+                        'id' => $row['id'],
+                        'twitch_user_id' => $twitchUserId,
+                        'twitch_display_name' => $row['twitch_display_name'],
+                        'bot_type' => $running[$login]
+                    ];
                 }
-                // Get online status in batch
                 $online_user_ids = getOnlineUserIds($user_ids, $clientID, $_SESSION['access_token']);
+                $onlineLookup = [];
+                foreach ($online_user_ids as $onlineId) {
+                    $onlineLookup[(string)$onlineId] = true;
+                }
                 foreach ($user_data as $user_id => $row) {
-                    $is_online = in_array($user_id, $online_user_ids);
+                    $is_online = isset($onlineLookup[(string)$user_id]);
                     if ($include_offline || $is_online) {
                         $row['is_online'] = $is_online;
                         $channels[] = $row;
@@ -2444,6 +2553,7 @@ $botIconMap = [
                     <select class="sp-select" name="channel_id" id="channel-select" required>
                         <option value=""><?php echo t('admin_index_loading_channels'); ?></option>
                     </select>
+                    <small class="sp-help"><?php echo t('admin_index_channel_list_help'); ?></small>
                 </div>
                 <div class="sp-form-group">
                     <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-secondary); cursor:pointer;">
@@ -2557,6 +2667,7 @@ document.addEventListener('DOMContentLoaded', function() {
         chooseChannel: <?php echo json_encode(t('admin_index_choose_channel')); ?>,
         offlineSuffix: <?php echo json_encode(t('admin_index_offline_suffix')); ?>,
         errLoadingChannels: <?php echo json_encode(t('admin_index_err_loading_channels')); ?>,
+        errBotsInventory: <?php echo json_encode(t('admin_index_err_bots_inventory')); ?>,
         sending: <?php echo json_encode(t('admin_index_sending')); ?>,
         failSendShoutout: <?php echo json_encode(t('admin_index_fail_send_shoutout')); ?>,
         netErrorPrefix: <?php echo json_encode(t('admin_index_net_error_prefix')); ?>,
@@ -3811,6 +3922,17 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (!channelSelect) return;
                 channelSelect.innerHTML = '';
+                if (data.error) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = adminI18n.errBotsInventory;
+                    channelSelect.appendChild(opt);
+                    channelSelect.disabled = true;
+                    updateSendButtonState();
+                    updateShoutoutButtonState();
+                    updateShoutoutHelperText();
+                    return;
+                }
                 const channels = data.channels || [];
                 if (channels.length === 0) {
                     const opt = document.createElement('option');
@@ -3827,7 +3949,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         const opt = document.createElement('option');
                         opt.value = ch.twitch_user_id;
                         const displayName = ch.twitch_display_name || ch.twitch_user_id;
-                        opt.textContent = ch.is_online ? displayName : displayName + ' ' + adminI18n.offlineSuffix;
+                        const parts = [displayName];
+                        if (ch.bot_type) {
+                            parts.push('(' + ch.bot_type + ')');
+                        }
+                        if (!ch.is_online) {
+                            parts.push(adminI18n.offlineSuffix);
+                        }
+                        opt.textContent = parts.join(' ');
                         channelSelect.appendChild(opt);
                     });
                     channelSelect.disabled = false;
