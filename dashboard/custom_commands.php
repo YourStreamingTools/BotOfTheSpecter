@@ -355,6 +355,40 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'import_template') {
     exit();
 }
 
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'export') {
+    ob_clean();
+    $fh = fopen('php://temp', 'r+');
+    fputcsv($fh, ['command', 'response', 'cooldown', 'cooldown_bucket', 'permission', 'aliases', 'status'], ',', '"', '\\');
+    $exportStmt = $db->prepare("SELECT command, response, cooldown, cooldown_bucket, permission, aliases, status FROM custom_commands ORDER BY command ASC");
+    if ($exportStmt) {
+        $exportStmt->execute();
+        $exportResult = $exportStmt->get_result();
+        while ($exportRow = $exportResult->fetch_assoc()) {
+            $statusValue = sanitize_import_status($exportRow['status'] ?? 'Enabled');
+            fputcsv($fh, [
+                (string)($exportRow['command'] ?? ''),
+                (string)($exportRow['response'] ?? ''),
+                (string)((int)($exportRow['cooldown'] ?? 15)),
+                sanitize_cooldown_bucket($exportRow['cooldown_bucket'] ?? 'default'),
+                (string)($exportRow['permission'] ?? 'everyone'),
+                (string)($exportRow['aliases'] ?? ''),
+                $statusValue !== null ? $statusValue : 'Enabled',
+            ], ',', '"', '\\');
+        }
+        $exportStmt->close();
+    }
+    rewind($fh);
+    $csv = stream_get_contents($fh);
+    fclose($fh);
+    $safeUser = strtolower(preg_replace('/[^a-z0-9_]/i', '', (string)$username));
+    $filename = 'specter-custom-commands' . ($safeUser !== '' ? '-' . $safeUser : '') . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store');
+    echo "\xEF\xBB\xBF" . ($csv === false ? '' : $csv);
+    exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     ob_clean();
     header('Content-Type: application/json');
@@ -808,7 +842,7 @@ $twitchUsername = $username;
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="sp-alert sp-alert-info" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.5rem;">
+<div class="sp-alert sp-alert-info cc-print-hide" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.5rem;">
     <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-info-circle"></i></span>
     <div>
         <p style="font-weight:700; margin-bottom:0.4rem;"><?php echo t('navbar_edit_custom_commands'); ?></p>
@@ -834,7 +868,7 @@ ob_start();
 </div>
 <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
     <?php if (isset($_POST['command']) && isset($_POST['response']) && empty($status)): ?>
-        <div class="sp-alert sp-alert-success" style="margin-bottom:1rem;">
+        <div class="sp-alert sp-alert-success cc-print-hide" style="margin-bottom:1rem;">
             <i class="fas fa-check-circle"></i>
             <span>
                 <?php
@@ -850,13 +884,13 @@ ob_start();
             </span>
         </div>
     <?php else: ?>
-        <div class="sp-alert <?php echo $notification_status; ?>" style="margin-bottom:1rem;">
+        <div class="sp-alert cc-print-hide <?php echo $notification_status; ?>" style="margin-bottom:1rem;">
             <?php echo $status; ?>
         </div>
     <?php endif; ?>
 <?php endif; ?>
-<h4 style="font-size:1.15rem; font-weight:700; text-align:center; color:var(--text-primary); margin-bottom:1.5rem;"><?php echo t('navbar_edit_custom_commands'); ?></h4>
-<div class="cc-form-grid">
+<h4 class="cc-print-hide" style="font-size:1.15rem; font-weight:700; text-align:center; color:var(--text-primary); margin-bottom:1.5rem;"><?php echo t('navbar_edit_custom_commands'); ?></h4>
+<div class="cc-form-grid cc-print-hide">
     <div class="sp-card">
         <form method="post" action="" style="display:flex; flex-direction:column; height:100%;">
             <div class="sp-card-header">
@@ -1047,10 +1081,20 @@ ob_start();
             <?php echo t('custom_commands_header'); ?>
         </div>
         <div class="cc-commands-toolbar">
-            <button type="button" class="sp-btn sp-btn-secondary" id="importCommandsBtn">
-                <i class="fas fa-file-import"></i>
-                <span><?php echo t('custom_commands_import_btn'); ?></span>
-            </button>
+            <div class="cc-commands-actions">
+                <button type="button" class="sp-btn sp-btn-secondary" id="importCommandsBtn">
+                    <i class="fas fa-file-import"></i>
+                    <span><?php echo t('custom_commands_import_btn'); ?></span>
+                </button>
+                <a class="sp-btn sp-btn-secondary" href="?ajax_action=export" id="exportCommandsBtn">
+                    <i class="fas fa-file-export"></i>
+                    <span><?php echo t('custom_commands_export_btn'); ?></span>
+                </a>
+                <button type="button" class="sp-btn sp-btn-secondary" id="printCommandsBtn">
+                    <i class="fas fa-print"></i>
+                    <span><?php echo t('custom_commands_print_btn'); ?></span>
+                </button>
+            </div>
             <div class="sp-input-wrap cc-commands-search" id="searchInputWrap">
                 <i class="fas fa-search sp-input-icon"></i>
                 <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>">
@@ -1058,6 +1102,7 @@ ob_start();
         </div>
     </div>
     <div class="sp-card-body">
+        <p class="cc-print-banner"><?php echo htmlspecialchars(t('custom_commands_print_banner', [$twitchUsername, date('Y-m-d H:i T')])); ?></p>
         <div class="sp-table-wrap">
             <table class="sp-table" id="commandsTable">
                 <thead>
@@ -1068,8 +1113,8 @@ ob_start();
                         <th style="text-align:center;"><?php echo t('custom_commands_cooldown_label'); ?></th>
                         <th style="text-align:center;"><?php echo t('custom_commands_cooldown_bucket_label'); ?></th>
                         <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
-                        <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
-                        <th style="text-align:center;"><?php echo t('custom_commands_remove'); ?></th>
+                        <th class="cc-print-col-hide" style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
+                        <th class="cc-print-col-hide" style="text-align:center;"><?php echo t('custom_commands_remove'); ?></th>
                     </tr>
                 </thead>
                 <tbody id="commandsTableBody" aria-busy="true">
@@ -1091,7 +1136,7 @@ ob_start();
     </div>
 </div>
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
-<div class="cc-modal-backdrop" id="importCommandsModal">
+<div class="cc-modal-backdrop cc-print-hide" id="importCommandsModal">
     <div class="cc-modal cc-import-modal" role="dialog" aria-modal="true" aria-labelledby="importCommandsTitle">
         <div class="cc-modal-head">
             <span class="cc-modal-title" id="importCommandsTitle">
@@ -1313,13 +1358,13 @@ function renderCustomCommandsTable() {
             '<td style="text-align:center;">' + escapeHtml(cooldownBucketLabels[bucket] || cooldownBucketLabels.default) + '</td>' +
             '<td style="text-align:center;"><span class="sp-badge ' + (enabled ? 'sp-badge-green' : 'sp-badge-red') + '">' +
                 escapeHtml(enabled ? CC_I18N.statusEnabled : CC_I18N.statusDisabled) + '</span></td>' +
-            '<td style="text-align:center;"><label style="cursor:pointer;">' +
+            '<td class="cc-print-col-hide" style="text-align:center;"><label style="cursor:pointer;">' +
                 '<input type="checkbox" class="toggle-checkbox"' + (enabled ? ' checked' : '') +
                 ' onchange="toggleStatus(\'' + escapeAttr(name) + '\', this.checked, this)" style="display:none;">' +
                 '<span onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();" style="font-size:1.3rem; color:' +
                 (enabled ? 'var(--green)' : 'var(--text-muted)') + ';">' +
                 '<i class="fa-solid ' + (enabled ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span></label></td>' +
-            '<td style="text-align:center;"><form method="POST" style="display:inline;" class="remove-command-form">' +
+            '<td class="cc-print-col-hide" style="text-align:center;"><form method="POST" style="display:inline;" class="remove-command-form">' +
                 '<input type="hidden" name="remove_command" value="' + escapeAttr(name) + '">' +
                 '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-command-btn" title="' + escapeAttr(CC_I18N.removeTitle) + '">' +
                 '<i class="fas fa-trash-alt"></i></button></form></td>' +
@@ -1375,6 +1420,12 @@ document.addEventListener("DOMContentLoaded", function() {
     initializeRandomPickWatcher('response', 'command');
     initializeRandomPickWatcher('command_response', 'new_command_name');
     initImportCommands();
+    var printBtn = document.getElementById('printCommandsBtn');
+    if (printBtn) {
+        printBtn.addEventListener('click', function() {
+            window.print();
+        });
+    }
     loadCustomCommands();
 });
 

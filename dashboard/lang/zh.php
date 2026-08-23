@@ -3582,6 +3582,9 @@ return [
     'custom_commands_js_alert_parse_error' => '解析服务器响应时出错',
     'custom_commands_js_alert_http_error' => 'HTTP 错误：',
     'custom_commands_import_btn' => '导入命令',
+    'custom_commands_export_btn' => '导出 CSV',
+    'custom_commands_print_btn' => '打印',
+    'custom_commands_print_banner' => '%s 的自定义命令 — %s',
     'custom_commands_import_title' => '导入自定义命令',
     'custom_commands_import_intro' => '上传 CSV 文件即可一次添加多条 Twitch 聊天自定义命令。先下载模板、填入命令，再上传保存后的文件。',
     'custom_commands_import_how_title' => '如何上传',
@@ -6723,4 +6726,6 @@ return [
     'upload_rename_invalid' => '不允许使用该名称。',
     'upload_rename_missing' => '找不到原始文件。',
     'upload_rename_same' => '这已经是当前文件名。',
+    'error_unexpected_report' => '如果您没有预料到此错误，请通过我们的支持工单系统 https://support.botofthespecter.com/tickets.php?action=new 报告此问题，我们提前感谢您提交的任何技术问题报告',
+    'error_unexpected_report_html' => '如果您没有预料到此错误，请通过我们的支持工单系统 <a href="https://support.botofthespecter.com/tickets.php?action=new" target="_blank" rel="noopener">https://support.botofthespecter.com/tickets.php?action=new</a> 报告此问题，我们提前感谢您提交的任何技术问题报告',
 ];
