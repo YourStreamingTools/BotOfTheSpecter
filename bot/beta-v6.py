@@ -342,6 +342,7 @@ shoutout_tracker = {}                                   # Dictionary for trackin
 shoutout_user = {}                                      # Dictionary for temporary shoutout user data
 command_usage = {}                                      # Dictionary for tracking command usage with timestamps
 last_poll_progress_update = 0                           # Variable for last poll progress update
+poll_half_message_routine = None                        # Active halfway poll reminder routine
 last_message_time = 0                                   # Variable for last message time
 chat_line_count = 0                                     # Tracks the number of chat messages
 chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
@@ -1002,6 +1003,7 @@ async def subscribe_to_events(session_id):
         {"type": "channel.charity_campaign.donate", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.channel_points_custom_reward_redemption.add", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.poll.progress", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.suspicious_user.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
@@ -1432,7 +1434,7 @@ async def process_tipping_message(data, source):
         event_logger.error(f"Error processing tipping message: {e}")
 
 async def process_twitch_eventsub_message(message):
-    global pending_outgoing_raid, outgoing_raid_task, gift_sub_recipients, _streak_schema_ready
+    global pending_outgoing_raid, outgoing_raid_task, gift_sub_recipients, _streak_schema_ready, last_poll_progress_update
     connection = None
     try:
         connection = await mysql_handler.get_connection()
@@ -1929,44 +1931,64 @@ async def process_twitch_eventsub_message(message):
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
                     create_task(process_channel_point_rewards(event_data, event_type))
-                # Poll Event
-                elif event_type in ["channel.poll.begin", "channel.poll.end"]:
+                # Poll Event — channel.poll.begin / progress / end (Twitch EventSub v1)
+                elif event_type in ["channel.poll.begin", "channel.poll.progress", "channel.poll.end"]:
+                    event_data = event_data or {}
+                    poll_id, poll_title, choices = parse_twitch_poll_event(event_data)
+                    ranked = sorted(choices, key=lambda x: x["total_votes"], reverse=True)
                     if event_type == "channel.poll.begin":
-                        poll_id = event_data.get("id")
-                        poll_title = event_data.get("title")
-                        poll_ends_at = datetime.fromisoformat(event_data["ends_at"].replace("Z", "+00:00"))
-                        utc_now = time_right_now(timezone.utc)
-                        time_until_end = (poll_ends_at - utc_now).total_seconds()
+                        last_poll_progress_update = time.time()
+                        poll_ends_at = parse_twitch_poll_time(event_data.get("ends_at"))
+                        time_until_end = 0
+                        if poll_ends_at:
+                            time_until_end = max(0, (poll_ends_at - time_right_now(timezone.utc)).total_seconds())
                         half_time = int(time_until_end / 2)
-                        minutes, seconds = divmod(time_until_end, 60)
-                        if minutes and seconds:
-                            message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes and {int(seconds)} seconds."
-                        elif minutes:
-                            message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes."
-                        else:
-                            message = f"Poll '{poll_title}' has started! Poll ending in {int(seconds)} seconds."
+                        option_titles = [c["title"] for c in choices if c.get("title")]
+                        options_text = f" Options: {', '.join(option_titles)}." if option_titles else ""
+                        message = f"Poll '{poll_title}' has started!{options_text} Poll ending in {format_poll_duration(time_until_end)}."
+                        event_logger.info(f"Poll begin: {poll_title!r} ends in {int(time_until_end)}s")
                         create_task(handel_twitch_poll(event="poll.begin", poll_title=poll_title, half_time=half_time, message=message))
+                        try:
+                            await save_poll_results(cursor, connection, poll_id, poll_title, choices, started_at=event_data.get("started_at"))
+                        except Exception as e:
+                            event_logger.error(f"Failed to store poll results: {e}")
+                    elif event_type == "channel.poll.progress":
+                        standings = format_poll_standings(ranked)
+                        event_logger.info(f"Poll progress: {poll_title!r} {standings}")
+                        now = time.time()
+                        if standings and (now - last_poll_progress_update) >= 30:
+                            last_poll_progress_update = now
+                            message = f"Poll '{poll_title}' update: {standings}"
+                            create_task(handel_twitch_poll(event="poll.progress", poll_title=poll_title, message=message))
+                        try:
+                            await save_poll_results(cursor, connection, poll_id, poll_title, choices, started_at=event_data.get("started_at"))
+                        except Exception as e:
+                            event_logger.error(f"Failed to store poll results: {e}")
                     elif event_type == "channel.poll.end":
-                        poll_id = event_data.get("id")
-                        poll_title = event_data.get("title")
-                        choices_data = []
-                        for choice in event_data.get("choices", []):
-                            choices_data.append({
-                                "title": choice.get("title"),
-                                "bits_votes": choice.get("bits_votes") if event_data.get("bits_voting", {}).get("is_enabled") else 0,
-                                "channel_points_votes": choice.get("channel_points_votes") if event_data.get("channel_points_voting", {}).get("is_enabled") else 0,
-                                "total_votes": choice.get("votes", 0)
-                            })
-                        sorted_choices = sorted(choices_data, key=lambda x: x["total_votes"], reverse=True)
-                        message = f"The poll '{poll_title}' has ended!"
-                        await cursor.execute("INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s)", (poll_id, poll_title))
-                        await connection.commit()
-                        sql_options = ["one", "two", "three", "four", "five"]
-                        sql_query = "UPDATE poll_results SET " + ", ".join([f"poll_option_{i+1} = %s" for i in range(len(sql_options))]) + " WHERE poll_id = %s"
-                        params = [sorted_choices[i]["title"] if i < len(sorted_choices) else None for i in range(len(sql_options))] + [poll_id]
-                        await cursor.execute(sql_query, params)
-                        await connection.commit()
+                        last_poll_progress_update = 0
+                        status = (event_data.get("status") or "completed").lower()
+                        if ranked and ranked[0].get("title") is not None:
+                            winner = ranked[0]
+                            votes = winner.get("total_votes") or 0
+                            vote_word = "vote" if votes == 1 else "votes"
+                            if status == "terminated":
+                                message = f"The poll '{poll_title}' was ended early. Leader: {winner['title']} with {votes} {vote_word}."
+                            else:
+                                message = f"The poll '{poll_title}' has ended! Winner: {winner['title']} with {votes} {vote_word}."
+                        elif status == "terminated":
+                            message = f"The poll '{poll_title}' was ended early."
+                        else:
+                            message = f"The poll '{poll_title}' has ended!"
+                        event_logger.info(f"Poll end: {poll_title!r} status={status} choices={len(ranked)}")
                         create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
+                        try:
+                            await save_poll_results(
+                                cursor, connection, poll_id, poll_title, choices,
+                                started_at=event_data.get("started_at"),
+                                ended_at=event_data.get("ended_at"),
+                            )
+                        except Exception as e:
+                            event_logger.error(f"Failed to store poll results: {e}")
                 # Stream Online/Offline Event
                 elif event_type in ["stream.online", "stream.offline"]:
                     try:
@@ -15280,12 +15302,100 @@ async def delete_recorded_files():
     except Exception as e:
         api_logger.error(f"An error occurred while deleting recorded files: {e}")
 
+# Function to parse Twitch poll EventSub payloads
+def parse_twitch_poll_event(event_data):
+    event_data = event_data or {}
+    bits_enabled = bool((event_data.get("bits_voting") or {}).get("is_enabled"))
+    points_enabled = bool((event_data.get("channel_points_voting") or {}).get("is_enabled"))
+    choices = []
+    for choice in event_data.get("choices") or []:
+        choices.append({
+            "title": choice.get("title"),
+            "bits_votes": (choice.get("bits_votes") or 0) if bits_enabled else 0,
+            "channel_points_votes": (choice.get("channel_points_votes") or 0) if points_enabled else 0,
+            "total_votes": choice.get("votes") or 0,
+        })
+    return event_data.get("id"), event_data.get("title"), choices
+
+# Function to parse Twitch poll timestamps
+def parse_twitch_poll_time(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except Exception:
+        return None
+
+# Function to format poll standings for chat
+def format_poll_standings(choices):
+    parts = []
+    for choice in choices:
+        title = choice.get("title")
+        if not title:
+            continue
+        votes = choice.get("total_votes") or 0
+        parts.append(f"{title} ({votes})")
+    return ", ".join(parts)
+
+# Function to format poll duration for chat
+def format_poll_duration(total_seconds):
+    minutes, seconds = divmod(max(0, int(total_seconds or 0)), 60)
+    if minutes and seconds:
+        return f"{minutes} minutes and {seconds} seconds"
+    if minutes:
+        return f"{minutes} minutes"
+    return f"{seconds} seconds"
+
+# Function to save poll results
+async def save_poll_results(cursor, connection, poll_id, poll_title, choices, started_at=None, ended_at=None):
+    if not poll_id:
+        return
+    sql_options = ["one", "two", "three", "four", "five"]
+    ranked = sorted(choices, key=lambda x: x["total_votes"], reverse=True)
+    await cursor.execute(
+        "INSERT INTO poll_results (poll_id, poll_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE poll_name = %s",
+        (poll_id, poll_title, poll_title)
+    )
+    set_parts = []
+    params = []
+    for i, name in enumerate(sql_options):
+        row = ranked[i] if i < len(ranked) else None
+        set_parts.append(f"poll_option_{name} = %s")
+        params.append(row["title"] if row else None)
+        set_parts.append(f"poll_option_{name}_results = %s")
+        params.append(row["total_votes"] if row else None)
+    set_parts.append("bits_used = %s")
+    params.append(sum((c.get("bits_votes") or 0) for c in choices))
+    set_parts.append("channel_points_used = %s")
+    params.append(sum((c.get("channel_points_votes") or 0) for c in choices))
+    started_dt = parse_twitch_poll_time(started_at)
+    ended_dt = parse_twitch_poll_time(ended_at)
+    if started_dt:
+        set_parts.append("started_at = %s")
+        params.append(started_dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+    if ended_dt:
+        set_parts.append("ended_at = %s")
+        params.append(ended_dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+    params.append(poll_id)
+    await cursor.execute("UPDATE poll_results SET " + ", ".join(set_parts) + " WHERE poll_id = %s", params)
+    await connection.commit()
+
 # Function for POLLS
 async def handel_twitch_poll(event=None, poll_title=None, half_time=None, message=None):
-    if event == "poll.start":
-        await send_chat_message(message)
-        half_time = int(half_time.total_seconds()), 60
-        minutes, seconds = divmod(half_time)
+    global poll_half_message_routine
+    if event in ("poll.begin", "poll.start"):
+        if message:
+            await send_chat_message(message)
+        try:
+            half_seconds = int(half_time or 0)
+        except (TypeError, ValueError):
+            half_seconds = 0
+        if half_seconds < 1:
+            return
+        minutes, seconds = divmod(half_seconds, 60)
         if minutes and seconds:
             time_left = f"{minutes} minutes and {seconds} seconds"
         elif minutes:
@@ -15293,13 +15403,29 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
         else:
             time_left = f"{seconds} seconds"
         half_way_message = f"The poll '{poll_title}' is halfway through! You have {time_left} left to cast your vote."
-        @routines.routine(delta=timedelta(seconds=half_time), iterations=1, wait_first=True)
+        if poll_half_message_routine is not None:
+            try:
+                poll_half_message_routine.cancel()
+            except Exception:
+                pass
+            poll_half_message_routine = None
+        @routines.routine(delta=timedelta(seconds=half_seconds), iterations=1, wait_first=True)
         async def handel_twitch_poll_half_message():
             await send_chat_message(half_way_message)
+        poll_half_message_routine = handel_twitch_poll_half_message
         handel_twitch_poll_half_message.start()
+    elif event == "poll.progress":
+        if message:
+            await send_chat_message(message)
     elif event == "poll.end":
-        await send_chat_message(message)
-        handel_twitch_poll_half_message.cancel()
+        if message:
+            await send_chat_message(message)
+        if poll_half_message_routine is not None:
+            try:
+                poll_half_message_routine.cancel()
+            except Exception:
+                pass
+            poll_half_message_routine = None
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):

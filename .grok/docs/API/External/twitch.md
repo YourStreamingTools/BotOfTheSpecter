@@ -632,6 +632,7 @@ The bot opens this connection in `twitch_eventsub()` and reconnects on closure.
 | `channel.channel_points_custom_reward_redemption.add` | 1 | `broadcaster_user_id` | |
 | `channel.channel_points_automatic_reward_redemption.add` | 2 | `broadcaster_user_id` | |
 | `channel.poll.begin` | 1 | `broadcaster_user_id` | |
+| `channel.poll.progress` | 1 | `broadcaster_user_id` | |
 | `channel.poll.end` | 1 | `broadcaster_user_id` | |
 | `channel.suspicious_user.message` | 1 | `broadcaster_user_id`, `moderator_user_id` | |
 | `channel.shoutout.create` | 1 | `broadcaster_user_id`, `moderator_user_id` | |

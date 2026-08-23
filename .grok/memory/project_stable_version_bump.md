@@ -20,3 +20,5 @@ Patch increments (5.7.12 → 5.7.13) for fixes. Beta version is tracked separate
 **Changelog scope (HARD):** A stable dump/`docs/<ver>.md` is the public note for that fix. Do **not** also append the same item to `docs/5.8.md` (or invent a v6 version note). `5.8.md` is only for beta-only / day-to-day beta-track work that is **not** shipping as a stable patch.
 
 **Never name the reporting channel** (or a channel-specific DB like `<channel>.twitch_bot_access`) in public version notes. Describe the failure generically.
+
+**Never mention beta or v6 in a stable changelog.** Applying the same fix to `beta.py` / `beta-v6.py` is assumed. Do not write “same fix on beta/v6”, file names, or “also applied to the beta bot”.
