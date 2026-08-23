@@ -259,6 +259,13 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        window.SPECTER_ERROR_SUPPORT = {
+            url: <?php echo json_encode('https://support.botofthespecter.com/tickets.php?action=new', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+            note: <?php echo json_encode(t('error_unexpected_report'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+            noteHtml: <?php echo json_encode(t('error_unexpected_report_html'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
+        };
+    </script>
     <!-- Custom JS -->
     <script src="/js/dashboard.js?v=<?php echo filemtime(__DIR__ . '/js/dashboard.js'); ?>"></script>
     <script src="/js/search.js?v=<?php echo filemtime(__DIR__ . '/js/search.js'); ?>"></script>

@@ -1378,6 +1378,20 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-alert-warning i { color: var(--amber); }
 .sp-alert-danger i  { color: var(--red); }
 
+.specter-error-support {
+    margin: 0.5rem 0 0;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+.specter-error-support a {
+    color: var(--accent-hover);
+    text-decoration: underline;
+    word-break: break-all;
+}
+.specter-error-support a:hover {
+    color: var(--text-primary);
+}
+
 /*
    15. menu.php output compatibility
    (renderMenu outputs sidebar-menu-* classes; we map them
@@ -2621,6 +2635,15 @@ input[type="checkbox"].switch:disabled + label {
     flex-wrap: nowrap;
     margin-left: auto;
 }
+.cc-commands-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+.cc-print-banner {
+    display: none;
+}
 .cc-commands-search {
     display: none;
     width: 260px;
@@ -2756,9 +2779,57 @@ input[type="checkbox"].switch:disabled + label {
         flex-wrap: wrap;
         margin-left: 0;
     }
+    .cc-commands-actions {
+        flex-wrap: wrap;
+    }
     .cc-commands-search,
     .cc-commands-search.is-visible {
         flex: 1 1 100%;
+        width: 100%;
+    }
+}
+
+@media print {
+    .sp-sidebar,
+    .sp-topbar,
+    .sp-footer,
+    .sp-hamburger,
+    .sp-overlay,
+    .cc-print-hide,
+    .cc-commands-toolbar,
+    .cc-modal-backdrop {
+        display: none !important;
+    }
+    .cc-print-col-hide {
+        display: none !important;
+    }
+    .cc-print-banner {
+        display: block !important;
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #111;
+    }
+    .sp-layout {
+        display: block;
+    }
+    .sp-main {
+        margin-left: 0 !important;
+        padding-top: 0 !important;
+        min-height: 0;
+    }
+    .sp-content {
+        padding: 0 !important;
+    }
+    body {
+        background: #fff !important;
+        color: #111 !important;
+    }
+    .sp-card {
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+    .sp-table {
         width: 100%;
     }
 }
@@ -3950,6 +4021,20 @@ button.media-file-thumb:hover {
 }
 .swal2-close:hover {
     color: var(--text-primary) !important;
+}
+.swal2-footer {
+    color: var(--text-muted) !important;
+    border-top: 1px solid var(--border) !important;
+    font-size: 0.85rem;
+    margin-top: 0.75rem;
+}
+.swal2-footer a {
+    color: var(--accent-hover);
+    text-decoration: underline;
+    word-break: break-all;
+}
+.swal2-footer a:hover {
+    color: var(--text-primary);
 }
 
 section.section { padding: 0; }

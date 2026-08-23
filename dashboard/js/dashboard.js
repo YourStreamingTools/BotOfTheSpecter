@@ -58,6 +58,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    (function decorateSpecterErrorSupport() {
+        var noteHtml = (window.SPECTER_ERROR_SUPPORT && window.SPECTER_ERROR_SUPPORT.noteHtml) || '';
+        if (!noteHtml) return;
+        function decorate(root) {
+            var scope = root && root.querySelectorAll ? root : document;
+            var nodes = [];
+            if (root && root.matches && (root.matches('.sp-alert-danger') || root.matches('.notification.is-danger'))) {
+                nodes.push(root);
+            }
+            var found = scope.querySelectorAll ? scope.querySelectorAll('.sp-alert-danger, .notification.is-danger') : [];
+            for (var f = 0; f < found.length; f++) {
+                nodes.push(found[f]);
+            }
+            for (var i = 0; i < nodes.length; i++) {
+                var el = nodes[i];
+                if (el.getAttribute('data-specter-support')) continue;
+                var existing = el.textContent || '';
+                if (existing.indexOf('tickets.php') !== -1 || el.querySelector('.specter-error-support')) {
+                    el.setAttribute('data-specter-support', '1');
+                    continue;
+                }
+                var p = document.createElement('p');
+                p.className = 'specter-error-support';
+                p.innerHTML = noteHtml;
+                el.appendChild(p);
+                el.setAttribute('data-specter-support', '1');
+            }
+        }
+        decorate(document);
+        if (typeof MutationObserver === 'undefined') return;
+        var observer = new MutationObserver(function (mutations) {
+            for (var m = 0; m < mutations.length; m++) {
+                var added = mutations[m].addedNodes;
+                for (var n = 0; n < added.length; n++) {
+                    if (added[n].nodeType === 1) decorate(added[n]);
+                }
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    })();
+
     // Close notification buttons
     const closeButtons = Array.prototype.slice.call(document.querySelectorAll('.notification .delete'), 0);
     closeButtons.forEach(button => {
@@ -247,6 +288,41 @@ function setCookie(name, value, days) {
     document.cookie = name + "=" + value + ";expires=" + d.toUTCString() + ";path=/";
 }
 
+// Append the support-ticket note on error SweetAlerts. Layout sets
+// window.SPECTER_ERROR_SUPPORT before this file; SweetAlert2 is already loaded.
+(function setupSpecterErrorSupportSwal() {
+    function wrapSwalFire() {
+        if (typeof Swal === 'undefined' || !Swal || typeof Swal.fire !== 'function') return;
+        if (Swal.__specterErrorSupportWrapped) return;
+        var origFire = Swal.fire.bind(Swal);
+        Swal.fire = function specterSwalFire() {
+            var args = arguments;
+            var noteHtml = (window.SPECTER_ERROR_SUPPORT && window.SPECTER_ERROR_SUPPORT.noteHtml) || '';
+            if (args.length === 1 && args[0] && Object.prototype.toString.call(args[0]) === '[object Object]') {
+                var params = Object.assign({}, args[0]);
+                var footerEmpty = params.footer == null || params.footer === false ||
+                    (typeof params.footer === 'string' && params.footer.trim() === '');
+                if (params.icon === 'error' && footerEmpty && noteHtml) {
+                    params.footer = noteHtml;
+                }
+                return origFire(params);
+            }
+            if (args.length >= 3 && args[2] === 'error' && noteHtml) {
+                return origFire({
+                    title: args[0],
+                    text: args[1],
+                    icon: 'error',
+                    footer: noteHtml
+                });
+            }
+            return origFire.apply(Swal, args);
+        };
+        Swal.__specterErrorSupportWrapped = true;
+    }
+    wrapSwalFire();
+    document.addEventListener('DOMContentLoaded', wrapSwalFire);
+})();
+
 // Global network-failure handlers. The dashboard has many AJAX calls
 // without per-call .catch() - without these, a dropped connection or
 // 500 produces a silent no-op that confuses users.
@@ -307,6 +383,15 @@ async function specterFetch(url, options) {
 
 // Function to create toast notifications
 function showNotification(message, type = 'info', duration = 3000) {
+    var typeStr = String(type || '');
+    if (/danger|error/i.test(typeStr)) {
+        var supportNote = (window.SPECTER_ERROR_SUPPORT && window.SPECTER_ERROR_SUPPORT.note) || '';
+        var msg = message == null ? '' : String(message);
+        if (supportNote && msg.indexOf('tickets.php') === -1) {
+            message = msg + ' | ' + supportNote;
+        }
+    }
+
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification is-${type} is-light`;
