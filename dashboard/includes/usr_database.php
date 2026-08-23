@@ -1105,6 +1105,8 @@ try {
                 blink_interval_max INT NOT NULL DEFAULT 6,
                 bounce_enabled TINYINT(1) NOT NULL DEFAULT 1,
                 bounce_intensity TINYINT NOT NULL DEFAULT 5,
+                weather VARCHAR(16) NOT NULL DEFAULT 'off',
+                weather_intensity TINYINT UNSIGNED NOT NULL DEFAULT 5,
                 active_expression VARCHAR(60) NOT NULL DEFAULT 'default',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -1601,6 +1603,18 @@ try {
     if ($avTalkBlinkCol && $avTalkBlinkCol->num_rows === 0) {
         if ($usrDBconn->query("ALTER TABLE avatar_settings ADD open_blink_image VARCHAR(255) DEFAULT NULL AFTER closed_blink_image") === TRUE) {
             async_log('Added open_blink_image column to avatar_settings.');
+        }
+    }
+    $avWeatherCol = $usrDBconn->query("SHOW COLUMNS FROM avatar_settings LIKE 'weather'");
+    if ($avWeatherCol && $avWeatherCol->num_rows === 0) {
+        if ($usrDBconn->query("ALTER TABLE avatar_settings ADD weather VARCHAR(16) NOT NULL DEFAULT 'off'") === TRUE) {
+            async_log('Added weather column to avatar_settings.');
+        }
+    }
+    $avWeatherIntCol = $usrDBconn->query("SHOW COLUMNS FROM avatar_settings LIKE 'weather_intensity'");
+    if ($avWeatherIntCol && $avWeatherIntCol->num_rows === 0) {
+        if ($usrDBconn->query("ALTER TABLE avatar_settings ADD weather_intensity TINYINT UNSIGNED NOT NULL DEFAULT 5") === TRUE) {
+            async_log('Added weather_intensity column to avatar_settings.');
         }
     }
     // Ensure default options for streamer_preferences exist
