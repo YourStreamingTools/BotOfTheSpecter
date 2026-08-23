@@ -3528,6 +3528,9 @@ return [
     'custom_commands_import_err_row_permission' => 'Ligne %d (!%s) : la valeur de permission n\'est pas reconnue.',
     'custom_commands_import_err_row_status' => 'Ligne %d (!%s) : le statut doit être Enabled ou Disabled.',
     'custom_commands_import_err_row_save' => 'Ligne %d (!%s) : impossible d\'enregistrer cette commande.',
+    'custom_commands_import_swal_success_title' => 'Import terminé',
+    'custom_commands_import_swal_partial_title' => 'Import terminé avec des problèmes',
+    'custom_commands_import_swal_failed_title' => 'Échec de l\'import',
     // Streaming Page
     'streaming_settings_title' => 'Paramètres de streaming',
     'streaming_service_overview_title' => 'Aperçu et paramètres du service de streaming',

@@ -2739,6 +2739,15 @@ input[type="checkbox"].switch:disabled + label {
 .cc-import-results .sp-alert {
     margin-bottom: 0;
 }
+.cc-import-swal-body {
+    text-align: left;
+}
+.cc-import-swal-body .sp-alert {
+    margin: 0.5rem 0 0;
+}
+.cc-import-swal-body .cc-import-result-list {
+    margin-bottom: 0;
+}
 
 @media (max-width: 768px) {
     .cc-form-grid { grid-template-columns: 1fr; }

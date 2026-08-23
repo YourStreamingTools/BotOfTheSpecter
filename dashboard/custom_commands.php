@@ -1225,7 +1225,10 @@ var CC_I18N = {
     importSkippedBuiltin: <?php echo json_encode(t('custom_commands_import_result_skipped_builtin')); ?>,
     importSkippedInvalid: <?php echo json_encode(t('custom_commands_import_result_skipped_invalid')); ?>,
     importAliasWarnings: <?php echo json_encode(t('custom_commands_import_result_alias_warnings')); ?>,
-    importTruncated: <?php echo json_encode(t('custom_commands_import_truncated')); ?>
+    importTruncated: <?php echo json_encode(t('custom_commands_import_truncated')); ?>,
+    importSuccessTitle: <?php echo json_encode(t('custom_commands_import_swal_success_title')); ?>,
+    importPartialTitle: <?php echo json_encode(t('custom_commands_import_swal_partial_title')); ?>,
+    importFailedTitle: <?php echo json_encode(t('custom_commands_import_swal_failed_title')); ?>
 };
 
 function escapeHtml(str) {
@@ -1390,28 +1393,25 @@ function renderImportWorking() {
     box.appendChild(info);
 }
 
-function renderImportResults(data) {
-    var box = document.getElementById('importResults');
-    if (!box) return;
-    box.innerHTML = '';
-    box.classList.add('is-visible');
-    if (!data || !data.success) {
-        var err = document.createElement('div');
-        err.className = 'sp-alert sp-alert-danger';
-        err.textContent = (data && data.message) ? data.message : CC_I18N.importGeneric;
-        box.appendChild(err);
-        return;
-    }
-    var imported = parseInt(data.imported, 10) || 0;
-    var summary = document.createElement('div');
-    summary.className = imported > 0 ? 'sp-alert sp-alert-success' : 'sp-alert sp-alert-warning';
-    summary.textContent = imported > 0 ? formatImportCount(CC_I18N.importImported, imported) : CC_I18N.importNone;
-    box.appendChild(summary);
+function importIssueLists(data) {
+    return {
+        existing: ((data && data.skipped_existing) || []).map(function(name) { return '!' + name; }),
+        builtin: ((data && data.skipped_builtin) || []).map(function(name) { return '!' + name; }),
+        invalid: (data && data.skipped_invalid) || [],
+        aliases: (data && data.alias_warnings) || [],
+        truncated: !!(data && data.truncated),
+        truncatedText: data && data.truncated
+            ? formatImportCount(CC_I18N.importTruncated, parseInt(data.max_rows, 10) || 1000)
+            : ''
+    };
+}
+
+function appendImportIssueLists(parent, issues, headingTag) {
     function addList(items, title, className) {
         if (!items || !items.length) return;
         var wrap = document.createElement('div');
         wrap.className = 'sp-alert ' + className;
-        var heading = document.createElement('p');
+        var heading = document.createElement(headingTag || 'p');
         heading.className = 'cc-import-result-title';
         heading.textContent = title;
         wrap.appendChild(heading);
@@ -1423,17 +1423,78 @@ function renderImportResults(data) {
             list.appendChild(li);
         });
         wrap.appendChild(list);
-        box.appendChild(wrap);
+        parent.appendChild(wrap);
     }
-    addList((data.skipped_existing || []).map(function(name) { return '!' + name; }), CC_I18N.importSkippedExisting, 'sp-alert-warning');
-    addList((data.skipped_builtin || []).map(function(name) { return '!' + name; }), CC_I18N.importSkippedBuiltin, 'sp-alert-warning');
-    addList(data.skipped_invalid || [], CC_I18N.importSkippedInvalid, 'sp-alert-danger');
-    addList(data.alias_warnings || [], CC_I18N.importAliasWarnings, 'sp-alert-warning');
-    if (data.truncated) {
+    addList(issues.existing, CC_I18N.importSkippedExisting, 'sp-alert-warning');
+    addList(issues.builtin, CC_I18N.importSkippedBuiltin, 'sp-alert-warning');
+    addList(issues.invalid, CC_I18N.importSkippedInvalid, 'sp-alert-danger');
+    addList(issues.aliases, CC_I18N.importAliasWarnings, 'sp-alert-warning');
+    if (issues.truncated) {
         var trunc = document.createElement('div');
         trunc.className = 'sp-alert sp-alert-warning';
-        trunc.textContent = formatImportCount(CC_I18N.importTruncated, parseInt(data.max_rows, 10) || 1000);
-        box.appendChild(trunc);
+        trunc.textContent = issues.truncatedText;
+        parent.appendChild(trunc);
+    }
+}
+
+function notifyImportOutcome(data) {
+    var imported = data && data.success ? (parseInt(data.imported, 10) || 0) : 0;
+    var issues = importIssueLists(data);
+    var hasIssues = issues.existing.length || issues.builtin.length || issues.invalid.length || issues.aliases.length || issues.truncated;
+    if (typeof Swal === 'undefined') {
+        return;
+    }
+    if (!data || !data.success) {
+        Swal.fire({
+            icon: 'error',
+            title: CC_I18N.importFailedTitle,
+            text: (data && data.message) ? data.message : CC_I18N.importGeneric
+        });
+        return;
+    }
+    var holder = document.createElement('div');
+    holder.className = 'cc-import-swal-body';
+    var summary = document.createElement('p');
+    summary.textContent = imported > 0 ? formatImportCount(CC_I18N.importImported, imported) : CC_I18N.importNone;
+    holder.appendChild(summary);
+    appendImportIssueLists(holder, issues);
+    Swal.fire({
+        icon: hasIssues ? (imported > 0 ? 'warning' : 'error') : 'success',
+        title: hasIssues ? CC_I18N.importPartialTitle : CC_I18N.importSuccessTitle,
+        html: holder,
+        width: 640
+    });
+}
+
+function renderImportResults(data, notify) {
+    var box = document.getElementById('importResults');
+    if (!box) return;
+    box.innerHTML = '';
+    box.classList.add('is-visible');
+    if (!data || !data.success) {
+        var err = document.createElement('div');
+        err.className = 'sp-alert sp-alert-danger';
+        err.textContent = (data && data.message) ? data.message : CC_I18N.importGeneric;
+        box.appendChild(err);
+        if (notify !== false) {
+            notifyImportOutcome(data);
+        }
+        if (typeof box.scrollIntoView === 'function') {
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        return;
+    }
+    var imported = parseInt(data.imported, 10) || 0;
+    var summary = document.createElement('div');
+    summary.className = imported > 0 ? 'sp-alert sp-alert-success' : 'sp-alert sp-alert-warning';
+    summary.textContent = imported > 0 ? formatImportCount(CC_I18N.importImported, imported) : CC_I18N.importNone;
+    box.appendChild(summary);
+    appendImportIssueLists(box, importIssueLists(data));
+    if (typeof box.scrollIntoView === 'function') {
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    if (notify !== false) {
+        notifyImportOutcome(data);
     }
 }
 
@@ -1509,7 +1570,23 @@ function submitImportCommands() {
         body: formData,
         credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    }).then(function(r) { return r.json(); }).then(function(data) {
+    }).then(function(r) {
+        return r.text().then(function(text) {
+            var data = null;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                data = null;
+            }
+            if (!data) {
+                return { success: false, message: CC_I18N.importGeneric };
+            }
+            if (!r.ok && data.success === undefined) {
+                return { success: false, message: data.message || CC_I18N.importGeneric };
+            }
+            return data;
+        });
+    }).then(function(data) {
         if (submitBtn) submitBtn.classList.remove('sp-btn-loading');
         if (submitBtn) submitBtn.disabled = !importCommandsFile;
         renderImportResults(data);
