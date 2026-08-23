@@ -160,15 +160,67 @@ function custom_commands_detect_csv_delimiter($firstLine)
     return $semi > $comma ? ';' : ',';
 }
 
-function custom_commands_import_template_csv()
+function custom_commands_builtin_tokens($builtinCommands)
+{
+    $tokens = [];
+    if (!isset($builtinCommands['commands']) || !is_array($builtinCommands['commands'])) {
+        return $tokens;
+    }
+    foreach ($builtinCommands['commands'] as $name => $meta) {
+        $name = strtolower(trim((string)$name));
+        if ($name !== '') {
+            $tokens[$name] = true;
+        }
+        if (!is_array($meta)) {
+            continue;
+        }
+        $aliases = $meta['aliases'] ?? [];
+        if (!is_array($aliases)) {
+            $aliases = [$aliases];
+        }
+        foreach ($aliases as $alias) {
+            $alias = strtolower(trim((string)$alias));
+            if ($alias !== '') {
+                $tokens[$alias] = true;
+            }
+        }
+    }
+    return $tokens;
+}
+
+function custom_commands_import_template_row_blocked(array $row, array $builtinTokens)
+{
+    $command = strtolower(trim((string)($row[0] ?? '')));
+    if ($command === '' || isset($builtinTokens[$command])) {
+        return true;
+    }
+    $aliasesRaw = (string)($row[5] ?? '');
+    foreach (explode(',', $aliasesRaw) as $alias) {
+        $alias = strtolower(trim($alias));
+        if ($alias !== '' && isset($builtinTokens[$alias])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function custom_commands_import_template_csv($builtinTokens = [])
 {
     $fh = fopen('php://temp', 'r+');
     $rows = [
         ['command', 'response', 'cooldown', 'cooldown_bucket', 'permission', 'aliases', 'status'],
-        ['hello', 'Hello (user)! Welcome to the stream.', '15', 'default', 'everyone', '', 'Enabled'],
-        ['lurk', 'Thanks for lurking (user)!', '15', 'user', 'everyone', 'afk', 'Enabled'],
-        ['modinfo', 'Mods only: check the staff Discord channel.', '30', 'mod', 'mod', '', 'Enabled'],
     ];
+    $candidates = [
+        ['welcome', 'Hello (user)! Welcome to the stream.', '15', 'default', 'everyone', 'hi', 'Enabled'],
+        ['hydrate', 'Drink some water, (user)!', '15', 'user', 'everyone', '', 'Enabled'],
+        ['merch', 'Merch is linked in the Twitch panels.', '30', 'default', 'everyone', '', 'Enabled'],
+    ];
+    foreach ($candidates as $row) {
+        if (custom_commands_import_template_row_blocked($row, $builtinTokens)) {
+            continue;
+        }
+        $rows[] = $row;
+    }
     foreach ($rows as $row) {
         fputcsv($fh, $row, ',', '"', '\\');
     }
@@ -295,7 +347,7 @@ function custom_commands_read_import_rows($tmpPath)
 
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'import_template') {
     ob_clean();
-    $csv = custom_commands_import_template_csv();
+    $csv = custom_commands_import_template_csv(custom_commands_builtin_tokens($builtinCommands ?? []));
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="specter-custom-commands-template.csv"');
     header('Cache-Control: no-store');
@@ -422,12 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             echo json_encode(['success' => false, 'message' => t($errorKey)]);
             exit;
         }
-        $builtinLookup = [];
-        if (isset($builtinCommands['commands']) && is_array($builtinCommands['commands'])) {
-            foreach (array_keys($builtinCommands['commands']) as $builtinName) {
-                $builtinLookup[strtolower((string)$builtinName)] = true;
-            }
-        }
+        $builtinLookup = custom_commands_builtin_tokens($builtinCommands ?? []);
         $taken = load_custom_command_taken_tokens($db);
         $imported = 0;
         $skippedExisting = [];
@@ -1013,7 +1060,7 @@ ob_start();
                 <thead>
                     <tr>
                         <th><?php echo t('builtin_commands_table_command'); ?></th>
-                        <th><?php echo t('builtin_commands_table_description'); ?></th>
+                        <th><?php echo t('custom_commands_response_label'); ?></th>
                         <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
                         <th style="text-align:center;"><?php echo t('custom_commands_cooldown_label'); ?></th>
                         <th style="text-align:center;"><?php echo t('custom_commands_cooldown_bucket_label'); ?></th>
@@ -1110,6 +1157,7 @@ ob_start();
             </div>
             <h5 class="cc-import-section-title"><?php echo t('custom_commands_import_notes_title'); ?></h5>
             <ul class="cc-import-notes">
+                <li><?php echo t('custom_commands_import_note_twitch'); ?></li>
                 <li><?php echo t('custom_commands_import_note_skip_bang'); ?></li>
                 <li><?php echo t('custom_commands_import_note_skip_existing'); ?></li>
                 <li><?php echo t('custom_commands_import_note_quotes'); ?></li>
