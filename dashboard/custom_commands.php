@@ -91,6 +91,218 @@ function sanitize_cooldown_bucket($bucket)
     return in_array($bucket, $allowed, true) ? $bucket : 'default';
 }
 
+function normalize_import_permission($value)
+{
+    $value = strtolower(trim((string)$value));
+    if ($value === '') {
+        return 'everyone';
+    }
+    $value = preg_replace('/[\s_]+/', '-', $value);
+    $value = preg_replace('/-+/', '-', $value);
+    $map = [
+        'everyone' => 'everyone',
+        'all' => 'everyone',
+        'any' => 'everyone',
+        'public' => 'everyone',
+        'vip' => 'vip',
+        'vips' => 'vip',
+        'all-subs' => 'all-subs',
+        'all-subscribers' => 'all-subs',
+        'all-subscriber' => 'all-subs',
+        'subscribers' => 'all-subs',
+        'subscriber' => 'all-subs',
+        'subs' => 'all-subs',
+        't1-sub' => 't1-sub',
+        't1' => 't1-sub',
+        'tier-1' => 't1-sub',
+        'tier-1-sub' => 't1-sub',
+        'tier-1-subscriber' => 't1-sub',
+        't2-sub' => 't2-sub',
+        't2' => 't2-sub',
+        'tier-2' => 't2-sub',
+        'tier-2-sub' => 't2-sub',
+        'tier-2-subscriber' => 't2-sub',
+        't3-sub' => 't3-sub',
+        't3' => 't3-sub',
+        'tier-3' => 't3-sub',
+        'tier-3-sub' => 't3-sub',
+        'tier-3-subscriber' => 't3-sub',
+        'mod' => 'mod',
+        'mods' => 'mod',
+        'moderator' => 'mod',
+        'moderators' => 'mod',
+        'broadcaster' => 'broadcaster',
+        'streamer' => 'broadcaster',
+        'owner' => 'broadcaster',
+    ];
+    return $map[$value] ?? null;
+}
+
+function sanitize_import_status($status)
+{
+    $status = strtolower(trim((string)$status));
+    if ($status === '') {
+        return 'Enabled';
+    }
+    if (in_array($status, ['enabled', 'enable', 'on', 'true', '1', 'yes', 'active'], true)) {
+        return 'Enabled';
+    }
+    if (in_array($status, ['disabled', 'disable', 'off', 'false', '0', 'no', 'inactive'], true)) {
+        return 'Disabled';
+    }
+    return null;
+}
+
+function custom_commands_detect_csv_delimiter($firstLine)
+{
+    $comma = substr_count((string)$firstLine, ',');
+    $semi = substr_count((string)$firstLine, ';');
+    return $semi > $comma ? ';' : ',';
+}
+
+function custom_commands_import_template_csv()
+{
+    $fh = fopen('php://temp', 'r+');
+    $rows = [
+        ['command', 'response', 'cooldown', 'cooldown_bucket', 'permission', 'aliases', 'status'],
+        ['hello', 'Hello (user)! Welcome to the stream.', '15', 'default', 'everyone', '', 'Enabled'],
+        ['lurk', 'Thanks for lurking (user)!', '15', 'user', 'everyone', 'afk', 'Enabled'],
+        ['modinfo', 'Mods only: check the staff Discord channel.', '30', 'mod', 'mod', '', 'Enabled'],
+    ];
+    foreach ($rows as $row) {
+        fputcsv($fh, $row, ',', '"', '\\');
+    }
+    rewind($fh);
+    $csv = stream_get_contents($fh);
+    fclose($fh);
+    return $csv === false ? '' : $csv;
+}
+
+function custom_commands_csv_header_map($headerRow)
+{
+    $aliases = [
+        'command' => 'command',
+        'cmd' => 'command',
+        'name' => 'command',
+        'response' => 'response',
+        'message' => 'response',
+        'reply' => 'response',
+        'cooldown' => 'cooldown',
+        'cd' => 'cooldown',
+        'cooldown_bucket' => 'cooldown_bucket',
+        'cooldownbucket' => 'cooldown_bucket',
+        'bucket' => 'cooldown_bucket',
+        'permission' => 'permission',
+        'perm' => 'permission',
+        'level' => 'permission',
+        'aliases' => 'aliases',
+        'alias' => 'aliases',
+        'status' => 'status',
+    ];
+    $map = [];
+    foreach ((array)$headerRow as $index => $raw) {
+        $key = strtolower(trim(str_replace("\xEF\xBB\xBF", '', (string)$raw)));
+        $key = str_replace([' ', '-'], ['_', '_'], $key);
+        if (isset($aliases[$key]) && !isset($map[$aliases[$key]])) {
+            $map[$aliases[$key]] = (int)$index;
+        }
+    }
+    return $map;
+}
+
+function load_custom_command_taken_tokens($db)
+{
+    $taken = [];
+    $res = $db->query('SELECT command, aliases FROM custom_commands');
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $name = strtolower(trim((string)($row['command'] ?? '')));
+            if ($name !== '') {
+                $taken[$name] = true;
+            }
+            if (!empty($row['aliases'])) {
+                foreach (explode(',', (string)$row['aliases']) as $other) {
+                    $other = strtolower(trim($other));
+                    if ($other !== '') {
+                        $taken[$other] = true;
+                    }
+                }
+            }
+        }
+        $res->close();
+    }
+    return $taken;
+}
+
+function custom_commands_csv_cell($row, $map, $field)
+{
+    if (!isset($map[$field])) {
+        return '';
+    }
+    $index = $map[$field];
+    return isset($row[$index]) ? trim((string)$row[$index]) : '';
+}
+
+function custom_commands_read_import_rows($tmpPath)
+{
+    $raw = file_get_contents($tmpPath);
+    if ($raw === false || trim($raw) === '') {
+        return ['ok' => false, 'error' => 'empty'];
+    }
+    if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) {
+        $raw = substr($raw, 3);
+    }
+    $firstLine = strtok($raw, "\r\n");
+    if ($firstLine === false || trim($firstLine) === '') {
+        return ['ok' => false, 'error' => 'empty'];
+    }
+    $delimiter = custom_commands_detect_csv_delimiter($firstLine);
+    $fh = fopen('php://temp', 'r+');
+    fwrite($fh, $raw);
+    rewind($fh);
+    $header = fgetcsv($fh, 0, $delimiter, '"', '\\');
+    if (!is_array($header) || empty($header)) {
+        fclose($fh);
+        return ['ok' => false, 'error' => 'headers'];
+    }
+    $map = custom_commands_csv_header_map($header);
+    if (!isset($map['command'], $map['response'])) {
+        fclose($fh);
+        return ['ok' => false, 'error' => 'headers'];
+    }
+    $rows = [];
+    $rowNumber = 1;
+    while (($data = fgetcsv($fh, 0, $delimiter, '"', '\\')) !== false) {
+        $rowNumber++;
+        if ($data === [null] || $data === false) {
+            continue;
+        }
+        $empty = true;
+        foreach ($data as $cell) {
+            if (trim((string)$cell) !== '') {
+                $empty = false;
+                break;
+            }
+        }
+        if ($empty) {
+            continue;
+        }
+        $rows[] = ['number' => $rowNumber, 'data' => $data];
+    }
+    fclose($fh);
+    return ['ok' => true, 'map' => $map, 'rows' => $rows];
+}
+
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'import_template') {
+    ob_clean();
+    $csv = custom_commands_import_template_csv();
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="specter-custom-commands-template.csv"');
+    header('Cache-Control: no-store');
+    echo "\xEF\xBB\xBF" . $csv;
+    exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     ob_clean();
     header('Content-Type: application/json');
@@ -169,6 +381,166 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             'success' => true,
             'saved_count' => count($cleanOptions),
             'many_options_enabled' => ($manyOptionsEnabled === 1),
+        ]);
+        exit;
+    }
+    if ($_POST['action'] === 'import_commands') {
+        $maxBytes = 1048576;
+        $maxRows = 1000;
+        $maxResponse = 500;
+        if (!isset($_FILES['import_file']) || !is_array($_FILES['import_file'])) {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_no_file')]);
+            exit;
+        }
+        $file = $_FILES['import_file'];
+        $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError === UPLOAD_ERR_NO_FILE || empty($file['tmp_name'])) {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_no_file')]);
+            exit;
+        }
+        if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE || ((int)($file['size'] ?? 0) > $maxBytes)) {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_too_large')]);
+            exit;
+        }
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_generic')]);
+            exit;
+        }
+        if (!is_uploaded_file($file['tmp_name'])) {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_generic')]);
+            exit;
+        }
+        $originalName = (string)($file['name'] ?? '');
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if ($extension !== 'csv') {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_type')]);
+            exit;
+        }
+        $parsed = custom_commands_read_import_rows($file['tmp_name']);
+        if (!$parsed['ok']) {
+            $errorKey = $parsed['error'] === 'empty' ? 'custom_commands_import_err_empty' : 'custom_commands_import_err_headers';
+            echo json_encode(['success' => false, 'message' => t($errorKey)]);
+            exit;
+        }
+        $builtinLookup = [];
+        if (isset($builtinCommands['commands']) && is_array($builtinCommands['commands'])) {
+            foreach (array_keys($builtinCommands['commands']) as $builtinName) {
+                $builtinLookup[strtolower((string)$builtinName)] = true;
+            }
+        }
+        $taken = load_custom_command_taken_tokens($db);
+        $imported = 0;
+        $skippedExisting = [];
+        $skippedBuiltin = [];
+        $skippedInvalid = [];
+        $aliasWarnings = [];
+        $truncated = false;
+        $dataRows = $parsed['rows'];
+        if (count($dataRows) > $maxRows) {
+            $dataRows = array_slice($dataRows, 0, $maxRows);
+            $truncated = true;
+        }
+        $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, cooldown_bucket, permission, aliases) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        if (!$insertSTMT) {
+            echo json_encode(['success' => false, 'message' => t('custom_commands_import_err_generic')]);
+            exit;
+        }
+        foreach ($dataRows as $entry) {
+            $rowNumber = (int)$entry['number'];
+            $row = $entry['data'];
+            $map = $parsed['map'];
+            $commandName = sanitize_command_name(custom_commands_csv_cell($row, $map, 'command'));
+            $response = custom_commands_csv_cell($row, $map, 'response');
+            if ($commandName === '') {
+                $skippedInvalid[] = t('custom_commands_import_err_row_command', [$rowNumber]);
+                continue;
+            }
+            if ($response === '') {
+                $skippedInvalid[] = t('custom_commands_import_err_row_response', [$rowNumber, $commandName]);
+                continue;
+            }
+            $responseLength = function_exists('mb_strlen') ? mb_strlen($response) : strlen($response);
+            if ($responseLength > $maxResponse) {
+                $skippedInvalid[] = t('custom_commands_import_err_row_response_long', [$rowNumber, $commandName]);
+                continue;
+            }
+            $cooldownRaw = custom_commands_csv_cell($row, $map, 'cooldown');
+            if ($cooldownRaw === '') {
+                $cooldown = 15;
+            } elseif (!is_numeric($cooldownRaw)) {
+                $skippedInvalid[] = t('custom_commands_import_err_row_cooldown', [$rowNumber, $commandName]);
+                continue;
+            } else {
+                $cooldown = (int)$cooldownRaw;
+                if ($cooldown < 0) {
+                    $cooldown = 0;
+                }
+                if ($cooldown > 86400) {
+                    $cooldown = 86400;
+                }
+            }
+            $permissionRaw = custom_commands_csv_cell($row, $map, 'permission');
+            $permission = normalize_import_permission($permissionRaw);
+            if ($permission === null) {
+                $skippedInvalid[] = t('custom_commands_import_err_row_permission', [$rowNumber, $commandName]);
+                continue;
+            }
+            $statusValue = sanitize_import_status(custom_commands_csv_cell($row, $map, 'status'));
+            if ($statusValue === null) {
+                $skippedInvalid[] = t('custom_commands_import_err_row_status', [$rowNumber, $commandName]);
+                continue;
+            }
+            $cooldownBucket = sanitize_cooldown_bucket(custom_commands_csv_cell($row, $map, 'cooldown_bucket'));
+            if (isset($builtinLookup[$commandName])) {
+                $skippedBuiltin[] = $commandName;
+                continue;
+            }
+            if (isset($taken[$commandName])) {
+                $skippedExisting[] = $commandName;
+                continue;
+            }
+            $normalizedAliases = [];
+            $aliasConflicts = [];
+            $aliasesRaw = custom_commands_csv_cell($row, $map, 'aliases');
+            foreach (explode(',', $aliasesRaw) as $aliasTok) {
+                $aliasTok = sanitize_command_name($aliasTok);
+                if ($aliasTok === '' || $aliasTok === $commandName) {
+                    continue;
+                }
+                if (in_array($aliasTok, $normalizedAliases, true)) {
+                    continue;
+                }
+                if (isset($builtinLookup[$aliasTok]) || isset($taken[$aliasTok])) {
+                    $aliasConflicts[] = $aliasTok;
+                    continue;
+                }
+                $normalizedAliases[] = $aliasTok;
+            }
+            $aliasesValue = implode(',', $normalizedAliases);
+            $insertSTMT->bind_param('ssissss', $commandName, $response, $statusValue, $cooldown, $cooldownBucket, $permission, $aliasesValue);
+            if (!$insertSTMT->execute()) {
+                $skippedInvalid[] = t('custom_commands_import_err_row_save', [$rowNumber, $commandName]);
+                continue;
+            }
+            $taken[$commandName] = true;
+            foreach ($normalizedAliases as $aliasTok) {
+                $taken[$aliasTok] = true;
+            }
+            $imported++;
+            if (!empty($aliasConflicts)) {
+                $aliasWarnings[] = t('custom_commands_alias_conflict_warning', [implode(', ', $aliasConflicts)]) . ' (!' . $commandName . ')';
+            }
+        }
+        $insertSTMT->close();
+        echo json_encode([
+            'success' => true,
+            'imported' => $imported,
+            'skipped_existing' => array_values(array_unique($skippedExisting)),
+            'skipped_builtin' => array_values(array_unique($skippedBuiltin)),
+            'skipped_invalid' => $skippedInvalid,
+            'alias_warnings' => $aliasWarnings,
+            'truncated' => $truncated,
+            'max_rows' => $maxRows,
         ]);
         exit;
     }
@@ -627,7 +999,13 @@ ob_start();
             <i class="fas fa-terminal"></i>
             <?php echo t('custom_commands_header'); ?>
         </div>
-        <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="max-width:300px; display:none;">
+        <div class="cc-commands-toolbar">
+            <button type="button" class="sp-btn sp-btn-secondary" id="importCommandsBtn">
+                <i class="fas fa-file-import"></i>
+                <span><?php echo t('custom_commands_import_btn'); ?></span>
+            </button>
+            <input class="sp-input cc-commands-search" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>">
+        </div>
     </div>
     <div class="sp-card-body">
         <div class="sp-table-wrap">
@@ -663,6 +1041,104 @@ ob_start();
     </div>
 </div>
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
+<div class="cc-modal-backdrop" id="importCommandsModal">
+    <div class="cc-modal cc-import-modal" role="dialog" aria-modal="true" aria-labelledby="importCommandsTitle">
+        <div class="cc-modal-head">
+            <span class="cc-modal-title" id="importCommandsTitle">
+                <i class="fas fa-file-import"></i>
+                <?php echo t('custom_commands_import_title'); ?>
+            </span>
+            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="closeImportCommandsModal" aria-label="<?php echo htmlspecialchars(t('custom_commands_import_close')); ?>">&times;</button>
+        </div>
+        <div class="cc-modal-body">
+            <p class="cc-import-intro"><?php echo t('custom_commands_import_intro'); ?></p>
+            <h5 class="cc-import-section-title"><?php echo t('custom_commands_import_how_title'); ?></h5>
+            <ol class="cc-import-steps">
+                <li><?php echo t('custom_commands_import_how_1'); ?></li>
+                <li><?php echo t('custom_commands_import_how_2'); ?></li>
+                <li><?php echo t('custom_commands_import_how_3'); ?></li>
+                <li><?php echo t('custom_commands_import_how_4'); ?></li>
+            </ol>
+            <h5 class="cc-import-section-title"><?php echo t('custom_commands_import_format_title'); ?></h5>
+            <div class="sp-table-wrap cc-import-format-wrap">
+                <table class="sp-table">
+                    <thead>
+                        <tr>
+                            <th><?php echo t('custom_commands_import_col_column'); ?></th>
+                            <th><?php echo t('custom_commands_import_col_required'); ?></th>
+                            <th><?php echo t('custom_commands_import_col_notes'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>command</code></td>
+                            <td><?php echo t('custom_commands_import_required_yes'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_command_notes'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><code>response</code></td>
+                            <td><?php echo t('custom_commands_import_required_yes'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_response_notes'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><code>cooldown</code></td>
+                            <td><?php echo t('custom_commands_import_required_no'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_cooldown_notes'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><code>cooldown_bucket</code></td>
+                            <td><?php echo t('custom_commands_import_required_no'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_bucket_notes'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><code>permission</code></td>
+                            <td><?php echo t('custom_commands_import_required_no'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_permission_notes'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><code>aliases</code></td>
+                            <td><?php echo t('custom_commands_import_required_no'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_aliases_notes'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><code>status</code></td>
+                            <td><?php echo t('custom_commands_import_required_no'); ?></td>
+                            <td><?php echo t('custom_commands_import_col_status_notes'); ?></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <h5 class="cc-import-section-title"><?php echo t('custom_commands_import_notes_title'); ?></h5>
+            <ul class="cc-import-notes">
+                <li><?php echo t('custom_commands_import_note_skip_bang'); ?></li>
+                <li><?php echo t('custom_commands_import_note_skip_existing'); ?></li>
+                <li><?php echo t('custom_commands_import_note_quotes'); ?></li>
+                <li><?php echo t('custom_commands_import_note_utf8'); ?></li>
+            </ul>
+            <div class="cc-import-template-row">
+                <a class="sp-btn sp-btn-secondary" href="?ajax_action=import_template" download="specter-custom-commands-template.csv">
+                    <i class="fas fa-download"></i>
+                    <span><?php echo t('custom_commands_import_template_btn'); ?></span>
+                </a>
+            </div>
+            <label class="cc-import-drop" id="importDropZone" for="importFileInput">
+                <i class="fas fa-cloud-arrow-up cc-import-drop-icon"></i>
+                <span class="cc-import-drop-title"><?php echo t('custom_commands_import_drop_title'); ?></span>
+                <span class="cc-import-drop-hint"><?php echo t('custom_commands_import_drop_hint'); ?></span>
+                <span class="cc-import-file-name" id="importFileName"><?php echo t('custom_commands_import_no_file'); ?></span>
+            </label>
+            <input type="file" id="importFileInput" class="cc-import-file-input" name="import_file" accept=".csv,text/csv">
+            <div class="cc-import-results" id="importResults"></div>
+        </div>
+        <div class="cc-modal-foot">
+            <button type="button" class="sp-btn sp-btn-secondary" id="cancelImportCommandsBtn"><?php echo t('custom_commands_import_close'); ?></button>
+            <button type="button" class="sp-btn sp-btn-primary" id="submitImportCommandsBtn" disabled>
+                <i class="fas fa-file-import"></i>
+                <span><?php echo t('custom_commands_import_submit'); ?></span>
+            </button>
+        </div>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
@@ -673,6 +1149,7 @@ ob_start();
 <script>
 var commands = [];
 var commandComboboxInitialized = false;
+var importCommandsFile = null;
 var permissionsMap = <?php echo json_encode(array_flip($permissionsMap)); ?>;
 var permissionsMapReverse = <?php echo json_encode($permissionsMapReverse); ?>;
 var cooldownBucketLabels = {
@@ -686,7 +1163,18 @@ var CC_I18N = {
     statusEnabled: <?php echo json_encode(t('builtin_commands_status_enabled')); ?>,
     statusDisabled: <?php echo json_encode(t('builtin_commands_status_disabled')); ?>,
     cooldownSeconds: <?php echo json_encode(t('custom_commands_cooldown_seconds')); ?>,
-    removeTitle: <?php echo json_encode(t('custom_commands_remove')); ?>
+    removeTitle: <?php echo json_encode(t('custom_commands_remove')); ?>,
+    importNoFile: <?php echo json_encode(t('custom_commands_import_no_file')); ?>,
+    importType: <?php echo json_encode(t('custom_commands_import_err_type')); ?>,
+    importWorking: <?php echo json_encode(t('custom_commands_import_working')); ?>,
+    importGeneric: <?php echo json_encode(t('custom_commands_import_err_generic')); ?>,
+    importImported: <?php echo json_encode(t('custom_commands_import_result_imported')); ?>,
+    importNone: <?php echo json_encode(t('custom_commands_import_nothing')); ?>,
+    importSkippedExisting: <?php echo json_encode(t('custom_commands_import_result_skipped_existing')); ?>,
+    importSkippedBuiltin: <?php echo json_encode(t('custom_commands_import_result_skipped_builtin')); ?>,
+    importSkippedInvalid: <?php echo json_encode(t('custom_commands_import_result_skipped_invalid')); ?>,
+    importAliasWarnings: <?php echo json_encode(t('custom_commands_import_result_alias_warnings')); ?>,
+    importTruncated: <?php echo json_encode(t('custom_commands_import_truncated')); ?>
 };
 
 function escapeHtml(str) {
@@ -737,7 +1225,13 @@ function renderCustomCommandsTable() {
     var searchInput = document.getElementById('searchInput');
     if (!tbody) return;
     tbody.setAttribute('aria-busy', 'false');
-    if (searchInput) searchInput.style.display = commands.length ? '' : 'none';
+    if (searchInput) {
+        if (commands.length) {
+            searchInput.classList.add('is-visible');
+        } else {
+            searchInput.classList.remove('is-visible');
+        }
+    }
     if (!commands.length) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">' + escapeHtml(CC_I18N.noCommands) + '</td></tr>';
         return;
@@ -826,8 +1320,212 @@ document.addEventListener("DOMContentLoaded", function() {
     yourLinksShortener.initializeField('command_response');
     initializeRandomPickWatcher('response', 'command');
     initializeRandomPickWatcher('command_response', 'new_command_name');
+    initImportCommands();
     loadCustomCommands();
 });
+
+function formatImportCount(template, count) {
+    return String(template).replace('%d', String(count));
+}
+
+function renderImportWorking() {
+    var box = document.getElementById('importResults');
+    if (!box) return;
+    box.innerHTML = '';
+    box.classList.add('is-visible');
+    var info = document.createElement('div');
+    info.className = 'sp-alert sp-alert-info';
+    info.textContent = CC_I18N.importWorking;
+    box.appendChild(info);
+}
+
+function renderImportResults(data) {
+    var box = document.getElementById('importResults');
+    if (!box) return;
+    box.innerHTML = '';
+    box.classList.add('is-visible');
+    if (!data || !data.success) {
+        var err = document.createElement('div');
+        err.className = 'sp-alert sp-alert-danger';
+        err.textContent = (data && data.message) ? data.message : CC_I18N.importGeneric;
+        box.appendChild(err);
+        return;
+    }
+    var imported = parseInt(data.imported, 10) || 0;
+    var summary = document.createElement('div');
+    summary.className = imported > 0 ? 'sp-alert sp-alert-success' : 'sp-alert sp-alert-warning';
+    summary.textContent = imported > 0 ? formatImportCount(CC_I18N.importImported, imported) : CC_I18N.importNone;
+    box.appendChild(summary);
+    function addList(items, title, className) {
+        if (!items || !items.length) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'sp-alert ' + className;
+        var heading = document.createElement('p');
+        heading.className = 'cc-import-result-title';
+        heading.textContent = title;
+        wrap.appendChild(heading);
+        var list = document.createElement('ul');
+        list.className = 'cc-import-result-list';
+        items.forEach(function(item) {
+            var li = document.createElement('li');
+            li.textContent = item;
+            list.appendChild(li);
+        });
+        wrap.appendChild(list);
+        box.appendChild(wrap);
+    }
+    addList((data.skipped_existing || []).map(function(name) { return '!' + name; }), CC_I18N.importSkippedExisting, 'sp-alert-warning');
+    addList((data.skipped_builtin || []).map(function(name) { return '!' + name; }), CC_I18N.importSkippedBuiltin, 'sp-alert-warning');
+    addList(data.skipped_invalid || [], CC_I18N.importSkippedInvalid, 'sp-alert-danger');
+    addList(data.alias_warnings || [], CC_I18N.importAliasWarnings, 'sp-alert-warning');
+    if (data.truncated) {
+        var trunc = document.createElement('div');
+        trunc.className = 'sp-alert sp-alert-warning';
+        trunc.textContent = formatImportCount(CC_I18N.importTruncated, parseInt(data.max_rows, 10) || 1000);
+        box.appendChild(trunc);
+    }
+}
+
+function resetImportResults() {
+    var box = document.getElementById('importResults');
+    if (!box) return;
+    box.innerHTML = '';
+    box.classList.remove('is-visible');
+}
+
+function setImportFile(file) {
+    var nameEl = document.getElementById('importFileName');
+    var submitBtn = document.getElementById('submitImportCommandsBtn');
+    var drop = document.getElementById('importDropZone');
+    var input = document.getElementById('importFileInput');
+    if (!file) {
+        if (nameEl) nameEl.textContent = CC_I18N.importNoFile;
+        if (submitBtn) submitBtn.disabled = true;
+        if (drop) drop.classList.remove('has-file');
+        if (input) input.value = '';
+        importCommandsFile = null;
+        return;
+    }
+    var fileName = String(file.name || '').toLowerCase();
+    if (fileName.slice(-4) !== '.csv') {
+        importCommandsFile = null;
+        if (nameEl) nameEl.textContent = CC_I18N.importNoFile;
+        if (submitBtn) submitBtn.disabled = true;
+        if (drop) drop.classList.remove('has-file');
+        if (input) input.value = '';
+        renderImportResults({ success: false, message: CC_I18N.importType });
+        return;
+    }
+    importCommandsFile = file;
+    if (nameEl) nameEl.textContent = file.name;
+    if (submitBtn) submitBtn.disabled = false;
+    if (drop) drop.classList.add('has-file');
+}
+
+function openImportCommandsModal() {
+    var modal = document.getElementById('importCommandsModal');
+    if (!modal) return;
+    resetImportResults();
+    setImportFile(null);
+    modal.classList.add('is-active');
+}
+
+function closeImportCommandsModal() {
+    var modal = document.getElementById('importCommandsModal');
+    if (!modal) return;
+    modal.classList.remove('is-active');
+    setImportFile(null);
+    resetImportResults();
+}
+
+function submitImportCommands() {
+    var file = importCommandsFile;
+    var submitBtn = document.getElementById('submitImportCommandsBtn');
+    if (!file) {
+        renderImportResults({ success: false, message: CC_I18N.importNoFile });
+        return;
+    }
+    var formData = new FormData();
+    formData.append('action', 'import_commands');
+    formData.append('import_file', file, file.name);
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('sp-btn-loading');
+    }
+    renderImportWorking();
+    fetch(window.location.pathname, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (submitBtn) submitBtn.classList.remove('sp-btn-loading');
+        if (submitBtn) submitBtn.disabled = !importCommandsFile;
+        renderImportResults(data);
+        if (data && data.success && (parseInt(data.imported, 10) || 0) > 0) {
+            loadCustomCommands();
+        }
+    }).catch(function() {
+        if (submitBtn) {
+            submitBtn.classList.remove('sp-btn-loading');
+            submitBtn.disabled = !importCommandsFile;
+        }
+        renderImportResults({ success: false, message: CC_I18N.importGeneric });
+    });
+}
+
+function initImportCommands() {
+    var openBtn = document.getElementById('importCommandsBtn');
+    var closeBtn = document.getElementById('closeImportCommandsModal');
+    var cancelBtn = document.getElementById('cancelImportCommandsBtn');
+    var submitBtn = document.getElementById('submitImportCommandsBtn');
+    var modal = document.getElementById('importCommandsModal');
+    var drop = document.getElementById('importDropZone');
+    var input = document.getElementById('importFileInput');
+    if (openBtn) openBtn.addEventListener('click', openImportCommandsModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeImportCommandsModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeImportCommandsModal);
+    if (submitBtn) submitBtn.addEventListener('click', submitImportCommands);
+    if (modal) {
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) closeImportCommandsModal();
+        });
+    }
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && modal && modal.classList.contains('is-active')) {
+            closeImportCommandsModal();
+        }
+    });
+    if (input) {
+        input.addEventListener('change', function() {
+            setImportFile(this.files && this.files[0] ? this.files[0] : null);
+            resetImportResults();
+        });
+    }
+    if (drop) {
+        ['dragenter', 'dragover'].forEach(function(type) {
+            drop.addEventListener(type, function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                drop.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'drop'].forEach(function(type) {
+            drop.addEventListener(type, function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                drop.classList.remove('is-dragover');
+            });
+        });
+        drop.addEventListener('drop', function(event) {
+            var files = event.dataTransfer && event.dataTransfer.files;
+            if (files && files[0]) {
+                setImportFile(files[0]);
+                resetImportResults();
+            }
+        });
+    }
+}
 
 function sanitizeCommandName(commandName) {
     return String(commandName || '')
