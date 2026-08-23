@@ -2408,6 +2408,7 @@ class BotOfTheSpecter(commands.Bot):
         self._stream_alert_locks = {}
         self._stream_online_in_flight: set = set()
         self._stream_alert_posted_at: dict = {}
+        self._mention_perm_dm_at: dict = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
             # Voice commands
@@ -3552,17 +3553,21 @@ class BotOfTheSpecter(commands.Bot):
         backoff = 1
         while retry_count < max_retries:
             try:
+                sent_content = content if content is not None else fallback_text
                 if embed:
                     # If both content and embed provided, include both
                     if content:
-                        await channel.send(content=content, embed=embed)
+                        sent = await channel.send(content=content, embed=embed)
                     else:
-                        await channel.send(embed=embed)
+                        sent = await channel.send(embed=embed)
                 else:
                     # Prefer explicit content over fallback_text
-                    await channel.send(content if content is not None else fallback_text)
+                    sent = await channel.send(sent_content)
                 # Track the message
                 await self.mysql_helper.track_message('discordbot')
+                await self._notify_if_mention_suppressed(
+                    channel, sent, sent_content, logger_context or "Discord message"
+                )
                 return True
             except discord.RateLimited as e:
                 retry_after = e.retry_after
@@ -3599,9 +3604,12 @@ class BotOfTheSpecter(commands.Bot):
                 fallback = content if content is not None else fallback_text
                 if fallback and embed:  # Only try fallback if we were trying to send an embed
                     try:
-                        await channel.send(fallback)
+                        sent = await channel.send(fallback)
                         self.logger.info(f"Sent {logger_context} as plain text fallback in #{channel.name}")
                         await self.mysql_helper.track_message('discordbot')
+                        await self._notify_if_mention_suppressed(
+                            channel, sent, fallback, logger_context or "Discord message"
+                        )
                         return True
                     except Exception as fallback_error:
                         self.logger.error(f"Fallback text message also failed in #{channel.name}: {fallback_error}")
@@ -4437,6 +4445,9 @@ class BotOfTheSpecter(commands.Bot):
                                 message = await stream_channel.send(content=mention_text, embed=embed)
                                 sent_success = True
                                 self.logger.info(f"✅ SUCCESS: Sent live notification (message ID: {message.id}) for {account_username} in #{stream_channel.name}")
+                                await self._notify_if_mention_suppressed(
+                                    stream_channel, message, mention_text, "Stream alert mention"
+                                )
                             except discord.Forbidden as e:
                                 self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
                                 self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
@@ -4619,6 +4630,72 @@ class BotOfTheSpecter(commands.Bot):
         except Exception as e:
             self.logger.error(f"Failed to DM bot owner {BOT_OWNER_ID}: {e}")
 
+    def _content_requests_everyone(self, content):
+        if not content:
+            return False
+        text = str(content)
+        return bool(re.search(r'@everyone\b', text) or re.search(r'@here\b', text))
+
+    def _content_role_mention_ids(self, content):
+        if not content:
+            return set()
+        return {int(role_id) for role_id in re.findall(r'<@&(\d+)>', str(content))}
+
+    async def _notify_if_mention_suppressed(self, channel, sent_message, intended_content, action):
+        """Discord still posts the message if Mention Everyone is missing; it just does not ping.
+        The created message has mention_everyone=false (and empty role mentions) in that case.
+        There is no HTTP error for a suppressed @everyone ping."""
+        if not sent_message or not intended_content:
+            return
+        guild = getattr(channel, 'guild', None)
+        if not guild:
+            return
+        wants_everyone = self._content_requests_everyone(intended_content)
+        wanted_roles = self._content_role_mention_ids(intended_content)
+        if not wants_everyone and not wanted_roles:
+            return
+        actually_everyone = bool(getattr(sent_message, 'mention_everyone', False))
+        actual_roles = set(getattr(sent_message, 'raw_role_mentions', None) or [])
+        suppressed_everyone = wants_everyone and not actually_everyone
+        suppressed_roles = wanted_roles - actual_roles
+        if not suppressed_everyone and not suppressed_roles:
+            return
+        me = getattr(guild, 'me', None)
+        can_mention_everyone = False
+        try:
+            if me is not None:
+                can_mention_everyone = bool(channel.permissions_for(me).mention_everyone)
+        except Exception:
+            can_mention_everyone = False
+        cooldown_key = (guild.id, getattr(channel, 'id', 0), 'mention')
+        last = self._mention_perm_dm_at.get(cooldown_key)
+        now = datetime.now(timezone.utc)
+        if last is not None and (now - last).total_seconds() < 86400:
+            self.logger.warning(
+                f"Mention suppressed in #{getattr(channel, 'name', channel.id)} for guild {guild.id} "
+                f"(everyone={suppressed_everyone}, roles={sorted(suppressed_roles)}); DM on cooldown"
+            )
+            return
+        self._mention_perm_dm_at[cooldown_key] = now
+        missing = []
+        if suppressed_everyone:
+            missing.append("@everyone / @here")
+        if suppressed_roles:
+            missing.append("role ping(s)")
+        perm_note = (
+            "the bot does not have Mention Everyone in this channel"
+            if not can_mention_everyone
+            else "Discord did not apply the mention even though the permission bit looks set — check channel overwrites"
+        )
+        reason = (
+            f"The message was posted in #{getattr(channel, 'name', channel.id)}, but Discord did not notify anyone "
+            f"({', '.join(missing)}). {perm_note}. "
+            f"Grant the bot Mention Everyone on #{getattr(channel, 'name', channel.id)} "
+            f"(channel permissions or the bot's role). Discord does not error when this is missing — it just skips the ping."
+        )
+        self.logger.warning(f"Mention suppressed in guild {guild.id}: {reason}")
+        await self._send_failure_dm(guild, action or "Mention", getattr(channel, 'name', str(channel.id)), reason)
+
     async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
         try:
             self.logger.info(f"Processing stream alert for {code} in guild {guild.id}")
@@ -4665,8 +4742,11 @@ class BotOfTheSpecter(commands.Bot):
             embed.set_thumbnail(url=profile_image_to_use)
             embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
             # Send notification
-            await stream_channel.send(content=mention_text, embed=embed)
+            sent_alert = await stream_channel.send(content=mention_text, embed=embed)
             self.logger.info(f"Successfully sent stream alert for {account_username} to #{stream_channel.name}")
+            await self._notify_if_mention_suppressed(
+                stream_channel, sent_alert, mention_text, "Stream alert mention"
+            )
         except Exception as e:
             self.logger.error(f"Exception in _process_stream_alert for {code}: {e}")
 
