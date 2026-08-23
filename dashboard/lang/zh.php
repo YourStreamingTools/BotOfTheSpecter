@@ -3635,6 +3635,9 @@ return [
     'custom_commands_import_err_row_permission' => '第 %d 行（!%s）：无法识别权限值。',
     'custom_commands_import_err_row_status' => '第 %d 行（!%s）：状态必须是 Enabled 或 Disabled。',
     'custom_commands_import_err_row_save' => '第 %d 行（!%s）：无法保存此命令。',
+    'custom_commands_import_swal_success_title' => '导入完成',
+    'custom_commands_import_swal_partial_title' => '导入完成，但存在问题',
+    'custom_commands_import_swal_failed_title' => '导入失败',
     // Streaming Page
     'streaming_settings_title' => '串流设置',
     'streaming_service_overview_title' => '流媒体服务概述和设置',
