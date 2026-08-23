@@ -1051,7 +1051,10 @@ ob_start();
                 <i class="fas fa-file-import"></i>
                 <span><?php echo t('custom_commands_import_btn'); ?></span>
             </button>
-            <input class="sp-input cc-commands-search" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>">
+            <div class="sp-input-wrap cc-commands-search" id="searchInputWrap">
+                <i class="fas fa-search sp-input-icon"></i>
+                <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>">
+            </div>
         </div>
     </div>
     <div class="sp-card-body">
@@ -1270,14 +1273,14 @@ function populateEditForm() {
 
 function renderCustomCommandsTable() {
     var tbody = document.getElementById('commandsTableBody');
-    var searchInput = document.getElementById('searchInput');
+    var searchWrap = document.getElementById('searchInputWrap');
     if (!tbody) return;
     tbody.setAttribute('aria-busy', 'false');
-    if (searchInput) {
+    if (searchWrap) {
         if (commands.length) {
-            searchInput.classList.add('is-visible');
+            searchWrap.classList.add('is-visible');
         } else {
-            searchInput.classList.remove('is-visible');
+            searchWrap.classList.remove('is-visible');
         }
     }
     if (!commands.length) {
