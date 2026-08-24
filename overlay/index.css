@@ -2742,3 +2742,286 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     white-space: nowrap;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
+
+/* ===== Pet Overlay ===== */
+.pet-overlay-page {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+.pet-overlay-page-root {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 42vw;
+}
+
+.pet-overlay-page-root[data-enabled="false"] {
+    display: none;
+}
+
+.pet-overlay-page-root[data-position="top-left"] {
+    top: 4vh;
+    left: 4vw;
+    align-items: flex-start;
+    flex-direction: column-reverse;
+}
+
+.pet-overlay-page-root[data-position="top-right"] {
+    top: 4vh;
+    right: 4vw;
+    align-items: flex-end;
+    flex-direction: column-reverse;
+}
+
+.pet-overlay-page-root[data-position="bottom-left"] {
+    bottom: 4vh;
+    left: 4vw;
+    align-items: flex-start;
+}
+
+.pet-overlay-page-root[data-position="bottom-right"] {
+    bottom: 4vh;
+    right: 4vw;
+    align-items: flex-end;
+}
+
+.pet-overlay-page-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 0;
+}
+
+.pet-overlay-page-root[data-position="top-left"] .pet-overlay-page-stage,
+.pet-overlay-page-root[data-position="top-right"] .pet-overlay-page-stage {
+    flex-direction: column-reverse;
+}
+
+.pet-overlay-page-pet {
+    position: relative;
+    line-height: 0;
+    transform-origin: center bottom;
+    will-change: transform;
+}
+
+.pet-overlay-page-root[data-position="top-left"] .pet-overlay-page-pet {
+    transform-origin: top left;
+}
+
+.pet-overlay-page-root[data-position="top-right"] .pet-overlay-page-pet {
+    transform-origin: top right;
+}
+
+.pet-overlay-page-root[data-position="bottom-left"] .pet-overlay-page-pet {
+    transform-origin: bottom left;
+}
+
+.pet-overlay-page-root[data-position="bottom-right"] .pet-overlay-page-pet {
+    transform-origin: bottom right;
+}
+
+.pet-overlay-page-canvas {
+    display: block;
+    max-width: 30vw;
+    max-height: 40vh;
+    height: auto;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    image-rendering: pixelated;
+}
+
+.pet-overlay-page-bubble {
+    position: relative;
+    z-index: 3;
+    margin-bottom: 8px;
+    max-width: 16rem;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pet-overlay-page-root[data-position="top-left"] .pet-overlay-page-bubble,
+.pet-overlay-page-root[data-position="top-right"] .pet-overlay-page-bubble {
+    margin-bottom: 0;
+    margin-top: 8px;
+}
+
+.pet-overlay-page-bubble.is-visible {
+    animation: fadeIn 0.2s ease forwards;
+}
+
+.pet-overlay-page-bubble.is-hiding {
+    animation: fadeOut 0.2s ease forwards;
+}
+
+.pet-overlay-page-bubble::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(0, 0, 0, 0.8);
+    transform: translateX(-50%);
+}
+
+.pet-overlay-page-root[data-position="top-left"] .pet-overlay-page-bubble::after,
+.pet-overlay-page-root[data-position="top-right"] .pet-overlay-page-bubble::after {
+    bottom: auto;
+    top: -6px;
+    border-top: 0;
+    border-bottom: 6px solid rgba(0, 0, 0, 0.8);
+}
+
+.pet-overlay-page-bubble-text {
+    display: block;
+}
+
+.pet-overlay-page-stats {
+    min-width: 140px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    pointer-events: none;
+}
+
+.pet-overlay-page-root[data-show-stats="false"] .pet-overlay-page-stats {
+    display: none;
+}
+
+.pet-overlay-page-stats-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.pet-overlay-page-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pet-overlay-page-level {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.pet-overlay-page-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.pet-overlay-page-stat-label {
+    width: 4.5em;
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.pet-overlay-page-stat-track {
+    flex: 1;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.pet-overlay-page-stat-fill {
+    height: 100%;
+    width: 100%;
+    background: #ffffff;
+    transform: scaleX(0);
+    transform-origin: left center;
+    will-change: transform;
+}
+
+.pet-overlay-page-stat[data-stat="happiness"] {
+    --happiness: #7bd88f;
+}
+
+.pet-overlay-page-stat[data-stat="happiness"] .pet-overlay-page-stat-fill {
+    background: var(--happiness);
+}
+
+.pet-overlay-page-stat[data-stat="hunger"] {
+    --hunger: #f0c14b;
+}
+
+.pet-overlay-page-stat[data-stat="hunger"] .pet-overlay-page-stat-fill {
+    background: var(--hunger);
+}
+
+.pet-overlay-page-stat[data-stat="energy"] {
+    --energy: #6cb6ff;
+}
+
+.pet-overlay-page-stat[data-stat="energy"] .pet-overlay-page-stat-fill {
+    background: var(--energy);
+}
+
+.pet-overlay-page-status {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 100;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.8);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #ffffff;
+    transition: opacity 350ms ease;
+}
+
+.pet-overlay-page-status[data-state="connected"] {
+    border-color: #32d486;
+    color: #32d486;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pet-overlay-page-status[data-state="connecting"] {
+    color: #f6c451;
+}
+
+.pet-overlay-page-status[data-state="error"] {
+    color: #ff6555;
+}

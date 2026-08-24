@@ -256,6 +256,19 @@ ob_start();
             </div>
         </div>
     </div>
+    <!-- Pet -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="sp-card-title"><i class="fas fa-paw"></i> <?= t('overlays_pet') ?></div>
+            <a href="pet.php" class="sp-btn sp-btn-sm sp-btn-secondary" title="<?= htmlspecialchars(t('overlays_pet_settings_title')) ?>"><i class="fas fa-cog"></i></a>
+        </div>
+        <div class="sp-card-body">
+            <?= t('overlays_pet_desc') ?>
+            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
+                https://overlay.botofthespecter.com/pet.php?code=API_KEY_HERE
+            </div>
+        </div>
+    </div>
     <!-- Discord Join Notifications -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">

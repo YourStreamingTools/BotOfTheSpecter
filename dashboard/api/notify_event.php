@@ -163,6 +163,22 @@ try {
                 echo json_encode($response);
                 exit();
             }
+        } elseif ($event === "PET_SETTINGS_UPDATE") {
+            // Overlay hot-reload of pet config/sprites (no extra parameters)
+        } elseif ($event === "PET_REACT" && isset($_POST['animation'])) {
+            $params['animation'] = $_POST['animation'];
+            if (isset($_POST['bubble_text'])) $params['bubble_text'] = $_POST['bubble_text'];
+            if (isset($_POST['personalized'])) $params['personalized'] = $_POST['personalized'];
+        } elseif ($event === "PET_STATE") {
+            foreach (['happiness', 'hunger', 'energy', 'level', 'xp', 'last_interaction_at', 'decay_happiness', 'decay_hunger', 'decay_energy'] as $petField) {
+                if (isset($_POST[$petField])) {
+                    $params[$petField] = $_POST[$petField];
+                }
+            }
+            if (isset($_POST['decay_rates'])) {
+                $rates = $_POST['decay_rates'];
+                $params['decay_rates'] = is_array($rates) ? json_encode($rates) : $rates;
+            }
         } elseif (($event === "SOUND_ALERT" && isset($_POST['sound'], $_POST['channel_name']))
                || ($event === "VIDEO_ALERT" && isset($_POST['video'], $_POST['channel_name']))) {
             // Single migration check shared by sound/video test playback. Reads the

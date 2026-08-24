@@ -514,6 +514,18 @@
 		"wordreplaceon": {
 			"description": "Opts you back into the Word Replacer module, so your messages are eligible for the random syllable-swap echo again.",
 			"syntax": "!wordreplaceon"
+		},
+		"pet": {
+			"description": "Shows the channel pet's name, level, and current happiness, hunger, and energy.",
+			"syntax": "!pet"
+		},
+		"feed": {
+			"description": "Feeds the channel pet, playing its eat animation and raising its hunger.",
+			"syntax": "!feed"
+		},
+		"play": {
+			"description": "Plays with the channel pet, playing its happy animation and raising its happiness.",
+			"syntax": "!play"
 		}
 	}
 }

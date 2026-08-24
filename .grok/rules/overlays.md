@@ -4,7 +4,7 @@ Overlays are PHP pages loaded as **OBS browser sources**. They have constraints 
 
 ## Current overlay set (`./overlay/`)
 
-**28 PHP files**, including:
+**29 PHP files**, including:
 
 - `all.php` (master / recommended multi-feature)
 - `index.php` (**Specter Alerts** - primary alerts browser source; pairs with `dashboard/alerts.php`)
@@ -14,7 +14,7 @@ Overlays are PHP pages loaded as **OBS browser sources**. They have constraints 
 - `credits.php`, `subathon.php`, `todolist.php`
 - `working-or-study.php` (task list + personal timers; badge id = **`backlog_position`**)
 - `kofi.php`, `patreon.php`, `fourthwall.php` (**live** donation overlays)
-- `closed-captions.php`, `avatar.php`, `counters.php`, `maker.php`, `social-roller.php`
+- `closed-captions.php`, `avatar.php`, `pet.php`, `counters.php`, `maker.php`, `social-roller.php`
 
 See `.grok/specs/2026-06-29-avatar-overlay-design.md` for Avatar behaviour.
 
