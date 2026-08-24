@@ -2837,12 +2837,16 @@ document.addEventListener('DOMContentLoaded', function() {
         'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' },
         'caddy.service': { statusKey: 'web_caddy', statusId: 'web-caddy-status', pidId: 'web-caddy-pid', buttonsId: 'web-caddy-buttons' }
     };
-    function scheduleStatusRefresh(meta) {
+    function scheduleStatusRefresh(meta, action) {
         if (!meta) return;
-        // Give systemd a moment to settle before querying status again
+        // Bots API /health is down while the process is still binding. Wait longer
+        // and retry so a successful restart is not painted as Error/Failed.
+        const waitForHttp = meta.statusKey === 'bots_api' && (action === 'start' || action === 'restart');
+        const delay = waitForHttp ? 2000 : 500;
+        const retries = waitForHttp ? 6 : 0;
         setTimeout(() => {
-            updateServiceStatus(meta.statusKey, meta.statusId, meta.pidId, meta.buttonsId);
-        }, 500);
+            updateServiceStatus(meta.statusKey, meta.statusId, meta.pidId, meta.buttonsId, retries);
+        }, delay);
     }
     const serviceLabels = adminI18n.serviceLabels;
     const actionLabels = adminI18n.actionLabels;
@@ -2887,7 +2891,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (output) {
                         console.log('[admin control] stdout/stderr:', output);
                     }
-                    scheduleStatusRefresh(meta);
+                    scheduleStatusRefresh(meta, action);
                 } else {
                     console.error('[admin control] command failed output:', output);
                     Swal.fire({
@@ -2906,7 +2910,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.diagnostics && data.diagnostics.exit_status !== null && data.diagnostics.exit_status !== 0) {
                         console.error('[admin control] exit status:', data.diagnostics.exit_status);
                     }
-                    scheduleStatusRefresh(meta);
+                    scheduleStatusRefresh(meta, action);
                 }
             } catch (e) {
                 // Not valid JSON - log raw text for diagnosis and show it to user
@@ -3284,18 +3288,21 @@ document.addEventListener('DOMContentLoaded', function() {
             '<span class="sp-skeleton-line w-50"></span></div>';
     }
     // Function to update service status
-    function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId) {
+    function updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId, retriesLeft, skipSkeleton) {
+        retriesLeft = retriesLeft || 0;
         const statusElement = document.getElementById(statusElementId);
         const pidElement = document.getElementById(pidElementId);
         const buttonsElement = document.getElementById(buttonsElementId);
-        if (statusElement) {
-            statusElement.className = 'admin-service-status';
-            statusElement.innerHTML = skeletonServiceStatusHtml();
-            setBusy(statusElement, true);
-        }
-        if (pidElement) {
-            pidElement.innerHTML = skeletonServicePidHtml();
-            setBusy(pidElement, true);
+        if (!skipSkeleton) {
+            if (statusElement) {
+                statusElement.className = 'admin-service-status';
+                statusElement.innerHTML = skeletonServiceStatusHtml();
+                setBusy(statusElement, true);
+            }
+            if (pidElement) {
+                pidElement.innerHTML = skeletonServicePidHtml();
+                setBusy(pidElement, true);
+            }
         }
         fetch(`service_status.php?service=${service}`)
             .then(response => response.text())
@@ -3306,6 +3313,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (parseError) {
                     console.error(`Raw response text for ${service}:`, text);
                     throw parseError;
+                }
+                const retryable = data.status === 'Error' || data.status === 'Starting' || data.status === 'Unknown';
+                if (retriesLeft > 0 && retryable) {
+                    if (statusElement) {
+                        statusElement.textContent = 'Starting';
+                        statusElement.className = 'admin-service-status sp-text-warning';
+                        setBusy(statusElement, false);
+                    }
+                    if (pidElement) {
+                        pidElement.textContent = 'PID: ' + (data.pid || 'N/A');
+                        setBusy(pidElement, false);
+                    }
+                    setTimeout(() => {
+                        updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId, retriesLeft - 1, true);
+                    }, 1000);
+                    return;
                 }
                 // Update status with appropriate color
                 statusElement.textContent = data.status;
@@ -3348,6 +3371,17 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error(`Error fetching ${service} status:`, error);
+                if (retriesLeft > 0) {
+                    if (statusElement) {
+                        statusElement.textContent = 'Starting';
+                        statusElement.className = 'admin-service-status sp-text-warning';
+                        setBusy(statusElement, false);
+                    }
+                    setTimeout(() => {
+                        updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId, retriesLeft - 1, true);
+                    }, 1000);
+                    return;
+                }
                 if (statusElement) {
                     statusElement.textContent = adminI18n.statusError;
                     statusElement.className = 'admin-service-status sp-text-danger';

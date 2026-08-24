@@ -84,6 +84,61 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
     return ['status' => $status, 'pid' => $pid];
 }
 
+// Lightweight systemd unit probe (ActiveState/SubState/MainPID). Used when HTTP
+// /health is down — e.g. bots-api mid-restart — so the admin card does not
+// report Error/Failed for a unit that is actually running.
+function getSystemdUnitStatus($service_name, $ssh_host, $ssh_username, $ssh_password) {
+    $status = 'Unknown';
+    $pid = 'N/A';
+    if (empty($ssh_host) || $service_name === '') {
+        return ['status' => $status, 'pid' => $pid];
+    }
+    try {
+        $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
+        if (!$connection) {
+            return ['status' => $status, 'pid' => $pid];
+        }
+        $output = SSHConnectionManager::executeCommandNoMarker(
+            $connection,
+            'systemctl show --property=ActiveState,SubState,MainPID --no-pager ' . $service_name
+        );
+        if ($output === false) {
+            return ['status' => 'Error', 'pid' => $pid];
+        }
+        $props = [];
+        foreach (preg_split("/\r\n|\n|\r/", (string)$output) as $line) {
+            if (strpos($line, '=') === false) {
+                continue;
+            }
+            [$k, $v] = explode('=', $line, 2);
+            $k = trim($k);
+            if ($k === 'ActiveState' || $k === 'SubState' || $k === 'MainPID') {
+                $props[$k] = trim($v);
+            }
+        }
+        $active = $props['ActiveState'] ?? '';
+        $sub = $props['SubState'] ?? '';
+        $pidRaw = $props['MainPID'] ?? '0';
+        if (ctype_digit($pidRaw) && $pidRaw !== '0') {
+            $pid = $pidRaw;
+        }
+        if ($active === 'active' && ($sub === 'running' || $sub === '')) {
+            $status = 'Running';
+        } elseif (in_array($active, ['activating'], true) || in_array($sub, ['auto-restart', 'start', 'start-pre', 'start-post'], true)) {
+            $status = 'Starting';
+        } elseif ($active === 'inactive' || $active === 'deactivating') {
+            $status = 'Stopped';
+        } elseif ($active === 'failed') {
+            $status = 'Failed';
+        } elseif ($active !== '') {
+            $status = ucfirst($active);
+        }
+        return ['status' => $status, 'pid' => $pid];
+    } catch (Exception $e) {
+        return ['status' => 'Error', 'pid' => 'N/A'];
+    }
+}
+
 // Get the requested service
 $service = $_GET['service'] ?? '';
 
@@ -171,10 +226,38 @@ if (!empty($config['fixed_status'])) {
 if ($service === 'bots_api') {
     $health = bots_api_health();
     if (!empty($health['ok'])) {
-        echo json_encode(['status' => 'Running', 'pid' => 'N/A']);
-    } else {
-        echo json_encode(['status' => 'Error', 'pid' => 'N/A', 'error' => $health['error'] ?? 'bots API health failed']);
+        $data = is_array($health['data'] ?? null) ? $health['data'] : [];
+        $pid = $data['pid'] ?? null;
+        if (is_numeric($pid) && (int)$pid > 0) {
+            $pid = (string)(int)$pid;
+        } else {
+            $sys = getSystemdUnitStatus(
+                $config['service_name'],
+                $config['ssh_host'],
+                $config['ssh_username'],
+                $config['ssh_password']
+            );
+            $pid = (!empty($sys['pid']) && $sys['pid'] !== 'N/A') ? (string)$sys['pid'] : 'N/A';
+        }
+        echo json_encode(['status' => 'Running', 'pid' => $pid]);
+        exit();
     }
+    // /health is down during restart (process up, socket not bound yet) or a 502
+    // from Caddy. That is not a unit failure — ask systemd.
+    $sys = getSystemdUnitStatus(
+        $config['service_name'],
+        $config['ssh_host'],
+        $config['ssh_username'],
+        $config['ssh_password']
+    );
+    $payload = [
+        'status' => $sys['status'] ?? 'Unknown',
+        'pid' => $sys['pid'] ?? 'N/A',
+    ];
+    if (($payload['status'] === 'Error' || $payload['status'] === 'Unknown') && !empty($health['error'])) {
+        $payload['error'] = $health['error'];
+    }
+    echo json_encode($payload);
     exit();
 }
 // WebSocket host: status via private control API (no SSH)

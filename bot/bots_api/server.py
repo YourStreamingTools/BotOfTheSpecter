@@ -9,7 +9,7 @@ Create a key with service name:  bots
 (super-admin service "admin" is also accepted)
 
 Public surface (behind TLS at bots.botofthespecter.com):
-  GET  /health  (ok, started_at, uptime_seconds — no auth)
+  GET  /health  (ok, started_at, uptime_seconds, pid — no auth)
   GET  /health/metrics  (live host CPU/RAM/disk/net — no auth)
   GET  /api/running_bots
   GET  /api/running_bots/snapshot  (durable last-seen inventory for crash recovery)
@@ -265,6 +265,7 @@ async def health() -> dict[str, Any]:
         "started_at": _process_started_at.strftime("%Y-%m-%d %H:%M:%S"),
         "started_at_utc": _process_started_at.isoformat(),
         "uptime_seconds": uptime_seconds,
+        "pid": os.getpid(),
     }
 
 
