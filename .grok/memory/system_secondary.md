@@ -106,7 +106,7 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 - JavaScript (WebSocket client via Socket.io 4.8.3)
 - Socket.io 4.8.3 (real-time event streaming)
 
-**Architecture** - Separate PHP browser-source pages under `./overlay/` (**28** `.php` files). Prefer adding options to existing pages over new files.
+**Architecture** - Separate PHP browser-source pages under `./overlay/` (**29** `.php` files). Prefer adding options to existing pages over new files.
 
 | File | Role |
 | ---- | ---- |
@@ -118,7 +118,7 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 | credits.php, subathon.php, todolist.php | End credits, subathon, todos |
 | **working-or-study.php** | Task list + personal timers; badge numbers use **`backlog_position`**, never global `task.id` |
 | **kofi.php, patreon.php, fourthwall.php** | Platform-specific donation overlays (**live**, not "coming soon") |
-| closed-captions.php, avatar.php, counters.php, maker.php, social-roller.php | Specialized surfaces |
+| closed-captions.php, avatar.php, pet.php, counters.php, maker.php, social-roller.php | Specialized surfaces |
 
 **Integration Points**:
 - **WebSocket**: `wss://websocket.botofthespecter.com` (Socket.io 4.8.3), REGISTER with `?code=` API key
@@ -355,7 +355,7 @@ These are managed via the Dashboard UI (`media.php`) and configured through over
    │  (JS/PHP)    │  │  (Python)    │  │  (JS)           │
    │              │  │              │  │                 │
    │ WebSocket    │  │ RTMPS Port   │  │ Twitch Panel    │
-   │ ~28 overlays │  │ 1935         │  │ API calls       │
+   │ ~29 overlays │  │ 1935         │  │ API calls       │
    │              │  │              │  │                 │
    │ Port: 443    │  │ Web UI: 8080 │  │ Auth: OAuth     │
    └──────────────┘  └──────────────┘  └─────────────────┘

@@ -244,7 +244,8 @@ builtin_commands = {
     "task", "done", "rename", "remove", "taskclear", "mytasks",
     "now", "later", "soon", "backlog",
     "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
-    "wordreplaceoff", "wordreplaceon"
+    "wordreplaceoff", "wordreplaceon",
+    "pet", "feed", "play"
 }
 # Commands that must use a per-user cooldown bucket (not global 'default'). A global bucket lets one viewer's use lock the command for every other viewer.
 per_user_cooldown_commands = {
@@ -258,6 +259,7 @@ per_user_cooldown_commands = {
     "points", "mybits", "typo", "typos",
     "followage", "subscription", "watchtime",
     "rps", "roulette", "gamble", "slots",
+    "pet", "feed", "play",
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -2604,6 +2606,14 @@ async def STREAM_OFFLINE(data):
         websocket_logger.error(f"[STREAM OFFLINE] Failed to process stream offline event: {e}")
 
 @specterSocket.event
+async def PET_SETTINGS_UPDATE(data):
+    websocket_logger.info(f"[PET SETTINGS] Pet settings update received: {data}")
+    try:
+        pet_invalidate_cache()
+    except Exception as e:
+        websocket_logger.error(f"[PET SETTINGS] Failed to process pet settings update: {e}")
+
+@specterSocket.event
 async def WEATHER_DATA(data):
     websocket_logger.info(f"[WS WEATHER] Weather data received: {data}")
     try:
@@ -3810,6 +3820,8 @@ class TwitchBot(commands.Bot):
             await self.handle_commands(message)
             messageContent = messageContentRaw.lower()
             AuthorMessage = str(message.content) if message.content else ""
+            _pet_display = (message.tags or {}).get('display-name') or messageAuthor
+            safe_create_task(pet_try_chat_keywords(messageContent, _pet_display))
             try:
                 spam_pattern = await get_spam_patterns()
             except Exception as spam_err:
@@ -3827,6 +3839,7 @@ class TwitchBot(commands.Bot):
                 command = command_parts[0][1:]  # Extract the command without '!'
                 arg = command_parts[1] if len(command_parts) > 1 else None
                 arg_str = ' '.join(command_parts[1:]) if len(command_parts) > 1 else None
+                safe_create_task(pet_try_command_trigger(command, _pet_display))
                 # Check if it's a built-in command/alias, but also check if it's disabled
                 if command in builtin_commands or command in mod_commands or command in builtin_aliases:
                     # Check if the built-in command is disabled
@@ -4191,6 +4204,8 @@ class TwitchBot(commands.Bot):
                         additional_data={"channel_name": CHANNEL_NAME, "username": messageAuthor},
                         interceptable=True,
                     )
+                    _pet_first_chat_name = (message.tags or {}).get("display-name") or messageAuthor
+                    safe_create_task(pet_try_event_trigger("first_chat", _pet_first_chat_name, personalized=True))
                     if _module_handled:
                         safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
@@ -11820,10 +11835,466 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='pet')
+    async def pet_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("pet",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                    if not await check_cooldown('pet', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    stats = await pet_current_stats()
+                    if not stats or not stats.get("configured"):
+                        await send_chat_message("The pet overlay isn't set up yet.")
+                    else:
+                        pet_name = stats.get("pet_name") or "Pet"
+                        await send_chat_message(
+                            f"{pet_name} is level {stats['level']} — Happiness {stats['happiness']}/100, Hunger {stats['hunger']}/100, Energy {stats['energy']}/100."
+                        )
+                    add_usage('pet', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PET] Error in pet_command: {e}")
+            await send_chat_message("An error occurred while checking on the pet.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='feed')
+    async def feed_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("feed",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                    if not await check_cooldown('feed', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    display_name = getattr(ctx.author, "display_name", None) or ctx.author.name
+                    applied = await pet_try_interaction("feed", display_name)
+                    if applied:
+                        cache = await pet_get_cache()
+                        pet_name = (cache or {}).get("pet_name") or "Pet"
+                        await send_chat_message(f"You fed {pet_name}!")
+                    add_usage('feed', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PET] Error in feed_command: {e}")
+            await send_chat_message("An error occurred while feeding the pet.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='play')
+    async def play_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("play",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                    if not await check_cooldown('play', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    display_name = getattr(ctx.author, "display_name", None) or ctx.author.name
+                    applied = await pet_try_interaction("play", display_name)
+                    if applied:
+                        cache = await pet_get_cache()
+                        pet_name = (cache or {}).get("pet_name") or "Pet"
+                        await send_chat_message(f"You played with {pet_name}!")
+                    add_usage('play', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PET] Error in play_command: {e}")
+            await send_chat_message("An error occurred while playing with the pet.")
+        finally:
+            if connection:
+                await connection.close()
+
 ##### END OF COMMANDS #####
 ##
 # Functions for all the commands
 ##
+# Pet overlay trigger cache + apply path. In-memory dict keyed by API_TOKEN; refreshed on PET_SETTINGS_UPDATE.
+_pet_cache = {}
+_pet_state_lock = asyncio.Lock()
+_PET_TOKEN_STRIP = ".,!?;:\"'`~()[]{}<>*_-\x01"
+_PET_INTERACTION_FALLBACKS = {
+    "feed": {"id": None, "animation": "eat", "bubble_text": "", "effect_happiness": 0, "effect_hunger": 15, "effect_energy": 0, "xp": 0, "cooldown_seconds": 0},
+    "play": {"id": None, "animation": "happy", "bubble_text": "", "effect_happiness": 10, "effect_hunger": 0, "effect_energy": -5, "xp": 0, "cooldown_seconds": 0},
+}
+
+# Function to drop the in-memory pet trigger cache so the next lookup reloads from MySQL
+def pet_invalidate_cache():
+    global _pet_cache, API_TOKEN
+    _pet_cache.pop(API_TOKEN, None)
+
+# Function to clamp a pet stat to the 0-100 range
+def pet_clamp_stat(value):
+    try:
+        n = int(round(float(value)))
+    except (TypeError, ValueError):
+        n = 0
+    if n < 0:
+        return 0
+    if n > 100:
+        return 100
+    return n
+
+# Function to parse pet_state.last_interaction_at into an aware UTC datetime
+def pet_parse_interaction_time(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text.replace(" ", "T"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+# Function to split a chat line into lowercase whole tokens (punctuation stripped at the ends)
+def pet_message_tokens(text):
+    tokens = set()
+    for raw in str(text or "").lower().split():
+        token = raw.strip(_PET_TOKEN_STRIP)
+        if token:
+            tokens.add(token)
+    return tokens
+
+# Function to build a trigger dict from a pet_triggers row
+def pet_trigger_from_row(row):
+    return {
+        "id": row.get("id"),
+        "animation": row.get("animation") or "",
+        "bubble_text": row.get("bubble_text") or "",
+        "effect_happiness": int(row.get("effect_happiness") or 0),
+        "effect_hunger": int(row.get("effect_hunger") or 0),
+        "effect_energy": int(row.get("effect_energy") or 0),
+        "xp": int(row.get("xp") or 0),
+        "cooldown_seconds": int(row.get("cooldown_seconds") or 0),
+    }
+
+# Function to load pet_settings + pet_triggers into the per-channel cache
+async def pet_load_cache():
+    empty = {
+        "configured": False,
+        "enabled": False,
+        "pet_name": "Pet",
+        "decay_happiness": 2.0,
+        "decay_hunger": 3.0,
+        "decay_energy": 1.0,
+        "chat_keyword": {},
+        "command": {},
+        "redemption": {},
+        "event": {},
+        "interaction": {},
+    }
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT enabled, pet_name, decay_happiness, decay_hunger, decay_energy FROM pet_settings WHERE id = 1")
+            settings = await cursor.fetchone()
+            if not settings:
+                return empty
+            cache = dict(empty)
+            cache["configured"] = True
+            cache["enabled"] = bool(int(settings.get("enabled") or 0))
+            cache["pet_name"] = settings.get("pet_name") or "Pet"
+            cache["decay_happiness"] = float(settings.get("decay_happiness") or 2)
+            cache["decay_hunger"] = float(settings.get("decay_hunger") or 3)
+            cache["decay_energy"] = float(settings.get("decay_energy") or 1)
+            try:
+                await cursor.execute(
+                    "SELECT id, trigger_type, trigger_value, animation, bubble_text, effect_happiness, effect_hunger, effect_energy, xp, cooldown_seconds FROM pet_triggers WHERE enabled = 1"
+                )
+                rows = await cursor.fetchall() or []
+            except Exception as trigger_err:
+                bot_logger.error(f"[PET] Failed to load pet triggers: {trigger_err}")
+                rows = []
+            for row in rows:
+                ttype = str(row.get("trigger_type") or "").strip().lower()
+                value = str(row.get("trigger_value") or "").strip()
+                if ttype == "command":
+                    value = value.lstrip("!").lower()
+                elif ttype in ("chat_keyword", "event", "interaction", "redemption"):
+                    value = value.lower()
+                if not value or ttype not in ("chat_keyword", "command", "redemption", "event", "interaction"):
+                    continue
+                cache[ttype][value] = pet_trigger_from_row(row)
+            return cache
+    except Exception as e:
+        bot_logger.error(f"[PET] Failed to load pet cache: {e}")
+        return empty
+    finally:
+        if connection:
+            await connection.close()
+
+# Function to return the cached pet config, loading it lazily on first use
+async def pet_get_cache():
+    global _pet_cache, API_TOKEN
+    cached = _pet_cache.get(API_TOKEN)
+    if cached is not None:
+        return cached
+    loaded = await pet_load_cache()
+    _pet_cache[API_TOKEN] = loaded
+    return loaded
+
+# Function to apply lazy decay to stored pet stats (NULL last_interaction_at means no decay)
+def pet_decay_stats(happiness, hunger, energy, last_interaction_at, cache):
+    last_dt = pet_parse_interaction_time(last_interaction_at)
+    hours = 0.0
+    if last_dt is not None:
+        hours = max(0.0, (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600.0)
+    return {
+        "happiness": pet_clamp_stat(float(happiness) - float(cache.get("decay_happiness") or 0) * hours),
+        "hunger": pet_clamp_stat(float(hunger) - float(cache.get("decay_hunger") or 0) * hours),
+        "energy": pet_clamp_stat(float(energy) - float(cache.get("decay_energy") or 0) * hours),
+    }
+
+# Function to read current (decayed) pet stats without writing
+async def pet_current_stats():
+    cache = await pet_get_cache()
+    result = {
+        "configured": bool(cache.get("configured")),
+        "enabled": bool(cache.get("enabled")),
+        "pet_name": cache.get("pet_name") or "Pet",
+        "happiness": 80,
+        "hunger": 80,
+        "energy": 80,
+        "level": 1,
+        "xp": 0,
+        "last_interaction_at": None,
+        "decay_happiness": float(cache.get("decay_happiness") or 2),
+        "decay_hunger": float(cache.get("decay_hunger") or 3),
+        "decay_energy": float(cache.get("decay_energy") or 1),
+    }
+    if not cache.get("configured"):
+        return result
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT happiness, hunger, energy, level, xp, last_interaction_at FROM pet_state WHERE id = 1")
+            row = await cursor.fetchone()
+        if row:
+            decayed = pet_decay_stats(
+                row.get("happiness") if row.get("happiness") is not None else 80,
+                row.get("hunger") if row.get("hunger") is not None else 80,
+                row.get("energy") if row.get("energy") is not None else 80,
+                row.get("last_interaction_at"),
+                cache,
+            )
+            result["happiness"] = decayed["happiness"]
+            result["hunger"] = decayed["hunger"]
+            result["energy"] = decayed["energy"]
+            result["xp"] = max(0, int(row.get("xp") or 0))
+            result["level"] = min(99, 1 + result["xp"] // 100)
+            result["last_interaction_at"] = row.get("last_interaction_at")
+        return result
+    except Exception as e:
+        bot_logger.error(f"[PET] Failed to read pet state: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.close()
+
+# Function to apply trigger stat/xp effects, persist pet_state, and emit PET_STATE
+async def pet_apply_state_effects(trigger, cache):
+    global _pet_state_lock
+    now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    async with _pet_state_lock:
+        connection = None
+        try:
+            connection = await mysql_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT happiness, hunger, energy, level, xp, last_interaction_at FROM pet_state WHERE id = 1")
+                row = await cursor.fetchone()
+                if row:
+                    happiness = row.get("happiness") if row.get("happiness") is not None else 80
+                    hunger = row.get("hunger") if row.get("hunger") is not None else 80
+                    energy = row.get("energy") if row.get("energy") is not None else 80
+                    xp = max(0, int(row.get("xp") or 0))
+                    last_at = row.get("last_interaction_at")
+                else:
+                    happiness, hunger, energy, xp, last_at = 80, 80, 80, 0, None
+                decayed = pet_decay_stats(happiness, hunger, energy, last_at, cache)
+                happiness = pet_clamp_stat(decayed["happiness"] + int((trigger or {}).get("effect_happiness") or 0))
+                hunger = pet_clamp_stat(decayed["hunger"] + int((trigger or {}).get("effect_hunger") or 0))
+                energy = pet_clamp_stat(decayed["energy"] + int((trigger or {}).get("effect_energy") or 0))
+                xp = max(0, xp + int((trigger or {}).get("xp") or 0))
+                level = min(99, 1 + xp // 100)
+                await cursor.execute(
+                    "INSERT INTO pet_state (id, happiness, hunger, energy, level, xp, last_interaction_at) VALUES (1, %s, %s, %s, %s, %s, %s) "
+                    "ON DUPLICATE KEY UPDATE happiness=%s, hunger=%s, energy=%s, level=%s, xp=%s, last_interaction_at=%s",
+                    (happiness, hunger, energy, level, xp, now_naive, happiness, hunger, energy, level, xp, now_naive)
+                )
+                await connection.commit()
+            decay_happiness = float(cache.get("decay_happiness") or 2)
+            decay_hunger = float(cache.get("decay_hunger") or 3)
+            decay_energy = float(cache.get("decay_energy") or 1)
+            safe_create_task(websocket_notice(event="PET_STATE", additional_data={
+                "happiness": happiness,
+                "hunger": hunger,
+                "energy": energy,
+                "level": level,
+                "xp": xp,
+                "last_interaction_at": now_iso,
+                "decay_happiness": decay_happiness,
+                "decay_hunger": decay_hunger,
+                "decay_energy": decay_energy,
+                "decay_rates": {"happiness": decay_happiness, "hunger": decay_hunger, "energy": decay_energy},
+            }))
+        except Exception as e:
+            bot_logger.error(f"[PET] Failed to apply pet state effects: {e}")
+        finally:
+            if connection:
+                await connection.close()
+
+# Function to cooldown-gate a pet trigger, emit PET_REACT, and apply stat effects
+async def pet_apply_trigger(trigger, user_display_name, personalized=False):
+    cache = await pet_get_cache()
+    if not cache.get("enabled") or not trigger:
+        return False
+    trigger_id = trigger.get("id")
+    cooldown_seconds = int(trigger.get("cooldown_seconds") or 0)
+    cooldown_user = CHANNEL_NAME or "global"
+    if trigger_id is not None:
+        cooldown_name = f"pet_trigger_{trigger_id}"
+        if not await check_cooldown(cooldown_name, cooldown_user, "default", 1, cooldown_seconds, send_message=False):
+            return False
+        add_usage(cooldown_name, cooldown_user, "default")
+    bubble_text = str(trigger.get("bubble_text") or "")
+    had_user = "{user}" in bubble_text
+    if had_user:
+        bubble_text = bubble_text.replace("{user}", str(user_display_name or ""))
+    animation = str(trigger.get("animation") or "").strip()
+    is_personalized = bool(personalized or had_user)
+    if animation:
+        react_data = {"animation": animation, "personalized": is_personalized}
+        if bubble_text:
+            react_data["bubble_text"] = bubble_text
+        safe_create_task(websocket_notice(event="PET_REACT", additional_data=react_data))
+    await pet_apply_state_effects(trigger, cache)
+    return True
+
+# Function to match whole-token chat keywords against the cached pet triggers
+async def pet_try_chat_keywords(message_text, user_display_name):
+    try:
+        cache = await pet_get_cache()
+        if not cache.get("enabled"):
+            return
+        keywords = cache.get("chat_keyword") or {}
+        if not keywords:
+            return
+        for token in pet_message_tokens(message_text):
+            trigger = keywords.get(token)
+            if trigger:
+                await pet_apply_trigger(trigger, user_display_name)
+    except Exception as e:
+        bot_logger.error(f"[PET] Chat keyword match failed: {e}")
+
+# Function to match a !command against cached command-type pet triggers (including builtin names)
+async def pet_try_command_trigger(command, user_display_name):
+    try:
+        cache = await pet_get_cache()
+        if not cache.get("enabled"):
+            return
+        key = str(command or "").lstrip("!").lower()
+        if key in ("pet", "feed", "play"):
+            return
+        trigger = (cache.get("command") or {}).get(key)
+        if trigger:
+            await pet_apply_trigger(trigger, user_display_name)
+    except Exception as e:
+        bot_logger.error(f"[PET] Command trigger match failed: {e}")
+
+# Function to fire a cached event-type pet trigger (follow/sub/raid/cheer/first_chat)
+async def pet_try_event_trigger(event_name, user_display_name, personalized=False):
+    try:
+        cache = await pet_get_cache()
+        if not cache.get("enabled"):
+            return
+        key = str(event_name or "").strip().lower()
+        trigger = (cache.get("event") or {}).get(key)
+        if trigger:
+            await pet_apply_trigger(trigger, user_display_name, personalized=personalized or key == "first_chat")
+    except Exception as e:
+        bot_logger.error(f"[PET] Event trigger '{event_name}' failed: {e}")
+
+# Function to match a channel-point reward_id against cached redemption pet triggers
+async def pet_try_redemption_trigger(reward_id, user_display_name):
+    try:
+        cache = await pet_get_cache()
+        if not cache.get("enabled"):
+            return
+        key = str(reward_id or "").strip().lower()
+        trigger = (cache.get("redemption") or {}).get(key)
+        if trigger:
+            await pet_apply_trigger(trigger, user_display_name)
+    except Exception as e:
+        bot_logger.error(f"[PET] Redemption trigger match failed: {e}")
+
+# Function to fire an interaction trigger (feed/play), using baked-in fallbacks if no row exists
+async def pet_try_interaction(interaction_name, user_display_name):
+    try:
+        cache = await pet_get_cache()
+        if not cache.get("enabled"):
+            return False
+        key = str(interaction_name or "").strip().lower()
+        trigger = (cache.get("interaction") or {}).get(key)
+        if not trigger:
+            trigger = _PET_INTERACTION_FALLBACKS.get(key)
+        if not trigger:
+            return False
+        return await pet_apply_trigger(trigger, user_display_name)
+    except Exception as e:
+        bot_logger.error(f"[PET] Interaction '{interaction_name}' failed: {e}")
+        return False
+
 # Word Replacer (random syllable swap) Occasionally re-posts a viewer's chat line with random syllables swapped for a streamer-set word (default "fun"). Configured per channel via the `protection` table plus the word_replace_ignored_users / word_replace_ignored_words tables. Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
 WORD_REPLACE_CACHE_TTL = 60
 EXPECTED_PROBABILITY = 0.95
@@ -15861,6 +16332,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 twitch_logger.error(f"[RAID] Failed to write raid analytics to analytic_raids for channel {CHANNEL_NAME}: {e}")
             # Send raid notification to Twitch Chat, and Websocket
             safe_create_task(websocket_notice(event="TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
+            safe_create_task(pet_try_event_trigger("raid", from_broadcaster_name))
             # Send a message to the Twitch channel
             await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("raid_alert",))
             result = await cursor.fetchone()
@@ -16015,6 +16487,7 @@ async def process_cheer_event(user_id, user_name, bits):
                 await addtime_subathon(CHANNEL_NAME, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Twitch Chat, and Websocket
             safe_create_task(websocket_notice(event="TWITCH_CHEER", user=user_name, cheer_amount=bits))
+            safe_create_task(pet_try_event_trigger("cheer", user_name))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"[CHEER] A stream marker was created: {marker_description}.")
@@ -16120,6 +16593,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             try:
                 safe_create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("[SUB EVENT] Sent WebSocket notice")
+                safe_create_task(pet_try_event_trigger("sub", user_name))
             except Exception as e:
                 event_logger.error(f"[SUB EVENT] Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
@@ -16243,6 +16717,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             try:
                 safe_create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("[SUB MESSAGE] Sent WebSocket notice")
+                safe_create_task(pet_try_event_trigger("sub", user_name))
             except Exception as e:
                 event_logger.error(f"[SUB MESSAGE] Failed to send WebSocket notice: {e}")
             # Retrieve the channel object
@@ -16416,6 +16891,7 @@ async def process_followers_event(user_id, user_name):
                     source="follow"
                 )
             safe_create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
+            safe_create_task(pet_try_event_trigger("follow", user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"[FOLLOW] A stream marker was created: {marker_description}.")
@@ -16771,6 +17247,12 @@ async def websocket_notice(
                             if _pomo_val is None:
                                 continue
                             params[_pomo_key] = json.dumps(_pomo_val) if isinstance(_pomo_val, (dict, list)) else _pomo_val
+                elif event in ["PET_REACT", "PET_STATE", "PET_SETTINGS_UPDATE"]:
+                    if additional_data:
+                        for _pet_key, _pet_val in additional_data.items():
+                            if _pet_val is None:
+                                continue
+                            params[_pet_key] = json.dumps(_pet_val) if isinstance(_pet_val, (dict, list)) else _pet_val
                 else:
                     websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters or is not recognized")
                     return
@@ -17194,10 +17676,13 @@ async def process_channel_point_rewards(event_data, event_type):
                     additional_data={"username": user_name, "reward_title": reward_title},
                     interceptable=True,
                 )
-                if handled:
-                    return
             else:
+                handled = False
                 safe_create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
+            if reward_id and reward_id != "unknown":
+                safe_create_task(pet_try_redemption_trigger(reward_id, user_name))
+            if handled:
+                return
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()

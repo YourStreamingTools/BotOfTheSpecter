@@ -1250,6 +1250,63 @@ try {
                 INDEX idx_user_name (user_name),
                 INDEX idx_user_id (user_id),
                 INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'pet_settings' => "
+            CREATE TABLE IF NOT EXISTS pet_settings (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                enabled TINYINT(1) NOT NULL DEFAULT 0,
+                pet_name VARCHAR(50) NOT NULL DEFAULT 'Pet',
+                idle_animation VARCHAR(50) NOT NULL DEFAULT 'idle',
+                position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
+                scale DECIMAL(3,2) NOT NULL DEFAULT 1.00,
+                flip TINYINT(1) NOT NULL DEFAULT 0,
+                show_stats TINYINT(1) NOT NULL DEFAULT 1,
+                visible_stats VARCHAR(100) NOT NULL DEFAULT 'happiness,hunger,energy',
+                bubble_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                sound_enabled TINYINT(1) NOT NULL DEFAULT 0,
+                decay_happiness DECIMAL(5,2) NOT NULL DEFAULT 2.00,
+                decay_hunger DECIMAL(5,2) NOT NULL DEFAULT 3.00,
+                decay_energy DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'pet_animations' => "
+            CREATE TABLE IF NOT EXISTS pet_animations (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                name VARCHAR(50) NOT NULL,
+                sprite_file VARCHAR(255) NOT NULL,
+                frame_width INT NOT NULL,
+                frame_height INT NOT NULL,
+                frame_count INT NOT NULL DEFAULT 1,
+                fps INT NOT NULL DEFAULT 12,
+                `loop` TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'pet_triggers' => "
+            CREATE TABLE IF NOT EXISTS pet_triggers (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                trigger_type ENUM('chat_keyword','command','redemption','event','interaction') NOT NULL,
+                trigger_value VARCHAR(100) NOT NULL,
+                animation VARCHAR(50) NOT NULL,
+                bubble_text VARCHAR(255) NULL,
+                effect_happiness INT NOT NULL DEFAULT 0,
+                effect_hunger INT NOT NULL DEFAULT 0,
+                effect_energy INT NOT NULL DEFAULT 0,
+                xp INT NOT NULL DEFAULT 0,
+                cooldown_seconds INT NOT NULL DEFAULT 5,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                INDEX idx_trigger (trigger_type, trigger_value)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'pet_state' => "
+            CREATE TABLE IF NOT EXISTS pet_state (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                happiness TINYINT UNSIGNED NOT NULL DEFAULT 80,
+                hunger TINYINT UNSIGNED NOT NULL DEFAULT 80,
+                energy TINYINT UNSIGNED NOT NULL DEFAULT 80,
+                level INT NOT NULL DEFAULT 1,
+                xp INT NOT NULL DEFAULT 0,
+                last_interaction_at TIMESTAMP NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
