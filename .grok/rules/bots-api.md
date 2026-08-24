@@ -26,7 +26,7 @@ Bot start / stop / status / inventory is **HTTP**, not SSH. Do not reintroduce `
 
 | Method | Path | Notes |
 | ------ | ---- | ----- |
-| GET | `/health` | No auth — `ok`, `started_at`, `uptime_seconds` (uptime contract) |
+| GET | `/health` | No auth — `ok`, `started_at`, `uptime_seconds`, `pid` (uptime contract; `pid` is the control API process) |
 | GET | `/docs` | Themed operator docs UI (`docs_ui/`) |
 | GET | `/api/running_bots` | Full local inventory + durable **snapshot** (`last_seen_at`, `snapshot.missing` for crash/OOM recovery) |
 | GET | `/api/running_bots/snapshot` | Snapshot view only (refresh + expected / missing) |
