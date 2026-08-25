@@ -4061,7 +4061,11 @@ class TwitchBot(commands.AutoBot):
                 # Run the message counting / welcome / points / grouping flow for this message. Done in `finally` so it still runs after early returns from spam, command, or URL handling.
                 try:
                     if messageAuthor and messageAuthor != "":
-                        _pet_user = (getattr(message.chatter, "display_name", None) or messageAuthor) if message.chatter else messageAuthor
+                        try:
+                            _chatter = getattr(message, "chatter", None)
+                            _pet_user = (getattr(_chatter, "display_name", None) or messageAuthor) if _chatter else messageAuthor
+                        except Exception:
+                            _pet_user = messageAuthor
                         await self.message_counting_and_welcome_messages(
                             messageAuthor, messageAuthorID, bannedUser, messageContent, user_display_name=_pet_user
                         )
@@ -4155,7 +4159,10 @@ class TwitchBot(commands.AutoBot):
                         additional_data={"channel_name": CHANNEL_NAME, "username": messageAuthor},
                         interceptable=True,
                     )
-                    safe_create_task(pet_try_event_trigger("first_chat", user_display_name or messageAuthor, personalized=True))
+                    try:
+                        safe_create_task(pet_try_event_trigger("first_chat", user_display_name or messageAuthor, personalized=True))
+                    except Exception as pet_err:
+                        chat_logger.error(f"Pet first_chat trigger failed for {messageAuthor}: {pet_err}")
                     if _module_handled:
                         create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
@@ -19691,7 +19698,9 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
     # If re-enabled, do not call user_points here — message_counting finally already awards points.
     try:
         get_function_from = BOTS_TWITCH_BOT
-        await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
+        await get_function_from.message_counting_and_welcome_messages(
+            user_name, user_id, False, message, user_display_name=user_name
+        )
         event_logger.info(f"Processed chat message from {user_name}: welcome check only (no double points)")
     except Exception as e:
         event_logger.error(f"Error processing chat message event for {user_name}: {e}")

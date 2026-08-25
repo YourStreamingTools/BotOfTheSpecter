@@ -4111,7 +4111,7 @@ class TwitchBot(commands.Bot):
             else:
                 bot_logger.error(f"[EVENT MESSAGE] An error occurred in event_message: {e}")
 
-    async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
+    async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent="", user_display_name=None):
         global stream_online
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: banned/invalid (bannedUser={bannedUser!r})")
@@ -4204,8 +4204,10 @@ class TwitchBot(commands.Bot):
                         additional_data={"channel_name": CHANNEL_NAME, "username": messageAuthor},
                         interceptable=True,
                     )
-                    _pet_first_chat_name = (message.tags or {}).get("display-name") or messageAuthor
-                    safe_create_task(pet_try_event_trigger("first_chat", _pet_first_chat_name, personalized=True))
+                    try:
+                        safe_create_task(pet_try_event_trigger("first_chat", user_display_name or messageAuthor, personalized=True))
+                    except Exception as pet_err:
+                        chat_logger.error(f"[WELCOME] Pet first_chat trigger failed for {messageAuthor}: {pet_err}")
                     if _module_handled:
                         safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
@@ -20469,7 +20471,10 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
             return
         event_logger.info(f"[EVENT MESSAGE] process_chat_message_event: called for {user_name} (id={user_id}) message={message!r:.80}")
         # message_counting_and_welcome_messages already calls user_points in its finally block; do NOT call user_points again here to avoid awarding points twice per EventSub message.
-        await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
+        display_name = (event_data or {}).get("chatter_user_name") or user_name
+        await get_function_from.message_counting_and_welcome_messages(
+            user_name, user_id, False, message, user_display_name=display_name
+        )
         if event_data:
             msg_id = event_data.get("message_id", "")
             badges_list = event_data.get("badges", []) or []
