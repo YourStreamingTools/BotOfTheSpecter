@@ -526,6 +526,14 @@
 		"play": {
 			"description": "Plays with the channel pet, playing its happy animation and raising its happiness.",
 			"syntax": "!play"
+		},
+		"sad": {
+			"description": "Plays the channel pet's sad animation.",
+			"syntax": "!sad"
+		},
+		"sleep": {
+			"description": "Lets the channel pet rest, playing its sleep animation and restoring energy.",
+			"syntax": "!sleep"
 		}
 	}
 }

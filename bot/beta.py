@@ -245,7 +245,7 @@ builtin_commands = {
     "now", "later", "soon", "backlog",
     "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
     "wordreplaceoff", "wordreplaceon",
-    "pet", "feed", "play"
+    "pet", "feed", "play", "sad", "sleep"
 }
 # Commands that must use a per-user cooldown bucket (not global 'default'). A global bucket lets one viewer's use lock the command for every other viewer.
 per_user_cooldown_commands = {
@@ -259,7 +259,7 @@ per_user_cooldown_commands = {
     "points", "mybits", "typo", "typos",
     "followage", "subscription", "watchtime",
     "rps", "roulette", "gamble", "slots",
-    "pet", "feed", "play",
+    "pet", "feed", "play", "sad", "sleep",
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -11944,6 +11944,76 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='sad')
+    async def sad_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("sad",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                    if not await check_cooldown('sad', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    display_name = getattr(ctx.author, "display_name", None) or ctx.author.name
+                    applied = await pet_try_interaction("sad", display_name)
+                    if applied:
+                        cache = await pet_get_cache()
+                        pet_name = (cache or {}).get("pet_name") or "Pet"
+                        await send_chat_message(f"{pet_name} looks sad.")
+                    add_usage('sad', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PET] Error in sad_command: {e}")
+            await send_chat_message("An error occurred while checking on the pet.")
+        finally:
+            if connection:
+                await connection.close()
+
+    @commands.command(name='sleep')
+    async def sleep_command(self, ctx):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("sleep",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                    if not await check_cooldown('sleep', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    display_name = getattr(ctx.author, "display_name", None) or ctx.author.name
+                    applied = await pet_try_interaction("sleep", display_name)
+                    if applied:
+                        cache = await pet_get_cache()
+                        pet_name = (cache or {}).get("pet_name") or "Pet"
+                        await send_chat_message(f"You let {pet_name} rest!")
+                    add_usage('sleep', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[PET] Error in sleep_command: {e}")
+            await send_chat_message("An error occurred while letting the pet rest.")
+        finally:
+            if connection:
+                await connection.close()
+
 ##### END OF COMMANDS #####
 ##
 # Functions for all the commands
@@ -11955,6 +12025,8 @@ _PET_TOKEN_STRIP = ".,!?;:\"'`~()[]{}<>*_-\x01"
 _PET_INTERACTION_FALLBACKS = {
     "feed": {"id": None, "animation": "eat", "bubble_text": "", "effect_happiness": 0, "effect_hunger": 15, "effect_energy": 0, "xp": 0, "cooldown_seconds": 0},
     "play": {"id": None, "animation": "happy", "bubble_text": "", "effect_happiness": 10, "effect_hunger": 0, "effect_energy": -5, "xp": 0, "cooldown_seconds": 0},
+    "sad": {"id": None, "animation": "sad", "bubble_text": "", "effect_happiness": 0, "effect_hunger": 0, "effect_energy": 0, "xp": 0, "cooldown_seconds": 0},
+    "sleep": {"id": None, "animation": "sleep", "bubble_text": "", "effect_happiness": 0, "effect_hunger": 0, "effect_energy": 15, "xp": 0, "cooldown_seconds": 0},
 }
 
 # Function to drop the in-memory pet trigger cache so the next lookup reloads from MySQL
@@ -11973,6 +12045,38 @@ def pet_clamp_stat(value):
     if n > 100:
         return 100
     return n
+
+PET_XP_PER_LEVEL = 100
+PET_XP_MAX_LEVEL = 99
+
+# Function to derive level and remaining XP from total XP (100 XP per level, cap 99)
+def pet_xp_progress(xp):
+    try:
+        xp = max(0, int(xp or 0))
+    except (TypeError, ValueError):
+        xp = 0
+    level = min(PET_XP_MAX_LEVEL, 1 + xp // PET_XP_PER_LEVEL)
+    if level >= PET_XP_MAX_LEVEL:
+        return {"xp": xp, "level": level, "into": PET_XP_PER_LEVEL, "to_next": 0}
+    into = xp % PET_XP_PER_LEVEL
+    return {"xp": xp, "level": level, "into": into, "to_next": PET_XP_PER_LEVEL - into}
+
+# Function to post a chat line when a pet trigger awards XP
+async def pet_announce_xp_gain(cache, xp_gained, old_level, progress):
+    if xp_gained <= 0 or not progress:
+        return
+    pet_name = (cache or {}).get("pet_name") or "Pet"
+    new_level = progress["level"]
+    to_next = progress["to_next"]
+    try:
+        if new_level > old_level:
+            await send_chat_message(f"{pet_name} gained {xp_gained} XP and reached level {new_level}!")
+        elif to_next <= 0:
+            await send_chat_message(f"{pet_name} gained {xp_gained} XP and is at max level!")
+        else:
+            await send_chat_message(f"{pet_name} gained {xp_gained} XP! {to_next} XP until level {new_level + 1}.")
+    except Exception as e:
+        bot_logger.error(f"[PET] Failed to announce XP gain: {e}")
 
 # Function to parse pet_state.last_interaction_at into an aware UTC datetime
 def pet_parse_interaction_time(value):
@@ -12182,6 +12286,10 @@ async def pet_apply_state_effects(trigger, cache):
     now = datetime.now(timezone.utc)
     now_naive = now.replace(tzinfo=None)
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    xp_gained = 0
+    old_level = 1
+    progress = None
+    applied = False
     async with _pet_state_lock:
         connection = None
         try:
@@ -12201,8 +12309,11 @@ async def pet_apply_state_effects(trigger, cache):
                 happiness = pet_clamp_stat(decayed["happiness"] + int((trigger or {}).get("effect_happiness") or 0))
                 hunger = pet_clamp_stat(decayed["hunger"] + int((trigger or {}).get("effect_hunger") or 0))
                 energy = pet_clamp_stat(decayed["energy"] + int((trigger or {}).get("effect_energy") or 0))
-                xp = max(0, xp + int((trigger or {}).get("xp") or 0))
-                level = min(99, 1 + xp // 100)
+                xp_gained = max(0, int((trigger or {}).get("xp") or 0))
+                old_level = min(PET_XP_MAX_LEVEL, 1 + xp // PET_XP_PER_LEVEL)
+                xp = max(0, xp + xp_gained)
+                progress = pet_xp_progress(xp)
+                level = progress["level"]
                 await cursor.execute(
                     "INSERT INTO pet_state (id, happiness, hunger, energy, level, xp, last_interaction_at) VALUES (1, %s, %s, %s, %s, %s, %s) "
                     "ON DUPLICATE KEY UPDATE happiness=%s, hunger=%s, energy=%s, level=%s, xp=%s, last_interaction_at=%s",
@@ -12212,11 +12323,14 @@ async def pet_apply_state_effects(trigger, cache):
             safe_create_task(websocket_notice(event="PET_STATE", additional_data=pet_state_notice_data(
                 happiness, hunger, energy, level, xp, now_iso, cache
             )))
+            applied = True
         except Exception as e:
             bot_logger.error(f"[PET] Failed to apply pet state effects: {e}")
         finally:
             if connection:
                 await connection.close()
+    if applied and xp_gained > 0:
+        await pet_announce_xp_gain(cache, xp_gained, old_level, progress)
 
 # Function to commit decayed stats before going offline so they stay frozen until the next stream
 async def pet_freeze_for_stream_offline():
@@ -12348,7 +12462,7 @@ async def pet_try_command_trigger(command, user_display_name):
         if not cache.get("enabled"):
             return
         key = str(command or "").lstrip("!").lower()
-        if key in ("pet", "feed", "play"):
+        if key in ("pet", "feed", "play", "sad", "sleep"):
             return
         trigger = (cache.get("command") or {}).get(key)
         if trigger:
@@ -12382,7 +12496,7 @@ async def pet_try_redemption_trigger(reward_id, user_display_name):
     except Exception as e:
         bot_logger.error(f"[PET] Redemption trigger match failed: {e}")
 
-# Function to fire an interaction trigger (feed/play), using baked-in fallbacks if no row exists
+# Function to fire an interaction trigger (feed/play/sad/sleep), using baked-in fallbacks if no row exists
 async def pet_try_interaction(interaction_name, user_display_name):
     try:
         cache = await pet_get_cache()
