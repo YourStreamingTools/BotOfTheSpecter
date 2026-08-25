@@ -170,7 +170,7 @@ try {
             if (isset($_POST['bubble_text'])) $params['bubble_text'] = $_POST['bubble_text'];
             if (isset($_POST['personalized'])) $params['personalized'] = $_POST['personalized'];
         } elseif ($event === "PET_STATE") {
-            foreach (['happiness', 'hunger', 'energy', 'level', 'xp', 'last_interaction_at', 'decay_happiness', 'decay_hunger', 'decay_energy'] as $petField) {
+            foreach (['happiness', 'hunger', 'energy', 'level', 'xp', 'last_interaction_at', 'decay_happiness', 'decay_hunger', 'decay_energy', 'stream_online'] as $petField) {
                 if (isset($_POST[$petField])) {
                     $params[$petField] = $_POST[$petField];
                 }

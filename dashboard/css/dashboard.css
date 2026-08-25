@@ -3475,6 +3475,15 @@ label.switch .check { display: none; }
 .media-drop-zone:hover {
     border-color: var(--blue);
 }
+.media-drop-zone.is-dragover {
+    border-color: var(--accent);
+    background: var(--accent-light);
+}
+.media-drop-zone .file-list-label {
+    display: block;
+    color: var(--text-primary);
+    word-break: break-all;
+}
 .media-drop-zone-icon {
     font-size: 2rem;
     margin-bottom: 0.5rem;
