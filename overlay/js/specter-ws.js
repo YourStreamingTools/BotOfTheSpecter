@@ -218,8 +218,32 @@
         };
     }
 
+    // Durable mp3/mp4 (soundalerts/videoalerts/media/walkons) must keep a stable URL so
+    // OBS and the origin disk cache can reuse the file. TTS clips are ephemeral and
+    // reuse names, so they still get a cache-buster.
+    function isTtsUrl(url) {
+        if (!url) return false;
+        try {
+            var host = new URL(url, 'https://overlay.botofthespecter.com').hostname;
+            return host === 'tts.botofthespecter.com';
+        } catch (e) {
+            return /tts\.botofthespecter\.com/i.test(String(url));
+        }
+    }
+
+    function playbackUrl(url) {
+        if (!url) return url;
+        if (isTtsUrl(url)) {
+            var sep = String(url).indexOf('?') >= 0 ? '&' : '?';
+            return url + sep + 't=' + Date.now();
+        }
+        var q = String(url).indexOf('?');
+        return q === -1 ? url : String(url).slice(0, q);
+    }
+
     global.SpecterOverlayWS = {
         create: create,
+        playbackUrl: playbackUrl,
         WS_URL: WS_URL,
         BACKOFF_MS: BACKOFF_MS
     };

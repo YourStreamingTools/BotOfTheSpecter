@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-25  
 **Scope:** how OBS overlays fetch durable media from Mega S4 today, why alerts “buffer” (video worse than audio), and how we should cache hot files without putting HTTP back on an uncached FUSE mount.  
-**Status:** design only. Overlay cache-bust + paint-before-ready is confirmed in code; origin cache is not built.
+**Status:** Layer 1 overlay + Layer 2 origin cache for soundalerts/videoalerts/media shipped on web1 2026-08-25. Caps: 256M / 1G / 768M on `/var/cache/rclone-vfs` (ext4, not tmpfs). `cdn` / walkons / usermusic still S4 proxy.
 
 Related live notes: `.grok/memory/project_megas4_public_serving.md`, `.grok/memory/project_s3fs_storage_and_file_manager.md`, `.grok/memory/project_network_architecture.md`.
 

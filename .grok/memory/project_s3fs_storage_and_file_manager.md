@@ -17,7 +17,7 @@ The GeoIP/CF-Worker CDN idea was **dropped** (goal was freeing disk; that code w
 **rclone FUSE (PHP uploads, listing, migrate scripts)** — bucket `botofthespecter`, remote `megas4:` in `/root/.config/rclone/rclone.conf`:
 
 - `cdn` / `media` / `usermusic` / `walkons` / `soundalerts` / `videoalerts` → matching prefixes under `/var/www/<dir>`
-- systemd: `rclone-botofthespecter-<dir>.service`, enabled, `--allow-other --uid 33 --gid 33 --dir-perms 0775 --file-perms 0664 --vfs-cache-mode writes` (www-data, group-writable; set 2026-08-25). Do not drop `--uid/--gid` or folders show up as `root:root` `755` again.
+- systemd: `rclone-botofthespecter-<dir>.service`, enabled. Shared flags: `--allow-other --uid 33 --gid 33 --dir-perms 0775 --file-perms 0664 --cache-dir /var/cache/rclone-vfs`. Hot hosts (soundalerts 256M / videoalerts 1G / media 768M): `--vfs-cache-mode full` + those max-size caps. Other mounts: `--vfs-cache-mode writes`. Never let the VFS cache sit on `/tmp` (tmpfs). Do not drop `--uid/--gid` or folders show up as `root:root` `755` again.
 - **TTS is not a mount** and must never be remounted. `/var/www/tts` is a normal local directory. Leave `rclone-botofthespecter-tts.service` disabled; do not uncomment the s3fs tts fstab line.
 
 **Admin file manager** (`dashboard/admin/cdn_files.php` + `includes/megas4_s3.php`): `Aws\S3\S3Client`, creds in `config/megas4.php`, list/upload/rename/delete/mkdir, store switcher. Signed SDK access, prefix-confined. Super-admin + `admin_audit_log`. Do not point this manager at TTS as if it were durable S4.

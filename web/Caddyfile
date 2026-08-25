@@ -66,6 +66,16 @@
     header @assets Cache-Control "public, max-age=31536000, immutable"
 }
 
+# Hot mp3/mp4 hosts (soundalerts, videoalerts, media) serve off the rclone
+# mount with a capped VFS disk cache. Do not use this for cdn — keep cdn on S4.
+(hot_media_origin) {
+    file_server
+    encode zstd gzip
+    import security
+    @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
 # ===== PHP frontends =====
 
 botofthespecter.com, www.botofthespecter.com {
@@ -275,9 +285,10 @@ walkons.botofthespecter.com {
 }
 
 # Unified per-channel media library (migrated streamers).
+# Served from the rclone mount + capped VFS disk cache (not the S4 proxy).
 media.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/media{uri}
-    import asset_origin
+    root * /var/www/media
+    import hot_media_origin
     log {
         output file /var/log/caddy/media.log
     }
@@ -292,8 +303,8 @@ music.botspecter.com, music.botofthespecter.com {
 }
 
 soundalerts.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/soundalerts{uri}
-    import asset_origin
+    root * /var/www/soundalerts
+    import hot_media_origin
     log {
         output file /var/log/caddy/soundalerts.log
     }
@@ -317,8 +328,8 @@ tts.botofthespecter.com {
 }
 
 videoalerts.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/videoalerts{uri}
-    import asset_origin
+    root * /var/www/videoalerts
+    import hot_media_origin
     log {
         output file /var/log/caddy/videoalerts.log
     }
