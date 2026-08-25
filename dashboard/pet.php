@@ -12,6 +12,21 @@ include 'includes/mod_access.php';
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
 session_write_close();
 
+// Storage scan is the heavy work; paint the bar skeleton first, then fetch.
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
+    header('Content-Type: application/json');
+    include 'includes/storage_used.php';
+    $petMediaDir = rtrim($media_path, '/\\') . '/pet';
+    ensureDirectoryWritable($petMediaDir);
+    echo json_encode([
+        'success' => true,
+        'storage_used' => (int) $current_storage_used,
+        'max_storage' => (int) $max_storage_size,
+        'storage_percentage' => (float) $storage_percentage,
+    ]);
+    exit();
+}
+
 include 'includes/file_paths.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
 
@@ -210,7 +225,24 @@ function pet_clamp_stat($value) {
     return $n;
 }
 
-function pet_decay_hours($lastAt) {
+function pet_stream_is_online($db) {
+    if (!($db instanceof mysqli) || !pet_table_exists($db, 'stream_status')) {
+        return false;
+    }
+    $res = $db->query('SELECT status FROM stream_status LIMIT 1');
+    if (!$res) {
+        return false;
+    }
+    $row = $res->fetch_assoc();
+    $res->free();
+    $status = strtolower(trim((string) ($row['status'] ?? '')));
+    return in_array($status, ['true', '1', 'online'], true);
+}
+
+function pet_decay_hours($lastAt, $streamOnline = true) {
+    if (!$streamOnline) {
+        return 0.0;
+    }
     if ($lastAt === null || $lastAt === '') {
         return 0.0;
     }
@@ -233,7 +265,7 @@ function pet_settings_decay($db) {
     return $rates;
 }
 
-function pet_state_payload($happiness, $hunger, $energy, $level, $xp, $lastIso, array $rates) {
+function pet_state_payload($happiness, $hunger, $energy, $level, $xp, $lastIso, array $rates, $streamOnline = false) {
     return [
         'happiness' => (int) $happiness,
         'hunger' => (int) $hunger,
@@ -249,6 +281,7 @@ function pet_state_payload($happiness, $hunger, $energy, $level, $xp, $lastIso, 
             'hunger' => $rates['hunger'],
             'energy' => $rates['energy'],
         ]),
+        'stream_online' => $streamOnline ? '1' : '0',
     ];
 }
 
@@ -267,7 +300,7 @@ function pet_apply_state_and_notify($db, $apiKey, $effectHappiness, $effectHunge
         $xp = max(0, (int) ($row['xp'] ?? 0));
         $lastAt = $row['last_interaction_at'];
     }
-    $hours = pet_decay_hours($lastAt);
+    $hours = pet_decay_hours($lastAt, pet_stream_is_online($db));
     $happiness = pet_clamp_stat($happiness - $rates['happiness'] * $hours + (int) $effectHappiness);
     $hunger = pet_clamp_stat($hunger - $rates['hunger'] * $hours + (int) $effectHunger);
     $energy = pet_clamp_stat($energy - $rates['energy'] * $hours + (int) $effectEnergy);
@@ -289,7 +322,7 @@ function pet_apply_state_and_notify($db, $apiKey, $effectHappiness, $effectHunge
     if (!$ok) {
         return false;
     }
-    pet_notify_event($apiKey, 'PET_STATE', pet_state_payload($happiness, $hunger, $energy, $level, $xp, $nowIso, $rates));
+    pet_notify_event($apiKey, 'PET_STATE', pet_state_payload($happiness, $hunger, $energy, $level, $xp, $nowIso, $rates, pet_stream_is_online($db)));
     return true;
 }
 
@@ -337,6 +370,9 @@ $pet = [
     'decay_happiness' => 2.00,
     'decay_hunger' => 3.00,
     'decay_energy' => 1.00,
+    'start_happiness' => 80,
+    'start_hunger' => 80,
+    'start_energy' => 80,
 ];
 $petAnimations = [];
 $petTriggers = [];
@@ -353,8 +389,14 @@ $petState = [
 if (pet_table_exists($db, 'pet_settings')) {
     $st = $db->prepare(
         'SELECT enabled, pet_name, idle_animation, position, scale, flip, show_stats, visible_stats, bubble_enabled, '
-        . 'decay_happiness, decay_hunger, decay_energy FROM pet_settings WHERE id = 1'
+        . 'decay_happiness, decay_hunger, decay_energy, start_happiness, start_hunger, start_energy FROM pet_settings WHERE id = 1'
     );
+    if (!$st) {
+        $st = $db->prepare(
+            'SELECT enabled, pet_name, idle_animation, position, scale, flip, show_stats, visible_stats, bubble_enabled, '
+            . 'decay_happiness, decay_hunger, decay_energy FROM pet_settings WHERE id = 1'
+        );
+    }
     if ($st) {
         $st->execute();
         $res = $st->get_result();
@@ -372,6 +414,9 @@ $pet['enabled'] = ((int) ($pet['enabled'] ?? 0)) === 1 ? 1 : 0;
 $pet['flip'] = ((int) ($pet['flip'] ?? 0)) === 1 ? 1 : 0;
 $pet['show_stats'] = ((int) ($pet['show_stats'] ?? 1)) === 1 ? 1 : 0;
 $pet['bubble_enabled'] = ((int) ($pet['bubble_enabled'] ?? 1)) === 1 ? 1 : 0;
+$pet['start_happiness'] = pet_clamp_stat($pet['start_happiness'] ?? 80);
+$pet['start_hunger'] = pet_clamp_stat($pet['start_hunger'] ?? 80);
+$pet['start_energy'] = pet_clamp_stat($pet['start_energy'] ?? 80);
 
 $visibleStats = [];
 foreach (explode(',', (string) ($pet['visible_stats'] ?? '')) as $stat) {
@@ -477,7 +522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
             $petName = mb_substr($petName, 0, 50);
         }
         $idleAnimation = pet_sanitize_anim_name($_POST['idle_animation'] ?? 'idle');
-        if ($idleAnimation === '') {
+        if ($idleAnimation === '' || !in_array($idleAnimation, $petAnimNameList, true)) {
             $idleAnimation = 'idle';
         }
         $position = in_array($_POST['position'] ?? '', $petAllowedPositions, true) ? $_POST['position'] : 'bottom-right';
@@ -507,17 +552,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         $db->begin_transaction();
         try {
             $stmt = $db->prepare(
-                'INSERT INTO pet_settings (id, pet_name, idle_animation, position, scale, flip, show_stats, visible_stats, bubble_enabled, decay_happiness, decay_hunger, decay_energy) '
-                . 'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'INSERT INTO pet_settings (id, pet_name, idle_animation, position, scale, flip, show_stats, visible_stats, bubble_enabled, decay_happiness, decay_hunger, decay_energy, start_happiness, start_hunger, start_energy) '
+                . 'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 . 'ON DUPLICATE KEY UPDATE pet_name = VALUES(pet_name), idle_animation = VALUES(idle_animation), position = VALUES(position), '
                 . 'scale = VALUES(scale), flip = VALUES(flip), show_stats = VALUES(show_stats), visible_stats = VALUES(visible_stats), '
-                . 'bubble_enabled = VALUES(bubble_enabled), decay_happiness = VALUES(decay_happiness), decay_hunger = VALUES(decay_hunger), decay_energy = VALUES(decay_energy)'
+                . 'bubble_enabled = VALUES(bubble_enabled), decay_happiness = VALUES(decay_happiness), decay_hunger = VALUES(decay_hunger), decay_energy = VALUES(decay_energy), '
+                . 'start_happiness = VALUES(start_happiness), start_hunger = VALUES(start_hunger), start_energy = VALUES(start_energy)'
             );
             if (!$stmt) {
                 throw new Exception($db->error);
             }
             $stmt->bind_param(
-                'sssdiisiddd',
+                'sssdiisidddiii',
                 $petName,
                 $idleAnimation,
                 $position,
@@ -528,7 +574,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
                 $bubbleEnabled,
                 $decayHappiness,
                 $decayHunger,
-                $decayEnergy
+                $decayEnergy,
+                $startHappiness,
+                $startHunger,
+                $startEnergy
             );
             if (!$stmt->execute()) {
                 throw new Exception($stmt->error);
@@ -615,7 +664,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
     if ($action === 'upload_animation') {
         include 'includes/storage_used.php';
         $animName = pet_sanitize_anim_name($_POST['name'] ?? '');
-        if ($animName === '') {
+        if ($animName === '' || !in_array($animName, $petAnimNameList, true)) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
         }
         $frameWidth = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_width'] ?? 0)));
@@ -658,8 +707,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         if (!in_array($ext, $petImageExts, true) || !upload_validate_extension_and_mime($tmp, $ext, $petImageExts)) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error_type')]);
         }
-        if (!is_dir($petMediaDir)) {
-            mkdir($petMediaDir, 0755, true);
+        if (!ensureDirectoryWritable($petMediaDir)) {
+            pet_json_exit(['success' => false, 'error' => t('pet_upload_error', [t('pet_sprite_upload')])]);
         }
         $oldFilename = '';
         $oldSize = 0;
@@ -967,6 +1016,15 @@ while (ob_get_level()) {
 
 ob_start();
 ?>
+<div class="sp-alert sp-alert-info media-storage-bar" id="petStorageBar" aria-busy="true">
+    <div class="media-storage-header">
+        <span><i class="fas fa-database"></i> <strong><?= t('alerts_storage_usage') ?>:</strong></span>
+        <span id="petStorageText"><span class="sp-skeleton-line w-40" aria-hidden="true"></span></span>
+    </div>
+    <progress class="progress" id="petStorageProgress" value="0" max="100"></progress>
+    <p class="pet-page-help pet-page-help-last av-storage-note"><?= t('pet_storage_note') ?></p>
+</div>
+
 <div class="sp-page-header">
     <h1><i class="fas fa-paw"></i> <?= t('pet_page_title') ?></h1>
     <p><?= t('pet_intro') ?></p>
@@ -1073,17 +1131,18 @@ ob_start();
         <div class="pet-page-form-grid">
             <div class="sp-form-group">
                 <label class="sp-label" for="petStartHappiness"><?= t('pet_stat_happiness') ?></label>
-                <input type="number" id="petStartHappiness" name="happiness" class="sp-input" min="0" max="100" step="1" value="<?= (int) $petState['happiness'] ?>">
+                <input type="number" id="petStartHappiness" name="happiness" class="sp-input" min="0" max="100" step="1" value="<?= (int) ($pet['start_happiness'] ?? $petState['happiness']) ?>">
             </div>
             <div class="sp-form-group">
                 <label class="sp-label" for="petStartHunger"><?= t('pet_stat_hunger') ?></label>
-                <input type="number" id="petStartHunger" name="hunger" class="sp-input" min="0" max="100" step="1" value="<?= (int) $petState['hunger'] ?>">
+                <input type="number" id="petStartHunger" name="hunger" class="sp-input" min="0" max="100" step="1" value="<?= (int) ($pet['start_hunger'] ?? $petState['hunger']) ?>">
             </div>
             <div class="sp-form-group">
                 <label class="sp-label" for="petStartEnergy"><?= t('pet_stat_energy') ?></label>
-                <input type="number" id="petStartEnergy" name="energy" class="sp-input" min="0" max="100" step="1" value="<?= (int) $petState['energy'] ?>">
+                <input type="number" id="petStartEnergy" name="energy" class="sp-input" min="0" max="100" step="1" value="<?= (int) ($pet['start_energy'] ?? $petState['energy']) ?>">
             </div>
         </div>
+        <p class="sp-help"><?= t('pet_stats_stream_help') ?></p>
         <div class="pet-page-form-grid">
             <div class="sp-form-group">
                 <label class="sp-label" for="petDecayHappiness"><?= t('pet_decay_happiness') ?></label>
@@ -1114,11 +1173,21 @@ ob_start();
             <form id="petAnimForm" class="pet-page-anim-form">
                 <div class="sp-form-group">
                     <label class="sp-label" for="petAnimName"><?= t('pet_animation_name') ?></label>
-                    <input type="text" id="petAnimName" name="name" class="sp-input" maxlength="50" required>
+                    <select id="petAnimName" name="name" class="sp-select">
+                        <?php foreach ($petAnimNameList as $animName): ?>
+                            <option value="<?= htmlspecialchars($animName) ?>" <?= $animName === 'idle' ? 'selected' : '' ?>><?= htmlspecialchars($animName) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="petAnimSprite"><?= t('pet_sprite_upload') ?></label>
-                    <input type="file" id="petAnimSprite" name="sprite" class="sp-input" accept="image/png,image/webp" required>
+                    <span class="sp-label"><?= t('pet_sprite_upload') ?></span>
+                    <label class="media-drop-zone" id="petSpriteDropZone">
+                        <i class="fas fa-cloud-upload-alt media-drop-zone-icon"></i>
+                        <span class="file-list-label" id="petSpriteFileLabel"><?= t('media_no_files_selected') ?></span>
+                        <div class="media-drop-zone-hint"><?= t('media_click_or_drag') ?></div>
+                        <input type="file" id="petAnimSprite" name="sprite" accept="image/png,image/webp" hidden>
+                    </label>
+                    <span class="sp-help"><?= t('pet_upload_help', [PET_IMAGE_MIN_PX, PET_IMAGE_MAX_PX, (int) (PET_IMAGE_MAX_BYTES / (1024 * 1024))]) ?></span>
                 </div>
                 <div class="pet-page-form-grid">
                     <div class="sp-form-group">
@@ -1356,7 +1425,8 @@ ob_start();
         urlShow: <?php echo json_encode(t('pet_overlay_url_show'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
         urlHide: <?php echo json_encode(t('pet_overlay_url_hide'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
         urlCopied: <?php echo json_encode(t('pet_overlay_url_copied'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
-        confirmDelete: <?php echo json_encode(t('pet_confirm_delete'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
+        confirmDelete: <?php echo json_encode(t('pet_confirm_delete'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        noFile: <?php echo json_encode(t('media_no_files_selected'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
     };
     const petUrlReal = <?php echo json_encode($overlayLinkWithCode, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     const petUrlMasked = <?php echo json_encode($overlayLinkMasked, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
@@ -1380,6 +1450,40 @@ ob_start();
         el.textContent = text || (ok ? petLang.saved : petLang.saveError);
         el.className = 'pet-page-save-status ' + (ok ? 'is-success' : 'is-error');
     };
+
+    const applyStorageBar = (data) => {
+        if (!data || typeof data.storage_used !== 'number' || typeof data.max_storage !== 'number') return;
+        const usedMb = (data.storage_used / 1024 / 1024).toFixed(2);
+        const maxMb = (data.max_storage / 1024 / 1024).toFixed(2);
+        const pct = typeof data.storage_percentage === 'number'
+            ? data.storage_percentage.toFixed(2)
+            : ((data.storage_used / data.max_storage) * 100).toFixed(2);
+        const textEl = document.getElementById('petStorageText');
+        const progEl = document.getElementById('petStorageProgress');
+        const barEl = document.getElementById('petStorageBar');
+        if (textEl) textEl.textContent = usedMb + 'MB / ' + maxMb + 'MB (' + pct + '%)';
+        if (progEl) progEl.value = pct;
+        if (barEl) barEl.setAttribute('aria-busy', 'false');
+    };
+    const loadStorageBar = () => {
+        const url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'list');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then((r) => r.json())
+            .then((data) => {
+                if (data && data.success) {
+                    applyStorageBar(data);
+                    return;
+                }
+                const barEl = document.getElementById('petStorageBar');
+                if (barEl) barEl.setAttribute('aria-busy', 'false');
+            })
+            .catch(() => {
+                const barEl = document.getElementById('petStorageBar');
+                if (barEl) barEl.setAttribute('aria-busy', 'false');
+            });
+    };
+    loadStorageBar();
 
     const petUrlBox = document.getElementById('petOverlayUrl');
     const petUrlReveal = document.getElementById('petUrlReveal');
@@ -1590,10 +1694,55 @@ ob_start();
         );
     };
 
-    ['petAnimSprite', 'petFrameWidth', 'petFrameHeight', 'petFrameCount', 'petFps', 'petAnimLoop'].forEach((id) => {
+    const spriteInput = document.getElementById('petAnimSprite');
+    const spriteZone = document.getElementById('petSpriteDropZone');
+    const spriteLabel = document.getElementById('petSpriteFileLabel');
+    const setSpriteFile = (file) => {
+        if (!file || !spriteInput) return;
+        try {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            spriteInput.files = dt.files;
+        } catch (err) {
+            /* DataTransfer may be unavailable; change handler still runs from the picker */
+        }
+        if (spriteLabel) spriteLabel.textContent = file.name;
+        readPreviewInputs();
+    };
+    if (spriteInput) {
+        spriteInput.addEventListener('change', () => {
+            const file = spriteInput.files && spriteInput.files[0];
+            if (spriteLabel) spriteLabel.textContent = file ? file.name : petLang.noFile;
+            readPreviewInputs();
+        });
+    }
+    if (spriteZone && spriteInput) {
+        ['dragenter', 'dragover'].forEach((evt) => {
+            spriteZone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                spriteZone.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'dragend'].forEach((evt) => {
+            spriteZone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                spriteZone.classList.remove('is-dragover');
+            });
+        });
+        spriteZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            spriteZone.classList.remove('is-dragover');
+            const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (file) setSpriteFile(file);
+        });
+    }
+
+    ['petFrameWidth', 'petFrameHeight', 'petFrameCount', 'petFps', 'petAnimLoop'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.addEventListener(id === 'petAnimSprite' || id === 'petAnimLoop' ? 'change' : 'input', readPreviewInputs);
+        el.addEventListener(id === 'petAnimLoop' ? 'change' : 'input', readPreviewInputs);
     });
 
     document.querySelectorAll('.pet-page-anim-preview-btn').forEach((btn) => {
@@ -1617,7 +1766,7 @@ ob_start();
             const fileEl = document.getElementById('petAnimSprite');
             const file = fileEl && fileEl.files && fileEl.files[0];
             if (!file) {
-                setStatus(animStatus, false, petLang.saveError);
+                setStatus(animStatus, false, petLang.noFile);
                 return;
             }
             const fd = new FormData();

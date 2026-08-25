@@ -12024,6 +12024,9 @@ async def pet_load_cache():
         "decay_happiness": 2.0,
         "decay_hunger": 3.0,
         "decay_energy": 1.0,
+        "start_happiness": 80,
+        "start_hunger": 80,
+        "start_energy": 80,
         "chat_keyword": {},
         "command": {},
         "redemption": {},
@@ -12034,7 +12037,12 @@ async def pet_load_cache():
     try:
         connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT enabled, pet_name, decay_happiness, decay_hunger, decay_energy FROM pet_settings WHERE id = 1")
+            try:
+                await cursor.execute(
+                    "SELECT enabled, pet_name, decay_happiness, decay_hunger, decay_energy, start_happiness, start_hunger, start_energy FROM pet_settings WHERE id = 1"
+                )
+            except Exception:
+                await cursor.execute("SELECT enabled, pet_name, decay_happiness, decay_hunger, decay_energy FROM pet_settings WHERE id = 1")
             settings = await cursor.fetchone()
             if not settings:
                 return empty
@@ -12045,6 +12053,9 @@ async def pet_load_cache():
             cache["decay_happiness"] = float(settings.get("decay_happiness") or 2)
             cache["decay_hunger"] = float(settings.get("decay_hunger") or 3)
             cache["decay_energy"] = float(settings.get("decay_energy") or 1)
+            cache["start_happiness"] = pet_clamp_stat(settings.get("start_happiness") if settings.get("start_happiness") is not None else 80)
+            cache["start_hunger"] = pet_clamp_stat(settings.get("start_hunger") if settings.get("start_hunger") is not None else 80)
+            cache["start_energy"] = pet_clamp_stat(settings.get("start_energy") if settings.get("start_energy") is not None else 80)
             try:
                 await cursor.execute(
                     "SELECT id, trigger_type, trigger_value, animation, bubble_text, effect_happiness, effect_hunger, effect_energy, xp, cooldown_seconds FROM pet_triggers WHERE enabled = 1"
@@ -12081,16 +12092,39 @@ async def pet_get_cache():
     _pet_cache[API_TOKEN] = loaded
     return loaded
 
-# Function to apply lazy decay to stored pet stats (NULL last_interaction_at means no decay)
-def pet_decay_stats(happiness, hunger, energy, last_interaction_at, cache):
+# Function to apply lazy decay to stored pet stats (NULL last_interaction_at means no decay). Offline streams never decay.
+def pet_decay_stats(happiness, hunger, energy, last_interaction_at, cache, allow_decay=None):
+    global stream_online
+    if allow_decay is None:
+        allow_decay = bool(stream_online)
     last_dt = pet_parse_interaction_time(last_interaction_at)
     hours = 0.0
-    if last_dt is not None:
+    if allow_decay and last_dt is not None:
         hours = max(0.0, (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600.0)
     return {
         "happiness": pet_clamp_stat(float(happiness) - float(cache.get("decay_happiness") or 0) * hours),
         "hunger": pet_clamp_stat(float(hunger) - float(cache.get("decay_hunger") or 0) * hours),
         "energy": pet_clamp_stat(float(energy) - float(cache.get("decay_energy") or 0) * hours),
+    }
+
+def pet_state_notice_data(happiness, hunger, energy, level, xp, last_iso, cache, stream_online_override=None):
+    global stream_online
+    decay_happiness = float(cache.get("decay_happiness") or 2)
+    decay_hunger = float(cache.get("decay_hunger") or 3)
+    decay_energy = float(cache.get("decay_energy") or 1)
+    online = stream_online if stream_online_override is None else stream_online_override
+    return {
+        "happiness": happiness,
+        "hunger": hunger,
+        "energy": energy,
+        "level": level,
+        "xp": xp,
+        "last_interaction_at": last_iso,
+        "decay_happiness": decay_happiness,
+        "decay_hunger": decay_hunger,
+        "decay_energy": decay_energy,
+        "decay_rates": {"happiness": decay_happiness, "hunger": decay_hunger, "energy": decay_energy},
+        "stream_online": 1 if online else 0,
     }
 
 # Function to read current (decayed) pet stats without writing
@@ -12173,23 +12207,91 @@ async def pet_apply_state_effects(trigger, cache):
                     (happiness, hunger, energy, level, xp, now_naive, happiness, hunger, energy, level, xp, now_naive)
                 )
                 await connection.commit()
-            decay_happiness = float(cache.get("decay_happiness") or 2)
-            decay_hunger = float(cache.get("decay_hunger") or 3)
-            decay_energy = float(cache.get("decay_energy") or 1)
-            safe_create_task(websocket_notice(event="PET_STATE", additional_data={
-                "happiness": happiness,
-                "hunger": hunger,
-                "energy": energy,
-                "level": level,
-                "xp": xp,
-                "last_interaction_at": now_iso,
-                "decay_happiness": decay_happiness,
-                "decay_hunger": decay_hunger,
-                "decay_energy": decay_energy,
-                "decay_rates": {"happiness": decay_happiness, "hunger": decay_hunger, "energy": decay_energy},
-            }))
+            safe_create_task(websocket_notice(event="PET_STATE", additional_data=pet_state_notice_data(
+                happiness, hunger, energy, level, xp, now_iso, cache
+            )))
         except Exception as e:
             bot_logger.error(f"[PET] Failed to apply pet state effects: {e}")
+        finally:
+            if connection:
+                await connection.close()
+
+# Function to commit decayed stats before going offline so they stay frozen until the next stream
+async def pet_freeze_for_stream_offline():
+    global _pet_state_lock
+    cache = await pet_get_cache()
+    if not cache.get("configured"):
+        return
+    now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    async with _pet_state_lock:
+        connection = None
+        try:
+            connection = await mysql_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT happiness, hunger, energy, level, xp, last_interaction_at FROM pet_state WHERE id = 1")
+                row = await cursor.fetchone()
+                if row:
+                    happiness = row.get("happiness") if row.get("happiness") is not None else 80
+                    hunger = row.get("hunger") if row.get("hunger") is not None else 80
+                    energy = row.get("energy") if row.get("energy") is not None else 80
+                    xp = max(0, int(row.get("xp") or 0))
+                    last_at = row.get("last_interaction_at")
+                else:
+                    happiness, hunger, energy, xp, last_at = 80, 80, 80, 0, None
+                decayed = pet_decay_stats(happiness, hunger, energy, last_at, cache, allow_decay=True)
+                happiness = decayed["happiness"]
+                hunger = decayed["hunger"]
+                energy = decayed["energy"]
+                level = min(99, 1 + xp // 100)
+                await cursor.execute(
+                    "INSERT INTO pet_state (id, happiness, hunger, energy, level, xp, last_interaction_at) VALUES (1, %s, %s, %s, %s, %s, %s) "
+                    "ON DUPLICATE KEY UPDATE happiness=%s, hunger=%s, energy=%s, last_interaction_at=%s",
+                    (happiness, hunger, energy, level, xp, now_naive, happiness, hunger, energy, now_naive)
+                )
+                await connection.commit()
+            safe_create_task(websocket_notice(event="PET_STATE", additional_data=pet_state_notice_data(
+                happiness, hunger, energy, level, xp, now_iso, cache, stream_online_override=False
+            )))
+        except Exception as e:
+            bot_logger.error(f"[PET] Failed to freeze pet stats for stream offline: {e}")
+        finally:
+            if connection:
+                await connection.close()
+
+# Function to reset happiness/hunger/energy to dashboard start values at the beginning of a new stream
+async def pet_reset_for_new_stream():
+    global _pet_state_lock
+    cache = await pet_get_cache()
+    if not cache.get("configured"):
+        return
+    now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    happiness = pet_clamp_stat(cache.get("start_happiness") if cache.get("start_happiness") is not None else 80)
+    hunger = pet_clamp_stat(cache.get("start_hunger") if cache.get("start_hunger") is not None else 80)
+    energy = pet_clamp_stat(cache.get("start_energy") if cache.get("start_energy") is not None else 80)
+    async with _pet_state_lock:
+        connection = None
+        try:
+            connection = await mysql_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT level, xp FROM pet_state WHERE id = 1")
+                row = await cursor.fetchone()
+                xp = max(0, int((row or {}).get("xp") or 0))
+                level = min(99, 1 + xp // 100)
+                await cursor.execute(
+                    "INSERT INTO pet_state (id, happiness, hunger, energy, level, xp, last_interaction_at) VALUES (1, %s, %s, %s, %s, %s, %s) "
+                    "ON DUPLICATE KEY UPDATE happiness=%s, hunger=%s, energy=%s, last_interaction_at=%s",
+                    (happiness, hunger, energy, level, xp, now_naive, happiness, hunger, energy, now_naive)
+                )
+                await connection.commit()
+            safe_create_task(websocket_notice(event="PET_STATE", additional_data=pet_state_notice_data(
+                happiness, hunger, energy, level, xp, now_iso, cache
+            )))
+        except Exception as e:
+            bot_logger.error(f"[PET] Failed to reset pet stats for new stream: {e}")
         finally:
             if connection:
                 await connection.close()
@@ -15409,10 +15511,13 @@ async def process_stream_online_websocket():
             await connection.close()
     start_looped_task("timed_message", timed_message)
     start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
+    if was_offline:
+        await pet_reset_for_new_stream()
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
     global stream_online, scheduled_clear_task, stream_session_started_at
+    await pet_freeze_for_stream_offline()
     stream_online = False  # Update the stream status
     stream_session_started_at = 0.0  # Clear so duration loop doesn't fire while offline
     clear_ad_notice_session()

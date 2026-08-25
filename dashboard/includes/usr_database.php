@@ -1267,6 +1267,9 @@ try {
                 decay_happiness DECIMAL(5,2) NOT NULL DEFAULT 2.00,
                 decay_hunger DECIMAL(5,2) NOT NULL DEFAULT 3.00,
                 decay_energy DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+                start_happiness TINYINT UNSIGNED NOT NULL DEFAULT 80,
+                start_hunger TINYINT UNSIGNED NOT NULL DEFAULT 80,
+                start_energy TINYINT UNSIGNED NOT NULL DEFAULT 80,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'pet_animations' => "

@@ -44,7 +44,20 @@ function pet_overlay_table_exists($db, $table) {
     return $res instanceof mysqli_result && $res->num_rows > 0;
 }
 
-function pet_overlay_decay_stat($stored, $rate, $lastUnix) {
+function pet_overlay_stream_is_online($db) {
+    if (!pet_overlay_table_exists($db, 'stream_status')) {
+        return false;
+    }
+    $res = $db->query('SELECT status FROM stream_status LIMIT 1');
+    if (!($res instanceof mysqli_result)) {
+        return false;
+    }
+    $row = $res->fetch_assoc();
+    $status = strtolower(trim((string) ($row['status'] ?? '')));
+    return in_array($status, ['true', '1', 'online'], true);
+}
+
+function pet_overlay_decay_stat($stored, $rate, $lastUnix, $streamOnline = true) {
     $value = (float) $stored;
     if ($value < 0) {
         $value = 0;
@@ -53,7 +66,7 @@ function pet_overlay_decay_stat($stored, $rate, $lastUnix) {
         $value = 100;
     }
     $rate = (float) $rate;
-    if ($lastUnix === null || $rate == 0.0) {
+    if (!$streamOnline || $lastUnix === null || $rate == 0.0) {
         return $value;
     }
     $hours = (time() - (int) $lastUnix) / 3600.0;
@@ -202,6 +215,7 @@ $energyStored = max(0, min(100, (float) $pet_state['energy']));
 $decayHappiness = (float) $pet_settings['decay_happiness'];
 $decayHunger = (float) $pet_settings['decay_hunger'];
 $decayEnergy = (float) $pet_settings['decay_energy'];
+$streamOnline = $user_db ? pet_overlay_stream_is_online($user_db) : false;
 
 $pet_manifest = [
     'settings' => [
@@ -222,9 +236,9 @@ $pet_manifest = [
     ],
     'animations' => $pet_animations ? $pet_animations : new stdClass(),
     'state' => [
-        'happiness' => pet_overlay_decay_stat($happinessStored, $decayHappiness, $lastUnix),
-        'hunger' => pet_overlay_decay_stat($hungerStored, $decayHunger, $lastUnix),
-        'energy' => pet_overlay_decay_stat($energyStored, $decayEnergy, $lastUnix),
+        'happiness' => pet_overlay_decay_stat($happinessStored, $decayHappiness, $lastUnix, $streamOnline),
+        'hunger' => pet_overlay_decay_stat($hungerStored, $decayHunger, $lastUnix, $streamOnline),
+        'energy' => pet_overlay_decay_stat($energyStored, $decayEnergy, $lastUnix, $streamOnline),
         'happiness_stored' => $happinessStored,
         'hunger_stored' => $hungerStored,
         'energy_stored' => $energyStored,
@@ -234,6 +248,7 @@ $pet_manifest = [
         'decay_happiness' => $decayHappiness,
         'decay_hunger' => $decayHunger,
         'decay_energy' => $decayEnergy,
+        'stream_online' => $streamOnline ? 1 : 0,
     ],
 ];
 $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS;
@@ -351,6 +366,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 decayHappiness: 2,
                 decayHunger: 3,
                 decayEnergy: 1,
+                streamOnline: false,
             };
             const sheets = Object.create(null);
             const queue = [];
@@ -459,8 +475,15 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 return '';
             };
 
+            const truthyFlag = (value) => {
+                if (value === true || value === 1) return true;
+                const text = String(value == null ? '' : value).trim().toLowerCase();
+                return text === '1' || text === 'true' || text === 'online';
+            };
+
             const currentStat = (name) => {
                 const stored = clampStat(stats[name]);
+                if (!stats.streamOnline) return stored;
                 const rateKey = 'decay' + name.charAt(0).toUpperCase() + name.slice(1);
                 const rate = toNumber(stats[rateKey], 0);
                 if (!stats.lastInteractionAt || !rate) return stored;
@@ -829,6 +852,9 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 if (decayH != null) stats.decayHappiness = toNumber(decayH, stats.decayHappiness);
                 if (decayU != null) stats.decayHunger = toNumber(decayU, stats.decayHunger);
                 if (decayE != null) stats.decayEnergy = toNumber(decayE, stats.decayEnergy);
+                if (p.stream_online !== undefined) {
+                    stats.streamOnline = truthyFlag(p.stream_online);
+                }
                 updateStats();
             };
 
@@ -905,6 +931,12 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 bind: (socket) => {
                     socket.on('PET_REACT', handlePetReact);
                     socket.on('PET_STATE', applyStatePayload);
+                    socket.on('STREAM_ONLINE', () => { stats.streamOnline = true; });
+                    socket.on('STREAM_OFFLINE', () => {
+                        allowedStatKeys.forEach((key) => { stats[key] = currentStat(key); });
+                        stats.lastInteractionAt = Date.now();
+                        stats.streamOnline = false;
+                    });
                     socket.on('PET_SETTINGS_UPDATE', (data) => reloadOverlay('PET_SETTINGS_UPDATE', data));
                     socket.on('OVERLAY_REFRESH', (data) => reloadOverlay('OVERLAY_REFRESH', data));
                 },
