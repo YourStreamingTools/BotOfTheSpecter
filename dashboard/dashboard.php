@@ -304,9 +304,17 @@ if ($isLoggedIn) {
                 for (var k in params) { if (params[k] !== null && params[k] !== undefined) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
                 if (parts.length) qs = '?' + parts.join('&');
             }
-            return fetch(API + '/v2' + path + qs, { headers: { 'X-API-KEY': CODE } }).then(function (r) {
+            var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+            var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 20000);
+            var opts = { headers: { 'X-API-KEY': CODE } };
+            if (ctrl) opts.signal = ctrl.signal;
+            return fetch(API + '/v2' + path + qs, opts).then(function (r) {
+                clearTimeout(timer);
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
+            }, function (err) {
+                clearTimeout(timer);
+                throw err;
             });
         }
         function errRow() { return '<div class="db-loading"><i class="fas fa-triangle-exclamation"></i> ' + esc(I18N.load_error) + '</div>'; }
@@ -360,7 +368,9 @@ if ($isLoggedIn) {
 
         // Zone 1: live state
         function loadLive() {
-            apiGet('/dashboard/live').then(renderLive).catch(function () {});
+            apiGet('/dashboard/live').then(renderLive).catch(function () {
+                renderLive({ online: false });
+            });
         }
         function renderLive(d) {
             var dot = $('dbLiveDot'), label = $('dbLiveLabel'), title = $('dbLiveTitle'), meta = $('dbLiveMeta');
@@ -389,22 +399,25 @@ if ($isLoggedIn) {
             if (sessionSince) p.since = sessionSince;
             return p;
         }
+        var lastWindow = null;
+        var lastSince = null;
         function loadInitial() {
-            Promise.all([
-                apiGet('/dashboard/summary', summaryParams()).catch(function () { return null; }),
-                apiGet('/dashboard/trends', { days: 30 }).catch(function () { return null; })
-            ]).then(function (res) {
-                var summary = res[0], trends = res[1];
+            apiGet('/dashboard/summary', summaryParams()).then(function (summary) {
+                lastWindow = summary.window;
+                lastSince = summary.since_visit;
+                renderBotDid(summary.lifetime);
+                renderWhatsNew(summary.window, summary.since_visit);
+                markVisit();
+            }).catch(function () {
+                var bot = $('dbBotDid'), wn = $('dbWhatsNew');
+                if (bot) { bot.innerHTML = errRow(); setBusy(bot, false); }
+                if (wn) { wn.innerHTML = errRow(); setBusy(wn, false); }
+            });
+            apiGet('/dashboard/trends', { days: 30 }).then(function (trends) {
                 trendsSeries = (trends && trends.series) ? trends.series : {};
-                if (summary) {
-                    renderBotDid(summary.lifetime);
-                    renderWhatsNew(summary.window, summary.since_visit);
-                    markVisit();
-                } else {
-                    var bot = $('dbBotDid'), wn = $('dbWhatsNew');
-                    if (bot) { bot.innerHTML = errRow(); setBusy(bot, false); }
-                    if (wn) { wn.innerHTML = errRow(); setBusy(wn, false); }
-                }
+                if (lastWindow) renderWhatsNew(lastWindow, lastSince);
+            }).catch(function () {
+                trendsSeries = {};
             });
         }
         function loadSummaryOnly() {
@@ -415,6 +428,8 @@ if ($isLoggedIn) {
                 setBusy(wn, true);
             }
             apiGet('/dashboard/summary', summaryParams()).then(function (s) {
+                lastWindow = s.window;
+                lastSince = s.since_visit;
                 renderBotDid(s.lifetime);
                 renderWhatsNew(s.window, s.since_visit);
             }).catch(function () {
@@ -656,27 +671,45 @@ if ($isLoggedIn) {
 
         function whenSchemaReady(done) {
             // Act-as (and first session load) runs usr_database.php after paint; FastAPI /dashboard/* 500s if that user DB/tables are not ready yet.
+            // Wall-clock cap: peek used to wait on the session GET_LOCK (5s each) so 240 retries could stall the home tiles for minutes.
             if (!SCHEMA_PENDING) { done(); return; }
-            var attempts = 0;
-            var maxAttempts = 240;
+            var finished = false;
+            function finish() {
+                if (finished) return;
+                finished = true;
+                done();
+            }
+            var deadline = Date.now() + 10000;
             function tick() {
-                fetch('/api/usr_schema.php?peek=1', { credentials: 'same-origin', cache: 'no-store' })
+                if (finished) return;
+                if (Date.now() >= deadline) { finish(); return; }
+                var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+                var abortTimer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 2500);
+                var opts = { credentials: 'same-origin', cache: 'no-store' };
+                if (ctrl) opts.signal = ctrl.signal;
+                fetch('/api/usr_schema.php?peek=1', opts)
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (d) {
-                        if (d && d.pending && attempts++ < maxAttempts) {
+                        clearTimeout(abortTimer);
+                        if (finished) return;
+                        if (d && d.pending) {
                             setTimeout(tick, 250);
                             return;
                         }
-                        done();
+                        finish();
                     })
-                    .catch(function () { done(); });
+                    .catch(function () {
+                        clearTimeout(abortTimer);
+                        if (!finished) setTimeout(tick, 250);
+                    });
             }
             tick();
+            setTimeout(finish, 10000);
         }
         document.addEventListener('DOMContentLoaded', function () {
             sessionSince = getCookie('dbLastVisit');
+            loadLive();
             whenSchemaReady(function () {
-                loadLive();
                 loadInitial();
                 loadBoards();
                 loadActivity();

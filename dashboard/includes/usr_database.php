@@ -25,12 +25,23 @@ if (!function_exists('usr_schema_log')) {
 if (!function_exists('usr_schema_persist_logs')) {
     function usr_schema_persist_logs($dbname = null, $mark_ok = false)
     {
+        $opened = false;
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            // Schema work releases the session lock first; reopen only to write the result.
+            if (!empty($_COOKIE[session_name()] ?? '')) {
+                @session_start();
+                $opened = true;
+            }
+        }
         if (session_status() !== PHP_SESSION_ACTIVE) {
             return;
         }
         $_SESSION['usr_schema_console'] = $GLOBALS['usr_schema_logs'] ?? [];
         if ($mark_ok && is_string($dbname) && $dbname !== '') {
             $_SESSION['usr_schema_ok'] = $dbname;
+        }
+        if ($opened) {
+            @session_write_close();
         }
     }
 }
@@ -51,6 +62,16 @@ if (session_status() === PHP_SESSION_ACTIVE
         @session_write_close();
     }
     return;
+}
+
+// web_sessions GET_LOCK is exclusive. Holding it across ~100 tables of
+// INFORMATION_SCHEMA / ALTER work blocks dashboard AJAX on the same cookie
+// (usr_schema peek waits 5s per try). Drop the lock before the heavy work.
+if ($__usrSchemaSessionWasClosed && session_status() === PHP_SESSION_ACTIVE) {
+    @session_write_close();
+}
+if ($__usrSchemaSessionWasClosed) {
+    @set_time_limit(120);
 }
 
 try {
@@ -1834,8 +1855,13 @@ try {
             async_log('Error adding trigger_type column to timed_messages: ' . $usrDBconn->error);
         }
     } else {
-        // Expand enum to include 'both' and 'scheduled' for existing installations
-        $usrDBconn->query("ALTER TABLE timed_messages MODIFY trigger_type ENUM('timer', 'chat_lines', 'both', 'scheduled') NOT NULL DEFAULT 'timer'");
+        // Expand enum only when a value is missing — MODIFY every load rebuilds the table.
+        $ttCol = $usrDBconn->query("SHOW COLUMNS FROM timed_messages LIKE 'trigger_type'");
+        $ttRow = $ttCol ? $ttCol->fetch_assoc() : null;
+        $ttType = strtolower((string) ($ttRow['Type'] ?? ''));
+        if ($ttType !== '' && (strpos($ttType, 'scheduled') === false || strpos($ttType, 'both') === false)) {
+            $usrDBconn->query("ALTER TABLE timed_messages MODIFY trigger_type ENUM('timer', 'chat_lines', 'both', 'scheduled') NOT NULL DEFAULT 'timer'");
+        }
     }
 
     // Migration: Ensure chat_line_trigger allows NULL values
