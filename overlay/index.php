@@ -34,7 +34,7 @@ if ($username) {
     <title>Twitch Alerts Overlay - BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <script src="js/specter-ws.js"></script>
+    <script src="js/specter-ws.js?v=<?php echo filemtime(__DIR__ . '/js/specter-ws.js'); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -95,7 +95,7 @@ if ($username) {
                     return;
                 }
                 const item = fxQueue.shift();
-                fxAudio = new Audio(item.url + '?t=' + Date.now());
+                fxAudio = new Audio(SpecterOverlayWS.playbackUrl(item.url));
                 fxAudio.volume = item.volume;
                 fxAudio.addEventListener('ended', () => { fxAudio = null; playNextFxAudio(); });
                 fxAudio.addEventListener('error', (e) => {
@@ -314,7 +314,7 @@ if ($username) {
                 // Play alert sound
                 if (config.alert_sound) {
                     const soundUrl = mediaBase + config.alert_sound;
-                    currentAudio = new Audio(soundUrl + '?t=' + Date.now());
+                    currentAudio = new Audio(SpecterOverlayWS.playbackUrl(soundUrl));
                     currentAudio.volume = (config.sound_volume || 50) / 100;
                     currentAudio.play().catch(e => console.error('Audio play error:', e));
                 }
@@ -697,7 +697,7 @@ if ($username) {
             function playNextWalkon() {
                 if (walkonQueue.length === 0) { walkonAudio = null; return; }
                 const url = walkonQueue.shift();
-                walkonAudio = new Audio(`${url}?t=${Date.now()}`);
+                walkonAudio = new Audio(SpecterOverlayWS.playbackUrl(url));
                 walkonAudio.volume = 0.8;
                 walkonAudio.addEventListener('ended', () => { walkonAudio = null; playNextWalkon(); });
                 walkonAudio.addEventListener('error', () => { walkonAudio = null; playNextWalkon(); });

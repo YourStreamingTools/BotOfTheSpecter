@@ -23,7 +23,7 @@ if (!empty($api_key) && !$conn->connect_error) {
     <title>WebSocket Audio Notifications</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <script src="js/specter-ws.js"></script>
+    <script src="js/specter-ws.js?v=<?php echo filemtime(__DIR__ . '/js/specter-ws.js'); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let currentAudio = null;
@@ -108,7 +108,7 @@ if (!empty($api_key) && !$conn->connect_error) {
                 }
 
                 const url = audioQueue.shift();
-                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
+                currentAudio = new Audio(SpecterOverlayWS.playbackUrl(url));
                 currentAudio.volume = 0.8;
 
                 currentAudio.addEventListener('canplaythrough', () => {

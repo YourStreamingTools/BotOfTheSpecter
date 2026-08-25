@@ -23,7 +23,7 @@ if (!empty($api_key) && !$conn->connect_error) {
     <title>WebSocket Video Alert Notifications</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <script src="js/specter-ws.js"></script>
+    <script src="js/specter-ws.js?v=<?php echo filemtime(__DIR__ . '/js/specter-ws.js'); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let currentVideo = null;
@@ -100,18 +100,18 @@ if (!empty($api_key) && !$conn->connect_error) {
 
                 const url = videoQueue.shift();
                 currentVideo = document.createElement('video');
-                currentVideo.src = `${url}?t=${new Date().getTime()}`;
+                currentVideo.src = SpecterOverlayWS.playbackUrl(url);
                 currentVideo.volume = 0.8;
                 currentVideo.controls = false;
-                currentVideo.className = 'video-alert-overlay-page-video';
+                currentVideo.className = 'video-alert-overlay-page-video video-alert-overlay-page-video-pending';
                 currentVideo.preload = 'auto';
                 document.body.appendChild(currentVideo);
                 currentVideo.addEventListener('canplaythrough', () => {
-                    console.log('Video can play through without buffering');
+                    currentVideo.classList.remove('video-alert-overlay-page-video-pending');
                     currentVideo.play().catch(error => {
                         console.warn('Autoplay blocked; video will retry on next interaction:', error.name);
                     });
-                });
+                }, { once: true });
 
                 currentVideo.addEventListener('ended', () => {
                     document.body.removeChild(currentVideo);

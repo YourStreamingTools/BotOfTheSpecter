@@ -485,6 +485,10 @@ html, body {
     max-height: 100%;
 }
 
+.video-alert-overlay-page-video-pending {
+    opacity: 0;
+}
+
 /* ===== FourthWall Overlay ===== */
 
 @keyframes fourthwall-overlay-page-slide-in {

@@ -12,7 +12,9 @@ Two paths share the same bucket. They are **not** interchangeable.
 
 ## Public HTTP (OBS, browsers)
 
-The **6 durable** static hosts (`cdn`, `media`, `walkons`, `soundalerts`, `videoalerts`, `usermusic` on `*.botofthespecter.com` / `music.botspecter.com`) are served by Caddy via `reverse_proxy` to MEGA S4 over HTTPS. That traffic does **not** go through the rclone mount.
+**Hot mp3/mp4 hosts** (`soundalerts`, `videoalerts`, `media`) are served by Caddy `file_server` off the rclone mounts, with a **capped VFS disk cache** on ext4 (`/var/cache/rclone-vfs`, not `/tmp`/tmpfs). Caps: soundalerts 256M, videoalerts 1G, media 768M (~2G total). First GET after a miss still pulls from S4 into that cache; repeats are local (~20ms TTFB vs ~2.5s). LRU evicts when the cap is hit — S4 stays the library.
+
+**Still S4 reverse_proxy:** `cdn`, `walkons`, `usermusic` / `music.botspecter.com`. Those are not the alert-buffer path.
 
 **TTS is not Mega S4.** `tts.botofthespecter.com` serves ephemeral OpenAI clips from a **plain local directory** `/var/www/tts` via Caddy `file_server`. The websocket TTS handler writes MP3s there, overlays play them, then the files are deleted. Do **not** rclone-mount `/var/www/tts`, do **not** `import asset_origin` for that host, do **not** treat `tts` as a durable S4 store for serving. The leftover `rclone-botofthespecter-tts.service` unit must stay **disabled**. `config/megas4.php` `$megas4_stores` still lists a `tts` entry for historical admin-map reasons — public serving of that host is local disk only.
 
@@ -38,11 +40,11 @@ s3fs was **replaced**. Live mounts on web1 (verified 2026-08-25):
 | `/var/www/videoalerts` | `…/videoalerts` | same |
 | `/var/www/tts` | local ext4 | **not mounted**; rclone TTS unit disabled |
 
-Units: `--allow-other --uid 33 --gid 33 --dir-perms 0775 --file-perms 0664 --vfs-cache-mode writes`. Folders present as `www-data:www-data` `775` so PHP can mkdir/upload. Write-back for uploads; **reads are not disk-cached**. Dashboard `move_uploaded_file()` into `/var/www/media/<user>/` etc. goes through these mounts. The admin file manager talks to S4 with the AWS SDK, not via FUSE.
+Units: `--allow-other --uid 33 --gid 33 --dir-perms 0775 --file-perms 0664 --cache-dir /var/cache/rclone-vfs`. **Must not** use the default cache dir (`/tmp` is tmpfs on web1 — that is RAM, the s3fs OOM class of bug). Hot hosts: `--vfs-cache-mode full` plus the size caps above. `cdn` / `walkons` / `usermusic`: `--vfs-cache-mode writes` (PHP uploads only). Folders present as `www-data:www-data` `775`. The admin file manager talks to S4 with the AWS SDK, not via FUSE.
 
 **Leftover:** `/etc/fstab` still has the old `fuse.s3fs` lines. systemd-fstab-generator still emits `var-www-*.mount` units from those, but the **active** mounts are rclone. Do not re-enable s3fs. Cleaning fstab is ops, not app code.
 
-**Do not** put HTTP `file_server` back on these mounts without a bounded **read** cache (`vfs-cache-mode full` + max-size) and a soak test. That is the hot-media-cache design, not current production.
+Hot-media `file_server` is live for soundalerts/videoalerts/media (2026-08-25) with those caps. Do not raise caps without checking `df /`. Do not point `cdn` at `file_server`. Overlay durable URLs must not append `?t=` (`SpecterOverlayWS.playbackUrl`); TTS still cache-busts. See `.grok/specs/2026-08-25-hot-media-cache-design.md`.
 
 ## Related
 
