@@ -1,24 +1,54 @@
 ---
 name: project_megas4_public_serving
-description: "6 durable static asset hosts (not TTS) reverse_proxy to MEGA S4 public-token URL; TTS is local /var/www/tts file_server. GET/Range=200, HEAD=400 on S4."
-metadata: 
+description: "6 durable static hosts reverse_proxy to MEGA S4 public-token URL; PHP/admin I/O via rclone FUSE; TTS is local /var/www/tts file_server. GET/Range=200, HEAD=400 on S4."
+metadata:
   node_type: memory
   type: project
-  originSessionId: b296958b-a11f-4dd5-901b-83ab303c166a
 ---
 
-The **6 durable** static asset hosts (cdn/media/walkons/soundalerts/videoalerts/usermusic on *.botofthespecter.com) are served by Caddy via `reverse_proxy` to MEGA S4 over HTTPS, NOT from the s3fs mount.
+# Mega S4 public serving + rclone (live on web1)
 
-**TTS is NOT Mega S4 and NOT an s3fs mount.** `tts.botofthespecter.com` serves ephemeral OpenAI clips from a **plain local directory** `/var/www/tts` via Caddy `file_server`. The websocket TTS handler generates MP3s, publishes there (local path or SSH/SFTP to web1), overlays play them, then files are deleted. If `/var/www/tts` is still s3fs/rclone-mounted, **unmount it**, remove fstab/`var-www-tts.mount` (or any unit that remounts it), recreate a normal dir owned by www-data, and keep Caddy on `file_server` — never `import asset_origin` / S4 rewrite. Do not re-add `tts` to `$megas4_stores` or the s3fs mount list.
+Two paths share the same bucket. They are **not** interchangeable.
 
-**Why S4 proxy (durable assets only):** s3fs mounts ran with no disk cache, so s3fs buffered every served read in RAM and OOM-crashed web1 under concurrent media load. Deployed + curl-verified 2026-07-04 (deploy mechanics: [[project_caddy_deploy_path]]). Config: the `asset_origin` snippet in web/Caddyfile — `reverse_proxy {env.STORAGE_HOST}:443` + `header_up Host {env.STORAGE_HOST}` + `transport http { tls }` (a scheme like `https://{env.X}` is REJECTED by Caddy — "placeholders not allowed when upstream has a scheme"; use bare host:port + transport tls); per host `rewrite * {env.STORAGE_PREFIX}/<store>{uri}`. STORAGE_HOST + STORAGE_PREFIX live only in /etc/caddy/caddy.env, kept out of the public repo.
+## Public HTTP (OBS, browsers)
 
-**MEGA S4 anonymous public read (the key non-obvious fact):** MEGA S4 objects ARE anonymously readable via a public-token URL of the form `https://s3.g.megas4.com/<public-token>/<bucket>/<key>`. The `<public-token>` (~32-char string; server-side only, in caddy.env STORAGE_PREFIX and /var/www/config/megas4.php) is REQUIRED — normal path-style without it (`s3.g.megas4.com/<bucket>/<key>`) returns 403 "Invalid URL segment". Unsigned GET and Range work (200 / 206) with correct content-types (rclone set MIME on upload). **HEAD returns 400** — harmless since browsers/OBS fetch with GET, but it means `curl -I` gives a misleading 400; always test with GET: `curl -s -o /dev/null -w '%{http_code} %{content_type} %{size_download}'`.
+The **6 durable** static hosts (`cdn`, `media`, `walkons`, `soundalerts`, `videoalerts`, `usermusic` on `*.botofthespecter.com` / `music.botspecter.com`) are served by Caddy via `reverse_proxy` to MEGA S4 over HTTPS. That traffic does **not** go through the rclone mount.
 
-Because that token grants anonymous read to the WHOLE bucket, it must stay server-side only — Caddy hides it (browsers only ever see the botofthespecter.com hosts). The app's admin/upload/management paths still use SIGNED AWS-SDK access (`dashboard/includes/megas4_s3.php` `megas4_client()` with the access/secret keys); signed and public-token access coexist. This corrects the earlier s3fs note that called the objects "PRIVATE (no public-read)".
+**TTS is not Mega S4.** `tts.botofthespecter.com` serves ephemeral OpenAI clips from a **plain local directory** `/var/www/tts` via Caddy `file_server`. The websocket TTS handler writes MP3s there, overlays play them, then the files are deleted. Do **not** rclone-mount `/var/www/tts`, do **not** `import asset_origin` for that host, do **not** treat `tts` as a durable S4 store for serving. The leftover `rclone-botofthespecter-tts.service` unit must stay **disabled**. `config/megas4.php` `$megas4_stores` still lists a `tts` entry for historical admin-map reasons — public serving of that host is local disk only.
 
-**Reusable gotcha:** a docs-based analysis of "why does the S4 GET 400" will confidently but WRONGLY conclude "MEGA S4 requires SigV4, anonymous is impossible, build a signing proxy / strip the token" — the `meganz/s4-specs` README implies no public access. A live unsigned GET returning 200 refutes all of it; the real 400 was just `curl -I` (HEAD). Verify storage behavior against the live endpoint, not the vendor docs — and this is exactly what the workflow's adversarial verify step caught after the synthesis got it backwards.
+**Why S4 proxy for durable assets:** the old s3fs mounts had no disk cache, buffered every served read in RAM, and OOM-crashed web1 under concurrent media load. Public GET was moved off the FUSE mount onto Caddy→S4 on 2026-07-04. rclone later replaced s3fs for **PHP/upload** I/O (see below); public HTTP was **kept** on the S4 proxy so OBS/CDN reads still do not traverse FUSE.
 
-**Under evaluation (2026-07-05, user-flagged, not yet decided):** the user is considering replacing s3fs with an **`rclone mount`** (which has a proper bounded VFS *disk* cache — `--vfs-cache-mode full` + `--vfs-cache-max-size` — unlike s3fs which had no disk cache and buffered reads in RAM → the OOM). If the rclone mount serves reads reliably, the whole Caddy `reverse_proxy` + public-token approach could be **retired**: the durable static hosts go back to `file_server` off the mount, objects stay private (no public token exposed at all), and repeat plays come from the local VFS cache instead of re-streaming from S4 every time. Caveats to expect: rclone mount is still FUSE (same startup-ordering / "mount exits 0 but is dead" class of gotchas as s3fs — verify with `mountpoint`/`ls`), and reads still flow through the box's bandwidth. "I'll let you know later" — no work started.
+Caddy: `asset_origin` in `web/Caddyfile` — `reverse_proxy {env.STORAGE_HOST}:443` + `header_up Host {env.STORAGE_HOST}` + `transport http { tls }`. A scheme like `https://{env.X}` is rejected ("placeholders not allowed when upstream has a scheme"). Each host `rewrite * {env.STORAGE_PREFIX}/<store>{uri}`. `STORAGE_HOST` + `STORAGE_PREFIX` live only in `/etc/caddy/caddy.env`. Deploy copy is `/etc/caddy/Caddyfile` — see [[project_caddy_deploy_path]].
 
-**Related latent bug (overlay/music.php):** playback advances ONLY on the audio `ended` event — there is no `error`/stall handler and `play().catch(()=>{})` swallows failures — so any single failed/stalled track fetch freezes the playlist permanently ("music stops after a while"). The reverse_proxy→S4 read path (occasional transient network failures) surfaced it; an rclone-mount local read would make the *symptom* rare but does NOT fix the underlying no-recovery gap. Real fix = add `error` + stall-watchdog handlers that skip to the next track (with an anti-spin backoff). Not yet done.
+**MEGA S4 anonymous public read:** objects are anonymously readable at `https://s3.g.megas4.com/<public-token>/<bucket>/<key>`. The public token is server-side only (`caddy.env` `STORAGE_PREFIX` and `config/megas4.php`). Path-style without the token returns 403 "Invalid URL segment". Unsigned GET and Range work (200 / 206). **HEAD returns 400** — `curl -I` is misleading; test with GET. The token grants anonymous read of the whole bucket, so Caddy must keep it off the public URL. Admin/upload/management still use signed AWS SDK access (`dashboard/includes/megas4_s3.php`); signed and public-token access coexist.
+
+Cloudflare is **DNS-only** ([[project_network_architecture]]). There is no CF HTTP cache in front of these hosts. Origin `Cache-Control: public, max-age=31536000, immutable` on asset extensions does not get an edge CDN. Overlay players also append `?t=<timestamp>` on every play, which busts browser cache — see `.grok/specs/2026-08-25-hot-media-cache-design.md`.
+
+## PHP / admin I/O (rclone, not s3fs)
+
+s3fs was **replaced**. Live mounts on web1 (verified 2026-08-25):
+
+| Path | Remote | How |
+|------|--------|-----|
+| `/var/www/cdn` | `megas4:botofthespecter/cdn` | `fuse.rclone`, systemd `rclone-botofthespecter-cdn.service` |
+| `/var/www/media` | `…/media` | same |
+| `/var/www/walkons` | `…/walkons` | same |
+| `/var/www/soundalerts` | `…/soundalerts` | same |
+| `/var/www/usermusic` | `…/usermusic` | same |
+| `/var/www/videoalerts` | `…/videoalerts` | same |
+| `/var/www/tts` | local ext4 | **not mounted**; rclone TTS unit disabled |
+
+Units: `--allow-other --uid 33 --gid 33 --dir-perms 0775 --file-perms 0664 --vfs-cache-mode writes`. Folders present as `www-data:www-data` `775` so PHP can mkdir/upload. Write-back for uploads; **reads are not disk-cached**. Dashboard `move_uploaded_file()` into `/var/www/media/<user>/` etc. goes through these mounts. The admin file manager talks to S4 with the AWS SDK, not via FUSE.
+
+**Leftover:** `/etc/fstab` still has the old `fuse.s3fs` lines. systemd-fstab-generator still emits `var-www-*.mount` units from those, but the **active** mounts are rclone. Do not re-enable s3fs. Cleaning fstab is ops, not app code.
+
+**Do not** put HTTP `file_server` back on these mounts without a bounded **read** cache (`vfs-cache-mode full` + max-size) and a soak test. That is the hot-media-cache design, not current production.
+
+## Related
+
+- [[project_s3fs_storage_and_file_manager]] (filename is historical; live I/O is rclone)
+- [[project_media_upload_dir_perms]]
+- [[project_caddy_deploy_path]]
+- Overlay music stall: `overlay/music.php` still advances only on `ended` — no `error`/stall skip. Separate bug from origin cache.
+
+**Last verified:** 2026-08-25 on web1 (`mount` = `fuse.rclone`, Caddy still `asset_origin` for the six durable hosts).

@@ -58,7 +58,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Admin Caddy control page](project_admin_caddy_page.md) — SHIPPED; localhost:2019 control plane
 - [Caddy CF token env](project_caddy_cf_token_env.md) — CF token in caddy.env; restart not reload when env changes
 - [Caddyfile deploy path](project_caddy_deploy_path.md) — live file is /etc/caddy/Caddyfile, separate from repo copy
-- [MEGA S4 public serving](project_megas4_public_serving.md) — static hosts via Caddy reverse_proxy to S4 public-token URL
+- [MEGA S4 public serving](project_megas4_public_serving.md) — durable hosts via Caddy reverse_proxy to S4 public-token URL; PHP I/O is rclone FUSE; TTS local disk
 - [Twitch OAuth token semantics](reference_twitch_oauth_token_semantics.md) — refresh does not invalidate prior access token
 - [Custom command aliases (BETA)](project_custom_command_aliases.md) — SHIPPED; aliases CSV + FIND_IN_SET in beta/v6
 - [Point Store](project_point_store.md) — SHIPPED; bot points loyalty store + STORE websocket
@@ -67,7 +67,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Word Replacer feature](project_word_replace_feature.md) — SHIPPED; random syllable-swap chat module (beta-only)
 - [Cloudflare zone owner](project_cloudflare_zone_owner.md) — botofthespecter.com zone on LochStudios CF account
 - [Credential logging](project_credential_logging.md) — never log raw user code/api_key
-- [s3fs storage + admin file manager](project_s3fs_storage_and_file_manager.md) — MEGA S4 s3fs mounts for 7 static dirs + admin CDN file manager; `compat_dir` gotcha
+- [rclone storage + admin file manager](project_s3fs_storage_and_file_manager.md) — MEGA S4 rclone mounts for 6 durable dirs (not TTS) + admin CDN file manager; s3fs retired
 - [V6 module host parity](project_v6_module_host_parity.md) — BETA→V6 custom channel module host call sites (websocket_notice intercept, CP, chat, Stream Bingo)
 
-**Last verified**: 2026-08-02 (migrated Claude project memory + restored historical plans into `.grok/`)
+**Last verified**: 2026-08-25 (rclone replaced s3fs on web1; S4 public proxy kept; hot-media cache design in `.grok/specs/2026-08-25-hot-media-cache-design.md`)
