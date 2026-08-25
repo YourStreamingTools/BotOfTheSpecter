@@ -5692,7 +5692,8 @@ async def get_dashboard_live(api_key: str = Query(...), channel: str = Query(Non
     creds = await get_twitch_app_credentials()
     if creds:
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
                     "https://api.twitch.tv/helix/streams",
                     headers={"Client-ID": creds["client_id"], "Authorization": f"Bearer {creds['access_token']}"},
