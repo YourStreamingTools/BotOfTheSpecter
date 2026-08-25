@@ -47,8 +47,8 @@ const PET_FRAME_COUNT_MAX = 64;
 $petAllowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 $petTriggerTypes = ['chat_keyword', 'command', 'redemption', 'event', 'interaction'];
 $petEventValues = ['follow', 'sub', 'raid', 'cheer', 'first_chat'];
-$petInteractionValues = ['feed', 'play'];
-$petStatKeys = ['happiness', 'hunger', 'energy'];
+$petInteractionValues = ['feed', 'play', 'sad', 'sleep'];
+$petStatKeys = ['happiness', 'hunger', 'energy', 'xp', 'xp_next'];
 $petStandardAnims = ['idle', 'happy', 'hype', 'sad', 'sleep', 'eat'];
 
 $petNotifyApiKey = (isset($api_key) && $api_key) ? $api_key : (string) ($_SESSION['api_key'] ?? '');
@@ -179,6 +179,8 @@ function pet_seed_default_triggers($db) {
         ['event', 'first_chat', 'happy', 'Hi {user}!', 0, 0, 0, 0],
         ['interaction', 'feed', 'eat', '', 0, 15, 0, 0],
         ['interaction', 'play', 'happy', '', 10, 0, -5, 0],
+        ['interaction', 'sad', 'sad', '', 0, 0, 0, 0],
+        ['interaction', 'sleep', 'sleep', '', 0, 0, 15, 0],
         ['chat_keyword', 'pog', 'hype', '', 0, 0, 0, 0],
     ];
     $stmt = $db->prepare(
@@ -211,6 +213,55 @@ function pet_seed_default_triggers($db) {
         $stmt->execute();
     }
     $stmt->close();
+    return true;
+}
+
+function pet_ensure_interaction_triggers($db) {
+    $defaults = [
+        ['feed', 'eat', '', 0, 15, 0, 0],
+        ['play', 'happy', '', 10, 0, -5, 0],
+        ['sad', 'sad', '', 0, 0, 0, 0],
+        ['sleep', 'sleep', '', 0, 0, 15, 0],
+    ];
+    $check = $db->prepare("SELECT id FROM pet_triggers WHERE trigger_type = 'interaction' AND trigger_value = ? LIMIT 1");
+    $ins = $db->prepare(
+        'INSERT INTO pet_triggers (trigger_type, trigger_value, animation, bubble_text, effect_happiness, effect_hunger, effect_energy, xp, cooldown_seconds, enabled) '
+        . "VALUES ('interaction', ?, ?, ?, ?, ?, ?, ?, 5, 1)"
+    );
+    if (!$check || !$ins) {
+        if ($check) {
+            $check->close();
+        }
+        if ($ins) {
+            $ins->close();
+        }
+        return false;
+    }
+    foreach ($defaults as $row) {
+        $value = $row[0];
+        $check->bind_param('s', $value);
+        if (!$check->execute()) {
+            continue;
+        }
+        $res = $check->get_result();
+        $exists = $res && $res->fetch_assoc();
+        if ($res) {
+            $res->free();
+        }
+        if ($exists) {
+            continue;
+        }
+        $anim = $row[1];
+        $bubble = $row[2];
+        $happiness = (int) $row[3];
+        $hunger = (int) $row[4];
+        $energy = (int) $row[5];
+        $xp = (int) $row[6];
+        $ins->bind_param('sssiiii', $value, $anim, $bubble, $happiness, $hunger, $energy, $xp);
+        $ins->execute();
+    }
+    $check->close();
+    $ins->close();
     return true;
 }
 
@@ -425,9 +476,7 @@ foreach (explode(',', (string) ($pet['visible_stats'] ?? '')) as $stat) {
         $visibleStats[] = $stat;
     }
 }
-if (!$visibleStats) {
-    $visibleStats = $petStatKeys;
-}
+
 
 if (pet_table_exists($db, 'pet_animations')) {
     $anRes = $db->query(
@@ -449,6 +498,7 @@ if (pet_table_exists($db, 'pet_animations')) {
 }
 
 if (pet_table_exists($db, 'pet_triggers')) {
+    pet_ensure_interaction_triggers($db);
     $trRes = $db->query(
         'SELECT id, trigger_type, trigger_value, animation, bubble_text, effect_happiness, effect_hunger, effect_energy, xp, cooldown_seconds, enabled '
         . 'FROM pet_triggers ORDER BY trigger_type ASC, id ASC'
@@ -537,9 +587,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
             if (in_array($stat, $petStatKeys, true) && !in_array($stat, $visibleClean, true)) {
                 $visibleClean[] = $stat;
             }
-        }
-        if (!$visibleClean) {
-            $visibleClean = $petStatKeys;
         }
         $visibleStatsStr = implode(',', $visibleClean);
         $decayHappiness = max(0, min(99.99, (float) ($_POST['decay_happiness'] ?? 2)));
@@ -651,6 +698,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
                 if ($wasEnabled === 0) {
                     pet_seed_default_triggers($db);
                 }
+                pet_ensure_interaction_triggers($db);
             }
             $db->commit();
         } catch (Exception $e) {
@@ -1118,6 +1166,8 @@ ob_start();
                     'happiness' => 'pet_stat_happiness',
                     'hunger' => 'pet_stat_hunger',
                     'energy' => 'pet_stat_energy',
+                    'xp' => 'pet_stat_xp',
+                    'xp_next' => 'pet_stat_xp_next',
                 ];
                 foreach ($petStatLabels as $statKey => $statLabel):
                 ?>

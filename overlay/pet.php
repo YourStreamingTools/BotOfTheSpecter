@@ -9,7 +9,7 @@ $user_db = null;
 $api_key = null;
 
 $allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
-$allowedStatKeys = ['happiness', 'hunger', 'energy'];
+$allowedStatKeys = ['happiness', 'hunger', 'energy', 'xp', 'xp_next'];
 
 $pet_settings = [
     'enabled' => 0,
@@ -197,9 +197,7 @@ foreach (explode(',', (string) $pet_settings['visible_stats']) as $part) {
         $visibleStats[] = $key;
     }
 }
-if (!$visibleStats) {
-    $visibleStats = $allowedStatKeys;
-}
+
 
 $lastUnix = null;
 if (!empty($pet_state['last_interaction_at'])) {
@@ -289,6 +287,20 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                     <div class="pet-overlay-page-stat-fill" data-stat-fill="energy"></div>
                 </div>
             </div>
+            <div class="pet-overlay-page-stat" data-stat="xp">
+                <span class="pet-overlay-page-stat-label">XP</span>
+                <div class="pet-overlay-page-stat-track">
+                    <div class="pet-overlay-page-stat-fill" data-stat-fill="xp"></div>
+                </div>
+                <span class="pet-overlay-page-stat-value" data-stat-value="xp">0</span>
+            </div>
+            <div class="pet-overlay-page-stat" data-stat="xp_next">
+                <span class="pet-overlay-page-stat-label">Next</span>
+                <div class="pet-overlay-page-stat-track">
+                    <div class="pet-overlay-page-stat-fill" data-stat-fill="xp_next"></div>
+                </div>
+                <span class="pet-overlay-page-stat-value" data-stat-value="xp_next">100</span>
+            </div>
         </div>
         <div class="pet-overlay-page-stage" id="petStage">
             <div class="pet-overlay-page-bubble" id="petBubble" hidden>
@@ -344,7 +356,11 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
             }
 
             const allowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
-            const allowedStatKeys = ['happiness', 'hunger', 'energy'];
+            const decayStatKeys = ['happiness', 'hunger', 'energy'];
+            const overlayStatKeys = ['happiness', 'hunger', 'energy', 'xp', 'xp_next'];
+            const allowedStatKeys = decayStatKeys;
+            const XP_PER_LEVEL = 100;
+            const XP_MAX_LEVEL = 99;
             const settings = {
                 enabled: false,
                 petName: 'Pet',
@@ -353,7 +369,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 scale: 1,
                 flip: false,
                 showStats: true,
-                visibleStats: allowedStatKeys.slice(),
+                visibleStats: overlayStatKeys.slice(),
                 bubbleEnabled: true,
             };
             const stats = {
@@ -535,7 +551,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
             };
 
             const applyStatVisibility = () => {
-                allowedStatKeys.forEach((key) => {
+                overlayStatKeys.forEach((key) => {
                     const row = statsEl.querySelector('[data-stat="' + key + '"]');
                     if (row) {
                         row.hidden = settings.visibleStats.indexOf(key) === -1;
@@ -544,11 +560,25 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
             };
 
             const fillEls = {};
-            allowedStatKeys.forEach((key) => {
+            const valueEls = {};
+            overlayStatKeys.forEach((key) => {
                 fillEls[key] = statsEl.querySelector('[data-stat-fill="' + key + '"]');
+                valueEls[key] = statsEl.querySelector('[data-stat-value="' + key + '"]');
             });
             let lastNameText = '';
             let lastLevelText = '';
+            let lastXpText = '';
+            let lastXpNextText = '';
+
+            const xpProgress = (total) => {
+                const xp = Math.max(0, Math.floor(toNumber(total, 0)));
+                const level = Math.min(XP_MAX_LEVEL, 1 + Math.floor(xp / XP_PER_LEVEL));
+                if (level >= XP_MAX_LEVEL) {
+                    return { xp: xp, level: level, into: XP_PER_LEVEL, toNext: 0 };
+                }
+                const into = xp % XP_PER_LEVEL;
+                return { xp: xp, level: level, into: into, toNext: XP_PER_LEVEL - into };
+            };
 
             const updateStatLabels = () => {
                 const name = settings.petName || 'Pet';
@@ -556,18 +586,41 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                     petNameEl.textContent = name;
                     lastNameText = name;
                 }
-                const levelText = 'Lv ' + Math.max(1, Math.floor(toNumber(stats.level, 1)));
+                const progress = xpProgress(stats.xp);
+                const levelText = 'Lv ' + progress.level;
                 if (petLevelEl && levelText !== lastLevelText) {
                     petLevelEl.textContent = levelText;
                     lastLevelText = levelText;
                 }
+                if (valueEls.xp) {
+                    const xpText = String(progress.xp);
+                    if (xpText !== lastXpText) {
+                        valueEls.xp.textContent = xpText;
+                        lastXpText = xpText;
+                    }
+                }
+                if (valueEls.xp_next) {
+                    const nextText = String(progress.toNext);
+                    if (nextText !== lastXpNextText) {
+                        valueEls.xp_next.textContent = nextText;
+                        lastXpNextText = nextText;
+                    }
+                }
             };
 
             const updateStatFills = () => {
-                allowedStatKeys.forEach((key) => {
+                const progress = xpProgress(stats.xp);
+                overlayStatKeys.forEach((key) => {
                     const fill = fillEls[key];
                     if (!fill) return;
-                    const ratio = currentStat(key) / 100;
+                    let ratio = 0;
+                    if (key === 'xp') {
+                        ratio = progress.into / XP_PER_LEVEL;
+                    } else if (key === 'xp_next') {
+                        ratio = progress.toNext / XP_PER_LEVEL;
+                    } else {
+                        ratio = currentStat(key) / 100;
+                    }
                     fill.style.transform = 'scaleX(' + ratio + ')';
                 });
             };
@@ -800,18 +853,15 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 settings.position = allowedPositions.indexOf(s.position) !== -1 ? s.position : 'bottom-right';
                 settings.scale = toNumber(s.scale, 1) || 1;
                 settings.flip = !!s.flip;
-                settings.showStats = s.show_stats === undefined ? true : !!s.show_stats;
+                settings.showStats = s.show_stats === undefined ? true : truthyFlag(s.show_stats);
                 const visible = Array.isArray(s.visible_stats) ? s.visible_stats : String(s.visible_stats || '').split(',');
                 settings.visibleStats = [];
                 visible.forEach((part) => {
                     const key = String(part || '').trim().toLowerCase();
-                    if (allowedStatKeys.indexOf(key) !== -1 && settings.visibleStats.indexOf(key) === -1) {
+                    if (overlayStatKeys.indexOf(key) !== -1 && settings.visibleStats.indexOf(key) === -1) {
                         settings.visibleStats.push(key);
                     }
                 });
-                if (!settings.visibleStats.length) {
-                    settings.visibleStats = allowedStatKeys.slice();
-                }
                 settings.bubbleEnabled = s.bubble_enabled === undefined ? true : !!s.bubble_enabled;
                 applyPlacement();
                 applyStatVisibility();
@@ -873,10 +923,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
 
             const reloadOverlay = (reason, data) => {
                 console.log(reason + ' received - reloading', data);
-                const meta = document.createElement('meta');
-                meta.setAttribute('http-equiv', 'refresh');
-                meta.setAttribute('content', '0');
-                document.head.appendChild(meta);
+                window.location.reload();
             };
 
             const preloadManifest = async (manifest) => {

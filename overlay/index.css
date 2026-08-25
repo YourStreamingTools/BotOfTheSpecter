@@ -2913,8 +2913,10 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     pointer-events: none;
 }
 
-.pet-overlay-page-root[data-show-stats="false"] .pet-overlay-page-stats {
-    display: none;
+.pet-overlay-page-root[data-show-stats="false"] .pet-overlay-page-stats,
+.pet-overlay-page-stats[hidden],
+.pet-overlay-page-stat[hidden] {
+    display: none !important;
 }
 
 .pet-overlay-page-stats-header {
@@ -2949,11 +2951,19 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 }
 
 .pet-overlay-page-stat-label {
-    width: 4.5em;
+    width: 4.75em;
     flex-shrink: 0;
     font-size: 0.7rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.pet-overlay-page-stat-value {
+    flex-shrink: 0;
+    min-width: 2em;
+    font-size: 0.7rem;
+    text-align: right;
     opacity: 0.9;
 }
 
@@ -2996,6 +3006,14 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 
 .pet-overlay-page-stat[data-stat="energy"] .pet-overlay-page-stat-fill {
     background: var(--energy);
+}
+
+.pet-overlay-page-stat[data-stat="xp"] .pet-overlay-page-stat-fill {
+    background: #c9a0ff;
+}
+
+.pet-overlay-page-stat[data-stat="xp_next"] .pet-overlay-page-stat-fill {
+    background: #e0c6ff;
 }
 
 .pet-overlay-page-status {

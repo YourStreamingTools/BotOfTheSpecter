@@ -6602,6 +6602,8 @@ return [
     'pet_stat_happiness' => '快乐',
     'pet_stat_hunger' => '饥饿',
     'pet_stat_energy' => '精力',
+    'pet_stat_xp' => '经验',
+    'pet_stat_xp_next' => '升到下一级所需经验',
     'pet_no_animations' => '还没有动画。上传精灵表即可开始。',
     'pet_no_triggers' => '还没有触发器。添加关键词、命令或事件，宠物才能做出反应。',
     'pet_confirm_delete' => '删除此项？此操作无法撤销。',
