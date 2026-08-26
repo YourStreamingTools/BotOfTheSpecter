@@ -29,6 +29,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
 
 include 'includes/file_paths.php';
 require_once __DIR__ . '/includes/upload_helpers.php';
+require_once __DIR__ . '/includes/pet_templates.php';
 
 $pageTitle = t('pet_page_title');
 
@@ -290,19 +291,48 @@ function pet_stream_is_online($db) {
     return in_array($status, ['true', '1', 'online'], true);
 }
 
+function pet_utc_timestamp($value) {
+    if ($value === null || $value === '') {
+        return null;
+    }
+    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+        $n = (int) $value;
+        if ($n > 1000000000000) {
+            $n = (int) floor($n / 1000);
+        }
+        return $n > 0 ? $n : null;
+    }
+    $raw = trim((string) $value);
+    if ($raw === '') {
+        return null;
+    }
+    $upper = strtoupper($raw);
+    if (substr($upper, -1) === 'Z' || strpos($raw, '+') !== false || preg_match('/-\d{2}:\d{2}$/', $raw)) {
+        $ts = strtotime($raw);
+        return ($ts === false || $ts <= 0) ? null : $ts;
+    }
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $raw, new DateTimeZone('UTC'));
+    if ($dt instanceof DateTimeImmutable) {
+        return $dt->getTimestamp();
+    }
+    $ts = strtotime($raw . ' UTC');
+    return ($ts === false || $ts <= 0) ? null : $ts;
+}
+
 function pet_decay_hours($lastAt, $streamOnline = true) {
     if (!$streamOnline) {
         return 0.0;
     }
-    if ($lastAt === null || $lastAt === '') {
-        return 0.0;
-    }
-    $ts = strtotime((string) $lastAt);
-    if ($ts === false) {
+    $ts = pet_utc_timestamp($lastAt);
+    if ($ts === null) {
         return 0.0;
     }
     $hours = (time() - $ts) / 3600.0;
     return $hours < 0 ? 0.0 : $hours;
+}
+
+function pet_decayed_stat($stored, $rate, $lastAt, $streamOnline) {
+    return pet_clamp_stat((float) $stored - ((float) $rate * pet_decay_hours($lastAt, $streamOnline)));
 }
 
 function pet_settings_decay($db) {
@@ -378,11 +408,96 @@ function pet_apply_state_and_notify($db, $apiKey, $effectHappiness, $effectHunge
 }
 
 function pet_sprite_url($petMediaUrl, $filename) {
+    global $username;
+    $url = pet_resolve_sprite_url((string) $username, $filename);
+    if ($url !== '') {
+        return $url;
+    }
     $filename = basename((string) $filename);
     if ($filename === '' || strpos($filename, '..') !== false) {
         return '';
     }
     return $petMediaUrl . rawurlencode($filename);
+}
+
+function pet_user_sprite_filename($filename) {
+    if (pet_is_template_sprite($filename)) {
+        return '';
+    }
+    $filename = basename((string) $filename);
+    if ($filename === '' || strpos($filename, '..') !== false) {
+        return '';
+    }
+    return $filename;
+}
+
+function pet_apply_template_pack($db, $packId) {
+    $pack = pet_template_get($packId);
+    if (!$pack || empty($pack['animations'])) {
+        return false;
+    }
+    $sel = $db->prepare('SELECT sprite_file FROM pet_animations WHERE name = ?');
+    $save = $db->prepare(
+        'INSERT INTO pet_animations (name, sprite_file, frame_width, frame_height, frame_count, fps, `loop`) '
+        . 'VALUES (?, ?, ?, ?, ?, ?, ?) '
+        . 'ON DUPLICATE KEY UPDATE sprite_file = VALUES(sprite_file), frame_width = VALUES(frame_width), '
+        . 'frame_height = VALUES(frame_height), frame_count = VALUES(frame_count), fps = VALUES(fps), `loop` = VALUES(`loop`)'
+    );
+    if (!$sel || !$save) {
+        if ($sel) {
+            $sel->close();
+        }
+        if ($save) {
+            $save->close();
+        }
+        return false;
+    }
+    $toUnlink = [];
+    foreach ($pack['animations'] as $animName => $spec) {
+        $token = pet_template_token($packId, $spec['file']);
+        if ($token === '') {
+            $sel->close();
+            $save->close();
+            return false;
+        }
+        $sel->bind_param('s', $animName);
+        if ($sel->execute()) {
+            $res = $sel->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            if ($res) {
+                $res->free();
+            }
+            if ($row) {
+                $oldFilename = pet_user_sprite_filename($row['sprite_file'] ?? '');
+                if ($oldFilename !== '') {
+                    $toUnlink[] = $oldFilename;
+                }
+            }
+        }
+        $frameWidth = (int) ($spec['frame_width'] ?? 128);
+        $frameHeight = (int) ($spec['frame_height'] ?? 128);
+        $frameCount = (int) ($spec['frame_count'] ?? 30);
+        $fps = (int) ($spec['fps'] ?? 15);
+        $loopFlag = !empty($spec['loop']) ? 1 : 0;
+        $save->bind_param('ssiiiii', $animName, $token, $frameWidth, $frameHeight, $frameCount, $fps, $loopFlag);
+        if (!$save->execute()) {
+            $sel->close();
+            $save->close();
+            return false;
+        }
+    }
+    $sel->close();
+    $save->close();
+    $idle = 'idle';
+    $idleStmt = $db->prepare(
+        'INSERT INTO pet_settings (id, idle_animation) VALUES (1, ?) ON DUPLICATE KEY UPDATE idle_animation = VALUES(idle_animation)'
+    );
+    if ($idleStmt) {
+        $idleStmt->bind_param('s', $idle);
+        $idleStmt->execute();
+        $idleStmt->close();
+    }
+    return $toUnlink;
 }
 
 function pet_unlink_if_unused($db, $petMediaDir, $filename) {
@@ -485,10 +600,11 @@ if (pet_table_exists($db, 'pet_animations')) {
     if ($anRes) {
         while ($row = $anRes->fetch_assoc()) {
             $row['id'] = (int) $row['id'];
-            $row['frame_width'] = (int) $row['frame_width'];
-            $row['frame_height'] = (int) $row['frame_height'];
-            $row['frame_count'] = (int) $row['frame_count'];
-            $row['fps'] = (int) $row['fps'];
+            $catalogSpec = pet_template_spec_for_sprite($row['sprite_file'] ?? '');
+            $row['frame_width'] = (int) ($catalogSpec['frame_width'] ?? $row['frame_width']);
+            $row['frame_height'] = (int) ($catalogSpec['frame_height'] ?? $row['frame_height']);
+            $row['frame_count'] = (int) ($catalogSpec['frame_count'] ?? $row['frame_count']);
+            $row['fps'] = (int) ($catalogSpec['fps'] ?? $row['fps']);
             $row['loop'] = ((int) $row['loop']) === 1 ? 1 : 0;
             $row['url'] = pet_sprite_url($petMediaUrl, $row['sprite_file']);
             $petAnimations[] = $row;
@@ -531,6 +647,33 @@ if (pet_table_exists($db, 'pet_state')) {
     }
 }
 
+$petStreamOnline = pet_stream_is_online($db);
+$petLastUnix = pet_utc_timestamp($petState['last_interaction_at'] ?? null);
+$petLiveHappiness = pet_decayed_stat($petState['happiness'], $pet['decay_happiness'], $petState['last_interaction_at'], $petStreamOnline);
+$petLiveHunger = pet_decayed_stat($petState['hunger'], $pet['decay_hunger'], $petState['last_interaction_at'], $petStreamOnline);
+$petLiveEnergy = pet_decayed_stat($petState['energy'], $pet['decay_energy'], $petState['last_interaction_at'], $petStreamOnline);
+$petLiveXp = max(0, (int) $petState['xp']);
+$petLiveLevel = min(99, max(1, 1 + intdiv($petLiveXp, 100)));
+$petLiveXpToNext = $petLiveLevel >= 99 ? 0 : (100 - ($petLiveXp % 100));
+
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'state') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => true,
+        'stream_online' => $petStreamOnline ? 1 : 0,
+        'happiness' => (int) $petState['happiness'],
+        'hunger' => (int) $petState['hunger'],
+        'energy' => (int) $petState['energy'],
+        'level' => $petLiveLevel,
+        'xp' => $petLiveXp,
+        'last_interaction_at' => $petLastUnix,
+        'decay_happiness' => (float) $pet['decay_happiness'],
+        'decay_hunger' => (float) $pet['decay_hunger'],
+        'decay_energy' => (float) $pet['decay_energy'],
+    ]);
+    exit();
+}
+
 if (pet_table_exists($db, 'channel_point_rewards')) {
     $rwRes = $db->query('SELECT reward_id, reward_title FROM channel_point_rewards ORDER BY reward_title ASC');
     if ($rwRes) {
@@ -556,6 +699,19 @@ if (!empty($pet['idle_animation'])) {
 }
 $petAnimNameList = array_keys($petAnimNames);
 sort($petAnimNameList);
+
+$petTemplateCatalog = pet_template_catalog();
+$petActiveTemplate = '';
+foreach ($petAnimations as $animRow) {
+    if ((string) $animRow['name'] !== (string) ($pet['idle_animation'] ?: 'idle')) {
+        continue;
+    }
+    $parsed = pet_parse_template_sprite($animRow['sprite_file'] ?? '');
+    if ($parsed) {
+        $petActiveTemplate = $parsed['pack'];
+    }
+    break;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
     $action = (string) $_POST['pet_action'];
@@ -697,6 +853,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
                 }
                 if ($wasEnabled === 0) {
                     pet_seed_default_triggers($db);
+                    $animCountRes = $db->query('SELECT COUNT(*) AS c FROM pet_animations');
+                    $animCountRow = $animCountRes ? $animCountRes->fetch_assoc() : null;
+                    if (!$animCountRow || (int) $animCountRow['c'] === 0) {
+                        if (pet_apply_template_pack($db, 'specter') === false) {
+                            throw new Exception('template');
+                        }
+                    }
                 }
                 pet_ensure_interaction_triggers($db);
             }
@@ -709,6 +872,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         pet_json_exit(['success' => true, 'enabled' => $enabled, 'message' => t('pet_saved')]);
     }
 
+    if ($action === 'apply_template') {
+        $packId = preg_replace('/[^a-z0-9_-]/', '', strtolower((string) ($_POST['pack'] ?? '')));
+        $toUnlink = [];
+        $db->begin_transaction();
+        try {
+            $toUnlink = pet_apply_template_pack($db, $packId);
+            if ($toUnlink === false) {
+                throw new Exception('pack');
+            }
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollback();
+            pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+        }
+        foreach ($toUnlink as $oldFile) {
+            pet_unlink_if_unused($db, $petMediaDir, $oldFile);
+        }
+        pet_notify_event($petNotifyApiKey, 'PET_SETTINGS_UPDATE');
+        pet_json_exit(['success' => true, 'pack' => $packId, 'message' => t('pet_template_applied')]);
+    }
+
     if ($action === 'upload_animation') {
         include 'includes/storage_used.php';
         $animName = pet_sanitize_anim_name($_POST['name'] ?? '');
@@ -717,8 +901,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         }
         $frameWidth = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_width'] ?? 0)));
         $frameHeight = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_height'] ?? 0)));
-        $frameCount = max(1, min(PET_FRAME_COUNT_MAX, (int) ($_POST['frame_count'] ?? 1)));
-        $fps = max(1, min(60, (int) ($_POST['fps'] ?? 12)));
+        $frameCount = max(1, min(PET_FRAME_COUNT_MAX, (int) ($_POST['frame_count'] ?? 30)));
+        $fps = max(1, min(60, (int) ($_POST['fps'] ?? 15)));
         $loopFlag = ((int) ($_POST['loop'] ?? 1)) === 1 ? 1 : 0;
         if (!isset($_FILES['sprite']) || ($_FILES['sprite']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             $err = (int) ($_FILES['sprite']['error'] ?? UPLOAD_ERR_NO_FILE);
@@ -766,9 +950,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
             $existStmt->execute();
             $existRes = $existStmt->get_result();
             if ($existRes && ($existRow = $existRes->fetch_assoc())) {
-                $oldFilename = basename((string) $existRow['sprite_file']);
-                $oldPath = $petMediaDir . '/' . $oldFilename;
-                $oldSize = ($oldFilename !== '' && is_file($oldPath)) ? (int) filesize($oldPath) : 0;
+                $oldFilename = pet_user_sprite_filename($existRow['sprite_file'] ?? '');
+                $oldPath = $oldFilename !== '' ? ($petMediaDir . '/' . $oldFilename) : '';
+                $oldSize = ($oldPath !== '' && is_file($oldPath)) ? (int) filesize($oldPath) : 0;
             }
             $existStmt->close();
         }
@@ -838,7 +1022,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
             if (!$selRow) {
                 throw new Exception('missing');
             }
-            $oldFilename = basename((string) $selRow['sprite_file']);
+            $oldFilename = pet_user_sprite_filename($selRow['sprite_file'] ?? '');
             $del = $db->prepare('DELETE FROM pet_animations WHERE id = ?');
             if (!$del) {
                 throw new Exception($db->error);
@@ -1080,6 +1264,19 @@ ob_start();
 
 <div class="sp-card pet-page-url-card">
     <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-list-check"></i> <?= t('pet_setup_title') ?></div>
+    </div>
+    <div class="sp-card-body">
+        <ol class="pet-page-setup">
+            <li><?= t('pet_setup_obs') ?></li>
+            <li><?= t('pet_setup_pick') ?></li>
+            <li><?= t('pet_setup_custom') ?></li>
+        </ol>
+    </div>
+</div>
+
+<div class="sp-card pet-page-url-card">
+    <div class="sp-card-header">
         <div class="sp-card-title"><i class="fas fa-link"></i> <?= t('pet_overlay_url_title') ?></div>
     </div>
     <div class="sp-card-body">
@@ -1102,6 +1299,68 @@ ob_start();
             <span class="pet-page-save-status" id="petEnableStatus"></span>
         </div>
         <p class="pet-page-help pet-page-help-last"><?= t('pet_enable_help') ?></p>
+    </div>
+</div>
+
+<div class="sp-card pet-page-url-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-ghost"></i> <?= t('pet_templates_title') ?></div>
+        <span class="pet-page-save-status" id="petTemplateStatus"></span>
+    </div>
+    <div class="sp-card-body">
+        <p class="pet-page-help"><?= t('pet_templates_help') ?></p>
+        <div class="pet-page-template-grid">
+            <?php foreach ($petTemplateCatalog as $pack):
+                $packId = (string) $pack['id'];
+                $isActive = $petActiveTemplate === $packId;
+                $previewUrl = pet_template_cdn_url($packId, $pack['preview'] ?? 'idle.png');
+            ?>
+                <div class="pet-page-template-card<?= $isActive ? ' is-active' : '' ?>">
+                    <div class="pet-page-template-preview">
+                        <?php if ($previewUrl !== ''): ?>
+                            <img src="<?= htmlspecialchars($previewUrl) ?>" alt="" width="128" height="128">
+                        <?php endif; ?>
+                    </div>
+                    <strong><?= t($pack['name_key']) ?></strong>
+                    <p class="pet-page-help"><?= t($pack['desc_key']) ?></p>
+                    <button type="button"
+                        class="sp-btn <?= $isActive ? 'sp-btn-secondary' : 'sp-btn-primary' ?> sp-btn-sm pet-page-template-apply"
+                        data-pet-template="<?= htmlspecialchars($packId) ?>"
+                        <?= $isActive ? 'disabled' : '' ?>>
+                        <?= $isActive ? t('pet_template_using') : t('pet_template_apply') ?>
+                    </button>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+
+<div class="sp-card pet-page-url-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-heart"></i> <?= t('pet_current_stats_title') ?></div>
+        <span class="status-indicator <?= $petStreamOnline ? 'online' : 'offline' ?>" id="petLiveStreamBadge"><?= $petStreamOnline ? t('pet_current_stats_live_badge') : t('pet_current_stats_offline_badge') ?></span>
+    </div>
+    <div class="sp-card-body">
+        <div class="pet-page-live-grid" id="petLiveStats">
+            <?php
+            $petLiveItems = [
+                'happiness' => ['label' => 'pet_stat_happiness', 'value' => $petLiveHappiness, 'fill' => 'happiness'],
+                'hunger' => ['label' => 'pet_stat_hunger', 'value' => $petLiveHunger, 'fill' => 'hunger'],
+                'energy' => ['label' => 'pet_stat_energy', 'value' => $petLiveEnergy, 'fill' => 'energy'],
+            ];
+            foreach ($petLiveItems as $statKey => $item):
+            ?>
+                <div class="pet-page-live-item">
+                    <div class="pet-page-live-item-label"><?= t($item['label']) ?></div>
+                    <div class="pet-page-live-item-value" data-live-stat="<?= htmlspecialchars($statKey) ?>"><?= (int) $item['value'] ?></div>
+                    <div class="pet-page-live-track">
+                        <div class="pet-page-live-fill is-<?= htmlspecialchars($statKey) ?>" data-live-fill="<?= htmlspecialchars($statKey) ?>" style="transform: scaleX(<?= htmlspecialchars(number_format(max(0, min(1, ((int) $item['value']) / 100)), 4, '.', '')) ?>)"></div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <p class="pet-page-live-meta" id="petLiveMeta">Lv <?= (int) $petLiveLevel ?> · <?= (int) $petLiveXp ?> XP<?php if ($petLiveXpToNext > 0): ?> · <?= (int) $petLiveXpToNext ?> <?= t('pet_stat_xp_next') ?><?php endif; ?></p>
+        <p class="pet-page-live-hint <?= $petStreamOnline ? 'is-live' : 'is-offline' ?>" id="petLiveHint"><?= $petStreamOnline ? t('pet_current_stats_live') : t('pet_current_stats_offline') ?></p>
     </div>
 </div>
 
@@ -1180,15 +1439,15 @@ ob_start();
         </div>
         <div class="pet-page-form-grid">
             <div class="sp-form-group">
-                <label class="sp-label" for="petStartHappiness"><?= t('pet_stat_happiness') ?></label>
+                <label class="sp-label" for="petStartHappiness"><?= t('pet_start_happiness') ?></label>
                 <input type="number" id="petStartHappiness" name="happiness" class="sp-input" min="0" max="100" step="1" value="<?= (int) ($pet['start_happiness'] ?? $petState['happiness']) ?>">
             </div>
             <div class="sp-form-group">
-                <label class="sp-label" for="petStartHunger"><?= t('pet_stat_hunger') ?></label>
+                <label class="sp-label" for="petStartHunger"><?= t('pet_start_hunger') ?></label>
                 <input type="number" id="petStartHunger" name="hunger" class="sp-input" min="0" max="100" step="1" value="<?= (int) ($pet['start_hunger'] ?? $petState['hunger']) ?>">
             </div>
             <div class="sp-form-group">
-                <label class="sp-label" for="petStartEnergy"><?= t('pet_stat_energy') ?></label>
+                <label class="sp-label" for="petStartEnergy"><?= t('pet_start_energy') ?></label>
                 <input type="number" id="petStartEnergy" name="energy" class="sp-input" min="0" max="100" step="1" value="<?= (int) ($pet['start_energy'] ?? $petState['energy']) ?>">
             </div>
         </div>
@@ -1238,6 +1497,7 @@ ob_start();
                         <input type="file" id="petAnimSprite" name="sprite" accept="image/png,image/webp" hidden>
                     </label>
                     <span class="sp-help"><?= t('pet_upload_help', [PET_IMAGE_MIN_PX, PET_IMAGE_MAX_PX, (int) (PET_IMAGE_MAX_BYTES / (1024 * 1024))]) ?></span>
+                    <span class="sp-help"><?= t('pet_upload_spec_help') ?></span>
                 </div>
                 <div class="pet-page-form-grid">
                     <div class="sp-form-group">
@@ -1250,11 +1510,11 @@ ob_start();
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label" for="petFrameCount"><?= t('pet_frame_count') ?></label>
-                        <input type="number" id="petFrameCount" name="frame_count" class="sp-input" min="1" max="64" value="1" required>
+                        <input type="number" id="petFrameCount" name="frame_count" class="sp-input" min="1" max="64" value="30" required>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label" for="petFps"><?= t('pet_fps') ?></label>
-                        <input type="number" id="petFps" name="fps" class="sp-input" min="1" max="60" value="12" required>
+                        <input type="number" id="petFps" name="fps" class="sp-input" min="1" max="60" value="15" required>
                     </div>
                 </div>
                 <label class="switch pet-page-loop-switch">
@@ -1476,8 +1736,25 @@ ob_start();
         urlHide: <?php echo json_encode(t('pet_overlay_url_hide'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
         urlCopied: <?php echo json_encode(t('pet_overlay_url_copied'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
         confirmDelete: <?php echo json_encode(t('pet_confirm_delete'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
-        noFile: <?php echo json_encode(t('media_no_files_selected'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
+        noFile: <?php echo json_encode(t('media_no_files_selected'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        liveHint: <?php echo json_encode(t('pet_current_stats_live'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        liveOffline: <?php echo json_encode(t('pet_current_stats_offline'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        liveBadge: <?php echo json_encode(t('pet_current_stats_live_badge'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        offlineBadge: <?php echo json_encode(t('pet_current_stats_offline_badge'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        xpNext: <?php echo json_encode(t('pet_stat_xp_next'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
     };
+    const petLiveSeed = <?php echo json_encode([
+        'stream_online' => $petStreamOnline ? 1 : 0,
+        'happiness' => (int) $petState['happiness'],
+        'hunger' => (int) $petState['hunger'],
+        'energy' => (int) $petState['energy'],
+        'level' => (int) $petLiveLevel,
+        'xp' => (int) $petLiveXp,
+        'last_interaction_at' => $petLastUnix,
+        'decay_happiness' => (float) $pet['decay_happiness'],
+        'decay_hunger' => (float) $pet['decay_hunger'],
+        'decay_energy' => (float) $pet['decay_energy'],
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     const petUrlReal = <?php echo json_encode($overlayLinkWithCode, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     const petUrlMasked = <?php echo json_encode($overlayLinkMasked, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     const petIdleFallback = <?php echo json_encode((string) $pet['idle_animation'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
@@ -1534,6 +1811,116 @@ ob_start();
             });
     };
     loadStorageBar();
+
+    const petLiveState = {
+        streamOnline: !!petLiveSeed.stream_online,
+        stored: {
+            happiness: Number(petLiveSeed.happiness) || 0,
+            hunger: Number(petLiveSeed.hunger) || 0,
+            energy: Number(petLiveSeed.energy) || 0
+        },
+        lastAt: petLiveSeed.last_interaction_at ? Number(petLiveSeed.last_interaction_at) * 1000 : 0,
+        rates: {
+            happiness: Number(petLiveSeed.decay_happiness) || 0,
+            hunger: Number(petLiveSeed.decay_hunger) || 0,
+            energy: Number(petLiveSeed.decay_energy) || 0
+        },
+        level: Number(petLiveSeed.level) || 1,
+        xp: Number(petLiveSeed.xp) || 0
+    };
+
+    const clampLive = (n) => {
+        const v = Math.round(Number(n) || 0);
+        if (v < 0) return 0;
+        if (v > 100) return 100;
+        return v;
+    };
+
+    const readDecayRates = () => {
+        const happiness = parseFloat(document.getElementById('petDecayHappiness')?.value || '');
+        const hunger = parseFloat(document.getElementById('petDecayHunger')?.value || '');
+        const energy = parseFloat(document.getElementById('petDecayEnergy')?.value || '');
+        return {
+            happiness: Number.isFinite(happiness) ? happiness : petLiveState.rates.happiness,
+            hunger: Number.isFinite(hunger) ? hunger : petLiveState.rates.hunger,
+            energy: Number.isFinite(energy) ? energy : petLiveState.rates.energy
+        };
+    };
+
+    const currentLiveStat = (name) => {
+        const stored = clampLive(petLiveState.stored[name]);
+        if (!petLiveState.streamOnline) return stored;
+        const rates = readDecayRates();
+        const rate = Number(rates[name]) || 0;
+        if (!petLiveState.lastAt || !rate) return stored;
+        const hours = (Date.now() - petLiveState.lastAt) / 3600000;
+        if (hours <= 0) return stored;
+        return clampLive(stored - (rate * hours));
+    };
+
+    const renderLiveStats = () => {
+        ['happiness', 'hunger', 'energy'].forEach((key) => {
+            const value = currentLiveStat(key);
+            const num = document.querySelector('[data-live-stat="' + key + '"]');
+            if (num) num.textContent = String(value);
+            const fill = document.querySelector('[data-live-fill="' + key + '"]');
+            if (fill) fill.style.transform = 'scaleX(' + (value / 100) + ')';
+        });
+        const hint = document.getElementById('petLiveHint');
+        const badge = document.getElementById('petLiveStreamBadge');
+        if (hint) {
+            hint.textContent = petLiveState.streamOnline ? petLang.liveHint : petLang.liveOffline;
+            hint.className = 'pet-page-live-hint ' + (petLiveState.streamOnline ? 'is-live' : 'is-offline');
+        }
+        if (badge) {
+            badge.textContent = petLiveState.streamOnline ? petLang.liveBadge : petLang.offlineBadge;
+            badge.className = 'status-indicator ' + (petLiveState.streamOnline ? 'online' : 'offline');
+        }
+        const meta = document.getElementById('petLiveMeta');
+        if (meta) {
+            const xp = Math.max(0, Math.floor(petLiveState.xp || 0));
+            const level = Math.min(99, Math.max(1, 1 + Math.floor(xp / 100)));
+            const toNext = level >= 99 ? 0 : (100 - (xp % 100));
+            let text = 'Lv ' + level + ' · ' + xp + ' XP';
+            if (toNext > 0) {
+                text += ' · ' + toNext + ' ' + petLang.xpNext;
+            }
+            meta.textContent = text;
+        }
+    };
+
+    const applyLivePayload = (data) => {
+        if (!data || !data.success) return;
+        petLiveState.streamOnline = Number(data.stream_online) === 1 || data.stream_online === true;
+        petLiveState.stored.happiness = clampLive(data.happiness);
+        petLiveState.stored.hunger = clampLive(data.hunger);
+        petLiveState.stored.energy = clampLive(data.energy);
+        petLiveState.level = Math.max(1, Math.floor(Number(data.level) || 1));
+        petLiveState.xp = Math.max(0, Math.floor(Number(data.xp) || 0));
+        const last = Number(data.last_interaction_at);
+        petLiveState.lastAt = Number.isFinite(last) && last > 0 ? (last > 1e12 ? last : last * 1000) : 0;
+        if (data.decay_happiness != null) petLiveState.rates.happiness = Number(data.decay_happiness) || 0;
+        if (data.decay_hunger != null) petLiveState.rates.hunger = Number(data.decay_hunger) || 0;
+        if (data.decay_energy != null) petLiveState.rates.energy = Number(data.decay_energy) || 0;
+        renderLiveStats();
+    };
+
+    const fetchLiveState = () => {
+        const url = new URL(window.location.pathname, window.location.origin);
+        url.searchParams.set('ajax_action', 'state');
+        fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+            .then((r) => r.json())
+            .then(applyLivePayload)
+            .catch(() => {});
+    };
+
+    renderLiveStats();
+    setInterval(renderLiveStats, 1000);
+    setInterval(fetchLiveState, 15000);
+    ['petDecayHappiness', 'petDecayHunger', 'petDecayEnergy'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', renderLiveStats);
+    });
 
     const petUrlBox = document.getElementById('petOverlayUrl');
     const petUrlReveal = document.getElementById('petUrlReveal');
@@ -1600,6 +1987,28 @@ ob_start();
         });
     }
 
+    const templateStatus = document.getElementById('petTemplateStatus');
+    document.querySelectorAll('.pet-page-template-apply').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const pack = btn.getAttribute('data-pet-template') || '';
+            if (!pack || btn.disabled) return;
+            btn.disabled = true;
+            postPet({ pet_action: 'apply_template', pack: pack })
+                .then((data) => {
+                    if (data && data.success) {
+                        window.location.reload();
+                        return;
+                    }
+                    btn.disabled = false;
+                    setStatus(templateStatus, false, (data && data.error) || petLang.saveError);
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    setStatus(templateStatus, false, petLang.saveError);
+                });
+        });
+    });
+
     const scaleEl = document.getElementById('petScale');
     const scaleVal = document.getElementById('petScaleVal');
     if (scaleEl && scaleVal) {
@@ -1633,6 +2042,9 @@ ob_start();
                 energy: document.getElementById('petStartEnergy')?.value || '80'
             }).then((data) => {
                 setStatus(saveStatus, !!(data && data.success), (data && (data.message || data.error)) || '');
+                if (data && data.success) {
+                    fetchLiveState();
+                }
             }).catch(() => setStatus(saveStatus, false, petLang.saveError));
         });
     }

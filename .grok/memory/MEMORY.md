@@ -69,5 +69,6 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Credential logging](project_credential_logging.md) — never log raw user code/api_key
 - [rclone storage + admin file manager](project_s3fs_storage_and_file_manager.md) — MEGA S4 rclone mounts for 6 durable dirs (not TTS) + admin CDN file manager; s3fs retired
 - [V6 module host parity](project_v6_module_host_parity.md) — BETA→V6 custom channel module host call sites (websocket_notice intercept, CP, chat, Stream Bingo)
+- [Pet starter packs](project_pet_templates.md) — CDN Specter + Specter Bot; 128×128, 30 frames, 15 FPS; `template:` sprite tokens
 
-**Last verified**: 2026-08-25 (rclone replaced s3fs on web1; S4 public proxy kept; hot-media cache design in `.grok/specs/2026-08-25-hot-media-cache-design.md`)
+**Last verified**: 2026-08-25 (hot-media cache live; pet starters Specter + Specter Bot on CDN)
