@@ -116,6 +116,23 @@ help.botofthespecter.com {
 }
 
 support.botofthespecter.com {
+    # Old help.botofthespecter.com paths 308 here via the help host.
+    # Map the retired PHP filenames onto the static support guides.
+    redir /setup.php /index.php#setup permanent
+    redir /spotify_setup.php /index.php#spotify permanent
+    redir /tts_setup.php /index.php#tts permanent
+    redir /obs_audio_monitoring.php /index.php#obs-audio permanent
+    redir /custom_variables.php /index.php#variables permanent
+    redir /specter_module_variables.php /index.php#variables permanent
+    redir /twitch_channel_points.php /index.php#twitch-channel-points permanent
+    redir /custom_api.php /index.php#api permanent
+    redir /run_yourself.php /index.php#run-yourself permanent
+    redir /command_reference.php /index.php#commands permanent
+    redir /faq.php /index.php#faq permanent
+    redir /troubleshooting.php /index.php#troubleshooting permanent
+    redir /search.php /index.php permanent
+    redir /markdown.php https://support.discord.com/hc/en-us/articles/210298617 permanent
+
     root * /var/www/support
     import php_app
     log {

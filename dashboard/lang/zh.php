@@ -917,7 +917,7 @@ return [
     'discordbot_ph_schedule_title' => '例如每周直播时间表',
     'discordbot_help_schedule_title' => '流时间表嵌入的标题（显示在顶部）',
     'discordbot_label_schedule_content' => '串流时间表内容',
-    'discordbot_help_schedule_content' => '输入您的直播时间表。您可以使用表情符号、要点或 您喜欢的任何格式。支持《2》降价。 <a href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">查看 降价指南</a>',
+    'discordbot_help_schedule_content' => '输入您的直播时间表。您可以使用表情符号、要点或 您喜欢的任何格式。支持《2》降价。 <a href="https://support.discord.com/hc/en-us/articles/210298617" target="_blank" rel="noopener" style="color: #3273dc;">查看 降价指南</a>',
     'discordbot_label_timezone' => '时区',
     'discordbot_ph_timezone' => '例如美国东部时间 (EST)、太平洋标准时间 (PST)、世界标准时间 (UTC) 等',
     'discordbot_help_timezone' => '为了清晰起见，请指定您的时区（将显示在页脚中）',

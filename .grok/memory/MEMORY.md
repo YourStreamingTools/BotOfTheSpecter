@@ -52,7 +52,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [WebSocket reconnection](project_websocket_reconnection.md) — one reconnection authority; never reconnection=False on Discord
 - [Dashboard rebuild](project_dashboard_rebuild.md) — SHIPPED operational dashboard.php
 - [DB migrations admin page (Phase 3)](project_db_migrations_admin_page.md) — future admin migrations.php
-- [help folder is dead](project_help_folder_deprecated.md) — never edit `./help`; help lives in `./support`
+- [help folder removed](project_help_folder_deprecated.md) — `./help` deleted 2026-08-26; docs are `./support`
 - [PHP Twitch credentials](project_php_twitch_credentials.md) — client ID from `config/twitch.php`, not DB
 - [Media upload dir perms](project_media_upload_dir_perms.md) — "Could not save" usually means /var/www/media/<user> perms
 - [Admin Caddy control page](project_admin_caddy_page.md) — SHIPPED; localhost:2019 control plane

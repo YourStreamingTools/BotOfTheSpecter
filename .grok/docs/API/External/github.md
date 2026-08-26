@@ -285,7 +285,7 @@ The only `github.com` references in source are static frontend links:
 
 - `./home/index.php` - link to https://github.com/YourStreamingTools/BotOfTheSpecter.
 - `./dashboard/controllerapp.php` - link to the OBS-Connector releases page.
-- Various `./dashboard/lang/*.php`, `./support/`, `./roadmap/`, `./help/` files - UI strings and footer links.
+- Various `./dashboard/lang/*.php`, `./support/`, `./roadmap/` files - UI strings and footer links.
 
 If outbound calls are ever added, follow these conventions (none of which currently apply):
 

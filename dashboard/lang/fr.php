@@ -899,7 +899,7 @@ return [
     'discordbot_help_schedule_title' => 'Titre de l\'embed du calendrier de stream (apparaît en haut)',
     'discordbot_label_schedule_content' => 'Contenu du calendrier de stream',
     'discordbot_help_schedule_content' => 'Saisissez votre calendrier de stream. Vous pouvez utiliser des émojis, des puces ou le format de votre choix. Le markdown Discord est pris en charge. <a
-                      href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">Voir le
+                      href="https://support.discord.com/hc/en-us/articles/210298617" target="_blank" rel="noopener" style="color: #3273dc;">Voir le
                       guide markdown</a>',
     'discordbot_label_timezone' => 'Fuseau horaire',
     'discordbot_ph_timezone' => 'par ex. EST, PST, UTC, etc.',

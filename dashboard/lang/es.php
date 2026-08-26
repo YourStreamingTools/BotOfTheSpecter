@@ -952,7 +952,7 @@ return [
     'discordbot_label_schedule_content' => 'Contenido del programa de transmisión',
     'discordbot_help_schedule_content' => 'Ingrese su horario de transmisión. Puedes usar emojis, viñetas o
                     cualquier formato que prefieras. Se admite la rebaja de Discord. <a
-                      href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">Ver
+                      href="https://support.discord.com/hc/en-us/articles/210298617" target="_blank" rel="noopener" style="color: #3273dc;">Ver
                       guía de rebajas</a>',
     'discordbot_label_timezone' => 'Zona horaria',
     'discordbot_ph_timezone' => 'p.ej. EST, PST, UTC, etc.',

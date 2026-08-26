@@ -543,4 +543,4 @@ Both gates are inspected in `./dashboard/spotifylink.php:163-198`.
 | Profile disconnect (delete `spotify_tokens` row) | `./dashboard/profile.php:296` |
 | API server (read tokens for export only) | `./api/api.py:2306-2342` |
 | User data export | `./bot/export_user_data.py:163` |
-| User-facing setup help | `./help/spotify_setup.php` |
+| User-facing setup help | `https://support.botofthespecter.com/index.php#spotify` |
