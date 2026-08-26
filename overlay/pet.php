@@ -1,5 +1,6 @@
 <?php
 include '/var/www/config/database.php';
+require_once '/var/www/dashboard/includes/pet_templates.php';
 
 $error_html = null;
 $user_id = null;
@@ -136,29 +137,30 @@ if ($user_db && pet_overlay_table_exists($user_db, 'pet_animations')) {
         'SELECT name, sprite_file, frame_width, frame_height, frame_count, fps, `loop` FROM pet_animations'
     );
     if ($animRes instanceof mysqli_result) {
-        $mediaBase = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/pet/';
         while ($row = $animRes->fetch_assoc()) {
             $name = trim((string) $row['name']);
-            $file = basename((string) $row['sprite_file']);
-            $frameWidth = (int) $row['frame_width'];
-            $frameHeight = (int) $row['frame_height'];
-            if ($name === '' || $file === '' || $frameWidth < 1 || $frameHeight < 1) {
+            $spriteFile = (string) $row['sprite_file'];
+            $url = pet_resolve_sprite_url($username, $spriteFile);
+            $catalogSpec = pet_template_spec_for_sprite($spriteFile);
+            $frameWidth = (int) ($catalogSpec['frame_width'] ?? $row['frame_width']);
+            $frameHeight = (int) ($catalogSpec['frame_height'] ?? $row['frame_height']);
+            if ($name === '' || $url === '' || $frameWidth < 1 || $frameHeight < 1) {
                 continue;
             }
-            $fps = (int) $row['fps'];
+            $fps = (int) ($catalogSpec['fps'] ?? $row['fps']);
             if ($fps < 1) {
                 $fps = 12;
             }
             if ($fps > 60) {
                 $fps = 60;
             }
-            $frameCount = (int) $row['frame_count'];
+            $frameCount = (int) ($catalogSpec['frame_count'] ?? $row['frame_count']);
             if ($frameCount < 1) {
                 $frameCount = 1;
             }
             $pet_animations[$name] = [
                 'name' => $name,
-                'url' => $mediaBase . rawurlencode($file),
+                'url' => $url,
                 'frame_width' => $frameWidth,
                 'frame_height' => $frameHeight,
                 'frame_count' => $frameCount,
@@ -201,9 +203,17 @@ foreach (explode(',', (string) $pet_settings['visible_stats']) as $part) {
 
 $lastUnix = null;
 if (!empty($pet_state['last_interaction_at'])) {
-    $parsed = strtotime((string) $pet_state['last_interaction_at']);
-    if ($parsed !== false) {
-        $lastUnix = $parsed;
+    $rawLast = (string) $pet_state['last_interaction_at'];
+    if (ctype_digit($rawLast)) {
+        $parsed = (int) $rawLast;
+    } elseif (substr(strtoupper($rawLast), -1) === 'Z' || strpos($rawLast, '+') !== false) {
+        $parsed = strtotime($rawLast);
+    } else {
+        $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $rawLast, new DateTimeZone('UTC'));
+        $parsed = $dt instanceof DateTimeImmutable ? $dt->getTimestamp() : strtotime($rawLast . ' UTC');
+    }
+    if ($parsed !== false && $parsed > 0) {
+        $lastUnix = (int) $parsed;
     }
 }
 
