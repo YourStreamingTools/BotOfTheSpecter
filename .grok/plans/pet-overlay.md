@@ -229,7 +229,7 @@ Four tables, all living in the channel's own per-user DB. House style throughout
 
 **Phase 2 (post-MVP).** Per-viewer attribution + leaderboards; magnitude-scaled reactions; richer bubble/styling; sound on reactions.
 
-**Starter packs (shipped 2026-08-25).** Operator art on the CDN: Specter (ghost) and Specter Bot (hover robot). Sheets are 128×128 cells, 30 frames, 15 FPS (aligned to 30 FPS streams). First enable applies Specter. Custom uploads can replace any state. Details: `.grok/memory/project_pet_templates.md`.
+**Starter packs (shipped 2026-08-25, expanded 2026-08-26).** Operator art on the CDN: Specter, Specter Bot, cat, dog, bat, alien, squirrel, chicken, cow, duck, bunny. Sheets are 128×128 cells, 30 frames, 15 FPS (aligned to 30 FPS streams). First enable applies Specter. Custom uploads can replace any state. Details: `.grok/memory/project_pet_templates.md`.
 
 **Later.** Mini-games; evolution/growth stages by level; accessories/skins; mood-driven idle variants; (separately) scoped revocable overlay tokens across all overlays.
 
