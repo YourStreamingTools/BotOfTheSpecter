@@ -899,7 +899,7 @@ return [
     'discordbot_help_schedule_title' => 'Titel für das Stream-Zeitplan-Embed (erscheint oben)',
     'discordbot_label_schedule_content' => 'Stream-Zeitplan-Inhalt',
     'discordbot_help_schedule_content' => 'Gib deinen Stream-Zeitplan ein. Du kannst Emojis, Aufzählungspunkte oder ein beliebiges Format verwenden. Discord-Markdown wird unterstützt. <a
-                      href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">Markdown-Anleitung
+                      href="https://support.discord.com/hc/en-us/articles/210298617" target="_blank" rel="noopener" style="color: #3273dc;">Markdown-Anleitung
                       ansehen</a>',
     'discordbot_label_timezone' => 'Zeitzone',
     'discordbot_ph_timezone' => 'z. B. EST, PST, UTC usw.',

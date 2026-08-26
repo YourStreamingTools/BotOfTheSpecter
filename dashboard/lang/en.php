@@ -952,7 +952,7 @@ return [
     'discordbot_label_schedule_content' => 'Stream Schedule Content',
     'discordbot_help_schedule_content' => 'Enter your stream schedule. You can use emojis, bullet points, or
                     any format you prefer. Discord markdown is supported. <a
-                      href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">View
+                      href="https://support.discord.com/hc/en-us/articles/210298617" target="_blank" rel="noopener" style="color: #3273dc;">View
                       markdown guide</a>',
     'discordbot_label_timezone' => 'Timezone',
     'discordbot_ph_timezone' => 'e.g. EST, PST, UTC, etc.',

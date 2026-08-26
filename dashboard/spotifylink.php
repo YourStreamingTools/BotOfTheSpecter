@@ -291,7 +291,7 @@ ob_start();
             </div>
             <div class="sp-card-body">
                 <p style="color: var(--text-secondary); margin-bottom: 1rem;"><?php echo t('spotifylink_own_client_desc'); ?></p>
-                <a href="https://help.botofthespecter.com/spotify_setup.php" target="_blank" class="sp-btn sp-btn-info sp-btn-sm" style="margin-bottom: 1rem;">
+                <a href="https://support.botofthespecter.com/index.php#spotify" target="_blank" rel="noopener" class="sp-btn sp-btn-info sp-btn-sm" style="margin-bottom: 1rem;">
                     <i class="fas fa-external-link-alt"></i>
                     <?php echo t('spotifylink_setup_instructions'); ?>
                 </a>

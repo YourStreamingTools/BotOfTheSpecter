@@ -11,7 +11,7 @@ The project ships **12 stylesheets plus inline extension CSS** across **13 disti
 
 **Exception - the project asset CDN at `cdn.botofthespecter.com`** is for shared *utility* assets only: the project logo (`logo.png`), Font Awesome (`fontawesome-7.3.1/css/all.css`), and similar global resources. Loading these from `cdn.botofthespecter.com` is fine and expected. Do NOT add per-surface stylesheets there - surface CSS lives next to its pages.
 
-Bulma is no longer loaded anywhere in the project - every CDN import was removed. The `dashboard.css` and `home/style.css` files still contain alias layers (`.button.is-primary`, `.field`, `.column`, `.modal-card`, `.tag.is-success`, etc.) so existing markup keeps rendering - treat those classes as *aliases* of the `sp-*` / `hs-*` system, not as a separate framework. The `./help/` directory exists in the repo as legacy code but is **no longer deployed** - its docs live in the support portal CMS now. Don't audit, edit, or build features against it.
+Bulma is no longer loaded anywhere in the project - every CDN import was removed. The `dashboard.css` and `home/style.css` files still contain alias layers (`.button.is-primary`, `.field`, `.column`, `.modal-card`, `.tag.is-success`, etc.) so existing markup keeps rendering - treat those classes as *aliases* of the `sp-*` / `hs-*` system, not as a separate framework. The old `./help/` directory was **removed** (2026-08-26). Docs live in the support portal (`./support/`) as static guides. Don't recreate `./help/`.
 
 ## Surface → file map
 
@@ -166,7 +166,7 @@ Notable: this file uses Twitch purple `#9147ff` for active states - that's a del
 
 ### Surfaces 4 / 5 - `./members/style.css` and `./support/css/style.css`
 
-Both portals are siblings. Same `:root`, same sp-* base, same shell (sidebar + topbar + content). They diverge in their portal-specific helpers (`ms-*` for members, support-specific for support). The support portal also hosts the project's user-facing docs/help via a CMS - when adding doc-style pages, look at the support portal first; the legacy `./help/` directory is no longer deployed. When changing the shared base in one, consider mirroring in the other.
+Both portals are siblings. Same `:root`, same sp-* base, same shell (sidebar + topbar + content). They diverge in their portal-specific helpers (`ms-*` for members, support-specific for support). The support portal also hosts the project's user-facing docs as static guides in `support/index.php` - when adding doc-style pages, look at the support portal first. When changing the shared base in one, consider mirroring in the other.
 
 Members-specific patterns:
 - `.ms-search-card`, `.ms-search-row`
