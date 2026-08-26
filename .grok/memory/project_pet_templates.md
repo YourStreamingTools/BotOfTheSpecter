@@ -1,6 +1,6 @@
 ---
 name: project_pet_templates
-description: "Shared pet starter packs on the CDN (Specter ghost + Specter Bot). 128×128 cells, 30 frames, 15 FPS. template: sprite_file tokens; first enable seeds Specter."
+description: "Shared pet starter packs on the CDN (Specter, Specter Bot, plus cat/dog/bat/alien/squirrel/chicken/cow/duck/bunny). 128×128 cells, 30 frames, 15 FPS. template: sprite_file tokens; first enable seeds Specter."
 metadata:
   node_type: memory
   type: project
@@ -16,6 +16,15 @@ Streamers can use operator art instead of uploading their own. Packs live on the
 |----|-------------|--------|
 | `specter` | Specter | purple ghost |
 | `bot` | Specter Bot | purple hover robot (visor + antenna) |
+| `cat` | Cat | orange tabby |
+| `dog` | Dog | golden puppy |
+| `bat` | Bat | purple-gray bat |
+| `alien` | Alien | green visitor |
+| `squirrel` | Squirrel | fluffy tail |
+| `chicken` | Chicken | plump hen |
+| `cow` | Cow | black-and-white |
+| `duck` | Duck | yellow duckling |
+| `bunny` | Bunny | cream rabbit |
 
 Public URLs: `https://cdn.botofthespecter.com/pet-templates/{id}/{idle,happy,hype,sad,sleep,eat}.png`
 
