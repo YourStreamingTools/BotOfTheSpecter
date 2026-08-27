@@ -12126,7 +12126,7 @@ async def pet_try_command_trigger(command, user_display_name):
     except Exception as e:
         bot_logger.error(f"[PET] Command trigger match failed: {e}")
 
-# Function to fire a cached event-type pet trigger (follow/sub/raid/cheer/first_chat)
+# Function to fire a cached event-type pet trigger (follow/sub/raid/cheer/first_chat/gift_sub)
 async def pet_try_event_trigger(event_name, user_display_name, personalized=False):
     try:
         cache = await pet_get_cache()
@@ -16580,6 +16580,8 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (gifter_user_name, "Gift Subscriptions", f"{number_gifts} - GIFT SUBSCRIPTIONS"))
             await connection.commit()
+            giftsubfrom = "Anonymous" if anonymous else gifter_user_name
+            safe_create_task(pet_try_event_trigger("gift_sub", giftsubfrom))
             # Skip alert message for special cases like pay_it_forward (which sends its own message)
             if not skip_alert:
                 await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("gift_subscription_alert",))
@@ -16588,10 +16590,6 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                     alert_message = result.get("alert_message")
                 else:
                     alert_message = "Thank you (user) for gifting a (tier) subscription to (count) members! You have gifted a total of (total-gifted) to the community!"
-                if anonymous:
-                    giftsubfrom = "Anonymous"
-                else:
-                    giftsubfrom = gifter_user_name
                 alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
                 if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
                     try:

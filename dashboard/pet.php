@@ -37,20 +37,24 @@ $overlayLink = 'https://overlay.botofthespecter.com/pet.php';
 $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key);
 $overlayLinkMasked = $overlayLink . '?code=' . str_repeat('•', 24);
 
-$petImageExts = ['png', 'webp'];
+$petImageExts = ['png', 'webp', 'gif'];
 $petMediaDir = rtrim($media_path, '/\\') . '/pet';
 $petMediaUrl = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/pet/';
 const PET_IMAGE_MIN_PX = 128;
 const PET_IMAGE_MAX_PX = 4096;
 const PET_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const PET_FRAME_COUNT_MAX = 64;
+const PET_SCHEDULE_MSG_MAX = 56;
+const PET_SCHEDULE_MIN_MINUTES = 5;
+const PET_SCHEDULE_MAX_MINUTES = 180;
+const PET_SCHEDULE_MAX_ROWS = 20;
 
 $petAllowedPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 $petTriggerTypes = ['chat_keyword', 'command', 'redemption', 'event', 'interaction'];
-$petEventValues = ['follow', 'sub', 'raid', 'cheer', 'first_chat'];
+$petEventValues = ['follow', 'sub', 'raid', 'cheer', 'first_chat', 'gift_sub'];
 $petInteractionValues = ['feed', 'play', 'sad', 'sleep'];
 $petStatKeys = ['happiness', 'hunger', 'energy', 'xp', 'xp_next'];
-$petStandardAnims = ['idle', 'happy', 'hype', 'sad', 'sleep', 'eat'];
+$petStandardAnims = ['idle', 'happy', 'hype', 'sad', 'sleep', 'eat', 'gift', 'bark', 'bite'];
 
 $petNotifyApiKey = (isset($api_key) && $api_key) ? $api_key : (string) ($_SESSION['api_key'] ?? '');
 
@@ -79,6 +83,24 @@ function pet_tables_ready($db) {
         }
     }
     return true;
+}
+
+function pet_ensure_schedules_table($db) {
+    if (!($db instanceof mysqli)) {
+        return false;
+    }
+    if (pet_table_exists($db, 'pet_schedules')) {
+        return true;
+    }
+    $sql = 'CREATE TABLE IF NOT EXISTS pet_schedules (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        message VARCHAR(56) NOT NULL,
+        animation VARCHAR(50) NOT NULL DEFAULT \'happy\',
+        interval_minutes INT NOT NULL DEFAULT 15,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+    return (bool) $db->query($sql);
 }
 
 function pet_notify_event($apiKey, $event, array $extra = []) {
@@ -178,6 +200,7 @@ function pet_seed_default_triggers($db) {
         ['event', 'raid', 'hype', '', 0, 0, 0, 0],
         ['event', 'cheer', 'hype', '', 0, 0, 0, 0],
         ['event', 'first_chat', 'happy', 'Hi {user}!', 0, 0, 0, 0],
+        ['event', 'gift_sub', 'gift', '', 8, 0, 0, 0],
         ['interaction', 'feed', 'eat', '', 0, 15, 0, 0],
         ['interaction', 'play', 'happy', '', 10, 0, -5, 0],
         ['interaction', 'sad', 'sad', '', 0, 0, 0, 0],
@@ -264,6 +287,98 @@ function pet_ensure_interaction_triggers($db) {
     $check->close();
     $ins->close();
     return true;
+}
+
+function pet_ensure_gift_sub_trigger($db) {
+    if (!($db instanceof mysqli) || !pet_table_exists($db, 'pet_triggers')) {
+        return false;
+    }
+    $check = $db->prepare("SELECT id FROM pet_triggers WHERE trigger_type = 'event' AND trigger_value = 'gift_sub' LIMIT 1");
+    if (!$check) {
+        return false;
+    }
+    $check->execute();
+    $res = $check->get_result();
+    $exists = $res && $res->fetch_assoc();
+    $check->close();
+    if ($exists) {
+        return false;
+    }
+    $ins = $db->prepare(
+        "INSERT INTO pet_triggers (trigger_type, trigger_value, animation, bubble_text, effect_happiness, effect_hunger, effect_energy, xp, cooldown_seconds, enabled) "
+        . "VALUES ('event', 'gift_sub', 'gift', '', 8, 0, 0, 0, 5, 1)"
+    );
+    if (!$ins) {
+        return false;
+    }
+    $ok = $ins->execute();
+    $ins->close();
+    return $ok;
+}
+
+function pet_sync_template_animations($db) {
+    if (!($db instanceof mysqli) || !pet_table_exists($db, 'pet_animations')) {
+        return false;
+    }
+    $res = $db->query('SELECT name, sprite_file FROM pet_animations');
+    if (!($res instanceof mysqli_result)) {
+        return false;
+    }
+    $existing = [];
+    $packCounts = [];
+    while ($row = $res->fetch_assoc()) {
+        $name = (string) ($row['name'] ?? '');
+        $existing[$name] = (string) ($row['sprite_file'] ?? '');
+        $parsed = pet_parse_template_sprite($row['sprite_file'] ?? '');
+        if ($parsed) {
+            $packId = $parsed['pack'];
+            $packCounts[$packId] = ($packCounts[$packId] ?? 0) + 1;
+        }
+    }
+    $res->free();
+    if (!$packCounts) {
+        return false;
+    }
+    arsort($packCounts);
+    $packId = (string) array_key_first($packCounts);
+    $pack = pet_template_get($packId);
+    if (!$pack || empty($pack['animations'])) {
+        return false;
+    }
+    $save = $db->prepare(
+        'INSERT INTO pet_animations (name, sprite_file, frame_width, frame_height, frame_count, fps, `loop`) '
+        . 'VALUES (?, ?, ?, ?, ?, ?, ?) '
+        . 'ON DUPLICATE KEY UPDATE sprite_file = VALUES(sprite_file), frame_width = VALUES(frame_width), '
+        . 'frame_height = VALUES(frame_height), frame_count = VALUES(frame_count), fps = VALUES(fps), `loop` = VALUES(`loop`)'
+    );
+    if (!$save) {
+        return false;
+    }
+    $changed = false;
+    foreach ($pack['animations'] as $animName => $spec) {
+        $token = pet_template_token($packId, $spec['file']);
+        if ($token === '') {
+            continue;
+        }
+        $current = $existing[$animName] ?? '';
+        if ($current !== '' && !pet_is_template_sprite($current)) {
+            continue;
+        }
+        if ($current === $token) {
+            continue;
+        }
+        $frameWidth = (int) ($spec['frame_width'] ?? 128);
+        $frameHeight = (int) ($spec['frame_height'] ?? 128);
+        $frameCount = (int) ($spec['frame_count'] ?? 30);
+        $fps = (int) ($spec['fps'] ?? 15);
+        $loopFlag = !empty($spec['loop']) ? 1 : 0;
+        $save->bind_param('ssiiiii', $animName, $token, $frameWidth, $frameHeight, $frameCount, $fps, $loopFlag);
+        if ($save->execute()) {
+            $changed = true;
+        }
+    }
+    $save->close();
+    return $changed;
 }
 
 function pet_clamp_stat($value) {
@@ -542,6 +657,7 @@ $pet = [
 ];
 $petAnimations = [];
 $petTriggers = [];
+$petSchedules = [];
 $petRewards = [];
 $petState = [
     'happiness' => 80,
@@ -594,6 +710,9 @@ foreach (explode(',', (string) ($pet['visible_stats'] ?? '')) as $stat) {
 
 
 if (pet_table_exists($db, 'pet_animations')) {
+    if (pet_sync_template_animations($db)) {
+        pet_notify_event($petNotifyApiKey, 'PET_SETTINGS_UPDATE');
+    }
     $anRes = $db->query(
         'SELECT id, name, sprite_file, frame_width, frame_height, frame_count, fps, `loop` FROM pet_animations ORDER BY name ASC'
     );
@@ -606,6 +725,7 @@ if (pet_table_exists($db, 'pet_animations')) {
             $row['frame_count'] = (int) ($catalogSpec['frame_count'] ?? $row['frame_count']);
             $row['fps'] = (int) ($catalogSpec['fps'] ?? $row['fps']);
             $row['loop'] = ((int) $row['loop']) === 1 ? 1 : 0;
+            $row['kind'] = pet_sprite_kind($row['sprite_file'] ?? '');
             $row['url'] = pet_sprite_url($petMediaUrl, $row['sprite_file']);
             $petAnimations[] = $row;
         }
@@ -615,6 +735,7 @@ if (pet_table_exists($db, 'pet_animations')) {
 
 if (pet_table_exists($db, 'pet_triggers')) {
     pet_ensure_interaction_triggers($db);
+    pet_ensure_gift_sub_trigger($db);
     $trRes = $db->query(
         'SELECT id, trigger_type, trigger_value, animation, bubble_text, effect_happiness, effect_hunger, effect_energy, xp, cooldown_seconds, enabled '
         . 'FROM pet_triggers ORDER BY trigger_type ASC, id ASC'
@@ -631,6 +752,21 @@ if (pet_table_exists($db, 'pet_triggers')) {
             $petTriggers[] = $row;
         }
         $trRes->free();
+    }
+}
+
+if (pet_ensure_schedules_table($db)) {
+    $schRes = $db->query(
+        'SELECT id, message, animation, interval_minutes, enabled FROM pet_schedules ORDER BY id ASC'
+    );
+    if ($schRes) {
+        while ($row = $schRes->fetch_assoc()) {
+            $row['id'] = (int) $row['id'];
+            $row['interval_minutes'] = max(PET_SCHEDULE_MIN_MINUTES, min(PET_SCHEDULE_MAX_MINUTES, (int) $row['interval_minutes']));
+            $row['enabled'] = ((int) $row['enabled']) === 1 ? 1 : 0;
+            $petSchedules[] = $row;
+        }
+        $schRes->free();
     }
 }
 
@@ -862,6 +998,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
                     }
                 }
                 pet_ensure_interaction_triggers($db);
+                pet_ensure_gift_sub_trigger($db);
             }
             $db->commit();
         } catch (Exception $e) {
@@ -899,10 +1036,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         if ($animName === '' || !in_array($animName, $petAnimNameList, true)) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
         }
-        $frameWidth = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_width'] ?? 0)));
-        $frameHeight = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_height'] ?? 0)));
-        $frameCount = max(1, min(PET_FRAME_COUNT_MAX, (int) ($_POST['frame_count'] ?? 30)));
-        $fps = max(1, min(60, (int) ($_POST['fps'] ?? 15)));
         $loopFlag = ((int) ($_POST['loop'] ?? 1)) === 1 ? 1 : 0;
         if (!isset($_FILES['sprite']) || ($_FILES['sprite']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             $err = (int) ($_FILES['sprite']['error'] ?? UPLOAD_ERR_NO_FILE);
@@ -926,18 +1059,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         }
         $imgW = (int) $dims[0];
         $imgH = (int) $dims[1];
-        if ($imgW < PET_IMAGE_MIN_PX || $imgH < PET_IMAGE_MIN_PX) {
+        $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
+        if (!in_array($ext, $petImageExts, true) || !upload_validate_extension_and_mime($tmp, $ext, $petImageExts)) {
+            pet_json_exit(['success' => false, 'error' => t('pet_upload_error_type')]);
+        }
+        $isGif = ($ext === 'gif');
+        $minPx = $isGif ? 32 : PET_IMAGE_MIN_PX;
+        if ($imgW < $minPx || $imgH < $minPx) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
         }
         if ($imgW > PET_IMAGE_MAX_PX || $imgH > PET_IMAGE_MAX_PX) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error_too_large', [PET_IMAGE_MAX_PX, $imgW, $imgH])]);
         }
-        if ($frameWidth > $imgW || $frameHeight > $imgH) {
-            pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
-        }
-        $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
-        if (!in_array($ext, $petImageExts, true) || !upload_validate_extension_and_mime($tmp, $ext, $petImageExts)) {
-            pet_json_exit(['success' => false, 'error' => t('pet_upload_error_type')]);
+        if ($isGif) {
+            $frameWidth = $imgW;
+            $frameHeight = $imgH;
+            $timing = pet_gif_timing($tmp);
+            if (!is_array($timing)) {
+                $timing = ['frame_count' => 1, 'fps' => 1];
+            }
+            $frameCount = max(1, (int) ($timing['frame_count'] ?? 1));
+            $fps = max(1, min(60, (int) ($timing['fps'] ?? 1)));
+        } else {
+            $frameWidth = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_width'] ?? 0)));
+            $frameHeight = max(1, min(PET_IMAGE_MAX_PX, (int) ($_POST['frame_height'] ?? 0)));
+            $frameCount = max(1, min(PET_FRAME_COUNT_MAX, (int) ($_POST['frame_count'] ?? 30)));
+            $fps = max(1, min(60, (int) ($_POST['fps'] ?? 15)));
+            if ($frameWidth > $imgW || $frameHeight > $imgH) {
+                pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
+            }
         }
         if (!ensureDirectoryWritable($petMediaDir)) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error', [t('pet_sprite_upload')])]);
@@ -958,7 +1108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         }
         $safeName = upload_sanitize_filename($orig, $ext);
         $target = upload_unique_target($petMediaDir, $safeName);
-        if (!upload_reencode_image($tmp, $target['path'], $ext, PET_IMAGE_MAX_PX, PET_IMAGE_MIN_PX)) {
+        if ($isGif) {
+            if (!@copy($tmp, $target['path']) || !is_file($target['path'])) {
+                pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
+            }
+        } elseif (!upload_reencode_image($tmp, $target['path'], $ext, PET_IMAGE_MAX_PX, PET_IMAGE_MIN_PX)) {
             pet_json_exit(['success' => false, 'error' => t('pet_upload_error_invalid')]);
         }
         $savedSize = (int) filesize($target['path']);
@@ -1239,6 +1393,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         pet_json_exit(['success' => true]);
     }
 
+    if ($action === 'save_schedule') {
+        if (!pet_ensure_schedules_table($db)) {
+            pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+        }
+        $schedId = (int) ($_POST['id'] ?? 0);
+        $message = trim((string) ($_POST['message'] ?? ''));
+        $message = preg_replace('/\s+/u', ' ', $message);
+        if ($message === '') {
+            pet_json_exit(['success' => false, 'error' => t('pet_schedule_error_empty')]);
+        }
+        if (mb_strlen($message) > PET_SCHEDULE_MSG_MAX) {
+            $message = mb_substr($message, 0, PET_SCHEDULE_MSG_MAX);
+        }
+        $animation = pet_sanitize_anim_name($_POST['animation'] ?? 'happy');
+        if ($animation === '') {
+            $animation = 'happy';
+        }
+        $interval = (int) ($_POST['interval_minutes'] ?? 15);
+        if ($interval < PET_SCHEDULE_MIN_MINUTES) {
+            $interval = PET_SCHEDULE_MIN_MINUTES;
+        }
+        if ($interval > PET_SCHEDULE_MAX_MINUTES) {
+            $interval = PET_SCHEDULE_MAX_MINUTES;
+        }
+        $enabled = ((int) ($_POST['enabled'] ?? 1)) === 1 ? 1 : 0;
+        if ($schedId <= 0) {
+            $countRes = $db->query('SELECT COUNT(*) AS c FROM pet_schedules');
+            $countRow = $countRes ? $countRes->fetch_assoc() : null;
+            if ($countRow && (int) $countRow['c'] >= PET_SCHEDULE_MAX_ROWS) {
+                pet_json_exit(['success' => false, 'error' => t('pet_schedule_error_limit')]);
+            }
+            $ins = $db->prepare(
+                'INSERT INTO pet_schedules (message, animation, interval_minutes, enabled) VALUES (?, ?, ?, ?)'
+            );
+            if (!$ins) {
+                pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+            }
+            $ins->bind_param('ssii', $message, $animation, $interval, $enabled);
+            if (!$ins->execute()) {
+                $ins->close();
+                pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+            }
+            $ins->close();
+        } else {
+            $up = $db->prepare(
+                'UPDATE pet_schedules SET message = ?, animation = ?, interval_minutes = ?, enabled = ? WHERE id = ?'
+            );
+            if (!$up) {
+                pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+            }
+            $up->bind_param('ssiii', $message, $animation, $interval, $enabled, $schedId);
+            if (!$up->execute()) {
+                $up->close();
+                pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+            }
+            $up->close();
+        }
+        pet_notify_event($petNotifyApiKey, 'PET_SETTINGS_UPDATE');
+        pet_json_exit(['success' => true, 'message' => t('pet_saved')]);
+    }
+
+    if ($action === 'delete_schedule') {
+        if (!pet_ensure_schedules_table($db)) {
+            pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+        }
+        $schedId = (int) ($_POST['id'] ?? 0);
+        if ($schedId <= 0) {
+            pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+        }
+        $del = $db->prepare('DELETE FROM pet_schedules WHERE id = ?');
+        if (!$del) {
+            pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+        }
+        $del->bind_param('i', $schedId);
+        if (!$del->execute()) {
+            $del->close();
+            pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
+        }
+        $del->close();
+        pet_notify_event($petNotifyApiKey, 'PET_SETTINGS_UPDATE');
+        pet_json_exit(['success' => true]);
+    }
+
     pet_json_exit(['success' => false, 'error' => t('pet_save_error')]);
 }
 
@@ -1494,12 +1731,13 @@ ob_start();
                         <i class="fas fa-cloud-upload-alt media-drop-zone-icon"></i>
                         <span class="file-list-label" id="petSpriteFileLabel"><?= t('media_no_files_selected') ?></span>
                         <div class="media-drop-zone-hint"><?= t('media_click_or_drag') ?></div>
-                        <input type="file" id="petAnimSprite" name="sprite" accept="image/png,image/webp" hidden>
+                        <input type="file" id="petAnimSprite" name="sprite" accept="image/png,image/webp,image/gif,.png,.webp,.gif" hidden>
                     </label>
                     <span class="sp-help"><?= t('pet_upload_help', [PET_IMAGE_MIN_PX, PET_IMAGE_MAX_PX, (int) (PET_IMAGE_MAX_BYTES / (1024 * 1024))]) ?></span>
                     <span class="sp-help"><?= t('pet_upload_spec_help') ?></span>
+                    <span class="sp-help"><?= t('pet_upload_gif_help') ?></span>
                 </div>
-                <div class="pet-page-form-grid">
+                <div class="pet-page-form-grid" id="petSheetFields">
                     <div class="sp-form-group">
                         <label class="sp-label" for="petFrameWidth"><?= t('pet_frame_width') ?></label>
                         <input type="number" id="petFrameWidth" name="frame_width" class="sp-input" min="1" max="4096" value="128" required>
@@ -1530,6 +1768,7 @@ ob_start();
                 <div class="pet-page-preview-label"><?= t('pet_animation_preview') ?></div>
                 <div class="pet-page-preview-stage" id="petPreviewStage">
                     <canvas class="pet-page-preview-canvas" id="petPreviewCanvas" width="128" height="128"></canvas>
+                    <img class="pet-page-preview-gif pet-page-hidden" id="petPreviewGif" alt="">
                     <div class="pet-page-preview-sheet pet-page-hidden" id="petPreviewSheet" aria-hidden="true"></div>
                     <span class="pet-page-preview-placeholder" id="petPreviewPlaceholder"><?= t('pet_animation_preview') ?></span>
                 </div>
@@ -1543,11 +1782,20 @@ ob_start();
                 <div class="pet-page-anim-card" data-id="<?= (int) $animRow['id'] ?>">
                     <div class="pet-page-anim-card-head">
                         <strong><?= htmlspecialchars((string) $animRow['name']) ?></strong>
-                        <span class="pet-page-anim-meta"><?= (int) $animRow['frame_width'] ?>×<?= (int) $animRow['frame_height'] ?> · <?= (int) $animRow['frame_count'] ?> · <?= (int) $animRow['fps'] ?>fps</span>
+                        <span class="pet-page-anim-meta"><?php
+                            if (($animRow['kind'] ?? '') === 'gif') {
+                                echo 'GIF · ' . (int) $animRow['frame_width'] . '×' . (int) $animRow['frame_height'];
+                            } else {
+                                echo (int) $animRow['frame_width'] . '×' . (int) $animRow['frame_height']
+                                    . ' · ' . (int) $animRow['frame_count']
+                                    . ' · ' . (int) $animRow['fps'] . 'fps';
+                            }
+                        ?></span>
                     </div>
                     <div class="pet-page-anim-card-actions">
                         <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary pet-page-anim-preview-btn"
                             data-url="<?= htmlspecialchars((string) $animRow['url']) ?>"
+                            data-kind="<?= htmlspecialchars((string) ($animRow['kind'] ?? 'sheet')) ?>"
                             data-frame-width="<?= (int) $animRow['frame_width'] ?>"
                             data-frame-height="<?= (int) $animRow['frame_height'] ?>"
                             data-frame-count="<?= (int) $animRow['frame_count'] ?>"
@@ -1722,6 +1970,98 @@ ob_start();
         </div>
     </div>
 </div>
+
+<?php
+$defaultSchedAnim = in_array('happy', $petAnimNameList, true)
+    ? 'happy'
+    : (in_array((string) ($pet['idle_animation'] ?? ''), $petAnimNameList, true)
+        ? (string) $pet['idle_animation']
+        : ((string) ($petAnimNameList[0] ?? 'idle')));
+?>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-clock"></i> <?= t('pet_schedules_title') ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?= t('pet_schedules_help') ?></p>
+        <form id="petScheduleForm" class="pet-page-trigger-form">
+            <div class="pet-page-form-grid pet-page-trigger-add-grid">
+                <div class="sp-form-group pet-page-schedule-message-field">
+                    <label class="sp-label" for="petScheduleMessage"><?= t('pet_schedule_message') ?></label>
+                    <input type="text" id="petScheduleMessage" class="sp-input" maxlength="<?= (int) PET_SCHEDULE_MSG_MAX ?>" placeholder="<?= htmlspecialchars(t('pet_schedule_message_placeholder')) ?>">
+                    <span class="sp-help" id="petScheduleCount">0 / <?= (int) PET_SCHEDULE_MSG_MAX ?></span>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="petScheduleInterval"><?= t('pet_schedule_interval') ?></label>
+                    <input type="number" id="petScheduleInterval" class="sp-input" min="<?= (int) PET_SCHEDULE_MIN_MINUTES ?>" max="<?= (int) PET_SCHEDULE_MAX_MINUTES ?>" value="15">
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="petScheduleAnimation"><?= t('pet_trigger_animation') ?></label>
+                    <select id="petScheduleAnimation" class="sp-select">
+                        <?php foreach ($petAnimNameList as $animName): ?>
+                            <option value="<?= htmlspecialchars($animName) ?>" <?= $animName === $defaultSchedAnim ? 'selected' : '' ?>><?= htmlspecialchars($animName) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="sp-form-group pet-page-trigger-enabled-field">
+                    <label class="switch">
+                        <input type="checkbox" id="petScheduleEnabled" checked>
+                        <span><?= t('pet_trigger_enabled') ?></span>
+                    </label>
+                </div>
+            </div>
+            <div class="pet-page-save-row">
+                <span class="pet-page-save-status" id="petScheduleStatus"></span>
+                <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-plus"></i> <?= t('pet_schedule_add') ?></button>
+            </div>
+        </form>
+        <?php if (!$petSchedules): ?>
+            <p class="pet-page-empty" id="petScheduleEmpty"><?= t('pet_no_schedules') ?></p>
+        <?php endif; ?>
+        <div class="sp-table-wrap pet-page-trigger-wrap<?= !$petSchedules ? ' pet-page-hidden' : '' ?>">
+            <table class="sp-table" id="petScheduleTable">
+                <thead>
+                    <tr>
+                        <th><?= t('pet_schedule_message') ?></th>
+                        <th><?= t('pet_schedule_interval') ?></th>
+                        <th><?= t('pet_trigger_animation') ?></th>
+                        <th><?= t('pet_trigger_enabled') ?></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="petScheduleBody">
+                    <?php foreach ($petSchedules as $sched): ?>
+                    <tr data-id="<?= (int) $sched['id'] ?>">
+                        <td>
+                            <input type="text" class="sp-input pet-page-cell-input-wide pet-sched-message" maxlength="<?= (int) PET_SCHEDULE_MSG_MAX ?>" value="<?= htmlspecialchars((string) $sched['message']) ?>">
+                        </td>
+                        <td>
+                            <input type="number" class="sp-input pet-page-cell-input-sm pet-sched-interval" min="<?= (int) PET_SCHEDULE_MIN_MINUTES ?>" max="<?= (int) PET_SCHEDULE_MAX_MINUTES ?>" value="<?= (int) $sched['interval_minutes'] ?>">
+                        </td>
+                        <td>
+                            <select class="sp-select pet-page-cell-input pet-sched-animation">
+                                <?php foreach ($petAnimNameList as $animName): ?>
+                                    <option value="<?= htmlspecialchars($animName) ?>" <?= ((string) $sched['animation'] === (string) $animName) ? 'selected' : '' ?>><?= htmlspecialchars($animName) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                        <td>
+                            <label class="switch">
+                                <input type="checkbox" class="pet-sched-enabled" <?= $sched['enabled'] === 1 ? 'checked' : '' ?>>
+                                <span></span>
+                            </label>
+                        </td>
+                        <td class="pet-page-row-actions">
+                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary pet-sched-test"><i class="fas fa-play"></i> <?= t('pet_trigger_test') ?></button>
+                            <button type="button" class="sp-btn sp-btn-sm sp-btn-danger pet-sched-delete"><i class="fas fa-trash"></i> <?= t('pet_schedule_delete') ?></button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
@@ -1741,7 +2081,8 @@ ob_start();
         liveOffline: <?php echo json_encode(t('pet_current_stats_offline'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
         liveBadge: <?php echo json_encode(t('pet_current_stats_live_badge'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
         offlineBadge: <?php echo json_encode(t('pet_current_stats_offline_badge'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
-        xpNext: <?php echo json_encode(t('pet_stat_xp_next'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
+        xpNext: <?php echo json_encode(t('pet_stat_xp_next'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
+        scheduleEmpty: <?php echo json_encode(t('pet_schedule_error_empty'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>
     };
     const petLiveSeed = <?php echo json_encode([
         'stream_online' => $petStreamOnline ? 1 : 0,
@@ -2051,11 +2392,30 @@ ob_start();
 
     const canvas = document.getElementById('petPreviewCanvas');
     const sheetEl = document.getElementById('petPreviewSheet');
+    const gifEl = document.getElementById('petPreviewGif');
     const placeholder = document.getElementById('petPreviewPlaceholder');
+    const sheetFields = document.getElementById('petSheetFields');
     let previewRaf = 0;
     let previewObjectUrl = '';
     let previewImg = null;
     let previewState = null;
+
+    const isGifFile = (file) => {
+        if (!file) return false;
+        const type = String(file.type || '').toLowerCase();
+        if (type === 'image/gif') return true;
+        return /\.gif$/i.test(String(file.name || ''));
+    };
+
+    const isGifUrl = (url) => /\.gif(\?|#|$)/i.test(String(url || ''));
+
+    const syncSheetFields = (gif) => {
+        if (!sheetFields) return;
+        sheetFields.classList.toggle('pet-page-hidden', !!gif);
+        sheetFields.querySelectorAll('input').forEach((el) => {
+            el.disabled = !!gif;
+        });
+    };
 
     const stopPreview = () => {
         if (previewRaf) {
@@ -2063,11 +2423,15 @@ ob_start();
             previewRaf = 0;
         }
         previewState = null;
+        if (gifEl) {
+            gifEl.classList.add('pet-page-hidden');
+            gifEl.removeAttribute('src');
+        }
+        if (canvas) canvas.classList.remove('is-active');
     };
 
     const hidePlaceholder = () => {
         if (placeholder) placeholder.classList.add('pet-page-hidden');
-        if (canvas) canvas.classList.add('is-active');
     };
 
     const stepPreview = (now) => {
@@ -2117,9 +2481,19 @@ ob_start();
         }
     };
 
-    const startPreview = (url, fw, fh, count, fps, loop) => {
+    const startPreview = (url, fw, fh, count, fps, loop, kind) => {
         stopPreview();
         if (!url) return;
+        const gif = kind === 'gif' || isGifUrl(url);
+        hidePlaceholder();
+        if (gif) {
+            if (gifEl) {
+                gifEl.src = url;
+                gifEl.classList.remove('pet-page-hidden');
+            }
+            return;
+        }
+        if (canvas) canvas.classList.add('is-active');
         const img = new Image();
         img.onload = () => {
             previewImg = img;
@@ -2133,7 +2507,6 @@ ob_start();
                 acc: 0,
                 last: 0
             };
-            hidePlaceholder();
             drawPreviewFrame();
             previewRaf = requestAnimationFrame(stepPreview);
         };
@@ -2144,6 +2517,8 @@ ob_start();
         const fileEl = document.getElementById('petAnimSprite');
         const file = fileEl && fileEl.files && fileEl.files[0];
         if (!file) return;
+        const gif = isGifFile(file);
+        syncSheetFields(gif);
         if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
         previewObjectUrl = URL.createObjectURL(file);
         startPreview(
@@ -2152,7 +2527,8 @@ ob_start();
             parseInt(document.getElementById('petFrameHeight')?.value || '128', 10),
             parseInt(document.getElementById('petFrameCount')?.value || '1', 10),
             parseInt(document.getElementById('petFps')?.value || '12', 10),
-            !!(document.getElementById('petAnimLoop')?.checked)
+            !!(document.getElementById('petAnimLoop')?.checked),
+            gif ? 'gif' : 'sheet'
         );
     };
 
@@ -2215,7 +2591,8 @@ ob_start();
                 parseInt(btn.getAttribute('data-frame-height') || '128', 10),
                 parseInt(btn.getAttribute('data-frame-count') || '1', 10),
                 parseInt(btn.getAttribute('data-fps') || '12', 10),
-                btn.getAttribute('data-loop') === '1'
+                btn.getAttribute('data-loop') === '1',
+                btn.getAttribute('data-kind') || ''
             );
         });
     });
@@ -2405,6 +2782,97 @@ ob_start();
             postPet({ pet_action: 'pet_the_pet' }).catch(() => {});
         });
     }
+
+    const schedMsgMax = <?= (int) PET_SCHEDULE_MSG_MAX ?>;
+    const schedMsgInput = document.getElementById('petScheduleMessage');
+    const schedCount = document.getElementById('petScheduleCount');
+    const updateSchedCount = () => {
+        if (!schedCount || !schedMsgInput) return;
+        schedCount.textContent = (schedMsgInput.value || '').length + ' / ' + schedMsgMax;
+    };
+    if (schedMsgInput) {
+        schedMsgInput.addEventListener('input', updateSchedCount);
+        updateSchedCount();
+    }
+
+    const collectSchedRow = (row) => ({
+        pet_action: 'save_schedule',
+        id: row.getAttribute('data-id') || '0',
+        message: row.querySelector('.pet-sched-message')?.value || '',
+        animation: row.querySelector('.pet-sched-animation')?.value || 'happy',
+        interval_minutes: row.querySelector('.pet-sched-interval')?.value || '15',
+        enabled: row.querySelector('.pet-sched-enabled')?.checked ? '1' : '0'
+    });
+    const schedTimers = new WeakMap();
+    const scheduleSchedSave = (row) => {
+        const prev = schedTimers.get(row);
+        if (prev) clearTimeout(prev);
+        schedTimers.set(row, setTimeout(() => {
+            postPet(collectSchedRow(row)).catch(() => {});
+        }, 400));
+    };
+
+    const schedForm = document.getElementById('petScheduleForm');
+    const schedStatus = document.getElementById('petScheduleStatus');
+    if (schedForm) {
+        schedForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = (schedMsgInput && schedMsgInput.value || '').trim();
+            if (!message) {
+                setStatus(schedStatus, false, petLang.scheduleEmpty);
+                return;
+            }
+            postPet({
+                pet_action: 'save_schedule',
+                id: '0',
+                message: message,
+                animation: document.getElementById('petScheduleAnimation')?.value || 'happy',
+                interval_minutes: document.getElementById('petScheduleInterval')?.value || '15',
+                enabled: document.getElementById('petScheduleEnabled')?.checked ? '1' : '0'
+            }).then((data) => {
+                if (data && data.success) {
+                    window.location.reload();
+                    return;
+                }
+                setStatus(schedStatus, false, (data && data.error) || petLang.saveError);
+            }).catch(() => setStatus(schedStatus, false, petLang.saveError));
+        });
+    }
+
+    document.querySelectorAll('#petScheduleBody tr').forEach((row) => {
+        row.querySelectorAll('input, select').forEach((el) => {
+            el.addEventListener('change', () => scheduleSchedSave(row));
+            if (el.classList.contains('pet-sched-message')) {
+                el.addEventListener('input', () => scheduleSchedSave(row));
+            }
+        });
+        const testBtn = row.querySelector('.pet-sched-test');
+        if (testBtn) {
+            testBtn.addEventListener('click', () => {
+                postPet({
+                    pet_action: 'test_reaction',
+                    animation: row.querySelector('.pet-sched-animation')?.value || 'happy',
+                    bubble_text: row.querySelector('.pet-sched-message')?.value || '',
+                    personalized: '1'
+                }).catch(() => {});
+            });
+        }
+        const delBtn = row.querySelector('.pet-sched-delete');
+        if (delBtn) {
+            delBtn.addEventListener('click', () => {
+                if (!window.confirm(petLang.confirmDelete)) return;
+                postPet({ pet_action: 'delete_schedule', id: row.getAttribute('data-id') || '0' })
+                    .then((data) => {
+                        if (data && data.success) {
+                            window.location.reload();
+                            return;
+                        }
+                        window.alert((data && data.error) || petLang.saveError);
+                    })
+                    .catch(() => window.alert(petLang.saveError));
+            });
+        }
+    });
 })();
 </script>
 <?php

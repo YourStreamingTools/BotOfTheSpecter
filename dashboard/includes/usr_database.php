@@ -1331,6 +1331,15 @@ try {
                 xp INT NOT NULL DEFAULT 0,
                 last_interaction_at TIMESTAMP NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'pet_schedules' => "
+            CREATE TABLE IF NOT EXISTS pet_schedules (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                message VARCHAR(56) NOT NULL,
+                animation VARCHAR(50) NOT NULL DEFAULT 'happy',
+                interval_minutes INT NOT NULL DEFAULT 15,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
