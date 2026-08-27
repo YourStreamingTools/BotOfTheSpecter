@@ -3695,3 +3695,43 @@ label.checkbox input[type="checkbox"] {
     pointer-events: none;
 }
 
+
+
+/* Status page layout (sbs-status on specterbot.systems) */
+html.sbs-status body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 5px;
+}
+html.sbs-status .container { max-width: 1200px; margin: 0 auto; }
+html.sbs-status .title-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0; }
+html.sbs-status .columns { margin-bottom: 0; }
+html.sbs-status h1 { text-align: center; margin-bottom: 0; font-size: 1.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+html.sbs-status .section {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px; backdrop-filter: blur(10px); margin: 0;
+}
+html.sbs-status .section h2 { margin-bottom: 5px; font-size: 1.1em; border-bottom: 2px solid var(--border-hover); padding-bottom: 5px; }
+html.sbs-status .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 5px; }
+html.sbs-status .status-item {
+    background: var(--bg-card-hover); padding: 5px; border-radius: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+html.sbs-status .status-item strong { font-size: 1.1em; }
+html.sbs-status .heartbeat { color: var(--red); transition: transform 0.2s ease; font-size: 1.2em; }
+html.sbs-status .heartbeat.beating { color: var(--green); animation: sbs-beat 1s infinite; }
+@keyframes sbs-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+html.sbs-status .info-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); }
+html.sbs-status .info-item:last-child { border-bottom: none; }
+html.sbs-status .last-updated { text-align: center; margin-top: 5px; font-size: 0.9em; opacity: 0.8; }
+html.sbs-status #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; }
+html.sbs-status #system-metrics .status-item > div:last-child { text-align: left; }
+html.sbs-status #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
+html.sbs-status .metric-header { display: flex; justify-content: space-between; align-items: center; }
+html.sbs-status .user-list { max-height: 500px; overflow-y: auto; }
+html.sbs-status #signups-section h2 { margin-bottom: 0; font-size: 1em; }
+html.sbs-status #signups-section .info-item { padding: 1px 0; }
+html.sbs-status #signups-section .columns { margin-bottom: 0; }
+html.sbs-status .bottom-row .section { padding-top: 0; }
