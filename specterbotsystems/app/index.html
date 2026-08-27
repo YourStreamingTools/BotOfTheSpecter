@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BotOfTheSpecter Status</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sp-theme');
+          if (!t) t = (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          if (t !== 'light') t = 'dark';
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <script type="module" crossorigin src="/app/assets/index-JanlmCX8.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
