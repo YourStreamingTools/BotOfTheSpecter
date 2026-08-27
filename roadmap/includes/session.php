@@ -44,7 +44,7 @@ if (!function_exists('roadmap_init_admin_db')) {
 
 if (!function_exists('roadmap_safe_redirect')) {
     // Only allow local, non-protocol-relative paths (e.g. "/foo"), never
-    // "https://..." or "//evil.com" - those would send the browser off-site.
+    // "https://..." or "//evil.com" — those would send the browser off-site.
     function roadmap_safe_redirect($path): string {
         $path = (string)$path;
         if (strncmp($path, '/', 1) !== 0 || strncmp($path, '//', 2) === 0) {
@@ -64,5 +64,77 @@ if (!function_exists('website_db')) {
             die('Database connection error. Please try again later.');
         }
         return $conn;
+    }
+}
+
+if (!function_exists('roadmap_csrf_token')) {
+    function roadmap_csrf_token(): string {
+        roadmap_session_start();
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return (string) $_SESSION['csrf_token'];
+    }
+}
+
+if (!function_exists('json_out')) {
+    function json_out(array $payload, int $status = 200): void {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+if (!function_exists('json_body')) {
+    function json_body(): array {
+        static $cached = null;
+        if ($cached !== null) {
+            return $cached;
+        }
+        $ct = (string) ($_SERVER['CONTENT_TYPE'] ?? '');
+        if (stripos($ct, 'application/json') !== false) {
+            $raw = file_get_contents('php://input');
+            $data = json_decode($raw ?: '', true);
+            $cached = is_array($data) ? $data : [];
+        } else {
+            $cached = $_POST;
+        }
+        return $cached;
+    }
+}
+
+if (!function_exists('verify_csrf_json')) {
+    function verify_csrf_json(): bool {
+        roadmap_session_start();
+        $body = json_body();
+        $token = (string) ($body['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+        return $token !== ''
+            && !empty($_SESSION['csrf_token'])
+            && hash_equals($_SESSION['csrf_token'], $token);
+    }
+}
+
+if (!function_exists('require_login_json')) {
+    function require_login_json(): void {
+        roadmap_session_start();
+        if (!roadmap_is_logged_in()) {
+            json_out([
+                'ok' => false,
+                'session_expired' => true,
+                'redirect' => '/login.php',
+                'error' => 'Please sign in.',
+            ], 401);
+        }
+    }
+}
+
+if (!function_exists('require_admin_json')) {
+    function require_admin_json(): void {
+        require_login_json();
+        if (!roadmap_is_admin()) {
+            json_out(['ok' => false, 'error' => 'Admin only.'], 403);
+        }
     }
 }

@@ -7,6 +7,10 @@
 require_once __DIR__ . '/includes/session.php';
 roadmap_session_start();
 
+if (!empty($_GET['return_to'])) {
+    $_SESSION['redirect_url'] = roadmap_safe_redirect($_GET['return_to']);
+}
+
 if (roadmap_is_logged_in()) {
     $redirect = roadmap_safe_redirect($_SESSION['redirect_url'] ?? '/index.php');
     unset($_SESSION['redirect_url']);
