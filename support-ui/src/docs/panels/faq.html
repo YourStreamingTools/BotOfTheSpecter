@@ -1,0 +1,67 @@
+<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Frequently Asked Questions</h1>
+            <p style="margin:0;color:var(--text-secondary);">Common questions about BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="faq" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up the bot for the first time?</div>
+        <div class="sp-faq-a">Follow the <a href="#" data-goto="setup">First Time Setup</a> guide - connect Twitch, mod the bot, start it from the dashboard, then configure points and custom commands.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">What main features does the bot include?</div>
+        <div class="sp-faq-a">See the <a href="#" data-goto="features">Main Features</a> guide for chat protection, custom commands, games, events, tracking, and integrations.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up Spotify with the bot?</div>
+        <div class="sp-faq-a">New users need their own Spotify Developer app (platform client is capped). Follow the <a href="#" data-goto="spotify">Spotify Setup</a> guide to create an app, enter credentials, and link your account.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up Text-to-Speech (TTS)?</div>
+        <div class="sp-faq-a">Go to <strong>Modules → TTS Settings</strong>, pick Normal or Expressive and a voice, add your audio overlay in OBS with monitoring enabled, then trigger TTS via Channel Points or <code>(tts)</code>. Full voice samples and laugh-word list are in the <a href="#" data-goto="tts">Text-to-Speech</a> guide.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">What built-in commands are there for the bot?</div>
+        <div class="sp-faq-a">BotOfTheSpecter comes with many built-in commands for moderation, entertainment, and utility. See the <a href="#" data-goto="commands">Command Reference</a> tab for the full list.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up audio monitoring in OBS?</div>
+        <div class="sp-faq-a">Follow the step-by-step <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide: set your monitoring device, add the Specter overlay browser source with <em>Control audio via OBS</em>, then set Audio Monitoring to <strong>Monitor and Output</strong>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">I'm having trouble with the bot. What should I do?</div>
+        <div class="sp-faq-a">Start with the <a href="#" data-goto="troubleshooting">Troubleshooting</a> tab which covers the most common problems. If you're still stuck, <a href="/tickets.php?action=new">submit a support ticket</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I use custom variables in commands?</div>
+        <div class="sp-faq-a">Custom commands, timed messages, and channel point rewards support dynamic variables like <code>(user)</code>, <code>(count)</code>, and <code>(customapi.URL)</code>. See the full list in the <a href="#" data-goto="variables">Variables</a> guide.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">What variables work in welcome messages and event alerts?</div>
+        <div class="sp-faq-a">Event alerts use event-specific tokens (bits, raids, subs, ad notices, etc.) plus every universal variable. See the <strong>Event Alert Variables</strong> section of the <a href="#" data-goto="variables">Variables</a> guide.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do Twitch Channel Points work with the bot?</div>
+        <div class="sp-faq-a">Sync rewards from the dashboard Channel Rewards page, then set custom redemption messages with variables. Full walkthrough: <a href="#" data-goto="twitch-channel-points">Channel Points</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I use the BotOfTheSpecter API?</div>
+        <div class="sp-faq-a">Get your API key from Dashboard → Profile, send it as <code>X-API-KEY</code> on <code>/v2/</code> routes, and see the <a href="#" data-goto="api">Custom API</a> guide for endpoints and code samples. Full API explorer: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" rel="noopener">api.botofthespecter.com/v2/docs</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">Can I self-host BotOfTheSpecter?</div>
+        <div class="sp-faq-a">Yes - advanced users can run Specter on their own Linux servers. See the <a href="#" data-goto="run-yourself">Run Yourself</a> guide. Support focuses on the hosted service; self-hosting requires independent troubleshooting.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">Can I request a new built-in command?</div>
+        <div class="sp-faq-a">Yes! We're always looking for new commands to add. Let us know on our dev streams, via <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord</a>, or email <a href="mailto:questions@botofthespecter.com">questions@botofthespecter.com</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">Where can I get more help?</div>
+        <div class="sp-faq-a">Join our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord server</a>, watch the developer stream at <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">twitch.tv/gfaundead</a>, or <a href="/tickets.php?action=new">submit a support ticket</a>.</div>
+    </div>

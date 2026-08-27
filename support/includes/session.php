@@ -6,7 +6,7 @@ if (!function_exists('support_session_start')) {
     function support_session_start() {
         // Now backed by the shared web_sessions row scoped to .botofthespecter.com,
         // so signing in on home/dashboard auto-authenticates the user here too.
-        // The bootstrap include is idempotent - calling this function from
+        // The bootstrap include is idempotent — calling this function from
         // multiple includes is safe.
         require_once '/var/www/lib/session_bootstrap.php';
     }
@@ -20,7 +20,8 @@ if (!function_exists('validate_twitch_token')) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-return ($response !== false && $http === 200);
+        curl_close($ch);
+        return ($response !== false && $http === 200);
     }
 }
 
@@ -40,7 +41,8 @@ if (!function_exists('refresh_twitch_token')) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 8);
         $response = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-if ($response === false || $http !== 200) return false;
+        curl_close($ch);
+        if ($response === false || $http !== 200) return false;
         $data = json_decode($response, true);
         if (empty($data['access_token'])) return false;
         return [
@@ -69,7 +71,7 @@ if (!function_exists('require_login')) {
                     return; // refreshed successfully
                 }
             }
-            // Refresh failed - destroy session and redirect
+            // Refresh failed — destroy session and redirect
             $_SESSION = [];
             session_destroy();
             header('Location: /login.php?reason=session_expired');
@@ -122,9 +124,87 @@ if (!function_exists('csrf_token')) {
 
 if (!function_exists('verify_csrf')) {
     function verify_csrf(): bool {
-        $token = $_POST['csrf_token'] ?? '';
-        return !empty($_SESSION['csrf_token'])
+        $token = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+        return $token !== ''
+            && !empty($_SESSION['csrf_token'])
             && hash_equals($_SESSION['csrf_token'], $token);
     }
 }
 
+if (!function_exists('is_registered_user')) {
+    function is_registered_user(): bool {
+        if (is_staff()) {
+            return true;
+        }
+        $twid = (string)($_SESSION['twitch_user_id'] ?? '');
+        if ($twid === '') {
+            return false;
+        }
+        $wdb = website_db();
+        $stmt = $wdb->prepare('SELECT 1 FROM users WHERE twitch_user_id = ? LIMIT 1');
+        if (!$stmt) {
+            $wdb->close();
+            return false;
+        }
+        $stmt->bind_param('s', $twid);
+        $stmt->execute();
+        $stmt->store_result();
+        $ok = $stmt->num_rows === 1;
+        $stmt->close();
+        $wdb->close();
+        return $ok;
+    }
+}
+
+if (!function_exists('json_out')) {
+    function json_out(array $payload, int $status = 200): void {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}
+
+if (!function_exists('require_login_json')) {
+    function require_login_json(): void {
+        support_session_start();
+        if (empty($_SESSION['access_token'])) {
+            json_out([
+                'ok' => false,
+                'session_expired' => true,
+                'redirect' => '/login.php',
+                'error' => 'Session expired — please sign in again.',
+            ], 401);
+        }
+    }
+}
+
+if (!function_exists('json_body')) {
+    function json_body(): array {
+        static $cached = null;
+        if ($cached !== null) {
+            return $cached;
+        }
+        $ct = (string)($_SERVER['CONTENT_TYPE'] ?? '');
+        if (stripos($ct, 'application/json') !== false) {
+            $raw = file_get_contents('php://input');
+            $data = json_decode($raw ?: '', true);
+            $cached = is_array($data) ? $data : [];
+        } else {
+            $cached = $_POST;
+        }
+        return $cached;
+    }
+}
+
+if (!function_exists('verify_csrf_json')) {
+    function verify_csrf_json(): bool {
+        support_session_start();
+        $body = json_body();
+        $token = (string)($body['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+        return $token !== ''
+            && !empty($_SESSION['csrf_token'])
+            && hash_equals($_SESSION['csrf_token'], $token);
+    }
+}

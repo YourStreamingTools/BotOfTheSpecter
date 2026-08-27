@@ -1,0 +1,121 @@
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Setting Up Your Own Spotify Application</h1>
+            <p style="margin:0;color:var(--text-secondary);">Create a personal Spotify Developer app and link it to BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="spotify" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Important: Spotify Integration Changes (Effective March 9, 2026)</strong><br>
+            We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users - Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration - it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
+        </div>
+    </div>
+
+    <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Don't want to set up Spotify?</strong> <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span><br>
+            On the beta bot, <code>!song</code>, <code>!songrequest</code> (<code>!sr</code>), and <code>!skipsong</code> (<code>!skip</code>) fall back to the built-in YouTube media queue when no Spotify account is linked, so song requests still work without completing this setup. Linking Spotify (via the platform app or your own, below) upgrades these commands to search and control real Spotify playback.
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">1</div>
+        <div class="sp-step-body">
+            <h4>Create a Spotify Developer Account</h4>
+            <ol>
+                <li>Go to the <a href="https://developer.spotify.com/" target="_blank" rel="noopener">Spotify Developer Dashboard</a>.</li>
+                <li>Log in with your Spotify account (or create one if you don't have it).</li>
+                <li>Accept the terms and conditions.</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">2</div>
+        <div class="sp-step-body">
+            <h4>Create Your Spotify Application</h4>
+            <ol>
+                <li>Click on <strong>Create app</strong>.</li>
+                <li>Fill in the application details:
+                    <ul>
+                        <li><strong>App name:</strong> <code>Specter-[Your Username]</code> (e.g., <code>Specter-JohnDoe</code>)</li>
+                        <li><strong>App description:</strong> Twitch bot integration for Spotify</li>
+                        <li><strong>Website:</strong> <code>https://dashboard.botofthespecter.com</code></li>
+                        <li><strong>Redirect URI:</strong> <code>https://dashboard.botofthespecter.com/spotifylink.php</code></li>
+                    </ul>
+                </li>
+                <li>Check the box for <strong>Web API</strong> under "Which API/SDKs are you planning to use?"</li>
+                <li>Check the agreement boxes and click <strong>Save</strong>.</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">3</div>
+        <div class="sp-step-body">
+            <h4>Get Your App Credentials</h4>
+            <ol>
+                <li>In your app dashboard, you'll see your <strong>Client ID</strong> displayed.</li>
+                <li>Copy the <strong>Client ID</strong> (a 32-character string).</li>
+                <li>Click <strong>View client secret</strong> to reveal and copy the <strong>Client Secret</strong>.</li>
+            </ol>
+            <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>Keep your Client Secret secure</strong> - never share it publicly or commit it to version control.
+                </div>
+            </div>
+            <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;">
+                <i class="fa-solid fa-shield-halved"></i>
+                <div>
+                    <strong>Security Note:</strong> Your credentials are stored securely in our encrypted database and are only used for your bot's Spotify integration.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sp-step">
+        <div class="sp-step-num">4</div>
+        <div class="sp-step-body">
+            <h4>Configure BotOfTheSpecter</h4>
+            <ol>
+                <li>Go to your <a href="https://dashboard.botofthespecter.com/spotifylink.php" target="_blank" rel="noopener">Spotify Link page</a>.</li>
+                <li>Check the <strong>Enable Own Client</strong> box.</li>
+                <li>Enter your <strong>Client ID</strong> and <strong>Client Secret</strong> in the fields that appear.</li>
+                <li>Click <strong>Save Credentials</strong>.</li>
+                <li>Click the <strong>Link Spotify Account</strong> button to authorize with your new app.</li>
+            </ol>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting Common Issues</h2>
+    <ul>
+        <li>
+            <strong>Redirect URI mismatch:</strong> Ensure the Redirect URI in your Spotify app matches exactly:<br>
+            <code>https://dashboard.botofthespecter.com/spotifylink.php</code>
+        </li>
+        <li>
+            <strong>Permissions:</strong> The required scopes (<code>user-read-playback-state</code>, <code>user-modify-playback-state</code>, <code>user-read-currently-playing</code>) are automatically requested during authorization.
+        </li>
+        <li>
+            <strong>Rate limits:</strong> Spotify has rate limits - if you exceed them, wait a moment before trying again.
+        </li>
+        <li>
+            <strong>Authorization fails:</strong> Double-check that your Client ID and Client Secret are correct and that the Redirect URI matches exactly.
+        </li>
+    </ul>
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            Using your own Spotify app gives you more control and potentially higher rate limits, but requires you to manage the app yourself.
+        </div>
+    </div>

@@ -1,0 +1,47 @@
+<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Troubleshooting Guide</h1>
+            <p style="margin:0;color:var(--text-secondary);">Common issues and solutions for BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="troubleshooting" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>Bot Not Connecting</h2>
+    <p>If your bot isn't connecting to Twitch:</p>
+    <ul>
+        <li>Try stopping and starting the bot from the dashboard under <strong>Bot Control</strong>.</li>
+    </ul>
+
+    <h2>Commands Not Working</h2>
+    <p>If commands aren't responding:</p>
+    <ul>
+        <li>Check that the command is enabled in the dashboard, or use <code>!enablecommand commandname</code> in chat.</li>
+        <li>Commands always use the <code>!</code> prefix - verify the bot has <strong>Moderator</strong> permissions in your channel.</li>
+        <li>Double-check the spelling of the command name both in chat and in the dashboard.</li>
+    </ul>
+
+    <h2>Sound Alerts / TTS / Walk-ons - Audio Issues</h2>
+    <p>All Specter audio goes through the audio overlays. Make sure you're running the correct overlay, or use the <strong>All Audio</strong> overlay:</p>
+    <p><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
+    <ul>
+        <li>Check audio device settings in OBS.</li>
+        <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="obs-audio">audio monitoring is configured correctly</a>.</li>
+        <li>If you hear an echo, set Audio Monitoring to <strong>Monitor Only (mute output)</strong> and test again - everyone's audio setup differs.</li>
+        <li>Confirm you've entered the correct API key, found on your <strong>Specter Profile</strong> page in the dashboard.</li>
+        <li>For voice or style issues, see the <a href="#" data-goto="tts">Text-to-Speech</a> guide (Normal vs Expressive, laugh words, and samples).</li>
+    </ul>
+
+    <h2>Still Stuck?</h2>
+    <p>If none of the above resolves your issue, <a href="/tickets.php?action=new">submit a support ticket</a> and include:</p>
+    <ul>
+        <li>A description of what you expected to happen vs. what actually happened.</li>
+        <li>Any error messages you see (screenshots are helpful).</li>
+        <li>Your Twitch username and approximate time the issue occurred.</li>
+    </ul>
+    <div class="sp-alert sp-alert-info sp-mt-2">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>You can also check the <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/issues" target="_blank" rel="noopener">GitHub Issues</a> page or join our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord server</a> for community support.</span>
+    </div>
