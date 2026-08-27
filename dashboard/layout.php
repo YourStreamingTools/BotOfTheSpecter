@@ -24,9 +24,19 @@ $actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $a
 $actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : t('layout_selected_user'), ENT_QUOTES, 'UTF-8');
 $actingAsReturnLabel = t('layout_stop_acting_as');
 $stopActAsHref = '/api/stop_act_as.php';
-// default layout mode (pages may override by setting $layoutMode before including layout.php)
-// If not set, infer from the request URI path segments: /admin, /todolist -> respective modes; otherwise 'default'
-if (!isset($layoutMode)) {
+$httpHost = strtolower(preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+$isAdminHost = ($httpHost === 'admin.botofthespecter.com');
+$dashboardOrigin = 'https://dashboard.botofthespecter.com';
+$adminSsoUrl = 'https://botofthespecter.com/sso.php?target=admin';
+$userDashboardHref = $isAdminHost ? $dashboardOrigin . '/dashboard.php' : '../dashboard.php';
+$adminPanelHref = $isAdminHost ? '/index.php' : $adminSsoUrl;
+$modChannelsHref = $isAdminHost ? $dashboardOrigin . '/mod_channels.php' : '../mod_channels.php';
+$profileHref = $isAdminHost ? $dashboardOrigin . '/profile.php' : '../profile.php';
+$logoutHref = $isAdminHost ? $dashboardOrigin . '/logout.php' : '../logout.php';
+// Pages may set $layoutMode first. Admin host is always the operator chrome.
+if ($isAdminHost) {
+    $layoutMode = 'admin';
+} elseif (!isset($layoutMode)) {
     $layoutMode = 'default';
     $candidatePaths = [];
     if (isset($_SERVER['REQUEST_URI'])) {
@@ -154,26 +164,26 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             <div class="sp-sidebar-footer">
                 <div class="sidebar-user-section">
                     <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
-                        <a href="../dashboard.php" class="sidebar-user-item">
+                        <a href="<?php echo htmlspecialchars($userDashboardHref, ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-user-item">
                             <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
                             <span class="sidebar-user-text"><?php echo t('layout_user_dashboard'); ?></span>
                         </a>
                     <?php endif; ?>
-                    <a href="../mod_channels.php" class="sidebar-user-item">
+                    <a href="<?php echo htmlspecialchars($modChannelsHref, ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-user-item">
                         <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                         <span class="sidebar-user-text"><?php echo t('layout_mod_channels'); ?></span>
                     </a>
                     <?php if ($showAdminPanelLink): ?>
-                        <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
+                        <a href="<?php echo htmlspecialchars($adminPanelHref, ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>"<?php echo $isAdminHost ? '' : ' target="_blank" rel="noopener"'; ?>>
                             <span class="sidebar-user-icon"><i class="fas fa-shield-alt"></i></span>
                             <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
                         </a>
                     <?php endif; ?>
-                    <a href="../profile.php" class="sidebar-user-item">
+                    <a href="<?php echo htmlspecialchars($profileHref, ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-user-item">
                         <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
                         <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
                     </a>
-                    <a href="../logout.php" class="sidebar-user-item">
+                    <a href="<?php echo htmlspecialchars($logoutHref, ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-user-item">
                         <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
                         <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
                     </a>

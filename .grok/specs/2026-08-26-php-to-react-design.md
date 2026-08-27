@@ -166,14 +166,18 @@ Dashboard layout link (`../admin/` / “Admin panel”) becomes the SSO URL, not
 
 `generate_handoff.php` is already a shim to `sso.php?target=support`. Admin does not need a second shim; link SSO directly.
 
-### Act-as stays on the dashboard host
+### Two tabs, same operator: dashboard ↔ admin, impersonation kept
 
-`admin_access.php` already restores the **admin** identity on every admin request (`ADMIN_PANEL_CONTEXT`) so operator actions cannot run as the impersonated streamer. After the split:
+Product intent (2026-08-27): admin is a **new host / new tab**, not a mode of the streamer chrome. Features stay the same. You can jump to the user dashboard and back. You can still impersonate a streamer. You can still do everything the current `/admin/` panel does (users, start bots, Caddy, terminal, tokens, export, …).
 
-- **Act-as UI** (pick user, banner, stop) remains a **dashboard** feature. Streamer pages on `dashboard.` still honour `admin_act_as_*`.
-- **Admin host** never applies act-as. It always uses the admin’s own session. “Start bots for user X” on the admin panel already takes an explicit username, not the act-as session.
+How that sits on two origins:
 
-Do not send the act-as cookie state to the admin origin as the default identity.
+- Dashboard “Admin panel” opens `https://botofthespecter.com/sso.php?target=admin` (new tab is fine). Shared `bots_session` means the admin tab is already signed in.
+- Admin chrome always has a **User dashboard** (or “Open dashboard”) link to `https://dashboard.botofthespecter.com/dashboard.php` so going back is one click, not hunting bookmarks.
+- **Act-as still exists.** Pick the user from admin (same control as today). That writes the existing `admin_act_as_*` session fields. Opening the user dashboard then shows that streamer’s account and the act-as banner. Stop-acting-as works from that banner as it does now.
+- **Admin pages themselves do not run as the impersonated user.** `admin_access.php` already restores the admin identity (`ADMIN_PANEL_CONTEXT`) so terminal / Caddy / start-bots / export cannot fire as the streamer. “Start bots for user X” still takes an explicit username. Impersonation is for *viewing and using the user dashboard*, not for operator tools.
+
+Same session cookie, two tabs, no feature dropped. Host-only admin cookie (later hardening) must keep a path that can still set act-as for the dashboard origin — do not “isolate” in a way that kills impersonation.
 
 ### What this does for the React plan
 
