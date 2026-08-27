@@ -6,13 +6,11 @@ import HomePage from './pages/HomePage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
 import FeedbackPage from './pages/FeedbackPage'
-import StatusPage from './pages/StatusPage'
 
-type View = 'home' | 'privacy' | 'terms' | 'feedback' | 'status'
+type View = 'home' | 'privacy' | 'terms' | 'feedback'
 
 function currentView(): View {
   const p = window.location.pathname
-  if (p.includes('status.php')) return 'status'
   if (p.includes('privacy-policy')) return 'privacy'
   if (p.includes('terms-of-service')) return 'terms'
   if (p.includes('feedback')) return 'feedback'
@@ -24,7 +22,6 @@ const TITLES: Record<View, string> = {
   privacy: 'BotOfTheSpecter - Privacy Policy',
   terms: 'BotOfTheSpecter - Terms of Service',
   feedback: 'BotOfTheSpecter — Feedback',
-  status: 'BotOfTheSpecter Status',
 }
 
 const DESCRIPTIONS: Record<View, string> = {
@@ -32,7 +29,6 @@ const DESCRIPTIONS: Record<View, string> = {
   privacy: 'Privacy Policy for BotOfTheSpecter — how we collect, use, share, and protect personal information across our Twitch bot, dashboard, overlays, and related services.',
   terms: 'Terms of Service for BotOfTheSpecter — rules for using our Twitch bot, dashboard, overlays, integrations, and related services.',
   feedback: 'Feedback and bug reports have moved to the unified support ticket system.',
-  status: 'Live BotOfTheSpecter system status.',
 }
 
 const empty: HomeSession = {
@@ -87,7 +83,7 @@ export default function App() {
   useEffect(() => {
     const existing = document.getElementById('hs-jsonld')
     if (existing) existing.remove()
-    const payloads: Record<View, Record<string, string> | null> = {
+    const payloads: Record<View, Record<string, string>> = {
       home: {
         '@context': 'https://schema.org',
         '@type': 'WebPage',
@@ -116,23 +112,16 @@ export default function App() {
         description: DESCRIPTIONS.feedback,
         url: 'https://botofthespecter.com/feedback.php',
       },
-      status: null,
     }
-    const payload = payloads[view]
-    if (!payload) return
     const el = document.createElement('script')
     el.type = 'application/ld+json'
     el.id = 'hs-jsonld'
-    el.text = JSON.stringify(payload)
+    el.text = JSON.stringify(payloads[view])
     document.head.appendChild(el)
     return () => {
       el.remove()
     }
   }, [view])
-
-  if (view === 'status') {
-    return <StatusPage />
-  }
 
   const s = session || empty
   const displayName = s.display_name || s.username || 'Account'
@@ -147,18 +136,10 @@ export default function App() {
             <span className="hs-topnav-brand-name">BotOfTheSpecter</span>
           </a>
           <div className="hs-topnav-links" id="hsDesktopNav">
-            <a href="/" className={'hs-topnav-link' + (view === 'home' ? ' active' : '')}>
-              Home
-            </a>
-            <a href="/privacy-policy.php" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')}>
-              Privacy Policy
-            </a>
-            <a href="/terms-of-service.php" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')}>
-              Terms of Service
-            </a>
-            <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')}>
-              Feedback
-            </a>
+            <a href="/" className={'hs-topnav-link' + (view === 'home' ? ' active' : '')}>Home</a>
+            <a href="/privacy-policy.php" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')}>Privacy Policy</a>
+            <a href="/terms-of-service.php" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')}>Terms of Service</a>
+            <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')}>Feedback</a>
           </div>
           <div className="hs-topnav-right">
             <button
@@ -193,25 +174,13 @@ export default function App() {
         <a href="/" className={'hs-topnav-link' + (view === 'home' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-house" /> Home
         </a>
-        <a
-          href="/privacy-policy.php"
-          className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')}
-          onClick={() => setMobileOpen(false)}
-        >
+        <a href="/privacy-policy.php" className={'hs-topnav-link' + (view === 'privacy' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-shield-halved" /> Privacy Policy
         </a>
-        <a
-          href="/terms-of-service.php"
-          className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')}
-          onClick={() => setMobileOpen(false)}
-        >
+        <a href="/terms-of-service.php" className={'hs-topnav-link' + (view === 'terms' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-file-lines" /> Terms of Service
         </a>
-        <a
-          href="/feedback.php"
-          className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')}
-          onClick={() => setMobileOpen(false)}
-        >
+        <a href="/feedback.php" className={'hs-topnav-link' + (view === 'feedback' ? ' active' : '')} onClick={() => setMobileOpen(false)}>
           <i className="fa-solid fa-comment" /> Feedback
         </a>
         <div className="hs-mobile-nav-cta">
@@ -226,10 +195,10 @@ export default function App() {
       </div>
       <main className="hs-main">
         <div className="hs-container">
+          {view === 'home' && <HomePage loggedIn={s.logged_in} displayName={displayName} />}
           {view === 'privacy' && <PrivacyPage />}
           {view === 'terms' && <TermsPage />}
           {view === 'feedback' && <FeedbackPage />}
-          {view === 'home' && <HomePage loggedIn={s.logged_in} displayName={displayName} />}
         </div>
       </main>
       <footer className="hs-footer" role="contentinfo">
