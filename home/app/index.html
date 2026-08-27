@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BotOfTheSpecter</title>
+    <meta name="description" content="BotOfTheSpecter is a Twitch-first streaming platform with a Discord extension, OBS overlays, dashboard tools, and optional integrations for music, tips, and more." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Tools4Streaming" />
+    <meta name="twitter:title" content="BotOfTheSpecter" />
+    <meta name="twitter:description" content="BotOfTheSpecter is a Twitch-first streaming platform with a Discord extension, OBS overlays, dashboard tools, and optional integrations for music, tips, and more." />
+    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sp-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" crossorigin src="/app/assets/index-CwrkmnNn.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
