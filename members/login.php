@@ -18,6 +18,14 @@ if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
 
 require_once '/var/www/lib/session_bootstrap.php';
 
+// Optional return_to from the React client (401 mid-session). Relative paths only.
+if (isset($_GET['return_to']) && is_string($_GET['return_to'])) {
+    $rt = $_GET['return_to'];
+    if ($rt !== '' && str_starts_with($rt, '/') && !str_starts_with($rt, '//')) {
+        $_SESSION['redirect_url'] = $rt;
+    }
+}
+
 // If the user is already logged in, redirect them to the original page or dashboard
 if (isset($_SESSION['access_token'])) {
     if (isset($_SESSION['redirect_url'])) {

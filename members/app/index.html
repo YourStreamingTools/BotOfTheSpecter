@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BotOfTheSpecter — Members Portal</title>
+    <meta name="description" content="BotOfTheSpecter Members Portal - view channel data, commands, stats and more." />
+    <meta property="og:title" content="BotOfTheSpecter — Members Portal" />
+    <meta property="og:description" content="BotOfTheSpecter Members Portal - view channel data, commands, stats and more." />
+    <meta property="og:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Tools4Streaming" />
+    <meta name="twitter:title" content="BotOfTheSpecter — Members Portal" />
+    <meta name="twitter:description" content="BotOfTheSpecter Members Portal - view channel data, commands, stats and more." />
+    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sp-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.3.1/css/all.css" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" crossorigin src="/app/assets/index-DGJO0n6j.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
