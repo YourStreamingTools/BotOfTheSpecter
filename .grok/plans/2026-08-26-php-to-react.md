@@ -7,7 +7,7 @@ Strangler migration of the streamer dashboard to React, plus moving the operator
 
 ## Sequence
 
-1. **Admin host split (PHP).** Exact-host Caddy block for `admin.botofthespecter.com` **before** DNS. SSO target `admin` on `./home/sso.php` (mint only if `is_admin`). Admin `login.php` consumes handoff like support. 308 `dashboard…/admin/*` → admin host (strip `/admin`). Dashboard “Admin panel” link → `https://botofthespecter.com/sso.php?target=admin`. Serve CSS/JS on the admin host; do not hotlink `dashboard.` stylesheets. Keep PHP files on disk under `./dashboard/admin/` so includes still resolve. Act-as stays a dashboard feature.
+1. **Admin host split (PHP).** Exact-host Caddy block for `admin.botofthespecter.com` **before** DNS. SSO target `admin` on `./home/sso.php` (mint only if `is_admin`). Admin `login.php` consumes handoff like support. 308 `dashboard…/admin/*` → admin host (strip `/admin`). Dashboard “Admin panel” → SSO URL (new tab is fine). Admin chrome links back to the user dashboard. Same admin features as today, including pick-user impersonation (act-as applies on `dashboard.`, admin tools always run as the admin). Serve CSS/JS on the admin host; do not hotlink `dashboard.` stylesheets. Keep PHP files on disk under `./dashboard/admin/` so includes still resolve.
 
 2. **Dashboard React foundations.** Vite + React + TypeScript in `./dashboard-ui/`. Build to a staging dir, copy hashed assets in. `GET /api/session.php` and `GET /api/i18n.php`. Same-origin cookie client. No Node runtime on web1.
 

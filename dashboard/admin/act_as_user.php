@@ -122,5 +122,5 @@ admin_audit_log(
 );
 
 session_write_close();
-header('Location: ../dashboard.php');
+header('Location: https://dashboard.botofthespecter.com/dashboard.php');
 exit;

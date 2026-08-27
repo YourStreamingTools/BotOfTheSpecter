@@ -340,7 +340,8 @@ function admin_audit_auto_log_request() {
 
 if (!isset($_SESSION['access_token']) || empty($_SESSION['access_token'])) {
     $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: ../login.php');
+    $return = $_SERVER['REQUEST_URI'] ?? '/index.php';
+    header('Location: https://botofthespecter.com/sso.php?target=admin&return=' . rawurlencode($return));
     exit;
 }
 
@@ -384,7 +385,8 @@ if (!$adminRow) {
 }
 
 if (!$adminRow) {
-    header('Location: ../login.php');
+    $return = $_SERVER['REQUEST_URI'] ?? '/index.php';
+    header('Location: https://botofthespecter.com/sso.php?target=admin&return=' . rawurlencode($return));
     exit;
 }
 

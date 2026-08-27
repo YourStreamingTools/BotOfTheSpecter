@@ -1,5 +1,6 @@
 <?php
 // home/sso.php
+// ----------------------------------------------------------------
 // Generalized SSO handoff issuer. Consumers redirect users here
 // with ?target=<name>&return=<url-or-path>. We verify the user is
 // signed in to home (the .botofthespecter.com cookie), mint a
@@ -17,6 +18,7 @@
 //   consumer
 //     verifies token (target match, used=0, expires_at>now), marks used,
 //     creates its own session cookie scoped to its domain.
+// ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
 
@@ -26,6 +28,7 @@ $BOTS_SSO_TARGETS = [
     'support'         => 'https://support.botofthespecter.com/login.php',
     'members'         => 'https://members.botofthespecter.com/login.php',
     'roadmap'         => 'https://roadmap.botofthespecter.com/login.php',
+    'admin'           => 'https://admin.botofthespecter.com/login.php',
     'rtmp-sydney'     => 'https://au-east-1.botofthespecter.video/sso/login',
     'rtmp-us-east'    => 'https://us-east-1.botofthespecter.video/sso/login',
     'rtmp-us-west'    => 'https://us-west-1.botofthespecter.video/sso/login',
@@ -52,12 +55,41 @@ if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
     exit;
 }
 
+// Admin handoff is operators only. Streamer sessions never mint target=admin.
+if ($target === 'admin') {
+    $sessionAdmin = (int) ($_SESSION['is_admin'] ?? 0) === 1;
+    if (!$sessionAdmin && isset($bots_session_db) && $bots_session_db instanceof mysqli) {
+        $tid = (string) ($_SESSION['twitchUserId'] ?? $_SESSION['twitch_user_id'] ?? '');
+        if ($tid !== '') {
+            $chk = $bots_session_db->prepare('SELECT is_admin FROM users WHERE twitch_user_id = ? LIMIT 1');
+            if ($chk) {
+                $chk->bind_param('s', $tid);
+                $chk->execute();
+                $chk->bind_result($dbAdminFlag);
+                if ($chk->fetch()) {
+                    $sessionAdmin = ((int) $dbAdminFlag === 1);
+                    if ($sessionAdmin) {
+                        $_SESSION['is_admin'] = 1;
+                    }
+                }
+                $chk->close();
+            }
+        }
+    }
+    if (!$sessionAdmin) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Admin only.\n";
+        exit;
+    }
+}
+
 // Sanitize the return URL: allow either a relative path on the consumer site,
 // or an absolute URL whose host matches the target's callback host. Anything
 // else gets dropped so we can't be used as an open redirect.
 $safeReturn = '';
 if ($return !== '') {
-    // Local path on the consumer ("/", "/recordings", "/foo?bar=1") - must
+    // Local path on the consumer ("/", "/recordings", "/foo?bar=1") — must
     // start with one slash, never two (which would be a protocol-relative URL).
     if (strncmp($return, '/', 1) === 0 && strncmp($return, '//', 2) !== 0) {
         $safeReturn = $return;

@@ -87,11 +87,49 @@ botofthespecter.com, www.botofthespecter.com {
 }
 
 dashboard.botofthespecter.com {
-    root * /var/www/dashboard
-    redir /favicon.ico https://cdn.botofthespecter.com/favicon.ico permanent
-    import php_app
+    # Old /admin bookmarks → admin host (strip /admin). Do not execute PHP here.
+    redir /admin https://admin.botofthespecter.com/ 308
+    handle_path /admin/* {
+        redir https://admin.botofthespecter.com{uri} 308
+    }
+    handle {
+        root * /var/www/dashboard
+        redir /favicon.ico https://cdn.botofthespecter.com/favicon.ico permanent
+        import php_app
+    }
     log {
         output file /var/log/caddy/dashboard.log
+    }
+}
+
+admin.botofthespecter.com {
+    # Operator panel. PHP files stay on disk under dashboard/admin/ so
+    # ../includes and admin_access.php still resolve. Browser /css /js /api
+    # are the dashboard copies on this host (no cross-subdomain stylesheets).
+    handle /css/* {
+        root * /var/www/dashboard
+        file_server
+        encode zstd gzip
+        import security
+    }
+    handle /js/* {
+        root * /var/www/dashboard
+        file_server
+        encode zstd gzip
+        import security
+    }
+    handle /api/* {
+        root * /var/www/dashboard
+        php_fastcgi unix//run/php/php8.5-fpm.sock
+        encode zstd gzip
+        import security
+    }
+    handle {
+        root * /var/www/dashboard/admin
+        import php_app
+    }
+    log {
+        output file /var/log/caddy/admin.log
     }
 }
 
