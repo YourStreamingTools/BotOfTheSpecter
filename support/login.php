@@ -7,6 +7,13 @@
 require_once __DIR__ . '/includes/session.php';
 support_session_start();
 
+if (!empty($_GET['return_to'])) {
+    $rt = (string) $_GET['return_to'];
+    if (strncmp($rt, '/', 1) === 0 && strncmp($rt, '//', 2) !== 0) {
+        $_SESSION['redirect_url'] = $rt;
+    }
+}
+
 // Already logged in → go home
 if (!empty($_SESSION['access_token'])) {
     $redirect = $_SESSION['redirect_url'] ?? '/index.php';

@@ -1,0 +1,66 @@
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Text-to-Speech (TTS) Module</h1>
+            <p style="margin:0;color:var(--text-secondary);">Read chat and Channel Point messages aloud through your OBS overlay.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="tts" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>What is TTS &amp; How to Set It Up</h2>
+    <p>The Text-to-Speech (TTS) module reads messages aloud on your stream through the audio overlay. In the dashboard you pick a style and a voice. <strong>Normal</strong> is a steady English read. <strong>Expressive</strong> (beta) is multilingual, shouts ALL CAPS words, and laughs on words like <code>lol</code> instead of speaking them.</p>
+
+    <h3>Setting Up TTS</h3>
+    <ol>
+        <li>Open the dashboard and go to <strong>Modules → TTS Settings</strong>.</li>
+        <li>Choose <strong>Normal</strong> or <strong>Expressive</strong>.</li>
+        <li>Pick a voice. The first time you switch to Expressive, <strong>Callum</strong> is selected by default. Expressive has no language picker — it follows the viewer’s text.</li>
+        <li>Save TTS settings.</li>
+        <li>Add your audio overlay in OBS and enable monitoring — see the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li>Test with a Channel Point redemption or a <code>(tts)</code> variable.</li>
+    </ol>
+
+    <div class="sp-alert sp-alert-info" style="margin-top:1rem;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            All TTS audio is played through your configured audio overlay. Make sure you have the correct overlay URL in your OBS browser source and audio monitoring enabled.
+        </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem;">Using TTS with Channel Points</h3>
+    <p>TTS is triggered through Twitch Channel Points redemptions. Viewers redeem a reward to have their message read with the <strong>style and voice</strong> you saved in TTS settings.</p>
+
+    <h3 style="margin-top:1.25rem;">Using TTS with the Point Store <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h3>
+    <p>On the beta bot, viewers can also trigger TTS by buying a TTS item from your <strong>Point Store</strong>, spending bot loyalty points instead of Twitch Channel Points. Their message uses the same style and voice as Channel Points TTS.</p>
+
+    <hr class="sp-divider">
+
+    <h2>Normal Voices</h2>
+    <p>Normal is a steady read. Click play next to each voice to hear a sample:</p>
+    <div id="react-tts-normal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1rem;"></div>
+
+    <hr class="sp-divider">
+
+    <h2>Expressive Voices <span class="sp-badge" style="background:#c813e0;color:#fff;margin-left:0.4rem;">Beta</span></h2>
+    <p>Expressive is multilingual: it follows the language of the message (including mixed-language lines when it can). Words in ALL CAPS with three or more letters are shouted. If Expressive cannot generate a line, that line falls back to your saved Normal voice.</p>
+    <p>These laugh words are <strong>not spoken</strong>. The voice laughs instead:</p>
+    <ul>
+        <li><code>lol</code>, <code>lols</code>, <code>lul</code>, <code>lulz</code></li>
+        <li><code>lmao</code>, <code>lmfao</code>, <code>rofl</code></li>
+        <li><code>haha</code>, <code>hahaha</code>, <code>hahah</code>, <code>ha ha</code></li>
+        <li><code>hehe</code></li>
+    </ul>
+    <div id="react-tts-expressive"></div>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting TTS</h2>
+    <ul>
+        <li><strong>No audio output:</strong> Verify that your audio overlay is correctly configured in OBS and that audio monitoring is enabled. See the <a href="#" data-goto="obs-audio">OBS Audio Monitoring</a> guide.</li>
+        <li><strong>Wrong voice or style:</strong> In <strong>Modules → TTS Settings</strong>, confirm style (Normal or Expressive), the matching voice, and that you clicked Save. Expressive is beta-only.</li>
+        <li><strong>Laugh words still spoken:</strong> Those tokens are stripped only on Expressive. On Normal, <code>lol</code> is read as text.</li>
+        <li><strong>Audio too quiet or too loud:</strong> Adjust the volume slider on the audio overlay source in OBS.</li>
+        <li><strong>TTS not responding:</strong> Ensure the bot is running (beta if you use Expressive) and the overlay is connected.</li>
+    </ul>

@@ -1,0 +1,290 @@
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Run BotOfTheSpecter Yourself</h1>
+            <p style="margin:0;color:var(--text-secondary);">Self-host SpecterSystems on your own Linux servers.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="run-yourself" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>What is Self-Hosting?</h2>
+    <div class="sp-alert sp-alert-info">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+            <strong>Complete Freedom &amp; Control</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">To run the source code of BotOfTheSpecter on your own set of servers and not use our hosted system, you'll have complete freedom to host it yourself with more control over your data. BotOfTheSpecter runs on a full headless Linux server architecture.</p>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Advanced Setup Required</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">Running SpecterSystems yourself requires technical knowledge of server administration, Python, PHP, and Linux. This is recommended for experienced developers and system administrators only.</p>
+        </div>
+    </div>
+    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div>
+            <strong>Self-Hosting Note</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">If you're interested in running BotOfTheSpecter on your own servers, please be aware that the self-hosting documentation may not always reflect the latest changes. Self-hosting is recommended for experienced developers who are comfortable troubleshooting issues independently. While we're happy to help with our hosted service, our support team focuses primarily on the cloud-hosted version and may not be able to assist with self-hosting setup or issues.</p>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Server Architecture</h2>
+    <p>The minimum setup required to run SpecterSystems consists of <strong>4 servers</strong> running on a headless Linux architecture. A 5-server setup is recommended for production deployments.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #3273dc;">Server 1: Web / Dashboard</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 1+ core</li>
+                    <li><strong>RAM:</strong> 1 GB minimum</li>
+                    <li><strong>Service:</strong> PHP / Caddy Dashboard</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #48c774;">Server 2: API</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 1+ core</li>
+                    <li><strong>RAM:</strong> 1 GB minimum</li>
+                    <li><strong>Service:</strong> FastAPI server</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #ffdd57;">Server 3: WebSocket</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 1+ core</li>
+                    <li><strong>RAM:</strong> 1 GB minimum</li>
+                    <li><strong>Service:</strong> Python SocketIO server</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header" style="border-left:4px solid #f14668;">Server 4: Database</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                    <li><strong>CPU:</strong> 2+ cores</li>
+                    <li><strong>RAM:</strong> 4 GB minimum</li>
+                    <li><strong>Service:</strong> MySQL</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="sp-card" style="margin-top:1rem;">
+        <div class="sp-card-header" style="border-left:4px solid #b56edb;">
+            Server 5: Bot <span class="sp-badge" style="background:#b56edb;color:#fff;margin-left:0.5rem;">Recommended</span>
+        </div>
+        <div class="sp-card-body">
+            <p>For production with improved reliability and scalability. This is how SpecterSystems currently runs.</p>
+            <ul style="margin:0.5rem 0 0;padding-left:1.25rem;">
+                <li><strong>OS:</strong> Ubuntu 24.04 LTS+</li>
+                <li><strong>CPU:</strong> 2+ cores</li>
+                <li><strong>RAM:</strong> 4 GB minimum</li>
+                <li><strong>Service:</strong> Python bot process</li>
+            </ul>
+            <div class="sp-alert sp-alert-info" style="margin-top:0.75rem;font-size:0.9rem;">
+                <i class="fa-solid fa-circle-info"></i>
+                <div>
+                    The 2+ cores / 4 GB RAM spec is for running many bots for multiple users. If you're only running a <strong>single bot</strong> for personal use, 1 core and 1 GB RAM is sufficient.
+                </div>
+            </div>
+            <div class="sp-alert sp-alert-warning" style="margin-top:0.75rem;font-size:0.9rem;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>Running multiple bots on one server:</strong> budget roughly <strong>150-200 MB of RAM per additional bot</strong> on top of the base 1 GB - memory use is cumulative across every bot running on that host. A server sized for "many bots, many users" needs meaningfully more RAM than the minimum above; undersizing it risks the Linux OOM killer terminating bot processes outright (including ones unrelated to whichever bot triggered the spike) instead of a clean, contained failure. Configuring a swap file is strongly recommended as a safety margin against memory spikes, even if you don't expect to hit these numbers day-to-day.
+                </div>
+            </div>
+        </div>
+    </div>
+    <h3 style="margin-top:1.25rem;">Common Software Requirements (All Servers)</h3>
+    <ul>
+        <li><strong>OS:</strong> Linux (Ubuntu 24.04 LTS or newer)</li>
+        <li><strong>Python:</strong> 3.8+ (Bot, API, and WebSocket servers)</li>
+        <li><strong>PHP:</strong> 8.0+ (Web/Dashboard server)</li>
+        <li><strong>Caddy</strong> (Web/Dashboard server)</li>
+        <li><strong>MySQL</strong> (Database server)</li>
+        <li><strong>Git:</strong> For version control</li>
+    </ul>
+    <h3>Network &amp; Services</h3>
+    <ul>
+        <li>Twitch API credentials (OAuth tokens)</li>
+        <li>Discord bot token <em>(optional)</em></li>
+        <li>Spotify API credentials <em>(optional)</em></li>
+        <li>OpenWeatherMap API key <em>(optional)</em></li>
+        <li>SSL/TLS certificates for secure communication</li>
+        <li>Firewall configured for internal communication</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Recommended Hosting: Linode</h2>
+    <div class="sp-alert sp-alert-info">
+        <i class="fa-solid fa-cloud"></i>
+        <div>
+            <strong>We recommend running SpecterSystems on Linode.</strong>
+            <p style="margin-top:0.5rem;margin-bottom:0;">Our systems have been fully tested and optimized to work seamlessly on Linode's infrastructure.</p>
+        </div>
+    </div>
+    <p style="margin-top:1rem;"><strong>Get $100 in free credit:</strong> Use our referral link to receive <strong>$100 of Linode credit</strong> to use within 60 days once you've entered a valid payment method to your Linode account.</p>
+    <p style="margin-top:1rem;">
+        <a href="https://www.linode.com/lp/refer/?r=210010495bf7dc151d31289c7bc399f8933f79e3" target="_blank" rel="noopener" class="sp-btn sp-btn-primary">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Get $100 Linode Credit
+        </a>
+    </p>
+
+    <hr class="sp-divider">
+
+    <h2>Self-host outline</h2>
+    <p>Advanced users can run a private copy from the public source. The hosted production layout is <strong>not</strong> documented here. Use your own service user, install prefix (for example <code>/opt/specter</code>), and domain names.</p>
+    <ol>
+        <li>Clone <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" rel="noopener">the GitHub repository</a>.</li>
+        <li>Split the web frontend, API, realtime hub, chat bot, and database onto one machine or several — whichever you can operate.</li>
+        <li>Create a dedicated, <strong>non-sudo</strong> service account. Do not copy production usernames or home directories.</li>
+        <li>Point each process at a local virtualenv and its own requirements file from the repo.</li>
+    </ol>
+
+    <h3 style="margin-top:1.5rem;">Configuration</h3>
+    <p>Keep secrets in an environment file that is <strong>not</strong> committed and is readable only by the service account. A self-host typically needs:</p>
+    <ul>
+        <li>A database DSN (host, name, user, password) — prefer localhost unless you have a private network</li>
+        <li>Your own Twitch application client ID and client secret</li>
+        <li>A user API key you generate for that instance</li>
+    </ul>
+    <p>Optional integrations (weather, Spotify, Discord, object storage, email) use the credentials those providers issue to <em>you</em>. Do not reuse keys from the hosted service.</p>
+
+    <h3 style="margin-top:1.5rem;">Database</h3>
+    <p>The installer / first dashboard login creates the system database and each channel database. Do not publish or copy a schema dump, and do not grant a remote user all privileges.</p>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.75rem;"><code>CREATE USER 'specter'@'localhost' IDENTIFIED BY 'your-strong-password';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, ALTER ON specter.* TO 'specter'@'localhost';
+FLUSH PRIVILEGES;</code></pre>
+    <p style="margin-top:0.75rem;">Leave MySQL listening on localhost unless you have a private network and know you need otherwise. Do not bind the database to the public internet.</p>
+
+    <h3 style="margin-top:1.5rem;">Web frontend and TLS</h3>
+    <p>Serve the dashboard and overlays over HTTPS on your own domain. Use any reverse proxy you already operate. Keep TLS certificates and DNS tokens in the proxy's private config, not in public documentation.</p>
+
+    <h3 style="margin-top:1.5rem;">Starting processes</h3>
+    <p>Run the API, realtime hub, and bot under your process manager. Point the start command at your prefix and virtualenv — there is no required production path. Start the database with the distro service manager. Start the chat bot from the dashboard once the API is up.</p>
+
+    <h3 style="margin-top:1.5rem;">Networking</h3>
+    <ul>
+        <li>Expose only HTTPS (and HTTP for certificate issuance if you use it) to the public internet</li>
+        <li>Keep the database on localhost or a private network</li>
+        <li>Allow only the hosts that must talk to each other</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Security Considerations</h2>
+    <ul>
+        <li><strong>HTTPS/SSL:</strong> Always use SSL certificates for all services - Let's Encrypt is free</li>
+        <li><strong>Firewall:</strong> Restrict database access to only the servers that need it</li>
+        <li><strong>Environment Variables:</strong> Never commit <code>.env</code> files to version control</li>
+        <li><strong>Database Backups:</strong> Set up automated daily backups</li>
+        <li><strong>Updates:</strong> Keep dependencies updated to patch security vulnerabilities</li>
+        <li><strong>Monitoring:</strong> Monitor system resources and bot logs for issues</li>
+    </ul>
+
+    <hr class="sp-divider">
+
+    <h2>Troubleshooting</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-brands fa-twitch"></i> Bot Not Connecting to Twitch</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify your OAuth token is valid and not expired</li>
+                    <li>Check that your Twitch Client ID and Secret are correct</li>
+                    <li>Ensure the bot account has the proper channel permissions</li>
+                    <li>Review logs in <code>bot/logs/</code> for error messages</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-database"></i> Database Connection Errors</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify MySQL is running on Server 4</li>
+                    <li>Check credentials in your <code>.env</code> file</li>
+                    <li>Ensure the user has proper database permissions</li>
+                    <li>Test: <code>mysql -u botuser -p -h &lt;db-host&gt;</code></li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-server"></i> API Server Not Responding</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify FastAPI/Uvicorn is running</li>
+                    <li>Check that port 443 is not in use by another service</li>
+                    <li>Review API logs for startup errors</li>
+                    <li>Ensure all Python dependencies are installed</li>
+                </ul>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-plug"></i> WebSocket Connection Issues</div>
+            <div class="sp-card-body">
+                <ul style="margin:0;padding-left:1.25rem;">
+                    <li>Verify WebSocket server is running on port 443</li>
+                    <li>Check firewall rules allow WebSocket connections</li>
+                    <li>Ensure the WebSocket URL is correctly configured in clients</li>
+                    <li>Review WebSocket server logs for errors</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <hr class="sp-divider">
+
+    <h2>Maintenance</h2>
+    <h3>Regular Tasks</h3>
+    <ul>
+        <li><strong>Daily:</strong> Check logs for errors and unusual activity</li>
+        <li><strong>Weekly:</strong> Verify all services are running and responsive</li>
+        <li><strong>Monthly:</strong> Update dependencies and apply security patches</li>
+        <li><strong>Quarterly:</strong> Review and optimize database performance</li>
+    </ul>
+    <h3>Updating BotOfTheSpecter</h3>
+    <pre style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin-top:0.5rem;"><code>git pull origin main
+pip install -r bot/requirements.txt --upgrade
+pip install -r api/requirements.txt --upgrade</code></pre>
+
+    <hr class="sp-divider">
+
+    <h2>Need Help?</h2>
+    <p>If you encounter issues while self-hosting BotOfTheSpecter:</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem;">
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-brands fa-github"></i> GitHub Issues</div>
+            <div class="sp-card-body">
+                <p>Report bugs or browse existing issues on GitHub.</p>
+                <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/issues" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary sp-btn-sm">Open GitHub Issues</a>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-brands fa-discord"></i> Discord Community</div>
+            <div class="sp-card-body">
+                <p>Join our community for help and discussion.</p>
+                <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary sp-btn-sm">Join Discord</a>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header"><i class="fa-solid fa-ticket"></i> Support Ticket</div>
+            <div class="sp-card-body">
+                <p>Open a ticket if you need direct assistance.</p>
+                <a href="/tickets.php?action=new" class="sp-btn sp-btn-primary sp-btn-sm">Open a Ticket</a>
+            </div>
+        </div>
+    </div>
