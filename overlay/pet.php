@@ -161,6 +161,7 @@ if ($user_db && pet_overlay_table_exists($user_db, 'pet_animations')) {
             $pet_animations[$name] = [
                 'name' => $name,
                 'url' => $url,
+                'kind' => pet_sprite_kind($spriteFile),
                 'frame_width' => $frameWidth,
                 'frame_height' => $frameHeight,
                 'frame_count' => $frameCount,
@@ -259,6 +260,39 @@ $pet_manifest = [
         'stream_online' => $streamOnline ? 1 : 0,
     ],
 ];
+$pet_schedules = [];
+if ($user_db && pet_overlay_table_exists($user_db, 'pet_schedules')) {
+    $schRes = $user_db->query(
+        'SELECT id, message, animation, interval_minutes, enabled FROM pet_schedules WHERE enabled = 1 ORDER BY id ASC'
+    );
+    if ($schRes instanceof mysqli_result) {
+        while ($row = $schRes->fetch_assoc()) {
+            $msg = trim((string) ($row['message'] ?? ''));
+            if ($msg === '') {
+                continue;
+            }
+            if (function_exists('mb_substr')) {
+                $msg = mb_substr($msg, 0, 56);
+            } else {
+                $msg = substr($msg, 0, 56);
+            }
+            $interval = (int) ($row['interval_minutes'] ?? 15);
+            if ($interval < 5) {
+                $interval = 5;
+            }
+            if ($interval > 180) {
+                $interval = 180;
+            }
+            $pet_schedules[] = [
+                'id' => (int) $row['id'],
+                'message' => $msg,
+                'animation' => (string) ($row['animation'] ?? 'happy'),
+                'interval_minutes' => $interval,
+            ];
+        }
+    }
+}
+$pet_manifest['schedules'] = $pet_schedules;
 $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS;
 ?>
 <!DOCTYPE html>
@@ -318,6 +352,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
             </div>
             <div class="pet-overlay-page-pet" id="petNode">
                 <canvas class="pet-overlay-page-canvas" id="petCanvas" width="1" height="1" aria-hidden="true"></canvas>
+                <img class="pet-overlay-page-clip" id="petClip" alt="" hidden>
             </div>
         </div>
     </div>
@@ -351,13 +386,14 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
             const root = document.getElementById('petRoot');
             const petNode = document.getElementById('petNode');
             const canvas = document.getElementById('petCanvas');
+            const clip = document.getElementById('petClip');
             const bubble = document.getElementById('petBubble');
             const bubbleText = document.getElementById('petBubbleText');
             const statsEl = document.getElementById('petStats');
             const petNameEl = document.getElementById('petName');
             const petLevelEl = document.getElementById('petLevel');
             const connectionStatus = document.getElementById('connectionStatus');
-            if (!root || !petNode || !canvas || !bubble || !bubbleText || !statsEl) {
+            if (!root || !petNode || !canvas || !clip || !bubble || !bubbleText || !statsEl) {
                 return;
             }
             const ctx = canvas.getContext('2d');
@@ -554,6 +590,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 } else {
                     hideBubble(true);
                     stopLoop();
+                    setClip(null, false);
                     if (ctx) {
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                     }
@@ -653,15 +690,25 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 bubble.classList.add('is-hiding');
             };
 
+            const BUBBLE_MAX_CHARS = 56;
+            const bubbleHoldMs = (text) => {
+                const n = String(text || '').trim().length;
+                if (!n) return 0;
+                return Math.min(9000, Math.max(5000, 3200 + n * 80));
+            };
+
             const showBubble = (text) => {
                 if (!settings.bubbleEnabled) {
                     hideBubble(true);
                     return;
                 }
-                const clean = String(text || '');
+                let clean = String(text || '').replace(/\s+/g, ' ').trim();
                 if (!clean) {
                     hideBubble(true);
                     return;
+                }
+                if (clean.length > BUBBLE_MAX_CHARS) {
+                    clean = clean.slice(0, BUBBLE_MAX_CHARS);
                 }
                 bubble.hidden = false;
                 bubble.classList.remove('is-hiding');
@@ -693,6 +740,30 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 };
             };
 
+            const isClip = (entry) => !!(entry && (entry.kind === 'gif' || (entry.url && /\.gif(\?|#|$)/i.test(entry.url))));
+
+            const setClip = (entry, restart) => {
+                if (!entry || !isClip(entry)) {
+                    clip.hidden = true;
+                    if (clip.getAttribute('src')) {
+                        clip.removeAttribute('src');
+                    }
+                    clip.dataset.url = '';
+                    canvas.hidden = false;
+                    return;
+                }
+                canvas.hidden = true;
+                clip.hidden = false;
+                const w = Math.max(1, entry.frame_width || 1);
+                clip.style.width = w + 'px';
+                const url = entry.url || '';
+                if (!url) return;
+                if (restart || clip.dataset.url !== url) {
+                    clip.dataset.url = url;
+                    clip.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+                }
+            };
+
             const syncCanvasSize = (entry) => {
                 const dpr = window.devicePixelRatio || 1;
                 const fw = entry.frame_width;
@@ -713,10 +784,18 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 const name = resolveAnimName(animName || settings.idleAnimation);
                 const entry = name ? sheets[name] : null;
                 if (!entry || !entry.img || !petVisible()) {
+                    setClip(null, false);
                     ctx.setTransform(1, 0, 0, 1, 0, 0);
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     return;
                 }
+                if (isClip(entry)) {
+                    setClip(entry, false);
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    return;
+                }
+                setClip(null, false);
                 syncCanvasSize(entry);
                 const rect = frameRect(entry, frame);
                 ctx.imageSmoothingEnabled = false;
@@ -734,6 +813,10 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 frame = 0;
                 acc = 0;
                 hideBubble(false);
+                const entry = animName ? sheets[animName] : null;
+                if (entry && isClip(entry)) {
+                    setClip(entry, true);
+                }
             };
 
             const startReaction = (item) => {
@@ -743,15 +826,33 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                     pumpQueue();
                     return;
                 }
-                playing = item;
+                const bubbleTextValue = item.bubble_text ? String(item.bubble_text) : '';
+                playing = {
+                    animation: item.animation,
+                    bubble_text: bubbleTextValue,
+                    personalized: !!item.personalized,
+                    startedAt: performance.now(),
+                    holdMs: bubbleHoldMs(bubbleTextValue),
+                };
                 animName = name;
                 frame = 0;
                 acc = 0;
-                showBubble(item.bubble_text);
+                showBubble(bubbleTextValue);
+                const entry = sheets[name];
+                if (entry && isClip(entry)) {
+                    setClip(entry, true);
+                }
             };
 
             const maybeHideBubble = (entry) => {
                 if (!bubbleVisible || !playing) return;
+                if (playing.holdMs > 0) {
+                    const left = playing.holdMs - (performance.now() - playing.startedAt);
+                    if (left <= 450) {
+                        hideBubble(false);
+                    }
+                    return;
+                }
                 const fps = Math.max(1, entry.fps);
                 const remainingMs = (Math.max(1, entry.frame_count) - frame) * (1000 / fps);
                 const cycleMs = Math.max(1, entry.frame_count) * (1000 / fps);
@@ -817,9 +918,16 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                     if (playing) {
                         maybeHideBubble(entry);
                         if (frame >= Math.max(1, entry.frame_count)) {
-                            acc = 0;
-                            endReaction();
-                            return;
+                            const hold = playing.holdMs || 0;
+                            const elapsed = performance.now() - (playing.startedAt || 0);
+                            if (hold > 0 && elapsed < hold) {
+                                frame = 0;
+                                acc = 0;
+                            } else {
+                                acc = 0;
+                                endReaction();
+                                return;
+                            }
                         }
                     } else if (frame >= Math.max(1, entry.frame_count)) {
                         frame = 0;
@@ -950,6 +1058,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                                 name: name,
                                 img: img,
                                 url: url,
+                                kind: spec.kind === 'gif' || /\.gif(\?|#|$)/i.test(url) ? 'gif' : 'sheet',
                                 frame_width: Math.max(1, toNumber(spec.frame_width, 1)),
                                 frame_height: Math.max(1, toNumber(spec.frame_height, 1)),
                                 frame_count: Math.max(1, toNumber(spec.frame_count, 1)),
@@ -962,6 +1071,33 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                         img.src = url;
                     });
                 }));
+            };
+
+            const startScheduleTicker = () => {
+                const list = Array.isArray(petManifest && petManifest.schedules) ? petManifest.schedules : [];
+                if (!list.length) return;
+                const lastFire = {};
+                const bootAt = performance.now();
+                list.forEach((row) => {
+                    lastFire[row.id] = bootAt;
+                });
+                window.setInterval(() => {
+                    if (!petVisible() || !settings.bubbleEnabled) return;
+                    const now = performance.now();
+                    list.forEach((row) => {
+                        const minutes = Math.max(5, Number(row.interval_minutes) || 15);
+                        const waitMs = minutes * 60 * 1000;
+                        if (now - (lastFire[row.id] || bootAt) < waitMs) return;
+                        lastFire[row.id] = now;
+                        const text = String(row.message || '').trim();
+                        if (!text) return;
+                        enqueueReaction({
+                            animation: manifestAnimName(row.animation) || settings.idleAnimation,
+                            bubble_text: text,
+                            personalized: true,
+                        });
+                    });
+                }, 5000);
             };
 
             const boot = async () => {
@@ -978,6 +1114,7 @@ $manifestJsonFlags = JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON
                 } else {
                     queue.length = 0;
                 }
+                startScheduleTicker();
             };
 
             const session = SpecterOverlayWS.create({

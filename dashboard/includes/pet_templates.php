@@ -2,18 +2,31 @@
 const PET_TEMPLATE_CDN_BASE = 'https://cdn.botofthespecter.com/pet-templates/';
 const PET_TEMPLATE_FILE_PREFIX = 'template:';
 
-function pet_template_anims($overrides = []) {
-    $frame = [
+function pet_template_frame_defaults() {
+    return [
         'frame_width' => 128,
         'frame_height' => 128,
         'frame_count' => 30,
         'fps' => 15,
         'loop' => 1,
     ];
+}
+
+function pet_template_anims($overrides = []) {
+    $frame = pet_template_frame_defaults();
     $anims = [];
-    foreach (['idle', 'happy', 'hype', 'sad', 'sleep', 'eat'] as $name) {
+    foreach (['idle', 'happy', 'hype', 'sad', 'sleep', 'eat', 'gift'] as $name) {
         $extra = isset($overrides[$name]) && is_array($overrides[$name]) ? $overrides[$name] : [];
         $anims[$name] = array_merge($frame, ['file' => $name . '.png'], $extra);
+    }
+    return $anims;
+}
+
+function pet_template_extra_anims($names) {
+    $frame = pet_template_frame_defaults();
+    $anims = [];
+    foreach ($names as $name) {
+        $anims[$name] = array_merge($frame, ['file' => $name . '.png']);
     }
     return $anims;
 }
@@ -46,7 +59,7 @@ function pet_template_catalog() {
             'name_key' => 'pet_template_dog_name',
             'desc_key' => 'pet_template_dog_desc',
             'preview' => 'idle.png',
-            'animations' => pet_template_anims(),
+            'animations' => array_merge(pet_template_anims(), pet_template_extra_anims(['bark', 'bite'])),
         ],
         'bat' => [
             'id' => 'bat',
@@ -124,7 +137,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file);
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20260827';
 }
 
 function pet_parse_template_sprite($filename) {
@@ -168,4 +181,108 @@ function pet_resolve_sprite_url($username, $filename) {
         return '';
     }
     return 'https://media.botofthespecter.com/' . rawurlencode((string) $username) . '/pet/' . rawurlencode($filename);
+}
+
+function pet_sprite_kind($filename) {
+    if (pet_is_template_sprite($filename)) {
+        return 'sheet';
+    }
+    $ext = strtolower((string) pathinfo(basename((string) $filename), PATHINFO_EXTENSION));
+    return $ext === 'gif' ? 'gif' : 'sheet';
+}
+
+/**
+ * Read GIF frame delays (hundredths of a second). Used so a GIF action
+ * plays for one cycle, then the overlay can return to idle.
+ */
+function pet_gif_timing($path) {
+    $raw = @file_get_contents($path);
+    if ($raw === false || strlen($raw) < 14) {
+        return null;
+    }
+    $sig = substr($raw, 0, 6);
+    if ($sig !== 'GIF87a' && $sig !== 'GIF89a') {
+        return null;
+    }
+    $len = strlen($raw);
+    $packed = ord($raw[10]);
+    $pos = 13;
+    if ($packed & 0x80) {
+        $pos += 3 * (1 << (($packed & 0x07) + 1));
+    }
+    $delays = [];
+    $guard = 0;
+    while ($pos < $len && $guard < 20000) {
+        $guard++;
+        $b = ord($raw[$pos]);
+        if ($b === 0x3B) {
+            break;
+        }
+        if ($b === 0x21) {
+            if ($pos + 2 >= $len) {
+                break;
+            }
+            $label = ord($raw[$pos + 1]);
+            if ($label === 0xF9 && $pos + 7 < $len && ord($raw[$pos + 2]) === 0x04) {
+                $delay = unpack('v', substr($raw, $pos + 4, 2));
+                $delays[] = is_array($delay) ? (int) $delay[1] : 0;
+                $pos += 8;
+                continue;
+            }
+            $pos += 2;
+            while ($pos < $len) {
+                $sz = ord($raw[$pos]);
+                $pos += 1;
+                if ($sz === 0) {
+                    break;
+                }
+                $pos += $sz;
+            }
+            continue;
+        }
+        if ($b === 0x2C) {
+            if ($pos + 10 >= $len) {
+                break;
+            }
+            $imgPacked = ord($raw[$pos + 9]);
+            $pos += 10;
+            if ($imgPacked & 0x80) {
+                $pos += 3 * (1 << (($imgPacked & 0x07) + 1));
+            }
+            if ($pos >= $len) {
+                break;
+            }
+            $pos += 1;
+            while ($pos < $len) {
+                $sz = ord($raw[$pos]);
+                $pos += 1;
+                if ($sz === 0) {
+                    break;
+                }
+                $pos += $sz;
+            }
+            continue;
+        }
+        break;
+    }
+    $count = count($delays);
+    if ($count < 1) {
+        $count = 1;
+        $ms = 1000;
+    } else {
+        $ms = 0;
+        foreach ($delays as $d) {
+            $hundredths = ((int) $d) <= 1 ? 10 : (int) $d;
+            $ms += $hundredths * 10;
+        }
+        if ($ms < 80) {
+            $ms = 80;
+        }
+    }
+    $fps = (int) max(1, min(60, (int) round($count * 1000 / $ms)));
+    return [
+        'frame_count' => $count,
+        'duration_ms' => $ms,
+        'fps' => $fps,
+    ];
 }
