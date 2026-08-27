@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="YourStreamingTools — modern, open tools built by streamers for streamers. Chat bots, DMCA-free music, productivity utilities, and more." />
+    <meta name="theme-color" content="#0d0d0f" />
+    <meta property="og:title" content="YourStreamingTools — By Streamers, For Streamers" />
+    <meta property="og:description" content="Modern tools built by streamers for streamers." />
+    <meta property="og:type" content="website" />
+    <title>YourStreamingTools — By Streamers, For Streamers</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sp-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="icon" href="https://cdn.yourstreamingtools.com/img/logo.ico" type="image/x-icon" />
+    <link rel="apple-touch-icon" href="https://cdn.yourstreamingtools.com/img/logo.ico" />
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css" />
+    <link rel="stylesheet" href="/css/custom.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
