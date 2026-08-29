@@ -19,5 +19,6 @@ Authenticate those routes with the streamer's own API key (`X-API-KEY`).
 - Create a dedicated operator key in Dashboard → Admin → API Keys. Do not reuse user keys.
 - The product API and dashboard load that key from the database; do not put it in browser sessions or public config.
 - Operator `/docs` on this host is not for end users.
+- A background sweep stops Twitch bots when **Specter** is no longer a channel moderator (Helix Get Moderators via the streamer's `twitch_bot_access` token), including custom-bot channels — the custom account is chat-only; Specter still does moderation. Counts are on `GET /health` → `mod_check`. Skip/disable with `BOTS_MOD_CHECK_ENABLED=0`. Kick, self-mode, and the `botofthespecter` channel are not checked.
 
 Keep `docs_ui` CSS/JS in sync with `./api/docs_ui/` when changing the explorer.

@@ -125,6 +125,48 @@ def _is_custom(cmdline: list[str]) -> bool:
     return "-custom" in lower or "--custom" in lower
 
 
+def _has_flag(cmdline: list[str], *flags: str) -> bool:
+    if not cmdline:
+        return False
+    want = {f.lower() for f in flags}
+    return any(str(a).lower() in want for a in cmdline)
+
+
+def _flag_value(cmdline: list[str], *flags: str) -> str | None:
+    if not cmdline:
+        return None
+    want = {f.lower() for f in flags}
+    for i, raw in enumerate(cmdline):
+        token = str(raw)
+        lowered = token.lower()
+        if lowered in want:
+            if i + 1 < len(cmdline):
+                val = str(cmdline[i + 1]).strip()
+                if val and not val.startswith("-"):
+                    return val
+            return None
+        for flag in want:
+            prefix = flag + "="
+            if lowered.startswith(prefix):
+                val = token[len(prefix) :].strip()
+                return val or None
+    return None
+
+
+def _is_self(cmdline: list[str]) -> bool:
+    return _has_flag(cmdline, "-self", "--self")
+
+
+def _channel_id_from_cmdline(cmdline: list[str]) -> str | None:
+    val = _flag_value(cmdline, "-channelid", "--channelid")
+    return val.strip() if val else None
+
+
+def _botusername_from_cmdline(cmdline: list[str]) -> str | None:
+    val = _flag_value(cmdline, "-botusername", "--botusername")
+    return val.lower().strip() if val else None
+
+
 def _matches_bot_type(cmdline: list[str], bot_type: str, channel: str) -> bool:
     channel = channel.lower()
     script = None
@@ -599,6 +641,9 @@ def _scan_running_bots() -> dict[str, Any]:
                     "version": read_version(btype if btype != "custom" else "custom", ch),
                     "bot_type": btype,
                     "custom": custom,
+                    "self": _is_self(cmdline),
+                    "channel_id": _channel_id_from_cmdline(cmdline),
+                    "botusername": _botusername_from_cmdline(cmdline),
                     "uptime_seconds": uptime_seconds,
                 }
             )
@@ -611,6 +656,24 @@ def _scan_running_bots() -> dict[str, Any]:
         "totals": totals,
         "total": sum(totals.values()),
     }
+
+
+def list_live_twitch_bots() -> list[dict[str, Any]]:
+    """Live non-Kick bot processes with cmdline identity for the mod-status sweep."""
+    live = _scan_running_bots()
+    out: list[dict[str, Any]] = []
+    buckets = live.get("bots") if isinstance(live, dict) else None
+    if not isinstance(buckets, dict):
+        return out
+    for btype, rows in buckets.items():
+        if str(btype).lower() == KICK_TYPE:
+            continue
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if isinstance(row, dict) and row.get("channel"):
+                out.append(row)
+    return out
 
 
 def list_running_bots(*, update_snapshot: bool = True) -> dict[str, Any]:

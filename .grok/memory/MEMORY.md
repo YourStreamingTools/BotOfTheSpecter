@@ -16,6 +16,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - **Dashboard**: `./dashboard/includes/bots_api_client.php` + `./config/bots_api.php`
 - **Do not use SSH** for start/stop/status — see `.grok/rules/bots-api.md`
 - **Username rename**: login stops old `-channel` via `bots_api_stop_all_for_channel` then renames per-user DB
+- **Mod-status auto-stop**: bots API sweep (~5 min) Helix-checks running Twitch bots and stops any that are no longer a mod; see `.grok/rules/bots-api.md` rule 8
 
 ### Working preferences (from prior AI sessions)
 

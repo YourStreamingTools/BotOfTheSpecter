@@ -9,7 +9,7 @@ Create a key with service name:  bots
 (super-admin service "admin" is also accepted)
 
 Public surface (behind TLS at bots.botofthespecter.com):
-  GET  /health  (ok, started_at, uptime_seconds, pid — no auth)
+  GET  /health  (ok, started_at, uptime_seconds, pid, mod_check — no auth)
   GET  /health/metrics  (live host CPU/RAM/disk/net — no auth)
   GET  /api/running_bots
   GET  /api/running_bots/snapshot  (durable last-seen inventory for crash recovery)
@@ -56,6 +56,7 @@ from manager import (
     status_for_channel,
     stop_bot,
 )
+from mod_check import mod_check_health, run_mod_check_loop
 
 load_dotenv()
 
@@ -80,6 +81,7 @@ PORT = int(os.getenv("BOTS_API_PORT", "8090"))
 
 _pool: aiomysql.Pool | None = None
 _snapshot_task: asyncio.Task | None = None
+_mod_check_task: asyncio.Task | None = None
 _process_started_at = datetime.now(timezone.utc)
 
 
@@ -110,7 +112,7 @@ async def _snapshot_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _pool, _snapshot_task
+    global _pool, _snapshot_task, _mod_check_task
     if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
         log.warning("SQL_* not fully set — admin_api_keys lookup will fail (env fallback only)")
     else:
@@ -130,14 +132,21 @@ async def lifespan(_app: FastAPI):
             "yes" if ENV_FALLBACK_KEY else "no",
         )
     _snapshot_task = asyncio.create_task(_snapshot_loop(), name="bots-snapshot-loop")
+    _mod_check_task = asyncio.create_task(
+        run_mod_check_loop(lambda: _pool),
+        name="bots-mod-check-loop",
+    )
     yield
-    if _snapshot_task is not None:
-        _snapshot_task.cancel()
+    for task in (_snapshot_task, _mod_check_task):
+        if task is None:
+            continue
+        task.cancel()
         try:
-            await _snapshot_task
+            await task
         except asyncio.CancelledError:
             pass
-        _snapshot_task = None
+    _snapshot_task = None
+    _mod_check_task = None
     if _pool is not None:
         _pool.close()
         await _pool.wait_closed()
@@ -266,6 +275,7 @@ async def health() -> dict[str, Any]:
         "started_at_utc": _process_started_at.isoformat(),
         "uptime_seconds": uptime_seconds,
         "pid": os.getpid(),
+        "mod_check": mod_check_health(),
     }
 
 
