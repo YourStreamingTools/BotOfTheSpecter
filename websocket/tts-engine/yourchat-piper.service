@@ -1,0 +1,27 @@
+[Unit]
+Description=YourChat narrator Piper (private LAN only)
+After=network.target
+Documentation=file:///home/botofthespecter/tts-engine/README.md
+
+[Service]
+Type=simple
+User=botofthespecter
+Group=botofthespecter
+WorkingDirectory=/home/botofthespecter/tts-engine
+EnvironmentFile=-/home/botofthespecter/.env
+Environment=NARRATOR_BIND=10.240.0.5
+Environment=NARRATOR_PORT=8094
+Environment=NARRATOR_PIPER_BIN=/var/lib/yourchat-piper/piper/piper
+Environment=NARRATOR_VOICES_DIR=/var/lib/yourchat-piper/voices
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+# NARRATOR_HOP_SECRET must be set in /home/botofthespecter/.env (same value as web1 config/yourchat.php).
+ExecStart=/usr/bin/python3 /home/botofthespecter/tts-engine/server.py
+Restart=on-failure
+RestartSec=3
+KillMode=process
+
+# Do not bind public websocket.botofthespecter.com. Caddy must not reverse-proxy this port.
+
+[Install]
+WantedBy=multi-user.target

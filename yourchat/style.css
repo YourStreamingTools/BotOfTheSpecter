@@ -4977,6 +4977,11 @@ label.checkbox input[type="checkbox"] {
     min-width: 140px;
 }
 
+.narrator-panel .narrator-status {
+    margin-top: 0.35rem;
+    color: var(--text-muted);
+}
+
 .narrator-panel .narrator-controls {
     display: flex;
     flex-direction: column;
