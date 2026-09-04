@@ -2,6 +2,70 @@
 require_once "/var/www/config/twitch.php";
 require_once "/var/www/config/database.php";
 
+$YC_NARRATOR_VOICES = [
+    'en_US-lessac-medium' => 'Lessac (US, neutral)',
+    'en_US-hfc_female-medium' => 'HFC Female (US)',
+    'en_US-hfc_male-medium' => 'HFC Male (US)',
+    'en_GB-alba-medium' => 'Alba (UK)',
+];
+$YC_NARRATOR_DEFAULT_VOICE = 'en_US-lessac-medium';
+
+function yc_narrator_config() {
+    static $cfg = null;
+    if ($cfg !== null) {
+        return $cfg;
+    }
+    $path = '/var/www/config/yourchat.php';
+    if (!is_readable($path)) {
+        $cfg = [];
+        return $cfg;
+    }
+    $loaded = require $path;
+    $cfg = is_array($loaded) ? $loaded : [];
+    return $cfg;
+}
+
+function yc_narrator_rate_check($userId) {
+    $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'yourchat-narrate-' . $userId . '.rate';
+    $fp = @fopen($file, 'c+');
+    if (!$fp) {
+        return true;
+    }
+    flock($fp, LOCK_EX);
+    $raw = stream_get_contents($fp);
+    $now = time();
+    $data = json_decode($raw, true);
+    if (!is_array($data) || ($now - (int)($data['ts'] ?? 0)) >= 60) {
+        $data = ['ts' => $now, 'n' => 0];
+    }
+    $ok = ((int)$data['n']) < 30;
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    return $ok;
+}
+
+function yc_narrator_rate_bump($userId) {
+    $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'yourchat-narrate-' . $userId . '.rate';
+    $fp = @fopen($file, 'c+');
+    if (!$fp) {
+        return;
+    }
+    flock($fp, LOCK_EX);
+    $raw = stream_get_contents($fp);
+    $now = time();
+    $data = json_decode($raw, true);
+    if (!is_array($data) || ($now - (int)($data['ts'] ?? 0)) >= 60) {
+        $data = ['ts' => $now, 'n' => 0];
+    }
+    $data['n'] = (int)$data['n'] + 1;
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($data));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+}
+
 // Keep PHP session active for long streams (24h)
 $sessionLifetime = 86400;
 session_set_cookie_params([
@@ -498,6 +562,125 @@ if ($httpCode !== 200 || !$response) {
     exit;
 }
 
+// Headphones-only narrator: proxy to Piper on the websocket VM (private LAN).
+if (isset($_GET['action']) && $_GET['action'] === 'narrate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = preg_replace('/[^0-9]/', '', (string)$_SESSION['user_id']);
+    if ($userId === '') {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Not authenticated']);
+        exit;
+    }
+    $rawBody = file_get_contents('php://input');
+    $payload = json_decode($rawBody, true);
+    if (!is_array($payload)) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Invalid JSON']);
+        exit;
+    }
+    $text = isset($payload['text']) && is_string($payload['text']) ? trim($payload['text']) : '';
+    if ($text === '' || strlen($text) > 300) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'invalid text']);
+        exit;
+    }
+    global $YC_NARRATOR_VOICES, $YC_NARRATOR_DEFAULT_VOICE;
+    $voice = isset($payload['voice']) && is_string($payload['voice']) ? $payload['voice'] : '';
+    if (!isset($YC_NARRATOR_VOICES[$voice])) {
+        $voice = $YC_NARRATOR_DEFAULT_VOICE;
+    }
+    $speed = isset($payload['speed']) ? floatval($payload['speed']) : 1.0;
+    if ($speed < 0.5) {
+        $speed = 0.5;
+    }
+    if ($speed > 2.0) {
+        $speed = 2.0;
+    }
+    if (!yc_narrator_rate_check($userId)) {
+        http_response_code(429);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'rate limited']);
+        exit;
+    }
+    $cfg = yc_narrator_config();
+    $piperUrl = isset($cfg['piper_url']) ? rtrim((string)$cfg['piper_url'], '/') : '';
+    $hopSecret = isset($cfg['hop_secret']) ? (string)$cfg['hop_secret'] : '';
+    $timeout = isset($cfg['timeout']) ? max(3, min(15, (int)$cfg['timeout'])) : 10;
+    if ($piperUrl === '' || $hopSecret === '') {
+        http_response_code(503);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Narrator is unavailable']);
+        exit;
+    }
+    $lockPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'yourchat-narrate-' . $userId . '.lock';
+    $lock = @fopen($lockPath, 'c');
+    if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+        if ($lock) {
+            fclose($lock);
+        }
+        http_response_code(429);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'busy']);
+        exit;
+    }
+    $ch = curl_init($piperUrl . '/speak');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'X-Narrator-Key: ' . $hopSecret,
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'text' => $text,
+        'voice' => $voice,
+        'speed' => $speed,
+    ]));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    $wav = curl_exec($ch);
+    $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    flock($lock, LOCK_UN);
+    fclose($lock);
+    if ($wav === false || $http === 0) {
+        http_response_code(503);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Narrator is unavailable']);
+        exit;
+    }
+    if ($http === 200 && is_string($wav) && strncmp($wav, 'RIFF', 4) === 0) {
+        yc_narrator_rate_bump($userId);
+        header('Content-Type: audio/wav');
+        header('Content-Length: ' . strlen($wav));
+        echo $wav;
+        exit;
+    }
+    if ($http === 429) {
+        http_response_code(429);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'busy']);
+        exit;
+    }
+    if ($http === 400) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'invalid text']);
+        exit;
+    }
+    http_response_code($http >= 400 && $http < 600 ? $http : 502);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Narrator is unavailable']);
+    exit;
+}
+
 $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
 session_write_close();
 
@@ -587,7 +770,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         <div class="sp-card-title">Narrator</div>
                     </div>
                     <div class="sp-card-body">
-                        <p class="yc-card-desc">Read incoming chat messages aloud using text-to-speech.</p>
+                        <p class="yc-card-desc">Read incoming chat messages aloud in this tab. Works in Firefox, Safari, and Edge. Turn it on or click Test if the browser muted the tab.</p>
+                        <p class="yc-card-desc narrator-status" id="narrator-status" hidden></p>
                         <div class="yc-feature-list">
                             <label class="switch">
                                 <input type="checkbox" id="narrator-checkbox">
@@ -596,7 +780,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             <div class="narrator-controls is-collapsed" id="narrator-controls">
                                 <div class="ding-volume-row">
                                     <label for="narrator-voice-select" class="ding-volume-label">Voice</label>
-                                    <select id="narrator-voice-select" class="sp-select narrator-voice-select" aria-label="Narrator voice"></select>
+                                    <select id="narrator-voice-select" class="sp-select narrator-voice-select" aria-label="Narrator voice">
+                                        <?php foreach ($YC_NARRATOR_VOICES as $voiceId => $voiceLabel): ?>
+                                        <option value="<?php echo htmlspecialchars($voiceId, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($voiceLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                     <button type="button" id="narrator-test" class="sp-btn sp-btn-secondary sp-btn-sm">Test</button>
                                 </div>
                                 <div class="ding-volume-row">
@@ -608,11 +796,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                     <label for="narrator-volume-slider" class="ding-volume-label">Volume</label>
                                     <input type="range" id="narrator-volume-slider" class="ding-volume-slider" min="0" max="100" step="1" value="100" aria-label="Narrator volume">
                                     <span class="ding-volume-value" id="narrator-volume-value">100%</span>
-                                </div>
-                                <div class="ding-volume-row">
-                                    <label for="narrator-pitch-slider" class="ding-volume-label">Pitch</label>
-                                    <input type="range" id="narrator-pitch-slider" class="ding-volume-slider" min="0" max="200" step="5" value="100" aria-label="Narrator pitch">
-                                    <span class="ding-volume-value" id="narrator-pitch-value">1.0</span>
                                 </div>
                                 <label class="switch">
                                     <input type="checkbox" id="narrator-speak-name" checked>
@@ -786,7 +969,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 TOKEN_REFRESH_INTERVAL: 4 * 60 * 60 * 1000, // 4 hours in milliseconds
                 IRC_WS_URL: 'wss://irc-ws.chat.twitch.tv:443',
                 EVENTSUB_WS_URL: 'wss://eventsub.wss.twitch.tv/ws'
-            }; 
+            };
+            const NARRATOR_VOICE_IDS = <?php echo json_encode(array_keys($YC_NARRATOR_VOICES)); ?>;
+            const NARRATOR_DEFAULT_VOICE = <?php echo json_encode($YC_NARRATOR_DEFAULT_VOICE); ?>; 
             // State management - Dual WebSocket connections
             let ircWs = null; // IRC WebSocket for chat messages
             let eventSubWs = null; // EventSub WebSocket for activity events
@@ -3437,7 +3622,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         const NARRATOR_VOICE_KEY = 'yourchat-narrator-voice';
         const NARRATOR_RATE_KEY = 'yourchat-narrator-rate';
         const NARRATOR_VOLUME_KEY = 'yourchat-narrator-volume';
-        const NARRATOR_PITCH_KEY = 'yourchat-narrator-pitch';
         const NARRATOR_SPEAK_NAME_KEY = 'yourchat-narrator-speak-name';
         const NARRATOR_FILTER_REGEX_MODE_KEY = 'yourchat-narrator-filter-regex-mode';
         const NARRATOR_ALLOW_REGEX_MODE_KEY = 'yourchat-narrator-allow-regex-mode';
@@ -3445,16 +3629,24 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         let narratorEnabled = false;   // opt-in (default OFF)
         let narratorFilterUseRegex = false;
         let narratorAllowUseRegex = false;
-        let narratorVoiceName = '';    // '' => browser default voice
+        let narratorVoiceName = '';    // Piper voice id
         let narratorRate = 1;          // 0.5 .. 2.0
         let narratorVolume = 1;        // 0 .. 1
-        let narratorPitch = 1;         // 0 .. 2.0
         let narratorSpeakName = true;  // prefix "{name} says" (nickname-aware)
-        let narratorVoices = [];       // cached speechSynthesis voices
         let narratorQueue = [];        // pending texts waiting to be spoken
-        let narratorSpeaking = false;  // an utterance is currently playing
-        function narratorSupported() {
-            return ('speechSynthesis' in window) && (typeof window.SpeechSynthesisUtterance === 'function');
+        let narratorSpeaking = false;
+        let narratorAudio = null;
+        let narratorObjectUrl = null;
+        function resolveNarratorVoice(name) {
+            if (name && NARRATOR_VOICE_IDS.indexOf(name) !== -1) return name;
+            return NARRATOR_DEFAULT_VOICE;
+        }
+        function setNarratorStatus(text) {
+            const el = document.getElementById('narrator-status');
+            if (!el) return;
+            const msg = text || '';
+            el.textContent = msg;
+            el.hidden = !msg;
         }
         function narratorClamp(v, min, max, dflt) {
             const n = parseFloat(v);
@@ -3475,8 +3667,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 narratorRate = (r !== null) ? narratorClamp(r, 0.5, 2, 1) : narratorClamp(userSettings.narrator_rate, 0.5, 2, 1);
                 const vol = localStorage.getItem(NARRATOR_VOLUME_KEY);
                 narratorVolume = (vol !== null) ? narratorClamp(vol, 0, 1, 1) : narratorClamp(userSettings.narrator_volume, 0, 1, 1);
-                const p = localStorage.getItem(NARRATOR_PITCH_KEY);
-                narratorPitch = (p !== null) ? narratorClamp(p, 0, 2, 1) : narratorClamp(userSettings.narrator_pitch, 0, 2, 1);
                 const sn = localStorage.getItem(NARRATOR_SPEAK_NAME_KEY);
                 if (sn === 'true') narratorSpeakName = true;
                 else if (sn === 'false') narratorSpeakName = false;
@@ -3495,11 +3685,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 narratorVoiceName = typeof userSettings.narrator_voice === 'string' ? userSettings.narrator_voice : '';
                 narratorRate = narratorClamp(userSettings.narrator_rate, 0.5, 2, 1);
                 narratorVolume = narratorClamp(userSettings.narrator_volume, 0, 1, 1);
-                narratorPitch = narratorClamp(userSettings.narrator_pitch, 0, 2, 1);
                 narratorSpeakName = userSettings.narrator_speak_name !== undefined ? !!userSettings.narrator_speak_name : true;
                 narratorFilterUseRegex = !!userSettings.narrator_filter_use_regex;
                 narratorAllowUseRegex = !!userSettings.narrator_allow_use_regex;
             }
+            narratorVoiceName = resolveNarratorVoice(narratorVoiceName);
         }
         function persistNarratorRegexMode(kind, enabled) {
             const on = !!enabled;
@@ -3551,57 +3741,92 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             userSettings.narrator_allow_messages = list;
             saveSettingsToServer();
         }
-        function populateNarratorVoices() {
-            if (!narratorSupported()) return;
-            narratorVoices = window.speechSynthesis.getVoices() || [];
+        function applyNarratorVoiceSelect() {
             const sel = document.getElementById('narrator-voice-select');
-            if (!sel) return;
-            sel.innerHTML = '';
-            const defaultOpt = document.createElement('option');
-            defaultOpt.value = '';
-            defaultOpt.textContent = 'Browser default';
-            sel.appendChild(defaultOpt);
-            narratorVoices.forEach(voice => {
-                const opt = document.createElement('option');
-                opt.value = voice.name;
-                opt.textContent = `${voice.name}${voice.lang ? ' (' + voice.lang + ')' : ''}${voice.default ? ' - default' : ''}`;
-                sel.appendChild(opt);
-            });
-            // Restore the saved selection if that voice exists on this device, else default
-            sel.value = narratorVoiceName || '';
-            if (sel.value !== (narratorVoiceName || '')) sel.value = '';
+            narratorVoiceName = resolveNarratorVoice(narratorVoiceName);
+            if (sel) sel.value = narratorVoiceName;
         }
-        function getNarratorVoice() {
-            if (!narratorVoiceName) return null;
-            return narratorVoices.find(v => v.name === narratorVoiceName) || null;
+        function stopNarration() {
+            narratorQueue = [];
+            narratorSpeaking = false;
+            if (narratorAudio) {
+                try { narratorAudio.pause(); } catch (e) { /* ignore */ }
+                narratorAudio = null;
+            }
+            if (narratorObjectUrl) {
+                try { URL.revokeObjectURL(narratorObjectUrl); } catch (e) { /* ignore */ }
+                narratorObjectUrl = null;
+            }
+        }
+        function speakNarrationText(text, isTest) {
+            return fetch('?action=narrate', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: text,
+                    voice: resolveNarratorVoice(narratorVoiceName),
+                    speed: narratorRate
+                })
+            }).then(async (res) => {
+                if (!res.ok) {
+                    if (isTest) {
+                        let msg = 'Narrator is unavailable';
+                        try {
+                            const j = await res.json();
+                            if (j && j.error) msg = j.error;
+                        } catch (e) { /* ignore */ }
+                        setNarratorStatus(msg);
+                        Toastify({ text: msg, duration: 3500, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast();
+                    }
+                    return false;
+                }
+                const blob = await res.blob();
+                if (narratorObjectUrl) {
+                    try { URL.revokeObjectURL(narratorObjectUrl); } catch (e) { /* ignore */ }
+                }
+                narratorObjectUrl = URL.createObjectURL(blob);
+                const audio = new Audio(narratorObjectUrl);
+                narratorAudio = audio;
+                audio.volume = narratorVolume;
+                return new Promise((resolve) => {
+                    const done = () => {
+                        audio.onended = null;
+                        audio.onerror = null;
+                        if (narratorAudio === audio) narratorAudio = null;
+                        resolve(true);
+                    };
+                    audio.onended = done;
+                    audio.onerror = done;
+                    const playPromise = audio.play();
+                    if (playPromise && playPromise.catch) {
+                        playPromise.catch(() => {
+                            if (isTest) {
+                                setNarratorStatus('Click Test again if the tab muted the sound.');
+                            }
+                            done();
+                        });
+                    }
+                });
+            }).catch(() => {
+                if (isTest) {
+                    const msg = 'Narrator is unavailable';
+                    setNarratorStatus(msg);
+                    Toastify({ text: msg, duration: 3500, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast();
+                }
+                return false;
+            });
         }
         function narratorProcessQueue() {
             if (narratorSpeaking) return;
-            if (!narratorEnabled || !narratorSupported()) { narratorQueue = []; return; }
+            if (!narratorEnabled) { narratorQueue = []; return; }
             const text = narratorQueue.shift();
             if (text === undefined) return;
-            let utter;
-            try {
-                utter = new SpeechSynthesisUtterance(text);
-            } catch (e) {
-                console.warn('Failed to build narration utterance', e);
-                return;
-            }
-            const voice = getNarratorVoice();
-            if (voice) utter.voice = voice;
-            utter.rate = narratorRate;
-            utter.volume = narratorVolume;
-            utter.pitch = narratorPitch;
-            const advance = () => { narratorSpeaking = false; narratorProcessQueue(); };
-            utter.onend = advance;
-            utter.onerror = advance;
             narratorSpeaking = true;
-            try {
-                window.speechSynthesis.speak(utter);
-            } catch (e) {
-                console.warn('Failed to speak narration', e);
+            speakNarrationText(text, false).finally(() => {
                 narratorSpeaking = false;
-            }
+                narratorProcessQueue();
+            });
         }
         function enqueueNarration(text) {
             if (!text) return;
@@ -3611,11 +3836,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (pending >= NARRATOR_MAX_QUEUE) return;
             narratorQueue.push(text);
             narratorProcessQueue();
-        }
-        function stopNarration() {
-            narratorQueue = [];
-            narratorSpeaking = false;
-            try { if (narratorSupported()) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
         }
         const NARRATOR_REGEX_PREFIX = 'regex:';
         // Plain entries: case-insensitive substring. Regex entries: prefix "regex:" or "/pattern/flags".
@@ -3745,7 +3965,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             return name ? `${name} says ${spokenBody}` : spokenBody;
         }
         function narrateMessage(event) {
-            if (!narratorEnabled || !narratorSupported()) return;
+            if (!narratorEnabled) return;
             const raw = (event.message && event.message.text ? String(event.message.text) : '').trim();
             if (narratorUsernameSkipMatched(event) && !narratorAllowMatched(raw)) return;
             const text = buildNarrationText(event);
@@ -3923,20 +4143,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const rateValue = document.getElementById('narrator-rate-value');
             const volSlider = document.getElementById('narrator-volume-slider');
             const volValue = document.getElementById('narrator-volume-value');
-            const pitchSlider = document.getElementById('narrator-pitch-slider');
-            const pitchValue = document.getElementById('narrator-pitch-value');
             const speakName = document.getElementById('narrator-speak-name');
             if (checkbox) checkbox.checked = narratorEnabled;
             if (rateSlider) rateSlider.value = Math.round(narratorRate * 100);
             if (rateValue) rateValue.textContent = narratorRate.toFixed(1) + 'x';
             if (volSlider) volSlider.value = Math.round(narratorVolume * 100);
             if (volValue) volValue.textContent = Math.round(narratorVolume * 100) + '%';
-            if (pitchSlider) pitchSlider.value = Math.round(narratorPitch * 100);
-            if (pitchValue) pitchValue.textContent = narratorPitch.toFixed(1);
             if (speakName) speakName.checked = narratorSpeakName;
             if (controls) controls.classList.toggle('is-collapsed', !narratorEnabled);
             applyNarratorRegexModeToUI();
-            populateNarratorVoices();
+            applyNarratorVoiceSelect();
             renderNarratorUsernameFilters();
             renderNarratorFilters();
             renderNarratorAllowMessages();
@@ -3945,42 +4161,26 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             try {
                 const checkbox = document.getElementById('narrator-checkbox');
                 const controls = document.getElementById('narrator-controls');
-                if (!narratorSupported()) {
-                    // Browser can't synthesize speech: disable the toggle and keep controls hidden
-                    if (checkbox) {
-                        checkbox.checked = false;
-                        checkbox.disabled = true;
-                        checkbox.title = 'Your browser does not support speech synthesis';
-                    }
-                    if (controls) controls.classList.add('is-collapsed');
-                    return;
-                }
                 loadNarratorSettings();
                 const voiceSel = document.getElementById('narrator-voice-select');
                 const rateSlider = document.getElementById('narrator-rate-slider');
                 const rateValue = document.getElementById('narrator-rate-value');
                 const volSlider = document.getElementById('narrator-volume-slider');
                 const volValue = document.getElementById('narrator-volume-value');
-                const pitchSlider = document.getElementById('narrator-pitch-slider');
-                const pitchValue = document.getElementById('narrator-pitch-value');
                 const speakName = document.getElementById('narrator-speak-name');
                 const testBtn = document.getElementById('narrator-test');
-                // Voices load asynchronously in most browsers
-                if ('onvoiceschanged' in window.speechSynthesis) {
-                    window.speechSynthesis.onvoiceschanged = populateNarratorVoices;
-                }
                 if (checkbox) {
                     checkbox.addEventListener('change', (e) => {
                         narratorEnabled = !!e.target.checked;
                         persistNarratorSetting(NARRATOR_ENABLED_KEY, narratorEnabled ? 'true' : 'false', 'narrator_enabled', narratorEnabled);
                         if (controls) controls.classList.toggle('is-collapsed', !narratorEnabled);
                         if (!narratorEnabled) stopNarration();
-                        else { try { window.speechSynthesis.resume(); } catch (err) { /* ignore */ } }
+                        else setNarratorStatus('');
                     });
                 }
                 if (voiceSel) {
                     voiceSel.addEventListener('change', (e) => {
-                        narratorVoiceName = e.target.value || '';
+                        narratorVoiceName = resolveNarratorVoice(e.target.value || '');
                         persistNarratorSetting(NARRATOR_VOICE_KEY, narratorVoiceName, 'narrator_voice', narratorVoiceName);
                     });
                 }
@@ -4002,15 +4202,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         persistNarratorSetting(NARRATOR_VOLUME_KEY, String(narratorVolume), 'narrator_volume', narratorVolume);
                     });
                 }
-                if (pitchSlider) {
-                    pitchSlider.addEventListener('input', (e) => {
-                        narratorPitch = narratorClamp((parseInt(e.target.value, 10) || 0) / 100, 0, 2, 1);
-                        if (pitchValue) pitchValue.textContent = narratorPitch.toFixed(1);
-                    });
-                    pitchSlider.addEventListener('change', () => {
-                        persistNarratorSetting(NARRATOR_PITCH_KEY, String(narratorPitch), 'narrator_pitch', narratorPitch);
-                    });
-                }
                 if (speakName) {
                     speakName.addEventListener('change', (e) => {
                         narratorSpeakName = !!e.target.checked;
@@ -4019,19 +4210,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 if (testBtn) {
                     testBtn.addEventListener('click', () => {
-                        // Clicking is a user gesture: resume + speak a sample using the live
-                        // (possibly unsaved) control values. Bypasses enabled/skip checks.
-                        try { window.speechSynthesis.resume(); } catch (err) { /* ignore */ }
-                        let u;
-                        try {
-                            u = new SpeechSynthesisUtterance(narratorSpeakName ? 'Narrator test. Bob says hello chat!' : 'Narrator test. Hello chat!');
-                        } catch (err) { return; }
-                        const voice = getNarratorVoice();
-                        if (voice) u.voice = voice;
-                        u.rate = narratorRate;
-                        u.volume = narratorVolume;
-                        u.pitch = narratorPitch;
-                        try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch (err) { /* ignore */ }
+                        const sample = narratorSpeakName
+                            ? 'Narrator test. Bob says hello chat!'
+                            : 'Narrator test. Hello chat!';
+                        setNarratorStatus('');
+                        stopNarration();
+                        speakNarrationText(sample, true);
                     });
                 }
                 initNarratorPhraseInputs();
@@ -4864,14 +5048,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             } catch (e) {
                 console.error('Error initializing ding volume setting', e);
             }
-            // Initialize the chat-message narrator (Web Speech API; opt-in, default OFF)
+            // Initialize the chat-message narrator (Piper on websocket; opt-in, default OFF)
             initNarrator();
             // Unlock Web Audio on the first user gesture (browser autoplay policy)
             try {
                 const unlockOnce = () => {
                     unlockDingAudio();
-                    // Same gesture also satisfies the speech-synthesis autoplay gate
-                    try { if (narratorSupported()) window.speechSynthesis.resume(); } catch (err) { /* ignore */ }
                     document.removeEventListener('click', unlockOnce);
                     document.removeEventListener('keydown', unlockOnce);
                     document.removeEventListener('touchstart', unlockOnce);

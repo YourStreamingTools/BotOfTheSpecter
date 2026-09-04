@@ -111,6 +111,8 @@ bot/custom_channel_modules/.gitignore
 /bot/export_queue
 /yourchat/user-settings
 /yourchat/chat-logs
+/websocket/tts-engine/voices
+/websocket/tts-engine/runtime
 /cdn/css
 /bot/ai
 /cdn/memoriam
@@ -128,6 +130,7 @@ YourStreamingTools/
 # Python Cache files
 bot/__pycache__/
 app/__pycache__/
+websocket/tts-engine/__pycache__/
 *.pyc
 *.pyo
 *.pyd
