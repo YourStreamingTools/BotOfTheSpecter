@@ -7,6 +7,7 @@ stream/.env
 stream/.env.backup
 ssl/.env
 ssl/.certbot.env
+websocket/tts-engine/.env
 
 # Build and distribution directories
 app/dist/
