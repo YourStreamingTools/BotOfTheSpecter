@@ -83,7 +83,8 @@ class VoiceAndTextTests(unittest.TestCase):
     def test_text_rules(self):
         self.assertIsNone(piper_server.clamp_text(""))
         self.assertIsNone(piper_server.clamp_text("   "))
-        self.assertIsNone(piper_server.clamp_text("x" * 301))
+        self.assertEqual(piper_server.clamp_text("x" * 500), "x" * 500)
+        self.assertIsNone(piper_server.clamp_text("x" * 501))
         self.assertIsNone(piper_server.clamp_text(None))
         self.assertEqual(piper_server.clamp_text("  hi  "), "hi")
 
@@ -156,7 +157,7 @@ class HttpTests(unittest.TestCase):
         self.assertIn("--length-scale", argv)
 
     def test_overlong_text_rejected(self):
-        status, _, _ = self._speak({"text": "x" * 301})
+        status, _, _ = self._speak({"text": "x" * 501})
         self.assertEqual(status, 400)
 
     def test_unknown_voice_still_speaks(self):

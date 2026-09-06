@@ -25,7 +25,7 @@ VOICES = {
     "en_GB-alba-medium": "en_GB-alba-medium.onnx",
 }
 DEFAULT_VOICE = "en_US-lessac-medium"
-MAX_CHARS = 300
+MAX_CHARS = 500
 DEFAULT_BIND = "10.240.0.5"
 DEFAULT_PORT = 8094
 

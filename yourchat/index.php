@@ -586,7 +586,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'narrate' && $_SERVER['REQUEST
         exit;
     }
     $text = isset($payload['text']) && is_string($payload['text']) ? trim($payload['text']) : '';
-    if ($text === '' || strlen($text) > 300) {
+    if ($text === '' || strlen($text) > 500) {
         http_response_code(400);
         header('Content-Type: application/json');
         echo json_encode(['error' => 'invalid text']);
@@ -3626,7 +3626,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         const NARRATOR_FILTER_REGEX_MODE_KEY = 'yourchat-narrator-filter-regex-mode';
         const NARRATOR_ALLOW_REGEX_MODE_KEY = 'yourchat-narrator-allow-regex-mode';
         const NARRATOR_MAX_QUEUE = 3;  // drop the newest beyond this so narration stays near real-time
-        const NARRATOR_MAX_CHARS = 300; // must match PHP clamp_text / yc narrate action
+        const NARRATOR_MAX_CHARS = 500; // Twitch chat max; must match PHP and Piper clamp_text
         let narratorEnabled = false;   // opt-in (default OFF)
         let narratorFilterUseRegex = false;
         let narratorAllowUseRegex = false;
@@ -3962,6 +3962,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 return name ? `${name} has sent an emote` : 'Emote';
             }
             if (!spokenBody) return '';
+            // Piper treats "!" as punctuation and will not say it, so "!bot" is silent
+            // or just "bot". Speak chat commands as "command bot".
+            if (spokenBody.charAt(0) === '!') {
+                spokenBody = 'command ' + spokenBody.replace(/^!+/, '').trimStart();
+            }
             let spoken = !narratorSpeakName ? spokenBody : (name ? `${name} says ${spokenBody}` : spokenBody);
             if (spoken.length > NARRATOR_MAX_CHARS) spoken = spoken.slice(0, NARRATOR_MAX_CHARS);
             return spoken;
