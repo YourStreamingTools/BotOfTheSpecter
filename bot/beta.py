@@ -9947,52 +9947,41 @@ class TwitchBot(commands.Bot):
                 }
                 params = {
                     'broadcaster_id': CHANNEL_ID,
-                    'first': '3'
+                    'first': '25'
                 }
                 try:
                     async with httpClientSession() as session:
                         async with session.get('https://api.twitch.tv/helix/schedule', headers=headers, params=params) as response:
                             if response.status == 200:
                                 data = await response.json()
-                                segments = data['data']['segments']
-                                vacation = data['data'].get('vacation')
-                                # Check if vacation is ongoing
-                                if vacation and 'start_time' in vacation and 'end_time' in vacation:
-                                    vacation_start = datetime.strptime(vacation['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc).astimezone(tz)
-                                    vacation_end = datetime.strptime(vacation['end_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc).astimezone(tz)
-                                    if vacation_start <= current_time <= vacation_end:
-                                        # Check if there is a stream within 2 days after the vacation ends
-                                        for segment in segments:
-                                            start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
-                                            start_time = start_time_utc.astimezone(tz)
-                                            if start_time >= vacation_end and (start_time - current_time).days <= 2:
-                                                await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
-                                                return
-                                        await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
-                                        return
-                                next_stream = None
-                                canceled_stream = None
-                                for segment in segments:
-                                    # Check if the segment is canceled
-                                    if segment.get('canceled_until'):
-                                        canceled_until = datetime.strptime(segment['canceled_until'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc).astimezone(tz)
-                                        start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
-                                        canceled_stream = (start_time_utc.astimezone(tz), canceled_until)
-                                        continue
-                                    start_time_utc = datetime.strptime(segment['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
-                                    start_time = start_time_utc.astimezone(tz)
-                                    if start_time > current_time:
-                                        next_stream = segment
-                                        break  # Exit the loop after finding the first upcoming stream
-                                if canceled_stream:
-                                    canceled_time, canceled_until = canceled_stream
-                                    await send_chat_message(f"The next stream scheduled for {canceled_time.strftime('%A, %d %B %Y')} ({canceled_time.strftime('%H:%M %Z')} UTC) has been canceled.")
+                                schedule_data = data.get('data') or {}
+                                segments = schedule_data.get('segments') or []
+                                vacation = schedule_data.get('vacation')
+                                if vacation and vacation.get('start_time') and vacation.get('end_time'):
+                                    vacation_start = parse_twitch_schedule_time(vacation['start_time'])
+                                    vacation_end = parse_twitch_schedule_time(vacation['end_time'])
+                                    if vacation_start and vacation_end:
+                                        vacation_start = vacation_start.astimezone(tz)
+                                        vacation_end = vacation_end.astimezone(tz)
+                                        if vacation_start <= current_time <= vacation_end:
+                                            next_stream, _, _ = pick_next_schedule_stream(segments, current_time, tz, vacation_end)
+                                            if next_stream:
+                                                start_time_utc = parse_twitch_schedule_time(next_stream.get('start_time'))
+                                                if start_time_utc:
+                                                    start_time = start_time_utc.astimezone(tz)
+                                                    if (start_time - current_time).days <= 2:
+                                                        await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). My next stream is on {start_time.strftime('%A, %d %B %Y')} ({start_time.strftime('%H:%M %Z')} UTC).")
+                                                        return
+                                            await send_chat_message(f"I'm on vacation until {vacation_end.strftime('%A, %d %B %Y')} ({vacation_end.strftime('%H:%M %Z')} UTC). No streams during this time!")
+                                            return
+                                next_stream, cancelled_local, _ = pick_next_schedule_stream(segments, current_time, tz)
+                                if cancelled_local:
+                                    await send_chat_message(f"The next stream scheduled for {cancelled_local.strftime('%A, %d %B %Y')} ({cancelled_local.strftime('%H:%M %Z')}) has been cancelled.")
                                 if next_stream:
-                                    start_date_utc = next_stream['start_time'].split('T')[0]  # Extract date from start_time
-                                    start_time_utc = datetime.strptime(next_stream['start_time'][:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=set_timezone.utc)
+                                    start_date_utc = next_stream['start_time'].split('T')[0]
+                                    start_time_utc = parse_twitch_schedule_time(next_stream.get('start_time'))
                                     start_time = start_time_utc.astimezone(tz)
                                     time_until = start_time - current_time
-                                    # Format time_until
                                     days, seconds = time_until.days, time_until.seconds
                                     hours = seconds // 3600
                                     minutes = (seconds % 3600) // 60
@@ -10000,7 +9989,7 @@ class TwitchBot(commands.Bot):
                                     time_str = f"{days} days, {hours} hours, {minutes} minutes, {seconds} seconds" if days else f"{hours} hours, {minutes} minutes, {seconds} seconds"
                                     await send_chat_message(f"The next stream will be on {start_date_utc} at {start_time.strftime('%H:%M %Z')} ({start_time_utc.strftime('%H:%M')} UTC), which is in {time_str}. Check out the full schedule here: https://www.twitch.tv/{CHANNEL_NAME}/schedule")
                                 else:
-                                    await send_chat_message(f"There are no upcoming streams in the next three days.")
+                                    await send_chat_message(f"There are no upcoming streams scheduled.")
                             else:
                                 await send_chat_message(f"Something went wrong while trying to get the schedule from Twitch.")
                 except Exception as e:
@@ -13844,6 +13833,58 @@ def parse_lurk_start_time(value):
     iso = text[:-1] + '+00:00' if text.endswith('Z') else text
     parsed = datetime.fromisoformat(iso)
     return parsed.replace(tzinfo=None) if parsed.tzinfo is not None else parsed
+
+# Function to parse a Twitch Helix schedule RFC3339 timestamp into aware UTC
+def parse_twitch_schedule_time(iso_time):
+    if not iso_time:
+        return None
+    try:
+        text = str(iso_time).strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        try:
+            return datetime.strptime(str(iso_time)[:-1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return None
+
+# Function to pick the next upcoming Twitch schedule segment, ignoring cancelled slots that were replaced the same local day
+def pick_next_schedule_stream(segments, current_time, tz, min_start=None):
+    upcoming = []
+    for segment in segments or []:
+        start_utc = parse_twitch_schedule_time(segment.get("start_time"))
+        if not start_utc:
+            continue
+        start_local = start_utc.astimezone(tz)
+        if start_local <= current_time:
+            continue
+        if min_start is not None and start_local < min_start:
+            continue
+        upcoming.append((start_local, start_utc, bool(segment.get("canceled_until")), segment))
+    upcoming.sort(key=lambda item: item[0])
+    next_stream = None
+    cancelled_local = None
+    cancelled_utc = None
+    for start_local, start_utc, is_cancelled, segment in upcoming:
+        if is_cancelled:
+            if cancelled_local is None:
+                cancelled_local = start_local
+                cancelled_utc = start_utc
+            continue
+        next_stream = segment
+        break
+    if cancelled_local is not None and next_stream is not None:
+        next_start_utc = parse_twitch_schedule_time(next_stream.get("start_time"))
+        if next_start_utc:
+            next_start_local = next_start_utc.astimezone(tz)
+            if cancelled_local.date() == next_start_local.date():
+                cancelled_local = None
+                cancelled_utc = None
+    return next_stream, cancelled_local, cancelled_utc
 
 # Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
