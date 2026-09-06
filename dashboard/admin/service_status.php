@@ -186,8 +186,32 @@ $serviceMap = [
         'ssh_username' => $websocket_server_username ?? '',
         'ssh_password' => $websocket_server_password ?? ''
     ],
+    'websocket_control' => [
+        'service_name' => 'websocket-control.service',
+        'ssh_host' => $websocket_server_host ?? '',
+        'ssh_username' => $websocket_server_username ?? '',
+        'ssh_password' => $websocket_server_password ?? ''
+    ],
+    'ws_caddy' => [
+        'service_name' => 'caddy.service',
+        'ssh_host' => $websocket_server_host ?? '',
+        'ssh_username' => $websocket_server_username ?? '',
+        'ssh_password' => $websocket_server_password ?? ''
+    ],
     'mysql' => [
         'service_name' => 'mysql.service',
+        'ssh_host' => $sql_server_host ?? '',
+        'ssh_username' => $sql_server_username ?? '',
+        'ssh_password' => $sql_server_password ?? ''
+    ],
+    'sql_api' => [
+        'service_name' => 'sql-api.service',
+        'ssh_host' => $sql_server_host ?? '',
+        'ssh_username' => $sql_server_username ?? '',
+        'ssh_password' => $sql_server_password ?? ''
+    ],
+    'sql_caddy' => [
+        'service_name' => 'caddy.service',
         'ssh_host' => $sql_server_host ?? '',
         'ssh_username' => $sql_server_username ?? '',
         'ssh_password' => $sql_server_password ?? ''
@@ -270,6 +294,8 @@ if ($service === 'bots_api') {
 $wsControlStatusUnits = [
     'websocket' => 'websocket',
     'yourchat_piper' => 'yourchat-piper',
+    'websocket_control' => 'websocket-control',
+    'ws_caddy' => 'caddy',
 ];
 if (isset($wsControlStatusUnits[$service])) {
     $ws = websocket_control_service_status($wsControlStatusUnits[$service]);

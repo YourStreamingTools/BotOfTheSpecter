@@ -352,19 +352,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'yourchat-piper.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'websocket-control.service', 'yourchat-piper.service', 'ws-caddy.service', 'mysql.service', 'sql-api.service', 'sql-caddy.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
     // Some allowed "service" identifiers are dashboard-only aliases so the same real unit name
     // (e.g. caddy.service) can be routed to different hosts; map alias -> actual systemd unit here.
     $serviceUnitOverrides = [
         'bots-caddy.service' => 'caddy.service',
         'api-caddy.service' => 'caddy.service',
+        'sql-caddy.service' => 'caddy.service',
     ];
     if (in_array($service, $allowedServices)) {
         try {
             // WebSocket host lifecycle via private HTTP control API (no SSH) — same idea as bots_api
             $wsControlUnits = [
                 'websocket.service' => 'websocket',
+                'websocket-control.service' => 'websocket-control',
                 'yourchat-piper.service' => 'yourchat-piper',
+                'ws-caddy.service' => 'caddy',
             ];
             if (isset($wsControlUnits[$service])) {
                 $wsUnit = $wsControlUnits[$service];
@@ -386,7 +389,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $api_server_host ?? '';
                 $ssh_username = $api_server_username ?? '';
                 $ssh_password = $api_server_password ?? '';
-            } elseif ($service == 'mysql.service') {
+            } elseif ($service == 'mysql.service' || $service == 'sql-api.service' || $service == 'sql-caddy.service') {
                 $ssh_host = $sql_server_host ?? '';
                 $ssh_username = $sql_server_username ?? '';
                 $ssh_password = $sql_server_password ?? '';
@@ -444,8 +447,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                             'fastapi.service' => 'FastAPI',
                             'api-caddy.service' => 'CADDY — API SERVER',
                             'websocket.service' => 'WebSocket',
+                            'websocket-control.service' => 'WebSocket Host API',
                             'yourchat-piper.service' => 'YourChat TTS Engine',
+                            'ws-caddy.service' => 'CADDY — WEBSOCKET SERVER',
                             'mysql.service' => 'MySQL',
+                            'sql-api.service' => 'SQL Data API',
+                            'sql-caddy.service' => 'CADDY — SQL SERVER',
                             'export_queue_worker.service' => 'Export Queue Worker',
                             'twitch-recorder.service' => 'Twitch Recorder',
                             'caddy.service' => 'CADDY — WEB SERVER',
@@ -2163,6 +2170,26 @@ ob_start();
                     <div class="admin-service-card">
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-success"><i class="fas fa-sliders fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_websocket_control'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_websocket_control_sub'); ?></span>
+                                    <span class="admin-service-status" id="websocket-control-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="websocket-control-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="websocket-control-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('websocket-control.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('websocket-control.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('websocket-control.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                                 <span class="icon sp-text-info"><i class="fas fa-volume-high fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_yourchat_piper'); ?></span>
@@ -2205,6 +2232,26 @@ ob_start();
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('mysql.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
                             <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('mysql.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
                             <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('mysql.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-warning"><i class="fas fa-code fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_sql_api'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_sql_api_sub'); ?></span>
+                                    <span class="admin-service-status" id="sql-api-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="sql-api-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="sql-api-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('sql-api.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('sql-api.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('sql-api.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
                 </div>
@@ -2278,6 +2325,48 @@ ob_start();
                             <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
                             <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('caddy.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
                             <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('caddy.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-success"><i class="fas fa-shield-alt fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="sp-badge sp-badge-green" style="margin-bottom:0.25rem;">WS</span>
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_ws_caddy'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_ws_caddy_sub'); ?></span>
+                                    <span class="admin-service-status" id="ws-caddy-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="ws-caddy-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="ws-caddy-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('ws-caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('ws-caddy.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('ws-caddy.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-warning"><i class="fas fa-shield-alt fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="sp-badge sp-badge-amber" style="margin-bottom:0.25rem;">SQL</span>
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_sql_caddy'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_sql_caddy_sub'); ?></span>
+                                    <span class="admin-service-status" id="sql-caddy-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="sql-caddy-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="sql-caddy-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('sql-caddy.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('sql-caddy.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('sql-caddy.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
                         </div>
                     </div>
                 </div>
@@ -2703,8 +2792,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'fastapi.service' => 'FastAPI',
             'api-caddy.service' => t('admin_index_svc_api_caddy'),
             'websocket.service' => 'WebSocket',
+            'websocket-control.service' => t('admin_index_svc_websocket_control'),
             'yourchat-piper.service' => t('admin_index_svc_yourchat_piper'),
+            'ws-caddy.service' => t('admin_index_svc_ws_caddy'),
             'mysql.service' => 'MySQL',
+            'sql-api.service' => t('admin_index_svc_sql_api'),
+            'sql-caddy.service' => t('admin_index_svc_sql_caddy'),
             'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
             'twitch-recorder.service' => t('admin_index_svc_twitch_recorder'),
             'caddy.service' => t('admin_index_svc_web_caddy')
@@ -2858,8 +2951,12 @@ document.addEventListener('DOMContentLoaded', function() {
         'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
         'api-caddy.service': { statusKey: 'api_caddy', statusId: 'api-caddy-status', pidId: 'api-caddy-pid', buttonsId: 'api-caddy-buttons' },
         'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
+        'websocket-control.service': { statusKey: 'websocket_control', statusId: 'websocket-control-status', pidId: 'websocket-control-pid', buttonsId: 'websocket-control-buttons' },
         'yourchat-piper.service': { statusKey: 'yourchat_piper', statusId: 'yourchat-piper-status', pidId: 'yourchat-piper-pid', buttonsId: 'yourchat-piper-buttons' },
+        'ws-caddy.service': { statusKey: 'ws_caddy', statusId: 'ws-caddy-status', pidId: 'ws-caddy-pid', buttonsId: 'ws-caddy-buttons' },
         'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' },
+        'sql-api.service': { statusKey: 'sql_api', statusId: 'sql-api-status', pidId: 'sql-api-pid', buttonsId: 'sql-api-buttons' },
+        'sql-caddy.service': { statusKey: 'sql_caddy', statusId: 'sql-caddy-status', pidId: 'sql-caddy-pid', buttonsId: 'sql-caddy-buttons' },
         'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
         'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' },
         'caddy.service': { statusKey: 'web_caddy', statusId: 'web-caddy-status', pidId: 'web-caddy-pid', buttonsId: 'web-caddy-buttons' }
@@ -2868,7 +2965,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!meta) return;
         // Bots API /health is down while the process is still binding. Wait longer
         // and retry so a successful restart is not painted as Error/Failed.
-        const waitForHttp = meta.statusKey === 'bots_api' && (action === 'start' || action === 'restart');
+        const waitForHttp = (meta.statusKey === 'bots_api' || meta.statusKey === 'websocket_control') && (action === 'start' || action === 'restart');
         const delay = waitForHttp ? 2000 : 500;
         const retries = waitForHttp ? 6 : 0;
         setTimeout(() => {
@@ -3425,8 +3522,12 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('api_caddy', 'api-caddy-status', 'api-caddy-pid', 'api-caddy-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
+        updateServiceStatus('websocket_control', 'websocket-control-status', 'websocket-control-pid', 'websocket-control-buttons');
         updateServiceStatus('yourchat_piper', 'yourchat-piper-status', 'yourchat-piper-pid', 'yourchat-piper-buttons');
+        updateServiceStatus('ws_caddy', 'ws-caddy-status', 'ws-caddy-pid', 'ws-caddy-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
+        updateServiceStatus('sql_api', 'sql-api-status', 'sql-api-pid', 'sql-api-buttons');
+        updateServiceStatus('sql_caddy', 'sql-caddy-status', 'sql-caddy-pid', 'sql-caddy-buttons');
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
         updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');
         updateServiceStatus('web_caddy', 'web-caddy-status', 'web-caddy-pid', 'web-caddy-buttons');
