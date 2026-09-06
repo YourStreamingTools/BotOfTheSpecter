@@ -352,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'yourchat-piper.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
     // Some allowed "service" identifiers are dashboard-only aliases so the same real unit name
     // (e.g. caddy.service) can be routed to different hosts; map alias -> actual systemd unit here.
     $serviceUnitOverrides = [
@@ -362,13 +362,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     if (in_array($service, $allowedServices)) {
         try {
             // WebSocket host lifecycle via private HTTP control API (no SSH) — same idea as bots_api
-            if ($service == 'websocket.service') {
-                $wsUnit = 'websocket';
+            $wsControlUnits = [
+                'websocket.service' => 'websocket',
+                'yourchat-piper.service' => 'yourchat-piper',
+            ];
+            if (isset($wsControlUnits[$service])) {
+                $wsUnit = $wsControlUnits[$service];
                 $wsResp = websocket_control_service_action($action, $wsUnit);
                 $success = !empty($wsResp['ok']);
                 if ($success) {
                     $data = is_array($wsResp['data'] ?? null) ? $wsResp['data'] : [];
-                    $output = (string)($data['message'] ?? ("WebSocket " . $action . "ed successfully"));
+                    $output = (string)($data['message'] ?? ($wsUnit . ' ' . $action . 'ed successfully'));
                 } else {
                     $output = (string)($wsResp['error'] ?? 'websocket control API failed');
                 }
@@ -440,6 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                             'fastapi.service' => 'FastAPI',
                             'api-caddy.service' => 'CADDY — API SERVER',
                             'websocket.service' => 'WebSocket',
+                            'yourchat-piper.service' => 'YourChat TTS Engine',
                             'mysql.service' => 'MySQL',
                             'export_queue_worker.service' => 'Export Queue Worker',
                             'twitch-recorder.service' => 'Twitch Recorder',
@@ -2154,6 +2159,26 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-info"><i class="fas fa-volume-high fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_yourchat_piper'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_yourchat_piper_sub'); ?></span>
+                                    <span class="admin-service-status" id="yourchat-piper-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="yourchat-piper-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="yourchat-piper-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('yourchat-piper.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('yourchat-piper.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('yourchat-piper.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
         <!-- ========== SQL HOST ========== -->
@@ -2678,6 +2703,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'fastapi.service' => 'FastAPI',
             'api-caddy.service' => t('admin_index_svc_api_caddy'),
             'websocket.service' => 'WebSocket',
+            'yourchat-piper.service' => t('admin_index_svc_yourchat_piper'),
             'mysql.service' => 'MySQL',
             'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
             'twitch-recorder.service' => t('admin_index_svc_twitch_recorder'),
@@ -2832,6 +2858,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
         'api-caddy.service': { statusKey: 'api_caddy', statusId: 'api-caddy-status', pidId: 'api-caddy-pid', buttonsId: 'api-caddy-buttons' },
         'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
+        'yourchat-piper.service': { statusKey: 'yourchat_piper', statusId: 'yourchat-piper-status', pidId: 'yourchat-piper-pid', buttonsId: 'yourchat-piper-buttons' },
         'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' },
         'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
         'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' },
@@ -3398,6 +3425,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('fastapi', 'api-status', 'api-pid', 'api-buttons');
         updateServiceStatus('api_caddy', 'api-caddy-status', 'api-caddy-pid', 'api-caddy-buttons');
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
+        updateServiceStatus('yourchat_piper', 'yourchat-piper-status', 'yourchat-piper-pid', 'yourchat-piper-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
         updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');

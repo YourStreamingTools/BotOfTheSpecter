@@ -9,6 +9,7 @@ ALLOWED_UNITS: dict[str, str] = {
     "websocket": "websocket.service",
     "caddy": "caddy.service",
     "websocket-control": "websocket-control.service",
+    "yourchat-piper": "yourchat-piper.service",
 }
 
 
