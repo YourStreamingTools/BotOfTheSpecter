@@ -206,15 +206,19 @@ $serviceMap = [
     ],
     'sql_api' => [
         'service_name' => 'sql-api.service',
-        'ssh_host' => $sql_server_host ?? '',
-        'ssh_username' => $sql_server_username ?? '',
-        'ssh_password' => $sql_server_password ?? ''
+        'ssh_host' => '',
+        'ssh_username' => '',
+        'ssh_password' => '',
+        'fixed_status' => 'Coming soon',
+        'fixed_pid' => 'N/A',
     ],
     'sql_caddy' => [
         'service_name' => 'caddy.service',
-        'ssh_host' => $sql_server_host ?? '',
-        'ssh_username' => $sql_server_username ?? '',
-        'ssh_password' => $sql_server_password ?? ''
+        'ssh_host' => '',
+        'ssh_username' => '',
+        'ssh_password' => '',
+        'fixed_status' => 'Coming soon',
+        'fixed_pid' => 'N/A',
     ],
     'export_queue_worker' => [
         'service_name' => 'export_queue_worker.service',
