@@ -389,10 +389,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $api_server_host ?? '';
                 $ssh_username = $api_server_username ?? '';
                 $ssh_password = $api_server_password ?? '';
-            } elseif ($service == 'mysql.service' || $service == 'sql-api.service' || $service == 'sql-caddy.service') {
+            } elseif ($service == 'mysql.service') {
                 $ssh_host = $sql_server_host ?? '';
                 $ssh_username = $sql_server_username ?? '';
                 $ssh_password = $sql_server_password ?? '';
+            } elseif ($service == 'sql-api.service' || $service == 'sql-caddy.service') {
+                // Not migrated onto the SQL host yet — refuse control (status is fixed Coming soon)
+                $output = t('admin_index_err_sql_not_migrated');
+                $success = false;
+                $ssh_host = '';
             } elseif ($service == 'twitch-recorder.service') {
                 // Retired service — refuse control (status is fixed SHUTDOWN in service_status.php)
                 $output = 'Twitch Recorder is shut down and cannot be controlled from the admin panel.';
@@ -404,8 +409,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_username = $web_ssh_username ?? '';
                 $ssh_password = $web_ssh_password ?? '';
             }
-            if ($service == 'twitch-recorder.service') {
-                // no SSH — status is fixed SHUTDOWN
+            if ($service == 'twitch-recorder.service' || $service == 'sql-api.service' || $service == 'sql-caddy.service') {
+                // no SSH — fixed status in service_status.php
             } elseif (!($connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password))) {
                 $output = "SSH connection failed to host: {$ssh_host} (check config/ssh.php and network)";
                 $success = false;
@@ -2241,6 +2246,7 @@ ob_start();
                             <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                                 <span class="icon sp-text-warning"><i class="fas fa-code fa-lg"></i></span>
                                 <div style="min-width: 0;">
+                                    <span class="sp-badge sp-badge-grey" style="margin-bottom:0.25rem;"><?php echo t('admin_index_badge_soon'); ?></span>
                                     <span class="admin-heading"><?php echo t('admin_index_svc_sql_api'); ?></span>
                                     <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_sql_api_sub'); ?></span>
                                     <span class="admin-service-status" id="sql-api-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
@@ -2355,7 +2361,7 @@ ob_start();
                             <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                                 <span class="icon sp-text-warning"><i class="fas fa-shield-alt fa-lg"></i></span>
                                 <div style="min-width: 0;">
-                                    <span class="sp-badge sp-badge-amber" style="margin-bottom:0.25rem;">SQL</span>
+                                    <span class="sp-badge sp-badge-grey" style="margin-bottom:0.25rem;"><?php echo t('admin_index_badge_soon'); ?></span>
                                     <span class="admin-heading"><?php echo t('admin_index_svc_sql_caddy'); ?></span>
                                     <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_sql_caddy_sub'); ?></span>
                                     <span class="admin-service-status" id="sql-caddy-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
@@ -3459,7 +3465,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusElement.className = 'admin-service-status';
                 if (data.status === 'Running') {
                     statusElement.classList.add('sp-text-success');
-                } else if (data.status === 'SHUTDOWN') {
+                } else if (data.status === 'SHUTDOWN' || data.status === 'Coming soon') {
                     statusElement.classList.add('sp-text-muted');
                 } else if (data.status === 'Stopped' || data.status === 'Failed') {
                     statusElement.classList.add('sp-text-danger');
@@ -3478,8 +3484,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
                     restartBtn.disabled = false;
-                } else if (data.status === 'SHUTDOWN') {
-                    // Retired / intentionally offline — no controls
+                } else if (data.status === 'SHUTDOWN' || data.status === 'Coming soon') {
+                    // Retired or not migrated yet — no controls
                     startBtn.disabled = true;
                     stopBtn.disabled = true;
                     restartBtn.disabled = true;
