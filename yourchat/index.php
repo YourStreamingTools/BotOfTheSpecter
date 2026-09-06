@@ -3626,6 +3626,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         const NARRATOR_FILTER_REGEX_MODE_KEY = 'yourchat-narrator-filter-regex-mode';
         const NARRATOR_ALLOW_REGEX_MODE_KEY = 'yourchat-narrator-allow-regex-mode';
         const NARRATOR_MAX_QUEUE = 3;  // drop the newest beyond this so narration stays near real-time
+        const NARRATOR_MAX_CHARS = 300; // must match PHP clamp_text / yc narrate action
         let narratorEnabled = false;   // opt-in (default OFF)
         let narratorFilterUseRegex = false;
         let narratorAllowUseRegex = false;
@@ -3961,8 +3962,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 return name ? `${name} has sent an emote` : 'Emote';
             }
             if (!spokenBody) return '';
-            if (!narratorSpeakName) return spokenBody;
-            return name ? `${name} says ${spokenBody}` : spokenBody;
+            let spoken = !narratorSpeakName ? spokenBody : (name ? `${name} says ${spokenBody}` : spokenBody);
+            if (spoken.length > NARRATOR_MAX_CHARS) spoken = spoken.slice(0, NARRATOR_MAX_CHARS);
+            return spoken;
         }
         function narrateMessage(event) {
             if (!narratorEnabled) return;
@@ -4431,9 +4433,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 (event.chatter_user_id && CONFIG.USER_ID && String(event.chatter_user_id) === String(CONFIG.USER_ID));
             if (!isOwnOutgoing) {
                 playDingSound();
-                // Read the message aloud if the narrator is on (honors its skip-list)
-                narrateMessage(event);
             }
+            // Narrator is independent of the ding. Own lines still speak (YourChat
+            // synthesises them as local-* because IRC does not echo PRIVMSG).
+            narrateMessage(event);
             // Auto-scroll to bottom (only if user is not scrolling up)
             scrollToBottomIfNeeded(overlay);
             // Enforce cap (remove oldest messages if needed)
