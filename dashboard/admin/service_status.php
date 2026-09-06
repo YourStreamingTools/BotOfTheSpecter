@@ -180,6 +180,12 @@ $serviceMap = [
         'ssh_username' => $websocket_server_username ?? '',
         'ssh_password' => $websocket_server_password ?? ''
     ],
+    'yourchat_piper' => [
+        'service_name' => 'yourchat-piper.service',
+        'ssh_host' => $websocket_server_host ?? '',
+        'ssh_username' => $websocket_server_username ?? '',
+        'ssh_password' => $websocket_server_password ?? ''
+    ],
     'mysql' => [
         'service_name' => 'mysql.service',
         'ssh_host' => $sql_server_host ?? '',
@@ -261,8 +267,12 @@ if ($service === 'bots_api') {
     exit();
 }
 // WebSocket host: status via private control API (no SSH)
-if ($service === 'websocket') {
-    $ws = websocket_control_service_status('websocket');
+$wsControlStatusUnits = [
+    'websocket' => 'websocket',
+    'yourchat_piper' => 'yourchat-piper',
+];
+if (isset($wsControlStatusUnits[$service])) {
+    $ws = websocket_control_service_status($wsControlStatusUnits[$service]);
     if (!empty($ws['ok']) && is_array($ws['data'] ?? null)) {
         $d = $ws['data'];
         echo json_encode([

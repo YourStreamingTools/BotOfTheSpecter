@@ -9,7 +9,7 @@ an admin API key (Admin → API Keys) with service name:  websocket
 Surface (behind Caddy path /control → 127.0.0.1:8093):
   GET  /health
   GET  /api/services
-  GET  /api/service/status?unit=websocket|caddy
+  GET  /api/service/status?unit=websocket|caddy|yourchat-piper
   POST /api/service/start|stop|restart   JSON { "unit": "websocket" }
 
 Auth: header X-API-KEY (or X-WS-CONTROL-KEY).

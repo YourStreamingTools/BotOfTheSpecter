@@ -6289,6 +6289,8 @@ return [
     'admin_index_svc_web_caddy_sub' => '仪表盘 + 公共站点 · Web 主机 TLS',
     'admin_index_svc_api_server' => 'API服务器',
     'admin_index_svc_websocket_server' => 'WebSocket服务器',
+    'admin_index_svc_yourchat_piper' => 'YourChat TTS 引擎',
+    'admin_index_svc_yourchat_piper_sub' => '旁白 Piper · 仅私有局域网',
     'admin_index_svc_mysql_server' => 'MySQL服务器',
     'admin_index_svc_export_queue_worker' => '导出队列工作者',
     'admin_index_svc_twitch_recorder' => 'Twitch记录仪',
