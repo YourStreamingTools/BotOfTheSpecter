@@ -22,9 +22,15 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
-$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
-if ($db->connect_error) {
-    die('Connection failed: ' . $db->connect_error);
+$builtinCommands = [];
+$builtinStmt = $db->prepare("SELECT * FROM builtin_commands");
+if ($builtinStmt) {
+    $builtinStmt->execute();
+    $builtinResult = $builtinStmt->get_result();
+    if ($builtinResult) {
+        $builtinCommands = $builtinResult->fetch_all(MYSQLI_ASSOC) ?: [];
+    }
+    $builtinStmt->close();
 }
 
 // Check for cookie consent
