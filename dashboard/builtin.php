@@ -385,7 +385,12 @@ const BC_I18N = {
     lurkTimerHelp: <?php echo json_encode(t('builtin_commands_js_lurk_timer_help')); ?>,
     unlurkTimerLabel: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_label')); ?>,
     unlurkTimerCheckbox: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_checkbox')); ?>,
-    unlurkTimerHelp: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_help')); ?>
+    unlurkTimerHelp: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_help')); ?>,
+    chatMessageLabel: <?php echo json_encode(t('builtin_commands_js_chat_message_label')); ?>,
+    chatMessageHelp: <?php echo json_encode(t('builtin_commands_js_chat_message_help')); ?>,
+    chatMessageVars: <?php echo json_encode(t('builtin_commands_js_chat_message_vars')); ?>,
+    deathAddDefault: <?php echo json_encode("We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we've died (deaths.stream) times in (game)."); ?>,
+    deathRemoveDefault: <?php echo json_encode("Death removed from (game), count is now (deaths). Total deaths in all games: (deaths.total)."); ?>
 };
 // Remember search query using localStorage and attach filter listeners after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -616,8 +621,26 @@ function renderCommandOptions(commandName, options) {
                 <small class="sp-help">${BC_I18N.unlurkTimerHelp}</small>
             </div>
         `;
+    } else if (commandName === 'deathadd' || commandName === 'deathremove') {
+        html += `
+            <hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">
+            <div class="sp-form-group">
+                <label class="sp-label">${BC_I18N.chatMessageLabel}</label>
+                <textarea class="sp-textarea" id="deathChatMessage" rows="4"></textarea>
+                <small class="sp-help">${BC_I18N.chatMessageHelp}</small>
+                <small class="sp-help">${BC_I18N.chatMessageVars}</small>
+            </div>
+        `;
     }
     modalContent.innerHTML = html;
+    if (commandName === 'deathadd' || commandName === 'deathremove') {
+        const defaultMsg = commandName === 'deathadd' ? BC_I18N.deathAddDefault : BC_I18N.deathRemoveDefault;
+        const savedMsg = options && typeof options.message === 'string' ? options.message : '';
+        const deathMsgField = document.getElementById('deathChatMessage');
+        if (deathMsgField) {
+            deathMsgField.value = savedMsg.trim() !== '' ? savedMsg : defaultMsg;
+        }
+    }
 }
 
 function saveCommandOptions() {
@@ -640,6 +663,11 @@ function saveCommandOptions() {
         const timerCheckbox = document.getElementById('unlurkTimer');
         if (timerCheckbox) {
             options.timer = timerCheckbox.checked;
+        }
+    } else if (commandName === 'deathadd' || commandName === 'deathremove') {
+        const msgField = document.getElementById('deathChatMessage');
+        if (msgField) {
+            options.message = msgField.value;
         }
     }
     // Show saving state

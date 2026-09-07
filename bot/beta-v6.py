@@ -9392,7 +9392,18 @@ class TwitchBot(commands.AutoBot):
                     chat_logger.info(f"{current_game} now has {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been calculated as: {total_death_count}")
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
-                    await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("deathadd",))
+                    death_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(format_death_chat_message(
+                        death_options.get("message"),
+                        DEATHADD_DEFAULT_CHAT_MESSAGE,
+                        current_game,
+                        game_death_count,
+                        total_death_count,
+                        stream_death_count,
+                        deaths,
+                        ctx.author.name,
+                    ))
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except GeneratorExit:
                     raise
@@ -9465,7 +9476,18 @@ class TwitchBot(commands.AutoBot):
                     stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                     chat_logger.info(f"{current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"Total death count has been calculated as: {total_death_count}")
-                    await send_chat_message(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("deathremove",))
+                    death_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(format_death_chat_message(
+                        death_options.get("message"),
+                        DEATHREMOVE_DEFAULT_CHAT_MESSAGE,
+                        current_game,
+                        game_death_count,
+                        total_death_count,
+                        stream_death_count,
+                        deaths,
+                        ctx.author.name,
+                    ))
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except GeneratorExit:
                     raise
@@ -13547,6 +13569,47 @@ def pick_next_schedule_stream(segments, current_time, tz, min_start=None):
                 cancelled_local = None
                 cancelled_utc = None
     return next_stream, cancelled_local, cancelled_utc
+
+# Default !deathadd / !deathremove chat templates; dashboard builtin.php seeds the same strings
+DEATHADD_DEFAULT_CHAT_MESSAGE = "We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we've died (deaths.stream) times in (game)."
+DEATHREMOVE_DEFAULT_CHAT_MESSAGE = "Death removed from (game), count is now (deaths). Total deaths in all games: (deaths.total)."
+
+# Function to decode the JSON options column from command_options
+def parse_command_options_json(row):
+    if not row:
+        return {}
+    raw = row.get("options") if isinstance(row, dict) else None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (bytes, bytearray)):
+        raw = raw.decode("utf-8", errors="ignore")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return {}
+    return {}
+
+# Function to fill deathadd/deathremove chat templates with (game)/(deaths)/... vars
+def format_death_chat_message(template, default_message, game, deaths, total_deaths, stream_deaths, amount, user):
+    message = default_message
+    if isinstance(template, str) and template.strip():
+        message = template
+    game_text = "" if game is None else str(game)
+    user_text = "" if user is None else str(user)
+    replacements = (
+        ("(deaths.total)", str(total_deaths)),
+        ("(deaths.stream)", str(stream_deaths)),
+        ("(deaths)", str(deaths)),
+        ("(game)", game_text),
+        ("(arg)", str(amount)),
+        ("(user)", user_text),
+        ("(author)", user_text),
+    )
+    for token, value in replacements:
+        message = message.replace(token, value)
+    return message
 
 # Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
