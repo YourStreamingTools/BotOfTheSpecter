@@ -87,6 +87,7 @@ $cmdData = $jsonData['commands'];
 $cmdDescriptions = [];
 $cmdForceLevels = [];
 $cmdAliases = [];
+$cmdChatMessages = [];
 foreach ($cmdData as $cmdKey => $cmdInfo) {
     if (is_array($cmdInfo)) {
         $cmdDescriptions[$cmdKey] = $cmdInfo['description'] ?? t('builtin_commands_no_description');
@@ -95,6 +96,9 @@ foreach ($cmdData as $cmdKey => $cmdInfo) {
         }
         if (isset($cmdInfo['aliases'])) {
             $cmdAliases[$cmdKey] = $cmdInfo['aliases'];
+        }
+        if (isset($cmdInfo['chat_messages']) && is_array($cmdInfo['chat_messages'])) {
+            $cmdChatMessages[$cmdKey] = $cmdInfo['chat_messages'];
         }
     } else {
         // Backwards compatibility for old string format
@@ -387,11 +391,9 @@ const BC_I18N = {
     unlurkTimerCheckbox: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_checkbox')); ?>,
     unlurkTimerHelp: <?php echo json_encode(t('builtin_commands_js_unlurk_timer_help')); ?>,
     chatMessageLabel: <?php echo json_encode(t('builtin_commands_js_chat_message_label')); ?>,
-    chatMessageHelp: <?php echo json_encode(t('builtin_commands_js_chat_message_help')); ?>,
-    chatMessageVars: <?php echo json_encode(t('builtin_commands_js_chat_message_vars')); ?>,
-    deathAddDefault: <?php echo json_encode("We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we've died (deaths.stream) times in (game)."); ?>,
-    deathRemoveDefault: <?php echo json_encode("Death removed from (game), count is now (deaths). Total deaths in all games: (deaths.total)."); ?>
+    chatMessageHelp: <?php echo json_encode(t('builtin_commands_js_chat_message_help')); ?>
 };
+const BC_CHAT_TEMPLATES = <?php echo json_encode($cmdChatMessages, JSON_UNESCAPED_UNICODE); ?>;
 // Remember search query using localStorage and attach filter listeners after DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     var searchInput = document.getElementById('searchInput');
@@ -621,26 +623,57 @@ function renderCommandOptions(commandName, options) {
                 <small class="sp-help">${BC_I18N.unlurkTimerHelp}</small>
             </div>
         `;
-    } else if (commandName === 'deathadd' || commandName === 'deathremove') {
-        html += `
-            <hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">
-            <div class="sp-form-group">
-                <label class="sp-label">${BC_I18N.chatMessageLabel}</label>
-                <textarea class="sp-textarea" id="deathChatMessage" rows="4"></textarea>
-                <small class="sp-help">${BC_I18N.chatMessageHelp}</small>
-                <small class="sp-help">${BC_I18N.chatMessageVars}</small>
-            </div>
-        `;
+    }
+    const chatTemplates = BC_CHAT_TEMPLATES && BC_CHAT_TEMPLATES[commandName];
+    if (chatTemplates) {
+        html += renderChatMessageFields(chatTemplates);
     }
     modalContent.innerHTML = html;
-    if (commandName === 'deathadd' || commandName === 'deathremove') {
-        const defaultMsg = commandName === 'deathadd' ? BC_I18N.deathAddDefault : BC_I18N.deathRemoveDefault;
-        const savedMsg = options && typeof options.message === 'string' ? options.message : '';
-        const deathMsgField = document.getElementById('deathChatMessage');
-        if (deathMsgField) {
-            deathMsgField.value = savedMsg.trim() !== '' ? savedMsg : defaultMsg;
-        }
+    fillChatMessageFields(chatTemplates, options);
+}
+
+function bcEscapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function renderChatMessageFields(chatTemplates) {
+    let html = '<hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">';
+    Object.keys(chatTemplates).forEach(function(key) {
+        const spec = chatTemplates[key] || {};
+        const label = spec.label || BC_I18N.chatMessageLabel;
+        const vars = Array.isArray(spec.vars) ? spec.vars : [];
+        const varsHelp = vars.map(function(token) {
+            return '<code>' + bcEscapeHtml(token) + '</code>';
+        }).join(', ');
+        html += `
+            <div class="sp-form-group">
+                <label class="sp-label">${bcEscapeHtml(label)}</label>
+                <textarea class="sp-textarea" id="chatMsg_${bcEscapeHtml(key)}" rows="3" data-chat-key="${bcEscapeHtml(key)}"></textarea>
+                <small class="sp-help">${BC_I18N.chatMessageHelp}</small>
+                ${varsHelp ? '<small class="sp-help">' + varsHelp + '</small>' : ''}
+            </div>
+        `;
+    });
+    return html;
+}
+
+function fillChatMessageFields(chatTemplates, options) {
+    if (!chatTemplates) {
+        return;
     }
+    Object.keys(chatTemplates).forEach(function(key) {
+        const spec = chatTemplates[key] || {};
+        const field = document.querySelector('#modalContent [data-chat-key="' + key + '"]');
+        if (!field) {
+            return;
+        }
+        const saved = options && typeof options[key] === 'string' ? options[key] : '';
+        field.value = saved.trim() !== '' ? saved : (spec.default || '');
+    });
 }
 
 function saveCommandOptions() {
@@ -664,12 +697,10 @@ function saveCommandOptions() {
         if (timerCheckbox) {
             options.timer = timerCheckbox.checked;
         }
-    } else if (commandName === 'deathadd' || commandName === 'deathremove') {
-        const msgField = document.getElementById('deathChatMessage');
-        if (msgField) {
-            options.message = msgField.value;
-        }
     }
+    document.querySelectorAll('#modalContent [data-chat-key]').forEach(function(field) {
+        options[field.getAttribute('data-chat-key')] = field.value;
+    });
     // Show saving state
     const saveButton = document.getElementById('saveOptionsBtn');
     const originalText = saveButton.textContent;

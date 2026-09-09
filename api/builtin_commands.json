@@ -7,11 +7,30 @@
 		},
 		"bot": {
 			"description": "Shows information about the bot developer and a link to the BotOfTheSpecter website.",
-			"syntax": "!bot"
+			"syntax": "!bot",
+			"chat_messages": {
+				"message": {
+					"default": "This amazing bot is built by the one and the only (owner). Check me out on my website: https://botofthespecter.com",
+					"label": "Chat message",
+					"vars": ["(owner)"]
+				},
+				"message_custom": {
+					"default": "The system I'm using is from BotOfTheSpecter. I'm a custom bot account @(bot) linked to the Echo system - check out more features by my owner (owner) at https://botofthespecter.com",
+					"label": "Custom bot account",
+					"vars": ["(bot)", "(owner)"]
+				}
+			}
 		},
 		"roadmap": {
 			"description": "Posts a link to the public Trello board showing upcoming features and development plans.",
-			"syntax": "!roadmap"
+			"syntax": "!roadmap",
+			"chat_messages": {
+				"message": {
+					"default": "BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/",
+					"label": "Chat message",
+					"vars": []
+				}
+			}
 		},
 		"quote": {
 			"description": "Retrieves a random quote, or a specific one by number if provided.",
@@ -55,7 +74,19 @@
 		},
 		"watchtime": {
 			"description": "Shows how long you have been watching the current stream session.",
-			"syntax": "!watchtime"
+			"syntax": "!watchtime",
+			"chat_messages": {
+				"message": {
+					"default": "@(user), you have watched for (live) live, and (offline) offline.",
+					"label": "Has watch time",
+					"vars": ["(user)", "(live)", "(offline)"]
+				},
+				"message_none": {
+					"default": "@(user), no watch time data recorded for you yet.",
+					"label": "No watch time yet",
+					"vars": ["(user)"]
+				}
+			}
 		},
 
 		"version": {
@@ -190,7 +221,19 @@
 		},
 		"points": {
 			"description": "Shows the current bot point balance for yourself or a mentioned user.",
-			"syntax": ["!points", "!points @botofthespecter"]
+			"syntax": ["!points", "!points @botofthespecter"],
+			"chat_messages": {
+				"message": {
+					"default": "@(user), you have (points) points.",
+					"label": "Your points",
+					"vars": ["(user)", "(points)"]
+				},
+				"message_other": {
+					"default": "@(target) has (points) points.",
+					"label": "Someone else's points",
+					"vars": ["(target)", "(points)"]
+				}
+			}
 		},
 		"store": {
 			"description": "Lists Point Store items you can buy with bot points, or buys an item by name, slug, or id.",
@@ -206,7 +249,19 @@
 		},
 		"game": {
 			"description": "Shows the game or category the channel is currently streaming.",
-			"syntax": "!game"
+			"syntax": "!game",
+			"chat_messages": {
+				"message": {
+					"default": "The current game we're playing is: (game)",
+					"label": "Currently playing",
+					"vars": ["(game)"]
+				},
+				"message_none": {
+					"default": "We're not currently streaming any specific game category.",
+					"label": "No game set",
+					"vars": []
+				}
+			}
 		},
 		"gamble": {
 			"description": "Gamble your bot points on coinflip, blackjack, or roulette. Specify the game type and a bet amount. For roulette, also choose red or black.",
@@ -223,7 +278,14 @@
 		},
 		"ping": {
 			"description": "Checks Specter's connection to the internet and returns the response time.",
-			"syntax": "!ping"
+			"syntax": "!ping",
+			"chat_messages": {
+				"message": {
+					"default": "Pong: (ping) ms | Sent: (sent) | Received: (received)",
+					"label": "Chat message",
+					"vars": ["(ping)", "(sent)", "(received)"]
+				}
+			}
 		},
 		"weather": {
 			"description": "Fetches current weather conditions for a specified city or location.",
@@ -244,7 +306,19 @@
 		"cheerleader": {
 			"description": "Displays the user who has cheered the most bits in the channel of all time.",
 			"aliases": ["bitsleader"],
-			"syntax": "!cheerleader"
+			"syntax": "!cheerleader",
+			"chat_messages": {
+				"message": {
+					"default": "The current top cheerleader is (target) with (bits) bits!",
+					"label": "Top cheerleader",
+					"vars": ["(target)", "(bits)"]
+				},
+				"message_none": {
+					"default": "There is no one currently in the leaderboard for bits; cheer to take this spot.",
+					"label": "Empty leaderboard",
+					"vars": []
+				}
+			}
 		},
 		"steam": {
 			"description": "Looks up the currently streamed game on Steam and posts its store details in chat.",
@@ -256,20 +330,68 @@
 		},
 		"mybits": {
 			"description": "Shows your total bits cheered and recent cheer stats for this channel.",
-			"syntax": "!mybits"
+			"syntax": "!mybits",
+			"chat_messages": {
+				"message": {
+					"default": "You have given (bits) bits in total.",
+					"label": "Has cheered bits",
+					"vars": ["(bits)"]
+				},
+				"message_none": {
+					"default": "You haven't given any bits yet.",
+					"label": "No bits yet",
+					"vars": []
+				}
+			}
 		},
 		"lurk": {
 			"description": "Marks you as lurking so the streamer knows you're watching silently in the background.",
-			"syntax": "!lurk"
+			"syntax": "!lurk",
+			"chat_messages": {
+				"message": {
+					"default": "Thanks for lurking, (user)! See you soon.",
+					"label": "First lurk",
+					"vars": ["(user)"]
+				},
+				"message_continue": {
+					"default": "Continuing to lurk, (user)? No problem, you've been lurking for (time). I've reset your lurk time.",
+					"label": "Already lurking (timer on)",
+					"vars": ["(user)", "(time)"]
+				}
+			}
 		},
 		"unlurk": {
 			"description": "Removes your lurk status and announces your return to chat.",
 			"aliases": ["back"],
-			"syntax": "!unlurk"
+			"syntax": "!unlurk",
+			"chat_messages": {
+				"message": {
+					"default": "(user) has returned from lurking, welcome back!",
+					"label": "Welcome back",
+					"vars": ["(user)"]
+				},
+				"message_timed": {
+					"default": "(user) has returned from the shadows after (time), welcome back!",
+					"label": "Welcome back with duration (timer on)",
+					"vars": ["(user)", "(time)"]
+				}
+			}
 		},
 		"lurking": {
 			"description": "Lets chat know you are still lurking.",
-			"syntax": "!lurking"
+			"syntax": "!lurking",
+			"chat_messages": {
+				"message": {
+					"default": "(user), you've been lurking for (time) so far.",
+					"label": "Currently lurking",
+					"vars": ["(user)", "(time)"]
+				},
+				"message_not": {
+					"default": "(user), you're not currently lurking. To lurk, use the !lurk command.",
+					"label": "Not lurking",
+					"vars": ["(user)"]
+				}
+			}
 		},
 		"lurklead": {
 			"description": "Shows the user who has spent the most total time lurking in the channel.",
@@ -287,23 +409,73 @@
 		"subscription": {
 			"description": "Shows your current Twitch subscription tier for this channel.",
 			"aliases": ["mysub"],
-			"syntax": "!subscription"
+			"syntax": "!subscription",
+			"chat_messages": {
+				"message": {
+					"default": "(user), you are currently subscribed at (tier).",
+					"label": "Subscribed",
+					"vars": ["(user)", "(tier)"]
+				},
+				"message_gift": {
+					"default": "(user), your gift subscription from (gifter) is (tier).",
+					"label": "Gifted subscription",
+					"vars": ["(user)", "(gifter)", "(tier)"]
+				},
+				"message_none": {
+					"default": "You are currently not subscribed to (channel), you can subscribe here: https://subs.twitch.tv/(channel)",
+					"label": "Not subscribed",
+					"vars": ["(channel)"]
+				}
+			}
 		},
 		"hug": {
 			"description": "Sends a virtual hug to a mentioned chatter.",
-			"syntax": "!hug @botofthespecter"
+			"syntax": "!hug @botofthespecter",
+			"chat_messages": {
+				"message": {
+					"default": "@(target) has been hugged by @(user), they have been hugged (count) times.",
+					"label": "Chat message",
+					"vars": ["(target)", "(user)", "(count)"]
+				}
+			}
 		},
 		"highfive": {
 			"description": "Gives a virtual high-five to a mentioned chatter.",
-			"syntax": "!highfive @botofthespecter"
+			"syntax": "!highfive @botofthespecter",
+			"chat_messages": {
+				"message": {
+					"default": "@(target) has been high-fived by @(user), they have been high-fived (count) times.",
+					"label": "Chat message",
+					"vars": ["(target)", "(user)", "(count)"]
+				}
+			}
 		},
 		"kiss": {
 			"description": "Sends a playful virtual kiss to a mentioned chatter.",
-			"syntax": "!kiss @botofthespecter"
+			"syntax": "!kiss @botofthespecter",
+			"chat_messages": {
+				"message": {
+					"default": "@(target) has been given a peck on the cheek by @(user), they have been kissed (count) times.",
+					"label": "Chat message",
+					"vars": ["(target)", "(user)", "(count)"]
+				}
+			}
 		},
 		"uptime": {
 			"description": "Shows how long the stream has been live in the current session.",
-			"syntax": "!uptime"
+			"syntax": "!uptime",
+			"chat_messages": {
+				"message": {
+					"default": "The stream has been live for (hours) hours, (minutes) minutes, and (seconds) seconds.",
+					"label": "Stream live",
+					"vars": ["(hours)", "(minutes)", "(seconds)"]
+				},
+				"message_offline": {
+					"default": "(channel) is currently offline.",
+					"label": "Stream offline",
+					"vars": ["(channel)"]
+				}
+			}
 		},
 		"typo": {
 			"description": "Increments the typo counter for yourself or a mentioned user by one.",
@@ -316,11 +488,30 @@
 		},
 		"followage": {
 			"description": "Shows how long you or a mentioned user has been following the channel.",
-			"syntax": ["!followage", "!followage @botofthespecter"]
+			"syntax": ["!followage", "!followage @botofthespecter"],
+			"chat_messages": {
+				"message": {
+					"default": "(target) has been following for: (time).",
+					"label": "Is following",
+					"vars": ["(target)", "(time)"]
+				},
+				"message_not": {
+					"default": "(target) does not follow (channel).",
+					"label": "Not following",
+					"vars": ["(target)", "(channel)"]
+				}
+			}
 		},
 		"deaths": {
 			"description": "Shows the current in-game death count for the stream session.",
-			"syntax": "!deaths"
+			"syntax": "!deaths",
+			"chat_messages": {
+				"message": {
+					"default": "We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we've died (deaths.stream) times.",
+					"label": "Chat message",
+					"vars": ["(game)", "(deaths)", "(deaths.total)", "(deaths.stream)"]
+				}
+			}
 		},
 		"heartrate": {
 			"description": "Displays the streamer's live heart rate. Requires a HypeRate code to be configured in the dashboard.",
@@ -403,12 +594,26 @@
 		"deathadd": {
 			"description": "Adds to the in-game death count. Defaults to +1 if no amount is given.",
 			"aliases": ["death+"],
-			"syntax": ["!deathadd", "!deathadd 3"]
+			"syntax": ["!deathadd", "!deathadd 3"],
+			"chat_messages": {
+				"message": {
+					"default": "We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we've died (deaths.stream) times in (game).",
+					"label": "Chat message",
+					"vars": ["(game)", "(deaths)", "(deaths.total)", "(deaths.stream)", "(arg)", "(user)"]
+				}
+			}
 		},
 		"deathremove": {
 			"description": "Subtracts from the in-game death count to correct mistakes. Defaults to -1 if no amount is given.",
 			"aliases": ["death-"],
-			"syntax": ["!deathremove", "!deathremove 2"]
+			"syntax": ["!deathremove", "!deathremove 2"],
+			"chat_messages": {
+				"message": {
+					"default": "Death removed from (game), count is now (deaths). Total deaths in all games: (deaths.total).",
+					"label": "Chat message",
+					"vars": ["(game)", "(deaths)", "(deaths.total)", "(arg)", "(user)"]
+				}
+			}
 		},
 		"shoutout": {
 			"description": "Sends a shoutout message in chat for a mentioned user, including their last played game.",
@@ -517,23 +722,58 @@
 		},
 		"pet": {
 			"description": "Shows the channel pet's name, level, and current happiness, hunger, and energy.",
-			"syntax": "!pet"
+			"syntax": "!pet",
+			"chat_messages": {
+				"message": {
+					"default": "(pet) is level (level) — Happiness (happiness)/100, Hunger (hunger)/100, Energy (energy)/100.",
+					"label": "Chat message",
+					"vars": ["(pet)", "(level)", "(happiness)", "(hunger)", "(energy)"]
+				}
+			}
 		},
 		"feed": {
 			"description": "Feeds the channel pet, playing its eat animation and raising its hunger.",
-			"syntax": "!feed"
+			"syntax": "!feed",
+			"chat_messages": {
+				"message": {
+					"default": "You fed (pet)!",
+					"label": "Chat message",
+					"vars": ["(pet)"]
+				}
+			}
 		},
 		"play": {
 			"description": "Plays with the channel pet, playing its happy animation and raising its happiness.",
-			"syntax": "!play"
+			"syntax": "!play",
+			"chat_messages": {
+				"message": {
+					"default": "You played with (pet)!",
+					"label": "Chat message",
+					"vars": ["(pet)"]
+				}
+			}
 		},
 		"sad": {
 			"description": "Plays the channel pet's sad animation.",
-			"syntax": "!sad"
+			"syntax": "!sad",
+			"chat_messages": {
+				"message": {
+					"default": "(pet) looks sad.",
+					"label": "Chat message",
+					"vars": ["(pet)"]
+				}
+			}
 		},
 		"sleep": {
 			"description": "Lets the channel pet rest, playing its sleep animation and restoring energy.",
-			"syntax": "!sleep"
+			"syntax": "!sleep",
+			"chat_messages": {
+				"message": {
+					"default": "You let (pet) rest!",
+					"label": "Chat message",
+					"vars": ["(pet)"]
+				}
+			}
 		}
 	}
 }
