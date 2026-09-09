@@ -59,6 +59,7 @@ function getMenuItems($role = 'default') {
             [ 'divider' => true ],
             [ 'label' => t('menu_alerts'), 'icon' => 'fas fa-bell', 'href' => 'alerts.php' ],
             [ 'label' => t('navbar_media'), 'icon' => 'fas fa-photo-film', 'href' => 'media.php' ],
+            [ 'label' => t('navbar_emote_vault'), 'icon' => 'fas fa-icons', 'href' => 'emote-vault.php' ],
         ]],
         [ 'label' => t('navbar_vod_music'), 'icon' => 'fas fa-music', 'href' => 'music.php' ],
         [ 'label' => t('navbar_media_player'), 'icon' => 'fas fa-play-circle', 'href' => 'media_player.php' ],
