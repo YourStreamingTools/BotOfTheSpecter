@@ -22,6 +22,59 @@ if (!function_exists('usr_schema_log')) {
         ];
     }
 }
+if (!function_exists('usr_merge_command_options_defaults')) {
+    function usr_merge_command_options_defaults($conn, $command, $defaults)
+    {
+        if (!($conn instanceof mysqli) || $command === '' || !is_array($defaults) || !$defaults) {
+            return false;
+        }
+        $stmt = $conn->prepare('SELECT options FROM command_options WHERE command = ?');
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('s', $command);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        $options = [];
+        if ($row && isset($row['options']) && $row['options'] !== '' && $row['options'] !== null) {
+            $decoded = json_decode($row['options'], true);
+            if (is_array($decoded)) {
+                $options = $decoded;
+            }
+        }
+        $changed = false;
+        foreach ($defaults as $key => $value) {
+            if (!array_key_exists($key, $options)) {
+                $options[$key] = $value;
+                $changed = true;
+            }
+        }
+        $json = json_encode($options, JSON_UNESCAPED_UNICODE);
+        if (!$row) {
+            $ins = $conn->prepare('INSERT INTO command_options (command, options) VALUES (?, ?)');
+            if (!$ins) {
+                return false;
+            }
+            $ins->bind_param('ss', $command, $json);
+            $ok = $ins->execute();
+            $ins->close();
+            return $ok;
+        }
+        if (!$changed) {
+            return false;
+        }
+        $upd = $conn->prepare('UPDATE command_options SET options = ? WHERE command = ?');
+        if (!$upd) {
+            return false;
+        }
+        $upd->bind_param('ss', $json, $command);
+        $ok = $upd->execute();
+        $upd->close();
+        return $ok;
+    }
+}
 if (!function_exists('usr_schema_persist_logs')) {
     function usr_schema_persist_logs($dbname = null, $mark_ok = false)
     {
@@ -1818,6 +1871,105 @@ try {
     }
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'watch_streak', 'Congrats (user) on watching (value) consecutive streams!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'watch_streak')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default watch_streak chat alert ensured.');
+    }
+    $builtinChatDefaults = [
+        'deathadd' => [
+            'message' => 'We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we\'ve died (deaths.stream) times in (game).',
+        ],
+        'deathremove' => [
+            'message' => 'Death removed from (game), count is now (deaths). Total deaths in all games: (deaths.total).',
+        ],
+        'deaths' => [
+            'message' => 'We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we\'ve died (deaths.stream) times.',
+        ],
+        'lurk' => [
+            'message' => 'Thanks for lurking, (user)! See you soon.',
+            'message_continue' => 'Continuing to lurk, (user)? No problem, you\'ve been lurking for (time). I\'ve reset your lurk time.',
+        ],
+        'unlurk' => [
+            'message' => '(user) has returned from lurking, welcome back!',
+            'message_timed' => '(user) has returned from the shadows after (time), welcome back!',
+        ],
+        'lurking' => [
+            'message' => '(user), you\'ve been lurking for (time) so far.',
+            'message_not' => '(user), you\'re not currently lurking. To lurk, use the !lurk command.',
+        ],
+        'hug' => [
+            'message' => '@(target) has been hugged by @(user), they have been hugged (count) times.',
+        ],
+        'highfive' => [
+            'message' => '@(target) has been high-fived by @(user), they have been high-fived (count) times.',
+        ],
+        'kiss' => [
+            'message' => '@(target) has been given a peck on the cheek by @(user), they have been kissed (count) times.',
+        ],
+        'game' => [
+            'message' => 'The current game we\'re playing is: (game)',
+            'message_none' => 'We\'re not currently streaming any specific game category.',
+        ],
+        'uptime' => [
+            'message' => 'The stream has been live for (hours) hours, (minutes) minutes, and (seconds) seconds.',
+            'message_offline' => '(channel) is currently offline.',
+        ],
+        'followage' => [
+            'message' => '(target) has been following for: (time).',
+            'message_not' => '(target) does not follow (channel).',
+        ],
+        'watchtime' => [
+            'message' => '@(user), you have watched for (live) live, and (offline) offline.',
+            'message_none' => '@(user), no watch time data recorded for you yet.',
+        ],
+        'points' => [
+            'message' => '@(user), you have (points) points.',
+            'message_other' => '@(target) has (points) points.',
+        ],
+        'mybits' => [
+            'message' => 'You have given (bits) bits in total.',
+            'message_none' => 'You haven\'t given any bits yet.',
+        ],
+        'subscription' => [
+            'message' => '(user), you are currently subscribed at (tier).',
+            'message_gift' => '(user), your gift subscription from (gifter) is (tier).',
+            'message_none' => 'You are currently not subscribed to (channel), you can subscribe here: https://subs.twitch.tv/(channel)',
+        ],
+        'ping' => [
+            'message' => 'Pong: (ping) ms | Sent: (sent) | Received: (received)',
+        ],
+        'bot' => [
+            'message' => 'This amazing bot is built by the one and the only (owner). Check me out on my website: https://botofthespecter.com',
+            'message_custom' => 'The system I\'m using is from BotOfTheSpecter. I\'m a custom bot account @(bot) linked to the Echo system - check out more features by my owner (owner) at https://botofthespecter.com',
+        ],
+        'roadmap' => [
+            'message' => 'BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/',
+        ],
+        'cheerleader' => [
+            'message' => 'The current top cheerleader is (target) with (bits) bits!',
+            'message_none' => 'There is no one currently in the leaderboard for bits; cheer to take this spot.',
+        ],
+        'pet' => [
+            'message' => '(pet) is level (level) — Happiness (happiness)/100, Hunger (hunger)/100, Energy (energy)/100.',
+        ],
+        'feed' => [
+            'message' => 'You fed (pet)!',
+        ],
+        'play' => [
+            'message' => 'You played with (pet)!',
+        ],
+        'sad' => [
+            'message' => '(pet) looks sad.',
+        ],
+        'sleep' => [
+            'message' => 'You let (pet) rest!',
+        ],
+    ];
+    $seededBuiltinChat = 0;
+    foreach ($builtinChatDefaults as $commandName => $defaults) {
+        if (usr_merge_command_options_defaults($usrDBconn, $commandName, $defaults)) {
+            $seededBuiltinChat++;
+        }
+    }
+    if ($seededBuiltinChat > 0) {
+        async_log("Default builtin command chat messages ensured ({$seededBuiltinChat} command(s)).");
     }
     // Migration: analytic_stream_watch_streak - convert plain INDEX to UNIQUE KEY for UPSERT support
     $streak_tbl_exists = $usrDBconn->query("SHOW TABLES LIKE 'analytic_stream_watch_streak'")->num_rows > 0;

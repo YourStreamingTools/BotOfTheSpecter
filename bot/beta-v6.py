@@ -4836,7 +4836,12 @@ class TwitchBot(commands.AutoBot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                        await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("bot",))
+                        bot_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(
+                            bot_options, "bot", "message",
+                            {"(owner)": bot_owner},
+                        ))
                         # Record usage
                         add_usage('bot', bucket_key, cooldown_bucket)
                     else:
@@ -5132,7 +5137,9 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        await send_chat_message("BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/")
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("roadmap",))
+                        roadmap_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(roadmap_options, "roadmap", "message", {}))
                         # Record usage
                         add_usage('roadmap', bucket_key, cooldown_bucket)
                     else:
@@ -5239,19 +5246,35 @@ class TwitchBot(commands.AutoBot):
                         if settings and 'excluded_users' in settings:
                             excluded_users = set(u.strip().lower() for u in settings['excluded_users'].split(',')) | await get_known_bots()
                             if target_user_name.lower() in excluded_users:
+                                await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("points",))
+                                points_options = parse_command_options_json(await cursor.fetchone())
                                 if is_self_lookup:
-                                    await send_chat_message(f'@{target_user_name}, you have 0 points.')
+                                    await send_chat_message(resolve_builtin_chat_message(
+                                        points_options, "points", "message",
+                                        {"(user)": target_user_name, "(points)": 0},
+                                    ))
                                 else:
-                                    await send_chat_message(f'@{target_user_name} has 0 points.')
+                                    await send_chat_message(resolve_builtin_chat_message(
+                                        points_options, "points", "message_other",
+                                        {"(target)": target_user_name, "(points)": 0},
+                                    ))
                                 add_usage('points', bucket_key, cooldown_bucket)
                                 return
                         result = await manage_user_points(target_user_id, target_user_name, "get")
                         if result["success"]:
                             points = result["points"]
+                            await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("points",))
+                            points_options = parse_command_options_json(await cursor.fetchone())
                             if is_self_lookup:
-                                await send_chat_message(f'@{target_user_name}, you have {points} points.')
+                                await send_chat_message(resolve_builtin_chat_message(
+                                    points_options, "points", "message",
+                                    {"(user)": target_user_name, "(points)": points},
+                                ))
                             else:
-                                await send_chat_message(f'@{target_user_name} has {points} points.')
+                                await send_chat_message(resolve_builtin_chat_message(
+                                    points_options, "points", "message_other",
+                                    {"(target)": target_user_name, "(points)": points},
+                                ))
                             add_usage('points', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message(f"Error checking points: {result['error']}")
@@ -6538,7 +6561,12 @@ class TwitchBot(commands.AutoBot):
                     hug_count = hug_count_result.get("hug_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been hugged by {ctx.author.name}. They have been hugged: {hug_count}")
-                    await send_chat_message(f"@{mentioned_username} has been hugged by @{ctx.author.name}, they have been hugged {hug_count} times.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("hug",))
+                    hug_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(resolve_builtin_chat_message(
+                        hug_options, "hug", "message",
+                        {"(target)": mentioned_username, "(user)": ctx.author.name, "(count)": hug_count},
+                    ))
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "hug")
@@ -6608,7 +6636,12 @@ class TwitchBot(commands.AutoBot):
                     highfive_count = highfive_count_result.get("highfive_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been high-fived by {ctx.author.name}. They have been high-fived: {highfive_count}")
-                    await send_chat_message(f"@{mentioned_username} has been high-fived by @{ctx.author.name}, they have been high-fived {highfive_count} times.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("highfive",))
+                    highfive_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(resolve_builtin_chat_message(
+                        highfive_options, "highfive", "message",
+                        {"(target)": mentioned_username, "(user)": ctx.author.name, "(count)": highfive_count},
+                    ))
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "highfive")
@@ -6678,7 +6711,12 @@ class TwitchBot(commands.AutoBot):
                     kiss_count = kiss_count_result.get("kiss_count")
                     # Send the message
                     chat_logger.info(f"{mentioned_username} has been kissed by {ctx.author.name}. They have been kissed: {kiss_count}")
-                    await send_chat_message(f"@{mentioned_username} has been given a peck on the cheek by @{ctx.author.name}, they have been kissed {kiss_count} times.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("kiss",))
+                    kiss_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(resolve_builtin_chat_message(
+                        kiss_options, "kiss", "message",
+                        {"(target)": mentioned_username, "(user)": ctx.author.name, "(count)": kiss_count},
+                    ))
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "kiss")
@@ -6731,7 +6769,16 @@ class TwitchBot(commands.AutoBot):
                             ping_time = match.group(1)
                             bot_logger.info(f"Pong: {ping_time} ms")
                             # Updated message to make it clear to the user
-                            await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
+                            await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("ping",))
+                            ping_options = parse_command_options_json(await cursor.fetchone())
+                            ping_template = ping_options.get("message") if isinstance(ping_options, dict) else None
+                            if isinstance(ping_template, str) and ping_template.strip():
+                                await send_chat_message(resolve_builtin_chat_message(
+                                    ping_options, "ping", "message",
+                                    {"(ping)": ping_time, "(sent)": "", "(received)": ""},
+                                ))
+                            else:
+                                await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
                             # Record usage
                             add_usage('ping', bucket_key, cooldown_bucket)
                         else:
@@ -6838,11 +6885,20 @@ class TwitchBot(commands.AutoBot):
                                     if data['data']:
                                         top_cheerer = data['data'][0]
                                         score = "{:,}".format(top_cheerer['score'])
-                                        await send_chat_message(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
+                                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("cheerleader",))
+                                        cheerleader_options = parse_command_options_json(await cursor.fetchone())
+                                        await send_chat_message(resolve_builtin_chat_message(
+                                            cheerleader_options, "cheerleader", "message",
+                                            {"(target)": top_cheerer['user_name'], "(bits)": score},
+                                        ))
                                         # Record usage
                                         add_usage('cheerleader', bucket_key, cooldown_bucket)
                                     else:
-                                        await send_chat_message("There is no one currently in the leaderboard for bits; cheer to take this spot.")
+                                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("cheerleader",))
+                                        cheerleader_options = parse_command_options_json(await cursor.fetchone())
+                                        await send_chat_message(resolve_builtin_chat_message(
+                                            cheerleader_options, "cheerleader", "message_none", {},
+                                        ))
                                 elif response.status == 401:
                                     await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
                                 else:
@@ -6901,31 +6957,26 @@ class TwitchBot(commands.AutoBot):
                                     api_logger.info(f"Twitch Leaderboard: {data}")
                                     # Filter out only the data for the current user_id
                                     user_data = next((user for user in data['data'] if user['user_id'] == str(user_id)), None)
+                                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("mybits",))
+                                    mybits_options = parse_command_options_json(await cursor.fetchone())
                                     if user_data:
                                         api_bits = user_data['score']
-                                        # Compare API bits with the database bits and update if necessary
                                         if api_bits > db_bits:
-                                            # Update the database with the higher bits from the API
                                             await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s', (api_bits, user_id))
                                             await connection.commit()
                                             bits = "{:,}".format(api_bits)
-                                            await send_chat_message(f"You have given {bits} bits in total.")
-                                            # Record usage
-                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                         elif api_bits < db_bits:
-                                            # Inform the user that the local database has a higher value
                                             bits = "{:,}".format(db_bits)
-                                            await send_chat_message(f"Our records show you have given {bits} bits in total.")
-                                            # Record usage
-                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                         else:
                                             bits = "{:,}".format(api_bits)
-                                            await send_chat_message(f"You have given {bits} bits in total.")
-                                            # Record usage
-                                            add_usage('mybits', bucket_key, cooldown_bucket)
+                                        await send_chat_message(resolve_builtin_chat_message(
+                                            mybits_options, "mybits", "message", {"(bits)": bits},
+                                        ))
+                                        add_usage('mybits', bucket_key, cooldown_bucket)
                                     else:
-                                        await send_chat_message("You haven't given any bits yet.")
-                                        # Record usage
+                                        await send_chat_message(resolve_builtin_chat_message(
+                                            mybits_options, "mybits", "message_none", {},
+                                        ))
                                         add_usage('mybits', bucket_key, cooldown_bucket)
                                 elif response.status == 401:
                                     await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
@@ -6970,18 +7021,11 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message(f"You cannot lurk in your own channel, Streamer.")
                         chat_logger.info(f"{ctx.author.name} tried to lurk in their own channel.")
                         return
-                    # Check if the user is already in the lurk table
                     await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("lurk",))
-                    command_options = await cursor.fetchone()
-                    # Decode JSON options and check if timer is enabled
-                    timer_enabled = False
-                    if command_options and command_options.get("options"):
-                        try:
-                            options_json = json.loads(command_options.get("options"))
-                            timer_enabled = options_json.get("timer", False)
-                        except (json.JSONDecodeError, TypeError) as e:
-                            chat_logger.error(f"Error parsing command options JSON: {e}")
-                            timer_enabled = False
+                    lurk_options = parse_command_options_json(await cursor.fetchone())
+                    timer_enabled = bool(lurk_options.get("timer"))
+                    time_string = ""
+                    message_key = "message"
                     if timer_enabled:
                         await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                         lurk_result = await cursor.fetchone()
@@ -6989,14 +7033,14 @@ class TwitchBot(commands.AutoBot):
                             previous_start_time = parse_lurk_start_time(lurk_result["start_time"])
                             lurk_duration = now - previous_start_time
                             time_string = format_lurk_time(lurk_duration)
-                            lurk_message = (f"Continuing to lurk, {ctx.author.name}? No problem, you've been lurking for {time_string}. I've reset your lurk time.")
+                            message_key = "message_continue"
                             chat_logger.info(f"{ctx.author.name} refreshed their lurk time after {time_string}.")
                         else:
-                            lurk_message = (f"Thanks for lurking, {ctx.author.name}! See you soon.")
                             chat_logger.info(f"{ctx.author.name} is now lurking.")
-                    else:
-                        lurk_message = (f"Thanks for lurking, {ctx.author.name}! See you soon.")
-                    # Send message to chat
+                    lurk_message = resolve_builtin_chat_message(
+                        lurk_options, "lurk", message_key,
+                        {"(user)": ctx.author.name, "(time)": time_string},
+                    )
                     await send_chat_message(lurk_message)
                     # Update the start time in the database
                     formatted_datetime = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -7044,19 +7088,24 @@ class TwitchBot(commands.AutoBot):
                         return
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("lurking",))
+                    lurking_options = parse_command_options_json(await cursor.fetchone())
                     if result:
                         start_time = parse_lurk_start_time(result["start_time"])
                         elapsed_time = time_right_now() - start_time
                         time_string = format_lurk_time(elapsed_time)
-                        # Send the lurk time message
-                        await send_chat_message(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
+                        await send_chat_message(resolve_builtin_chat_message(
+                            lurking_options, "lurking", "message",
+                            {"(user)": ctx.author.name, "(time)": time_string},
+                        ))
                         chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
-                        # Record usage
                         add_usage('lurking', bucket_key, cooldown_bucket)
                     else:
-                        await send_chat_message(f"{ctx.author.name}, you're not currently lurking. To lurk, use the !lurk command.")
+                        await send_chat_message(resolve_builtin_chat_message(
+                            lurking_options, "lurking", "message_not",
+                            {"(user)": ctx.author.name},
+                        ))
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
-                        # Record usage
                         add_usage('lurking', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
@@ -7158,15 +7207,8 @@ class TwitchBot(commands.AutoBot):
                         chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
                         return
                     await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("unlurk",))
-                    command_options = await cursor.fetchone()
-                    timer_enabled = False
-                    if command_options and command_options.get("options"):
-                        try:
-                            options_json = json.loads(command_options.get("options"))
-                            timer_enabled = options_json.get("timer", False)
-                        except (json.JSONDecodeError, TypeError) as e:
-                            chat_logger.error(f"Error parsing command options JSON for unlurk: {e}")
-                            timer_enabled = False
+                    unlurk_options = parse_command_options_json(await cursor.fetchone())
+                    timer_enabled = bool(unlurk_options.get("timer"))
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
@@ -7182,13 +7224,22 @@ class TwitchBot(commands.AutoBot):
                         await connection.commit()
                         if time_string:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
-                            await send_chat_message(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
+                            await send_chat_message(resolve_builtin_chat_message(
+                                unlurk_options, "unlurk", "message_timed",
+                                {"(user)": ctx.author.name, "(time)": time_string},
+                            ))
                         else:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking.")
-                            await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
+                            await send_chat_message(resolve_builtin_chat_message(
+                                unlurk_options, "unlurk", "message",
+                                {"(user)": ctx.author.name},
+                            ))
                         add_usage('unlurk', bucket_key, cooldown_bucket)
                     else:
-                        await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
+                        await send_chat_message(resolve_builtin_chat_message(
+                            unlurk_options, "unlurk", "message",
+                            {"(user)": ctx.author.name},
+                        ))
                         add_usage('unlurk', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
@@ -7389,12 +7440,25 @@ class TwitchBot(commands.AutoBot):
                                         is_gift = subscription['is_gift']
                                         gifter_name = subscription.get('gifter_name') if is_gift else None
                                         tier_name = tier_mapping.get(tier, tier)
+                                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("subscription",))
+                                        sub_options = parse_command_options_json(await cursor.fetchone())
                                         if is_gift:
-                                            await send_chat_message(f"{user_name}, your gift subscription from {gifter_name} is {tier_name}.")
+                                            await send_chat_message(resolve_builtin_chat_message(
+                                                sub_options, "subscription", "message_gift",
+                                                {"(user)": user_name, "(gifter)": gifter_name, "(tier)": tier_name, "(channel)": CHANNEL_NAME},
+                                            ))
                                         else:
-                                            await send_chat_message(f"{user_name}, you are currently subscribed at {tier_name}.")
+                                            await send_chat_message(resolve_builtin_chat_message(
+                                                sub_options, "subscription", "message",
+                                                {"(user)": user_name, "(tier)": tier_name, "(channel)": CHANNEL_NAME},
+                                            ))
                                 else:
-                                    await send_chat_message(f"You are currently not subscribed to {CHANNEL_NAME}, you can subscribe here: https://subs.twitch.tv/{CHANNEL_NAME}")
+                                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("subscription",))
+                                    sub_options = parse_command_options_json(await cursor.fetchone())
+                                    await send_chat_message(resolve_builtin_chat_message(
+                                        sub_options, "subscription", "message_none",
+                                        {"(channel)": CHANNEL_NAME},
+                                    ))
                             else:
                                 await send_chat_message("Failed to retrieve subscription information. Please try again later.")
                                 twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
@@ -7432,8 +7496,12 @@ class TwitchBot(commands.AutoBot):
                 bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('uptime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("uptime",))
+                uptime_options = parse_command_options_json(await cursor.fetchone())
                 if not stream_online:
-                    await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
+                    await send_chat_message(resolve_builtin_chat_message(
+                        uptime_options, "uptime", "message_offline", {"(channel)": CHANNEL_NAME},
+                    ))
                     return
                 if await command_permissions(permissions, ctx.author):
                     headers = {
@@ -7455,12 +7523,17 @@ class TwitchBot(commands.AutoBot):
                                         uptime = time_right_now(timezone.utc) - started_at
                                         hours, remainder = divmod(uptime.seconds, 3600)
                                         minutes, seconds = divmod(remainder, 60)
-                                        await send_chat_message(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
+                                        await send_chat_message(resolve_builtin_chat_message(
+                                            uptime_options, "uptime", "message",
+                                            {"(hours)": hours, "(minutes)": minutes, "(seconds)": seconds, "(channel)": CHANNEL_NAME},
+                                        ))
                                         chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
                                         # Record usage
                                         add_usage('uptime', bucket_key, cooldown_bucket)
                                     else:
-                                        await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
+                                        await send_chat_message(resolve_builtin_chat_message(
+                                            uptime_options, "uptime", "message_offline", {"(channel)": CHANNEL_NAME},
+                                        ))
                                         api_logger.info(f"{CHANNEL_NAME} is currently offline.")
                                 else:
                                     await send_chat_message(f"Failed to retrieve stream data. Status: {response.status}")
@@ -9324,7 +9397,18 @@ class TwitchBot(commands.AutoBot):
                 stream_death_count_result = await cursor.fetchone()
                 stream_death_count = stream_death_count_result.get("death_count") if stream_death_count_result else 0
                 chat_logger.info(f"{ctx.author.name} has reviewed the death count for {current_game}. Total deaths are: {total_death_count}. Stream deaths are: {stream_death_count}")
-                await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
+                await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("deaths",))
+                deaths_options = parse_command_options_json(await cursor.fetchone())
+                await send_chat_message(resolve_builtin_chat_message(
+                    deaths_options, "deaths", "message",
+                    {
+                        "(game)": current_game,
+                        "(deaths)": game_death_count,
+                        "(deaths.total)": total_death_count,
+                        "(deaths.stream)": stream_death_count,
+                        "(user)": ctx.author.name,
+                    },
+                ))
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
@@ -9394,15 +9478,16 @@ class TwitchBot(commands.AutoBot):
                     chat_logger.info(f"Stream death count for {current_game} is now: {stream_death_count}")
                     await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("deathadd",))
                     death_options = parse_command_options_json(await cursor.fetchone())
-                    await send_chat_message(format_death_chat_message(
-                        death_options.get("message"),
-                        DEATHADD_DEFAULT_CHAT_MESSAGE,
-                        current_game,
-                        game_death_count,
-                        total_death_count,
-                        stream_death_count,
-                        deaths,
-                        ctx.author.name,
+                    await send_chat_message(resolve_builtin_chat_message(
+                        death_options, "deathadd", "message",
+                        {
+                            "(game)": current_game,
+                            "(deaths)": game_death_count,
+                            "(deaths.total)": total_death_count,
+                            "(deaths.stream)": stream_death_count,
+                            "(arg)": deaths,
+                            "(user)": ctx.author.name,
+                        },
                     ))
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except GeneratorExit:
@@ -9478,15 +9563,16 @@ class TwitchBot(commands.AutoBot):
                     chat_logger.info(f"Total death count has been calculated as: {total_death_count}")
                     await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("deathremove",))
                     death_options = parse_command_options_json(await cursor.fetchone())
-                    await send_chat_message(format_death_chat_message(
-                        death_options.get("message"),
-                        DEATHREMOVE_DEFAULT_CHAT_MESSAGE,
-                        current_game,
-                        game_death_count,
-                        total_death_count,
-                        stream_death_count,
-                        deaths,
-                        ctx.author.name,
+                    await send_chat_message(resolve_builtin_chat_message(
+                        death_options, "deathremove", "message",
+                        {
+                            "(game)": current_game,
+                            "(deaths)": game_death_count,
+                            "(deaths.total)": total_death_count,
+                            "(deaths.stream)": stream_death_count,
+                            "(arg)": deaths,
+                            "(user)": ctx.author.name,
+                        },
                     ))
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except GeneratorExit:
@@ -9534,10 +9620,16 @@ class TwitchBot(commands.AutoBot):
                 bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
                 if not await check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("game",))
+                game_options = parse_command_options_json(await cursor.fetchone())
                 if current_game is not None:
-                    await send_chat_message(f"The current game we're playing is: {current_game}")
+                    await send_chat_message(resolve_builtin_chat_message(
+                        game_options, "game", "message", {"(game)": current_game},
+                    ))
                 else:
-                    await send_chat_message("We're not currently streaming any specific game category.")
+                    await send_chat_message(resolve_builtin_chat_message(
+                        game_options, "game", "message_none", {},
+                    ))
             # Record usage
             add_usage('game', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -9620,12 +9712,22 @@ class TwitchBot(commands.AutoBot):
                                     if seconds > 0:
                                         parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
                                     followage_text = ", ".join(parts)
-                                    await send_chat_message(f"{target_user} has been following for: {followage_text}.")
+                                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("followage",))
+                                    followage_options = parse_command_options_json(await cursor.fetchone())
+                                    await send_chat_message(resolve_builtin_chat_message(
+                                        followage_options, "followage", "message",
+                                        {"(target)": target_user, "(time)": followage_text, "(channel)": CHANNEL_NAME},
+                                    ))
                                     chat_logger.info(f"{target_user} has been following for: {followage_text}.")
                                     # Record usage
                                     add_usage('followage', bucket_key, cooldown_bucket)
                                 else:
-                                    await send_chat_message(f"{target_user} does not follow {CHANNEL_NAME}.")
+                                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("followage",))
+                                    followage_options = parse_command_options_json(await cursor.fetchone())
+                                    await send_chat_message(resolve_builtin_chat_message(
+                                        followage_options, "followage", "message_not",
+                                        {"(target)": target_user, "(channel)": CHANNEL_NAME},
+                                    ))
                                     chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
                                     # Record usage
                                     add_usage('followage', bucket_key, cooldown_bucket)
@@ -10969,10 +11071,19 @@ class TwitchBot(commands.AutoBot):
                     live_str = format_time(live_years, live_months, live_days, live_hours, live_minutes)
                     offline_str = format_time(offline_years, offline_months, offline_days, offline_hours, offline_minutes)
                     # Respond with the user's watch time
-                    await send_chat_message(f"@{username}, you have watched for {live_str} live, and {offline_str} offline.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("watchtime",))
+                    watchtime_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(resolve_builtin_chat_message(
+                        watchtime_options, "watchtime", "message",
+                        {"(user)": username, "(live)": live_str, "(offline)": offline_str},
+                    ))
                 else:
-                    # If no watch time data is found
-                    await send_chat_message(f"@{username}, no watch time data recorded for you yet.")
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("watchtime",))
+                    watchtime_options = parse_command_options_json(await cursor.fetchone())
+                    await send_chat_message(resolve_builtin_chat_message(
+                        watchtime_options, "watchtime", "message_none",
+                        {"(user)": username},
+                    ))
             # Record usage
             add_usage('watchtime', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -11532,9 +11643,18 @@ class TwitchBot(commands.AutoBot):
                         await send_chat_message("The pet overlay isn't set up yet.")
                     else:
                         pet_name = stats.get("pet_name") or "Pet"
-                        await send_chat_message(
-                            f"{pet_name} is level {stats['level']} — Happiness {stats['happiness']}/100, Hunger {stats['hunger']}/100, Energy {stats['energy']}/100."
-                        )
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("pet",))
+                        pet_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(
+                            pet_options, "pet", "message",
+                            {
+                                "(pet)": pet_name,
+                                "(level)": stats['level'],
+                                "(happiness)": stats['happiness'],
+                                "(hunger)": stats['hunger'],
+                                "(energy)": stats['energy'],
+                            },
+                        ))
                     add_usage('pet', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[PET] Error in pet_command: {e}")
@@ -11569,7 +11689,12 @@ class TwitchBot(commands.AutoBot):
                     if applied:
                         cache = await pet_get_cache()
                         pet_name = (cache or {}).get("pet_name") or "Pet"
-                        await send_chat_message(f"You fed {pet_name}!")
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("feed",))
+                        feed_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(
+                            feed_options, "feed", "message",
+                            {"(pet)": pet_name, "(user)": display_name},
+                        ))
                     add_usage('feed', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[PET] Error in feed_command: {e}")
@@ -11604,7 +11729,12 @@ class TwitchBot(commands.AutoBot):
                     if applied:
                         cache = await pet_get_cache()
                         pet_name = (cache or {}).get("pet_name") or "Pet"
-                        await send_chat_message(f"You played with {pet_name}!")
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("play",))
+                        play_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(
+                            play_options, "play", "message",
+                            {"(pet)": pet_name, "(user)": display_name},
+                        ))
                     add_usage('play', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[PET] Error in play_command: {e}")
@@ -11639,7 +11769,12 @@ class TwitchBot(commands.AutoBot):
                     if applied:
                         cache = await pet_get_cache()
                         pet_name = (cache or {}).get("pet_name") or "Pet"
-                        await send_chat_message(f"{pet_name} looks sad.")
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("sad",))
+                        sad_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(
+                            sad_options, "sad", "message",
+                            {"(pet)": pet_name, "(user)": display_name},
+                        ))
                     add_usage('sad', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[PET] Error in sad_command: {e}")
@@ -11674,7 +11809,12 @@ class TwitchBot(commands.AutoBot):
                     if applied:
                         cache = await pet_get_cache()
                         pet_name = (cache or {}).get("pet_name") or "Pet"
-                        await send_chat_message(f"You let {pet_name} rest!")
+                        await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("sleep",))
+                        sleep_options = parse_command_options_json(await cursor.fetchone())
+                        await send_chat_message(resolve_builtin_chat_message(
+                            sleep_options, "sleep", "message",
+                            {"(pet)": pet_name, "(user)": display_name},
+                        ))
                     add_usage('sleep', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"[PET] Error in sleep_command: {e}")
@@ -13570,10 +13710,6 @@ def pick_next_schedule_stream(segments, current_time, tz, min_start=None):
                 cancelled_utc = None
     return next_stream, cancelled_local, cancelled_utc
 
-# Default !deathadd / !deathremove chat templates; dashboard builtin.php seeds the same strings
-DEATHADD_DEFAULT_CHAT_MESSAGE = "We have died (deaths) times in (game), with a total of (deaths.total) deaths in all games. This stream, we've died (deaths.stream) times in (game)."
-DEATHREMOVE_DEFAULT_CHAT_MESSAGE = "Death removed from (game), count is now (deaths). Total deaths in all games: (deaths.total)."
-
 # Function to decode the JSON options column from command_options
 def parse_command_options_json(row):
     if not row:
@@ -13591,25 +13727,29 @@ def parse_command_options_json(row):
             return {}
     return {}
 
-# Function to fill deathadd/deathremove chat templates with (game)/(deaths)/... vars
-def format_death_chat_message(template, default_message, game, deaths, total_deaths, stream_deaths, amount, user):
-    message = default_message
-    if isinstance(template, str) and template.strip():
-        message = template
-    game_text = "" if game is None else str(game)
-    user_text = "" if user is None else str(user)
-    replacements = (
-        ("(deaths.total)", str(total_deaths)),
-        ("(deaths.stream)", str(stream_deaths)),
-        ("(deaths)", str(deaths)),
-        ("(game)", game_text),
-        ("(arg)", str(amount)),
-        ("(user)", user_text),
-        ("(author)", user_text),
-    )
-    for token, value in replacements:
-        message = message.replace(token, value)
+# Function to fill a builtin chat template with (var) tokens
+def format_builtin_chat_message(template, values=None):
+    message = template if isinstance(template, str) else ""
+    replacements = {}
+    for token, value in (values or {}).items():
+        if not token:
+            continue
+        name = token if str(token).startswith("(") else f"({token})"
+        replacements[name] = "" if value is None else str(value)
+    if "(user)" in replacements and "(author)" not in replacements:
+        replacements["(author)"] = replacements["(user)"]
+    for token in sorted(replacements, key=len, reverse=True):
+        message = message.replace(token, replacements[token])
     return message
+
+# Function to pick a command_options chat template and fill vars
+def resolve_builtin_chat_message(options, command, key="message", values=None):
+    template = None
+    if isinstance(options, dict):
+        template = options.get(key)
+    if not (isinstance(template, str) and template.strip()):
+        return ""
+    return format_builtin_chat_message(template, values)
 
 # Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
@@ -19652,6 +19792,8 @@ async def clear_temporary_vips():
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     global CLIENT_ID, CHANNEL_ID, CHANNEL_AUTH, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
+    if not message:
+        return False
     if len(message) > 500:
         chat_logger.error(f"Message too long: {len(message)} characters (max 500)")
         return False
