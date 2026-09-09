@@ -183,7 +183,7 @@ async def maybe_queue_youtube_vod(username, filename):
                        t.refresh_token, t.needs_reauth
                 FROM users u
                 JOIN youtube_tokens t ON t.user_id = u.id
-                WHERE u.username = %s
+                WHERE u.username = %s AND u.is_admin = 1
                 LIMIT 1
                 """,
                 (username,),

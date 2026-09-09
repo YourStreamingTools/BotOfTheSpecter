@@ -40,6 +40,12 @@ function youtube_configured(): bool
     return $cfg['client_id'] !== '' && $cfg['client_secret'] !== '';
 }
 
+function youtube_admin_testing(): bool
+{
+    global $is_admin;
+    return !empty($is_admin);
+}
+
 function youtube_scopes(): array
 {
     return [

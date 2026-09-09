@@ -13,6 +13,7 @@ require_once "/var/www/config/db_connect.php";
 include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+require_once __DIR__ . '/includes/youtube.php';
 
 $userId = (int) ($user_id ?? ($_SESSION['user_id'] ?? 0));
 $isTechnical = isset($user['is_technical']) ? (bool) $user['is_technical'] : false;
@@ -162,10 +163,12 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
 
         $youtubeLinked = false;
         require_once __DIR__ . '/includes/youtube.php';
-        try {
-            $youtubeLinked = youtube_is_linked($conn, $userId);
-        } catch (mysqli_sql_exception $e) {
-            $youtubeLinked = false;
+        if (youtube_admin_testing()) {
+            try {
+                $youtubeLinked = youtube_is_linked($conn, $userId);
+            } catch (mysqli_sql_exception $e) {
+                $youtubeLinked = false;
+            }
         }
 
         echo json_encode([
@@ -405,7 +408,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'disconnect_youtube') {
         require_once __DIR__ . '/includes/youtube.php';
-        if (youtube_delete_link($conn, $userId)) {
+        if (!youtube_admin_testing()) {
+            $message = t('coming_soon');
+            $alertClass = 'is-warning';
+        } elseif (youtube_delete_link($conn, $userId)) {
             $message = t('youtube_disconnected_success');
             $alertClass = 'is-success';
         } else {
@@ -1028,9 +1034,16 @@ ob_start();
                                 </span>
                                 <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('youtube'); ?></p>
                             </div>
+                            <?php if (youtube_admin_testing()): ?>
                             <div id="youtube-link-action" aria-busy="true">
                                 <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
                             </div>
+                            <?php else: ?>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" style="width:100%;" disabled>
+                                <i class="fas fa-clock"></i>
+                                <span><?php echo t('coming_soon'); ?></span>
+                            </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

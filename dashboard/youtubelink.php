@@ -13,6 +13,28 @@ $pageTitle = t('youtube_link_page_title');
 $isActAsUser = isset($isActAs) && $isActAs === true;
 $userId = (int) ($user_id ?? ($_SESSION['user_id'] ?? 0));
 
+if (!youtube_admin_testing()) {
+    session_write_close();
+    ob_start();
+    ?>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title">
+            <i class="fab fa-youtube"></i>
+            <?php echo t('youtube_link_page_title'); ?>
+        </div>
+        <span class="sp-badge sp-badge-amber"><i class="fas fa-clock"></i> <?php echo t('coming_soon'); ?></span>
+    </div>
+    <div class="sp-card-body">
+        <p><?php echo t('youtube_public_coming_soon'); ?></p>
+    </div>
+</div>
+    <?php
+    $content = ob_get_clean();
+    include 'layout.php';
+    exit();
+}
+
 function youtubelink_redirect(string $message, string $alertClass): void
 {
     $_SESSION['youtube_message'] = $message;
