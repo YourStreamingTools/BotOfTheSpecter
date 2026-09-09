@@ -744,6 +744,7 @@ OPS_SCRIPTS: dict[str, list[str]] = {
     "refresh_discord": [_OPS_PY, "-u", str(BOT_HOME / "refresh_discord_tokens.py")],
     "refresh_custom_bot": [_OPS_PY, "-u", str(BOT_HOME / "refresh_custom_bot_tokens.py")],
     "refresh_twitch_app_token": [_OPS_PY, "-u", str(BOT_HOME / "refresh_twitch_app_token.py")],
+    "refresh_youtube": [_OPS_PY, "-u", str(BOT_HOME / "refresh_youtube_tokens.py")],
 }
 
 

@@ -169,6 +169,58 @@ async def get_username_from_api_key(api_key):
 async def validate_api_key(api_key):
     return await get_username_from_api_key(api_key)
 
+async def maybe_queue_youtube_vod(username, filename):
+    # If the streamer opted in, queue this finished MP4 for YouTube upload.
+    if not username or not filename:
+        return
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT u.id AS user_id, t.auto_upload, t.can_upload, t.privacy_status,
+                       t.refresh_token, t.needs_reauth
+                FROM users u
+                JOIN youtube_tokens t ON t.user_id = u.id
+                WHERE u.username = %s
+                LIMIT 1
+                """,
+                (username,),
+            )
+            row = await cursor.fetchone()
+            if not row or not row.get("auto_upload") or not row.get("can_upload"):
+                return
+            if row.get("needs_reauth") or not (row.get("refresh_token") or "").strip():
+                return
+            await cursor.execute(
+                """
+                SELECT id FROM youtube_vod_uploads
+                WHERE user_id = %s AND filename = %s AND status IN ('queued','uploading','done')
+                ORDER BY id DESC LIMIT 1
+                """,
+                (row["user_id"], filename),
+            )
+            if await cursor.fetchone():
+                return
+            title = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ").strip()[:100]
+            privacy = row.get("privacy_status") or "private"
+            await cursor.execute(
+                """
+                INSERT INTO youtube_vod_uploads (user_id, filename, title, privacy_status, status)
+                VALUES (%s, %s, %s, %s, 'queued')
+                """,
+                (row["user_id"], filename, title, privacy),
+            )
+            await sqldb.commit()
+            logger.info(f"Queued YouTube VOD upload for {username}: {filename}")
+    except Exception as e:
+        logger.error(f"YouTube auto-queue failed for {username}: {e}")
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
 async def get_streaming_settings(username):
     userdb = None
     try:
@@ -615,6 +667,7 @@ class RTMP2FLVController(SimpleRTMPController):
         if process.returncode == 0:
             os.remove(flv_file_path)
             logger.info(f"Converted file saved to {final_mp4_path}; removed source {flv_file_path}")
+            await maybe_queue_youtube_vod(username, os.path.basename(final_mp4_path))
         else:
             logger.error(
                 f"FFmpeg conversion failed (exit code {process.returncode}). "

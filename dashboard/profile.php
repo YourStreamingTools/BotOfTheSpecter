@@ -160,6 +160,14 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
         require_once __DIR__ . '/includes/kick_bot.php';
         $kickLinked = kick_bot_is_linked($conn, (string)($username ?? ''));
 
+        $youtubeLinked = false;
+        require_once __DIR__ . '/includes/youtube.php';
+        try {
+            $youtubeLinked = youtube_is_linked($conn, $userId);
+        } catch (mysqli_sql_exception $e) {
+            $youtubeLinked = false;
+        }
+
         echo json_encode([
             'success' => true,
             'storage' => [
@@ -177,6 +185,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
                 'streamelements' => $streamelementsLinked,
                 'streamlabs' => $streamlabsLinked,
                 'kick' => $kickLinked,
+                'youtube' => $youtubeLinked,
             ],
         ]);
     } catch (mysqli_sql_exception $e) {
@@ -392,6 +401,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alertClass = 'is-success';
         } else {
             $message = t('spotify_disconnect_error') . ': ' . mysqli_error($conn);
+            $alertClass = 'is-danger';
+        }
+    } elseif ($action === 'disconnect_youtube') {
+        require_once __DIR__ . '/includes/youtube.php';
+        if (youtube_delete_link($conn, $userId)) {
+            $message = t('youtube_disconnected_success');
+            $alertClass = 'is-success';
+        } else {
+            $message = t('youtube_disconnect_error');
             $alertClass = 'is-danger';
         }
     } elseif ($action === 'disconnect_streamelements') {
@@ -1010,10 +1028,9 @@ ob_start();
                                 </span>
                                 <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('youtube'); ?></p>
                             </div>
-                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" style="width:100%;" disabled>
-                                <i class="fas fa-clock"></i>
-                                <span><?php echo t('coming_soon'); ?></span>
-                            </button>
+                            <div id="youtube-link-action" aria-busy="true">
+                                <span class="sp-skeleton-line w-80" aria-hidden="true"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1201,7 +1218,8 @@ function profileRenderLinks(links) {
         discord: { id: 'discord-link-action', fn: 'disconnectDiscord', href: 'discordbot.php' },
         spotify: { id: 'spotify-link-action', fn: 'disconnectSpotify', href: 'spotifylink.php' },
         streamelements: { id: 'streamelements-link-action', fn: 'disconnectStreamelements', href: 'streamelements.php' },
-        streamlabs: { id: 'streamlabs-link-action', fn: 'disconnectStreamlabs', href: 'streamlabs.php' }
+        streamlabs: { id: 'streamlabs-link-action', fn: 'disconnectStreamlabs', href: 'streamlabs.php' },
+        youtube: { id: 'youtube-link-action', fn: 'disconnectYoutube', href: 'youtubelink.php' }
     };
     Object.keys(map).forEach(function(key) {
         var el = document.getElementById(map[key].id);
@@ -1228,7 +1246,7 @@ function loadProfileList() {
             var storageBody = document.getElementById('storage-meter-body');
             if (storageBody) storageBody.innerHTML = '';
             if (storageHost) storageHost.setAttribute('aria-busy', 'false');
-            ['discord-link-action', 'spotify-link-action', 'streamelements-link-action', 'streamlabs-link-action'].forEach(function(id) {
+            ['discord-link-action', 'spotify-link-action', 'streamelements-link-action', 'streamlabs-link-action', 'youtube-link-action'].forEach(function(id) {
                 var el = document.getElementById(id);
                 if (el) el.setAttribute('aria-busy', 'false');
             });
@@ -1730,6 +1748,32 @@ function disconnectStreamlabs() {
             input.type = 'hidden';
             input.name = 'action';
             input.value = 'disconnect_streamlabs';
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function disconnectYoutube() {
+    Swal.fire({
+        title: <?php echo json_encode(t('confirm_disconnect_youtube_title')); ?>,
+        text: <?php echo json_encode(t('confirm_disconnect_youtube_text')); ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?php echo json_encode(t('yes_disconnect')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'disconnect_youtube';
             form.appendChild(input);
             document.body.appendChild(form);
             form.submit();

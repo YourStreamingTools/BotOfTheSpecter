@@ -69,6 +69,7 @@ function getMenuItems($role = 'default') {
             [ 'divider' => true ],
             [ 'label' => t('navbar_discord_bot'), 'icon' => 'fab fa-discord', 'icon_img' => 'https://cdn.brandfetch.io/idM8Hlme1a/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668075051777', 'href' => 'discordbot.php' ],
             [ 'label' => t('navbar_spotify'), 'icon' => 'fab fa-spotify', 'icon_img' => 'https://cdn.brandfetch.io/id20mQyGeY/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1737597212873', 'href' => 'spotifylink.php' ],
+            [ 'label' => t('navbar_youtube'), 'icon' => 'fab fa-youtube', 'icon_img' => 'https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041', 'href' => 'youtubelink.php' ],
             [ 'label' => t('navbar_streamelements'), 'icon' => 'fas fa-globe', 'icon_img' => 'https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B', 'href' => 'streamelements.php' ],
             [ 'label' => t('navbar_streamlabs'), 'icon' => 'fas fa-gift', 'icon_img' => 'https://cdn.brandfetch.io/idIDKnQFO2/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1767309079648', 'href' => 'streamlabs.php' ],
             [ 'divider' => true ],

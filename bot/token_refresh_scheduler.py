@@ -13,6 +13,8 @@ the expiry itself):
   Spotify             every 45 minutes  (Spotify access tokens last 1h;
                                          15 min buffer so songrequest /
                                          overlays never see a dead token)
+  YouTube             every 45 minutes  (Google access tokens last 1h;
+                                         same 15 min buffer for VOD uploads)
   Discord             every 6 days      (Discord access tokens last 7d)
   StreamElements      every 29 days     (StreamElements access tokens last 30d)
 
@@ -54,6 +56,7 @@ JOBS = [
     # margin for cron lag and leaves mid-cycle OAuth links dead until the
     # next tick. 45 min keeps ~15 min of lifetime after every refresh.
     ("spotify", 45 * 60, "refresh_spotify_tokens"),
+    ("youtube", 45 * 60, "refresh_youtube_tokens"),
     ("discord", 6 * 86400, "refresh_discord_tokens"),
     ("streamelements", 29 * 86400, "refresh_streamelements_tokens"),
 ]

@@ -12,7 +12,13 @@ include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+require_once __DIR__ . '/includes/youtube.php';
 session_write_close();
+
+$youtubeLinked = youtube_is_linked($conn, (int) ($user_id ?? 0));
+$youtubeTokenRow = $youtubeLinked ? youtube_token_row($conn, (int) ($user_id ?? 0)) : null;
+$youtubeCanUpload = $youtubeLinked && (int) ($youtubeTokenRow['can_upload'] ?? 0) === 1;
+$youtubeTwitchJobs = $youtubeLinked ? youtube_twitch_job_map($conn, (int) ($user_id ?? 0)) : [];
 
 $accessToken = $_SESSION['access_token'] ?? '';
 $channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ($broadcasterID ?? '')));
@@ -259,7 +265,7 @@ function fetchSortedChannelClips($channelUserId, $accessToken, $clientID, $maxIt
 	];
 }
 
-function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = []) {
+function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [], $youtubeCanUpload = false, array $youtubeTwitchJobs = []) {
 	$videoId = isset($video['id']) ? (string) $video['id'] : '';
 	$videoTitle = isset($video['title']) ? (string) $video['title'] : ($isClipsMode ? t('videos_untitled_clip') : t('videos_untitled_video'));
 	$videoDescription = isset($video['description']) ? (string) $video['description'] : '';
@@ -327,6 +333,27 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 						<button type="button" class="sp-btn sp-btn-danger sp-btn-sm delete-video-btn" data-video-id="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>">
 							<i class="fas fa-trash mr-1"></i><?php echo htmlspecialchars(t('videos_delete'), ENT_QUOTES, 'UTF-8'); ?>
 						</button>
+						<?php
+							$ytJob = $youtubeTwitchJobs[$videoId] ?? null;
+							$ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
+						?>
+						<?php if ($youtubeCanUpload): ?>
+							<?php if ($ytStatus === 'done'): ?>
+								<span class="sp-badge sp-badge-green"><?php echo htmlspecialchars(t('youtube_status_done'), ENT_QUOTES, 'UTF-8'); ?></span>
+							<?php elseif (in_array($ytStatus, ['queued', 'pulling', 'uploading'], true)): ?>
+								<span class="sp-badge sp-badge-amber"><?php echo htmlspecialchars(t('youtube_status_' . $ytStatus), ENT_QUOTES, 'UTF-8'); ?></span>
+							<?php else: ?>
+								<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm youtube-twitch-vod-btn"
+									data-video-id="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>"
+									data-video-title="<?php echo htmlspecialchars($videoTitle, ENT_QUOTES, 'UTF-8'); ?>">
+									<i class="fab fa-youtube mr-1"></i><?php echo htmlspecialchars($ytStatus === 'failed' ? t('youtube_btn_retry') : t('videos_send_to_youtube'), ENT_QUOTES, 'UTF-8'); ?>
+								</button>
+							<?php endif; ?>
+						<?php else: ?>
+							<a class="sp-btn sp-btn-secondary sp-btn-sm" href="youtubelink.php">
+								<i class="fab fa-youtube mr-1"></i><?php echo htmlspecialchars(t('videos_connect_youtube'), ENT_QUOTES, 'UTF-8'); ?>
+							</a>
+						<?php endif; ?>
 					<?php endif; ?>
 					<?php if ($isClipsMode): ?>
 						<?php if ($clipLandscapeDownload !== ''): ?>
@@ -449,7 +476,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'videos') {
 	], $accessToken, $clientID, 1000);
 	$html = '';
 	foreach ($allVideos['items'] as $video) {
-		$html .= renderMediaCard($video, false, []);
+		$html .= renderMediaCard($video, false, [], $youtubeCanUpload, $youtubeTwitchJobs);
 	}
 	echo json_encode([
 		'success' => $allVideos['error'] === '',
@@ -462,6 +489,57 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'videos') {
 
 $flashSuccess = '';
 $flashError = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'youtube_upload_twitch_vod') {
+	header('Content-Type: application/json; charset=utf-8');
+	$vodId = isset($_POST['video_id']) ? trim((string) $_POST['video_id']) : '';
+	$vodTitle = isset($_POST['title']) ? trim((string) $_POST['title']) : '';
+	if (!youtube_twitch_video_id_ok($vodId) || $channelUserId === '' || $accessToken === '') {
+		echo json_encode(['ok' => false, 'error' => t('videos_error_video_id_required')]);
+		exit();
+	}
+	$owned = fetchTwitchPage('videos', ['id' => [$vodId]], $accessToken, $clientID);
+	$ownedItem = $owned['items'][0] ?? null;
+	$ownedUser = is_array($ownedItem) ? (string) ($ownedItem['user_id'] ?? '') : '';
+	$ownedType = is_array($ownedItem) ? (string) ($ownedItem['type'] ?? '') : '';
+	if ($owned['error'] !== '' || $ownedUser !== $channelUserId) {
+		echo json_encode(['ok' => false, 'error' => t('videos_youtube_not_your_vod')]);
+		exit();
+	}
+	if (!in_array($ownedType, ['archive', 'highlight'], true)) {
+		echo json_encode(['ok' => false, 'error' => t('videos_youtube_type_unsupported')]);
+		exit();
+	}
+	if ($vodTitle === '' && !empty($ownedItem['title'])) {
+		$vodTitle = (string) $ownedItem['title'];
+	}
+	$queued = youtube_enqueue_twitch_vod($conn, (int) ($user_id ?? 0), $vodId, $vodTitle);
+	if (!empty($queued['ok'])) {
+		$msg = t('youtube_upload_queued');
+		if (!empty($queued['already']) && ($queued['status'] ?? '') === 'done') {
+			$msg = t('youtube_upload_already_done');
+		} elseif (!empty($queued['already'])) {
+			$msg = t('youtube_upload_already_queued');
+		}
+		echo json_encode([
+			'ok' => true,
+			'status' => $queued['status'] ?? 'queued',
+			'youtube_video_id' => $queued['youtube_video_id'] ?? '',
+			'message' => $msg,
+		]);
+		exit();
+	}
+	$err = (string) ($queued['error'] ?? '');
+	$map = [
+		'not_linked' => t('youtube_upload_not_linked'),
+		'no_upload_scope' => t('youtube_upload_no_scope'),
+		'bad_video' => t('videos_error_video_id_required'),
+		'not_ready' => t('youtube_upload_not_ready'),
+		'db' => t('youtube_upload_failed'),
+	];
+	echo json_encode(['ok' => false, 'error' => $map[$err] ?? t('youtube_upload_failed')]);
+	exit();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_video') {
 	$deleteVideoId = isset($_POST['video_id']) ? trim((string) $_POST['video_id']) : '';
@@ -608,7 +686,7 @@ ob_start();
 				<?php endfor; ?>
 			<?php else: ?>
 				<?php foreach ($videos as $video): ?>
-					<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls); ?>
+					<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls, $youtubeCanUpload, $youtubeTwitchJobs); ?>
 				<?php endforeach; ?>
 			<?php endif; ?>
 		</div>
@@ -641,7 +719,12 @@ document.addEventListener('DOMContentLoaded', function () {
 		loadAllConfirmTitle: <?php echo json_encode(t('videos_js_load_all_confirm_title')); ?>,
 		loadAllConfirmRemaining: <?php echo json_encode(t('videos_js_load_all_confirm_remaining')); ?>,
 		loadAllConfirmNone: <?php echo json_encode(t('videos_js_load_all_confirm_none')); ?>,
-		loadAllConfirmBtn: <?php echo json_encode(t('videos_js_load_all_confirm_btn')); ?>
+		loadAllConfirmBtn: <?php echo json_encode(t('videos_js_load_all_confirm_btn')); ?>,
+		youtubeTitle: <?php echo json_encode(t('videos_youtube_confirm_title')); ?>,
+		youtubeText: <?php echo json_encode(t('videos_youtube_confirm_text')); ?>,
+		youtubeConfirm: <?php echo json_encode(t('videos_youtube_confirm_btn')); ?>,
+		youtubeQueued: <?php echo json_encode(t('youtube_status_queued')); ?>,
+		youtubeFailed: <?php echo json_encode(t('youtube_upload_failed')); ?>
 	};
 	const formatI18n = function (template, values) {
 		return template.replace(/:(\w+)/g, function (match, name) {
@@ -680,7 +763,60 @@ document.addEventListener('DOMContentLoaded', function () {
 		if (!cardsContainer) return;
 		cardsContainer.querySelectorAll('.media-card-skeleton').forEach(function (el) { el.remove(); });
 	}
+	function bindYoutubeButtons(root) {
+		(root || document).querySelectorAll('.youtube-twitch-vod-btn').forEach(function (button) {
+			if (button.dataset.bound === '1') return;
+			button.dataset.bound = '1';
+			button.addEventListener('click', function () {
+				const videoId = button.getAttribute('data-video-id') || '';
+				const videoTitle = button.getAttribute('data-video-title') || '';
+				if (!videoId) {
+					return;
+				}
+				Swal.fire({
+					title: i18n.youtubeTitle,
+					text: i18n.youtubeText,
+					icon: 'info',
+					showCancelButton: true,
+					confirmButtonText: i18n.youtubeConfirm,
+					cancelButtonText: i18n.cancel,
+					background: '#333',
+					color: '#fff'
+				}).then(function (result) {
+					if (!result.isConfirmed) {
+						return;
+					}
+					button.disabled = true;
+					const body = new URLSearchParams();
+					body.set('action', 'youtube_upload_twitch_vod');
+					body.set('video_id', videoId);
+					body.set('title', videoTitle);
+					fetch('videos.php', {
+						method: 'POST',
+						credentials: 'same-origin',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+						body: body.toString()
+					}).then(function (response) { return response.json(); })
+					.then(function (data) {
+						if (data && data.ok) {
+							const badge = document.createElement('span');
+							badge.className = data.status === 'done' ? 'sp-badge sp-badge-green' : 'sp-badge sp-badge-amber';
+							badge.textContent = data.status === 'done' ? <?php echo json_encode(t('youtube_status_done')); ?> : i18n.youtubeQueued;
+							button.parentNode.replaceChild(badge, button);
+						} else {
+							button.disabled = false;
+							Swal.fire({ icon: 'error', title: i18n.youtubeFailed, text: (data && data.error) ? data.error : i18n.youtubeFailed, background: '#333', color: '#fff' });
+						}
+					}).catch(function () {
+						button.disabled = false;
+						Swal.fire({ icon: 'error', title: i18n.youtubeFailed, text: i18n.youtubeFailed, background: '#333', color: '#fff' });
+					});
+				});
+			});
+		});
+	}
 	function bindDeleteButtons(root) {
+		bindYoutubeButtons(root);
 		(root || document).querySelectorAll('.delete-video-btn').forEach(function (button) {
 			if (button.dataset.bound === '1') return;
 			button.dataset.bound = '1';

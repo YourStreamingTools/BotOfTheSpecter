@@ -580,6 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_token_script']
         'discord' => ['api' => 'refresh_discord', 'file' => 'refresh_discord_tokens.py'],
         'custom_bot' => ['api' => 'refresh_custom_bot', 'file' => 'refresh_custom_bot_tokens.py'],
         'twitch_app' => ['api' => 'refresh_twitch_app_token', 'file' => 'refresh_twitch_app_token.py'],
+        'youtube' => ['api' => 'refresh_youtube', 'file' => 'refresh_youtube_tokens.py'],
     ];
     $scriptKey = trim((string) $_POST['refresh_token_script']);
     ob_clean();
@@ -2491,6 +2492,21 @@ ob_start();
                     </button>
                 </div>
             </div>
+            <div>
+                <div class="admin-service-card">
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                        <span class="icon sp-text-danger"><i class="fab fa-youtube fa-lg"></i></span>
+                        <div>
+                            <span class="admin-heading"><?php echo t('admin_index_token_service'); ?></span>
+                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);"><?php echo t('navbar_youtube'); ?></span>
+                        </div>
+                    </div>
+                    <button type="button" class="sp-btn sp-btn-danger" style="width:100%;" onclick="refreshYoutubeTokens()">
+                        <span class="icon"><i class="fas fa-sync"></i></span>
+                        <span><?php echo t('admin_index_refresh_youtube_tokens'); ?></span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -2747,6 +2763,7 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshCustomBotBtn: <?php echo json_encode(t('admin_index_refresh_custom_bot_tokens')); ?>,
         twitchAppTokenService: <?php echo json_encode(t('admin_index_twitch_app_token')); ?>,
         refreshTwitchAppBtn: <?php echo json_encode(t('admin_index_refresh_twitch_app_token')); ?>,
+        refreshYoutubeBtn: <?php echo json_encode(t('admin_index_refresh_youtube_tokens')); ?>,
         exchangerateCheckNow: <?php echo json_encode(t('admin_index_exchangerate_check_now')); ?>,
         exchangerateChecking: <?php echo json_encode(t('admin_index_exchangerate_checking')); ?>,
         exchangerateSynced: <?php echo json_encode(t('admin_index_exchangerate_synced')); ?>,
@@ -3315,6 +3332,7 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (buttonSelector.includes('StreamElements')) label = adminI18n.refreshStreamElementsBtn;
         else if (buttonSelector.includes('CustomBot')) label = adminI18n.refreshCustomBotBtn;
         else if (buttonSelector.includes('TwitchApp')) label = adminI18n.refreshTwitchAppBtn;
+        else if (buttonSelector.includes('Youtube')) label = adminI18n.refreshYoutubeBtn;
         button.innerHTML = '<span class="icon"><i class="fas fa-sync"></i></span><span>' + label + '</span>';
     }
     function streamCommand(scriptKey, serviceName, buttonSelector) {
@@ -3380,6 +3398,9 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     window.refreshTwitchAppToken = function() {
         streamCommand('twitch_app', adminI18n.twitchAppTokenService || 'Twitch App Token', 'button[onclick="refreshTwitchAppToken()"]');
+    };
+    window.refreshYoutubeTokens = function() {
+        streamCommand('youtube', 'YouTube', 'button[onclick="refreshYoutubeTokens()"]');
     };
     function setBusy(el, busy) {
         if (!el) return;
