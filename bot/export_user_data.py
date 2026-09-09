@@ -170,6 +170,16 @@ async def create_zip(username, out_path):
                 log(f'Failed to export discord_users for user {username}: {e}\n' + traceback.format_exc())
                 had_error = True
             try:
+                await export_website_table_filtered('youtube_tokens', 'user_id', website_row.get('id') if website_row is not None else None, db_json_dir)
+            except Exception as e:
+                log(f'Failed to export youtube_tokens for user {username}: {e}\n' + traceback.format_exc())
+                had_error = True
+            try:
+                await export_website_table_filtered('youtube_vod_uploads', 'user_id', website_row.get('id') if website_row is not None else None, db_json_dir)
+            except Exception as e:
+                log(f'Failed to export youtube_vod_uploads for user {username}: {e}\n' + traceback.format_exc())
+                had_error = True
+            try:
                 await export_website_table_filtered('custom_bots', 'channel_id', (website_row.get('id') if website_row is not None else None), db_json_dir)
             except Exception as e:
                 log(f'Failed to export custom_bots for user {username}: {e}\n' + traceback.format_exc())

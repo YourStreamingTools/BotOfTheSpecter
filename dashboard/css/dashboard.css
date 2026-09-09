@@ -5944,3 +5944,50 @@ label.checkbox input[type="checkbox"] {
     .emote-vault-toolbar { align-items: stretch; }
     .emote-vault-search { flex-basis: 100%; }
 }
+
+/* ----- YouTube VOD / recording actions ----- */
+.recording-file-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+.youtube-channel-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+.youtube-channel-thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--bg-surface);
+    flex: 0 0 auto;
+}
+.youtube-channel-thumb-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--red);
+    font-size: 1.6rem;
+}
+.youtube-channel-title {
+    margin: 0 0 0.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.youtube-settings-form {
+    margin-top: 1rem;
+}
+.youtube-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+.youtube-disconnect-form {
+    margin-top: 0.75rem;
+}

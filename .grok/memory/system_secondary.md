@@ -36,7 +36,7 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - **WebSocket Server**: Sends notifications/commands to overlay clients
 - **Bot Backend**: Manages commands, modules, settings
 - **RTMP Stream Server**: Stream settings, forwarding config
-- **External Services**: Discord, Streamlabs, StreamElements, Hyperchat integrations
+- **External Services**: Discord, Streamlabs, StreamElements, YouTube (user OAuth VOD upload), Hyperchat integrations
 - **User Databases**: Per-user MySQL DBs for customization
 
 **Data Storage**:
