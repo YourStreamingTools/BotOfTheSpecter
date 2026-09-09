@@ -15,7 +15,8 @@ include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk 
 require_once __DIR__ . '/includes/youtube.php';
 session_write_close();
 
-$youtubeLinked = youtube_is_linked($conn, (int) ($user_id ?? 0));
+$youtubeAdminTesting = youtube_admin_testing();
+$youtubeLinked = $youtubeAdminTesting && youtube_is_linked($conn, (int) ($user_id ?? 0));
 $youtubeTokenRow = $youtubeLinked ? youtube_token_row($conn, (int) ($user_id ?? 0)) : null;
 $youtubeCanUpload = $youtubeLinked && (int) ($youtubeTokenRow['can_upload'] ?? 0) === 1;
 $youtubeTwitchJobs = $youtubeLinked ? youtube_twitch_job_map($conn, (int) ($user_id ?? 0)) : [];
@@ -265,7 +266,7 @@ function fetchSortedChannelClips($channelUserId, $accessToken, $clientID, $maxIt
 	];
 }
 
-function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [], $youtubeCanUpload = false, array $youtubeTwitchJobs = []) {
+function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [], $youtubeCanUpload = false, array $youtubeTwitchJobs = [], $youtubeComingSoon = false) {
 	$videoId = isset($video['id']) ? (string) $video['id'] : '';
 	$videoTitle = isset($video['title']) ? (string) $video['title'] : ($isClipsMode ? t('videos_untitled_clip') : t('videos_untitled_video'));
 	$videoDescription = isset($video['description']) ? (string) $video['description'] : '';
@@ -337,7 +338,11 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 							$ytJob = $youtubeTwitchJobs[$videoId] ?? null;
 							$ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
 						?>
-						<?php if ($youtubeCanUpload): ?>
+						<?php if ($youtubeComingSoon): ?>
+							<button type="button" class="sp-btn sp-btn-warning sp-btn-sm" disabled>
+								<i class="fas fa-clock mr-1"></i><?php echo htmlspecialchars(t('coming_soon'), ENT_QUOTES, 'UTF-8'); ?>
+							</button>
+						<?php elseif ($youtubeCanUpload): ?>
 							<?php if ($ytStatus === 'done'): ?>
 								<span class="sp-badge sp-badge-green"><?php echo htmlspecialchars(t('youtube_status_done'), ENT_QUOTES, 'UTF-8'); ?></span>
 							<?php elseif (in_array($ytStatus, ['queued', 'pulling', 'uploading'], true)): ?>
@@ -476,7 +481,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'videos') {
 	], $accessToken, $clientID, 1000);
 	$html = '';
 	foreach ($allVideos['items'] as $video) {
-		$html .= renderMediaCard($video, false, [], $youtubeCanUpload, $youtubeTwitchJobs);
+		$html .= renderMediaCard($video, false, [], $youtubeCanUpload, $youtubeTwitchJobs, !$youtubeAdminTesting);
 	}
 	echo json_encode([
 		'success' => $allVideos['error'] === '',
@@ -494,6 +499,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 	header('Content-Type: application/json; charset=utf-8');
 	$vodId = isset($_POST['video_id']) ? trim((string) $_POST['video_id']) : '';
 	$vodTitle = isset($_POST['title']) ? trim((string) $_POST['title']) : '';
+	if (!youtube_admin_testing()) {
+		echo json_encode(['ok' => false, 'error' => t('coming_soon')]);
+		exit();
+	}
 	if (!youtube_twitch_video_id_ok($vodId) || $channelUserId === '' || $accessToken === '') {
 		echo json_encode(['ok' => false, 'error' => t('videos_error_video_id_required')]);
 		exit();
@@ -686,7 +695,7 @@ ob_start();
 				<?php endfor; ?>
 			<?php else: ?>
 				<?php foreach ($videos as $video): ?>
-					<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls, $youtubeCanUpload, $youtubeTwitchJobs); ?>
+					<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls, $youtubeCanUpload, $youtubeTwitchJobs, !$youtubeAdminTesting); ?>
 				<?php endforeach; ?>
 			<?php endif; ?>
 		</div>

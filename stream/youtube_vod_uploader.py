@@ -392,6 +392,7 @@ async def process_one(pool, session):
                   AND t.refresh_token IS NOT NULL AND t.refresh_token != ''
                   AND t.needs_reauth = 0
                   AND t.can_upload = 1
+                  AND usr.is_admin = 1
                 ORDER BY u.id ASC
                 LIMIT 1
                 """

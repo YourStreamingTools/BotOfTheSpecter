@@ -8,6 +8,8 @@ type: project
 
 Streamers can connect **their own** YouTube channel (user OAuth 2.0, YouTube Data API v3) and have finished **stream server** MP4s uploaded via `videos.insert`. A service account will not work.
 
+**Testing gate:** while the Google Cloud app is in Testing, only dashboard **admins** (`users.is_admin`) can connect or enqueue uploads. Everyone else sees Coming Soon on Profile, Videos, and `youtubelink.php`. The stream-server uploader and auto-queue also skip non-admin users.
+
 ## Pieces
 
 | Piece | Location |

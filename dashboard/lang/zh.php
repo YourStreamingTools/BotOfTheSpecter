@@ -6930,6 +6930,7 @@ return [
     'emote_vault_zip_empty' => '当前筛选条件下没有可下载的内容。',
     'emote_vault_zip_too_many' => '一次打包的表情过多。请缩小筛选范围后重试。',
     'youtube_link_page_title' => 'YouTube',
+    'youtube_public_coming_soon' => 'YouTube 录像上传正在测试中，尚未对公开账号开放。',
     'youtube_badge_connected' => '已连接',
     'youtube_badge_reauth' => '需要重新连接',
     'youtube_badge_not_connected' => '未连接',
