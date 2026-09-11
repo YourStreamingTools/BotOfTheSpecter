@@ -41,7 +41,8 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Websocket wildcard is intentional](project_websocket_wildcard.md) — the `*` catch-all in websocket/server.py is deliberate
 - [Custom inbound webhooks](project_custom_inbound_webhooks.md) — admin-defined `/webhook/{slug}`; /notify authenticates `code`
 - [Network architecture](project_network_architecture.md) — Cloudflare DNS-only; XFF/X-Real-IP are attacker-controlled
-- [Grok SSH key](project_grok_ssh_key.md) — operator Ed25519 key; SSH by IP (`ssh bots` / `api` / `websocket` / `sql` / `web`)
+- [Grok SSH key](project_grok_ssh_key.md) — operator Ed25519 key; SSH by IP (`ssh bots` / `api` / `websocket` / `sql` / `sql-new` / `web`)
+- [New SQL host](project_sql_new_host.md) — production MySQL is `150.107.75.252`; old box still up as backup
 - [Per-user schema](project_per_user_schema.md) — `dashboard/usr_database.php` `$tables` is the central per-user schema manager
 - [Bot→WebSocket signaling](project_bot_websocket_signaling.md) — websocket_notice /notify is whitelisted; use specterSocket.emit for new events
 - [Unified alerts system](project_unified_alerts.md) — alerts.php + overlay/index.php; weather/deaths/walkons folded in
