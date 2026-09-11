@@ -36,7 +36,8 @@ SSH goes to the IP. Aliases (`ssh bots`, `ssh api`, …) still work; they resolv
 | `bots` | `43.229.60.77` | bot host |
 | `api` | `43.229.61.72` | API |
 | `websocket` | `66.226.147.137` | WebSocket |
-| `sql` | `194.195.122.234` | database |
+| `sql` | `194.195.122.234` | database (old, backup) |
+| `sql-new` | `150.107.75.252` | database (production) |
 | `web` / `web1` | `66.226.145.231` | web |
 
 Stream ingest IPs are not in this config. `*.botofthespecter.video` currently does not resolve, and those services are disabled in `./dashboard/api/api_status.php`.
