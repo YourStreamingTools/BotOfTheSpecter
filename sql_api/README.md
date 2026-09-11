@@ -4,6 +4,8 @@ HTTPS data API for SpecterBotApp modules and similar clients.
 
 **Public URL:** `https://sql.botofthespecter.com`
 
+Themed explorer at `/` and `/docs` (same dark UI as bots/websocket control docs). OpenAPI JSON stays at `/openapi.json`.
+
 Authenticate with the streamer's user API key in the `X-API-KEY` header. Each key can only access that account's data.
 
 ## Why this exists
