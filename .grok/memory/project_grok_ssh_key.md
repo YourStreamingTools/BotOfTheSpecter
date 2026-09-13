@@ -38,5 +38,4 @@ SSH goes to the IP. Aliases (`ssh bots`, `ssh api`, …) still work; they resolv
 | `websocket` | `66.226.147.137` | WebSocket |
 | `sql` | `150.107.75.252` | database |
 | `web` / `web1` | `66.226.145.231` | web |
-
-Stream ingest IPs are not in this config. `*.botofthespecter.video` currently does not resolve, and those services are disabled in `./dashboard/api/api_status.php`.
+| `stream-syd` / `syd1` | `203.57.114.104` | stream ingest (Sydney). DNS `syd1.stream.botofthespecter.com` |
