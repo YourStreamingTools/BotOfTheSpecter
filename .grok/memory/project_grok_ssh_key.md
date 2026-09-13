@@ -29,13 +29,15 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHVaOyxzkYXGLu+cSi3TK+pmAvMZm1OYd8YY2vpI/Pis
 
 ## Hosts
 
-SSH goes to the IP. Aliases (`ssh bots`, `ssh api`, …) still work; they resolve in config to the address below. `IdentitiesOnly yes` is set so ssh does not try other identities.
+SSH goes to the **public** IP. Aliases (`ssh bots`, `ssh api`, …) still work; they resolve in config to that address. `IdentitiesOnly yes` is set so ssh does not try other identities.
 
-| Alias | IP | Role |
-| ----- | -- | ---- |
-| `bots` | `43.229.60.77` | bot host |
-| `api` | `43.229.61.72` | API |
-| `websocket` | `66.226.147.137` | WebSocket |
-| `sql` | `150.107.75.252` | database |
-| `web` / `web1` | `66.226.145.231` | web |
-| `stream-syd` / `syd1` | `203.57.114.104` | stream ingest (Sydney). DNS `syd1.stream.botofthespecter.com` |
+Full OS / RAM / disk inventory: [project_hosts.md](project_hosts.md).
+
+| Alias | Public IP | Private IP | Role |
+| ----- | --------- | ---------- | ---- |
+| `bots` | `43.229.60.77` | `10.240.0.6` | bot host |
+| `api` | `43.229.61.72` | `10.240.0.8` | API |
+| `websocket` | `66.226.147.137` | `10.240.0.5` | WebSocket |
+| `sql` | `150.107.75.252` | `10.240.0.7` | database |
+| `web` / `web1` | `66.226.145.231` | `10.240.0.4` | web |
+| `stream-syd` / `syd1` | `203.57.114.104` | `10.240.0.9` | stream ingest (Sydney) |
