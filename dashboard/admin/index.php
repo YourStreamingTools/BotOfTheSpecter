@@ -352,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'websocket-control.service', 'yourchat-piper.service', 'ws-caddy.service', 'mysql.service', 'sql-api.service', 'sql-caddy.service', 'export_queue_worker.service', 'twitch-recorder.service', 'caddy.service'];
+    $allowedServices = ['discordbot.service', 'bots-api.service', 'bots-caddy.service', 'fastapi.service', 'api-caddy.service', 'websocket.service', 'websocket-control.service', 'yourchat-piper.service', 'ws-caddy.service', 'mysql.service', 'sql-api.service', 'sql-caddy.service', 'export_queue_worker.service', 'twitch-recorder.service', 'stream.service', 'caddy.service'];
     // Some allowed "service" identifiers are dashboard-only aliases so the same real unit name
     // (e.g. caddy.service) can be routed to different hosts; map alias -> actual systemd unit here.
     $serviceUnitOverrides = [
@@ -393,20 +393,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $sql_server_host ?? '';
                 $ssh_username = $sql_server_username ?? '';
                 $ssh_password = $sql_server_password ?? '';
-            } elseif ($service == 'twitch-recorder.service') {
-                // Retired service — refuse control (status is fixed SHUTDOWN in service_status.php)
-                $output = 'Twitch Recorder is shut down and cannot be controlled from the admin panel.';
-                $success = false;
-                $ssh_host = '';
+            } elseif ($service == 'twitch-recorder.service' || $service == 'stream.service') {
+                $ssh_host = $recorder_ssh_host ?? '';
+                $ssh_username = $recorder_ssh_username ?? '';
+                $ssh_password = $recorder_ssh_password ?? '';
             } elseif ($service == 'caddy.service') {
                 // The web host's Caddy instance - separate box from the bots host
                 $ssh_host = $web_ssh_host ?? '';
                 $ssh_username = $web_ssh_username ?? '';
                 $ssh_password = $web_ssh_password ?? '';
             }
-            if ($service == 'twitch-recorder.service') {
-                // no SSH — fixed status in service_status.php
-            } elseif (!($connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password))) {
+            if (!($connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password))) {
                 $output = "SSH connection failed to host: {$ssh_host} (check config/ssh.php and network)";
                 $success = false;
             } else {
@@ -455,6 +452,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                             'sql-caddy.service' => 'CADDY — SQL SERVER',
                             'export_queue_worker.service' => 'Export Queue Worker',
                             'twitch-recorder.service' => 'Twitch Recorder',
+                            'stream.service' => 'RTMPS Stream Server',
                             'caddy.service' => 'CADDY — WEB SERVER',
                         ];
                         $actionLabels = ['start' => 'started', 'stop' => 'stopped', 'restart' => 'restarted'];
@@ -2373,21 +2371,42 @@ ob_start();
                 </div>
             </div>
         </section>
-        <!-- ========== RETIRED ========== -->
+        <!-- ========== STREAM HOST ========== -->
         <section class="admin-service-group">
             <h3 class="admin-service-group-title">
-                <span class="sp-badge sp-badge-grey">OFF</span>
-                <?php echo t('admin_index_group_retired'); ?>
+                <span class="sp-badge sp-badge-info">STREAM</span>
+                <?php echo t('admin_index_group_stream_host'); ?>
             </h3>
-            <span class="admin-service-group-desc"><?php echo t('admin_index_group_retired_desc'); ?></span>
+            <span class="admin-service-group-desc"><?php echo t('admin_index_group_stream_host_desc'); ?></span>
             <div class="admin-service-grid">
                 <div>
                     <div class="admin-service-card">
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                                <span class="icon sp-text-danger"><i class="fas fa-video fa-lg"></i></span>
+                                <span class="icon sp-text-info"><i class="fas fa-broadcast-tower fa-lg"></i></span>
+                                <div style="min-width: 0;">
+                                    <span class="admin-heading"><?php echo t('admin_index_svc_stream_server'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_stream_server_sub'); ?></span>
+                                    <span class="admin-service-status" id="stream-server-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
+                                </div>
+                            </div>
+                            <div><span class="sp-badge sp-badge-grey" id="stream-server-pid" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:3.2rem;"></span></span></div>
+                        </div>
+                        <div class="sp-btn-group" style="margin-top:1rem;" id="stream-server-buttons">
+                            <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('stream.service', 'start')" disabled><span class="icon"><i class="fas fa-play"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('stream.service', 'stop')" disabled><span class="icon"><i class="fas fa-stop"></i></span></button>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('stream.service', 'restart')" disabled><span class="icon"><i class="fas fa-redo"></i></span></button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="admin-service-card">
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                                <span class="icon sp-text-info"><i class="fas fa-video fa-lg"></i></span>
                                 <div style="min-width: 0;">
                                     <span class="admin-heading"><?php echo t('admin_index_svc_twitch_recorder'); ?></span>
+                                    <span class="sp-text-muted" style="display:block;font-size:0.8rem;margin-top:0.15rem;"><?php echo t('admin_index_svc_twitch_recorder_sub'); ?></span>
                                     <span class="admin-service-status" id="twitch-recorder-status" aria-busy="true"><span class="sp-skeleton-badge" aria-hidden="true" style="width:4.5rem;"></span></span>
                                 </div>
                             </div>
@@ -2817,6 +2836,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'sql-caddy.service' => t('admin_index_svc_sql_caddy'),
             'export_queue_worker.service' => t('admin_index_svc_export_queue_worker'),
             'twitch-recorder.service' => t('admin_index_svc_twitch_recorder'),
+            'stream.service' => t('admin_index_svc_stream_server'),
             'caddy.service' => t('admin_index_svc_web_caddy')
         ]); ?>,
         actionLabels: <?php echo json_encode([
@@ -2976,6 +2996,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'sql-caddy.service': { statusKey: 'sql_caddy', statusId: 'sql-caddy-status', pidId: 'sql-caddy-pid', buttonsId: 'sql-caddy-buttons' },
         'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
         'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' },
+        'stream.service': { statusKey: 'stream_server', statusId: 'stream-server-status', pidId: 'stream-server-pid', buttonsId: 'stream-server-buttons' },
         'caddy.service': { statusKey: 'web_caddy', statusId: 'web-caddy-status', pidId: 'web-caddy-pid', buttonsId: 'web-caddy-buttons' }
     };
     function scheduleStatusRefresh(meta, action) {
@@ -3551,6 +3572,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('sql_caddy', 'sql-caddy-status', 'sql-caddy-pid', 'sql-caddy-buttons');
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
         updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');
+        updateServiceStatus('stream_server', 'stream-server-status', 'stream-server-pid', 'stream-server-buttons');
         updateServiceStatus('web_caddy', 'web-caddy-status', 'web-caddy-pid', 'web-caddy-buttons');
     }, 100);
     // Refresh all server overview statuses
