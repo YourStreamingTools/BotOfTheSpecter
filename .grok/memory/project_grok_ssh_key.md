@@ -40,4 +40,4 @@ Full OS / RAM / disk inventory: [project_hosts.md](project_hosts.md).
 | `websocket` | `66.226.147.137` | `10.240.0.5` | WebSocket |
 | `sql` | `150.107.75.252` | `10.240.0.7` | database |
 | `web` / `web1` | `66.226.145.231` | `10.240.0.4` | web |
-| `stream-syd` / `syd1` | `203.57.114.104` | `10.240.0.9` | stream ingest (Sydney) |
+| `syd1.stream` | `203.57.114.104` | `10.240.0.9` | stream ingest (Sydney) |
