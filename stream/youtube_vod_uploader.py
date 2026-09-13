@@ -134,7 +134,7 @@ async def get_storage_slot(pool, user_id):
             )
             row = await cur.fetchone()
     if not row:
-        return None
+        return STREAM_STORAGE_QUOTA_BYTES
     raw_quota = row.get("quota_bytes")
     quota = STREAM_STORAGE_QUOTA_BYTES if raw_quota is None else int(raw_quota)
     bonus = int(row.get("bonus_bytes") or 0)

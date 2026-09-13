@@ -28,4 +28,5 @@ $megas4_stores = [
     'walkons'     => ['name' => 'Walk-ons',      'domain' => 'walkons.botofthespecter.com',     'per_user' => true],
     'soundalerts' => ['name' => 'Sound Alerts',  'domain' => 'soundalerts.botofthespecter.com', 'per_user' => true],
     'videoalerts' => ['name' => 'Video Alerts',  'domain' => 'videoalerts.botofthespecter.com', 'per_user' => true],
+    'vods'        => ['name' => 'VODs',          'domain' => 'vods.botofthespecter.com',        'per_user' => true],
 ];
