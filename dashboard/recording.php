@@ -52,6 +52,9 @@ $saveStatus = null;
 $autoRecordEnabled = 0;
 $remoteFileSections = [];
 $remoteFileError = null;
+$storageUsedBytes = 0;
+$storageQuotaBytes = 100 * 1024 * 1024 * 1024;
+$storageUnlimited = $unlimitedStorage;
 
 function isSafeRecorderFileName($fileName) {
     if (!is_string($fileName) || $fileName === '') {
@@ -280,6 +283,17 @@ if ($streamApiBase === '' || $streamUserApiKey === '') {
     } else {
         $payload = json_decode((string) $list['body'], true);
         $files = [];
+        if (is_array($payload)) {
+            if (array_key_exists('used_bytes', $payload)) {
+                $storageUsedBytes = max(0, (int) $payload['used_bytes']);
+            }
+            if (array_key_exists('quota_bytes', $payload)) {
+                $storageQuotaBytes = max(0, (int) $payload['quota_bytes']);
+            }
+            if (array_key_exists('quota_unlimited', $payload)) {
+                $storageUnlimited = !empty($payload['quota_unlimited']) || $storageQuotaBytes === 0;
+            }
+        }
         if (is_array($payload) && isset($payload['files']) && is_array($payload['files'])) {
             foreach ($payload['files'] as $row) {
                 if (!is_array($row) || empty($row['name'])) {
@@ -315,7 +329,12 @@ if ($streamApiBase === '' || $streamUserApiKey === '') {
 if (isset($_GET['ajax'])) {
     echo json_encode([
         'remoteFileError' => $remoteFileError,
-        'remoteFileSections' => $remoteFileSections
+        'remoteFileSections' => $remoteFileSections,
+        'storage' => [
+            'used_bytes' => $storageUsedBytes,
+            'quota_bytes' => $storageQuotaBytes,
+            'unlimited' => $storageUnlimited,
+        ],
     ]);
     exit;
 }
@@ -379,6 +398,21 @@ ob_start();
                     </button>
                 </div>
             </form>
+            <?php
+                $storagePercent = (!$storageUnlimited && $storageQuotaBytes > 0)
+                    ? min(100, round(($storageUsedBytes / $storageQuotaBytes) * 100, 1))
+                    : 0;
+                $storageLabel = $storageUnlimited
+                    ? sprintf(t('recording_storage_used_unlimited'), formatBytes($storageUsedBytes))
+                    : sprintf(t('recording_storage_used_of'), formatBytes($storageUsedBytes), formatBytes($storageQuotaBytes));
+            ?>
+            <div class="sp-alert sp-alert-info media-storage-bar" id="recording-storage-bar">
+                <div class="media-storage-header">
+                    <span><i class="fas fa-database"></i> <strong><?= t('recording_storage_usage'); ?>:</strong></span>
+                    <span id="recording-storage-text"><?= htmlspecialchars($storageLabel) ?></span>
+                </div>
+                <progress class="progress" id="recording-storage-progress" value="<?= htmlspecialchars((string) $storagePercent) ?>" max="100"<?= $storageUnlimited ? ' hidden' : '' ?>></progress>
+            </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0 0.5rem;">
                 <h3 style="font-size:0.95rem;font-weight:700;margin:0;"><?= t('recording_files_on_server_heading') ?></h3>
                 <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
@@ -530,7 +564,9 @@ const RECORDING_I18N = {
     btnDownload: <?php echo json_encode(t('recording_btn_download')); ?>,
     noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
     sessionExpiredHtml: <?php echo json_encode(t('recording_js_session_expired_html')); ?>,
-    preparing: <?php echo json_encode(t('recording_js_preparing')); ?>
+    preparing: <?php echo json_encode(t('recording_js_preparing')); ?>,
+    storageUsedOf: <?php echo json_encode(t('recording_storage_used_of')); ?>,
+    storageUsedUnlimited: <?php echo json_encode(t('recording_storage_used_unlimited')); ?>
 };
 document.addEventListener('DOMContentLoaded', function () {
     var container = document.getElementById('remote-files-container');
@@ -637,6 +673,39 @@ document.addEventListener('DOMContentLoaded', function () {
         if (busy) el.setAttribute('aria-busy', 'true');
         else el.removeAttribute('aria-busy');
     }
+    function formatStorageLabel(usedBytes, quotaBytes, unlimited) {
+        var used = formatBytes(usedBytes);
+        if (unlimited) {
+            return RECORDING_I18N.storageUsedUnlimited.replace('%s', used);
+        }
+        return RECORDING_I18N.storageUsedOf.replace('%s', used).replace('%s', formatBytes(quotaBytes));
+    }
+    function updateStorageBar(storage) {
+        if (!storage || typeof storage !== 'object') {
+            return;
+        }
+        var used = Number(storage.used_bytes) || 0;
+        var quota = Number(storage.quota_bytes) || 0;
+        var unlimited = !!storage.unlimited || quota === 0;
+        var text = document.getElementById('recording-storage-text');
+        var bar = document.getElementById('recording-storage-progress');
+        var host = document.getElementById('recording-storage-bar');
+        if (text) {
+            text.textContent = formatStorageLabel(used, quota, unlimited);
+        }
+        if (bar) {
+            var pct = (!unlimited && quota > 0) ? Math.min(100, Math.round((used / quota) * 1000) / 10) : 0;
+            bar.value = pct;
+            if (unlimited) {
+                bar.setAttribute('hidden', 'hidden');
+            } else {
+                bar.removeAttribute('hidden');
+            }
+        }
+        if (host) {
+            setBusy(host, false);
+        }
+    }
     // Layout-matching table skeleton for remote file list (refetch / refresh).
     function skeletonRemoteFilesHtml() {
         var html = '<div class="sp-table-wrap mb-4" aria-hidden="true">';
@@ -653,6 +722,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return html;
     }
     function renderRemoteFiles(data) {
+        updateStorageBar(data && data.storage);
         container.innerHTML = '';
         if (data && data.remoteFileError) {
             var notice = document.createElement('div');
