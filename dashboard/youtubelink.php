@@ -132,16 +132,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             youtubelink_redirect(t('youtube_link_actas_disabled'), 'is-warning');
         }
         $vodId = trim((string) ($_POST['vod_id'] ?? ''));
+        $vodTitle = trim((string) ($_POST['vod_title'] ?? ''));
         $apiBase = rtrim((string) ($stream_api_base ?? ''), '/');
         $apiKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
-        $pull = streamApiRequest($apiBase, $apiKey, '/api/me/recordings/pull-twitch', 30, 'POST', ['vod_id' => $vodId]);
+        $pull = streamApiRequest(
+            $apiBase,
+            $apiKey,
+            '/api/me/recordings/pull-twitch',
+            30,
+            'POST',
+            ['vod_id' => $vodId, 'title' => $vodTitle]
+        );
         if ($pull['ok'] || (int) ($pull['http'] ?? 0) === 202) {
-            youtubelink_redirect(t('youtube_vod_store_started'), 'is-success');
+            $_SESSION['youtube_vod_message'] = t('youtube_vod_store_started');
+            $_SESSION['youtube_vod_alert_class'] = 'is-success';
+            header('Location: youtubelink.php#stored-vods');
+            exit();
         }
         if ((int) ($pull['http'] ?? 0) === 507) {
-            youtubelink_redirect(t('youtube_vod_store_full'), 'is-warning');
+            $_SESSION['youtube_vod_message'] = t('youtube_vod_store_full');
+            $_SESSION['youtube_vod_alert_class'] = 'is-warning';
+            header('Location: youtubelink.php#stored-vods');
+            exit();
         }
-        youtubelink_redirect(t('youtube_vod_store_failed'), 'is-danger');
+        $_SESSION['youtube_vod_message'] = t('youtube_vod_store_failed');
+        $_SESSION['youtube_vod_alert_class'] = 'is-danger';
+        header('Location: youtubelink.php#stored-vods');
+        exit();
     }
     if ($action === 'send_twitch_youtube') {
         if ($isActAsUser) {
@@ -167,6 +184,14 @@ if (isset($_GET['connect']) && youtube_configured()) {
     exit();
 }
 
+$vodMessage = '';
+$vodMessageType = '';
+if (isset($_SESSION['youtube_vod_message'])) {
+    $vodMessage = (string) $_SESSION['youtube_vod_message'];
+    $vodMessageType = (string) ($_SESSION['youtube_vod_alert_class'] ?? 'is-info');
+    unset($_SESSION['youtube_vod_message'], $_SESSION['youtube_vod_alert_class']);
+}
+
 session_write_close();
 
 $linkRow = youtube_token_row($conn, $userId);
@@ -184,19 +209,52 @@ $storageUsedBytes = $storageSummary['used_bytes'];
 $storageQuotaBytes = $storageSummary['quota_bytes'];
 $storageUnlimited = $storageSummary['unlimited'];
 $storedFiles = [];
+$pullJobs = [];
 $list = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
 if ($list['ok']) {
     $payload = json_decode((string) $list['body'], true);
     if (is_array($payload) && !empty($payload['files']) && is_array($payload['files'])) {
         $storedFiles = $payload['files'];
     }
+    if (is_array($payload) && !empty($payload['pulls']) && is_array($payload['pulls'])) {
+        $pullJobs = $payload['pulls'];
+    }
 }
 $storedByTwitchId = [];
 foreach ($storedFiles as $stored) {
     $name = (string) ($stored['name'] ?? '');
-    if (preg_match('/^twitch-([0-9]{1,20})\\.mp4(\\.part)?$/', $name, $m)) {
-        $storedByTwitchId[$m[1]] = $stored;
+    $tid = (string) ($stored['twitch_video_id'] ?? '');
+    if ($tid === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4(?:\.part)?$/i', $name, $m)) {
+        $tid = $m[1];
     }
+    if ($tid !== '') {
+        $storedByTwitchId[$tid] = $stored;
+    }
+}
+foreach ($pullJobs as $job) {
+    $tid = (string) ($job['vod_id'] ?? '');
+    if ($tid !== '' && !isset($storedByTwitchId[$tid])) {
+        $storedByTwitchId[$tid] = [
+            'name' => $job['filename'] ?? '',
+            'is_partial' => ($job['status'] ?? '') === 'pulling',
+            'twitch_video_id' => $tid,
+            'pull' => $job,
+        ];
+    }
+}
+
+if (isset($_GET['ajax']) && (string) $_GET['ajax'] === 'vods') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'files' => $storedFiles,
+        'pulls' => $pullJobs,
+        'storage' => [
+            'used_bytes' => $storageUsedBytes,
+            'quota_bytes' => $storageQuotaBytes,
+            'unlimited' => $storageUnlimited,
+        ],
+    ]);
+    exit();
 }
 
 $twitchVideos = [];
@@ -297,6 +355,86 @@ ob_start();
     </div>
 </div>
 <?php include __DIR__ . '/includes/stream_storage_bar.php'; ?>
+<div class="sp-card" id="stored-vods">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-folder-open"></i> <?php echo t('youtube_vod_stored_heading'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <?php if ($vodMessage): ?>
+            <?php
+                if ($vodMessageType === 'is-success') $vodAlert = 'sp-alert-success';
+                elseif ($vodMessageType === 'is-danger') $vodAlert = 'sp-alert-danger';
+                elseif ($vodMessageType === 'is-warning') $vodAlert = 'sp-alert-warning';
+                else $vodAlert = 'sp-alert-info';
+            ?>
+            <div class="sp-alert <?php echo $vodAlert; ?>"><?php echo htmlspecialchars($vodMessage); ?></div>
+        <?php endif; ?>
+        <p class="sp-help"><?php echo t('youtube_vod_stored_help'); ?></p>
+        <div id="youtube-vod-status">
+            <?php
+            $activePulls = array_values(array_filter($pullJobs, static function ($job) {
+                return is_array($job) && ($job['status'] ?? '') === 'pulling';
+            }));
+            $failedPulls = array_values(array_filter($pullJobs, static function ($job) {
+                return is_array($job) && ($job['status'] ?? '') === 'failed';
+            }));
+            $storedReady = array_values(array_filter($storedFiles, static function ($file) {
+                $name = (string) ($file['name'] ?? '');
+                return empty($file['is_partial']) && (bool) preg_match('/^twitch-[0-9].*\.mp4$/i', $name);
+            }));
+            ?>
+            <?php if (!$activePulls && !$failedPulls && !$storedReady): ?>
+                <p class="sp-help"><?php echo t('youtube_vod_stored_empty'); ?></p>
+            <?php endif; ?>
+            <?php foreach ($activePulls as $job): ?>
+                <?php
+                $pct = $job['percent'];
+                $pctVal = is_numeric($pct) ? max(0, min(100, (float) $pct)) : 0;
+                $label = (string) ($job['title'] ?: ($job['filename'] ?? $job['vod_id'] ?? ''));
+                ?>
+                <div class="media-storage-bar mb-4">
+                    <div class="media-storage-header">
+                        <span><?php echo htmlspecialchars($label); ?></span>
+                        <span><?php echo is_numeric($pct) ? htmlspecialchars((string) $pctVal) . '%' : t('youtube_vod_status_pulling'); ?></span>
+                    </div>
+                    <progress class="progress" value="<?php echo htmlspecialchars((string) $pctVal); ?>" max="100"></progress>
+                </div>
+            <?php endforeach; ?>
+            <?php foreach ($failedPulls as $job): ?>
+                <div class="sp-alert sp-alert-danger mb-4">
+                    <?php echo htmlspecialchars((string) ($job['title'] ?: ($job['filename'] ?? ''))); ?>
+                    — <?php echo t('youtube_vod_status_failed'); ?>
+                </div>
+            <?php endforeach; ?>
+            <?php if ($storedReady): ?>
+                <div class="sp-table-wrap">
+                    <table class="sp-table">
+                        <thead>
+                            <tr>
+                                <th><?php echo t('youtube_vod_th_title'); ?></th>
+                                <th><?php echo t('recording_th_size'); ?></th>
+                                <th><?php echo t('youtube_vod_th_action'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($storedReady as $file): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars(preg_replace('/\.mp4$/i', '', (string) ($file['name'] ?? ''))); ?></td>
+                                    <td><?php echo !empty($file['size_bytes']) ? htmlspecialchars((string) round(((int) $file['size_bytes']) / 1048576, 1)) . ' MB' : '—'; ?></td>
+                                    <td>
+                                        <?php if (!empty($file['download_url'])): ?>
+                                            <a class="sp-btn sp-btn-secondary sp-btn-sm" href="<?php echo htmlspecialchars((string) $file['download_url']); ?>"><?php echo t('recording_btn_download'); ?></a>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
 <div class="sp-card">
     <div class="sp-card-header">
         <div class="sp-card-title"><i class="fas fa-cloud-download-alt"></i> <?php echo t('youtube_vod_fetch_heading'); ?></div>
@@ -326,8 +464,14 @@ ob_start();
                             $vtype = (string) ($video['type'] ?? '');
                             $vdur = (string) ($video['duration'] ?? '');
                             $stored = $storedByTwitchId[$vid] ?? null;
-                            $pulling = $stored && !empty($stored['is_partial']);
-                            $ready = $stored && empty($stored['is_partial']);
+                            $pulling = false;
+                            foreach ($pullJobs as $job) {
+                                if ((string) ($job['vod_id'] ?? '') === $vid && ($job['status'] ?? '') === 'pulling') {
+                                    $pulling = true;
+                                    break;
+                                }
+                            }
+                            $ready = $stored && empty($stored['is_partial']) && !$pulling;
                             ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($vtitle); ?></td>
@@ -345,6 +489,7 @@ ob_start();
                                         <form method="post">
                                             <input type="hidden" name="action" value="store_twitch_vod">
                                             <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
+                                            <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
                                             <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('youtube_vod_store_btn'); ?></button>
                                         </form>
                                     <?php endif; ?>
@@ -365,6 +510,63 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
+<script>
+(function () {
+    var host = document.getElementById('youtube-vod-status');
+    if (!host) return;
+    function render(data) {
+        if (!data) return;
+        var pulls = Array.isArray(data.pulls) ? data.pulls : [];
+        var files = Array.isArray(data.files) ? data.files : [];
+        var html = '';
+        var active = pulls.filter(function (j) { return j && j.status === 'pulling'; });
+        var failed = pulls.filter(function (j) { return j && j.status === 'failed'; });
+        var stored = files.filter(function (f) {
+            return f && !f.is_partial && /^twitch-[0-9].*\.mp4$/i.test(String(f.name || ''));
+        });
+        if (!active.length && !failed.length && !stored.length) {
+            html = '<p class="sp-help"><?php echo htmlspecialchars(t('youtube_vod_stored_empty')); ?></p>';
+        }
+        active.forEach(function (job) {
+            var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
+            var label = job.title || job.filename || job.vod_id || '';
+            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : <?php echo json_encode(t('youtube_vod_status_pulling')); ?>;
+            html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' +
+                label.replace(/[<>&]/g, '') + '</span><span>' + pctLabel + '</span></div>' +
+                '<progress class="progress" value="' + pct + '" max="100"></progress></div>';
+        });
+        failed.forEach(function (job) {
+            html += '<div class="sp-alert sp-alert-danger mb-4">' +
+                String(job.title || job.filename || '').replace(/[<>&]/g, '') +
+                ' — ' + <?php echo json_encode(t('youtube_vod_status_failed')); ?> + '</div>';
+        });
+        if (stored.length) {
+            html += '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><?php echo htmlspecialchars(t('youtube_vod_th_title')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('youtube_vod_th_action')); ?></th></tr></thead><tbody>';
+            stored.forEach(function (file) {
+                var name = String(file.name || '').replace(/\.mp4$/i, '');
+                var mb = file.size_bytes ? ((file.size_bytes / 1048576).toFixed(1) + ' MB') : '—';
+                var dl = file.download_url
+                    ? '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + String(file.download_url).replace(/"/g, '') + '"><?php echo htmlspecialchars(t('recording_btn_download')); ?></a>'
+                    : '';
+                html += '<tr><td>' + name.replace(/[<>&]/g, '') + '</td><td>' + mb + '</td><td>' + dl + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+        host.innerHTML = html;
+        if (window.updateStorageBar && data.storage) {
+            window.updateStorageBar(data.storage);
+        }
+    }
+    function poll() {
+        var url = 'youtubelink.php?ajax=vods&_ts=' + Date.now();
+        fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(render)
+            .catch(function () {});
+    }
+    setInterval(poll, 3000);
+})();
+</script>
 <?php
 $content = ob_get_clean();
 include 'layout.php';

@@ -379,7 +379,16 @@ async def twitch_vod_hls_url(session, vod_id, twitch_oauth):
     return None, "unrecognised_playlist"
 
 
-async def ffmpeg_pull_twitch_vod(hls_url, dest_path):
+DURATION_RE = re.compile(rb"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+TIME_RE = re.compile(rb"time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+SIZE_RE = re.compile(rb"size=\s*(\d+)kB", re.I)
+
+
+def _hms_to_s(h, m, s):
+    return int(h) * 3600 + int(m) * 60 + float(s)
+
+
+async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None):
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     part_path = dest_path + ".part"
     if os.path.isfile(part_path):
@@ -392,7 +401,7 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path):
         "-y",
         "-hide_banner",
         "-loglevel",
-        "error",
+        "info",
         "-stats",
         "-user_agent",
         "Mozilla/5.0",
@@ -413,16 +422,46 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path):
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
     )
-    _out, err = await proc.communicate()
-    if proc.returncode != 0 or not os.path.isfile(part_path):
+    buf = b""
+    duration_s = None
+    tail = []
+    while True:
+        chunk = await proc.stderr.read(256)
+        if not chunk:
+            break
+        buf += chunk
+        parts = re.split(rb"[\r\n]", buf)
+        buf = parts[-1]
+        for raw in parts[:-1]:
+            if not raw:
+                continue
+            line = raw.decode("utf-8", "replace").rstrip()
+            if line:
+                tail.append(line)
+                if len(tail) > 40:
+                    del tail[: len(tail) - 40]
+            if duration_s is None:
+                dm = DURATION_RE.search(raw)
+                if dm:
+                    duration_s = _hms_to_s(*dm.groups())
+            tm = TIME_RE.search(raw)
+            if tm and on_progress:
+                cur = _hms_to_s(*tm.groups())
+                pct = max(0.0, min(100.0, cur / duration_s * 100.0)) if duration_s else None
+                sm = SIZE_RE.search(raw)
+                nbytes = int(sm.group(1)) * 1024 if sm else None
+                on_progress(pct, cur, duration_s, nbytes)
+    rc = await proc.wait()
+    if rc != 0 or not os.path.isfile(part_path):
         try:
             if os.path.isfile(part_path):
                 os.remove(part_path)
         except OSError:
             pass
-        tail = (err or b"").decode("utf-8", "replace")[-500:]
-        return False, tail or f"ffmpeg_exit_{proc.returncode}"
+        return False, "\n".join(tail[-8:]) or f"ffmpeg_exit_{rc}"
     os.replace(part_path, dest_path)
+    if on_progress:
+        on_progress(100.0, duration_s or 0.0, duration_s, os.path.getsize(dest_path))
     return True, None
 
 
