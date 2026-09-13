@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import socket
 import secrets
@@ -17,7 +18,7 @@ from pyrtmp import StreamClosedException
 from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
-from quart import Quart, render_template_string, request, jsonify, redirect, session
+from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -39,7 +40,7 @@ TWITCH_INGEST_SERVERS = {
 
 # Define SSL domain mappings for Let's Encrypt certificates
 SSL_DOMAIN_MAPPING = {
-    "sydney": "au-east-1.botofthespecter.video",
+    "sydney": "syd1.stream.botofthespecter.com",
     "us-west": "us-west-1.botofthespecter.video",
     "us-east": "us-east-1.botofthespecter.video",
     "eu-central": "eu-central-1.botofthespecter.video"
@@ -132,6 +133,8 @@ SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 ADMIN_KEY_SERVICE = "rtmp-server"
 SERVER_START_TIME = datetime.datetime.now()
 FFMPEG_VERSION: str = "unknown"
+STREAM_STORAGE_MAX_SLOTS = int(os.getenv("STREAM_STORAGE_MAX_SLOTS") or "5")
+STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
 
 async def access_website_database():
     # Connect to your MySQL database
@@ -216,6 +219,58 @@ async def maybe_queue_youtube_vod(username, filename):
             logger.info(f"Queued YouTube VOD upload for {username}: {filename}")
     except Exception as e:
         logger.error(f"YouTube auto-queue failed for {username}: {e}")
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+def user_storage_dir(output_directory: str, username: str) -> str:
+    return os.path.join(output_directory, username)
+
+
+def directory_size_bytes(path: str) -> int:
+    total = 0
+    if not os.path.isdir(path):
+        return 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            file_path = os.path.join(root, name)
+            try:
+                total += os.path.getsize(file_path)
+            except OSError:
+                continue
+    return total
+
+
+async def get_storage_slot(username):
+    """Return quota info for an opted-in ingest user, or None if they have no slot."""
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT u.id AS user_id, s.quota_bytes, s.bonus_bytes
+                FROM users u
+                JOIN stream_storage_slots s ON s.user_id = u.id
+                WHERE u.username = %s
+                LIMIT 1
+                """,
+                (username,),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            raw_quota = row.get("quota_bytes")
+            quota = STREAM_STORAGE_QUOTA_BYTES if raw_quota is None else int(raw_quota)
+            bonus = int(row.get("bonus_bytes") or 0)
+            return {
+                "user_id": row["user_id"],
+                "quota_bytes": 0 if quota == 0 else quota + bonus,
+            }
+    except Exception as e:
+        logger.error(f"Error in get_storage_slot for {username}: {e}")
+        return None
     finally:
         if sqldb is not None:
             await sqldb.ensure_closed()
@@ -406,11 +461,38 @@ class RTMP2FLVController(SimpleRTMPController):
             except ssl.SSLError as e:
                 logger.warning(f"Ignored SSL error after close notify: {e}")
             return
+        slot = await get_storage_slot(username)
+        if not slot:
+            logger.warning(
+                f"Refusing {username}: no stream storage slot "
+                f"(max {STREAM_STORAGE_MAX_SLOTS} users due to limited storage space)"
+            )
+            session.writer.close()
+            try:
+                await session.writer.wait_closed()
+            except ssl.SSLError as e:
+                logger.warning(f"Ignored SSL error after close notify: {e}")
+            return
+        user_dir = user_storage_dir(self.output_directory, username)
+        os.makedirs(user_dir, exist_ok=True)
+        used = directory_size_bytes(user_dir)
+        quota = slot["quota_bytes"]
+        if quota > 0 and used >= quota:
+            logger.warning(
+                f"Refusing {username}: stream storage full "
+                f"({used} bytes used of {quota} byte quota)"
+            )
+            session.writer.close()
+            try:
+                await session.writer.wait_closed()
+            except ssl.SSLError as e:
+                logger.warning(f"Ignored SSL error after close notify: {e}")
+            return
         # Fetch streaming settings
         twitch_key, forward_to_twitch = await get_streaming_settings(username)
         session.publishing_name = publishing_name
         start_date = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-        file_path = os.path.join(self.output_directory, f"{start_date}_{publishing_name}.flv")
+        file_path = os.path.join(user_dir, f"{start_date}.flv")
         session.flv_file_path = file_path
         session.twitch_key = twitch_key
         session.ffmpeg_process = None
@@ -648,9 +730,9 @@ class RTMP2FLVController(SimpleRTMPController):
                 f"skipping MP4 conversion and keeping FLV."
             )
             return
-        user_dir = os.path.join(self.output_directory, username)
+        user_dir = user_storage_dir(self.output_directory, username)
         os.makedirs(user_dir, exist_ok=True)
-        date_part = os.path.basename(flv_file_path).split('_')[0]
+        date_part = os.path.splitext(os.path.basename(flv_file_path))[0]
         final_mp4_path = os.path.join(user_dir, f"{date_part}.mp4")
         # Check if file exists inside user folder and append a part number if needed
         if os.path.exists(final_mp4_path):
@@ -697,7 +779,9 @@ class SimpleServer(SimpleRTMPServer):
         )
 
 def resolve_cert_paths(server_location):
-    domain = SSL_DOMAIN_MAPPING.get(server_location, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER])
+    domain = (os.getenv("STREAM_SSL_DOMAIN") or "").strip() or SSL_DOMAIN_MAPPING.get(
+        server_location, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER]
+    )
     cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
     key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
     if not os.path.exists(cert_path) or not os.path.exists(key_path):
@@ -891,6 +975,52 @@ def list_recorder_files(root_path: str) -> list[dict]:
             "file_count": len(files),
         })
     return users
+
+
+_RECORDING_SKIP_SUFFIXES = (".ffmpeg.log", ".ytdlp.log", ".fwd.log")
+
+
+def _safe_recording_name(name: str) -> bool:
+    if not isinstance(name, str) or not name:
+        return False
+    if "/" in name or "\\" in name or "\x00" in name:
+        return False
+    if name in (".", "..") or os.path.basename(name) != name:
+        return False
+    return True
+
+
+def list_user_recording_files(root_path: str, username: str) -> list[dict]:
+    if not root_path or not username or not re.match(r"^[a-zA-Z0-9_]{1,64}$", username):
+        return []
+    user_dir = os.path.join(root_path, username)
+    if not os.path.isdir(user_dir):
+        return []
+    files = []
+    try:
+        names = os.listdir(user_dir)
+    except OSError:
+        return []
+    for fname in names:
+        if not _safe_recording_name(fname):
+            continue
+        if fname.endswith(_RECORDING_SKIP_SUFFIXES):
+            continue
+        fpath = os.path.join(user_dir, fname)
+        if not os.path.isfile(fpath):
+            continue
+        try:
+            stat = os.stat(fpath)
+        except OSError:
+            continue
+        files.append({
+            "name": fname,
+            "size": stat.st_size,
+            "mtime": stat.st_mtime,
+            "is_partial": fname.endswith(".part"),
+        })
+    files.sort(key=lambda f: f["mtime"], reverse=True)
+    return files
 
 async def _detect_ffmpeg_version() -> str:
     try:
@@ -1169,6 +1299,42 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "generated_at": now.isoformat(),
         })
 
+    @app.get("/api/me/recordings")
+    async def api_my_recordings():
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        files = list_user_recording_files(recorder_storage_path, username)
+        return jsonify({
+            "username": username,
+            "files": [
+                {
+                    "name": f["name"],
+                    "size_bytes": f["size"],
+                    "modified_at": datetime.datetime.fromtimestamp(f["mtime"]).isoformat(),
+                    "is_partial": f["is_partial"],
+                }
+                for f in files
+            ],
+        })
+
+    @app.get("/api/me/recordings/file")
+    async def api_my_recording_file():
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        fname = (request.args.get("name") or "").strip()
+        if not _safe_recording_name(fname) or not fname.lower().endswith(".mp4"):
+            return jsonify({"error": "invalid file name"}), 400
+        if fname.endswith(".part"):
+            return jsonify({"error": "file not available"}), 400
+        path = os.path.join(recorder_storage_path, username, fname)
+        if not os.path.isfile(path):
+            return jsonify({"error": "file not found"}), 404
+        return await send_file(path, as_attachment=True, download_name=fname, mimetype="video/mp4")
+
     @app.get("/api/server")
     @_require_api_key
     async def api_server():
@@ -1233,13 +1399,21 @@ async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: s
 async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, recorder_storage_path: str) -> None:
     global FFMPEG_VERSION
     # Determine output directory based on server location
-    if twitch_server in ("us-west", "us-east", "eu-central"):
+    files_root = (os.getenv("STREAM_FILES_ROOT") or "").strip()
+    if files_root:
+        output_directory = files_root
+    elif twitch_server in ("us-west", "us-east", "eu-central"):
         output_directory = "/mnt/s3/bots-stream"
     else:
         output_directory = os.path.dirname(os.path.abspath(__file__))
     # Detect ffmpeg up front so /api/server can report it without re-shelling on every request
     FFMPEG_VERSION = await _detect_ffmpeg_version()
     logger.info(f"Detected ffmpeg: {FFMPEG_VERSION}")
+    logger.info(
+        f"Stream storage: root={output_directory} "
+        f"max_slots={STREAM_STORAGE_MAX_SLOTS} "
+        f"default_quota_bytes={STREAM_STORAGE_QUOTA_BYTES}"
+    )
     ssl_context = create_ssl_context(twitch_server)
     domain, cert_path, key_path = resolve_cert_paths(twitch_server)
     session_registry = SessionRegistry()

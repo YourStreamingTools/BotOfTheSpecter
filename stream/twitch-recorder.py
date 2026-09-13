@@ -33,6 +33,8 @@ production server and functionality may change during implementation.
 """
 
 import os
+import re
+import shutil
 import aiohttp
 import time
 import subprocess
@@ -44,6 +46,7 @@ import threading
 import asyncio
 import argparse
 from typing import Tuple, Optional, Dict, Any, List
+from urllib.parse import urljoin
 import aiomysql
 from dotenv import load_dotenv
 
@@ -58,8 +61,26 @@ ADMIN_KEY = os.getenv('ADMIN_KEY')
 INTERNAL_STREAM_API_URL = os.getenv('INTERNAL_STREAM_API_URL', 'https://api.botofthespecter.com/v2/streamonline')
 YT_DLP_COOKIES_FILE = os.getenv('YT_DLP_COOKIES_FILE', 'twitch-cookies.txt')
 YT_DLP_LIVE_FROM_START = os.getenv('YT_DLP_LIVE_FROM_START', 'true').lower() in ('1', 'true', 'yes', 'on')
-STORAGE_ROOT_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
+STORAGE_ROOT_PATH = os.getenv('STREAM_FILES_ROOT') or os.getenv('STREAM_ROOT_PATH') or '/var/lib/specter-stream'
 FILE_RETENTION_SECONDS = int(os.getenv('RECORDING_RETENTION_SECONDS', '86400'))
+STREAM_STORAGE_QUOTA_BYTES = int(os.getenv('STREAM_STORAGE_QUOTA_BYTES') or str(100 * 1024 * 1024 * 1024))
+MIN_DISK_FREE_BYTES = int(os.getenv('STREAM_MIN_DISK_FREE_BYTES') or str(20 * 1024 * 1024 * 1024))
+TWITCH_WEB_CLIENT_ID = os.getenv('TWITCH_WEB_CLIENT_ID', 'kimne78kx3ncx6brgo4mv6wki5h1ko')
+TWITCH_GQL = 'https://gql.twitch.tv/gql'
+TWITCH_LIVE_USHER = 'https://usher.ttvnw.net/api/channel/hls/{login}.m3u8'
+LIVE_PLAYBACK_QUERY = """
+query StreamAccess($login: String!, $playerType: String!) {
+  user(login: $login) {
+    stream {
+      id
+      playbackAccessToken(params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) {
+        value
+        signature
+      }
+    }
+  }
+}
+"""
 CHECK_INTERVAL_MIN = 15
 RETRY_BASE = 2
 RETRY_JITTER = 0.01
@@ -72,6 +93,18 @@ RTMP_ENDPOINTS: Dict[str, str] = {
     'kick':    'rtmps://fa723fc1b171.global-contribute.live-video.net/app/{stream_key}',
     'trovo':   'rtmp://livepush.trovo.live/live/{stream_key}',
 }
+
+
+def resolve_forward_url(service: str, stream_key: str) -> Optional[str]:
+    key = (stream_key or "").strip()
+    if not key:
+        return None
+    if key.lower().startswith(("rtmp://", "rtmps://")):
+        return key
+    template = RTMP_ENDPOINTS.get(service)
+    if not template:
+        return None
+    return template.format(stream_key=key)
 
 # Custom formatter that stamps log entries in Sydney, Australia time
 class SydneyFormatter(logging.Formatter):
@@ -143,6 +176,99 @@ setup_logging()
 
 def sanitize_filename(filename: str) -> str:
     return "".join(x for x in filename if x.isalnum() or x in [" ", "-", "_", "."])
+
+
+def directory_size_bytes(path: str) -> int:
+    total = 0
+    if not os.path.isdir(path):
+        return 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            if name.endswith((".ffmpeg.log", ".ytdlp.log", ".fwd.log")):
+                continue
+            try:
+                total += os.path.getsize(os.path.join(root, name))
+            except OSError:
+                continue
+    return total
+
+
+def _pick_hls_variant(master_text: str) -> Optional[str]:
+    best_url = None
+    best_bw = -1
+    chunked_url = None
+    lines = master_text.splitlines()
+    for i, line in enumerate(lines):
+        if not line.startswith("#EXT-X-STREAM-INF"):
+            continue
+        url = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        if not url or url.startswith("#"):
+            continue
+        bw = -1
+        match = re.search(r"BANDWIDTH=(\d+)", line)
+        if match:
+            bw = int(match.group(1))
+        if 'VIDEO="chunked"' in line or 'NAME="chunked"' in line:
+            chunked_url = url
+        if bw > best_bw:
+            best_bw = bw
+            best_url = url
+    return chunked_url or best_url
+
+
+async def twitch_live_hls(session: aiohttp.ClientSession, login: str) -> Tuple[Optional[bool], Optional[str], Optional[str]]:
+    """Anonymous GQL playback token + Usher HLS. No website auth-token cookie."""
+    headers = {
+        "Client-ID": TWITCH_WEB_CLIENT_ID,
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0",
+    }
+    payload = {
+        "query": LIVE_PLAYBACK_QUERY,
+        "variables": {"login": login, "playerType": "site"},
+    }
+    async with session.post(TWITCH_GQL, headers=headers, json=payload) as resp:
+        try:
+            body = await resp.json(content_type=None)
+        except Exception:
+            return None, None, f"gql_http_{resp.status}"
+        if resp.status != 200:
+            return None, None, f"gql_http_{resp.status}"
+    data = body.get("data") if isinstance(body, dict) else None
+    user = data.get("user") if isinstance(data, dict) else None
+    stream = user.get("stream") if isinstance(user, dict) else None
+    if not stream:
+        return False, None, None
+    token = stream.get("playbackAccessToken") if isinstance(stream, dict) else None
+    value = token.get("value") if isinstance(token, dict) else None
+    signature = token.get("signature") if isinstance(token, dict) else None
+    if not value or not signature:
+        return True, None, "gql_no_token"
+    params = {
+        "player": "twitchweb",
+        "allow_source": "true",
+        "allow_audio_only": "false",
+        "allow_spectre": "false",
+        "playlist_include_framerate": "true",
+        "sig": signature,
+        "token": value,
+    }
+    usher = TWITCH_LIVE_USHER.format(login=login)
+    async with session.get(usher, params=params, headers={"User-Agent": "Mozilla/5.0"}) as resp:
+        playlist = await resp.text()
+        playlist_url = str(resp.url)
+        if resp.status != 200 or not playlist:
+            return True, None, f"usher_http_{resp.status}"
+    if "#EXT-X-STREAM-INF" in playlist:
+        variant = _pick_hls_variant(playlist)
+        if not variant:
+            return True, None, "no_hls_variant"
+        if not variant.startswith("http"):
+            variant = urljoin(playlist_url, variant)
+        return True, variant, None
+    if "#EXTINF" in playlist:
+        return True, playlist_url, None
+    return True, None, "unrecognised_playlist"
 
 def resolve_cookies_path(cookies_path: str) -> Optional[str]:
     if not cookies_path:
@@ -316,6 +442,37 @@ class MySQLManager:
             if 'conn' in locals() and conn:
                 conn.close()
 
+    async def get_storage_quota(self, username: str) -> Optional[int]:
+        conn = await self.get_connection('website')
+        if not conn:
+            return None
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    """
+                    SELECT s.quota_bytes, s.bonus_bytes
+                    FROM users u
+                    JOIN stream_storage_slots s ON s.user_id = u.id
+                    WHERE u.username = %s
+                    LIMIT 1
+                    """,
+                    (username,),
+                )
+                row = await cursor.fetchone()
+            if not row:
+                return STREAM_STORAGE_QUOTA_BYTES
+            raw_quota = row.get("quota_bytes")
+            quota = STREAM_STORAGE_QUOTA_BYTES if raw_quota is None else int(raw_quota)
+            bonus = int(row.get("bonus_bytes") or 0)
+            if quota == 0:
+                return 0
+            return quota + bonus
+        except Exception as e:
+            self.logger.error(f"Error getting storage quota for {username}: {e}")
+            return None
+        finally:
+            conn.close()
+
     async def get_users_to_monitor(self) -> List[str]:
         try:
             conn = await self.get_connection('website')
@@ -458,6 +615,19 @@ class RecordChecker:
         self.running = False
         self.last_enabled_users = set()
 
+    def _disk_has_room(self) -> bool:
+        try:
+            return shutil.disk_usage(self.root_path).free >= MIN_DISK_FREE_BYTES
+        except OSError:
+            return False
+
+    async def _user_has_quota_room(self, username: str) -> bool:
+        quota = await self.mysql_manager.get_storage_quota(username)
+        if quota == 0:
+            return True
+        used = directory_size_bytes(os.path.join(self.root_path, username))
+        return used < quota
+
     async def start_checker(self):
         self.logger.info("RecordChecker starting up...")
         # Perform initial database checks
@@ -547,8 +717,8 @@ class RecordChecker:
                 # Clean up finished recordings and forwarders
                 await self.cleanup_finished_recordings()
                 await self.cleanup_finished_forwarders()
-                # Delete old files from server storage
-                await self.cleanup_old_files()
+                if FILE_RETENTION_SECONDS > 0:
+                    await self.cleanup_old_files()
             except Exception as e:
                 self.logger.error(f"Error in check_channels_loop: {e}")
             # Wait before next check
@@ -557,10 +727,17 @@ class RecordChecker:
     async def cleanup_old_files(self):
         cutoff_timestamp = time.time() - self.file_retention_seconds
         removed_count = 0
+        active_paths = {
+            rec.get("filename")
+            for rec in self.active_recordings.values()
+            if rec.get("filename")
+        }
         if os.path.isdir(self.root_path):
             for current_root, _, filenames in os.walk(self.root_path):
                 for filename in filenames:
                     file_path = os.path.join(current_root, filename)
+                    if file_path in active_paths:
+                        continue
                     try:
                         if os.path.getmtime(file_path) < cutoff_timestamp:
                             os.remove(file_path)
@@ -589,19 +766,41 @@ class RecordChecker:
     async def check_and_record_user(self, username):
         try:
             self.logger.debug(f"Checking stream status for {username}")
-            is_live, stream_info = await get_internal_stream_status(username, self.logger)
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                is_live, hls_url, live_err = await twitch_live_hls(session, username)
+            stream_info = {'hls_url': hls_url} if hls_url else {}
             if is_live is None:
-                self.logger.warning(f"Could not determine stream status for {username}")
+                self.logger.warning(f"Could not determine stream status for {username}: {live_err}")
                 return
+            if is_live and live_err:
+                self.logger.warning(f"{username} is live but HLS failed: {live_err}")
             if is_live:
                 # Recording
                 if username not in self.active_recordings:
                     should_record = await self.mysql_manager.should_auto_record(username)
                     if should_record:
-                        self.logger.info(f"Starting new recording for {username}")
-                        await self.start_recording_for_user(username, stream_info)
+                        if not self._disk_has_room():
+                            self.logger.warning(
+                                f"Skipping {username}: host disk has less than "
+                                f"{MIN_DISK_FREE_BYTES} bytes free"
+                            )
+                        elif not await self._user_has_quota_room(username):
+                            self.logger.warning(
+                                f"Skipping {username}: stream storage is at the 100GB cap"
+                            )
+                        else:
+                            self.logger.info(f"Starting new recording for {username}")
+                            await self.start_recording_for_user(username, stream_info)
                 else:
-                    self.logger.debug(f"Already recording {username}")
+                    if not await self._user_has_quota_room(username):
+                        self.logger.warning(
+                            f"Stopping {username}: recording hit the 100GB cap "
+                            f"(a long 1080p60 session can be ~60GB on its own)"
+                        )
+                        await self.stop_recording_for_user(username)
+                    else:
+                        self.logger.debug(f"Already recording {username}")
                 # Forwarding
                 forward_settings = await self.mysql_manager.get_forwarding_settings(username)
                 enabled_services = {fwd['service'] for fwd in forward_settings}
@@ -616,7 +815,9 @@ class RecordChecker:
                     service = fwd['service']
                     stream_key = fwd['stream_key']
                     if service not in self.forwarding_processes.get(username, {}):
-                        await self.start_forwarding_for_service(username, service, stream_key)
+                        await self.start_forwarding_for_service(
+                            username, service, stream_key, hls_url=hls_url
+                        )
             else:
                 self.logger.debug(f"{username} is offline")
                 # Stop recording if currently recording
@@ -653,7 +854,7 @@ class RecordChecker:
             game = stream_info.get('game_name') if stream_info else None
             if not game:
                 game = 'Unknown Game'
-            start_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            start_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             base_filename = f"{username} - {start_time} UTC - {game}"
             base_filename = sanitize_filename(base_filename)
             # Create directories
@@ -661,26 +862,44 @@ class RecordChecker:
             os.makedirs(user_storage_path, exist_ok=True)
             self.logger.info(f"Created/verified storage path: {user_storage_path}")
             output_prefix = os.path.join(user_storage_path, base_filename)
-            output_template = f"{output_prefix}.%(ext)s"
-            # Start recording process
-            url = f"https://www.twitch.tv/{username}"
-            cmd = self.select_recording_command(username, url, output_template)
-            self.logger.info(f"Recording command for {username}: {' '.join(cmd)}")
-            # Redirect yt-dlp output to a per-recording log file to prevent pipe buffer
-            # deadlock (stdout/stderr=PIPE with no reader blocks yt-dlp after ~64KB)
-            ytdlp_log_path = os.path.join(user_storage_path, f"{base_filename}.ytdlp.log")
-            ytdlp_log_file = open(ytdlp_log_path, 'w', encoding='utf-8')
-            process = subprocess.Popen(cmd, stdout=ytdlp_log_file, stderr=ytdlp_log_file)
+            output_path = f"{output_prefix}.mp4"
+            hls_url = (stream_info or {}).get('hls_url')
+            if not hls_url:
+                timeout = aiohttp.ClientTimeout(total=30)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    _live, hls_url, hls_err = await twitch_live_hls(session, username)
+                if not hls_url:
+                    self.logger.error(f"No live HLS for {username}: {hls_err}")
+                    return
+            cmd = [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel", "warning",
+                "-stats",
+                "-user_agent", "Mozilla/5.0",
+                "-reconnect", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_delay_max", "5",
+                "-i", hls_url,
+                "-c", "copy",
+                "-bsf:a", "aac_adtstoasc",
+                "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+                "-f", "mp4",
+                output_path,
+            ]
+            rec_log_path = os.path.join(user_storage_path, f"{base_filename}.ffmpeg.log")
+            rec_log_file = open(rec_log_path, 'w', encoding='utf-8')
+            process = subprocess.Popen(cmd, stdout=rec_log_file, stderr=rec_log_file)
             self.active_recordings[username] = {
                 'process': process,
-                'log_file': ytdlp_log_file,
-                'filename': None,
+                'log_file': rec_log_file,
+                'filename': output_path,
                 'output_prefix': output_prefix,
-                'output_template': output_template,
+                'output_template': output_path,
                 'user_storage_path': user_storage_path,
                 'start_time': datetime.datetime.now()
             }
-            self.logger.info(f"Started recording for {username}: {base_filename}")
+            self.logger.info(f"Started recording for {username}: {base_filename}.mp4")
             self.logger.info(f"Process PID: {process.pid}")
         except Exception as e:
             self.logger.error(f"Error starting recording for {username}: {e}", exc_info=True)
@@ -754,36 +973,40 @@ class RecordChecker:
             self.logger.info(f"Cleaning up recording for {username}")
             del self.active_recordings[username]
 
-    async def start_forwarding_for_service(self, username: str, service: str, stream_key: str):
-        """Use yt-dlp to resolve the authenticated HLS URL, then launch ffmpeg to re-stream it."""
+    async def start_forwarding_for_service(
+        self, username: str, service: str, stream_key: str, hls_url: Optional[str] = None
+    ):
+        """Live restream: Twitch HLS → YouTube / Kick / Trovo. Does not write the 100GB recording."""
         log_file = None
         try:
-            rtmp_url = RTMP_ENDPOINTS[service].format(stream_key=stream_key)
+            rtmp_url = resolve_forward_url(service, stream_key)
+            if not rtmp_url:
+                self.logger.error(f"No RTMP URL for {username} ({service})")
+                return
             user_storage_path = os.path.join(self.root_path, username)
             os.makedirs(user_storage_path, exist_ok=True)
             log_path = os.path.join(user_storage_path, f"{username}-fwd-{service}.fwd.log")
             log_file = open(log_path, 'a', encoding='utf-8')
-            # Resolve the authenticated HLS manifest URL via yt-dlp
-            get_url_cmd = ['yt-dlp', '--get-url', '-f', 'best', f'https://www.twitch.tv/{username}']
-            resolved_cookies = resolve_cookies_path(YT_DLP_COOKIES_FILE)
-            if resolved_cookies:
-                get_url_cmd.extend(['--cookies', resolved_cookies])
-            url_result = subprocess.run(get_url_cmd, capture_output=True, text=True, timeout=30)
-            if url_result.returncode != 0 or not url_result.stdout.strip():
-                self.logger.error(
-                    f"yt-dlp could not resolve HLS URL for {username} ({service}): "
-                    f"{url_result.stderr.strip()}"
-                )
-                log_file.close()
-                return
-            hls_url = url_result.stdout.strip().splitlines()[0]
-            # Launch ffmpeg: read HLS stream and push to RTMP destination
+            if not hls_url:
+                timeout = aiohttp.ClientTimeout(total=30)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    _live, hls_url, hls_err = await twitch_live_hls(session, username)
+                if not hls_url:
+                    self.logger.error(f"Could not resolve live HLS for {username} ({service}): {hls_err}")
+                    log_file.close()
+                    return
             ffmpeg_cmd = [
-                'ffmpeg',
-                '-re',
-                '-i', hls_url,
-                '-c', 'copy',
-                '-f', 'flv',
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel", "warning",
+                "-user_agent", "Mozilla/5.0",
+                "-reconnect", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_delay_max", "5",
+                "-i", hls_url,
+                "-c", "copy",
+                "-bsf:a", "aac_adtstoasc",
+                "-f", "flv",
                 rtmp_url,
             ]
             self.logger.info(f"Starting {service} forwarding for {username}")

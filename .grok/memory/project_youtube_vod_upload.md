@@ -15,7 +15,7 @@ Streamers can connect **their own** YouTube channel (user OAuth 2.0, YouTube Dat
 | Piece | Location |
 | ----- | -------- |
 | PHP config | `./config/youtube.php` → production `/var/www/config/youtube.php` |
-| OAuth + settings | `./dashboard/youtubelink.php` |
+| OAuth connect | `./dashboard/youtubelink.php` (admin-only while in Testing; connect/disconnect only — no settings or upload list) |
 | Helpers | `./dashboard/includes/youtube.php` |
 | Profile card | `./dashboard/profile.php` Connected Accounts |
 | Schema | `./migrations/website/20260910_0001_youtube_vod_oauth.php` (`youtube_tokens`, `youtube_vod_uploads`) |
