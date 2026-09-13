@@ -1306,8 +1306,15 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         if not username:
             return jsonify({"error": "incorrect API key"}), 401
         files = list_user_recording_files(recorder_storage_path, username)
+        used_bytes = sum(int(f.get("size") or 0) for f in files)
+        slot = await get_storage_slot(username)
+        quota_bytes = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
+        unlimited = quota_bytes == 0
         return jsonify({
             "username": username,
+            "used_bytes": used_bytes,
+            "quota_bytes": quota_bytes,
+            "quota_unlimited": unlimited,
             "files": [
                 {
                     "name": f["name"],
