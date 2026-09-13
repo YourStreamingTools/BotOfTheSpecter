@@ -308,6 +308,30 @@ streamersconnect.com, www.streamersconnect.com {
 
 # ===== Static asset hosts =====
 
+# VODs: local files on syd1 (VPC 10.240.0.9) then Mega S4 vods/ prefix.
+vods.botofthespecter.com {
+    reverse_proxy 10.240.0.9:8092 {
+        @missing status 404
+        handle_response @missing {
+            rewrite * {env.STORAGE_PREFIX}/vods{http.request.uri.path}
+            reverse_proxy {env.STORAGE_HOST}:443 {
+                header_up Host {env.STORAGE_HOST}
+                transport http {
+                    tls
+                }
+            }
+        }
+    }
+    import security
+    encode zstd gzip
+    @mp4 path *.mp4
+    header @mp4 Cache-Control "public, max-age=3600"
+    header @mp4 Content-Type "video/mp4"
+    log {
+        output file /var/log/caddy/vods.log
+    }
+}
+
 cdn.botofthespecter.com {
     rewrite * {env.STORAGE_PREFIX}/cdn{uri}
     # own proxy block: strip the origin's reflected CORS header so it doesn't

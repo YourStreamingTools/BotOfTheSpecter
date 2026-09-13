@@ -12,6 +12,7 @@ import time
 from asyncio import subprocess
 from functools import wraps
 from urllib.parse import quote
+import aiohttp
 import aiomysql
 from dotenv import load_dotenv
 from pyrtmp import StreamClosedException
@@ -135,6 +136,7 @@ SERVER_START_TIME = datetime.datetime.now()
 FFMPEG_VERSION: str = "unknown"
 STREAM_STORAGE_MAX_SLOTS = int(os.getenv("STREAM_STORAGE_MAX_SLOTS") or "5")
 STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
+VODS_CDN_BASE = (os.getenv("VODS_CDN_BASE") or "https://vods.botofthespecter.com").rstrip("/")
 
 async def access_website_database():
     # Connect to your MySQL database
@@ -990,6 +992,102 @@ def _safe_recording_name(name: str) -> bool:
     return True
 
 
+def vod_cdn_url(username: str, filename: str) -> str:
+    return f"{VODS_CDN_BASE}/{username}/{filename}"
+
+
+async def list_extended_vods(username: str) -> list[dict]:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT filename, s4_key, expires_at
+                FROM vod_extensions
+                WHERE username = %s AND expires_at > NOW()
+                """,
+                (username,),
+            )
+            return await cursor.fetchall() or []
+    except Exception as e:
+        logger.error(f"list_extended_vods failed for {username}: {e}")
+        return []
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def save_extended_vod(user_id: int, username: str, filename: str, s4_key: str, expires_at) -> None:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor() as cursor:
+            await cursor.execute(
+                """
+                INSERT INTO vod_extensions (user_id, username, filename, s4_key, expires_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE s4_key = VALUES(s4_key), expires_at = VALUES(expires_at)
+                """,
+                (user_id, username, filename, s4_key, expires_at),
+            )
+            await sqldb.commit()
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def lookup_user_id(username: str) -> int | None:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT id FROM users WHERE username = %s LIMIT 1", (username,))
+            row = await cursor.fetchone()
+            return int(row["id"]) if row else None
+    except Exception as e:
+        logger.error(f"lookup_user_id failed for {username}: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def cleanup_expired_s4_vods() -> None:
+    from vod_s4 import delete_vod
+
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT id, s4_key FROM vod_extensions WHERE expires_at <= NOW()"
+            )
+            rows = await cursor.fetchall() or []
+            for row in rows:
+                key = row.get("s4_key") or ""
+                try:
+                    await asyncio.to_thread(delete_vod, key)
+                except Exception as e:
+                    logger.warning(f"S4 VOD delete failed for {key}: {e}")
+                    continue
+                await cursor.execute("DELETE FROM vod_extensions WHERE id = %s", (row["id"],))
+            if rows:
+                await sqldb.commit()
+                logger.info(f"Removed {len(rows)} expired S4 VODs")
+    except Exception as e:
+        logger.error(f"cleanup_expired_s4_vods failed: {e}")
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def _expired_vod_loop() -> None:
+    while True:
+        await cleanup_expired_s4_vods()
+        await asyncio.sleep(900)
+
+
 def list_user_recording_files(root_path: str, username: str) -> list[dict]:
     if not root_path or not username or not re.match(r"^[a-zA-Z0-9_]{1,64}$", username):
         return []
@@ -1307,6 +1405,35 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             return jsonify({"error": "incorrect API key"}), 401
         files = list_user_recording_files(recorder_storage_path, username)
         used_bytes = sum(int(f.get("size") or 0) for f in files)
+        local_names = {f["name"] for f in files}
+        payload_files = [
+            {
+                "name": f["name"],
+                "size_bytes": f["size"],
+                "modified_at": datetime.datetime.fromtimestamp(f["mtime"]).isoformat(),
+                "is_partial": f["is_partial"],
+                "storage": "local",
+                "can_extend": (not f["is_partial"]) and f["name"].lower().endswith(".mp4"),
+                "download_url": vod_cdn_url(username, f["name"]),
+                "expires_at": None,
+            }
+            for f in files
+        ]
+        for row in await list_extended_vods(username):
+            name = str(row.get("filename") or "")
+            if not name or name in local_names:
+                continue
+            expires = row.get("expires_at")
+            payload_files.append({
+                "name": name,
+                "size_bytes": 0,
+                "modified_at": expires.isoformat() if hasattr(expires, "isoformat") else str(expires or ""),
+                "is_partial": False,
+                "storage": "s4",
+                "can_extend": False,
+                "download_url": vod_cdn_url(username, name),
+                "expires_at": expires.isoformat() if hasattr(expires, "isoformat") else str(expires or ""),
+            })
         slot = await get_storage_slot(username)
         quota_bytes = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
         unlimited = quota_bytes == 0
@@ -1315,16 +1442,116 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "used_bytes": used_bytes,
             "quota_bytes": quota_bytes,
             "quota_unlimited": unlimited,
-            "files": [
-                {
-                    "name": f["name"],
-                    "size_bytes": f["size"],
-                    "modified_at": datetime.datetime.fromtimestamp(f["mtime"]).isoformat(),
-                    "is_partial": f["is_partial"],
-                }
-                for f in files
-            ],
+            "files": payload_files,
         })
+
+    @app.post("/api/me/recordings/extend")
+    async def api_extend_recording():
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        body = await request.get_json(silent=True) or {}
+        fname = (body.get("name") or request.args.get("name") or "").strip()
+        if not _safe_recording_name(fname) or not fname.lower().endswith(".mp4") or fname.endswith(".part"):
+            return jsonify({"error": "invalid file name"}), 400
+        path = os.path.join(recorder_storage_path, username, fname)
+        if not os.path.isfile(path):
+            return jsonify({"error": "file not found"}), 404
+        age = time.time() - os.path.getmtime(path)
+        if age < 15:
+            return jsonify({"error": "recording still in progress"}), 409
+        user_id = await lookup_user_id(username)
+        if not user_id:
+            return jsonify({"error": "user_not_found"}), 404
+        from vod_s4 import extend_until, upload_vod, delete_vod
+
+        try:
+            s4_key = await asyncio.to_thread(upload_vod, path, username, fname)
+        except Exception as e:
+            logger.error(f"VOD extend upload failed for {username}: {e}")
+            return jsonify({"error": "upload_failed"}), 502
+        expires = extend_until()
+        try:
+            await save_extended_vod(user_id, username, fname, s4_key, expires)
+        except Exception as e:
+            logger.error(f"VOD extend DB failed for {username}: {e}")
+            try:
+                await asyncio.to_thread(delete_vod, s4_key)
+            except Exception:
+                pass
+            return jsonify({"error": "db_failed"}), 500
+        try:
+            os.remove(path)
+        except OSError as e:
+            logger.warning(f"Could not remove local VOD after extend {path}: {e}")
+        return jsonify({
+            "ok": True,
+            "filename": fname,
+            "storage": "s4",
+            "expires_at": expires.isoformat(),
+            "download_url": vod_cdn_url(username, fname),
+        })
+
+    @app.post("/api/me/recordings/pull-twitch")
+    async def api_pull_twitch_vod():
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        body = await request.get_json(silent=True) or {}
+        vod_id = str(body.get("vod_id") or request.args.get("vod_id") or "").strip()
+        if not re.match(r"^[0-9]{1,20}$", vod_id):
+            return jsonify({"error": "invalid_vod_id"}), 400
+        slot = await get_storage_slot(username)
+        quota = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
+        user_dir = os.path.join(recorder_storage_path, username)
+        used = directory_size_bytes(user_dir)
+        if quota > 0 and used >= quota:
+            return jsonify({"error": "stream_storage_full"}), 507
+        dest = os.path.join(user_dir, f"twitch-{vod_id}.mp4")
+        if os.path.isfile(dest) or os.path.isfile(dest + ".part"):
+            return jsonify({"ok": True, "already": True, "filename": os.path.basename(dest)}), 200
+        os.makedirs(user_dir, exist_ok=True)
+        twitch_oauth = ""
+        sqldb = None
+        try:
+            sqldb = await access_website_database()
+            async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT access_token FROM users WHERE username = %s LIMIT 1",
+                    (username,),
+                )
+                row = await cursor.fetchone()
+                twitch_oauth = (row.get("access_token") or "").strip() if row else ""
+        except Exception as e:
+            logger.warning(f"Could not load Twitch oauth for {username}: {e}")
+        finally:
+            if sqldb is not None:
+                await sqldb.ensure_closed()
+
+        async def _pull():
+            from youtube_vod_uploader import ffmpeg_pull_twitch_vod, twitch_vod_hls_url
+
+            timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                hls_url, hls_err = await twitch_vod_hls_url(session, vod_id, twitch_oauth)
+                if hls_err:
+                    logger.error(f"Twitch VOD {vod_id} HLS failed for {username}: {hls_err}")
+                    return
+                ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(hls_url, dest)
+                if not ok:
+                    logger.error(f"Twitch VOD {vod_id} ffmpeg failed for {username}: {ffmpeg_err}")
+                    return
+                logger.info(f"Twitch VOD {vod_id} stored for {username}")
+
+        asyncio.create_task(_pull())
+        return jsonify({
+            "ok": True,
+            "status": "pulling",
+            "filename": os.path.basename(dest),
+            "vod_id": vod_id,
+        }), 202
 
     @app.get("/api/me/recordings/file")
     async def api_my_recording_file():
@@ -1439,6 +1666,7 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, re
     await asyncio.gather(
         _serve_rtmp(server),
         _serve_web(web_app, web_host, web_port, cert_path, key_path),
+        _expired_vod_loop(),
     )
 
 if __name__ == "__main__":

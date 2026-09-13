@@ -5,9 +5,15 @@ include_once __DIR__ . '/lang/i18n.php';
 
 require_once '/var/www/lib/require_auth.php';
 require_once '/var/www/config/db_connect.php';
+require_once '/var/www/config/stream.php';
+include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include 'includes/mod_access.php';
 require_once __DIR__ . '/includes/youtube.php';
+require_once __DIR__ . '/includes/stream_api_client.php';
+if (function_exists('botofthespecter_twitch_apply_db_override')) {
+    botofthespecter_twitch_apply_db_override($conn, $clientID, $clientSecret, $oauth);
+}
 
 $pageTitle = t('youtube_link_page_title');
 $isActAsUser = isset($isActAs) && $isActAs === true;
@@ -121,6 +127,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         youtube_delete_link($conn, $userId);
         youtubelink_redirect(t('youtube_disconnected_success'), 'is-success');
     }
+    if ($action === 'store_twitch_vod') {
+        if ($isActAsUser) {
+            youtubelink_redirect(t('youtube_link_actas_disabled'), 'is-warning');
+        }
+        $vodId = trim((string) ($_POST['vod_id'] ?? ''));
+        $apiBase = rtrim((string) ($stream_api_base ?? ''), '/');
+        $apiKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
+        $pull = streamApiRequest($apiBase, $apiKey, '/api/me/recordings/pull-twitch', 30, 'POST', ['vod_id' => $vodId]);
+        if ($pull['ok'] || (int) ($pull['http'] ?? 0) === 202) {
+            youtubelink_redirect(t('youtube_vod_store_started'), 'is-success');
+        }
+        if ((int) ($pull['http'] ?? 0) === 507) {
+            youtubelink_redirect(t('youtube_vod_store_full'), 'is-warning');
+        }
+        youtubelink_redirect(t('youtube_vod_store_failed'), 'is-danger');
+    }
+    if ($action === 'send_twitch_youtube') {
+        if ($isActAsUser) {
+            youtubelink_redirect(t('youtube_link_actas_disabled'), 'is-warning');
+        }
+        $vodId = trim((string) ($_POST['vod_id'] ?? ''));
+        $vodTitle = trim((string) ($_POST['vod_title'] ?? ''));
+        $queued = youtube_enqueue_twitch_vod($conn, $userId, $vodId, $vodTitle !== '' ? $vodTitle : null);
+        if (!empty($queued['ok'])) {
+            youtubelink_redirect(t('youtube_vod_youtube_queued'), 'is-success');
+        }
+        youtubelink_redirect(t('youtube_vod_youtube_failed'), 'is-danger');
+    }
 }
 
 if (isset($_GET['connect']) && youtube_configured()) {
@@ -141,6 +175,56 @@ $linked = $linkRow
     && (int) ($linkRow['needs_reauth'] ?? 0) === 0;
 $needsReauth = $linkRow && (int) ($linkRow['needs_reauth'] ?? 0) === 1;
 $canUpload = $linked && (int) ($linkRow['can_upload'] ?? 0) === 1;
+
+$streamApiBase = rtrim((string) ($stream_api_base ?? ''), '/');
+$streamApiTimeout = (int) ($stream_api_timeout ?? 30);
+$streamUserApiKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
+$storageSummary = streamFetchStorage($streamApiBase, $streamUserApiKey, $streamApiTimeout);
+$storageUsedBytes = $storageSummary['used_bytes'];
+$storageQuotaBytes = $storageSummary['quota_bytes'];
+$storageUnlimited = $storageSummary['unlimited'];
+$storedFiles = [];
+$list = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
+if ($list['ok']) {
+    $payload = json_decode((string) $list['body'], true);
+    if (is_array($payload) && !empty($payload['files']) && is_array($payload['files'])) {
+        $storedFiles = $payload['files'];
+    }
+}
+$storedByTwitchId = [];
+foreach ($storedFiles as $stored) {
+    $name = (string) ($stored['name'] ?? '');
+    if (preg_match('/^twitch-([0-9]{1,20})\\.mp4(\\.part)?$/', $name, $m)) {
+        $storedByTwitchId[$m[1]] = $stored;
+    }
+}
+
+$twitchVideos = [];
+$twitchVideosError = '';
+$accessToken = (string) ($_SESSION['access_token'] ?? '');
+$channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ''));
+if ($accessToken !== '' && $channelUserId !== '' && !empty($clientID)) {
+    $helixUrl = 'https://api.twitch.tv/helix/videos?' . http_build_query([
+        'user_id' => $channelUserId,
+        'first' => 20,
+    ]);
+    $ch = curl_init($helixUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $accessToken,
+        'Client-Id: ' . $clientID,
+    ]);
+    $helixBody = curl_exec($ch);
+    $helixCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $helixJson = json_decode((string) $helixBody, true);
+    if ($helixCode !== 200) {
+        $twitchVideosError = t('youtube_vod_helix_failed');
+    } else {
+        $twitchVideos = is_array($helixJson['data'] ?? null) ? $helixJson['data'] : [];
+    }
+}
 
 ob_start();
 ?>
@@ -209,6 +293,75 @@ ob_start();
                     <?php echo t('youtube_link_button'); ?>
                 </a>
             <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</div>
+<?php include __DIR__ . '/includes/stream_storage_bar.php'; ?>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-cloud-download-alt"></i> <?php echo t('youtube_vod_fetch_heading'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?php echo t('youtube_vod_fetch_help'); ?></p>
+        <?php if ($twitchVideosError): ?>
+            <div class="sp-alert sp-alert-warning"><?php echo htmlspecialchars($twitchVideosError); ?></div>
+        <?php elseif (!$twitchVideos): ?>
+            <p class="sp-help"><?php echo t('youtube_vod_fetch_empty'); ?></p>
+        <?php else: ?>
+            <div class="sp-table-wrap">
+                <table class="sp-table">
+                    <thead>
+                        <tr>
+                            <th><?php echo t('youtube_vod_th_title'); ?></th>
+                            <th><?php echo t('youtube_vod_th_type'); ?></th>
+                            <th><?php echo t('youtube_vod_th_duration'); ?></th>
+                            <th><?php echo t('youtube_vod_th_action'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($twitchVideos as $video): ?>
+                            <?php
+                            $vid = (string) ($video['id'] ?? '');
+                            $vtitle = (string) ($video['title'] ?? '');
+                            $vtype = (string) ($video['type'] ?? '');
+                            $vdur = (string) ($video['duration'] ?? '');
+                            $stored = $storedByTwitchId[$vid] ?? null;
+                            $pulling = $stored && !empty($stored['is_partial']);
+                            $ready = $stored && empty($stored['is_partial']);
+                            ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($vtitle); ?></td>
+                                <td><?php echo htmlspecialchars($vtype); ?></td>
+                                <td><?php echo htmlspecialchars($vdur); ?></td>
+                                <td>
+                                    <?php if ($pulling): ?>
+                                        <span class="sp-badge sp-badge-amber"><?php echo t('youtube_vod_status_pulling'); ?></span>
+                                    <?php elseif ($ready): ?>
+                                        <span class="sp-badge sp-badge-green"><?php echo t('youtube_vod_status_stored'); ?></span>
+                                        <?php if (!empty($stored['download_url'])): ?>
+                                            <a class="sp-btn sp-btn-secondary sp-btn-sm" href="<?php echo htmlspecialchars((string) $stored['download_url']); ?>"><?php echo t('recording_btn_download'); ?></a>
+                                        <?php endif; ?>
+                                    <?php elseif (!$isActAsUser): ?>
+                                        <form method="post">
+                                            <input type="hidden" name="action" value="store_twitch_vod">
+                                            <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
+                                            <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('youtube_vod_store_btn'); ?></button>
+                                        </form>
+                                    <?php endif; ?>
+                                    <?php if ($canUpload && !$isActAsUser && $vid !== ''): ?>
+                                        <form method="post">
+                                            <input type="hidden" name="action" value="send_twitch_youtube">
+                                            <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
+                                            <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
+                                            <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo t('videos_send_to_youtube'); ?></button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         <?php endif; ?>
     </div>
 </div>

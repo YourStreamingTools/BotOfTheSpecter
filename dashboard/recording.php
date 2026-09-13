@@ -46,6 +46,7 @@ $recorderUsername = isset($username) && $username !== '' ? $username : ($_SESSIO
 $streamApiBase = rtrim((string) ($stream_api_base ?? ''), '/');
 $streamApiTimeout = (int) ($stream_api_timeout ?? 30);
 $streamUserApiKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
+$vodsCdnBase = rtrim((string) ($vods_cdn_base ?? 'https://vods.botofthespecter.com'), '/');
 $unlimitedStorage = in_array(strtolower((string) $recorderUsername), ['botofthespecter', 'gfaundead'], true);
 
 $saveStatus = null;
@@ -72,6 +73,8 @@ function isSafeRecorderFileName($fileName) {
     return basename($fileName) === $fileName;
 }
 
+require_once __DIR__ . '/includes/stream_api_client.php';
+
 function formatBytes($bytes) {
     $bytes = (int)$bytes;
     if ($bytes < 1024) {
@@ -84,32 +87,6 @@ function formatBytes($bytes) {
         return round($bytes / (1024 * 1024), 2) . ' MB';
     }
     return round($bytes / (1024 * 1024 * 1024), 2) . ' GB';
-}
-
-function streamApiRequest(string $base, string $apiKey, string $path, int $timeout): array
-{
-    if ($base === '' || $apiKey === '') {
-        return ['ok' => false, 'error' => 'not_configured', 'http' => 0, 'body' => null];
-    }
-    $ch = curl_init($base . $path);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Accept: application/json',
-        'X-API-Key: ' . $apiKey,
-    ]);
-    $body = curl_exec($ch);
-    $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
-    curl_close($ch);
-    if ($body === false) {
-        return ['ok' => false, 'error' => $err !== '' ? $err : 'curl_failed', 'http' => $http, 'body' => null];
-    }
-    if ($http < 200 || $http >= 300) {
-        return ['ok' => false, 'error' => 'http_' . $http, 'http' => $http, 'body' => $body];
-    }
-    return ['ok' => true, 'error' => '', 'http' => $http, 'body' => $body];
 }
 
 function streamApiDownload(string $base, string $apiKey, string $path, string $fileName): bool
@@ -253,11 +230,34 @@ if (isset($_GET['ajax'])) {
 
 if ($streamApiBase === '' || $streamUserApiKey === '') {
     $remoteFileError = t('recording_error_connection_details_missing');
-    if (isset($_GET['download']) && $_GET['download'] === '1') {
+    if (isset($_GET['download']) || isset($_GET['extend'])) {
         http_response_code(503);
         echo t('recording_http_disabled');
         exit;
     }
+} elseif (isset($_GET['extend'])) {
+    header('Content-Type: application/json');
+    $requestedFileName = isset($_GET['file']) ? (string) $_GET['file'] : '';
+    if (!isSafeRecorderFileName($requestedFileName) || strtolower((string) pathinfo($requestedFileName, PATHINFO_EXTENSION)) !== 'mp4') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => t('recording_http_invalid_file_name')]);
+        exit;
+    }
+    $ext = streamApiRequest(
+        $streamApiBase,
+        $streamUserApiKey,
+        '/api/me/recordings/extend',
+        0,
+        'POST',
+        ['name' => $requestedFileName]
+    );
+    if (!$ext['ok']) {
+        http_response_code($ext['http'] >= 400 ? (int) $ext['http'] : 502);
+        echo json_encode(['ok' => false, 'error' => t('recording_extend_failed')]);
+        exit;
+    }
+    echo $ext['body'];
+    exit;
 } elseif (isset($_GET['download']) && $_GET['download'] === '1') {
     $requestedFileName = isset($_GET['file']) ? (string) $_GET['file'] : '';
     if (!isSafeRecorderFileName($requestedFileName) || strtolower((string) pathinfo($requestedFileName, PATHINFO_EXTENSION)) !== 'mp4') {
@@ -265,16 +265,7 @@ if ($streamApiBase === '' || $streamUserApiKey === '') {
         echo t('recording_http_invalid_file_name');
         exit;
     }
-    $ok = streamApiDownload(
-        $streamApiBase,
-        $streamUserApiKey,
-        '/api/me/recordings/file?name=' . rawurlencode($requestedFileName),
-        $requestedFileName
-    );
-    if (!$ok) {
-        http_response_code(502);
-        echo t('recording_http_open_failed');
-    }
+    header('Location: ' . $vodsCdnBase . '/' . rawurlencode($recorderUsername) . '/' . rawurlencode($requestedFileName));
     exit;
 } else {
     $list = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
@@ -312,6 +303,10 @@ if ($streamApiBase === '' || $streamUserApiKey === '') {
                     'modified' => $mtime,
                     'is_directory' => false,
                     'is_partial' => !empty($row['is_partial']),
+                    'storage' => (string) ($row['storage'] ?? 'local'),
+                    'can_extend' => !empty($row['can_extend']),
+                    'download_url' => (string) ($row['download_url'] ?? ($vodsCdnBase . '/' . rawurlencode($recorderUsername) . '/' . rawurlencode($name))),
+                    'expires_at' => $row['expires_at'] ?? null,
                 ];
             }
         }
@@ -353,6 +348,7 @@ ob_start();
         </p>
     </header>
     <div class="sp-card-body">
+        <?php include __DIR__ . '/includes/stream_storage_bar.php'; ?>
         <div class="content mb-5">
             <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
                 <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
@@ -398,21 +394,6 @@ ob_start();
                     </button>
                 </div>
             </form>
-            <?php
-                $storagePercent = (!$storageUnlimited && $storageQuotaBytes > 0)
-                    ? min(100, round(($storageUsedBytes / $storageQuotaBytes) * 100, 1))
-                    : 0;
-                $storageLabel = $storageUnlimited
-                    ? sprintf(t('recording_storage_used_unlimited'), formatBytes($storageUsedBytes))
-                    : sprintf(t('recording_storage_used_of'), formatBytes($storageUsedBytes), formatBytes($storageQuotaBytes));
-            ?>
-            <div class="sp-alert sp-alert-info media-storage-bar" id="recording-storage-bar">
-                <div class="media-storage-header">
-                    <span><i class="fas fa-database"></i> <strong><?= t('recording_storage_usage'); ?>:</strong></span>
-                    <span id="recording-storage-text"><?= htmlspecialchars($storageLabel) ?></span>
-                </div>
-                <progress class="progress" id="recording-storage-progress" value="<?= htmlspecialchars((string) $storagePercent) ?>" max="100"<?= $storageUnlimited ? ' hidden' : '' ?>></progress>
-            </div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0 0.5rem;">
                 <h3 style="font-size:0.95rem;font-weight:700;margin:0;"><?= t('recording_files_on_server_heading') ?></h3>
                 <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
@@ -447,6 +428,8 @@ ob_start();
                                                     <?= t('recording_type_directory') ?>
                                                 <?php elseif (!empty($file['is_partial'])): ?>
                                                     <?= t('recording_type_in_progress') ?>
+                                                <?php elseif (($file['storage'] ?? '') === 's4'): ?>
+                                                    <?= t('recording_type_extended') ?>
                                                 <?php else: ?>
                                                     <?= t('recording_type_file') ?>
                                                 <?php endif; ?>
@@ -457,10 +440,15 @@ ob_start();
                                             </td>
                                             <td>
                                                 <?php if (!$file['is_directory'] && empty($file['is_partial']) && strtolower((string)pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4'): ?>
-                                                    <a class="sp-btn sp-btn-primary sp-btn-sm download-link" data-download-link="1" href="recording.php?download=1&amp;file=<?= rawurlencode($file['name']) ?>">
+                                                    <a class="sp-btn sp-btn-primary sp-btn-sm download-link" data-download-link="1" href="<?= htmlspecialchars((string) ($file['download_url'] ?? ('recording.php?download=1&file=' . rawurlencode($file['name'])))) ?>">
                                                         <span class="icon"><i class="fas fa-download"></i></span>
                                                         <span class="download-label"><?= t('recording_btn_download') ?></span>
                                                     </a>
+                                                    <?php if (!empty($file['can_extend'])): ?>
+                                                        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="<?= htmlspecialchars($file['name']) ?>">
+                                                            <?= t('recording_btn_extend') ?>
+                                                        </button>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     -
                                                 <?php endif; ?>
@@ -562,6 +550,9 @@ const RECORDING_I18N = {
     typeInProgress: <?php echo json_encode(t('recording_type_in_progress')); ?>,
     typeFile: <?php echo json_encode(t('recording_type_file')); ?>,
     btnDownload: <?php echo json_encode(t('recording_btn_download')); ?>,
+    btnExtend: <?php echo json_encode(t('recording_btn_extend')); ?>,
+    typeExtended: <?php echo json_encode(t('recording_type_extended')); ?>,
+    extendFailed: <?php echo json_encode(t('recording_extend_failed')); ?>,
     noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
     sessionExpiredHtml: <?php echo json_encode(t('recording_js_session_expired_html')); ?>,
     preparing: <?php echo json_encode(t('recording_js_preparing')); ?>,
@@ -627,6 +618,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 typeCell.textContent = RECORDING_I18N.typeDirectory;
             } else if (file.is_partial) {
                 typeCell.textContent = RECORDING_I18N.typeInProgress;
+            } else if (file.storage === 's4') {
+                typeCell.textContent = RECORDING_I18N.typeExtended;
             } else {
                 typeCell.textContent = RECORDING_I18N.typeFile;
             }
@@ -645,7 +638,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 var link = document.createElement('a');
                 link.className = 'sp-btn sp-btn-primary sp-btn-sm download-link';
                 link.setAttribute('data-download-link', '1');
-                link.href = window.location.pathname + '?download=1&file=' + encodeURIComponent(fileName);
+                link.href = file.download_url || (window.location.pathname + '?download=1&file=' + encodeURIComponent(fileName));
                 var icon = document.createElement('span');
                 icon.className = 'icon';
                 var iconElement = document.createElement('i');
@@ -657,6 +650,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 link.appendChild(icon);
                 link.appendChild(label);
                 actionCell.appendChild(link);
+                if (file.can_extend) {
+                    var extBtn = document.createElement('button');
+                    extBtn.type = 'button';
+                    extBtn.className = 'sp-btn sp-btn-secondary sp-btn-sm';
+                    extBtn.setAttribute('data-extend-file', fileName);
+                    extBtn.textContent = RECORDING_I18N.btnExtend;
+                    actionCell.appendChild(extBtn);
+                }
             } else {
                 actionCell.textContent = '-';
             }
@@ -694,13 +695,10 @@ document.addEventListener('DOMContentLoaded', function () {
             text.textContent = formatStorageLabel(used, quota, unlimited);
         }
         if (bar) {
-            var pct = (!unlimited && quota > 0) ? Math.min(100, Math.round((used / quota) * 1000) / 10) : 0;
+            var visualQuota = unlimited ? (100 * 1024 * 1024 * 1024) : Math.max(quota, 1);
+            var pct = Math.min(100, Math.round((used / visualQuota) * 1000) / 10);
             bar.value = pct;
-            if (unlimited) {
-                bar.setAttribute('hidden', 'hidden');
-            } else {
-                bar.removeAttribute('hidden');
-            }
+            bar.removeAttribute('hidden');
         }
         if (host) {
             setBusy(host, false);
@@ -747,6 +745,37 @@ document.addEventListener('DOMContentLoaded', function () {
         setBusy(container, false);
     }
     var isLoading = false;
+    container.addEventListener('click', function (event) {
+        var btn = event.target.closest('[data-extend-file]');
+        if (!btn || btn.disabled) {
+            return;
+        }
+        var fileName = btn.getAttribute('data-extend-file');
+        if (!fileName) {
+            return;
+        }
+        btn.disabled = true;
+        var url = new URL(window.location.href);
+        url.searchParams.set('extend', '1');
+        url.searchParams.set('file', fileName);
+        fetch(url.toString(), {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (response) { return response.json().then(function (body) {
+            return { ok: response.ok, body: body };
+        }); })
+        .then(function (result) {
+            if (!result.ok || !result.body || !result.body.ok) {
+                throw new Error('extend_failed');
+            }
+            refreshRemoteFiles();
+        })
+        .catch(function () {
+            btn.disabled = false;
+            window.alert(RECORDING_I18N.extendFailed);
+        });
+    });
     var refreshBtn = document.getElementById('refresh-remote-files-btn');
     function setRefreshLoading(loading) {
         if (!refreshBtn) { return; }

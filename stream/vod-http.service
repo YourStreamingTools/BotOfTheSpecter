@@ -1,0 +1,18 @@
+[Unit]
+Description=Specter internal VOD HTTP (Sydney, VPC only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/specter-stream
+ExecStart=/opt/specter-stream/venv/bin/python /opt/specter-stream/vod_http.py
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/specter-stream/.env
+Environment=VOD_INTERNAL_HOST=10.240.0.9
+Environment=VOD_INTERNAL_PORT=8092
+
+[Install]
+WantedBy=multi-user.target

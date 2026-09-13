@@ -117,6 +117,14 @@ $rtmpsUrl = rtrim((string) ($stream_rtmps_url ?? 'rtmps://syd1.stream.botofthesp
 $specterKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
 $unlimitedStorage = $hasSlot && $quotaBytes === 0;
 
+$streamApiBase = rtrim((string) ($stream_api_base ?? ''), '/');
+$streamApiTimeout = (int) ($stream_api_timeout ?? 30);
+require_once __DIR__ . '/includes/stream_api_client.php';
+$storageSummary = streamFetchStorage($streamApiBase, $specterKey, $streamApiTimeout);
+$storageUsedBytes = $storageSummary['used_bytes'];
+$storageQuotaBytes = $storageSummary['quota_bytes'];
+$storageUnlimited = $storageSummary['unlimited'] || $unlimitedStorage;
+
 ob_start();
 ?>
 <?php if ($saveStatus): ?>
@@ -136,6 +144,7 @@ ob_start();
         <?php echo t('streaming_slot_none'); ?>
     </div>
 <?php endif; ?>
+<?php include __DIR__ . '/includes/stream_storage_bar.php'; ?>
 <div class="sp-card mb-4">
     <div class="sp-card-header">
         <div class="sp-card-title"><i class="fas fa-satellite-dish"></i> <?php echo t('streaming_ingest_heading'); ?></div>
