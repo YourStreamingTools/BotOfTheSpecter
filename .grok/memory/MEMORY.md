@@ -33,6 +33,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Bot file function placement](feedback_bot_file_function_placement.md) — helpers below the "# Functions for all the commands" marker as module-level funcs
 - [Dashboard page menu registration](feedback_dashboard_page_menu_registration.md) — new pages in menu.php with t() lang key (en + de/fr)
 - [Dashboard CSS in stylesheet](feedback_dashboard_css_in_stylesheet.md) — styles in dashboard.css with theme tokens, not inline
+- [Never prompt browser visuals](feedback_no_browser_visual_prompts.md) — no visual companion / local-URL mockup offers unless the user asks
 
 ### Feature / ops knowledge
 
