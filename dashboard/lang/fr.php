@@ -293,6 +293,8 @@ return [
     'recording_th_type' => 'Type',
     'recording_th_size' => 'Taille',
     'recording_th_modified' => 'Modifié',
+    'recording_th_expires' => 'Supprimé dans',
+    'recording_countdown_expired' => 'Suppression…',
     'recording_th_action' => 'Action',
     'recording_type_directory' => 'Répertoire',
     'recording_type_in_progress' => 'Enregistrement (en cours)',

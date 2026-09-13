@@ -15,7 +15,7 @@ from botocore.config import Config as BotoConfig
 
 VODS_PREFIX = "vods"
 SAFE_USER = re.compile(r"^[a-zA-Z0-9_]{1,64}$")
-SAFE_FILE = re.compile(r"^[A-Za-z0-9._ \-]+\.mp4$")
+SAFE_FILE = re.compile(r"^[^/\\]+\\.mp4$", re.IGNORECASE)
 TRANSFER = TransferConfig(
     multipart_threshold=64 * 1024 * 1024,
     multipart_chunksize=64 * 1024 * 1024,

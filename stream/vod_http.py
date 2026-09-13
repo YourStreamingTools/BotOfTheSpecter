@@ -8,7 +8,7 @@ ROOT = os.getenv("STREAM_FILES_ROOT") or os.getenv("STREAM_ROOT_PATH") or "/var/
 BIND_HOST = os.getenv("VOD_INTERNAL_HOST", "10.240.0.9")
 BIND_PORT = int(os.getenv("VOD_INTERNAL_PORT") or "8092")
 SAFE_USER = re.compile(r"^[a-zA-Z0-9_]{1,64}$")
-SAFE_FILE = re.compile(r"^[A-Za-z0-9._ \-]+\.mp4$")
+SAFE_FILE = re.compile(r"^[^/\\]+\.mp4$", re.IGNORECASE)
 
 
 def _safe_path(username: str, filename: str) -> str | None:
