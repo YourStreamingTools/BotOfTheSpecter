@@ -35,10 +35,12 @@ production server and functionality may change during implementation.
 import os
 import re
 import shutil
+import unicodedata
 import aiohttp
 import time
 import subprocess
 import datetime
+from zoneinfo import ZoneInfo
 import random
 import logging
 from logging.handlers import RotatingFileHandler
@@ -73,6 +75,10 @@ query StreamAccess($login: String!, $playerType: String!) {
   user(login: $login) {
     stream {
       id
+      title
+      game {
+        name
+      }
       playbackAccessToken(params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) {
         value
         signature
@@ -81,7 +87,14 @@ query StreamAccess($login: String!, $playerType: String!) {
   }
 }
 """
+WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 CHECK_INTERVAL_MIN = 15
+CHECK_INTERVAL = max(2, int(os.getenv("RECORDING_CHECK_INTERVAL", "5")))
+LIVE_CACHE_TTL = max(5, int(os.getenv("RECORDING_LIVE_CACHE_SECONDS", "20")))
 RETRY_BASE = 2
 RETRY_JITTER = 0.01
 LIVE_FROM_START_UNSUPPORTED_TEXT = "no formats that can be downloaded from the start"
@@ -175,7 +188,34 @@ def setup_logging():
 setup_logging()
 
 def sanitize_filename(filename: str) -> str:
-    return "".join(x for x in filename if x.isalnum() or x in [" ", "-", "_", "."])
+    name = unicodedata.normalize("NFC", filename or "")
+    name = re.sub(r'[\x00-\x1f\x7f<>:"/\\|?*]', "-", name)
+    name = name.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    name = re.sub(r"\s+", " ", name).strip().strip(".")
+    if name.upper() in WINDOWS_RESERVED:
+        name = name + "-stream"
+    if len(name) > 180:
+        name = name[:180].rstrip(" .")
+    return name or "stream"
+
+
+def unique_recording_basename(directory: str, base: str) -> str:
+    candidate = base
+    n = 2
+    while True:
+        mp4 = os.path.join(directory, candidate + ".mp4")
+        part = mp4 + ".part"
+        if not os.path.exists(mp4) and not os.path.exists(part):
+            return candidate
+        candidate = f"{base} ({n})"
+        n += 1
+
+
+def stream_meta_from_gql(stream: dict) -> dict:
+    title = (stream.get("title") or "").strip() or "Untitled"
+    game = stream.get("game") if isinstance(stream.get("game"), dict) else {}
+    game_name = (game.get("name") or "").strip() or "Unknown Game"
+    return {"title": title, "game_name": game_name}
 
 
 def directory_size_bytes(path: str) -> int:
@@ -216,7 +256,7 @@ def _pick_hls_variant(master_text: str) -> Optional[str]:
     return chunked_url or best_url
 
 
-async def twitch_live_hls(session: aiohttp.ClientSession, login: str) -> Tuple[Optional[bool], Optional[str], Optional[str]]:
+async def twitch_live_hls(session: aiohttp.ClientSession, login: str):
     """Anonymous GQL playback token + Usher HLS. No website auth-token cookie."""
     headers = {
         "Client-ID": TWITCH_WEB_CLIENT_ID,
@@ -231,19 +271,20 @@ async def twitch_live_hls(session: aiohttp.ClientSession, login: str) -> Tuple[O
         try:
             body = await resp.json(content_type=None)
         except Exception:
-            return None, None, f"gql_http_{resp.status}"
+            return None, None, f"gql_http_{resp.status}", None
         if resp.status != 200:
-            return None, None, f"gql_http_{resp.status}"
+            return None, None, f"gql_http_{resp.status}", None
     data = body.get("data") if isinstance(body, dict) else None
     user = data.get("user") if isinstance(data, dict) else None
     stream = user.get("stream") if isinstance(user, dict) else None
     if not stream:
-        return False, None, None
+        return False, None, None, None
+    meta = stream_meta_from_gql(stream)
     token = stream.get("playbackAccessToken") if isinstance(stream, dict) else None
     value = token.get("value") if isinstance(token, dict) else None
     signature = token.get("signature") if isinstance(token, dict) else None
     if not value or not signature:
-        return True, None, "gql_no_token"
+        return True, None, "gql_no_token", meta
     params = {
         "player": "twitchweb",
         "allow_source": "true",
@@ -258,17 +299,17 @@ async def twitch_live_hls(session: aiohttp.ClientSession, login: str) -> Tuple[O
         playlist = await resp.text()
         playlist_url = str(resp.url)
         if resp.status != 200 or not playlist:
-            return True, None, f"usher_http_{resp.status}"
+            return True, None, f"usher_http_{resp.status}", meta
     if "#EXT-X-STREAM-INF" in playlist:
         variant = _pick_hls_variant(playlist)
         if not variant:
-            return True, None, "no_hls_variant"
+            return True, None, "no_hls_variant", meta
         if not variant.startswith("http"):
             variant = urljoin(playlist_url, variant)
-        return True, variant, None
+        return True, variant, None, meta
     if "#EXTINF" in playlist:
-        return True, playlist_url, None
-    return True, None, "unrecognised_playlist"
+        return True, playlist_url, None, meta
+    return True, None, "unrecognised_playlist", meta
 
 def resolve_cookies_path(cookies_path: str) -> Optional[str]:
     if not cookies_path:
@@ -398,6 +439,24 @@ class MySQLManager:
         except Exception as e:
             self.logger.error(f"Error getting users with auto_record: {e}")
             return []
+
+    async def get_profile_timezone(self, channel_name: str) -> str:
+        conn = None
+        try:
+            conn = await self.get_connection(channel_name)
+            if not conn:
+                return "UTC"
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("SELECT timezone FROM profile LIMIT 1")
+                row = await cursor.fetchone()
+            tz = (row.get("timezone") if row else None) or ""
+            tz = str(tz).strip()
+            return tz or "UTC"
+        except Exception:
+            return "UTC"
+        finally:
+            if conn:
+                conn.close()
 
     async def should_auto_record(self, channel_name: str) -> bool:
         try:
@@ -543,9 +602,8 @@ class TwitchRecorderThread(threading.Thread):
         game = info.get('game_name') if info else None
         if not game:
             game = "Unknown Game"
-        start_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        base_filename = f"{self.username} - {start_time} UTC - {game}"
-        base_filename = sanitize_filename(base_filename)
+        start_time = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H-%M")
+        base_filename = sanitize_filename(f"{start_time} - Untitled - {game}")
         output_prefix = os.path.join(self.user_storage_path, base_filename)
         output_template = f"{output_prefix}.%(ext)s"
         try:
@@ -614,6 +672,9 @@ class RecordChecker:
         self.logger = logging.getLogger("RecordChecker")
         self.running = False
         self.last_enabled_users = set()
+        self._live_cache = {}
+        self._last_live = {}
+        self._cleanup_tick = 0
 
     def _disk_has_room(self) -> bool:
         try:
@@ -696,7 +757,7 @@ class RecordChecker:
             self.logger.warning("ffmpeg not found in PATH - stream forwarding will be unavailable")
 
     async def check_channels_loop(self):
-        self.logger.info("Starting channel checking loop...")
+        self.logger.info(f"Starting channel checking loop (every {CHECK_INTERVAL}s)...")
         while self.running:
             try:
                 # Get all users with recording or forwarding enabled
@@ -711,18 +772,18 @@ class RecordChecker:
                 self.last_enabled_users = current_enabled_users
                 # Stop recordings/forwarding for users who disabled everything
                 await self.stop_disabled_recordings(users_to_monitor)
-                # For each enabled user, check if they're live and start/continue activity
                 for username in users_to_monitor:
-                    await self.check_and_record_user(username)
-                # Clean up finished recordings and forwarders
+                    force_live = username in newly_enabled
+                    await self.check_and_record_user(username, force_live=force_live)
                 await self.cleanup_finished_recordings()
                 await self.cleanup_finished_forwarders()
-                if FILE_RETENTION_SECONDS > 0:
+                self._cleanup_tick += 1
+                cleanup_every = max(1, 60 // CHECK_INTERVAL)
+                if FILE_RETENTION_SECONDS > 0 and self._cleanup_tick % cleanup_every == 0:
                     await self.cleanup_old_files()
             except Exception as e:
                 self.logger.error(f"Error in check_channels_loop: {e}")
-            # Wait before next check
-            await asyncio.sleep(60)  # Check every 60 seconds
+            await asyncio.sleep(CHECK_INTERVAL)
 
     async def cleanup_old_files(self):
         cutoff_timestamp = time.time() - self.file_retention_seconds
@@ -754,6 +815,8 @@ class RecordChecker:
         for username in list(self.active_recordings.keys()):
             if username not in enabled_users:
                 users_to_stop.append(username)
+            elif not await self.mysql_manager.should_auto_record(username):
+                users_to_stop.append(username)
         for username in users_to_stop:
             self.logger.info(f"User {username} disabled auto_record, stopping recording")
             await self.stop_recording_for_user(username)
@@ -763,23 +826,35 @@ class RecordChecker:
                 self.logger.info(f"User {username} disabled, stopping all forwarding")
                 await self.stop_forwarding_for_user(username)
 
-    async def check_and_record_user(self, username):
+    async def _cached_live(self, username, force=False):
+        now = time.time()
+        cached = self._live_cache.get(username)
+        if not force and cached and (now - cached[0]) < LIVE_CACHE_TTL:
+            return cached[1], cached[2], cached[3], cached[4] if len(cached) > 4 else {}
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            is_live, hls_url, live_err, meta = await twitch_live_hls(session, username)
+        self._live_cache[username] = (now, is_live, hls_url, live_err, meta or {})
+        return is_live, hls_url, live_err, meta or {}
+
+    async def check_and_record_user(self, username, force_live=False):
         try:
             self.logger.debug(f"Checking stream status for {username}")
-            timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                is_live, hls_url, live_err = await twitch_live_hls(session, username)
-            stream_info = {'hls_url': hls_url} if hls_url else {}
+            is_live, hls_url, live_err, meta = await self._cached_live(username, force=force_live)
+            stream_info = dict(meta or {})
+            if hls_url:
+                stream_info['hls_url'] = hls_url
             if is_live is None:
                 self.logger.warning(f"Could not determine stream status for {username}: {live_err}")
                 return
             if is_live and live_err:
                 self.logger.warning(f"{username} is live but HLS failed: {live_err}")
             if is_live:
-                # Recording
+                # Recording — only start on offline→online so we never join mid-stream
                 if username not in self.active_recordings:
                     should_record = await self.mysql_manager.should_auto_record(username)
-                    if should_record:
+                    went_live = self._last_live.get(username) is False
+                    if should_record and went_live:
                         if not self._disk_has_room():
                             self.logger.warning(
                                 f"Skipping {username}: host disk has less than "
@@ -790,8 +865,14 @@ class RecordChecker:
                                 f"Skipping {username}: stream storage is at the 100GB cap"
                             )
                         else:
-                            self.logger.info(f"Starting new recording for {username}")
+                            self.logger.info(f"Starting new recording for {username} (stream just went live)")
                             await self.start_recording_for_user(username, stream_info)
+                    elif should_record and not went_live:
+                        if self._last_live.get(username) is not True:
+                            self.logger.info(
+                                f"Not starting {username}: already live when recording was enabled; "
+                                f"waiting for the next full stream"
+                            )
                 else:
                     if not await self._user_has_quota_room(username):
                         self.logger.warning(
@@ -801,6 +882,7 @@ class RecordChecker:
                         await self.stop_recording_for_user(username)
                     else:
                         self.logger.debug(f"Already recording {username}")
+                self._last_live[username] = True
                 # Forwarding
                 forward_settings = await self.mysql_manager.get_forwarding_settings(username)
                 enabled_services = {fwd['service'] for fwd in forward_settings}
@@ -820,6 +902,7 @@ class RecordChecker:
                         )
             else:
                 self.logger.debug(f"{username} is offline")
+                self._last_live[username] = False
                 # Stop recording if currently recording
                 if username in self.active_recordings:
                     self.logger.info(f"User {username} went offline, stopping recording")
@@ -851,23 +934,29 @@ class RecordChecker:
 
     async def start_recording_for_user(self, username, stream_info):
         try:
-            game = stream_info.get('game_name') if stream_info else None
-            if not game:
-                game = 'Unknown Game'
-            start_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-            base_filename = f"{username} - {start_time} UTC - {game}"
-            base_filename = sanitize_filename(base_filename)
-            # Create directories
+            game = ((stream_info or {}).get("game_name") or "").strip() or "Unknown Game"
+            title = ((stream_info or {}).get("title") or "").strip() or "Untitled"
+            tz_name = await self.mysql_manager.get_profile_timezone(username)
+            try:
+                tz = ZoneInfo(tz_name)
+            except Exception:
+                tz = datetime.timezone.utc
+                tz_name = "UTC"
+            start_time = datetime.datetime.now(tz).strftime("%Y-%m-%d %H-%M")
+            base_filename = sanitize_filename(f"{start_time} - {title} - {game}")
             user_storage_path = os.path.join(self.root_path, username)
             os.makedirs(user_storage_path, exist_ok=True)
-            self.logger.info(f"Created/verified storage path: {user_storage_path}")
+            base_filename = unique_recording_basename(user_storage_path, base_filename)
+            self.logger.info(f"Created/verified storage path: {user_storage_path} tz={tz_name}")
             output_prefix = os.path.join(user_storage_path, base_filename)
             output_path = f"{output_prefix}.mp4"
             hls_url = (stream_info or {}).get('hls_url')
             if not hls_url:
                 timeout = aiohttp.ClientTimeout(total=30)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    _live, hls_url, hls_err = await twitch_live_hls(session, username)
+                    _live, hls_url, hls_err, extra = await twitch_live_hls(session, username)
+                if extra:
+                    stream_info.update(extra)
                 if not hls_url:
                     self.logger.error(f"No live HLS for {username}: {hls_err}")
                     return
@@ -990,7 +1079,7 @@ class RecordChecker:
             if not hls_url:
                 timeout = aiohttp.ClientTimeout(total=30)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    _live, hls_url, hls_err = await twitch_live_hls(session, username)
+                    _live, hls_url, hls_err, _meta = await twitch_live_hls(session, username)
                 if not hls_url:
                     self.logger.error(f"Could not resolve live HLS for {username} ({service}): {hls_err}")
                     log_file.close()

@@ -137,6 +137,7 @@ FFMPEG_VERSION: str = "unknown"
 STREAM_STORAGE_MAX_SLOTS = int(os.getenv("STREAM_STORAGE_MAX_SLOTS") or "5")
 STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
 VODS_CDN_BASE = (os.getenv("VODS_CDN_BASE") or "https://vods.botofthespecter.com").rstrip("/")
+RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
 
 async def access_website_database():
     # Connect to your MySQL database
@@ -993,7 +994,7 @@ def _safe_recording_name(name: str) -> bool:
 
 
 def vod_cdn_url(username: str, filename: str) -> str:
-    return f"{VODS_CDN_BASE}/{username}/{filename}"
+    return f"{VODS_CDN_BASE}/{quote(username, safe='')}/{quote(filename, safe='')}"
 
 
 async def list_extended_vods(username: str) -> list[dict]:
@@ -1406,8 +1407,10 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         files = list_user_recording_files(recorder_storage_path, username)
         used_bytes = sum(int(f.get("size") or 0) for f in files)
         local_names = {f["name"] for f in files}
-        payload_files = [
-            {
+        payload_files = []
+        for f in files:
+            expires_unix = int(f["mtime"]) + RECORDING_RETENTION_SECONDS
+            payload_files.append({
                 "name": f["name"],
                 "size_bytes": f["size"],
                 "modified_at": datetime.datetime.fromtimestamp(f["mtime"]).isoformat(),
@@ -1415,24 +1418,33 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 "storage": "local",
                 "can_extend": (not f["is_partial"]) and f["name"].lower().endswith(".mp4"),
                 "download_url": vod_cdn_url(username, f["name"]),
-                "expires_at": None,
-            }
-            for f in files
-        ]
+                "expires_at": datetime.datetime.fromtimestamp(expires_unix).isoformat(),
+                "expires_at_unix": expires_unix,
+            })
         for row in await list_extended_vods(username):
             name = str(row.get("filename") or "")
             if not name or name in local_names:
                 continue
             expires = row.get("expires_at")
+            if hasattr(expires, "timestamp"):
+                expires_unix = int(expires.timestamp())
+                expires_iso = expires.isoformat()
+            else:
+                expires_iso = str(expires or "")
+                try:
+                    expires_unix = int(datetime.datetime.fromisoformat(expires_iso).timestamp())
+                except Exception:
+                    expires_unix = 0
             payload_files.append({
                 "name": name,
                 "size_bytes": 0,
-                "modified_at": expires.isoformat() if hasattr(expires, "isoformat") else str(expires or ""),
+                "modified_at": expires_iso,
                 "is_partial": False,
                 "storage": "s4",
                 "can_extend": False,
                 "download_url": vod_cdn_url(username, name),
-                "expires_at": expires.isoformat() if hasattr(expires, "isoformat") else str(expires or ""),
+                "expires_at": expires_iso,
+                "expires_at_unix": expires_unix,
             })
         slot = await get_storage_slot(username)
         quota_bytes = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)

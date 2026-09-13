@@ -320,6 +320,8 @@ return [
     'recording_th_type' => 'Tipo',
     'recording_th_size' => 'Tamaño',
     'recording_th_modified' => 'Modificado',
+    'recording_th_expires' => 'Se elimina en',
+    'recording_countdown_expired' => 'Eliminando…',
     'recording_th_action' => 'Acción',
     'recording_type_directory' => 'Directorio',
     'recording_type_in_progress' => 'Grabación (en curso)',

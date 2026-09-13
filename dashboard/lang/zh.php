@@ -320,6 +320,8 @@ return [
     'recording_th_type' => '类型',
     'recording_th_size' => '大小',
     'recording_th_modified' => '修改的',
+    'recording_th_expires' => '将在此时删除',
+    'recording_countdown_expired' => '正在删除…',
     'recording_th_action' => '行动',
     'recording_type_directory' => '目录',
     'recording_type_in_progress' => '录音（进行中）',

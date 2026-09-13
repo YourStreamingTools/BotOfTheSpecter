@@ -75,6 +75,19 @@ function isSafeRecorderFileName($fileName) {
 
 require_once __DIR__ . '/includes/stream_api_client.php';
 
+function recordingDisplayName($name) {
+    $base = (string) $name;
+    $lower = strtolower($base);
+    if (str_ends_with($lower, '.part')) {
+        $base = substr($base, 0, -5);
+        $lower = strtolower($base);
+    }
+    if (str_ends_with($lower, '.mp4')) {
+        $base = substr($base, 0, -4);
+    }
+    return $base;
+}
+
 function formatBytes($bytes) {
     $bytes = (int)$bytes;
     if ($bytes < 1024) {
@@ -307,6 +320,7 @@ if ($streamApiBase === '' || $streamUserApiKey === '') {
                     'can_extend' => !empty($row['can_extend']),
                     'download_url' => (string) ($row['download_url'] ?? ($vodsCdnBase . '/' . rawurlencode($recorderUsername) . '/' . rawurlencode($name))),
                     'expires_at' => $row['expires_at'] ?? null,
+                    'expires_unix' => (int) ($row['expires_at_unix'] ?? 0),
                 ];
             }
         }
@@ -416,13 +430,14 @@ ob_start();
                                         <th><?= t('recording_th_type') ?></th>
                                         <th><?= t('recording_th_size') ?></th>
                                         <th><?= t('recording_th_modified') ?></th>
+                                        <th><?= t('recording_th_expires') ?></th>
                                         <th><?= t('recording_th_action') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($section['files'] as $file): ?>
                                         <tr>
-                                            <td><code><?= htmlspecialchars($file['name']) ?></code></td>
+                                            <td><code><?= htmlspecialchars(recordingDisplayName($file['name'])) ?></code></td>
                                             <td>
                                                 <?php if ($file['is_directory']): ?>
                                                     <?= t('recording_type_directory') ?>
@@ -437,6 +452,13 @@ ob_start();
                                             <td><?= $file['is_directory'] ? '-' : htmlspecialchars(formatBytes($file['size'])) ?></td>
                                             <td>
                                                 <?= $file['modified'] ? htmlspecialchars(date('d-m-Y H:i:s', (int)$file['modified'])) : '-' ?>
+                                            </td>
+                                            <td>
+                                                <?php if (!empty($file['expires_unix'])): ?>
+                                                    <span class="recording-countdown" data-expires="<?= (int) $file['expires_unix'] ?>">—</span>
+                                                <?php else: ?>
+                                                    —
+                                                <?php endif; ?>
                                             </td>
                                             <td>
                                                 <?php if (!$file['is_directory'] && empty($file['is_partial']) && strtolower((string)pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4'): ?>
@@ -545,7 +567,9 @@ const RECORDING_I18N = {
     thType: <?php echo json_encode(t('recording_th_type')); ?>,
     thSize: <?php echo json_encode(t('recording_th_size')); ?>,
     thModified: <?php echo json_encode(t('recording_th_modified')); ?>,
+    thExpires: <?php echo json_encode(t('recording_th_expires')); ?>,
     thAction: <?php echo json_encode(t('recording_th_action')); ?>,
+    countdownExpired: <?php echo json_encode(t('recording_countdown_expired')); ?>,
     typeDirectory: <?php echo json_encode(t('recording_type_directory')); ?>,
     typeInProgress: <?php echo json_encode(t('recording_type_in_progress')); ?>,
     typeFile: <?php echo json_encode(t('recording_type_file')); ?>,
@@ -564,6 +588,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!container) {
         return;
     }
+    function displayRecordingName(name) {
+        var base = String(name || '');
+        if (/\.part$/i.test(base)) {
+            base = base.slice(0, -5);
+        }
+        if (/\.mp4$/i.test(base)) {
+            base = base.slice(0, -4);
+        }
+        return base;
+    }
     function formatBytes(bytes) {
         var value = Number(bytes) || 0;
         if (value < 1024) {
@@ -576,6 +610,35 @@ document.addEventListener('DOMContentLoaded', function () {
             return (Math.round((value / (1024 * 1024)) * 100) / 100) + ' MB';
         }
         return (Math.round((value / (1024 * 1024 * 1024)) * 100) / 100) + ' GB';
+    }
+    function formatCountdown(expiresUnix) {
+        var remaining = Math.floor(expiresUnix - (Date.now() / 1000));
+        if (remaining <= 0) {
+            return RECORDING_I18N.countdownExpired;
+        }
+        var days = Math.floor(remaining / 86400);
+        var hours = Math.floor((remaining % 86400) / 3600);
+        var mins = Math.floor((remaining % 3600) / 60);
+        var secs = remaining % 60;
+        var pad = function (value) {
+            return String(value).padStart(2, '0');
+        };
+        if (days > 0) {
+            return days + 'd ' + pad(hours) + 'h ' + pad(mins) + 'm';
+        }
+        if (hours > 0) {
+            return hours + 'h ' + pad(mins) + 'm ' + pad(secs) + 's';
+        }
+        return mins + 'm ' + pad(secs) + 's';
+    }
+    function tickCountdowns() {
+        document.querySelectorAll('.recording-countdown').forEach(function (el) {
+            var expires = Number(el.getAttribute('data-expires') || 0);
+            if (!expires) {
+                return;
+            }
+            el.textContent = formatCountdown(expires);
+        });
     }
     function formatDate(unixTimestamp) {
         var timestamp = Number(unixTimestamp);
@@ -599,7 +662,7 @@ document.addEventListener('DOMContentLoaded', function () {
         table.className = 'sp-table';
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
-        [RECORDING_I18N.thFile, RECORDING_I18N.thType, RECORDING_I18N.thSize, RECORDING_I18N.thModified, RECORDING_I18N.thAction].forEach(function (heading) {
+        [RECORDING_I18N.thFile, RECORDING_I18N.thType, RECORDING_I18N.thSize, RECORDING_I18N.thModified, RECORDING_I18N.thExpires, RECORDING_I18N.thAction].forEach(function (heading) {
             var th = document.createElement('th');
             th.textContent = heading;
             headRow.appendChild(th);
@@ -610,7 +673,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var row = document.createElement('tr');
             var fileCell = document.createElement('td');
             var code = document.createElement('code');
-            code.textContent = file.name || '';
+            code.textContent = displayRecordingName(file.name || '');
             fileCell.appendChild(code);
             row.appendChild(fileCell);
             var typeCell = document.createElement('td');
@@ -630,6 +693,18 @@ document.addEventListener('DOMContentLoaded', function () {
             var modifiedCell = document.createElement('td');
             modifiedCell.textContent = formatDate(file.modified);
             row.appendChild(modifiedCell);
+            var expiresCell = document.createElement('td');
+            var expiresUnix = Number(file.expires_unix || file.expires_at_unix || 0);
+            if (expiresUnix > 0) {
+                var countdown = document.createElement('span');
+                countdown.className = 'recording-countdown';
+                countdown.setAttribute('data-expires', String(expiresUnix));
+                countdown.textContent = '—';
+                expiresCell.appendChild(countdown);
+            } else {
+                expiresCell.textContent = '—';
+            }
+            row.appendChild(expiresCell);
             var actionCell = document.createElement('td');
             var fileName = String(file.name || '');
             var lowerName = fileName.toLowerCase();
@@ -742,6 +817,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sections.forEach(function (section) {
             container.appendChild(buildTable(section));
         });
+        tickCountdowns();
         setBusy(container, false);
     }
     var isLoading = false;
@@ -853,6 +929,8 @@ document.addEventListener('DOMContentLoaded', function () {
             refreshRemoteFiles();
         });
     }
+    tickCountdowns();
+    setInterval(tickCountdowns, 1000);
     var recorderEnabled = !!refreshBtn;
     container.addEventListener('click', function (event) {
         var target = event.target;
