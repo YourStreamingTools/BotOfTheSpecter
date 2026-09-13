@@ -19,7 +19,7 @@ from pyrtmp import StreamClosedException
 from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
-from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file
+from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file, send_from_directory
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -138,6 +138,9 @@ STREAM_STORAGE_MAX_SLOTS = int(os.getenv("STREAM_STORAGE_MAX_SLOTS") or "5")
 STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
 VODS_CDN_BASE = (os.getenv("VODS_CDN_BASE") or "https://vods.botofthespecter.com").rstrip("/")
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
+STREAM_DIR = os.path.dirname(os.path.abspath(__file__))
+DOCS_UI_DIR = os.path.join(STREAM_DIR, "docs_ui")
+_twitch_pulls = {}
 
 async def access_website_database():
     # Connect to your MySQL database
@@ -1205,6 +1208,92 @@ def _session_to_json(s: dict, now: datetime.datetime) -> dict:
         "forwarding": fwd_json,
     }
 
+def stream_openapi_spec() -> dict:
+    return {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "Sydney Stream API",
+            "version": "1.0.0",
+            "description": (
+                "Recordings, Twitch VOD store, and Mega S4 extend on syd1. "
+                "User routes take the streamer's API key in X-API-KEY. "
+                "Operator routes also accept an admin key with service rtmp-server or admin."
+            ),
+        },
+        "servers": [{"url": "https://syd1.stream.botofthespecter.com"}],
+        "components": {
+            "securitySchemes": {
+                "ApiKey": {"type": "apiKey", "in": "header", "name": "X-API-KEY"},
+            }
+        },
+        "security": [{"ApiKey": []}],
+        "paths": {
+            "/api/me/recordings": {
+                "get": {
+                    "tags": ["Recordings"],
+                    "summary": "List stored files and in-progress Twitch VOD downloads",
+                    "responses": {"200": {"description": "files, pulls, used_bytes, quota_bytes"}},
+                }
+            },
+            "/api/me/recordings/file": {
+                "get": {
+                    "tags": ["Recordings"],
+                    "summary": "Download a stored MP4",
+                    "parameters": [{"name": "name", "in": "query", "required": True, "schema": {"type": "string"}}],
+                    "responses": {"200": {"description": "video/mp4"}},
+                }
+            },
+            "/api/me/recordings/extend": {
+                "post": {
+                    "tags": ["Recordings"],
+                    "summary": "Move a local MP4 to Mega S4 for 3 extra days",
+                    "requestBody": {
+                        "required": True,
+                        "content": {"application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}},
+                    },
+                    "responses": {"200": {"description": "Extended"}},
+                }
+            },
+            "/api/me/recordings/pull-twitch": {
+                "post": {
+                    "tags": ["Recordings"],
+                    "summary": "Download a Twitch VOD into the channel folder",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "vod_id": {"type": "string"},
+                                        "title": {"type": "string"},
+                                    },
+                                    "required": ["vod_id"],
+                                }
+                            }
+                        },
+                    },
+                    "responses": {"202": {"description": "Download started"}},
+                }
+            },
+            "/api/server": {
+                "get": {
+                    "tags": ["Operator"],
+                    "summary": "Stream host health (admin key)",
+                    "responses": {"200": {"description": "Region, ffmpeg, sessions"}},
+                }
+            },
+            "/api/recordings": {
+                "get": {
+                    "tags": ["Operator"],
+                    "summary": "All local recording folders (admin key)",
+                    "responses": {"200": {"description": "Per-user file inventory"}},
+                }
+            },
+        },
+    }
+
+
 def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
@@ -1283,6 +1372,18 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         finally:
             if sqldb is not None:
                 await sqldb.ensure_closed()
+
+    @app.get("/openapi.json")
+    async def openapi_json():
+        return jsonify(stream_openapi_spec())
+
+    @app.get("/docs")
+    async def themed_docs():
+        return await send_from_directory(DOCS_UI_DIR, "index.html")
+
+    @app.get("/docs-static/<path:filename>")
+    async def docs_static(filename):
+        return await send_from_directory(DOCS_UI_DIR, filename)
 
     @app.get("/")
     @_require_sso_session
@@ -1410,6 +1511,10 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         payload_files = []
         for f in files:
             expires_unix = int(f["mtime"]) + RECORDING_RETENTION_SECONDS
+            twitch_id = None
+            tm = re.match(r"^twitch-([0-9]{1,20})\.mp4(?:\.part)?$", f["name"], re.I)
+            if tm:
+                twitch_id = tm.group(1)
             payload_files.append({
                 "name": f["name"],
                 "size_bytes": f["size"],
@@ -1420,6 +1525,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 "download_url": vod_cdn_url(username, f["name"]),
                 "expires_at": datetime.datetime.fromtimestamp(expires_unix).isoformat(),
                 "expires_at_unix": expires_unix,
+                "twitch_video_id": twitch_id,
             })
         for row in await list_extended_vods(username):
             name = str(row.get("filename") or "")
@@ -1449,12 +1555,17 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         slot = await get_storage_slot(username)
         quota_bytes = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
         unlimited = quota_bytes == 0
+        pulls = [
+            job for job in _twitch_pulls.values()
+            if job.get("username") == username and job.get("status") in ("queued", "pulling", "failed")
+        ]
         return jsonify({
             "username": username,
             "used_bytes": used_bytes,
             "quota_bytes": quota_bytes,
             "quota_unlimited": unlimited,
             "files": payload_files,
+            "pulls": pulls,
         })
 
     @app.post("/api/me/recordings/extend")
@@ -1522,9 +1633,14 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         if quota > 0 and used >= quota:
             return jsonify({"error": "stream_storage_full"}), 507
         dest = os.path.join(user_dir, f"twitch-{vod_id}.mp4")
-        if os.path.isfile(dest) or os.path.isfile(dest + ".part"):
-            return jsonify({"ok": True, "already": True, "filename": os.path.basename(dest)}), 200
+        job_key = f"{username}:{vod_id}"
+        existing = _twitch_pulls.get(job_key)
+        if existing and existing.get("status") == "pulling":
+            return jsonify({"ok": True, "already": True, "status": "pulling", "filename": os.path.basename(dest), "vod_id": vod_id}), 200
+        if os.path.isfile(dest):
+            return jsonify({"ok": True, "already": True, "status": "stored", "filename": os.path.basename(dest), "vod_id": vod_id}), 200
         os.makedirs(user_dir, exist_ok=True)
+        title = str(body.get("title") or "").strip()
         twitch_oauth = ""
         sqldb = None
         try:
@@ -1542,20 +1658,54 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             if sqldb is not None:
                 await sqldb.ensure_closed()
 
+        job = {
+            "username": username,
+            "vod_id": vod_id,
+            "filename": os.path.basename(dest),
+            "title": title,
+            "status": "pulling",
+            "percent": None,
+            "bytes": 0,
+            "current_s": None,
+            "duration_s": None,
+            "error": None,
+        }
+        _twitch_pulls[job_key] = job
+
         async def _pull():
             from youtube_vod_uploader import ffmpeg_pull_twitch_vod, twitch_vod_hls_url
 
+            def on_progress(pct, cur, total, nbytes):
+                job["percent"] = round(float(pct), 1) if pct is not None else job.get("percent")
+                job["current_s"] = cur
+                job["duration_s"] = total
+                if nbytes:
+                    job["bytes"] = int(nbytes)
+
             timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                hls_url, hls_err = await twitch_vod_hls_url(session, vod_id, twitch_oauth)
-                if hls_err:
-                    logger.error(f"Twitch VOD {vod_id} HLS failed for {username}: {hls_err}")
-                    return
-                ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(hls_url, dest)
-                if not ok:
-                    logger.error(f"Twitch VOD {vod_id} ffmpeg failed for {username}: {ffmpeg_err}")
-                    return
-                logger.info(f"Twitch VOD {vod_id} stored for {username}")
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    hls_url, hls_err = await twitch_vod_hls_url(session, vod_id, twitch_oauth)
+                    if hls_err:
+                        job["status"] = "failed"
+                        job["error"] = "could_not_start"
+                        logger.error(f"Twitch VOD {vod_id} HLS failed for {username}: {hls_err}")
+                        return
+                    ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(hls_url, dest, on_progress=on_progress)
+                    if not ok:
+                        job["status"] = "failed"
+                        job["error"] = "download_failed"
+                        logger.error(f"Twitch VOD {vod_id} download failed for {username}: {ffmpeg_err}")
+                        return
+                    job["status"] = "stored"
+                    job["percent"] = 100.0
+                    if os.path.isfile(dest):
+                        job["bytes"] = os.path.getsize(dest)
+                    logger.info(f"Twitch VOD {vod_id} stored for {username}")
+            except Exception as e:
+                job["status"] = "failed"
+                job["error"] = "download_failed"
+                logger.error(f"Twitch VOD {vod_id} pull crashed for {username}: {e}")
 
         asyncio.create_task(_pull())
         return jsonify({
@@ -1639,8 +1789,25 @@ async def _serve_rtmp(server: SimpleServer) -> None:
     await server.wait_closed()
 
 async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: str) -> None:
-    # Quart delegates to hypercorn under the hood; wants cert/key paths, not an SSLContext.
-    await app.run_task(host=host, port=port, certfile=certfile, keyfile=keyfile)
+    from hypercorn.asyncio import serve
+    from hypercorn.config import Config
+
+    cfg = Config()
+    binds = [f"{host}:{int(port)}"]
+    if int(port) != 443:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            probe.bind((host if host not in ("0.0.0.0", "") else "0.0.0.0", 443))
+            probe.close()
+            binds.append(f"{host}:443")
+        except OSError:
+            probe.close()
+            logger.warning("Port 443 is not available; API docs stay on the operator port")
+    cfg.bind = binds
+    cfg.certfile = certfile
+    cfg.keyfile = keyfile
+    logger.info(f"HTTPS binds: {', '.join(binds)}")
+    await serve(app, cfg)
 
 async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, recorder_storage_path: str) -> None:
     global FFMPEG_VERSION
@@ -1674,6 +1841,7 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, re
     server_title = SERVER_DISPLAY_NAMES.get(twitch_server, f"RTMP Server - {twitch_server}")
     web_app = create_web_app(server_title, twitch_server, session_registry, recorder_storage_path)
     logger.info(f"Operator web UI: https://{domain}:{web_port}/ (binding {web_host}:{web_port})")
+    logger.info(f"API docs: https://{domain}/docs")
     logger.info(f"Recordings page reading from: {recorder_storage_path}")
     await asyncio.gather(
         _serve_rtmp(server),
