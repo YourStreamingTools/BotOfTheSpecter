@@ -27,8 +27,7 @@ $pageTitle = t('recording_card_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-// $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
-include_once "/var/www/config/ssh.php";
+require_once "/var/www/config/stream.php";
 include "/var/www/config/object_storage.php";
 include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
@@ -44,18 +43,15 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 $recorderUsername = isset($username) && $username !== '' ? $username : ($_SESSION['username'] ?? 'unknown');
-$userStorageDir = "/mnt/blockstorage/{$recorderUsername}";
+$streamApiBase = rtrim((string) ($stream_api_base ?? ''), '/');
+$streamApiTimeout = (int) ($stream_api_timeout ?? 30);
+$streamUserApiKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
+$unlimitedStorage = in_array(strtolower((string) $recorderUsername), ['botofthespecter', 'gfaundead'], true);
 
 $saveStatus = null;
 $autoRecordEnabled = 0;
 $remoteFileSections = [];
 $remoteFileError = null;
-
-// Feature flag - flip to false once the recorder server bug is fixed. While
-// true, the page skips ALL SSH attempts (which otherwise hang and slow the
-// page down when the recorder host is offline) and shows a single notice
-// instead of the file listing.
-$RECORDING_DISABLED = true;
 
 function isSafeRecorderFileName($fileName) {
     if (!is_string($fileName) || $fileName === '') {
@@ -87,54 +83,72 @@ function formatBytes($bytes) {
     return round($bytes / (1024 * 1024 * 1024), 2) . ' GB';
 }
 
-function listRemoteDirectoryFiles($sftp, $directoryPath) {
-    $items = [];
-    $sftpPath = "ssh2.sftp://" . intval($sftp) . $directoryPath;
-    $handle = @opendir($sftpPath);
-    if (!$handle) {
-        return $items;
+function streamApiRequest(string $base, string $apiKey, string $path, int $timeout): array
+{
+    if ($base === '' || $apiKey === '') {
+        return ['ok' => false, 'error' => 'not_configured', 'http' => 0, 'body' => null];
     }
-    while (($fileName = readdir($handle)) !== false) {
-        if ($fileName === '.' || $fileName === '..') {
-            continue;
-        }
-        if (substr($fileName, -10) === '.ytdlp.log') {
-            continue;
-        }
-        if (substr($fileName, -8) === '.fwd.log') {
-            continue;
-        }
-        $fullPath = rtrim($directoryPath, '/') . '/' . $fileName;
-        $stat = @ssh2_sftp_stat($sftp, $fullPath);
-        if (!$stat) {
-            continue;
-        }
-        $isDirectory = isset($stat['mode']) && (($stat['mode'] & 0x4000) === 0x4000);
-        $isPartial = !$isDirectory && (substr($fileName, -5) === '.part');
-        $items[] = [
-            'name' => $fileName,
-            'path' => $fullPath,
-            'size' => $isDirectory ? null : ($stat['size'] ?? 0),
-            'modified' => $stat['mtime'] ?? null,
-            'is_directory' => $isDirectory,
-            'is_partial' => $isPartial,
-        ];
+    $ch = curl_init($base . $path);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Accept: application/json',
+        'X-API-Key: ' . $apiKey,
+    ]);
+    $body = curl_exec($ch);
+    $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($body === false) {
+        return ['ok' => false, 'error' => $err !== '' ? $err : 'curl_failed', 'http' => $http, 'body' => null];
     }
-    closedir($handle);
-    usort($items, function ($a, $b) {
-        return strcasecmp($a['name'], $b['name']);
-    });
-    return $items;
+    if ($http < 200 || $http >= 300) {
+        return ['ok' => false, 'error' => 'http_' . $http, 'http' => $http, 'body' => $body];
+    }
+    return ['ok' => true, 'error' => '', 'http' => $http, 'body' => $body];
 }
 
-function ensureRemoteDirectory($sftp, $directoryPath) {
-    $sftpPath = "ssh2.sftp://" . intval($sftp) . $directoryPath;
-    $handle = @opendir($sftpPath);
-    if ($handle) {
-        closedir($handle);
-        return true;
+function streamApiDownload(string $base, string $apiKey, string $path, string $fileName): bool
+{
+    while (ob_get_level() > 0) {
+        ob_end_clean();
     }
-    return @ssh2_sftp_mkdir($sftp, $directoryPath, 0775, true);
+    $started = false;
+    $ch = curl_init($base . $path);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'X-API-Key: ' . $apiKey,
+    ]);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $data) use (&$started, $fileName) {
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if (!$started) {
+            if ($code < 200 || $code >= 300) {
+                return 0;
+            }
+            $length = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+            header('Content-Description: File Transfer');
+            header('Content-Type: video/mp4');
+            header('Content-Disposition: attachment; filename="' . str_replace('"', '', basename($fileName)) . '"');
+            header('Content-Transfer-Encoding: binary');
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('X-Accel-Buffering: no');
+            if (is_numeric($length) && (float) $length > 0) {
+                header('Content-Length: ' . (string) (int) $length);
+            }
+            $started = true;
+        }
+        echo $data;
+        flush();
+        return strlen($data);
+    });
+    $ok = curl_exec($ch);
+    $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return $ok === true && $started && $http >= 200 && $http < 300;
 }
 
 $loadStmt = $db->prepare("SELECT enabled FROM auto_record_settings WHERE id = 1 LIMIT 1");
@@ -230,131 +244,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_forward_settings
         : ['success' => false, 'message' => t('recording_status_forward_save_failed')];
 }
 
-$recorderHost = $recorder_ssh_host ?? '';
-$recorderSshUser = $recorder_ssh_username ?? '';
-$recorderSshPassword = $recorder_ssh_password ?? '';
-
-// AJAX response handler - set header early and wrap logic in try-catch
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
-    // remoteFileSections and remoteFileError will be populated later in the script
-    // ensure we run the connection logic even for ajax so they exist
 }
 
-// Wrap SSH connection logic in try-catch for AJAX error handling
-try {
-if ($RECORDING_DISABLED) {
-    $remoteFileError = t('recording_error_disabled');
+if ($streamApiBase === '' || $streamUserApiKey === '') {
+    $remoteFileError = t('recording_error_connection_details_missing');
     if (isset($_GET['download']) && $_GET['download'] === '1') {
         http_response_code(503);
         echo t('recording_http_disabled');
         exit;
     }
-} elseif (!function_exists('ssh2_connect')) {
-    $remoteFileError = t('recording_error_ssh2_missing');
-} elseif (empty($recorderHost) || empty($recorderSshUser) || empty($recorderSshPassword)) {
-    $remoteFileError = t('recording_error_connection_details_missing');
+} elseif (isset($_GET['download']) && $_GET['download'] === '1') {
+    $requestedFileName = isset($_GET['file']) ? (string) $_GET['file'] : '';
+    if (!isSafeRecorderFileName($requestedFileName) || strtolower((string) pathinfo($requestedFileName, PATHINFO_EXTENSION)) !== 'mp4') {
+        http_response_code(400);
+        echo t('recording_http_invalid_file_name');
+        exit;
+    }
+    $ok = streamApiDownload(
+        $streamApiBase,
+        $streamUserApiKey,
+        '/api/me/recordings/file?name=' . rawurlencode($requestedFileName),
+        $requestedFileName
+    );
+    if (!$ok) {
+        http_response_code(502);
+        echo t('recording_http_open_failed');
+    }
+    exit;
 } else {
-    $connection = @ssh2_connect($recorderHost, 22);
-    if (!$connection) {
+    $list = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
+    if (!$list['ok']) {
         $remoteFileError = t('recording_error_could_not_connect');
-    } elseif (!@ssh2_auth_password($connection, $recorderSshUser, $recorderSshPassword)) {
-        $remoteFileError = t('recording_error_auth_failed');
     } else {
-        $sftp = @ssh2_sftp($connection);
-        if (!$sftp) {
-            $remoteFileError = t('recording_error_sftp_init_failed');
-        } else {
-            $requiredDirectories = [
-                $userStorageDir,
-            ];
-            foreach ($requiredDirectories as $requiredDirectory) {
-                if (!ensureRemoteDirectory($sftp, $requiredDirectory)) {
-                    $remoteFileError = t('recording_error_dir_create_failed');
-                    break;
+        $payload = json_decode((string) $list['body'], true);
+        $files = [];
+        if (is_array($payload) && isset($payload['files']) && is_array($payload['files'])) {
+            foreach ($payload['files'] as $row) {
+                if (!is_array($row) || empty($row['name'])) {
+                    continue;
                 }
-            }
-            if (!$remoteFileError && isset($_GET['download']) && $_GET['download'] === '1') {
-                $requestedFileName = isset($_GET['file']) ? (string)$_GET['file'] : '';
-                if (!isSafeRecorderFileName($requestedFileName)) {
-                    http_response_code(400);
-                    echo t('recording_http_invalid_file_name');
-                    exit;
+                $name = (string) $row['name'];
+                $mtime = null;
+                if (!empty($row['modified_at'])) {
+                    $parsed = strtotime((string) $row['modified_at']);
+                    $mtime = $parsed !== false ? $parsed : null;
                 }
-                $isMp4 = strtolower((string)pathinfo($requestedFileName, PATHINFO_EXTENSION)) === 'mp4';
-                if (!$isMp4) {
-                    http_response_code(400);
-                    echo t('recording_http_only_mp4');
-                    exit;
-                }
-                $fullRemotePath = rtrim($userStorageDir, '/') . '/' . $requestedFileName;
-                $stat = @ssh2_sftp_stat($sftp, $fullRemotePath);
-                if (!$stat) {
-                    http_response_code(404);
-                    echo t('recording_http_file_not_found');
-                    exit;
-                }
-                $isDirectory = isset($stat['mode']) && (($stat['mode'] & 0x4000) === 0x4000);
-                $isPartial = substr($requestedFileName, -5) === '.part';
-                if ($isDirectory || $isPartial) {
-                    http_response_code(400);
-                    echo t('recording_http_not_available');
-                    exit;
-                }
-                $streamPath = 'ssh2.sftp://' . intval($sftp) . $fullRemotePath;
-                $streamHandle = @fopen($streamPath, 'rb');
-                if (!$streamHandle) {
-                    http_response_code(500);
-                    echo t('recording_http_open_failed');
-                    exit;
-                }
-                while (ob_get_level() > 0) {
-                    ob_end_clean();
-                }
-                header('Content-Description: File Transfer');
-                header('Content-Type: video/mp4');
-                header('Content-Disposition: attachment; filename="' . str_replace('"', '', basename($requestedFileName)) . '"');
-                header('Content-Transfer-Encoding: binary');
-                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-                header('Pragma: no-cache');
-                if (isset($stat['size'])) {
-                    header('Content-Length: ' . (int)$stat['size']);
-                }
-                $chunkSize = 8192;
-                while (!feof($streamHandle)) {
-                    echo fread($streamHandle, $chunkSize);
-                }
-                fclose($streamHandle);
-                exit;
-            }
-            $directoryCandidates = [
-                $userStorageDir,
-            ];
-            if (!$remoteFileError) {
-                foreach ($directoryCandidates as $candidate) {
-                    $files = listRemoteDirectoryFiles($sftp, $candidate);
-                    if (!empty($files)) {
-                        $remoteFileSections[] = [
-                            'directory' => $candidate,
-                            'files' => $files,
-                        ];
-                    }
-                }
-                if (empty($remoteFileSections)) {
-                    $remoteFileError = t('recording_error_no_files');
-                }
+                $files[] = [
+                    'name' => $name,
+                    'path' => $name,
+                    'size' => (int) ($row['size_bytes'] ?? 0),
+                    'modified' => $mtime,
+                    'is_directory' => false,
+                    'is_partial' => !empty($row['is_partial']),
+                ];
             }
         }
-    }
-}
-} catch (Exception $e) {
-    // Catch any errors during SSH connection for AJAX requests
-    if (isset($_GET['ajax'])) {
-        $remoteFileError = t('recording_error_ajax_generic');
-        error_log('Recording.php AJAX error: ' . $e->getMessage());
-    } else {
-        // Re-throw for non-AJAX requests to show proper error page
-        throw $e;
+        if ($files) {
+            $remoteFileSections[] = [
+                'directory' => $recorderUsername,
+                'files' => $files,
+            ];
+        } else {
+            $remoteFileError = t('recording_error_no_files');
+        }
     }
 }
 // if this is an ajax request, return the JSON now and exit
@@ -380,13 +334,6 @@ ob_start();
         </p>
     </header>
     <div class="sp-card-body">
-        <div class="sp-alert sp-alert-warning" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.5rem; border-left:4px solid var(--amber);">
-            <span style="font-size:1.5rem; color:var(--amber); flex-shrink:0;"><i class="fas fa-exclamation-triangle"></i></span>
-            <div>
-                <p style="font-weight:700; margin-bottom:0.4rem;"><?= t('recording_notice_disabled_heading') ?></p>
-                <p style="margin-bottom:0;"><?= t('recording_notice_disabled_body') ?></p>
-            </div>
-        </div>
         <div class="content mb-5">
             <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
                 <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
@@ -405,6 +352,12 @@ ob_start();
             <ul>
                 <li><?= t('streaming_storage_info_retention') ?></li>
                 <li><?= t('streaming_storage_info_deletion') ?></li>
+                <?php if ($unlimitedStorage): ?>
+                    <li><?= t('recording_storage_info_unlimited') ?></li>
+                <?php else: ?>
+                    <li><?= t('recording_storage_info_cap') ?></li>
+                <?php endif; ?>
+                <li><?= t('recording_storage_info_download') ?></li>
                 <li><?= t('streaming_auto_record_vod_speed') ?></li>
             </ul>
             <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;"><?= t('recording_audio_info_heading') ?></h3>
@@ -428,12 +381,10 @@ ob_start();
             </form>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0 0.5rem;">
                 <h3 style="font-size:0.95rem;font-weight:700;margin:0;"><?= t('recording_files_on_server_heading') ?></h3>
-                <?php if (!$RECORDING_DISABLED): ?>
                 <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                     <span><?= t('recording_btn_refresh') ?></span>
                 </button>
-                <?php endif; ?>
             </div>
             <div id="remote-files-container">
                 <?php if ($remoteFileError): ?>
@@ -508,7 +459,7 @@ ob_start();
             <ul>
                 <li><?= t('recording_forward_item_key') ?></li>
                 <li><?= t('recording_forward_item_toggle') ?></li>
-                <li><?= t('recording_forward_item_coming_soon') ?></li>
+                <li><?= t('recording_forward_item_storage') ?></li>
             </ul>
             <p><?= t('recording_forward_note') ?></p>
             <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">

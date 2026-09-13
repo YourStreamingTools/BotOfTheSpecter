@@ -47,10 +47,12 @@ TWITCH_WEB_CLIENT_ID = os.getenv("TWITCH_WEB_CLIENT_ID", "kimne78kx3ncx6brgo4mv6
 TWITCH_GQL = "https://gql.twitch.tv/gql"
 TWITCH_USHER = "https://usher.ttvnw.net/vod/{vod_id}.m3u8"
 PLAYBACK_QUERY = """
-query PlaybackAccessToken_Template($isLive: Boolean!, $isVod: Boolean!, $login: String!, $playerType: String!, $vodID: ID!) {
-  videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isVod) {
-    value
-    signature
+query PlaybackAccessToken($id: ID!, $playerType: String!) {
+  video(id: $id) {
+    playbackAccessToken(params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) {
+      value
+      signature
+    }
   }
 }
 """
@@ -104,6 +106,41 @@ def _safe_username(name):
     if not isinstance(name, str):
         return False
     return bool(re.match(r"^[a-zA-Z0-9_]{1,64}$", name))
+
+
+STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
+
+
+def _directory_size_bytes(path):
+    total = 0
+    if not os.path.isdir(path):
+        return 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            file_path = os.path.join(root, name)
+            try:
+                total += os.path.getsize(file_path)
+            except OSError:
+                continue
+    return total
+
+
+async def get_storage_slot(pool, user_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT quota_bytes, bonus_bytes FROM stream_storage_slots WHERE user_id = %s LIMIT 1",
+                (user_id,),
+            )
+            row = await cur.fetchone()
+    if not row:
+        return None
+    raw_quota = row.get("quota_bytes")
+    quota = STREAM_STORAGE_QUOTA_BYTES if raw_quota is None else int(raw_quota)
+    bonus = int(row.get("bonus_bytes") or 0)
+    if quota == 0:
+        return 0
+    return quota + bonus
 
 
 async def read_json(resp):
@@ -262,7 +299,7 @@ def _pick_hls_variant(master_text):
     return chunked_url or best_url
 
 
-async def twitch_vod_hls_url(session, vod_id, twitch_oauth):
+def _gql_playback_headers(twitch_oauth):
     headers = {
         "Client-ID": TWITCH_WEB_CLIENT_ID,
         "Content-Type": "application/json",
@@ -273,24 +310,46 @@ async def twitch_vod_hls_url(session, vod_id, twitch_oauth):
         oauth = oauth.split(":", 1)[1]
     if oauth:
         headers["Authorization"] = f"OAuth {oauth}"
+    return headers
+
+
+def _playback_token_from_gql(body):
+    data = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(data, dict):
+        return None, None
+    token_row = data.get("videoPlaybackAccessToken")
+    if not isinstance(token_row, dict):
+        video = data.get("video") if isinstance(data.get("video"), dict) else {}
+        token_row = video.get("playbackAccessToken") if isinstance(video.get("playbackAccessToken"), dict) else {}
+    return token_row.get("value"), token_row.get("signature")
+
+
+async def twitch_vod_hls_url(session, vod_id, twitch_oauth):
     payload = {
-        "operationName": "PlaybackAccessToken_Template",
+        "operationName": "PlaybackAccessToken",
         "query": PLAYBACK_QUERY,
         "variables": {
-            "isLive": False,
-            "login": "",
-            "isVod": True,
-            "vodID": str(vod_id),
+            "id": str(vod_id),
             "playerType": "site",
         },
     }
-    async with session.post(TWITCH_GQL, headers=headers, json=payload) as resp:
-        body = await read_json(resp)
-        if resp.status != 200:
-            return None, f"gql_http_{resp.status}"
-    token_row = ((body.get("data") or {}).get("videoPlaybackAccessToken") or {})
-    value = token_row.get("value")
-    signature = token_row.get("signature")
+    attempts = [twitch_oauth, ""] if (twitch_oauth or "").strip() else [""]
+    body = {}
+    last_status = None
+    for oauth in attempts:
+        headers = _gql_playback_headers(oauth)
+        async with session.post(TWITCH_GQL, headers=headers, json=payload) as resp:
+            last_status = resp.status
+            body = await read_json(resp)
+        if last_status != 200:
+            continue
+        value, signature = _playback_token_from_gql(body)
+        if value and signature:
+            break
+    else:
+        value, signature = None, None
+    if last_status != 200 and not value:
+        return None, f"gql_http_{last_status}"
     if not value or not signature:
         return None, "gql_no_token"
     params = {
@@ -345,6 +404,8 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path):
         "aac_adtstoasc",
         "-movflags",
         "+faststart",
+        "-f",
+        "mp4",
         part_path,
     ]
     proc = await asyncio.create_subprocess_exec(
@@ -417,6 +478,19 @@ async def process_one(pool, session):
 
     path = os.path.join(VOD_ROOT, username, filename)
     if is_twitch_vod:
+        quota = await get_storage_slot(pool, user_id)
+        if quota is None:
+            await set_job(pool, job_id, "failed", error="no_stream_storage_slot")
+            logger.error(
+                f"❌ {username} has no stream storage slot "
+                f"(max 5 users due to limited storage space)"
+            )
+            return
+        used = _directory_size_bytes(os.path.join(VOD_ROOT, username))
+        if quota > 0 and used >= quota:
+            await set_job(pool, job_id, "failed", error="stream_storage_full")
+            logger.error(f"❌ {username} stream storage is full ({used} / {quota} bytes)")
+            return
         if not await claim_job(pool, job_id, "pulling"):
             logger.info(f"⏭️  Job {job_id} already claimed")
             return

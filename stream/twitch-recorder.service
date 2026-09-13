@@ -1,0 +1,18 @@
+[Unit]
+Description=Specter Twitch live recorder (Sydney)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/specter-stream
+ExecStart=/opt/specter-stream/venv/bin/python /opt/specter-stream/twitch-recorder.py
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=20
+EnvironmentFile=/opt/specter-stream/.env
+
+[Install]
+WantedBy=multi-user.target

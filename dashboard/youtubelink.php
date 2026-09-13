@@ -43,7 +43,7 @@ function youtubelink_redirect(string $message, string $alertClass): void
     exit();
 }
 
-if ($isActAsUser && (isset($_GET['code']) || isset($_GET['connect']) || (isset($_POST['action']) && $_POST['action'] !== 'save_settings'))) {
+if ($isActAsUser && (isset($_GET['code']) || isset($_GET['connect']) || isset($_POST['action']))) {
     youtubelink_redirect(t('youtube_link_actas_disabled'), 'is-warning');
 }
 
@@ -121,14 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         youtube_delete_link($conn, $userId);
         youtubelink_redirect(t('youtube_disconnected_success'), 'is-success');
     }
-    if ($action === 'save_settings') {
-        $autoUpload = isset($_POST['auto_upload']) ? 1 : 0;
-        $privacy = youtube_privacy_allowed($_POST['privacy_status'] ?? 'private');
-        if (youtube_update_settings($conn, $userId, $autoUpload, $privacy)) {
-            youtubelink_redirect(t('youtube_settings_saved'), 'is-success');
-        }
-        youtubelink_redirect(t('youtube_settings_save_failed'), 'is-danger');
-    }
 }
 
 if (isset($_GET['connect']) && youtube_configured()) {
@@ -149,7 +141,6 @@ $linked = $linkRow
     && (int) ($linkRow['needs_reauth'] ?? 0) === 0;
 $needsReauth = $linkRow && (int) ($linkRow['needs_reauth'] ?? 0) === 1;
 $canUpload = $linked && (int) ($linkRow['can_upload'] ?? 0) === 1;
-$uploads = $linked ? youtube_uploads_for_user($conn, $userId, 25) : [];
 
 ob_start();
 ?>
@@ -202,36 +193,6 @@ ob_start();
                     <?php endif; ?>
                 </div>
             </div>
-            <form method="post" class="youtube-settings-form">
-                <input type="hidden" name="action" value="save_settings">
-                <div class="sp-form-group">
-                    <label class="sp-label" for="youtube-privacy"><?php echo t('youtube_privacy_label'); ?></label>
-                    <select class="sp-select" id="youtube-privacy" name="privacy_status">
-                        <?php
-                        $currentPrivacy = youtube_privacy_allowed($linkRow['privacy_status'] ?? 'private');
-                        $privacyOptions = [
-                            'private' => t('youtube_privacy_private'),
-                            'unlisted' => t('youtube_privacy_unlisted'),
-                            'public' => t('youtube_privacy_public'),
-                        ];
-                        foreach ($privacyOptions as $value => $label):
-                        ?>
-                            <option value="<?php echo $value; ?>" <?php echo $currentPrivacy === $value ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <span class="sp-help"><?php echo t('youtube_privacy_help'); ?></span>
-                </div>
-                <div class="sp-form-group">
-                    <label class="youtube-toggle">
-                        <input type="checkbox" name="auto_upload" value="1" <?php echo !empty($linkRow['auto_upload']) ? 'checked' : ''; ?>>
-                        <?php echo t('youtube_auto_upload_label'); ?>
-                    </label>
-                    <span class="sp-help"><?php echo t('youtube_auto_upload_help'); ?></span>
-                </div>
-                <div class="sp-btn-group">
-                    <button type="submit" class="sp-btn sp-btn-primary"><?php echo t('youtube_save_settings'); ?></button>
-                </div>
-            </form>
             <?php if (!$isActAsUser): ?>
             <form method="post" class="youtube-disconnect-form" onsubmit="return confirm(<?php echo json_encode(t('confirm_disconnect_youtube_text')); ?>);">
                 <input type="hidden" name="action" value="disconnect">
@@ -251,62 +212,6 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
-<?php if ($linked): ?>
-<div class="sp-card">
-    <div class="sp-card-header">
-        <div class="sp-card-title"><i class="fas fa-cloud-upload-alt"></i> <?php echo t('youtube_uploads_heading'); ?></div>
-    </div>
-    <div class="sp-card-body">
-        <p class="sp-help"><?php echo t('youtube_uploads_help'); ?></p>
-        <?php if (!$uploads): ?>
-            <p class="sp-help"><?php echo t('youtube_uploads_empty'); ?></p>
-        <?php else: ?>
-            <div class="sp-table-wrap">
-                <table class="sp-table">
-                    <thead>
-                        <tr>
-                            <th><?php echo t('youtube_th_file'); ?></th>
-                            <th><?php echo t('youtube_th_status'); ?></th>
-                            <th><?php echo t('youtube_th_video'); ?></th>
-                            <th><?php echo t('youtube_th_updated'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($uploads as $job): ?>
-                            <?php
-                            $status = (string) ($job['status'] ?? '');
-                            $badge = 'sp-badge-grey';
-                            if ($status === 'done') $badge = 'sp-badge-green';
-                            elseif ($status === 'failed') $badge = 'sp-badge-red';
-                            elseif ($status === 'uploading') $badge = 'sp-badge-blue';
-                            elseif ($status === 'queued') $badge = 'sp-badge-amber';
-                            $videoId = trim((string) ($job['youtube_video_id'] ?? ''));
-                            ?>
-                            <tr>
-                                <td><code><?php echo htmlspecialchars((string) ($job['filename'] ?? '')); ?></code></td>
-                                <td>
-                                    <span class="sp-badge <?php echo $badge; ?>"><?php echo htmlspecialchars($status); ?></span>
-                                    <?php if (!empty($job['error_message'])): ?>
-                                        <div class="sp-help"><?php echo htmlspecialchars((string) $job['error_message']); ?></div>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($videoId !== ''): ?>
-                                        <a href="https://youtu.be/<?php echo rawurlencode($videoId); ?>" target="_blank" rel="noopener noreferrer"><?php echo htmlspecialchars($videoId); ?></a>
-                                    <?php else: ?>
-                                        —
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars((string) ($job['updated_at'] ?? '')); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
-<?php endif; ?>
 <?php
 $content = ob_get_clean();
 include 'layout.php';
