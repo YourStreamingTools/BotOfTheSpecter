@@ -21,7 +21,14 @@ from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
 from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file, send_from_directory
-from ffmpeg_jobs import atomic_write_json, cmdline_has, load_json, pid_alive, remove_media_and_sidecars
+from ffmpeg_jobs import (
+    atomic_write_json,
+    cmdline_has,
+    download_mp4_name,
+    load_json,
+    pid_alive,
+    remove_media_and_sidecars,
+)
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -128,6 +135,9 @@ file_handler = logging.FileHandler(log_file)
 file_handler.setFormatter(formatter)
 logging.basicConfig(level=logging.INFO, handlers=[file_handler])
 logger = logging.getLogger()
+# Hypercorn/hpack DEBUG logs request headers, including X-API-KEY.
+logging.getLogger("hpack").setLevel(logging.WARNING)
+logging.getLogger("hypercorn").setLevel(logging.INFO)
 
 if _server_warning:
     logger.warning(_server_warning)
@@ -184,6 +194,7 @@ async def _watch_pull_pid(job: dict) -> None:
         job["status"] = "stored"
         job["percent"] = 100.0
         job["bytes"] = os.path.getsize(dest)
+        _write_vod_title_sidecar(os.path.dirname(dest), str(job.get("vod_id") or ""), job.get("title") or "")
         _persist_pulls()
         return
     # ffmpeg died mid-download — start it again
@@ -204,6 +215,18 @@ def _vod_title_from_sidecar(user_dir: str, vod_id: str) -> str:
     except (OSError, ValueError):
         pass
     return ""
+
+
+def _write_vod_title_sidecar(user_dir: str, vod_id: str, title: str) -> None:
+    title = (title or "").strip()
+    if not user_dir or not vod_id or not title:
+        return
+    os.makedirs(user_dir, exist_ok=True)
+    try:
+        with open(os.path.join(user_dir, f"twitch-{vod_id}.json"), "w", encoding="utf-8") as meta_fh:
+            json.dump({"vod_id": vod_id, "title": title}, meta_fh)
+    except OSError as e:
+        logger.warning(f"Could not write VOD title sidecar {vod_id}: {e}")
 
 
 async def _load_twitch_oauth(username: str) -> str:
@@ -229,21 +252,19 @@ async def _launch_twitch_pull(username: str, vod_id: str, title: str, dest: str)
     if not username or not vod_id or not dest:
         return "invalid"
     job_key = f"{username}:{vod_id}"
+    user_dir = os.path.dirname(dest)
+    title = (title or "").strip() or _vod_title_from_sidecar(user_dir, vod_id)
+    _write_vod_title_sidecar(user_dir, vod_id, title)
     existing = _twitch_pulls.get(job_key)
     if existing and existing.get("status") == "pulling":
         pid = existing.get("pid")
         if pid_alive(pid) and cmdline_has(pid, dest):
+            if title and not existing.get("title"):
+                existing["title"] = title
             return "already"
     if os.path.isfile(dest):
         return "stored"
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    title = (title or "").strip() or _vod_title_from_sidecar(os.path.dirname(dest), vod_id)
-    if title:
-        try:
-            with open(os.path.join(os.path.dirname(dest), f"twitch-{vod_id}.json"), "w", encoding="utf-8") as meta_fh:
-                json.dump({"vod_id": vod_id, "title": title}, meta_fh)
-        except OSError as e:
-            logger.warning(f"Could not write VOD title sidecar for {username}: {e}")
+    os.makedirs(user_dir, exist_ok=True)
     twitch_oauth = await _load_twitch_oauth(username)
     job = {
         "username": username,
@@ -299,6 +320,7 @@ async def _launch_twitch_pull(username: str, vod_id: str, title: str, dest: str)
                 job["percent"] = 100.0
                 if os.path.isfile(dest):
                     job["bytes"] = os.path.getsize(dest)
+                _write_vod_title_sidecar(user_dir, vod_id, title)
                 _persist_pulls()
                 logger.info(f"Twitch VOD {vod_id} stored for {username}")
         except Exception as e:
@@ -331,6 +353,7 @@ async def _recover_pulls(root: str) -> None:
             if os.path.isfile(dest):
                 continue
             if pid_alive(pid) and cmdline_has(pid, dest):
+                _write_vod_title_sidecar(os.path.dirname(dest), vod_id, title)
                 job = {
                     "username": username,
                     "vod_id": vod_id,
@@ -1933,7 +1956,12 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         path = os.path.join(recorder_storage_path, username, fname)
         if not os.path.isfile(path):
             return jsonify({"error": "file not found"}), 404
-        return await send_file(path, as_attachment=True, download_name=fname, mimetype="video/mp4")
+        return await send_file(
+            path,
+            as_attachment=True,
+            download_name=download_mp4_name(path, fname),
+            mimetype="video/mp4",
+        )
 
     @app.get("/api/server")
     @_require_api_key
