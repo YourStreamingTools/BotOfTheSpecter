@@ -389,8 +389,12 @@ def _hms_to_s(h, m, s):
 
 
 async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None, on_pid=None):
+    from ffmpeg_jobs import find_ffmpeg_pid_for_path
+
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     part_path = dest_path + ".part"
+    if find_ffmpeg_pid_for_path(dest_path):
+        return False, "already_running"
     if os.path.isfile(part_path):
         try:
             os.remove(part_path)
@@ -428,36 +432,40 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None, on_pid=No
     buf = b""
     duration_s = None
     tail = []
-    while True:
-        chunk = await proc.stderr.read(256)
-        if not chunk:
-            break
-        buf += chunk
-        parts = re.split(rb"[\r\n]", buf)
-        buf = parts[-1]
-        for raw in parts[:-1]:
-            if not raw:
-                continue
-            line = raw.decode("utf-8", "replace").rstrip()
-            if line:
-                tail.append(line)
-                if len(tail) > 40:
-                    del tail[: len(tail) - 40]
-            if duration_s is None:
-                dm = DURATION_RE.search(raw)
-                if dm:
-                    duration_s = _hms_to_s(*dm.groups())
-            tm = TIME_RE.search(raw)
-            if tm and on_progress:
-                cur = _hms_to_s(*tm.groups())
-                pct = max(0.0, min(100.0, cur / duration_s * 100.0)) if duration_s else None
-                sm = SIZE_RE.search(raw)
-                nbytes = int(sm.group(1)) * 1024 if sm else None
-                on_progress(pct, cur, duration_s, nbytes)
-    rc = await proc.wait()
+    try:
+        while True:
+            chunk = await proc.stderr.read(256)
+            if not chunk:
+                break
+            buf += chunk
+            parts = re.split(rb"[\r\n]", buf)
+            buf = parts[-1]
+            for raw in parts[:-1]:
+                if not raw:
+                    continue
+                line = raw.decode("utf-8", "replace").rstrip()
+                if line:
+                    tail.append(line)
+                    if len(tail) > 40:
+                        del tail[: len(tail) - 40]
+                if duration_s is None:
+                    dm = DURATION_RE.search(raw)
+                    if dm:
+                        duration_s = _hms_to_s(*dm.groups())
+                tm = TIME_RE.search(raw)
+                if tm and on_progress:
+                    cur = _hms_to_s(*tm.groups())
+                    pct = max(0.0, min(100.0, cur / duration_s * 100.0)) if duration_s else None
+                    sm = SIZE_RE.search(raw)
+                    nbytes = int(sm.group(1)) * 1024 if sm else None
+                    on_progress(pct, cur, duration_s, nbytes)
+        rc = await proc.wait()
+    except asyncio.CancelledError:
+        # Leave ffmpeg running across a Python restart.
+        raise
     if rc != 0 or not os.path.isfile(part_path):
         try:
-            if os.path.isfile(part_path):
+            if os.path.isfile(part_path) and not find_ffmpeg_pid_for_path(dest_path):
                 os.remove(part_path)
         except OSError:
             pass

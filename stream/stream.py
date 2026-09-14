@@ -23,11 +23,15 @@ from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
 from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file, send_from_directory
 from ffmpeg_jobs import (
     atomic_write_json,
-    cmdline_has,
     download_mp4_name,
+    ffmpeg_log_finished_ok,
+    ffmpeg_log_progress,
+    ffmpeg_returncode,
+    find_ffmpeg_pid_for_path,
     load_json,
-    pid_alive,
+    pull_ffmpeg_log_path,
     remove_media_and_sidecars,
+    spawn_detached_ffmpeg,
 )
 
 # Patch SessionManager.peername to avoid unpacking None
@@ -158,6 +162,7 @@ RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "8
 STREAM_DIR = os.path.dirname(os.path.abspath(__file__))
 DOCS_UI_DIR = os.path.join(STREAM_DIR, "docs_ui")
 _twitch_pulls = {}
+_pull_monitor_tasks = {}
 _PULL_JOBS_PATH = os.path.join(
     os.getenv("STREAM_FILES_ROOT") or os.getenv("STREAM_ROOT_PATH") or "/var/lib/specter-stream",
     "_jobs",
@@ -182,27 +187,123 @@ def _persist_pulls() -> None:
     atomic_write_json(_PULL_JOBS_PATH, payload)
 
 
-async def _watch_pull_pid(job: dict) -> None:
+def _pull_job_key(username: str, vod_id: str) -> str:
+    return f"{username}:{vod_id}"
+
+
+def _make_pull_job(username: str, vod_id: str, title: str, dest: str, pid=None) -> dict:
+    part = dest + ".part"
+    return {
+        "username": username,
+        "vod_id": vod_id,
+        "filename": os.path.basename(dest),
+        "title": title,
+        "status": "pulling",
+        "percent": None,
+        "bytes": os.path.getsize(part) if os.path.isfile(part) else 0,
+        "current_s": None,
+        "duration_s": None,
+        "error": None,
+        "pid": pid,
+        "dest": dest,
+    }
+
+
+def _ensure_pull_monitor(job_key: str, job: dict) -> None:
+    task = _pull_monitor_tasks.get(job_key)
+    if task is not None and not task.done():
+        return
+    _pull_monitor_tasks[job_key] = asyncio.create_task(_monitor_pull_job(job))
+
+
+def _twitch_vod_ffmpeg_cmd(hls_url: str, part_path: str) -> list:
+    return [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "info",
+        "-stats",
+        "-user_agent",
+        "Mozilla/5.0",
+        "-i",
+        hls_url,
+        "-c",
+        "copy",
+        "-bsf:a",
+        "aac_adtstoasc",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+        part_path,
+    ]
+
+
+async def _monitor_pull_job(job: dict) -> None:
     dest = job.get("dest") or ""
     part = dest + ".part" if dest else ""
-    pid = job.get("pid")
-    while pid_alive(pid):
+    log_path = pull_ffmpeg_log_path(dest) if dest else ""
+    missing_since = None
+    while True:
+        if job.get("status") not in ("pulling", "queued"):
+            return
+        pid = find_ffmpeg_pid_for_path(dest) if dest else None
+        if pid:
+            missing_since = None
+            if job.get("pid") != pid:
+                job["pid"] = pid
+                _persist_pulls()
+            if part and os.path.isfile(part):
+                job["bytes"] = os.path.getsize(part)
+            if log_path:
+                prog = ffmpeg_log_progress(log_path)
+                if prog.get("percent") is not None:
+                    job["percent"] = round(float(prog["percent"]), 1)
+                if prog.get("current_s") is not None:
+                    job["current_s"] = prog["current_s"]
+                if prog.get("duration_s") is not None:
+                    job["duration_s"] = prog["duration_s"]
+            await asyncio.sleep(1)
+            continue
+        if dest and os.path.isfile(dest):
+            job["status"] = "stored"
+            job["percent"] = 100.0
+            job["bytes"] = os.path.getsize(dest)
+            _write_vod_title_sidecar(os.path.dirname(dest), str(job.get("vod_id") or ""), job.get("title") or "")
+            _persist_pulls()
+            logger.info(f"Twitch VOD {job.get('vod_id')} stored for {job.get('username')}")
+            return
+        rc = ffmpeg_returncode(job.get("pid"))
+        finished_ok = ffmpeg_log_finished_ok(log_path) if log_path else None
+        if part and os.path.isfile(part) and (rc == 0 or finished_ok is True):
+            try:
+                os.replace(part, dest)
+            except OSError as e:
+                logger.warning(f"Could not finalise VOD {dest}: {e}")
+                await asyncio.sleep(1)
+                continue
+            continue
+        now = time.monotonic()
+        if missing_since is None:
+            missing_since = now
+        if now - missing_since < 5:
+            await asyncio.sleep(1)
+            continue
+        username = job.get("username") or ""
+        vod_id = str(job.get("vod_id") or "")
+        title = job.get("title") or ""
         if part and os.path.isfile(part):
-            job["bytes"] = os.path.getsize(part)
-        await asyncio.sleep(1)
-    if dest and os.path.isfile(dest):
-        job["status"] = "stored"
-        job["percent"] = 100.0
-        job["bytes"] = os.path.getsize(dest)
-        _write_vod_title_sidecar(os.path.dirname(dest), str(job.get("vod_id") or ""), job.get("title") or "")
+            logger.warning(
+                f"Twitch VOD pull {vod_id} for {username} has no ffmpeg; leftover part, starting a new copy"
+            )
+            await _ensure_pull_running(username, vod_id, title, dest)
+            missing_since = None
+            continue
+        job["status"] = "failed"
+        job["error"] = "download_failed"
         _persist_pulls()
         return
-    # ffmpeg died mid-download — start it again
-    username = job.get("username") or ""
-    vod_id = str(job.get("vod_id") or "")
-    title = job.get("title") or ""
-    logger.warning(f"Twitch VOD pull {vod_id} for {username} died; restarting")
-    await _launch_twitch_pull(username, vod_id, title, dest)
 
 
 def _vod_title_from_sidecar(user_dir: str, vod_id: str) -> str:
@@ -248,94 +349,123 @@ async def _load_twitch_oauth(username: str) -> str:
             await sqldb.ensure_closed()
 
 
-async def _launch_twitch_pull(username: str, vod_id: str, title: str, dest: str) -> str:
+async def _ensure_pull_running(username: str, vod_id: str, title: str, dest: str) -> str:
+    """Attach to a live ffmpeg, or start one. Python only monitors after spawn."""
     if not username or not vod_id or not dest:
         return "invalid"
-    job_key = f"{username}:{vod_id}"
+    job_key = _pull_job_key(username, vod_id)
     user_dir = os.path.dirname(dest)
+    part = dest + ".part"
     title = (title or "").strip() or _vod_title_from_sidecar(user_dir, vod_id)
     _write_vod_title_sidecar(user_dir, vod_id, title)
-    existing = _twitch_pulls.get(job_key)
-    if existing and existing.get("status") == "pulling":
-        pid = existing.get("pid")
-        if pid_alive(pid) and cmdline_has(pid, dest):
-            if title and not existing.get("title"):
-                existing["title"] = title
+    live_pid = find_ffmpeg_pid_for_path(dest)
+    if os.path.isfile(dest) and not live_pid:
+        return "stored"
+    job = _twitch_pulls.get(job_key)
+    if job is None:
+        job = _make_pull_job(username, vod_id, title, dest, live_pid)
+        _twitch_pulls[job_key] = job
+    else:
+        if title:
+            job["title"] = title
+        job["dest"] = dest
+        job["filename"] = os.path.basename(dest)
+    if live_pid:
+        job["pid"] = live_pid
+        job["status"] = "pulling"
+        job["error"] = None
+        if os.path.isfile(part):
+            job["bytes"] = os.path.getsize(part)
+        _persist_pulls()
+        _ensure_pull_monitor(job_key, job)
+        logger.info(f"Monitoring Twitch VOD pull {vod_id} for {username} pid={live_pid}")
+        return "already"
+    os.makedirs(user_dir, exist_ok=True)
+    if os.path.isfile(part):
+        live_pid = find_ffmpeg_pid_for_path(dest)
+        if live_pid:
+            job["pid"] = live_pid
+            job["status"] = "pulling"
+            _persist_pulls()
+            _ensure_pull_monitor(job_key, job)
             return "already"
+        try:
+            os.remove(part)
+        except OSError as e:
+            live_pid = find_ffmpeg_pid_for_path(dest)
+            if live_pid:
+                job["pid"] = live_pid
+                job["status"] = "pulling"
+                _persist_pulls()
+                _ensure_pull_monitor(job_key, job)
+                return "already"
+            logger.warning(f"Could not remove stale VOD part {part}: {e}")
+            job["status"] = "failed"
+            job["error"] = "could_not_start"
+            _persist_pulls()
+            return "failed"
+    twitch_oauth = await _load_twitch_oauth(username)
+    from youtube_vod_uploader import twitch_vod_hls_url
+
+    timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            hls_url, hls_err = await twitch_vod_hls_url(session, vod_id, twitch_oauth)
+    except Exception as e:
+        job["status"] = "failed"
+        job["error"] = "could_not_start"
+        _persist_pulls()
+        logger.error(f"Twitch VOD {vod_id} HLS failed for {username}: {e}")
+        return "failed"
+    if hls_err or not hls_url:
+        job["status"] = "failed"
+        job["error"] = "could_not_start"
+        _persist_pulls()
+        logger.error(f"Twitch VOD {vod_id} HLS failed for {username}: {hls_err}")
+        return "failed"
+    # A copy may have appeared while we resolved HLS.
+    live_pid = find_ffmpeg_pid_for_path(dest)
+    if live_pid:
+        job["pid"] = live_pid
+        job["status"] = "pulling"
+        _persist_pulls()
+        _ensure_pull_monitor(job_key, job)
+        return "already"
     if os.path.isfile(dest):
         return "stored"
-    os.makedirs(user_dir, exist_ok=True)
-    twitch_oauth = await _load_twitch_oauth(username)
-    job = {
-        "username": username,
-        "vod_id": vod_id,
-        "filename": os.path.basename(dest),
-        "title": title,
-        "status": "pulling",
-        "percent": None,
-        "bytes": 0,
-        "current_s": None,
-        "duration_s": None,
-        "error": None,
-        "dest": dest,
-    }
-    _twitch_pulls[job_key] = job
+    log_path = pull_ffmpeg_log_path(dest)
+    try:
+        pid = spawn_detached_ffmpeg(_twitch_vod_ffmpeg_cmd(hls_url, part), log_path)
+    except OSError as e:
+        job["status"] = "failed"
+        job["error"] = "could_not_start"
+        _persist_pulls()
+        logger.error(f"Twitch VOD {vod_id} ffmpeg spawn failed for {username}: {e}")
+        return "failed"
+    job["pid"] = pid
+    job["status"] = "pulling"
+    job["error"] = None
     _persist_pulls()
-
-    async def _pull():
-        from youtube_vod_uploader import ffmpeg_pull_twitch_vod, twitch_vod_hls_url
-
-        def on_progress(pct, cur, total, nbytes):
-            job["percent"] = round(float(pct), 1) if pct is not None else job.get("percent")
-            job["current_s"] = cur
-            job["duration_s"] = total
-            if nbytes:
-                job["bytes"] = int(nbytes)
-
-        timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
-        try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                hls_url, hls_err = await twitch_vod_hls_url(session, vod_id, twitch_oauth)
-                if hls_err:
-                    job["status"] = "failed"
-                    job["error"] = "could_not_start"
-                    _persist_pulls()
-                    logger.error(f"Twitch VOD {vod_id} HLS failed for {username}: {hls_err}")
-                    return
-
-                def on_pid(pid):
-                    job["pid"] = pid
-                    _persist_pulls()
-
-                ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(
-                    hls_url, dest, on_progress=on_progress, on_pid=on_pid
-                )
-                if not ok:
-                    job["status"] = "failed"
-                    job["error"] = "download_failed"
-                    _persist_pulls()
-                    logger.error(f"Twitch VOD {vod_id} download failed for {username}: {ffmpeg_err}")
-                    return
-                job["status"] = "stored"
-                job["percent"] = 100.0
-                if os.path.isfile(dest):
-                    job["bytes"] = os.path.getsize(dest)
-                _write_vod_title_sidecar(user_dir, vod_id, title)
-                _persist_pulls()
-                logger.info(f"Twitch VOD {vod_id} stored for {username}")
-        except Exception as e:
-            job["status"] = "failed"
-            job["error"] = "download_failed"
-            _persist_pulls()
-            logger.error(f"Twitch VOD {vod_id} pull crashed for {username}: {e}")
-
-    asyncio.create_task(_pull())
+    _ensure_pull_monitor(job_key, job)
+    logger.info(f"Started background Twitch VOD pull {vod_id} for {username} pid={pid}")
     return "started"
 
 
+async def _launch_twitch_pull(username: str, vod_id: str, title: str, dest: str) -> str:
+    return await _ensure_pull_running(username, vod_id, title, dest)
+
+
 async def _recover_pulls(root: str) -> None:
+    try:
+        await _recover_pulls_inner(root)
+    except Exception as e:
+        logger.error(f"VOD pull recover failed: {e}", exc_info=True)
+
+
+async def _recover_pulls_inner(root: str) -> None:
     seen = set()
     data = load_json(_PULL_JOBS_PATH, {})
+    pending = []
     if isinstance(data, dict):
         for info in data.values():
             if not isinstance(info, dict):
@@ -348,61 +478,49 @@ async def _recover_pulls(root: str) -> None:
             if not username or not vod_id or not dest:
                 continue
             title = str(info.get("title") or "") or _vod_title_from_sidecar(os.path.dirname(dest), vod_id)
-            pid = int(info.get("pid") or 0)
             seen.add((username, vod_id))
-            if os.path.isfile(dest):
-                continue
-            if pid_alive(pid) and cmdline_has(pid, dest):
-                _write_vod_title_sidecar(os.path.dirname(dest), vod_id, title)
-                job = {
-                    "username": username,
-                    "vod_id": vod_id,
-                    "filename": os.path.basename(dest),
-                    "title": title,
-                    "status": "pulling",
-                    "percent": None,
-                    "bytes": os.path.getsize(dest + ".part") if os.path.isfile(dest + ".part") else 0,
-                    "current_s": None,
-                    "duration_s": None,
-                    "error": None,
-                    "pid": pid,
-                    "dest": dest,
-                }
-                _twitch_pulls[f"{username}:{vod_id}"] = job
-                asyncio.create_task(_watch_pull_pid(job))
-                logger.info(f"Reattached Twitch VOD pull {vod_id} for {username} pid={pid}")
-                continue
-            logger.info(f"Restarting Twitch VOD pull {vod_id} for {username}")
-            await _launch_twitch_pull(username, vod_id, title, dest)
-    if not root or not os.path.isdir(root):
-        return
-    try:
-        users = os.listdir(root)
-    except OSError:
-        return
-    for username in users:
-        if not re.match(r"^[a-zA-Z0-9_]{1,64}$", username):
-            continue
-        user_dir = os.path.join(root, username)
-        if not os.path.isdir(user_dir):
-            continue
+            pending.append((username, vod_id, title, dest))
+    if root and os.path.isdir(root):
         try:
-            names = os.listdir(user_dir)
+            users = os.listdir(root)
         except OSError:
+            users = []
+        for username in users:
+            if not re.match(r"^[a-zA-Z0-9_]{1,64}$", username):
+                continue
+            user_dir = os.path.join(root, username)
+            if not os.path.isdir(user_dir):
+                continue
+            try:
+                names = os.listdir(user_dir)
+            except OSError:
+                continue
+            for name in names:
+                match = re.match(r"^twitch-([0-9]{1,20})\.mp4(?:\.part)?$", name, re.I)
+                if not match:
+                    continue
+                vod_id = match.group(1)
+                dest = os.path.join(user_dir, f"twitch-{vod_id}.mp4")
+                if (username, vod_id) in seen:
+                    continue
+                if os.path.isfile(dest) and not find_ffmpeg_pid_for_path(dest) and not os.path.isfile(dest + ".part"):
+                    continue
+                seen.add((username, vod_id))
+                pending.append((username, vod_id, _vod_title_from_sidecar(user_dir, vod_id), dest))
+    attach = []
+    relaunch = []
+    for username, vod_id, title, dest in pending:
+        if os.path.isfile(dest) and not find_ffmpeg_pid_for_path(dest):
             continue
-        for name in names:
-            match = re.match(r"^twitch-([0-9]{1,20})\.mp4\.part$", name, re.I)
-            if not match:
-                continue
-            vod_id = match.group(1)
-            if (username, vod_id) in seen:
-                continue
-            dest = os.path.join(user_dir, f"twitch-{vod_id}.mp4")
-            if os.path.isfile(dest):
-                continue
-            title = _vod_title_from_sidecar(user_dir, vod_id)
-            logger.info(f"Restarting orphan Twitch VOD pull {vod_id} for {username}")
-            await _launch_twitch_pull(username, vod_id, title, dest)
+        if find_ffmpeg_pid_for_path(dest):
+            attach.append((username, vod_id, title, dest))
+        else:
+            relaunch.append((username, vod_id, title, dest))
+    for username, vod_id, title, dest in attach:
+        await _ensure_pull_running(username, vod_id, title, dest)
+    for username, vod_id, title, dest in relaunch:
+        logger.info(f"No live ffmpeg for Twitch VOD {vod_id} ({username}); starting a fresh copy")
+        await _ensure_pull_running(username, vod_id, title, dest)
 
 async def access_website_database():
     # Connect to your MySQL database
@@ -2044,8 +2162,6 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, re
         output_directory = "/mnt/s3/bots-stream"
     else:
         output_directory = os.path.dirname(os.path.abspath(__file__))
-    # Detect ffmpeg up front so /api/server can report it without re-shelling on every request
-    await _recover_pulls(recorder_storage_path)
     FFMPEG_VERSION = await _detect_ffmpeg_version()
     logger.info(f"Detected ffmpeg: {FFMPEG_VERSION}")
     logger.info(
@@ -2073,6 +2189,7 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, re
         _serve_rtmp(server),
         _serve_web(web_app, web_host, web_port, cert_path, key_path),
         _expired_vod_loop(),
+        _recover_pulls(recorder_storage_path),
     )
 
 if __name__ == "__main__":
