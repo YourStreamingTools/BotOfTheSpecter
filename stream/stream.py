@@ -1971,14 +1971,7 @@ async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: s
     cfg = Config()
     binds = [f"{host}:{int(port)}"]
     if int(port) != 443:
-        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            probe.bind((host if host not in ("0.0.0.0", "") else "0.0.0.0", 443))
-            probe.close()
-            binds.append(f"{host}:443")
-        except OSError:
-            probe.close()
-            logger.warning("Port 443 is not available; API docs stay on the operator port")
+        binds.append(f"{host}:443")
     cfg.bind = binds
     cfg.certfile = certfile
     cfg.keyfile = keyfile
