@@ -1232,7 +1232,7 @@ function profileRenderLinks(links) {
         spotify: { id: 'spotify-link-action', fn: 'disconnectSpotify', href: 'spotifylink.php' },
         streamelements: { id: 'streamelements-link-action', fn: 'disconnectStreamelements', href: 'streamelements.php' },
         streamlabs: { id: 'streamlabs-link-action', fn: 'disconnectStreamlabs', href: 'streamlabs.php' },
-        youtube: { id: 'youtube-link-action', fn: 'disconnectYoutube', href: 'youtubelink.php' }
+        youtube: { id: 'youtube-link-action', fn: 'disconnectYoutube', href: 'streaming.php#youtube' }
     };
     Object.keys(map).forEach(function(key) {
         var el = document.getElementById(map[key].id);

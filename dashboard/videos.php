@@ -355,7 +355,7 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 								</button>
 							<?php endif; ?>
 						<?php else: ?>
-							<a class="sp-btn sp-btn-secondary sp-btn-sm" href="youtubelink.php">
+							<a class="sp-btn sp-btn-secondary sp-btn-sm" href="streaming.php#youtube">
 								<i class="fab fa-youtube mr-1"></i><?php echo htmlspecialchars(t('videos_connect_youtube'), ENT_QUOTES, 'UTF-8'); ?>
 							</a>
 						<?php endif; ?>

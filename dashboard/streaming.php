@@ -2,18 +2,21 @@
 require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-$today = new DateTime();
 
 require_once '/var/www/lib/require_auth.php';
-
-$pageTitle = t('streaming_settings_title');
-
-require_once "/var/www/config/db_connect.php";
-require_once "/var/www/config/stream.php";
+require_once '/var/www/config/db_connect.php';
+require_once '/var/www/config/stream.php';
+include '/var/www/config/twitch.php';
 include 'includes/userdata.php';
-include "includes/mod_access.php";
+include 'includes/mod_access.php';
 include 'includes/user_db_connect.php';
-session_write_close();
+require_once __DIR__ . '/includes/youtube.php';
+require_once __DIR__ . '/includes/stream_api_client.php';
+if (function_exists('botofthespecter_twitch_apply_db_override')) {
+    botofthespecter_twitch_apply_db_override($conn, $clientID, $clientSecret, $oauth);
+}
+
+$pageTitle = t('menu_streaming');
 
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
@@ -23,14 +26,183 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-if (!$is_admin && !$betaAccess && !in_array('streaming', $betaPrograms)) {
-    ob_start();
+require_once __DIR__ . '/includes/stream_hub_data.php';
+session_write_close();
+
+$storedByTwitchId = [];
+foreach ($libraryFiles as $stored) {
+    $tid = (string) ($stored['twitch_video_id'] ?? '');
+    if ($tid === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4(?:\.part)?$/i', (string) ($stored['name'] ?? ''), $m)) {
+        $tid = $m[1];
+    }
+    if ($tid !== '') {
+        $storedByTwitchId[$tid] = $stored;
+    }
+}
+foreach ($pullJobs as $job) {
+    $tid = (string) ($job['vod_id'] ?? '');
+    if ($tid !== '' && !isset($storedByTwitchId[$tid])) {
+        $storedByTwitchId[$tid] = [
+            'name' => $job['filename'] ?? '',
+            'is_partial' => ($job['status'] ?? '') === 'pulling',
+            'twitch_video_id' => $tid,
+        ];
+    }
+}
+$activePulls = array_values(array_filter($pullJobs, static function ($job) {
+    return is_array($job) && ($job['status'] ?? '') === 'pulling';
+}));
+$failedPulls = array_values(array_filter($pullJobs, static function ($job) {
+    return is_array($job) && ($job['status'] ?? '') === 'failed';
+}));
+
+ob_start();
+?>
+<?php if ($hubMessage): ?>
+    <?php
+        if ($hubMessageType === 'is-success') $hubAlert = 'sp-alert-success';
+        elseif ($hubMessageType === 'is-danger') $hubAlert = 'sp-alert-danger';
+        elseif ($hubMessageType === 'is-warning') $hubAlert = 'sp-alert-warning';
+        else $hubAlert = 'sp-alert-info';
     ?>
-    <div class="sp-card">
-        <div class="sp-card-header">
-            <div class="sp-card-title"><i class="fas fa-broadcast-tower"></i> <?php echo t('streaming_settings_title'); ?></div>
+    <div class="sp-alert <?php echo $hubAlert; ?> mb-4"><?php echo htmlspecialchars($hubMessage); ?></div>
+<?php endif; ?>
+<nav class="stream-hub-nav" aria-label="<?php echo htmlspecialchars(t('menu_streaming')); ?>">
+    <a href="#library"><?php echo t('stream_hub_nav_library'); ?></a>
+    <a href="#record"><?php echo t('stream_hub_nav_record'); ?></a>
+    <a href="#ingest"><?php echo t('stream_hub_nav_ingest'); ?></a>
+    <a href="#forward"><?php echo t('stream_hub_nav_forward'); ?></a>
+    <a href="#youtube"><?php echo t('stream_hub_nav_youtube'); ?></a>
+</nav>
+<?php include __DIR__ . '/includes/stream_storage_bar.php'; ?>
+
+<div class="sp-card mb-4" id="library">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-folder-open"></i> <?php echo t('stream_hub_library_heading'); ?></div>
+        <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
+            <span class="icon"><i class="fas fa-sync-alt"></i></span>
+            <span><?php echo t('recording_btn_refresh'); ?></span>
+        </button>
+    </div>
+    <div class="sp-card-body">
+        <div id="youtube-vod-notice"></div>
+        <p class="sp-help"><?php echo t('stream_hub_library_help'); ?></p>
+        <div id="stream-hub-pulls">
+            <?php foreach ($activePulls as $job): ?>
+                <?php
+                $pct = $job['percent'];
+                $pctVal = is_numeric($pct) ? max(0, min(100, (float) $pct)) : 0;
+                $label = (string) ($job['title'] ?: ($job['filename'] ?? $job['vod_id'] ?? ''));
+                ?>
+                <div class="media-storage-bar mb-4">
+                    <div class="media-storage-header">
+                        <span><?php echo htmlspecialchars($label); ?></span>
+                        <span><?php echo is_numeric($pct) ? htmlspecialchars((string) $pctVal) . '%' : t('youtube_vod_status_pulling'); ?></span>
+                    </div>
+                    <progress class="progress" value="<?php echo htmlspecialchars((string) $pctVal); ?>" max="100"></progress>
+                </div>
+            <?php endforeach; ?>
+            <?php foreach ($failedPulls as $job): ?>
+                <div class="sp-alert sp-alert-danger mb-4">
+                    <?php echo htmlspecialchars((string) ($job['title'] ?: ($job['filename'] ?? ''))); ?>
+                    — <?php echo t('youtube_vod_status_failed'); ?>
+                </div>
+            <?php endforeach; ?>
         </div>
-        <div class="sp-card-body">
+        <div class="youtube-vod-toolbar">
+            <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="youtube-vod-copy-links" disabled><?php echo t('youtube_vod_copy_links'); ?></button>
+        </div>
+        <div id="remote-files-container">
+            <?php if ($remoteFileError): ?>
+                <div class="sp-alert sp-alert-warning"><?php echo htmlspecialchars($remoteFileError); ?></div>
+            <?php elseif (!$libraryFiles): ?>
+                <p class="sp-help"><?php echo t('recording_error_no_files'); ?></p>
+            <?php else: ?>
+                <div class="sp-table-wrap">
+                    <table class="sp-table" id="stream-hub-files">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all" title="<?php echo htmlspecialchars(t('youtube_vod_select_all')); ?>"></th>
+                                <th><?php echo t('recording_th_file'); ?></th>
+                                <th><?php echo t('recording_th_type'); ?></th>
+                                <th><?php echo t('recording_th_size'); ?></th>
+                                <th><?php echo t('recording_th_expires'); ?></th>
+                                <th><?php echo t('recording_th_action'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($libraryFiles as $file): ?>
+                                <?php
+                                $displayTitle = recordingDisplayName($file['name'], $file['title'] ?? '');
+                                $namedUrl = (string) ($file['download_url'] ?? '');
+                                $canDl = empty($file['is_partial']) && strtolower((string) pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4';
+                                ?>
+                                <tr>
+                                    <td>
+                                        <?php if ($canDl && $namedUrl !== ''): ?>
+                                            <input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="<?php echo htmlspecialchars($namedUrl); ?>" data-vod-title="<?php echo htmlspecialchars($displayTitle); ?>" data-vod-name="<?php echo htmlspecialchars($file['name']); ?>">
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($displayTitle); ?></td>
+                                    <td>
+                                        <?php
+                                        if (!empty($file['is_partial'])) echo t('recording_type_in_progress');
+                                        elseif (($file['storage'] ?? '') === 's4') echo t('recording_type_extended');
+                                        else echo t('recording_type_file');
+                                        ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars(formatBytes((int) $file['size'])); ?></td>
+                                    <td>
+                                        <?php if (!empty($file['expires_unix'])): ?>
+                                            <span class="recording-countdown" data-expires="<?php echo (int) $file['expires_unix']; ?>">—</span>
+                                        <?php else: ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($canDl && $namedUrl !== ''): ?>
+                                            <a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($namedUrl); ?>"><?php echo t('recording_btn_download'); ?></a>
+                                            <?php if (!empty($file['can_extend'])): ?>
+                                                <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="<?php echo htmlspecialchars($file['name']); ?>"><?php echo t('recording_btn_extend'); ?></button>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<div class="sp-card mb-4" id="record">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-video"></i> <?php echo t('recording_card_title'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?php echo t('recording_auto_record_desc'); ?></p>
+        <form method="post" action="streaming.php#record">
+            <div class="sp-form-group youtube-toggle">
+                <label class="youtube-toggle">
+                    <input type="checkbox" name="auto_record" <?php echo $autoRecordEnabled ? 'checked' : ''; ?>>
+                    <?php echo t('recording_enable_channel_recording'); ?>
+                </label>
+            </div>
+            <button type="submit" name="save_recording_settings" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('recording_btn_save'); ?></button>
+        </form>
+    </div>
+</div>
+
+<div class="sp-card mb-4" id="ingest">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-satellite-dish"></i> <?php echo t('streaming_ingest_heading'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <?php if (!$canIngest): ?>
             <h2><?php echo t('streaming_beta_title'); ?></h2>
             <p><?php echo t('streaming_beta_description'); ?></p>
             <p><?php echo t('streaming_beta_request_access'); ?></p>
@@ -38,195 +210,536 @@ if (!$is_admin && !$betaAccess && !in_array('streaming', $betaPrograms)) {
                 <span class="icon"><i class="fas fa-headset"></i></span>
                 <span><?php echo t('streaming_beta_support_link'); ?></span>
             </a>
-        </div>
-    </div>
-    <?php
-    $content = ob_get_clean();
-    include 'layout.php';
-    exit();
-}
-
-$saveStatus = null;
-$twitchKey = '';
-$forwardToTwitch = 0;
-$settingsId = null;
-
-$loadStmt = $db->prepare("SELECT id, twitch_key, forward_to_twitch FROM streaming_settings ORDER BY id ASC LIMIT 1");
-if ($loadStmt) {
-    $loadStmt->execute();
-    $loadResult = $loadStmt->get_result();
-    if ($loadResult && $row = $loadResult->fetch_assoc()) {
-        $settingsId = (int) ($row['id'] ?? 0);
-        $twitchKey = (string) ($row['twitch_key'] ?? '');
-        $forwardToTwitch = (int) ($row['forward_to_twitch'] ?? 0);
-    }
-    $loadStmt->close();
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_streaming_settings'])) {
-    $twitchKey = trim((string) ($_POST['twitch_key'] ?? ''));
-    $forwardToTwitch = isset($_POST['forward_to_twitch']) ? 1 : 0;
-    $ok = false;
-    if ($settingsId) {
-        $saveStmt = $db->prepare("UPDATE streaming_settings SET twitch_key = ?, forward_to_twitch = ? WHERE id = ?");
-        if ($saveStmt) {
-            $saveStmt->bind_param("sii", $twitchKey, $forwardToTwitch, $settingsId);
-            $ok = $saveStmt->execute();
-            $saveStmt->close();
-        } else {
-            $ok = false;
-        }
-    } else {
-        $saveStmt = $db->prepare("INSERT INTO streaming_settings (twitch_key, forward_to_twitch) VALUES (?, ?)");
-        if ($saveStmt) {
-            $saveStmt->bind_param("si", $twitchKey, $forwardToTwitch);
-            $ok = $saveStmt->execute();
-            if ($ok) {
-                $settingsId = (int) $db->insert_id;
-            }
-            $saveStmt->close();
-        } else {
-            $ok = false;
-        }
-    }
-    $saveStatus = $ok
-        ? ['success' => true, 'message' => t('streaming_settings_saved_success')]
-        : ['success' => false, 'message' => t('streaming_settings_save_failed')];
-}
-
-$hasSlot = false;
-$quotaBytes = 0;
-$slotUserId = (int) ($user_id ?? ($_SESSION['user_id'] ?? 0));
-if ($slotUserId > 0) {
-    $slotStmt = $conn->prepare("SELECT quota_bytes, bonus_bytes FROM stream_storage_slots WHERE user_id = ? LIMIT 1");
-    if ($slotStmt) {
-        $slotStmt->bind_param("i", $slotUserId);
-        $slotStmt->execute();
-        $slotResult = $slotStmt->get_result();
-        if ($slotResult && $slotRow = $slotResult->fetch_assoc()) {
-            $hasSlot = true;
-            $rawQuota = $slotRow['quota_bytes'];
-            $quotaBytes = ($rawQuota === null) ? (100 * 1024 * 1024 * 1024) : (int) $rawQuota;
-            $quotaBytes = $quotaBytes === 0 ? 0 : $quotaBytes + (int) ($slotRow['bonus_bytes'] ?? 0);
-        }
-        $slotStmt->close();
-    }
-}
-
-$rtmpsUrl = rtrim((string) ($stream_rtmps_url ?? 'rtmps://syd1.stream.botofthespecter.com:1935/app'), '/');
-$specterKey = (string) ($api_key ?? ($_SESSION['api_key'] ?? ''));
-$unlimitedStorage = $hasSlot && $quotaBytes === 0;
-
-$streamApiBase = rtrim((string) ($stream_api_base ?? ''), '/');
-$streamApiTimeout = (int) ($stream_api_timeout ?? 30);
-require_once __DIR__ . '/includes/stream_api_client.php';
-$storageSummary = streamFetchStorage($streamApiBase, $specterKey, $streamApiTimeout);
-$storageUsedBytes = $storageSummary['used_bytes'];
-$storageQuotaBytes = $storageSummary['quota_bytes'];
-$storageUnlimited = $storageSummary['unlimited'] || $unlimitedStorage;
-
-ob_start();
-?>
-<?php if ($saveStatus): ?>
-    <div class="sp-alert <?= $saveStatus['success'] ? 'sp-alert-success' : 'sp-alert-danger' ?> mb-4">
-        <?= htmlspecialchars($saveStatus['message']) ?>
-    </div>
-<?php endif; ?>
-<div class="sp-alert sp-alert-success mb-4">
-    <?php echo t('streaming_access_confirmed_banner'); ?>
-</div>
-<?php if ($hasSlot): ?>
-    <div class="sp-alert sp-alert-info mb-4">
-        <?php echo $unlimitedStorage ? t('streaming_slot_unlimited') : t('streaming_slot_ok'); ?>
-    </div>
-<?php else: ?>
-    <div class="sp-alert sp-alert-warning mb-4">
-        <?php echo t('streaming_slot_none'); ?>
-    </div>
-<?php endif; ?>
-<?php include __DIR__ . '/includes/stream_storage_bar.php'; ?>
-<div class="sp-card mb-4">
-    <div class="sp-card-header">
-        <div class="sp-card-title"><i class="fas fa-satellite-dish"></i> <?php echo t('streaming_ingest_heading'); ?></div>
-    </div>
-    <div class="sp-card-body">
-        <p><?php echo t('streaming_ingest_help'); ?></p>
-        <div class="sp-form-group">
-            <label class="sp-label" for="rtmps-server"><?php echo t('streaming_rtmps_server_label'); ?></label>
-            <div class="sp-field-row">
-                <input class="sp-input w-100" id="rtmps-server" type="text" value="<?php echo htmlspecialchars($rtmpsUrl); ?>" readonly>
-                <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="rtmps-server"><?php echo t('streaming_copy'); ?></button>
-            </div>
-            <span class="sp-help"><?php echo t('streaming_obs_server_help'); ?></span>
-        </div>
-        <div class="sp-form-group">
-            <label class="sp-label" for="specter-stream-key"><?php echo t('streaming_specter_key_label'); ?></label>
-            <div class="sp-field-row">
-                <input class="sp-input w-100" id="specter-stream-key" type="password" value="<?php echo htmlspecialchars($specterKey); ?>" readonly autocomplete="off">
-                <button type="button" class="sp-btn sp-btn-secondary" id="toggle-specter-key" title="<?php echo htmlspecialchars(t('streaming_show_hide_twitch_key')); ?>"><i class="fas fa-eye"></i></button>
-                <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="specter-stream-key"><?php echo t('streaming_copy'); ?></button>
-            </div>
-            <span class="sp-help"><?php echo t('streaming_api_key_note'); ?></span>
-        </div>
-        <p class="sp-help"><?php echo t('streaming_sydney_only'); ?></p>
-        <p class="sp-help"><?php echo t('streaming_session_limit'); ?></p>
-        <p><a class="sp-btn sp-btn-info sp-btn-sm" href="recording.php"><i class="fas fa-video"></i> <?php echo t('streaming_recordings_link'); ?></a></p>
-    </div>
-</div>
-<div class="sp-card">
-    <div class="sp-card-header">
-        <div class="sp-card-title"><i class="fas fa-key"></i> <?php echo t('streaming_feature_stream_key_title'); ?></div>
-    </div>
-    <div class="sp-card-body">
-        <p><?php echo t('streaming_service_option_record_and_forward'); ?></p>
-        <form method="post" action="">
+        <?php else: ?>
+            <?php if ($hasSlot): ?>
+                <div class="sp-alert sp-alert-info mb-4"><?php echo $storageUnlimited ? t('streaming_slot_unlimited') : t('streaming_slot_ok'); ?></div>
+            <?php else: ?>
+                <div class="sp-alert sp-alert-warning mb-4"><?php echo t('streaming_slot_none'); ?></div>
+            <?php endif; ?>
+            <p><?php echo t('streaming_ingest_help'); ?></p>
             <div class="sp-form-group">
-                <label class="sp-label" for="twitch_key"><?php echo t('streaming_twitch_key_label'); ?></label>
+                <label class="sp-label" for="rtmps-server"><?php echo t('streaming_rtmps_server_label'); ?></label>
                 <div class="sp-field-row">
-                    <input class="sp-input w-100" id="twitch_key" name="twitch_key" type="password" value="<?php echo htmlspecialchars($twitchKey); ?>" autocomplete="off">
-                    <button type="button" class="sp-btn sp-btn-secondary" id="toggle-twitch-key" title="<?php echo htmlspecialchars(t('streaming_show_hide_twitch_key')); ?>"><i class="fas fa-eye"></i></button>
+                    <input class="sp-input w-100" id="rtmps-server" type="text" value="<?php echo htmlspecialchars($rtmpsUrl); ?>" readonly>
+                    <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="rtmps-server"><?php echo t('streaming_copy'); ?></button>
                 </div>
-                <span class="sp-help"><?php echo t('streaming_show_twitch_key_warning'); ?></span>
             </div>
             <div class="sp-form-group">
-                <label>
-                    <input type="checkbox" name="forward_to_twitch" value="1" <?php echo $forwardToTwitch ? 'checked' : ''; ?>>
-                    <?php echo t('streaming_forward_to_twitch_label'); ?>
-                </label>
+                <label class="sp-label" for="specter-stream-key"><?php echo t('streaming_specter_key_label'); ?></label>
+                <div class="sp-field-row">
+                    <input class="sp-input w-100" id="specter-stream-key" type="password" value="<?php echo htmlspecialchars($specterKey); ?>" readonly autocomplete="off">
+                    <button type="button" class="sp-btn sp-btn-secondary" id="toggle-specter-key" title="<?php echo htmlspecialchars(t('streaming_show_hide_twitch_key')); ?>"><i class="fas fa-eye"></i></button>
+                    <button type="button" class="sp-btn sp-btn-secondary" data-copy-target="specter-stream-key"><?php echo t('streaming_copy'); ?></button>
+                </div>
+                <span class="sp-help"><?php echo t('streaming_api_key_note'); ?></span>
             </div>
-            <button type="submit" name="save_streaming_settings" class="sp-btn sp-btn-primary">
-                <span class="icon"><i class="fas fa-save"></i></span>
-                <span><?php echo t('streaming_save_settings_btn'); ?></span>
-            </button>
+            <form method="post" action="streaming.php#ingest">
+                <div class="sp-form-group">
+                    <label class="sp-label" for="twitch_key"><?php echo t('streaming_twitch_key_label'); ?></label>
+                    <div class="sp-field-row">
+                        <input class="sp-input w-100" id="twitch_key" name="twitch_key" type="password" value="<?php echo htmlspecialchars($twitchKey); ?>" autocomplete="off">
+                        <button type="button" class="sp-btn sp-btn-secondary" id="toggle-twitch-key" title="<?php echo htmlspecialchars(t('streaming_show_hide_twitch_key')); ?>"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="sp-form-group">
+                    <label class="youtube-toggle">
+                        <input type="checkbox" name="forward_to_twitch" value="1" <?php echo $forwardToTwitch ? 'checked' : ''; ?>>
+                        <?php echo t('streaming_forward_to_twitch_label'); ?>
+                    </label>
+                </div>
+                <button type="submit" name="save_streaming_settings" class="sp-btn sp-btn-primary"><?php echo t('streaming_save_settings_btn'); ?></button>
+            </form>
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="sp-card mb-4" id="forward">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-broadcast-tower"></i> <?php echo t('recording_forward_card_title'); ?></div>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?php echo t('recording_forward_about_desc'); ?></p>
+        <form method="post" action="streaming.php#forward">
+            <?php foreach ($allowedForwardServices as $svc): ?>
+                <?php
+                $svcLabel = $forwardServiceLabels[$svc];
+                $svcIcon = $forwardServiceIcons[$svc];
+                $svcKey = htmlspecialchars($forwardSettings[$svc]['stream_key'] ?? '');
+                $svcEnabled = (int) ($forwardSettings[$svc]['enabled'] ?? 0);
+                ?>
+                <div class="sp-form-group stream-hub-forward-block">
+                    <div class="stream-hub-forward-head">
+                        <?php if ($svcIcon['type'] === 'img'): ?>
+                            <img src="<?php echo htmlspecialchars($svcIcon['value']); ?>" alt="" class="stream-hub-forward-icon">
+                        <?php endif; ?>
+                        <strong><?php echo htmlspecialchars($svcLabel); ?></strong>
+                    </div>
+                    <div class="sp-field-row">
+                        <input type="password" id="forward_<?php echo $svc; ?>_key_input" name="forward_<?php echo $svc; ?>_key" value="<?php echo $svcKey; ?>" placeholder="<?php echo htmlspecialchars(t('recording_forward_stream_key_placeholder')); ?>" autocomplete="off" class="sp-input w-100">
+                        <button type="button" class="sp-btn sp-btn-secondary" data-toggle-password="forward_<?php echo $svc; ?>_key_input"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <label class="youtube-toggle">
+                        <input type="checkbox" name="forward_<?php echo $svc; ?>_enabled" <?php echo $svcEnabled ? 'checked' : ''; ?>>
+                        <?php echo t('recording_forward_enable_label'); ?>
+                    </label>
+                </div>
+            <?php endforeach; ?>
+            <button type="submit" name="save_forward_settings" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('recording_btn_save_forwarding'); ?></button>
         </form>
     </div>
 </div>
+
+<div class="sp-card mb-4" id="youtube">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fab fa-youtube"></i> <?php echo t('youtube_link_page_title'); ?></div>
+        <?php if ($canYoutube && $linked): ?>
+            <span class="sp-badge sp-badge-green"><?php echo t('youtube_badge_connected'); ?></span>
+        <?php elseif ($canYoutube && $needsReauth): ?>
+            <span class="sp-badge sp-badge-amber"><?php echo t('youtube_badge_reauth'); ?></span>
+        <?php elseif ($canYoutube): ?>
+            <span class="sp-badge sp-badge-red"><?php echo t('youtube_badge_not_connected'); ?></span>
+        <?php else: ?>
+            <span class="sp-badge sp-badge-amber"><?php echo t('coming_soon'); ?></span>
+        <?php endif; ?>
+    </div>
+    <div class="sp-card-body">
+        <?php if (!$canYoutube): ?>
+            <p><?php echo t('youtube_public_coming_soon'); ?></p>
+        <?php else: ?>
+            <p class="sp-help"><?php echo t('youtube_link_intro'); ?></p>
+            <div class="sp-alert sp-alert-info"><?php echo t('youtube_privacy_audit_note'); ?></div>
+            <?php if ($linked): ?>
+                <div class="youtube-channel-row">
+                    <?php if (!empty($linkRow['channel_thumbnail'])): ?>
+                        <img class="youtube-channel-thumb" src="<?php echo htmlspecialchars($linkRow['channel_thumbnail']); ?>" alt="">
+                    <?php else: ?>
+                        <span class="youtube-channel-thumb youtube-channel-thumb-fallback"><i class="fab fa-youtube"></i></span>
+                    <?php endif; ?>
+                    <div>
+                        <p class="youtube-channel-title"><?php echo htmlspecialchars((string) ($linkRow['channel_title'] ?? '')); ?></p>
+                        <p class="sp-help"><?php echo t('youtube_channel_id_label'); ?> <code><?php echo htmlspecialchars((string) ($linkRow['channel_id'] ?? '')); ?></code></p>
+                    </div>
+                </div>
+                <?php if (!$isActAsUser): ?>
+                <form method="post" action="streaming.php#youtube" class="youtube-disconnect-form" onsubmit="return confirm(<?php echo json_encode(t('confirm_disconnect_youtube_text')); ?>);">
+                    <input type="hidden" name="action" value="disconnect">
+                    <button type="submit" class="sp-btn sp-btn-danger"><?php echo t('disconnect'); ?></button>
+                </form>
+                <?php endif; ?>
+            <?php else: ?>
+                <p><?php echo t('youtube_link_prompt'); ?></p>
+                <?php if (!$isActAsUser && youtube_configured()): ?>
+                    <a class="sp-btn sp-btn-primary" href="youtubelink.php?connect=1"><i class="fab fa-youtube"></i> <?php echo t('youtube_link_button'); ?></a>
+                <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($twitchVideosError): ?>
+                <div class="sp-alert sp-alert-warning"><?php echo htmlspecialchars($twitchVideosError); ?></div>
+            <?php elseif ($twitchVideos): ?>
+                <p class="sp-help"><?php echo t('youtube_vod_fetch_help'); ?></p>
+                <div class="sp-table-wrap">
+                    <table class="sp-table">
+                        <thead>
+                            <tr>
+                                <th><?php echo t('youtube_vod_th_title'); ?></th>
+                                <th><?php echo t('youtube_vod_th_duration'); ?></th>
+                                <th><?php echo t('youtube_vod_th_action'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($twitchVideos as $video): ?>
+                                <?php
+                                $vid = (string) ($video['id'] ?? '');
+                                $vtitle = (string) ($video['title'] ?? '');
+                                $vdur = (string) ($video['duration'] ?? '');
+                                $stored = $storedByTwitchId[$vid] ?? null;
+                                $pulling = false;
+                                foreach ($pullJobs as $job) {
+                                    if ((string) ($job['vod_id'] ?? '') === $vid && ($job['status'] ?? '') === 'pulling') {
+                                        $pulling = true;
+                                        break;
+                                    }
+                                }
+                                $ready = $stored && empty($stored['is_partial']) && !$pulling;
+                                ?>
+                                <tr data-vod-id="<?php echo htmlspecialchars($vid); ?>">
+                                    <td><?php echo htmlspecialchars($vtitle); ?></td>
+                                    <td><?php echo htmlspecialchars($vdur); ?></td>
+                                    <td>
+                                        <span data-vod-store>
+                                        <?php if ($pulling): ?>
+                                            <span class="sp-badge sp-badge-amber"><?php echo t('youtube_vod_status_pulling'); ?></span>
+                                        <?php elseif ($ready): ?>
+                                            <span class="sp-badge sp-badge-green"><?php echo t('youtube_vod_status_stored'); ?></span>
+                                        <?php elseif (!$isActAsUser): ?>
+                                            <form method="post" action="streaming.php#library" data-store-vod="1">
+                                                <input type="hidden" name="action" value="store_twitch_vod">
+                                                <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
+                                                <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
+                                                <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('youtube_vod_store_btn'); ?></button>
+                                            </form>
+                                        <?php endif; ?>
+                                        </span>
+                                        <?php if ($canUpload && !$isActAsUser && $vid !== ''): ?>
+                                            <form method="post" action="streaming.php#youtube">
+                                                <input type="hidden" name="action" value="send_twitch_youtube">
+                                                <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
+                                                <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
+                                                <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo t('videos_send_to_youtube'); ?></button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="sp-modal-backdrop" id="youtube-vod-links-modal">
+    <div class="sp-modal sp-modal-wide" role="dialog" aria-labelledby="youtube-vod-links-title">
+        <div class="sp-modal-head">
+            <h2 class="sp-modal-title" id="youtube-vod-links-title"><?php echo t('youtube_vod_links_heading'); ?></h2>
+            <button type="button" class="sp-modal-close" id="youtube-vod-links-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="sp-modal-body">
+            <p class="sp-help"><?php echo t('youtube_vod_links_help'); ?></p>
+            <textarea class="sp-textarea youtube-vod-links-box" id="youtube-vod-links-box" readonly rows="10"></textarea>
+            <div class="youtube-vod-toolbar">
+                <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="youtube-vod-links-copy"><?php echo t('youtube_vod_copy_links'); ?></button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    function bindToggle(btnId, inputId) {
-        var btn = document.getElementById(btnId);
-        var input = document.getElementById(inputId);
-        if (!btn || !input) return;
-        btn.addEventListener('click', function () {
-            var hide = input.type === 'text';
-            input.type = hide ? 'password' : 'text';
-            var icon = btn.querySelector('i');
-            if (icon) icon.className = hide ? 'fas fa-eye' : 'fas fa-eye-slash';
+(function () {
+    var I18N = {
+        pulling: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
+        stored: <?php echo json_encode(t('youtube_vod_status_stored')); ?>,
+        failed: <?php echo json_encode(t('youtube_vod_status_failed')); ?>,
+        download: <?php echo json_encode(t('recording_btn_download')); ?>,
+        extend: <?php echo json_encode(t('recording_btn_extend')); ?>,
+        inProgress: <?php echo json_encode(t('recording_type_in_progress')); ?>,
+        extended: <?php echo json_encode(t('recording_type_extended')); ?>,
+        file: <?php echo json_encode(t('recording_type_file')); ?>,
+        noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
+        expired: <?php echo json_encode(t('recording_countdown_expired')); ?>,
+        extendFailed: <?php echo json_encode(t('recording_extend_failed')); ?>,
+        storeFailed: <?php echo json_encode(t('youtube_vod_store_failed')); ?>,
+        copyLinks: <?php echo json_encode(t('youtube_vod_copy_links')); ?>,
+        linksNone: <?php echo json_encode(t('youtube_vod_links_none')); ?>,
+        linksCopied: <?php echo json_encode(t('youtube_vod_links_copied')); ?>,
+        storageUsedOf: <?php echo json_encode(t('recording_storage_used_of')); ?>,
+        storageUsedUnlimited: <?php echo json_encode(t('recording_storage_used_unlimited')); ?>
+    };
+    var helixTitles = <?php echo json_encode($helixTitles, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[<>&"]/g, function (ch) {
+            return ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch];
         });
     }
-    bindToggle('toggle-specter-key', 'specter-stream-key');
-    bindToggle('toggle-twitch-key', 'twitch_key');
-    document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var el = document.getElementById(btn.getAttribute('data-copy-target'));
-            if (!el) return;
-            var value = el.value || '';
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(value);
+    function formatBytes(bytes) {
+        bytes = Number(bytes) || 0;
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(1) + ' GB';
+    }
+    function displayName(file) {
+        var title = String((file && file.title) || '').trim();
+        if (title) return title.replace(/\.mp4$/i, '');
+        var id = file && file.twitch_video_id ? String(file.twitch_video_id) : '';
+        if (!id && file && file.name) {
+            var m = String(file.name).match(/^twitch-([0-9]{1,20})\.mp4/i);
+            if (m) id = m[1];
+        }
+        if (id && helixTitles[id]) return String(helixTitles[id]);
+        return String((file && file.name) || '').replace(/\.mp4(\.part)?$/i, '');
+    }
+    function namedDownloadUrl(url, title, diskName) {
+        url = String(url || '').split('?')[0];
+        if (!url) return '';
+        if (/\/[^/]+\.mp4\/[^/]+\.mp4$/i.test(url)) return url;
+        var pretty = String(title || diskName || 'video').replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim();
+        if (!pretty) pretty = 'video';
+        if (!/\.mp4$/i.test(pretty)) pretty += '.mp4';
+        return url.replace(/\/?$/, '') + '/' + encodeURIComponent(pretty);
+    }
+    function uniqueNamedUrls(items) {
+        var used = {};
+        return items.map(function (item) {
+            var url = namedDownloadUrl(item.url, item.title, item.name);
+            var parts = url.split('/');
+            var pretty = decodeURIComponent(parts[parts.length - 1] || 'video.mp4');
+            var stem = pretty.replace(/\.mp4$/i, '');
+            var key = pretty.toLowerCase();
+            var n = 2;
+            while (used[key]) {
+                pretty = stem + ' (' + n + ').mp4';
+                key = pretty.toLowerCase();
+                n += 1;
             }
+            used[key] = true;
+            parts[parts.length - 1] = encodeURIComponent(pretty);
+            return parts.join('/');
+        });
+    }
+    function formatCountdown(expiresUnix) {
+        var remaining = Math.floor(expiresUnix - (Date.now() / 1000));
+        if (remaining <= 0) return I18N.expired;
+        var days = Math.floor(remaining / 86400);
+        var hours = Math.floor((remaining % 86400) / 3600);
+        var mins = Math.floor((remaining % 3600) / 60);
+        var secs = remaining % 60;
+        var pad = function (v) { return String(v).padStart(2, '0'); };
+        if (days > 0) return days + 'd ' + pad(hours) + 'h ' + pad(mins) + 'm';
+        if (hours > 0) return hours + 'h ' + pad(mins) + 'm ' + pad(secs) + 's';
+        return mins + 'm ' + pad(secs) + 's';
+    }
+    function tickCountdowns() {
+        document.querySelectorAll('.recording-countdown').forEach(function (el) {
+            var expires = Number(el.getAttribute('data-expires') || 0);
+            if (expires) el.textContent = formatCountdown(expires);
+        });
+    }
+    function setNotice(message, kind) {
+        var el = document.getElementById('youtube-vod-notice');
+        if (!el) return;
+        if (!message) { el.innerHTML = ''; return; }
+        var cls = kind === 'success' ? 'sp-alert-success' : kind === 'warning' ? 'sp-alert-warning' : kind === 'danger' ? 'sp-alert-danger' : 'sp-alert-info';
+        el.innerHTML = '<div class="sp-alert ' + cls + '"></div>';
+        el.firstChild.textContent = message;
+    }
+    function syncCopyBtn() {
+        var btn = document.getElementById('youtube-vod-copy-links');
+        if (btn) btn.disabled = document.querySelectorAll('.youtube-vod-pick:checked').length === 0;
+    }
+    function updateStorageBar(storage) {
+        if (!storage) return;
+        var used = Number(storage.used_bytes) || 0;
+        var quota = Number(storage.quota_bytes) || 0;
+        var unlimited = !!storage.unlimited || quota === 0;
+        var text = document.getElementById('recording-storage-text');
+        var bar = document.getElementById('recording-storage-progress');
+        if (text) {
+            text.textContent = unlimited
+                ? I18N.storageUsedUnlimited.replace('%s', formatBytes(used))
+                : I18N.storageUsedOf.replace('%s', formatBytes(used)).replace('%s', formatBytes(quota));
+        }
+        if (bar) {
+            var visual = unlimited ? (100 * 1024 * 1024 * 1024) : Math.max(quota, 1);
+            bar.value = Math.min(100, Math.round((used / visual) * 1000) / 10);
+        }
+    }
+    function fillStoreCell(cell, mode) {
+        if (!cell) return;
+        if (mode === 'pulling') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.pulling) + '</span>';
+        if (mode === 'stored') cell.innerHTML = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
+    }
+    function render(data) {
+        if (!data) return;
+        updateStorageBar(data.storage);
+        var pullsHost = document.getElementById('stream-hub-pulls');
+        var filesHost = document.getElementById('remote-files-container');
+        var pulls = Array.isArray(data.pulls) ? data.pulls : [];
+        var files = Array.isArray(data.files) ? data.files : [];
+        var pullingIds = {};
+        var storedIds = {};
+        var html = '';
+        pulls.filter(function (j) { return j && j.status === 'pulling'; }).forEach(function (job) {
+            if (job.vod_id) pullingIds[String(job.vod_id)] = true;
+            var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
+            var label = job.title || job.filename || job.vod_id || '';
+            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : I18N.pulling;
+            html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' + escapeHtml(label) + '</span><span>' + escapeHtml(pctLabel) + '</span></div><progress class="progress" value="' + pct + '" max="100"></progress></div>';
+        });
+        pulls.filter(function (j) { return j && j.status === 'failed'; }).forEach(function (job) {
+            html += '<div class="sp-alert sp-alert-danger mb-4">' + escapeHtml(job.title || job.filename || '') + ' — ' + escapeHtml(I18N.failed) + '</div>';
+        });
+        if (pullsHost) pullsHost.innerHTML = html;
+        files.forEach(function (file) {
+            var id = file.twitch_video_id ? String(file.twitch_video_id) : '';
+            if (!id && file.name) {
+                var m = String(file.name).match(/^twitch-([0-9]{1,20})\.mp4/i);
+                if (m) id = m[1];
+            }
+            if (id && !file.is_partial) storedIds[id] = true;
+        });
+        document.querySelectorAll('tr[data-vod-id] [data-vod-store]').forEach(function (cell) {
+            var row = cell.closest('tr[data-vod-id]');
+            var id = row ? row.getAttribute('data-vod-id') : '';
+            if (id && pullingIds[id]) fillStoreCell(cell, 'pulling');
+            else if (id && storedIds[id]) fillStoreCell(cell, 'stored');
+        });
+        if (!filesHost) return;
+        var selected = {};
+        document.querySelectorAll('.youtube-vod-pick:checked').forEach(function (box) {
+            selected[box.getAttribute('data-vod-url') || ''] = true;
+        });
+        if (data.remoteFileError) {
+            filesHost.innerHTML = '<div class="sp-alert sp-alert-warning">' + escapeHtml(data.remoteFileError) + '</div>';
+            return;
+        }
+        if (!files.length) {
+            filesHost.innerHTML = '<p class="sp-help">' + escapeHtml(I18N.noFiles) + '</p>';
+            syncCopyBtn();
+            return;
+        }
+        var rows = '';
+        files.forEach(function (file) {
+            var title = displayName(file);
+            var named = namedDownloadUrl(file.download_url || '', title, file.name || '');
+            var canDl = !file.is_partial && /\.mp4$/i.test(String(file.name || ''));
+            var type = file.is_partial ? I18N.inProgress : (file.storage === 's4' ? I18N.extended : I18N.file);
+            var check = (canDl && named) ? '<input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="' + escapeHtml(named) + '" data-vod-title="' + escapeHtml(title) + '" data-vod-name="' + escapeHtml(file.name || '') + '">' : '';
+            var actions = '—';
+            if (canDl && named) {
+                actions = '<a class="sp-btn sp-btn-primary sp-btn-sm" href="' + escapeHtml(named) + '">' + escapeHtml(I18N.download) + '</a>';
+                if (file.can_extend) {
+                    actions += ' <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="' + escapeHtml(file.name || '') + '">' + escapeHtml(I18N.extend) + '</button>';
+                }
+            }
+            var expires = Number(file.expires_unix || file.expires_at_unix || 0);
+            var expCell = expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—';
+            rows += '<tr><td>' + check + '</td><td>' + escapeHtml(title) + '</td><td>' + escapeHtml(type) + '</td><td>' + formatBytes(file.size || file.size_bytes || 0) + '</td><td>' + expCell + '</td><td>' + actions + '</td></tr>';
+        });
+        filesHost.innerHTML = '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all"></th><th><?php echo htmlspecialchars(t('recording_th_file')); ?></th><th><?php echo htmlspecialchars(t('recording_th_type')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('recording_th_expires')); ?></th><th><?php echo htmlspecialchars(t('recording_th_action')); ?></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        document.querySelectorAll('.youtube-vod-pick').forEach(function (box) {
+            if (selected[box.getAttribute('data-vod-url') || '']) box.checked = true;
+        });
+        tickCountdowns();
+        syncCopyBtn();
+    }
+    function poll() {
+        fetch('streaming.php?ajax=vods&_ts=' + Date.now(), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(render)
+            .catch(function () {});
+    }
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form || form.getAttribute('data-store-vod') !== '1') return;
+        event.preventDefault();
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
+        fetch('streaming.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body: new FormData(form)
+        }).then(function (response) {
+            return response.json().then(function (json) { return json || {}; }).catch(function () { return {}; });
+        }).then(function (json) {
+            var ok = json.ok === true;
+            setNotice(json.message || (ok ? '' : I18N.storeFailed), ok ? 'success' : (json.status === 'full' ? 'warning' : 'danger'));
+            if (ok) {
+                fillStoreCell(form.closest('[data-vod-store]'), json.status === 'stored' ? 'stored' : 'pulling');
+                poll();
+            } else if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('sp-btn-loading');
+            }
+        }).catch(function () {
+            setNotice(I18N.storeFailed, 'danger');
+            if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
         });
     });
-});
+    document.addEventListener('change', function (event) {
+        var target = event.target;
+        if (!target) return;
+        if (target.id === 'youtube-vod-select-all') {
+            document.querySelectorAll('.youtube-vod-pick').forEach(function (box) { box.checked = target.checked; });
+        }
+        if (target.id === 'youtube-vod-select-all' || (target.classList && target.classList.contains('youtube-vod-pick'))) syncCopyBtn();
+    });
+    document.addEventListener('click', function (event) {
+        var ext = event.target && event.target.closest('[data-extend-file]');
+        if (ext && !ext.disabled) {
+            var fileName = ext.getAttribute('data-extend-file');
+            ext.disabled = true;
+            fetch('streaming.php?extend=1&file=' + encodeURIComponent(fileName), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+                .then(function (result) {
+                    if (!result.ok || !result.body || !result.body.ok) throw new Error('extend');
+                    poll();
+                })
+                .catch(function () { ext.disabled = false; window.alert(I18N.extendFailed); });
+            return;
+        }
+        if (event.target && event.target.closest('#youtube-vod-copy-links')) {
+            event.preventDefault();
+            var items = [];
+            document.querySelectorAll('.youtube-vod-pick:checked').forEach(function (box) {
+                items.push({ url: box.getAttribute('data-vod-url') || '', title: box.getAttribute('data-vod-title') || '', name: box.getAttribute('data-vod-name') || '' });
+            });
+            if (!items.length) { setNotice(I18N.linksNone, 'warning'); return; }
+            var modal = document.getElementById('youtube-vod-links-modal');
+            var box = document.getElementById('youtube-vod-links-box');
+            if (modal && box) {
+                box.value = uniqueNamedUrls(items).join('\n');
+                modal.classList.add('is-active');
+                box.select();
+            }
+            return;
+        }
+        if (event.target && (event.target.id === 'youtube-vod-links-close' || event.target.id === 'youtube-vod-links-modal')) {
+            var modalClose = document.getElementById('youtube-vod-links-modal');
+            if (modalClose) modalClose.classList.remove('is-active');
+        }
+        if (event.target && event.target.id === 'youtube-vod-links-copy') {
+            var area = document.getElementById('youtube-vod-links-box');
+            if (area && navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(area.value).then(function () { setNotice(I18N.linksCopied, 'success'); });
+            }
+        }
+        var refresh = event.target && event.target.closest('#refresh-remote-files-btn');
+        if (refresh) { event.preventDefault(); poll(); }
+        var toggle = event.target && event.target.closest('[data-toggle-password]');
+        if (toggle) {
+            var inp = document.getElementById(toggle.getAttribute('data-toggle-password'));
+            if (inp) {
+                inp.type = inp.type === 'password' ? 'text' : 'password';
+                var icon = toggle.querySelector('i');
+                if (icon) icon.className = inp.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+            }
+        }
+        var copyBtn = event.target && event.target.closest('[data-copy-target]');
+        if (copyBtn) {
+            var el = document.getElementById(copyBtn.getAttribute('data-copy-target'));
+            if (el && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.value || '');
+        }
+        if (event.target && (event.target.id === 'toggle-specter-key' || event.target.closest('#toggle-specter-key'))) {
+            var keyInp = document.getElementById('specter-stream-key');
+            var tbtn = document.getElementById('toggle-specter-key');
+            if (keyInp && tbtn) {
+                keyInp.type = keyInp.type === 'password' ? 'text' : 'password';
+                var ic = tbtn.querySelector('i');
+                if (ic) ic.className = keyInp.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+            }
+        }
+        if (event.target && (event.target.id === 'toggle-twitch-key' || event.target.closest('#toggle-twitch-key'))) {
+            var tkey = document.getElementById('twitch_key');
+            var tb = document.getElementById('toggle-twitch-key');
+            if (tkey && tb) {
+                tkey.type = tkey.type === 'password' ? 'text' : 'password';
+                var ic2 = tb.querySelector('i');
+                if (ic2) ic2.className = tkey.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+            }
+        }
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            var modal = document.getElementById('youtube-vod-links-modal');
+            if (modal) modal.classList.remove('is-active');
+        }
+    });
+    setInterval(tickCountdowns, 1000);
+    tickCountdowns();
+    setInterval(poll, 5000);
+    syncCopyBtn();
+})();
 </script>
 <?php
 $content = ob_get_clean();
