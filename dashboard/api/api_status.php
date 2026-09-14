@@ -150,13 +150,13 @@ $serviceMap = [
     ],
     'streamingServiceWest' => [
         'name' => 'US-WEST-1 Streaming Service',
-        'host' => 'us-west-1.botofthespecter.video',
+        'host' => 'usw1.stream.botofthespecter.com',
         'port' => 1935,
         'disabled' => true
     ],
     'streamingServiceEast' => [
         'name' => 'US-EAST-1 Streaming Service',
-        'host' => 'us-east-1.botofthespecter.video',
+        'host' => 'use1.stream.botofthespecter.com',
         'port' => 1935,
         'disabled' => true
     ]

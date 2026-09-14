@@ -30,9 +30,9 @@ $BOTS_SSO_TARGETS = [
     'roadmap'         => 'https://roadmap.botofthespecter.com/login.php',
     'admin'           => 'https://admin.botofthespecter.com/login.php',
     'rtmp-sydney'     => 'https://syd1.stream.botofthespecter.com/sso/login',
-    'rtmp-us-east'    => 'https://us-east-1.botofthespecter.video/sso/login',
-    'rtmp-us-west'    => 'https://us-west-1.botofthespecter.video/sso/login',
-    'rtmp-eu-central' => 'https://eu-central-1.botofthespecter.video/sso/login',
+    'rtmp-us-east'    => 'https://use1.stream.botofthespecter.com/sso/login',
+    'rtmp-us-west'    => 'https://usw1.stream.botofthespecter.com/sso/login',
+    'rtmp-eu-central' => 'https://euc1.stream.botofthespecter.com/sso/login',
 ];
 
 $target = isset($_GET['target']) ? (string)$_GET['target'] : '';
