@@ -388,7 +388,7 @@ def _hms_to_s(h, m, s):
     return int(h) * 3600 + int(m) * 60 + float(s)
 
 
-async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None):
+async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None, on_pid=None):
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     part_path = dest_path + ".part"
     if os.path.isfile(part_path):
@@ -421,7 +421,10 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None):
         *cmd,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
     )
+    if on_pid:
+        on_pid(proc.pid)
     buf = b""
     duration_s = None
     tail = []
