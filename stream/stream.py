@@ -158,6 +158,9 @@ FFMPEG_VERSION: str = "unknown"
 STREAM_STORAGE_MAX_SLOTS = int(os.getenv("STREAM_STORAGE_MAX_SLOTS") or "5")
 STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
 VODS_CDN_BASE = (os.getenv("VODS_CDN_BASE") or "https://vods.botofthespecter.com").rstrip("/")
+DASHBOARD_HOME_URL = "https://dashboard.botofthespecter.com"
+FAVICON_URL = "https://cdn.botofthespecter.com/favicon.ico"
+LOGO_URL = "https://cdn.botofthespecter.com/logo.png"
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
 STREAM_DIR = os.path.dirname(os.path.abspath(__file__))
 DOCS_UI_DIR = os.path.join(STREAM_DIR, "docs_ui")
@@ -1185,29 +1188,45 @@ def create_ssl_context(server_location):
     return context
 
 _BASE_CSS = """
-  body { font-family: ui-sans-serif, system-ui, sans-serif; background: #0e1116; color: #e6edf3; margin: 0; padding: 24px; }
-  h1 { margin: 0 0 4px 0; font-size: 20px; }
-  h2 { margin: 24px 0 6px 0; font-size: 15px; color: #e6edf3; }
-  .meta { color: #8b949e; font-size: 12px; margin-bottom: 14px; }
-  nav { display: flex; gap: 18px; margin: 4px 0 18px 0; border-bottom: 1px solid #21262d; }
-  nav a { color: #8b949e; text-decoration: none; padding: 6px 0 8px 0; font-size: 13px; }
-  nav a:hover { color: #e6edf3; }
-  nav a.active { color: #e6edf3; border-bottom: 2px solid #58a6ff; }
+  body { font-family: ui-sans-serif, system-ui, sans-serif; background: #0d0d0f; color: #e8e8f0; margin: 0; padding: 24px; }
+  h1 { margin: 0 0 4px 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  h1 img { width: 28px; height: 28px; }
+  h2 { margin: 24px 0 6px 0; font-size: 15px; color: #e8e8f0; }
+  .meta { color: #a8a8bc; font-size: 12px; margin-bottom: 14px; }
+  nav { display: flex; gap: 18px; margin: 4px 0 18px 0; border-bottom: 1px solid rgba(255,255,255,0.07); align-items: center; flex-wrap: wrap; }
+  nav a { color: #a8a8bc; text-decoration: none; padding: 6px 0 8px 0; font-size: 13px; }
+  nav a:hover { color: #e8e8f0; }
+  nav a.active { color: #e8e8f0; border-bottom: 2px solid #7c5cbf; }
+  nav a.docs { color: #9070d8; font-weight: 600; }
+  .nav-right { margin-left: auto; display: flex; gap: 18px; align-items: center; }
+  .who { color: #6c6c84; font-size: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #21262d; vertical-align: top; }
-  th { font-weight: 600; color: #8b949e; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
-  tr:hover td { background: #161b22; }
-  code { font-family: ui-monospace, SFMono-Regular, monospace; background: #161b22; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
-  .empty { color: #8b949e; padding: 32px; text-align: center; border: 1px dashed #21262d; border-radius: 4px; }
-  .yes { color: #3fb950; }
-  .no  { color: #6e7681; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.07); vertical-align: top; }
+  th { font-weight: 600; color: #a8a8bc; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
+  tr:hover td { background: #1a1a20; }
+  code { font-family: ui-monospace, SFMono-Regular, monospace; background: #16161c; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+  .empty { color: #a8a8bc; padding: 32px; text-align: center; border: 1px dashed rgba(255,255,255,0.07); border-radius: 6px; }
+  .yes { color: #3ecf8e; }
+  .no  { color: #6c6c84; }
   section { margin-bottom: 24px; }
+  a.dl { color: #7c5cbf; text-decoration: none; }
+  a.dl:hover { color: #9070d8; }
 """
 
 _NAV_HTML = """  <nav>
     <a href="/" class="{{ 'active' if page == 'dashboard' else '' }}">Live sessions</a>
     <a href="/recordings" class="{{ 'active' if page == 'recordings' else '' }}">Recordings</a>
+    <a href="/docs" class="docs">API docs</a>
+    <span class="nav-right">
+      {% if viewer_name %}<span class="who">{{ viewer_name }}</span>{% endif %}
+      <a href="https://dashboard.botofthespecter.com">Dashboard</a>
+      <a href="/logout">Sign out</a>
+    </span>
   </nav>
+"""
+
+_HEAD_ICONS = """<link rel="icon" href="https://cdn.botofthespecter.com/favicon.ico">
+<link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 """
 
 DASHBOARD_TEMPLATE = """<!doctype html>
@@ -1216,43 +1235,45 @@ DASHBOARD_TEMPLATE = """<!doctype html>
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="5">
 <title>{{ server_title }}</title>
-<style>""" + _BASE_CSS + """</style>
+""" + _HEAD_ICONS + """<style>""" + _BASE_CSS + """</style>
 </head>
 <body>
-  <h1>{{ server_title }}</h1>
+  <h1><img src="https://cdn.botofthespecter.com/logo.png" alt=""> {{ server_title }}</h1>
 """ + _NAV_HTML + """  <div class="meta">
+    {% if is_admin %}Operator view · {% endif %}
     {{ sessions|length }} active session{{ '' if sessions|length == 1 else 's' }} ·
     refreshed {{ generated_at }} (auto-refresh 5s)
+    · <a href="/docs">API docs</a>
   </div>
   {% if sessions %}
   <table>
     <thead>
       <tr>
-        <th>API key (stream key)</th>
+        {% if is_admin %}<th>Stream key</th>{% endif %}
         <th>User</th>
-        <th>Incoming peer</th>
+        {% if is_admin %}<th>Incoming peer</th>{% endif %}
         <th>Connected</th>
         <th>FLV size</th>
         <th>Outgoing target</th>
-        <th>FFmpeg PID</th>
+        {% if is_admin %}<th>FFmpeg PID</th>{% endif %}
         <th>Forwarding for</th>
       </tr>
     </thead>
     <tbody>
       {% for s in sessions %}
       <tr>
-        <td><code>{{ s.publishing_name }}</code></td>
+        {% if is_admin %}<td><code>{{ s.publishing_name }}</code></td>{% endif %}
         <td>{{ s.username }}</td>
-        <td><code>{{ s.peer }}</code></td>
+        {% if is_admin %}<td><code>{{ s.peer }}</code></td>{% endif %}
         <td>{{ s.connected_for }}</td>
         <td>{{ s.flv_size }}</td>
         {% if s.forwarding_target %}
           <td class="yes"><code>{{ s.forwarding_target }}</code></td>
-          <td>{{ s.forwarding_pid }}</td>
+          {% if is_admin %}<td>{{ s.forwarding_pid }}</td>{% endif %}
           <td>{{ s.forwarding_duration }}</td>
         {% else %}
           <td class="no">not forwarding</td>
-          <td class="no">&mdash;</td>
+          {% if is_admin %}<td class="no">&mdash;</td>{% endif %}
           <td class="no">&mdash;</td>
         {% endif %}
       </tr>
@@ -1260,7 +1281,7 @@ DASHBOARD_TEMPLATE = """<!doctype html>
     </tbody>
   </table>
   {% else %}
-    <div class="empty">No active sessions on this server.</div>
+    <div class="empty">{% if is_admin %}No active sessions on this server.{% else %}You are not publishing to this Specter ingest right now.{% endif %}</div>
   {% endif %}
 </body>
 </html>
@@ -1272,14 +1293,16 @@ RECORDINGS_TEMPLATE = """<!doctype html>
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="30">
 <title>{{ server_title }} &mdash; Recordings</title>
-<style>""" + _BASE_CSS + """</style>
+""" + _HEAD_ICONS + """<style>""" + _BASE_CSS + """</style>
 </head>
 <body>
-  <h1>{{ server_title }}</h1>
+  <h1><img src="https://cdn.botofthespecter.com/logo.png" alt=""> {{ server_title }}</h1>
 """ + _NAV_HTML + """  <div class="meta">
-    Recorder storage: <code>{{ root_path }}</code> ·
+    {% if is_admin %}Recorder storage: <code>{{ root_path }}</code> ·
     {{ users|length }} user folder{{ '' if users|length == 1 else 's' }} ·
+    {% endif %}
     refreshed {{ generated_at }} (auto-refresh 30s)
+    · <a href="/docs">API docs</a>
   </div>
   {% if users %}
     {% for u in users %}
@@ -1287,13 +1310,20 @@ RECORDINGS_TEMPLATE = """<!doctype html>
       <h2>{{ u.username }}</h2>
       <div class="meta">{{ u.file_count }} file{{ '' if u.file_count == 1 else 's' }} &middot; {{ u.total_size_str }}</div>
       <table>
-        <thead><tr><th>File</th><th>Size</th><th>Modified</th></tr></thead>
+        <thead><tr><th>File</th><th>Size</th><th>Modified</th><th></th></tr></thead>
         <tbody>
           {% for f in u.files %}
           <tr>
-            <td><code>{{ f.name }}</code></td>
+            <td>{{ f.display_name }}</td>
             <td>{{ f.size_str }}</td>
             <td>{{ f.mtime_str }}</td>
+            <td>
+              {% if f.download_url %}
+                <a class="dl" href="{{ f.download_url }}">Download</a>
+              {% elif f.is_partial %}
+                in progress
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -1301,7 +1331,7 @@ RECORDINGS_TEMPLATE = """<!doctype html>
     </section>
     {% endfor %}
   {% else %}
-    <div class="empty">No recordings found at <code>{{ root_path }}</code>.</div>
+    <div class="empty">{% if is_admin %}No recordings found at <code>{{ root_path }}</code>.{% else %}No recordings stored for your channel on this server yet.{% endif %}</div>
   {% endif %}
 </body>
 </html>
@@ -1334,6 +1364,8 @@ def list_recorder_files(root_path: str) -> list[dict]:
         return []
     users = []
     for entry in entries:
+        if entry.startswith("_") or not re.match(r"^[a-zA-Z0-9_]{1,64}$", entry):
+            continue
         user_dir = os.path.join(root_path, entry)
         if not os.path.isdir(user_dir):
             continue
@@ -1503,6 +1535,68 @@ def list_user_recording_files(root_path: str, username: str) -> list[dict]:
         })
     files.sort(key=lambda f: f["mtime"], reverse=True)
     return files
+
+
+def _recording_display_name(username: str, filename: str, root_path: str) -> str:
+    name = filename or ""
+    match = re.match(r"^twitch-([0-9]{1,20})\.mp4(?:\.part)?$", name, re.I)
+    if match:
+        title = _vod_title_from_sidecar(os.path.join(root_path, username), match.group(1))
+        if title:
+            return title
+    base = name
+    if base.lower().endswith(".part"):
+        base = base[:-5]
+    if base.lower().endswith(".mp4"):
+        base = base[:-4]
+    return base or name
+
+
+def _ui_recording_users(root_path: str, only_username: str | None = None) -> list[dict]:
+    if only_username:
+        raw_files = list_user_recording_files(root_path, only_username)
+        groups = [{
+            "username": only_username,
+            "files": raw_files,
+            "total_size": sum(int(f.get("size") or 0) for f in raw_files),
+            "file_count": len(raw_files),
+        }]
+    else:
+        groups = list_recorder_files(root_path)
+    out = []
+    for group in groups:
+        username = group["username"]
+        files = []
+        total = 0
+        for item in group["files"]:
+            name = item["name"]
+            if name.endswith(_RECORDING_SKIP_SUFFIXES):
+                continue
+            is_partial = bool(item.get("is_partial")) or name.endswith(".part")
+            size = int(item.get("size") or 0)
+            total += size
+            files.append({
+                "name": name,
+                "display_name": _recording_display_name(username, name, root_path),
+                "size": size,
+                "size_str": _humanize_bytes(float(size)),
+                "mtime": item.get("mtime"),
+                "mtime_str": datetime.datetime.fromtimestamp(item["mtime"]).strftime("%Y-%m-%d %H:%M:%S") if item.get("mtime") else "—",
+                "is_partial": is_partial,
+                "download_url": None if is_partial else vod_cdn_url(username, name),
+            })
+        files.sort(key=lambda f: f.get("mtime") or 0, reverse=True)
+        if only_username and not files:
+            continue
+        out.append({
+            "username": username,
+            "files": files,
+            "total_size": total,
+            "total_size_str": _humanize_bytes(float(total)),
+            "file_count": len(files),
+        })
+    return out
+
 
 async def _detect_ffmpeg_version() -> str:
     try:
@@ -1763,15 +1857,31 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
     async def docs_static(filename):
         return await send_from_directory(DOCS_UI_DIR, filename)
 
+    @app.get("/favicon.ico")
+    async def favicon():
+        return redirect(FAVICON_URL)
+
+    def _viewer_context():
+        username = (session.get("username") or "").strip()
+        display = (session.get("display_name") or username).strip()
+        return {
+            "is_admin": bool(session.get("is_admin")),
+            "username": username,
+            "viewer_name": display or username,
+        }
+
     @app.get("/")
     @_require_sso_session
     async def dashboard():
         now = datetime.datetime.now()
+        viewer = _viewer_context()
         rows = []
         for s in session_registry.snapshot():
+            session_user = (s.get("username") or "").strip()
+            if not viewer["is_admin"] and session_user.lower() != viewer["username"].lower():
+                continue
             connected_for = _humanize_duration(now - s["connected_at"])
             publishing = s["publishing_name"] or "(handshake)"
-            username = s["username"] or "-"
             flv_size_str = "-"
             flv = s["flv_file_path"]
             if flv and os.path.exists(flv):
@@ -1787,7 +1897,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 fwd_duration = None
             rows.append({
                 "publishing_name": publishing,
-                "username": username,
+                "username": session_user or "-",
                 "peer": s["peer"],
                 "connected_for": connected_for,
                 "flv_size": flv_size_str,
@@ -1802,18 +1912,17 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             sessions=rows,
             generated_at=now.strftime("%Y-%m-%d %H:%M:%S"),
             page="dashboard",
+            is_admin=viewer["is_admin"],
+            viewer_name=viewer["viewer_name"],
         )
 
     @app.get("/recordings")
     @_require_sso_session
     async def recordings():
         now = datetime.datetime.now()
-        users = list_recorder_files(recorder_storage_path)
-        for u in users:
-            u["total_size_str"] = _humanize_bytes(float(u["total_size"]))
-            for f in u["files"]:
-                f["size_str"] = _humanize_bytes(float(f["size"]))
-                f["mtime_str"] = datetime.datetime.fromtimestamp(f["mtime"]).strftime("%Y-%m-%d %H:%M:%S")
+        viewer = _viewer_context()
+        only = None if viewer["is_admin"] else viewer["username"]
+        users = _ui_recording_users(recorder_storage_path, only)
         return await render_template_string(
             RECORDINGS_TEMPLATE,
             server_title=server_title,
@@ -1821,6 +1930,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             root_path=recorder_storage_path,
             generated_at=now.strftime("%Y-%m-%d %H:%M:%S"),
             page="recordings",
+            is_admin=viewer["is_admin"],
+            viewer_name=viewer["viewer_name"],
         )
 
     @app.get("/api/sessions")
@@ -2130,7 +2241,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
     @app.get("/logout")
     async def logout():
         session.clear()
-        return redirect("/")
+        return redirect(DASHBOARD_HOME_URL)
 
     return app
 
