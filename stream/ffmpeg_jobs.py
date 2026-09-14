@@ -95,6 +95,133 @@ def cmdline_has(pid: int, needle: str) -> bool:
     return needle in cmd
 
 
+def _path_needles(path: str) -> list[str]:
+    if not path:
+        return []
+    abs_path = os.path.abspath(path)
+    names = {path, abs_path, os.path.basename(path)}
+    extra = set()
+    for item in names:
+        if item.endswith(".part"):
+            extra.add(item[:-5])
+        else:
+            extra.add(item + ".part")
+    names.update(extra)
+    return [item for item in names if item]
+
+
+def find_ffmpeg_pid_for_path(path: str) -> Optional[int]:
+    """Return the PID of a live ffmpeg whose cmdline points at this file or .part."""
+    needles = _path_needles(path)
+    if not needles or not os.path.isdir("/proc"):
+        return None
+    try:
+        for name in os.listdir("/proc"):
+            if not name.isdigit():
+                continue
+            pid = int(name)
+            try:
+                comm = open(f"/proc/{pid}/comm", encoding="utf-8").read().strip()
+            except OSError:
+                continue
+            if comm != "ffmpeg":
+                continue
+            cmd = proc_cmdline(pid)
+            for needle in needles:
+                if needle in cmd:
+                    return pid
+    except OSError:
+        return None
+    return None
+
+
+_DETACHED_FFMPEG = {}
+
+
+def spawn_detached_ffmpeg(cmd: list, log_path: str) -> int:
+    """Start ffmpeg in its own session. Python must not kill this child on exit."""
+    directory = os.path.dirname(log_path) or "."
+    os.makedirs(directory, exist_ok=True)
+    log_file = open(log_path, "ab", buffering=0)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+        )
+    finally:
+        log_file.close()
+    _DETACHED_FFMPEG[int(proc.pid)] = proc
+    return int(proc.pid)
+
+
+def ffmpeg_returncode(pid: Optional[int]) -> Optional[int]:
+    if not pid:
+        return None
+    proc = _DETACHED_FFMPEG.get(int(pid))
+    if proc is None:
+        return None
+    return proc.poll()
+
+
+def ffmpeg_log_finished_ok(log_path: str) -> Optional[bool]:
+    try:
+        size = os.path.getsize(log_path)
+        with open(log_path, "rb") as handle:
+            if size > 8192:
+                handle.seek(size - 8192)
+            tail = handle.read().decode("utf-8", "replace").lower()
+    except OSError:
+        return None
+    if "conversion failed" in tail or "error opening input" in tail:
+        return False
+    if "muxing overhead" in tail or "moving the moov atom" in tail:
+        return True
+    return None
+
+
+_DURATION_RE = re.compile(rb"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+_TIME_RE = re.compile(rb"time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+
+def _hms_to_s(match: re.Match) -> float:
+    return int(match.group(1)) * 3600 + int(match.group(2)) * 60 + float(match.group(3))
+
+
+def ffmpeg_log_progress(log_path: str) -> dict:
+    out = {"percent": None, "current_s": None, "duration_s": None}
+    try:
+        size = os.path.getsize(log_path)
+        with open(log_path, "rb") as handle:
+            head = handle.read(4096)
+            if size > 8192:
+                handle.seek(size - 8192)
+            tail = handle.read() if size > 4096 else head
+    except OSError:
+        return out
+    duration_s = None
+    dm = _DURATION_RE.search(head) or _DURATION_RE.search(tail)
+    if dm:
+        duration_s = _hms_to_s(dm)
+        out["duration_s"] = duration_s
+    times = list(_TIME_RE.finditer(tail))
+    if times:
+        current_s = _hms_to_s(times[-1])
+        out["current_s"] = current_s
+        if duration_s:
+            out["percent"] = max(0.0, min(100.0, current_s / duration_s * 100.0))
+    return out
+
+
+def pull_ffmpeg_log_path(dest: str) -> str:
+    if dest.lower().endswith(".mp4"):
+        return dest[:-4] + ".ffmpeg.log"
+    return dest + ".ffmpeg.log"
+
+
 class AttachedProcess:
     """Stand-in for subprocess.Popen after we reattach to a surviving ffmpeg."""
 
