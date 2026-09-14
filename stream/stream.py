@@ -21,7 +21,7 @@ from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
 from quart import Quart, render_template_string, request, jsonify, redirect, session, send_file, send_from_directory
-from ffmpeg_jobs import atomic_write_json, cmdline_has, load_json, pid_alive
+from ffmpeg_jobs import atomic_write_json, cmdline_has, load_json, pid_alive, remove_media_and_sidecars
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -1852,7 +1852,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 pass
             return jsonify({"error": "db_failed"}), 500
         try:
-            os.remove(path)
+            remove_media_and_sidecars(path)
         except OSError as e:
             logger.warning(f"Could not remove local VOD after extend {path}: {e}")
         return jsonify({

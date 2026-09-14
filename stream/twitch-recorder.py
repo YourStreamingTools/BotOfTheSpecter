@@ -41,7 +41,16 @@ import time
 import subprocess
 import datetime
 from zoneinfo import ZoneInfo
-from ffmpeg_jobs import AttachedProcess, atomic_write_json, cmdline_has, load_json, pid_alive
+from ffmpeg_jobs import (
+    AttachedProcess,
+    atomic_write_json,
+    cmdline_has,
+    is_sidecar_name,
+    load_json,
+    pid_alive,
+    remove_media_and_sidecars,
+    sidecar_paths_for_media,
+)
 import random
 import logging
 from logging.handlers import RotatingFileHandler
@@ -795,13 +804,42 @@ class RecordChecker:
             for rec in self.active_recordings.values()
             if rec.get("filename")
         }
+        active_sidecars = set()
+        for rec_path in list(active_paths):
+            active_sidecars.update(sidecar_paths_for_media(rec_path))
         if os.path.isdir(self.root_path):
-            for current_root, _, filenames in os.walk(self.root_path):
+            for current_root, dirnames, filenames in os.walk(self.root_path):
+                dirnames[:] = [d for d in dirnames if d != "_jobs"]
+                if os.path.basename(current_root) == "_jobs":
+                    continue
                 for filename in filenames:
                     file_path = os.path.join(current_root, filename)
-                    if file_path in active_paths:
+                    if file_path in active_paths or file_path in active_sidecars:
                         continue
                     try:
+                        if filename.lower().endswith(".mp4"):
+                            if os.path.getmtime(file_path) < cutoff_timestamp:
+                                removed_count += remove_media_and_sidecars(file_path)
+                            continue
+                        if filename.endswith(".fwd.log"):
+                            if os.path.getmtime(file_path) < cutoff_timestamp:
+                                os.remove(file_path)
+                                removed_count += 1
+                            continue
+                        if is_sidecar_name(filename):
+                            if filename.endswith(".ffmpeg.log"):
+                                media = file_path[: -len(".ffmpeg.log")] + ".mp4"
+                            elif filename.endswith(".ytdlp.log"):
+                                media = file_path[: -len(".ytdlp.log")] + ".mp4"
+                            elif filename.endswith(".json"):
+                                media = file_path[: -len(".json")] + ".mp4"
+                            else:
+                                media = None
+                            if media and (os.path.isfile(media) or media in active_paths):
+                                continue
+                            os.remove(file_path)
+                            removed_count += 1
+                            continue
                         if os.path.getmtime(file_path) < cutoff_timestamp:
                             os.remove(file_path)
                             removed_count += 1

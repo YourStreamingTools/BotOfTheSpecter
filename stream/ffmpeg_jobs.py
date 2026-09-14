@@ -48,6 +48,43 @@ def proc_cmdline(pid: int) -> str:
     return raw.replace(b"\x00", b" ").decode("utf-8", "replace")
 
 
+def sidecar_paths_for_media(media_path: str) -> list:
+    base = media_path or ""
+    if base.endswith(".part"):
+        base = base[:-5]
+    if base.lower().endswith(".mp4"):
+        stem = base[:-4]
+    else:
+        stem = os.path.splitext(base)[0]
+    return [
+        stem + ".ffmpeg.log",
+        stem + ".ytdlp.log",
+        stem + ".json",
+        stem + ".mp4.part",
+    ]
+
+
+def remove_media_and_sidecars(media_path: str) -> int:
+    removed = 0
+    seen = set()
+    for path in [media_path, *sidecar_paths_for_media(media_path)]:
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+                removed += 1
+        except OSError:
+            continue
+    return removed
+
+
+def is_sidecar_name(filename: str) -> bool:
+    name = filename or ""
+    return name.endswith((".ffmpeg.log", ".ytdlp.log", ".fwd.log", ".json"))
+
+
 def cmdline_has(pid: int, needle: str) -> bool:
     if not needle:
         return False
