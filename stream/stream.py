@@ -43,9 +43,9 @@ TWITCH_INGEST_SERVERS = {
 # Define SSL domain mappings for Let's Encrypt certificates
 SSL_DOMAIN_MAPPING = {
     "sydney": "syd1.stream.botofthespecter.com",
-    "us-west": "us-west-1.botofthespecter.video",
-    "us-east": "us-east-1.botofthespecter.video",
-    "eu-central": "eu-central-1.botofthespecter.video"
+    "us-west": "usw1.stream.botofthespecter.com",
+    "us-east": "use1.stream.botofthespecter.com",
+    "eu-central": "euc1.stream.botofthespecter.com",
 }
 
 DEFAULT_INGEST_SERVER = "sydney"
@@ -75,9 +75,9 @@ SSO_TARGET_BY_REGION = {
 WEB_SESSION_COOKIE_NAME = "bots_video_session"
 WEB_SESSION_COOKIE_DOMAIN_BY_REGION = {
     "sydney": None,
-    "us-east": ".botofthespecter.video",
-    "us-west": ".botofthespecter.video",
-    "eu-central": ".botofthespecter.video",
+    "us-east": None,
+    "us-west": None,
+    "eu-central": None,
 }
 WEB_SESSION_COOKIE_DOMAIN = WEB_SESSION_COOKIE_DOMAIN_BY_REGION.get(
     os.getenv("STREAM_SERVER") or "sydney"
@@ -1303,8 +1303,7 @@ def stream_openapi_spec() -> dict:
 def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
-    # Quart session cookie: Sydney is host-only on syd1.stream.botofthespecter.com.
-    # Other regions still use .botofthespecter.video.
+    # Quart session cookie is host-only on {syd1|use1|usw1|euc1}.stream.botofthespecter.com.
     if WEB_SECRET_KEY:
         app.config["SECRET_KEY"] = WEB_SECRET_KEY
     else:
