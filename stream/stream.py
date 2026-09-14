@@ -1408,8 +1408,18 @@ def _safe_recording_name(name: str) -> bool:
     return True
 
 
-def vod_cdn_url(username: str, filename: str) -> str:
-    return f"{VODS_CDN_BASE}/{quote(username, safe='')}/{quote(filename, safe='')}"
+def vod_cdn_url(username: str, filename: str, title: str = "") -> str:
+    from ffmpeg_jobs import sanitize_download_basename
+
+    disk = os.path.basename(filename or "")
+    pretty = sanitize_download_basename(title or os.path.splitext(disk)[0])
+    if not pretty.lower().endswith(".mp4"):
+        pretty += ".mp4"
+    return (
+        f"{VODS_CDN_BASE}/{quote(username, safe='')}/"
+        f"{quote(disk, safe='')}/"
+        f"{quote(pretty, safe='')}"
+    )
 
 
 async def list_extended_vods(username: str) -> list[dict]:
@@ -1575,15 +1585,16 @@ def _ui_recording_users(root_path: str, only_username: str | None = None) -> lis
             is_partial = bool(item.get("is_partial")) or name.endswith(".part")
             size = int(item.get("size") or 0)
             total += size
+            display = _recording_display_name(username, name, root_path)
             files.append({
                 "name": name,
-                "display_name": _recording_display_name(username, name, root_path),
+                "display_name": display,
                 "size": size,
                 "size_str": _humanize_bytes(float(size)),
                 "mtime": item.get("mtime"),
                 "mtime_str": datetime.datetime.fromtimestamp(item["mtime"]).strftime("%Y-%m-%d %H:%M:%S") if item.get("mtime") else "—",
                 "is_partial": is_partial,
-                "download_url": None if is_partial else vod_cdn_url(username, name),
+                "download_url": None if is_partial else vod_cdn_url(username, name, display),
             })
         files.sort(key=lambda f: f.get("mtime") or 0, reverse=True)
         if only_username and not files:
@@ -2021,7 +2032,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 "is_partial": f["is_partial"],
                 "storage": "local",
                 "can_extend": (not f["is_partial"]) and f["name"].lower().endswith(".mp4"),
-                "download_url": vod_cdn_url(username, f["name"]),
+                "download_url": vod_cdn_url(username, f["name"], title or ""),
                 "expires_at": datetime.datetime.fromtimestamp(expires_unix).isoformat(),
                 "expires_at_unix": expires_unix,
                 "twitch_video_id": twitch_id,
@@ -2040,16 +2051,24 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                     expires_unix = int(datetime.datetime.fromisoformat(expires_iso).timestamp())
                 except Exception:
                     expires_unix = 0
+            twitch_id = None
+            title = None
+            tm = re.match(r"^twitch-([0-9]{1,20})\.mp4$", name, re.I)
+            if tm:
+                twitch_id = tm.group(1)
+                title = _vod_title_from_sidecar(os.path.join(recorder_storage_path, username), twitch_id) or None
             payload_files.append({
                 "name": name,
+                "title": title,
                 "size_bytes": 0,
                 "modified_at": expires_iso,
                 "is_partial": False,
                 "storage": "s4",
                 "can_extend": False,
-                "download_url": vod_cdn_url(username, name),
+                "download_url": vod_cdn_url(username, name, title or ""),
                 "expires_at": expires_iso,
                 "expires_at_unix": expires_unix,
+                "twitch_video_id": twitch_id,
             })
         slot = await get_storage_slot(username)
         quota_bytes = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
@@ -2131,6 +2150,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             except Exception:
                 pass
             return jsonify({"error": "db_failed"}), 500
+        tm = re.match(r"^twitch-([0-9]{1,20})", fname, re.I)
+        title = _vod_title_from_sidecar(os.path.dirname(path), tm.group(1)) if tm else ""
         try:
             remove_media_and_sidecars(path)
         except OSError as e:
@@ -2140,7 +2161,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "filename": fname,
             "storage": "s4",
             "expires_at": expires.isoformat(),
-            "download_url": vod_cdn_url(username, fname),
+            "download_url": vod_cdn_url(username, fname, title),
         })
 
     @app.post("/api/me/recordings/pull-twitch")

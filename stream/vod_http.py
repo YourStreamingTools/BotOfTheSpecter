@@ -26,14 +26,24 @@ def _safe_path(username: str, filename: str) -> str | None:
     return path
 
 
+def _download_name_from_request(request: web.Request, path: str) -> str:
+    pretty = (request.match_info.get("download_name") or "").strip()
+    if pretty and SAFE_FILE.match(pretty) and pretty == os.path.basename(pretty) and ".." not in pretty:
+        from ffmpeg_jobs import sanitize_download_basename
+
+        base = sanitize_download_basename(os.path.splitext(pretty)[0] if pretty.lower().endswith(".mp4") else pretty)
+        return base if base.lower().endswith(".mp4") else base + ".mp4"
+    fallback = os.path.splitext(os.path.basename(path))[0]
+    return download_mp4_name(path, fallback)
+
+
 async def handle_vod(request: web.Request) -> web.StreamResponse:
     username = request.match_info["username"]
     filename = request.match_info["filename"]
     path = _safe_path(username, filename)
     if not path:
         return web.Response(status=404, text="not found")
-    fallback = os.path.splitext(os.path.basename(path))[0]
-    download_name = download_mp4_name(path, fallback)
+    download_name = _download_name_from_request(request, path)
     return web.FileResponse(
         path,
         headers={
@@ -46,6 +56,7 @@ async def handle_vod(request: web.Request) -> web.StreamResponse:
 def main() -> None:
     os.makedirs(ROOT, exist_ok=True)
     app = web.Application()
+    app.router.add_get("/{username}/{filename}/{download_name}", handle_vod)
     app.router.add_get("/{username}/{filename}", handle_vod)
     web.run_app(app, host=BIND_HOST, port=BIND_PORT, print=None)
 

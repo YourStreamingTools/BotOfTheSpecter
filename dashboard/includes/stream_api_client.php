@@ -56,3 +56,40 @@ function streamFetchStorage(string $base, string $apiKey, int $timeout): array
     $out['unlimited'] = !empty($payload['quota_unlimited']) || $out['quota_bytes'] === 0;
     return $out;
 }
+
+function specter_vod_download_basename(string $title, string $fallback = 'video'): string
+{
+    $text = $title !== '' ? $title : $fallback;
+    if (class_exists('Normalizer')) {
+        $normalized = Normalizer::normalize($text, Normalizer::FORM_C);
+        if (is_string($normalized) && $normalized !== '') {
+            $text = $normalized;
+        }
+    }
+    $text = preg_replace('/[\x00-\x1F\x7F<>:"\/\\\\|?*]/u', '-', $text) ?? $text;
+    $text = preg_replace('/\s+/u', ' ', str_replace(["\n", "\r", "\t"], ' ', $text)) ?? $text;
+    $text = trim($text, " .");
+    if (function_exists('mb_strlen') && mb_strlen($text) > 180) {
+        $text = rtrim(mb_substr($text, 0, 180), " .");
+    } elseif (strlen($text) > 180) {
+        $text = rtrim(substr($text, 0, 180), " .");
+    }
+    if ($text === '') {
+        $text = 'video';
+    }
+    if (!preg_match('/\.mp4$/i', $text)) {
+        $text .= '.mp4';
+    }
+    return $text;
+}
+
+function specter_vod_named_url(string $downloadUrl, string $title, string $diskName = ''): string
+{
+    $fallback = $diskName !== '' ? (string) pathinfo($diskName, PATHINFO_FILENAME) : 'video';
+    $pretty = specter_vod_download_basename($title, $fallback);
+    $base = rtrim($downloadUrl, '/');
+    if (preg_match('#/[^/]+\.mp4/[^/]+\.mp4$#i', $base)) {
+        return $base;
+    }
+    return $base . '/' . rawurlencode($pretty);
+}

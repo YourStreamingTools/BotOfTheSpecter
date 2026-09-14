@@ -473,10 +473,14 @@ ob_start();
                 </div>
             <?php endforeach; ?>
             <?php if ($storedReady): ?>
+                <div class="youtube-vod-toolbar">
+                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="youtube-vod-copy-links" disabled><?php echo t('youtube_vod_copy_links'); ?></button>
+                </div>
                 <div class="sp-table-wrap">
-                    <table class="sp-table">
+                    <table class="sp-table" id="youtube-vod-stored-table">
                         <thead>
                             <tr>
+                                <th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all" title="<?php echo htmlspecialchars(t('youtube_vod_select_all')); ?>"></th>
                                 <th><?php echo t('youtube_vod_th_title'); ?></th>
                                 <th><?php echo t('recording_th_size'); ?></th>
                                 <th><?php echo t('youtube_vod_th_action'); ?></th>
@@ -493,13 +497,19 @@ ob_start();
                                 if ($displayTitle === '') {
                                     $displayTitle = (string) preg_replace('/\.mp4$/i', '', (string) ($file['name'] ?? ''));
                                 }
+                                $namedUrl = specter_vod_named_url((string) ($file['download_url'] ?? ''), $displayTitle, (string) ($file['name'] ?? ''));
                                 ?>
                                 <tr>
+                                    <td>
+                                        <?php if ($namedUrl !== ''): ?>
+                                            <input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="<?php echo htmlspecialchars($namedUrl); ?>" data-vod-title="<?php echo htmlspecialchars($displayTitle); ?>" data-vod-name="<?php echo htmlspecialchars((string) ($file['name'] ?? '')); ?>">
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo htmlspecialchars($displayTitle); ?></td>
                                     <td><?php echo !empty($file['size_bytes']) ? htmlspecialchars(formatBytes((int) $file['size_bytes'])) : '—'; ?></td>
                                     <td>
-                                        <?php if (!empty($file['download_url'])): ?>
-                                            <a class="sp-btn sp-btn-secondary sp-btn-sm" href="<?php echo htmlspecialchars((string) $file['download_url']); ?>"><?php echo t('recording_btn_download'); ?></a>
+                                        <?php if ($namedUrl !== ''): ?>
+                                            <a class="sp-btn sp-btn-secondary sp-btn-sm" href="<?php echo htmlspecialchars($namedUrl); ?>"><?php echo t('recording_btn_download'); ?></a>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -508,6 +518,21 @@ ob_start();
                     </table>
                 </div>
             <?php endif; ?>
+        </div>
+    </div>
+</div>
+<div class="sp-modal-backdrop" id="youtube-vod-links-modal">
+    <div class="sp-modal sp-modal-wide" role="dialog" aria-labelledby="youtube-vod-links-title">
+        <div class="sp-modal-head">
+            <h2 class="sp-modal-title" id="youtube-vod-links-title"><?php echo t('youtube_vod_links_heading'); ?></h2>
+            <button type="button" class="sp-modal-close" id="youtube-vod-links-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="sp-modal-body">
+            <p class="sp-help"><?php echo t('youtube_vod_links_help'); ?></p>
+            <textarea class="sp-textarea youtube-vod-links-box" id="youtube-vod-links-box" readonly rows="10"></textarea>
+            <div class="youtube-vod-toolbar">
+                <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="youtube-vod-links-copy"><?php echo t('youtube_vod_copy_links'); ?></button>
+            </div>
         </div>
     </div>
 </div>
@@ -598,7 +623,14 @@ ob_start();
         download: <?php echo json_encode(t('recording_btn_download')); ?>,
         failed: <?php echo json_encode(t('youtube_vod_status_failed')); ?>,
         empty: <?php echo json_encode(t('youtube_vod_stored_empty')); ?>,
-        storeFailed: <?php echo json_encode(t('youtube_vod_store_failed')); ?>
+        storeFailed: <?php echo json_encode(t('youtube_vod_store_failed')); ?>,
+        copyLinks: <?php echo json_encode(t('youtube_vod_copy_links')); ?>,
+        selectAll: <?php echo json_encode(t('youtube_vod_select_all')); ?>,
+        linksNone: <?php echo json_encode(t('youtube_vod_links_none')); ?>,
+        linksCopied: <?php echo json_encode(t('youtube_vod_links_copied')); ?>,
+        thTitle: <?php echo json_encode(t('youtube_vod_th_title')); ?>,
+        thSize: <?php echo json_encode(t('recording_th_size')); ?>,
+        thAction: <?php echo json_encode(t('youtube_vod_th_action')); ?>
     };
     function escapeHtml(value) {
         return String(value == null ? '' : value).replace(/[<>&]/g, '');
@@ -631,6 +663,69 @@ ob_start();
             cell.innerHTML = html;
         }
     }
+    function sanitizePrettyName(name) {
+        var text = String(name || 'video').replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, '-');
+        text = text.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').replace(/^[\s.]+|[\s.]+$/g, '');
+        if (text.length > 180) text = text.slice(0, 180).replace(/[\s.]+$/g, '');
+        if (!text) text = 'video';
+        if (!/\.mp4$/i.test(text)) text += '.mp4';
+        return text;
+    }
+    function namedDownloadUrl(url, title, diskName) {
+        url = String(url || '').split('?')[0];
+        if (!url) return '';
+        if (/\/[^/]+\.mp4\/[^/]+\.mp4$/i.test(url)) return url;
+        var pretty = sanitizePrettyName(title || String(diskName || 'video').replace(/\.mp4$/i, ''));
+        return url.replace(/\/?$/, '') + '/' + encodeURIComponent(pretty);
+    }
+    function uniqueNamedUrls(items) {
+        var used = {};
+        return items.map(function (item) {
+            var url = namedDownloadUrl(item.url, item.title, item.name);
+            var parts = url.split('/');
+            var pretty = decodeURIComponent(parts[parts.length - 1] || 'video.mp4');
+            var stem = pretty.replace(/\.mp4$/i, '');
+            var key = pretty.toLowerCase();
+            var n = 2;
+            while (used[key]) {
+                pretty = stem + ' (' + n + ').mp4';
+                key = pretty.toLowerCase();
+                n += 1;
+            }
+            used[key] = true;
+            parts[parts.length - 1] = encodeURIComponent(pretty);
+            return parts.join('/');
+        });
+    }
+    function syncCopyBtn() {
+        var btn = document.getElementById('youtube-vod-copy-links');
+        if (!btn) return;
+        btn.disabled = document.querySelectorAll('.youtube-vod-pick:checked').length === 0;
+    }
+    function selectedVodItems() {
+        var items = [];
+        document.querySelectorAll('.youtube-vod-pick:checked').forEach(function (box) {
+            items.push({
+                url: box.getAttribute('data-vod-url') || '',
+                title: box.getAttribute('data-vod-title') || '',
+                name: box.getAttribute('data-vod-name') || ''
+            });
+        });
+        return items;
+    }
+    function openLinksModal(urls) {
+        var modal = document.getElementById('youtube-vod-links-modal');
+        var box = document.getElementById('youtube-vod-links-box');
+        if (!modal || !box) return;
+        box.value = urls.join('\n');
+        modal.classList.add('is-active');
+        box.focus();
+        box.select();
+    }
+    function closeLinksModal() {
+        var modal = document.getElementById('youtube-vod-links-modal');
+        if (modal) modal.classList.remove('is-active');
+    }
     function twitchIdFromFile(file) {
         if (file && file.twitch_video_id) return String(file.twitch_video_id);
         if (file && file.name) {
@@ -654,7 +749,13 @@ ob_start();
             var id = row ? row.getAttribute('data-vod-id') : '';
             if (!id) return;
             if (pulling[id]) fillStoreCell(cell, 'pulling');
-            else if (storedMap[id]) fillStoreCell(cell, 'stored', storedMap[id].download_url || '');
+            else if (storedMap[id]) {
+                fillStoreCell(
+                    cell,
+                    'stored',
+                    namedDownloadUrl(storedMap[id].download_url || '', storedMap[id].title || helixTitles[id] || '', storedMap[id].name || '')
+                );
+            }
         });
     }
     function render(data) {
@@ -699,18 +800,36 @@ ob_start();
                 ' — ' + escapeHtml(I18N.failed) + '</div>';
         });
         if (stored.length) {
-            html += '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><?php echo htmlspecialchars(t('youtube_vod_th_title')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('youtube_vod_th_action')); ?></th></tr></thead><tbody>';
+            html += '<div class="youtube-vod-toolbar"><button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="youtube-vod-copy-links" disabled>' + escapeHtml(I18N.copyLinks) + '</button></div>';
+            html += '<div class="sp-table-wrap"><table class="sp-table" id="youtube-vod-stored-table"><thead><tr><th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all" title="' + escapeHtml(I18N.selectAll) + '"></th><th>' + escapeHtml(I18N.thTitle) + '</th><th>' + escapeHtml(I18N.thSize) + '</th><th>' + escapeHtml(I18N.thAction) + '</th></tr></thead><tbody>';
             stored.forEach(function (file) {
                 var name = displayTitle(file);
+                var named = namedDownloadUrl(file.download_url || '', name, file.name || '');
                 var size = file.size_bytes ? formatBytesJs(file.size_bytes) : '—';
-                var dl = file.download_url
-                    ? '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + String(file.download_url).replace(/"/g, '') + '">' + escapeHtml(I18N.download) + '</a>'
+                var dl = named
+                    ? '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + named.replace(/"/g, '') + '">' + escapeHtml(I18N.download) + '</a>'
                     : '';
-                html += '<tr><td>' + escapeHtml(name) + '</td><td>' + size + '</td><td>' + dl + '</td></tr>';
+                var check = named
+                    ? '<input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="' + named.replace(/"/g, '') + '" data-vod-title="' + escapeHtml(name) + '" data-vod-name="' + escapeHtml(file.name || '') + '">'
+                    : '';
+                html += '<tr><td>' + check + '</td><td>' + escapeHtml(name) + '</td><td>' + size + '</td><td>' + dl + '</td></tr>';
             });
             html += '</tbody></table></div>';
         }
+        var selected = {};
+        document.querySelectorAll('.youtube-vod-pick:checked').forEach(function (box) {
+            selected[box.getAttribute('data-vod-url') || ''] = true;
+        });
         host.innerHTML = html;
+        document.querySelectorAll('.youtube-vod-pick').forEach(function (box) {
+            if (selected[box.getAttribute('data-vod-url') || '']) box.checked = true;
+        });
+        var allBox = document.getElementById('youtube-vod-select-all');
+        var picks = document.querySelectorAll('.youtube-vod-pick');
+        if (allBox && picks.length) {
+            allBox.checked = document.querySelectorAll('.youtube-vod-pick:checked').length === picks.length;
+        }
+        syncCopyBtn();
         if (window.updateStorageBar && data.storage) {
             window.updateStorageBar(data.storage);
         }
@@ -770,7 +889,49 @@ ob_start();
             }
         });
     });
+    document.addEventListener('change', function (event) {
+        var target = event.target;
+        if (!target) return;
+        if (target.id === 'youtube-vod-select-all') {
+            document.querySelectorAll('.youtube-vod-pick').forEach(function (box) {
+                box.checked = target.checked;
+            });
+        }
+        if (target.id === 'youtube-vod-select-all' || target.classList.contains('youtube-vod-pick')) {
+            syncCopyBtn();
+        }
+    });
+    document.addEventListener('click', function (event) {
+        var copyBtn = event.target && event.target.closest('#youtube-vod-copy-links');
+        if (copyBtn && copyBtn.id === 'youtube-vod-copy-links') {
+            event.preventDefault();
+            var items = selectedVodItems();
+            if (!items.length) {
+                setNotice(I18N.linksNone, 'warning');
+                return;
+            }
+            openLinksModal(uniqueNamedUrls(items));
+            return;
+        }
+        if (event.target && (event.target.id === 'youtube-vod-links-close' || event.target.id === 'youtube-vod-links-modal')) {
+            closeLinksModal();
+        }
+        if (event.target && event.target.id === 'youtube-vod-links-copy') {
+            var box = document.getElementById('youtube-vod-links-box');
+            if (!box) return;
+            box.select();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(box.value).then(function () {
+                    setNotice(I18N.linksCopied, 'success');
+                }).catch(function () {});
+            }
+        }
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeLinksModal();
+    });
     if (host) setInterval(poll, 3000);
+    syncCopyBtn();
 })();
 </script>
 <?php
