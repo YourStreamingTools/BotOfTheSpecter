@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import json
 import socket
 import secrets
 import datetime
@@ -51,7 +52,7 @@ DEFAULT_INGEST_SERVER = "sydney"
 
 # Display titles for the operator web UI (one UI per server / region)
 SERVER_DISPLAY_NAMES = {
-    "sydney": "RTMP Server - Sydney, Australia (au-east-1)",
+    "sydney": "RTMP Server - Sydney, Australia (syd1.stream)",
     "us-east": "RTMP Server - Ashburn, Virginia, USA (us-east-1)",
     "us-west": "RTMP Server - Hillsboro, Oregon, USA (us-west-1)",
     "eu-central": "RTMP Server - Nuremberg, Germany (eu-central-1)",
@@ -62,11 +63,8 @@ DEFAULT_WEB_PORT = 8080
 # Where twitch-recorder.py writes its per-user recordings (matches its STREAM_ROOT_PATH default)
 DEFAULT_RECORDER_STORAGE_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
 
-# Cross-eTLD SSO (.com authority -> .video consumer)
-# Browsers can't share a cookie across .botofthespecter.com and .video, so
-# the user is bounced to home/sso.php which mints a single-use handoff token
-# in website.handoff_tokens. We verify the token on /sso/login and create
-# a Quart session cookie scoped to .botofthespecter.video.
+# SSO: home/sso.php mints a handoff token; we verify it on /sso/login.
+# Sydney lives on .botofthespecter.com; other regions still use .video.
 SSO_AUTHORITY_URL = "https://botofthespecter.com/sso.php"
 SSO_TARGET_BY_REGION = {
     "sydney":     "rtmp-sydney",
@@ -75,10 +73,18 @@ SSO_TARGET_BY_REGION = {
     "eu-central": "rtmp-eu-central",
 }
 WEB_SESSION_COOKIE_NAME = "bots_video_session"
-WEB_SESSION_COOKIE_DOMAIN = ".botofthespecter.video"
+WEB_SESSION_COOKIE_DOMAIN_BY_REGION = {
+    "sydney": None,
+    "us-east": ".botofthespecter.video",
+    "us-west": ".botofthespecter.video",
+    "eu-central": ".botofthespecter.video",
+}
+WEB_SESSION_COOKIE_DOMAIN = WEB_SESSION_COOKIE_DOMAIN_BY_REGION.get(
+    os.getenv("STREAM_SERVER") or "sydney"
+)
 WEB_SESSION_LIFETIME_SECONDS = 14400  # 4h, matches the .com side
 # Signed-cookie key. Set the SAME value across every regional .env so a single
-# login cookie scopes to .botofthespecter.video and works on every region.
+# login cookie can be reused where the cookie domain matches.
 # Falls back to an ephemeral key if missing - sessions then survive only until
 # this process restarts.
 WEB_SECRET_KEY = os.getenv('WEB_SECRET_KEY')
@@ -983,7 +989,7 @@ def list_recorder_files(root_path: str) -> list[dict]:
     return users
 
 
-_RECORDING_SKIP_SUFFIXES = (".ffmpeg.log", ".ytdlp.log", ".fwd.log")
+_RECORDING_SKIP_SUFFIXES = (".ffmpeg.log", ".ytdlp.log", ".fwd.log", ".json")
 
 
 def _safe_recording_name(name: str) -> bool:
@@ -1297,9 +1303,8 @@ def stream_openapi_spec() -> dict:
 def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
-    # Quart session config - signed cookie scoped to .botofthespecter.video
-    # so a single login covers every regional RTMP UI (provided every region
-    # uses the SAME WEB_SECRET_KEY).
+    # Quart session cookie: Sydney is host-only on syd1.stream.botofthespecter.com.
+    # Other regions still use .botofthespecter.video.
     if WEB_SECRET_KEY:
         app.config["SECRET_KEY"] = WEB_SECRET_KEY
     else:
@@ -1309,7 +1314,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "Sessions will be lost on restart and won't share across regions."
         )
     app.config["SESSION_COOKIE_NAME"]        = WEB_SESSION_COOKIE_NAME
-    app.config["SESSION_COOKIE_DOMAIN"]      = WEB_SESSION_COOKIE_DOMAIN
+    app.config["SESSION_COOKIE_DOMAIN"]      = WEB_SESSION_COOKIE_DOMAIN_BY_REGION.get(region)
     app.config["SESSION_COOKIE_SECURE"]      = True
     app.config["SESSION_COOKIE_HTTPONLY"]    = True
     app.config["SESSION_COOKIE_SAMESITE"]    = "Lax"
@@ -1512,11 +1517,21 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         for f in files:
             expires_unix = int(f["mtime"]) + RECORDING_RETENTION_SECONDS
             twitch_id = None
+            title = None
             tm = re.match(r"^twitch-([0-9]{1,20})\.mp4(?:\.part)?$", f["name"], re.I)
             if tm:
                 twitch_id = tm.group(1)
+                meta_path = os.path.join(recorder_storage_path, username, f"twitch-{twitch_id}.json")
+                try:
+                    with open(meta_path, encoding="utf-8") as meta_fh:
+                        meta = json.loads(meta_fh.read())
+                    if isinstance(meta, dict):
+                        title = (meta.get("title") or "").strip() or None
+                except (OSError, ValueError):
+                    title = None
             payload_files.append({
                 "name": f["name"],
+                "title": title,
                 "size_bytes": f["size"],
                 "modified_at": datetime.datetime.fromtimestamp(f["mtime"]).isoformat(),
                 "is_partial": f["is_partial"],
@@ -1641,6 +1656,12 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             return jsonify({"ok": True, "already": True, "status": "stored", "filename": os.path.basename(dest), "vod_id": vod_id}), 200
         os.makedirs(user_dir, exist_ok=True)
         title = str(body.get("title") or "").strip()
+        if title:
+            try:
+                with open(os.path.join(user_dir, f"twitch-{vod_id}.json"), "w", encoding="utf-8") as meta_fh:
+                    json.dump({"vod_id": vod_id, "title": title}, meta_fh)
+            except OSError as e:
+                logger.warning(f"Could not write VOD title sidecar for {username}: {e}")
         twitch_oauth = ""
         sqldb = None
         try:
@@ -1750,7 +1771,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         })
 
     # SSO consumer: verify a handoff token minted by home/sso.php and
-    # create the Quart session cookie on .botofthespecter.video.
+    # create the Quart session cookie for this region's host.
     @app.get("/sso/login")
     async def sso_login():
         token = request.args.get("handoff", "")
