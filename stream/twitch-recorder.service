@@ -11,7 +11,8 @@ ExecStart=/opt/specter-stream/venv/bin/python /opt/specter-stream/twitch-recorde
 Restart=on-failure
 RestartSec=5
 KillSignal=SIGINT
-TimeoutStopSec=20
+TimeoutStopSec=15
+KillMode=process
 EnvironmentFile=/opt/specter-stream/.env
 
 [Install]

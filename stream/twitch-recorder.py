@@ -41,6 +41,7 @@ import time
 import subprocess
 import datetime
 from zoneinfo import ZoneInfo
+from ffmpeg_jobs import AttachedProcess, atomic_write_json, cmdline_has, load_json, pid_alive
 import random
 import logging
 from logging.handlers import RotatingFileHandler
@@ -675,6 +676,7 @@ class RecordChecker:
         self._live_cache = {}
         self._last_live = {}
         self._cleanup_tick = 0
+        self._jobs_path = os.path.join(self.root_path, "_jobs", "recordings.json")
 
     def _disk_has_room(self) -> bool:
         try:
@@ -697,7 +699,7 @@ class RecordChecker:
             self.logger.error("Initial checks failed, cannot start recorder")
             return False
         self.running = True
-        # Start the continuous checking loop
+        self._recover_ffmpeg_jobs()
         await self.check_channels_loop()
         return True
 
@@ -932,6 +934,79 @@ class RecordChecker:
             self.logger.warning(f"Could not pre-check live-from-start for {username}: {e}")
         return preferred_command
 
+    def _persist_ffmpeg_jobs(self) -> None:
+        recordings = {}
+        for username, info in self.active_recordings.items():
+            process = info.get("process")
+            pid = getattr(process, "pid", None)
+            if not pid:
+                continue
+            recordings[username] = {
+                "pid": int(pid),
+                "filename": info.get("filename") or "",
+                "output_prefix": info.get("output_prefix") or "",
+                "user_storage_path": info.get("user_storage_path") or "",
+            }
+        forwarding = {}
+        for username, services in self.forwarding_processes.items():
+            row = {}
+            for service, info in services.items():
+                proc = info.get("ffmpeg_proc")
+                pid = getattr(proc, "pid", None)
+                if pid:
+                    row[service] = {"pid": int(pid)}
+            if row:
+                forwarding[username] = row
+        atomic_write_json(self._jobs_path, {"recordings": recordings, "forwarding": forwarding})
+
+    def _recover_ffmpeg_jobs(self) -> None:
+        data = load_json(self._jobs_path, {})
+        recordings = data.get("recordings") if isinstance(data, dict) else {}
+        if isinstance(recordings, dict):
+            for username, info in recordings.items():
+                if not isinstance(info, dict):
+                    continue
+                pid = int(info.get("pid") or 0)
+                filename = info.get("filename") or ""
+                if not pid_alive(pid) or not cmdline_has(pid, filename or os.path.basename(filename)):
+                    self.logger.info(f"Dropping stale recording job for {username} (pid {pid})")
+                    continue
+                prefix = info.get("output_prefix") or os.path.splitext(filename)[0]
+                storage = info.get("user_storage_path") or os.path.dirname(filename)
+                log_path = prefix + ".ffmpeg.log"
+                log_file = open(log_path, "a", encoding="utf-8") if os.path.isdir(os.path.dirname(log_path) or ".") else None
+                self.active_recordings[username] = {
+                    "process": AttachedProcess(pid),
+                    "log_file": log_file,
+                    "filename": filename,
+                    "output_prefix": prefix,
+                    "output_template": filename,
+                    "user_storage_path": storage,
+                    "start_time": datetime.datetime.now(),
+                }
+                self._last_live[username] = True
+                self.logger.info(f"Reattached recording for {username} pid={pid}")
+        forwarding = data.get("forwarding") if isinstance(data, dict) else {}
+        if isinstance(forwarding, dict):
+            for username, services in forwarding.items():
+                if not isinstance(services, dict):
+                    continue
+                for service, info in services.items():
+                    if not isinstance(info, dict):
+                        continue
+                    pid = int(info.get("pid") or 0)
+                    if not pid_alive(pid) or not cmdline_has(pid, "ffmpeg"):
+                        continue
+                    if username not in self.forwarding_processes:
+                        self.forwarding_processes[username] = {}
+                    self.forwarding_processes[username][service] = {
+                        "ffmpeg_proc": AttachedProcess(pid),
+                        "log_file": None,
+                    }
+                    self._last_live[username] = True
+                    self.logger.info(f"Reattached {service} forwarding for {username} pid={pid}")
+        self._persist_ffmpeg_jobs()
+
     async def start_recording_for_user(self, username, stream_info):
         try:
             game = ((stream_info or {}).get("game_name") or "").strip() or "Unknown Game"
@@ -977,8 +1052,13 @@ class RecordChecker:
                 output_path,
             ]
             rec_log_path = os.path.join(user_storage_path, f"{base_filename}.ffmpeg.log")
-            rec_log_file = open(rec_log_path, 'w', encoding='utf-8')
-            process = subprocess.Popen(cmd, stdout=rec_log_file, stderr=rec_log_file)
+            rec_log_file = open(rec_log_path, 'a', encoding='utf-8')
+            process = subprocess.Popen(
+                cmd,
+                stdout=rec_log_file,
+                stderr=rec_log_file,
+                start_new_session=True,
+            )
             self.active_recordings[username] = {
                 'process': process,
                 'log_file': rec_log_file,
@@ -988,6 +1068,7 @@ class RecordChecker:
                 'user_storage_path': user_storage_path,
                 'start_time': datetime.datetime.now()
             }
+            self._persist_ffmpeg_jobs()
             self.logger.info(f"Started recording for {username}: {base_filename}.mp4")
             self.logger.info(f"Process PID: {process.pid}")
         except Exception as e:
@@ -1038,6 +1119,7 @@ class RecordChecker:
                     self._rename_part_files(username, output_prefix)
                 self.logger.info(f"Stopped recording for {username}")
                 del self.active_recordings[username]
+                self._persist_ffmpeg_jobs()
         except Exception as e:
             self.logger.error(f"Error stopping recording for {username}: {e}")
 
@@ -1061,6 +1143,8 @@ class RecordChecker:
         for username in finished_users:
             self.logger.info(f"Cleaning up recording for {username}")
             del self.active_recordings[username]
+        if finished_users:
+            self._persist_ffmpeg_jobs()
 
     async def start_forwarding_for_service(
         self, username: str, service: str, stream_key: str, hls_url: Optional[str] = None
@@ -1099,7 +1183,12 @@ class RecordChecker:
                 rtmp_url,
             ]
             self.logger.info(f"Starting {service} forwarding for {username}")
-            ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdout=log_file, stderr=log_file)
+            ffmpeg_proc = subprocess.Popen(
+                ffmpeg_cmd,
+                stdout=log_file,
+                stderr=log_file,
+                start_new_session=True,
+            )
             if username not in self.forwarding_processes:
                 self.forwarding_processes[username] = {}
             self.forwarding_processes[username][service] = {
@@ -1109,6 +1198,7 @@ class RecordChecker:
             self.logger.info(
                 f"Started {service} forwarding for {username} [ffmpeg PID={ffmpeg_proc.pid}]"
             )
+            self._persist_ffmpeg_jobs()
         except Exception as e:
             if log_file:
                 try:
@@ -1145,6 +1235,7 @@ class RecordChecker:
             del self.forwarding_processes[username][service]
             if not self.forwarding_processes[username]:
                 del self.forwarding_processes[username]
+            self._persist_ffmpeg_jobs()
 
     async def stop_forwarding_for_user(self, username: str):
         if username not in self.forwarding_processes:
@@ -1171,55 +1262,28 @@ class RecordChecker:
                     del self.forwarding_processes[username][service]
             if username in self.forwarding_processes and not self.forwarding_processes[username]:
                 del self.forwarding_processes[username]
+        self._persist_ffmpeg_jobs()
 
     def stop_checker(self):
-        self.logger.info("Stopping RecordChecker...")
+        self.logger.info("Stopping RecordChecker (leaving ffmpeg recordings/downloads running)")
         self.running = False
-        # Stop all active recordings
+        self._persist_ffmpeg_jobs()
         for username in list(self.active_recordings.keys()):
-            self.logger.info(f"Stopping recording for {username}")
-            try:
-                recording_info = self.active_recordings[username]
-                process = recording_info['process']
-                log_file = recording_info.get('log_file')
-                output_prefix = recording_info.get('output_prefix', '')
-                process.terminate()
+            log_file = self.active_recordings[username].get("log_file")
+            if log_file:
                 try:
-                    process.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+                    log_file.close()
+                except Exception:
+                    pass
+        self.active_recordings.clear()
+        for username in list(self.forwarding_processes.keys()):
+            for fwd_info in self.forwarding_processes[username].values():
+                log_file = fwd_info.get("log_file")
                 if log_file:
                     try:
                         log_file.close()
                     except Exception:
                         pass
-                if output_prefix:
-                    self._rename_part_files(username, output_prefix)
-            except Exception as e:
-                self.logger.error(f"Error stopping recording for {username}: {e}")
-        self.active_recordings.clear()
-        # Stop all active forwarding processes
-        for username in list(self.forwarding_processes.keys()):
-            for service, fwd_info in list(self.forwarding_processes[username].items()):
-                self.logger.info(f"Stopping {service} forwarding for {username}")
-                try:
-                    ffmpeg_proc = fwd_info.get('ffmpeg_proc')
-                    log_file = fwd_info.get('log_file')
-                    if ffmpeg_proc and ffmpeg_proc.poll() is None:
-                        ffmpeg_proc.terminate()
-                        try:
-                            ffmpeg_proc.wait(timeout=15)
-                        except subprocess.TimeoutExpired:
-                            ffmpeg_proc.kill()
-                            ffmpeg_proc.wait()
-                    if log_file:
-                        try:
-                            log_file.close()
-                        except Exception:
-                            pass
-                except Exception as e:
-                    self.logger.error(f"Error stopping {service} forwarding for {username}: {e}")
         self.forwarding_processes.clear()
         self.logger.info("RecordChecker stopped")
 
