@@ -3,6 +3,7 @@
 import os
 import re
 from aiohttp import web
+from ffmpeg_jobs import content_disposition_attachment, download_mp4_name
 
 ROOT = os.getenv("STREAM_FILES_ROOT") or os.getenv("STREAM_ROOT_PATH") or "/var/lib/specter-stream"
 BIND_HOST = os.getenv("VOD_INTERNAL_HOST", "10.240.0.9")
@@ -31,7 +32,15 @@ async def handle_vod(request: web.Request) -> web.StreamResponse:
     path = _safe_path(username, filename)
     if not path:
         return web.Response(status=404, text="not found")
-    return web.FileResponse(path, headers={"Content-Type": "video/mp4"})
+    fallback = os.path.splitext(os.path.basename(path))[0]
+    download_name = download_mp4_name(path, fallback)
+    return web.FileResponse(
+        path,
+        headers={
+            "Content-Type": "video/mp4",
+            "Content-Disposition": content_disposition_attachment(download_name),
+        },
+    )
 
 
 def main() -> None:

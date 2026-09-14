@@ -290,6 +290,27 @@ foreach ($twitchVideos as $video) {
         $helixTitles[$hid] = (string) ($video['title'] ?? '');
     }
 }
+$titleBackfill = [];
+foreach ($storedFiles as $stored) {
+    $tid = (string) ($stored['twitch_video_id'] ?? '');
+    if ($tid === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4/i', (string) ($stored['name'] ?? ''), $m)) {
+        $tid = $m[1];
+    }
+    $haveTitle = trim((string) ($stored['title'] ?? ''));
+    if ($tid !== '' && $haveTitle === '' && !empty($helixTitles[$tid])) {
+        $titleBackfill[] = ['vod_id' => $tid, 'title' => $helixTitles[$tid]];
+    }
+}
+if ($titleBackfill && $streamApiBase !== '' && $streamUserApiKey !== '') {
+    streamApiRequest(
+        $streamApiBase,
+        $streamUserApiKey,
+        '/api/me/recordings/titles',
+        15,
+        'POST',
+        ['items' => $titleBackfill]
+    );
+}
 
 ob_start();
 ?>
