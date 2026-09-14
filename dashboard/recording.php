@@ -75,7 +75,14 @@ function isSafeRecorderFileName($fileName) {
 
 require_once __DIR__ . '/includes/stream_api_client.php';
 
-function recordingDisplayName($name) {
+function recordingDisplayName($name, $title = '') {
+    $title = trim((string) $title);
+    if ($title !== '') {
+        if (str_ends_with(strtolower($title), '.mp4')) {
+            $title = substr($title, 0, -4);
+        }
+        return $title;
+    }
     $base = (string) $name;
     $lower = strtolower($base);
     if (str_ends_with($lower, '.part')) {
@@ -311,6 +318,7 @@ if ($streamApiBase === '' || $streamUserApiKey === '') {
                 }
                 $files[] = [
                     'name' => $name,
+                    'title' => trim((string) ($row['title'] ?? '')),
                     'path' => $name,
                     'size' => (int) ($row['size_bytes'] ?? 0),
                     'modified' => $mtime,
@@ -437,7 +445,7 @@ ob_start();
                                 <tbody>
                                     <?php foreach ($section['files'] as $file): ?>
                                         <tr>
-                                            <td><code><?= htmlspecialchars(recordingDisplayName($file['name'])) ?></code></td>
+                                            <td><code><?= htmlspecialchars(recordingDisplayName($file['name'], $file['title'] ?? '')) ?></code></td>
                                             <td>
                                                 <?php if ($file['is_directory']): ?>
                                                     <?= t('recording_type_directory') ?>
@@ -588,7 +596,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!container) {
         return;
     }
-    function displayRecordingName(name) {
+    function displayRecordingName(name, title) {
+        title = String(title || '').trim();
+        if (title) {
+            if (/\.mp4$/i.test(title)) {
+                title = title.slice(0, -4);
+            }
+            return title;
+        }
         var base = String(name || '');
         if (/\.part$/i.test(base)) {
             base = base.slice(0, -5);
@@ -673,7 +688,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var row = document.createElement('tr');
             var fileCell = document.createElement('td');
             var code = document.createElement('code');
-            code.textContent = displayRecordingName(file.name || '');
+            code.textContent = displayRecordingName(file.name || '', file.title || '');
             fileCell.appendChild(code);
             row.appendChild(fileCell);
             var typeCell = document.createElement('td');
