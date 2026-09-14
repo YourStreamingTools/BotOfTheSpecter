@@ -49,6 +49,21 @@ function youtubelink_redirect(string $message, string $alertClass): void
     exit();
 }
 
+function youtubelink_wants_json(): bool
+{
+    $xhr = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+    return $xhr || str_contains($accept, 'application/json');
+}
+
+function youtubelink_json(array $payload, int $code = 200): void
+{
+    http_response_code($code);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload);
+    exit();
+}
+
 if ($isActAsUser && (isset($_GET['code']) || isset($_GET['connect']) || isset($_POST['action']))) {
     youtubelink_redirect(t('youtube_link_actas_disabled'), 'is-warning');
 }
@@ -128,7 +143,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         youtubelink_redirect(t('youtube_disconnected_success'), 'is-success');
     }
     if ($action === 'store_twitch_vod') {
+        $wantsJson = youtubelink_wants_json();
         if ($isActAsUser) {
+            if ($wantsJson) {
+                youtubelink_json(['ok' => false, 'status' => 'actas', 'message' => t('youtube_link_actas_disabled')], 403);
+            }
             youtubelink_redirect(t('youtube_link_actas_disabled'), 'is-warning');
         }
         $vodId = trim((string) ($_POST['vod_id'] ?? ''));
@@ -143,17 +162,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'POST',
             ['vod_id' => $vodId, 'title' => $vodTitle]
         );
-        if ($pull['ok'] || (int) ($pull['http'] ?? 0) === 202) {
+        $http = (int) ($pull['http'] ?? 0);
+        $pullBody = json_decode((string) ($pull['body'] ?? ''), true);
+        $already = is_array($pullBody) && !empty($pullBody['already']);
+        if ($pull['ok'] || $http === 202) {
+            if ($wantsJson) {
+                youtubelink_json([
+                    'ok' => true,
+                    'status' => $already ? 'stored' : 'pulling',
+                    'vod_id' => $vodId,
+                    'title' => $vodTitle,
+                    'message' => t('youtube_vod_store_started'),
+                ]);
+            }
             $_SESSION['youtube_vod_message'] = t('youtube_vod_store_started');
             $_SESSION['youtube_vod_alert_class'] = 'is-success';
             header('Location: youtubelink.php#stored-vods');
             exit();
         }
-        if ((int) ($pull['http'] ?? 0) === 507) {
+        if ($http === 507) {
+            if ($wantsJson) {
+                youtubelink_json(['ok' => false, 'status' => 'full', 'vod_id' => $vodId, 'message' => t('youtube_vod_store_full')], 507);
+            }
             $_SESSION['youtube_vod_message'] = t('youtube_vod_store_full');
             $_SESSION['youtube_vod_alert_class'] = 'is-warning';
             header('Location: youtubelink.php#stored-vods');
             exit();
+        }
+        if ($wantsJson) {
+            youtubelink_json(['ok' => false, 'status' => 'failed', 'vod_id' => $vodId, 'message' => t('youtube_vod_store_failed')], 502);
         }
         $_SESSION['youtube_vod_message'] = t('youtube_vod_store_failed');
         $_SESSION['youtube_vod_alert_class'] = 'is-danger';
@@ -397,6 +434,7 @@ ob_start();
             ?>
             <div class="sp-alert <?php echo $vodAlert; ?>"><?php echo htmlspecialchars($vodMessage); ?></div>
         <?php endif; ?>
+        <div id="youtube-vod-notice"></div>
         <p class="sp-help"><?php echo t('youtube_vod_stored_help'); ?></p>
         <div id="youtube-vod-status">
             <?php
@@ -511,11 +549,12 @@ ob_start();
                             }
                             $ready = $stored && empty($stored['is_partial']) && !$pulling;
                             ?>
-                            <tr>
+                            <tr data-vod-id="<?php echo htmlspecialchars($vid); ?>">
                                 <td><?php echo htmlspecialchars($vtitle); ?></td>
                                 <td><?php echo htmlspecialchars($vtype); ?></td>
                                 <td><?php echo htmlspecialchars($vdur); ?></td>
                                 <td>
+                                    <span data-vod-store>
                                     <?php if ($pulling): ?>
                                         <span class="sp-badge sp-badge-amber"><?php echo t('youtube_vod_status_pulling'); ?></span>
                                     <?php elseif ($ready): ?>
@@ -524,13 +563,14 @@ ob_start();
                                             <a class="sp-btn sp-btn-secondary sp-btn-sm" href="<?php echo htmlspecialchars((string) $stored['download_url']); ?>"><?php echo t('recording_btn_download'); ?></a>
                                         <?php endif; ?>
                                     <?php elseif (!$isActAsUser): ?>
-                                        <form method="post">
+                                        <form method="post" data-store-vod="1">
                                             <input type="hidden" name="action" value="store_twitch_vod">
                                             <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
                                             <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
                                             <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('youtube_vod_store_btn'); ?></button>
                                         </form>
                                     <?php endif; ?>
+                                    </span>
                                     <?php if ($canUpload && !$isActAsUser && $vid !== ''): ?>
                                         <form method="post">
                                             <input type="hidden" name="action" value="send_twitch_youtube">
@@ -551,10 +591,76 @@ ob_start();
 <script>
 (function () {
     var host = document.getElementById('youtube-vod-status');
-    if (!host) return;
     var helixTitles = <?php echo json_encode($helixTitles, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    var I18N = {
+        pulling: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
+        stored: <?php echo json_encode(t('youtube_vod_status_stored')); ?>,
+        download: <?php echo json_encode(t('recording_btn_download')); ?>,
+        failed: <?php echo json_encode(t('youtube_vod_status_failed')); ?>,
+        empty: <?php echo json_encode(t('youtube_vod_stored_empty')); ?>,
+        storeFailed: <?php echo json_encode(t('youtube_vod_store_failed')); ?>
+    };
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[<>&]/g, '');
+    }
+    function setNotice(message, kind) {
+        var el = document.getElementById('youtube-vod-notice');
+        if (!el) return;
+        if (!message) {
+            el.innerHTML = '';
+            return;
+        }
+        var cls = 'sp-alert-info';
+        if (kind === 'success') cls = 'sp-alert-success';
+        else if (kind === 'warning') cls = 'sp-alert-warning';
+        else if (kind === 'danger') cls = 'sp-alert-danger';
+        el.innerHTML = '<div class="sp-alert ' + cls + '"></div>';
+        el.firstChild.textContent = message;
+    }
+    function fillStoreCell(cell, mode, downloadUrl) {
+        if (!cell) return;
+        if (mode === 'pulling') {
+            cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.pulling) + '</span>';
+            return;
+        }
+        if (mode === 'stored') {
+            var html = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
+            if (downloadUrl) {
+                html += ' <a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + String(downloadUrl).replace(/"/g, '') + '">' + escapeHtml(I18N.download) + '</a>';
+            }
+            cell.innerHTML = html;
+        }
+    }
+    function twitchIdFromFile(file) {
+        if (file && file.twitch_video_id) return String(file.twitch_video_id);
+        if (file && file.name) {
+            var m = String(file.name).match(/^twitch-([0-9]{1,20})\.mp4/i);
+            if (m) return m[1];
+        }
+        return '';
+    }
+    function updateFetchRows(data) {
+        var pulling = {};
+        var storedMap = {};
+        (data.pulls || []).forEach(function (job) {
+            if (job && job.status === 'pulling' && job.vod_id) pulling[String(job.vod_id)] = true;
+        });
+        (data.files || []).forEach(function (file) {
+            var id = twitchIdFromFile(file);
+            if (id && !file.is_partial) storedMap[id] = file;
+        });
+        document.querySelectorAll('tr[data-vod-id] [data-vod-store]').forEach(function (cell) {
+            var row = cell.closest('tr[data-vod-id]');
+            var id = row ? row.getAttribute('data-vod-id') : '';
+            if (!id) return;
+            if (pulling[id]) fillStoreCell(cell, 'pulling');
+            else if (storedMap[id]) fillStoreCell(cell, 'stored', storedMap[id].download_url || '');
+        });
+    }
     function render(data) {
         if (!data) return;
+        updateFetchRows(data);
+        if (!host) return;
         var pulls = Array.isArray(data.pulls) ? data.pulls : [];
         var files = Array.isArray(data.files) ? data.files : [];
         var html = '';
@@ -572,29 +678,25 @@ ob_start();
         }
         function displayTitle(file) {
             if (file && file.title) return String(file.title);
-            var id = file && file.twitch_video_id ? String(file.twitch_video_id) : '';
-            if (!id && file && file.name) {
-                var m = String(file.name).match(/^twitch-([0-9]{1,20})\.mp4/i);
-                if (m) id = m[1];
-            }
+            var id = twitchIdFromFile(file);
             if (id && helixTitles && helixTitles[id]) return String(helixTitles[id]);
             return String(file && file.name ? file.name : '').replace(/\.mp4$/i, '');
         }
         if (!active.length && !failed.length && !stored.length) {
-            html = '<p class="sp-help"><?php echo htmlspecialchars(t('youtube_vod_stored_empty')); ?></p>';
+            html = '<p class="sp-help">' + escapeHtml(I18N.empty) + '</p>';
         }
         active.forEach(function (job) {
             var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
             var label = job.title || job.filename || job.vod_id || '';
-            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : <?php echo json_encode(t('youtube_vod_status_pulling')); ?>;
+            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : I18N.pulling;
             html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' +
-                label.replace(/[<>&]/g, '') + '</span><span>' + pctLabel + '</span></div>' +
+                escapeHtml(label) + '</span><span>' + escapeHtml(pctLabel) + '</span></div>' +
                 '<progress class="progress" value="' + pct + '" max="100"></progress></div>';
         });
         failed.forEach(function (job) {
             html += '<div class="sp-alert sp-alert-danger mb-4">' +
-                String(job.title || job.filename || '').replace(/[<>&]/g, '') +
-                ' — ' + <?php echo json_encode(t('youtube_vod_status_failed')); ?> + '</div>';
+                escapeHtml(job.title || job.filename || '') +
+                ' — ' + escapeHtml(I18N.failed) + '</div>';
         });
         if (stored.length) {
             html += '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><?php echo htmlspecialchars(t('youtube_vod_th_title')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('youtube_vod_th_action')); ?></th></tr></thead><tbody>';
@@ -602,9 +704,9 @@ ob_start();
                 var name = displayTitle(file);
                 var size = file.size_bytes ? formatBytesJs(file.size_bytes) : '—';
                 var dl = file.download_url
-                    ? '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + String(file.download_url).replace(/"/g, '') + '"><?php echo htmlspecialchars(t('recording_btn_download')); ?></a>'
+                    ? '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + String(file.download_url).replace(/"/g, '') + '">' + escapeHtml(I18N.download) + '</a>'
                     : '';
-                html += '<tr><td>' + name.replace(/[<>&]/g, '') + '</td><td>' + size + '</td><td>' + dl + '</td></tr>';
+                html += '<tr><td>' + escapeHtml(name) + '</td><td>' + size + '</td><td>' + dl + '</td></tr>';
             });
             html += '</tbody></table></div>';
         }
@@ -620,7 +722,55 @@ ob_start();
             .then(render)
             .catch(function () {});
     }
-    setInterval(poll, 3000);
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form || form.getAttribute('data-store-vod') !== '1') return;
+        event.preventDefault();
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('sp-btn-loading');
+        }
+        fetch('youtubelink.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: new FormData(form)
+        }).then(function (response) {
+            return response.json().then(function (json) {
+                return { http: response.status, json: json || {} };
+            }).catch(function () {
+                return { http: response.status, json: {} };
+            });
+        }).then(function (result) {
+            var json = result.json || {};
+            var ok = json.ok === true;
+            var kind = ok ? 'success' : (json.status === 'full' ? 'warning' : 'danger');
+            setNotice(json.message || (ok ? '' : I18N.storeFailed), kind);
+            if (ok) {
+                var cell = form.closest('[data-vod-store]');
+                fillStoreCell(cell, json.status === 'stored' ? 'stored' : 'pulling');
+                poll();
+                var storedCard = document.getElementById('stored-vods');
+                if (storedCard && storedCard.scrollIntoView) {
+                    storedCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } else if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('sp-btn-loading');
+            }
+        }).catch(function () {
+            setNotice(I18N.storeFailed, 'danger');
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('sp-btn-loading');
+            }
+        });
+    });
+    if (host) setInterval(poll, 3000);
 })();
 </script>
 <?php
