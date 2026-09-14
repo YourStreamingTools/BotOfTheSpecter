@@ -309,7 +309,24 @@ streamersconnect.com, www.streamersconnect.com {
 # ===== Static asset hosts =====
 
 # VODs: local files on syd1 (VPC 10.240.0.9) then Mega S4 vods/ prefix.
+# Named downloads use /{user}/{disk.mp4}/{title.mp4} so the last path
+# segment is the saved filename. S4 keys stay vods/{user}/{disk.mp4}.
 vods.botofthespecter.com {
+    @named_vod path_regexp named_vod ^/([A-Za-z0-9_]+)/([^/]+\.mp4)/([^/]+\.mp4)$
+    handle @named_vod {
+        reverse_proxy 10.240.0.9:8092 {
+            @missing status 404
+            handle_response @missing {
+                rewrite * {env.STORAGE_PREFIX}/vods/{re.named_vod.1}/{re.named_vod.2}
+                reverse_proxy {env.STORAGE_HOST}:443 {
+                    header_up Host {env.STORAGE_HOST}
+                    transport http {
+                        tls
+                    }
+                }
+            }
+        }
+    }
     reverse_proxy 10.240.0.9:8092 {
         @missing status 404
         handle_response @missing {
