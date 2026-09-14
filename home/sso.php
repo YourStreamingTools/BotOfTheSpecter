@@ -9,12 +9,12 @@
 // on the query string.
 //
 // Flow:
-//   consumer (e.g. stream.py at .video region)
+//   consumer (e.g. stream.py at syd1.stream.botofthespecter.com)
 //     ──not logged in──▶ /sso.php?target=rtmp-sydney&return=/recordings
 //   home/sso.php
 //     ──not signed in──▶ /login.php?return=<self>   (then back here after StreamersConnect)
 //     ──signed in──▶    INSERT handoff_tokens (target='rtmp-sydney', expires_at=+5min)
-//                       302 to https://au-east-1.botofthespecter.video:8080/sso/login?handoff=<token>&return=/recordings
+//                       302 to https://syd1.stream.botofthespecter.com/sso/login?handoff=<token>&return=/recordings
 //   consumer
 //     verifies token (target match, used=0, expires_at>now), marks used,
 //     creates its own session cookie scoped to its domain.
@@ -29,7 +29,7 @@ $BOTS_SSO_TARGETS = [
     'members'         => 'https://members.botofthespecter.com/login.php',
     'roadmap'         => 'https://roadmap.botofthespecter.com/login.php',
     'admin'           => 'https://admin.botofthespecter.com/login.php',
-    'rtmp-sydney'     => 'https://au-east-1.botofthespecter.video/sso/login',
+    'rtmp-sydney'     => 'https://syd1.stream.botofthespecter.com/sso/login',
     'rtmp-us-east'    => 'https://us-east-1.botofthespecter.video/sso/login',
     'rtmp-us-west'    => 'https://us-west-1.botofthespecter.video/sso/login',
     'rtmp-eu-central' => 'https://eu-central-1.botofthespecter.video/sso/login',

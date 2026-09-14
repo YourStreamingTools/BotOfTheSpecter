@@ -6978,7 +6978,7 @@ return [
     'youtube_vod_status_stored' => '已存储',
     'youtube_vod_store_started' => '下载已开始。进度见下方已存储 VOD。',
     'youtube_vod_stored_heading' => '已存储 VOD',
-    'youtube_vod_stored_help' => '悉尼上的副本：进行中、失败、可下载。',
+    'youtube_vod_stored_help' => '此频道已保存的 Twitch 录像。进行中的下载会显示进度，完成后可在下方下载。',
     'youtube_vod_stored_empty' => '还没有已存储的 Twitch VOD。',
     'youtube_vod_status_failed' => '下载失败',
     'youtube_vod_store_failed' => '无法开始 Twitch VOD 下载。',

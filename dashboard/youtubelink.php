@@ -283,6 +283,13 @@ if ($accessToken !== '' && $channelUserId !== '' && !empty($clientID)) {
         $twitchVideos = is_array($helixJson['data'] ?? null) ? $helixJson['data'] : [];
     }
 }
+$helixTitles = [];
+foreach ($twitchVideos as $video) {
+    $hid = (string) ($video['id'] ?? '');
+    if ($hid !== '') {
+        $helixTitles[$hid] = (string) ($video['title'] ?? '');
+    }
+}
 
 ob_start();
 ?>
@@ -418,9 +425,19 @@ ob_start();
                         </thead>
                         <tbody>
                             <?php foreach ($storedReady as $file): ?>
+                                <?php
+                                $tid = (string) ($file['twitch_video_id'] ?? '');
+                                $displayTitle = trim((string) ($file['title'] ?? ''));
+                                if ($displayTitle === '' && $tid !== '' && isset($helixTitles[$tid])) {
+                                    $displayTitle = $helixTitles[$tid];
+                                }
+                                if ($displayTitle === '') {
+                                    $displayTitle = (string) preg_replace('/\.mp4$/i', '', (string) ($file['name'] ?? ''));
+                                }
+                                ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars(preg_replace('/\.mp4$/i', '', (string) ($file['name'] ?? ''))); ?></td>
-                                    <td><?php echo !empty($file['size_bytes']) ? htmlspecialchars((string) round(((int) $file['size_bytes']) / 1048576, 1)) . ' MB' : '—'; ?></td>
+                                    <td><?php echo htmlspecialchars($displayTitle); ?></td>
+                                    <td><?php echo !empty($file['size_bytes']) ? htmlspecialchars(formatBytes((int) $file['size_bytes'])) : '—'; ?></td>
                                     <td>
                                         <?php if (!empty($file['download_url'])): ?>
                                             <a class="sp-btn sp-btn-secondary sp-btn-sm" href="<?php echo htmlspecialchars((string) $file['download_url']); ?>"><?php echo t('recording_btn_download'); ?></a>
@@ -514,6 +531,7 @@ ob_start();
 (function () {
     var host = document.getElementById('youtube-vod-status');
     if (!host) return;
+    var helixTitles = <?php echo json_encode($helixTitles, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
     function render(data) {
         if (!data) return;
         var pulls = Array.isArray(data.pulls) ? data.pulls : [];
@@ -524,6 +542,23 @@ ob_start();
         var stored = files.filter(function (f) {
             return f && !f.is_partial && /^twitch-[0-9].*\.mp4$/i.test(String(f.name || ''));
         });
+        function formatBytesJs(bytes) {
+            bytes = Number(bytes) || 0;
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(1) + ' GB';
+        }
+        function displayTitle(file) {
+            if (file && file.title) return String(file.title);
+            var id = file && file.twitch_video_id ? String(file.twitch_video_id) : '';
+            if (!id && file && file.name) {
+                var m = String(file.name).match(/^twitch-([0-9]{1,20})\.mp4/i);
+                if (m) id = m[1];
+            }
+            if (id && helixTitles && helixTitles[id]) return String(helixTitles[id]);
+            return String(file && file.name ? file.name : '').replace(/\.mp4$/i, '');
+        }
         if (!active.length && !failed.length && !stored.length) {
             html = '<p class="sp-help"><?php echo htmlspecialchars(t('youtube_vod_stored_empty')); ?></p>';
         }
@@ -543,12 +578,12 @@ ob_start();
         if (stored.length) {
             html += '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><?php echo htmlspecialchars(t('youtube_vod_th_title')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('youtube_vod_th_action')); ?></th></tr></thead><tbody>';
             stored.forEach(function (file) {
-                var name = String(file.name || '').replace(/\.mp4$/i, '');
-                var mb = file.size_bytes ? ((file.size_bytes / 1048576).toFixed(1) + ' MB') : '—';
+                var name = displayTitle(file);
+                var size = file.size_bytes ? formatBytesJs(file.size_bytes) : '—';
                 var dl = file.download_url
                     ? '<a class="sp-btn sp-btn-secondary sp-btn-sm" href="' + String(file.download_url).replace(/"/g, '') + '"><?php echo htmlspecialchars(t('recording_btn_download')); ?></a>'
                     : '';
-                html += '<tr><td>' + name.replace(/[<>&]/g, '') + '</td><td>' + mb + '</td><td>' + dl + '</td></tr>';
+                html += '<tr><td>' + name.replace(/[<>&]/g, '') + '</td><td>' + size + '</td><td>' + dl + '</td></tr>';
             });
             html += '</tbody></table></div>';
         }
