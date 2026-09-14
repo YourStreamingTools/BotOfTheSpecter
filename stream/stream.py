@@ -1815,6 +1815,34 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "pulls": pulls,
         })
 
+    @app.post("/api/me/recordings/titles")
+    async def api_save_vod_titles():
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        body = await request.get_json(silent=True) or {}
+        items = body.get("items") if isinstance(body, dict) else None
+        if not isinstance(items, list):
+            return jsonify({"error": "invalid items"}), 400
+        user_dir = os.path.join(recorder_storage_path, username)
+        os.makedirs(user_dir, exist_ok=True)
+        saved = 0
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            vod_id = str(item.get("vod_id") or "").strip()
+            title = str(item.get("title") or "").strip()
+            if not re.match(r"^[0-9]{1,20}$", vod_id) or not title:
+                continue
+            try:
+                with open(os.path.join(user_dir, f"twitch-{vod_id}.json"), "w", encoding="utf-8") as meta_fh:
+                    json.dump({"vod_id": vod_id, "title": title}, meta_fh)
+                saved += 1
+            except OSError:
+                continue
+        return jsonify({"ok": True, "saved": saved})
+
     @app.post("/api/me/recordings/extend")
     async def api_extend_recording():
         provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")

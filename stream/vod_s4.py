@@ -60,7 +60,12 @@ def upload_vod(local_path: str, username: str, filename: str) -> str:
     if not os.path.isfile(local_path):
         raise FileNotFoundError(local_path)
     client = s3_client()
+    from ffmpeg_jobs import content_disposition_attachment, download_mp4_name
+
     extra = {"ContentType": "video/mp4"}
+    extra["ContentDisposition"] = content_disposition_attachment(
+        download_mp4_name(local_path, os.path.splitext(os.path.basename(local_path))[0])
+    )
     client.upload_file(local_path, bucket_name(), key, ExtraArgs=extra, Config=TRANSFER)
     return key
 

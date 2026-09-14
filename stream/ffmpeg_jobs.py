@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import time
+import unicodedata
 from typing import Any, Optional
+from urllib.parse import quote
 
 import subprocess
 
@@ -126,3 +129,47 @@ class AttachedProcess:
     def send_signal(self, sig):
         if pid_alive(self.pid):
             os.kill(self.pid, sig)
+
+
+def sanitize_download_basename(name: str) -> str:
+    text = unicodedata.normalize("NFC", name or "")
+    text = re.sub(r'[\x00-\x1f\x7f<>:"/\\|?*]', "-", text)
+    text = text.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    text = re.sub(r"\s+", " ", text).strip().strip(".")
+    if len(text) > 180:
+        text = text[:180].rstrip(" .")
+    return text or "video"
+
+
+def vod_title_from_sidecar(media_path: str) -> str:
+    if media_path.lower().endswith(".mp4"):
+        sidecar = media_path[:-4] + ".json"
+    else:
+        sidecar = media_path + ".json"
+    try:
+        with open(sidecar, encoding="utf-8") as handle:
+            meta = json.load(handle)
+        if isinstance(meta, dict):
+            return str(meta.get("title") or "").strip()
+    except (OSError, ValueError):
+        pass
+    return ""
+
+
+def download_mp4_name(media_path: str, fallback: str = "") -> str:
+    title = vod_title_from_sidecar(media_path)
+    base = sanitize_download_basename(title or fallback or os.path.basename(media_path))
+    if base.lower().endswith(".mp4"):
+        return base
+    return base + ".mp4"
+
+
+def content_disposition_attachment(download_name: str) -> str:
+    ascii_name = (
+        download_name.encode("ascii", "replace")
+        .decode("ascii")
+        .replace("?", "-")
+        .replace('"', "")
+    )
+    encoded = quote(download_name.encode("utf-8"), safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
