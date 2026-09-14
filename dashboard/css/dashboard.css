@@ -5999,6 +5999,9 @@ label.checkbox input[type="checkbox"] {
     align-items: center;
     margin: 0 0 0.75rem;
 }
+.sp-card-header .youtube-vod-toolbar {
+    margin: 0;
+}
 .youtube-vod-check {
     width: 1rem;
     height: 1rem;
@@ -6013,31 +6016,40 @@ label.checkbox input[type="checkbox"] {
 .sp-modal-wide {
     max-width: 720px;
 }
-#library, #record, #ingest, #forward, #youtube {
+#library, #record, #ingest, #forward, #youtube, #import {
     scroll-margin-top: 1rem;
 }
-.stream-hub-nav {
+.stream-hub-panel { display: none; }
+.stream-hub-panel.is-active { display: block; }
+.stream-hub-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+}
+.stream-hub-empty i {
+    font-size: 1.6rem;
+    display: block;
+    margin-bottom: 0.6rem;
+    color: var(--text-secondary);
+}
+.stream-hub-file-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem 1.25rem;
-    margin: 0 0 1.25rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
+    gap: 0.4rem;
+    align-items: center;
 }
-.stream-hub-nav a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-size: 0.92rem;
-    font-weight: 600;
-}
-.stream-hub-nav a:hover {
-    color: var(--accent);
+.stream-hub-forward-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 .stream-hub-forward-block {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 1rem;
-    margin-bottom: 1rem;
+    background: var(--bg-surface);
+    margin: 0;
 }
 .stream-hub-forward-head {
     display: flex;
@@ -6049,4 +6061,7 @@ label.checkbox input[type="checkbox"] {
     width: 1.1em;
     height: 1.1em;
     border-radius: 3px;
+}
+@media (max-width: 640px) {
+    .stream-hub-file-actions .sp-btn { width: 100%; justify-content: center; }
 }
