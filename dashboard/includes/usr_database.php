@@ -1393,6 +1393,46 @@ try {
                 interval_minutes INT NOT NULL DEFAULT 15,
                 enabled TINYINT(1) NOT NULL DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tracked_games' => "
+            CREATE TABLE IF NOT EXISTS tracked_games (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                twitch_game_id VARCHAR(32) DEFAULT NULL,
+                title VARCHAR(255) NOT NULL,
+                box_art_url VARCHAR(512) DEFAULT NULL,
+                status ENUM('playing','on_hold','finished','dropped') NOT NULL DEFAULT 'playing',
+                completion_100 TINYINT(1) NOT NULL DEFAULT 0,
+                extra_seconds INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_tracked_games_twitch_id (twitch_game_id),
+                INDEX idx_tracked_games_status (status),
+                INDEX idx_tracked_games_title (title)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tracked_game_sessions' => "
+            CREATE TABLE IF NOT EXISTS tracked_game_sessions (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                game_id INT NOT NULL,
+                started_at DATETIME NOT NULL,
+                ended_at DATETIME DEFAULT NULL,
+                duration_seconds INT NOT NULL DEFAULT 0,
+                twitch_game_id VARCHAR(32) DEFAULT NULL,
+                INDEX idx_tracked_sessions_game (game_id),
+                INDEX idx_tracked_sessions_open (ended_at),
+                CONSTRAINT fk_tracked_sessions_game FOREIGN KEY (game_id) REFERENCES tracked_games(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tracked_game_denylist' => "
+            CREATE TABLE IF NOT EXISTS tracked_game_denylist (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                twitch_game_id VARCHAR(32) DEFAULT NULL,
+                title VARCHAR(255) NOT NULL,
+                UNIQUE KEY uq_tracked_denylist_twitch_id (twitch_game_id),
+                UNIQUE KEY uq_tracked_denylist_title (title)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tracked_game_settings' => "
+            CREATE TABLE IF NOT EXISTS tracked_game_settings (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                denylist_seeded TINYINT(1) NOT NULL DEFAULT 0
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
@@ -1556,6 +1596,48 @@ try {
     // Ensure 'Default' category exists
     if ($usrDBconn->query("INSERT INTO categories (category) SELECT 'Default' WHERE NOT EXISTS (SELECT 1 FROM categories WHERE category = 'Default')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default category ensured.');
+    }
+    // Seed tracked-game denylist once (Just Chatting and other non-games). Users may delete any row; we never re-seed.
+    $usrDBconn->query("INSERT INTO tracked_game_settings (id, denylist_seeded) VALUES (1, 0) ON DUPLICATE KEY UPDATE id = id");
+    $tgSeedRes = $usrDBconn->query("SELECT denylist_seeded FROM tracked_game_settings WHERE id = 1");
+    $tgSeedRow = $tgSeedRes ? $tgSeedRes->fetch_assoc() : null;
+    if ($tgSeedRow && (int)$tgSeedRow['denylist_seeded'] === 0) {
+        $tgDefaults = [
+            ['509658', 'Just Chatting'],
+            [null, 'IRL'],
+            ['26936', 'Music'],
+            ['509660', 'Art'],
+            ['417752', 'Talk Shows & Podcasts'],
+            ['116747788', 'Pools, Hot Tubs, and Beaches'],
+            ['518203', 'Sports'],
+            ['509659', 'ASMR'],
+            ['509663', 'Special Events'],
+            ['509667', 'Food & Drink'],
+            ['509672', 'Travel & Outdoors'],
+            ['515214', 'Politics'],
+            ['509671', 'Always On'],
+            ['509669', 'Beauty & Body Art'],
+        ];
+        $tgInsId = $usrDBconn->prepare("INSERT IGNORE INTO tracked_game_denylist (twitch_game_id, title) VALUES (?, ?)");
+        $tgInsName = $usrDBconn->prepare("INSERT IGNORE INTO tracked_game_denylist (twitch_game_id, title) VALUES (NULL, ?)");
+        if ($tgInsId && $tgInsName) {
+            foreach ($tgDefaults as $tgRow) {
+                $tgId = $tgRow[0];
+                $tgTitle = $tgRow[1];
+                if ($tgId === null || $tgId === '') {
+                    $tgInsName->bind_param('s', $tgTitle);
+                    $tgInsName->execute();
+                } else {
+                    $tgInsId->bind_param('ss', $tgId, $tgTitle);
+                    $tgInsId->execute();
+                }
+            }
+        }
+        if ($tgInsId) { $tgInsId->close(); }
+        if ($tgInsName) { $tgInsName->close(); }
+        if ($usrDBconn->query("UPDATE tracked_game_settings SET denylist_seeded = 1 WHERE id = 1") === TRUE) {
+            async_log('Default tracked-game denylist seeded.');
+        }
     }
     // Ensure default options for showobs exist
     if ($usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size, show_completed) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22, 1 WHERE NOT EXISTS (SELECT 1 FROM showobs)") === TRUE && $usrDBconn->affected_rows > 0) {
@@ -1905,7 +1987,21 @@ try {
         ],
         'game' => [
             'message' => 'The current game we\'re playing is: (game)',
+            'message_tracked' => 'The current game we\'re playing is: (game) — (status), (time)(100)',
             'message_none' => 'We\'re not currently streaming any specific game category.',
+            'message_lookup' => '(game): (status) · (time)(100)',
+            'message_lookup_none' => '(game) is not on the game list.',
+            'message_list' => 'In progress: (list)',
+            'message_list_empty' => 'No games currently marked as playing.',
+            'message_done' => 'Marked (game) as finished in (time).',
+            'message_hold' => 'Put (game) on hold at (time).',
+            'message_drop' => 'Dropped (game) after (time).',
+            'message_time' => 'Set (game) time to (time).',
+            'message_100' => 'Marked (game) as 100% complete in (time).',
+            'message_ambiguous' => 'More than one game matches that name. Use the dashboard to pick the right one.',
+            'message_no_current' => 'No current tracked game. Pass a title, e.g. !game done Hollow Knight.',
+            'message_not_mod' => 'Only the streamer or mods can update the game list.',
+            'message_bad_time' => 'I couldn\'t read that time. Try 12h, 30m, 12h30m, or 12:30.',
         ],
         'uptime' => [
             'message' => 'The stream has been live for (hours) hours, (minutes) minutes, and (seconds) seconds.',

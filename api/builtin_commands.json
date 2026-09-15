@@ -248,17 +248,98 @@
 			"syntax": ["!timer"]
 		},
 		"game": {
-			"description": "Shows the game or category the channel is currently streaming.",
-			"syntax": "!game",
+			"description": "Shows the current Twitch category and, when tracked, play time and status. Streamer/mods can mark done, hold, drop, 100%, or set time.",
+			"syntax": [
+				"!game",
+				"!game Elden Ring",
+				"!game list",
+				"!game done",
+				"!game done 12h30m",
+				"!game done Hollow Knight 12h30m",
+				"!game hold",
+				"!game drop",
+				"!game 100",
+				"!game time 12h30m"
+			],
 			"chat_messages": {
 				"message": {
 					"default": "The current game we're playing is: (game)",
 					"label": "Currently playing",
 					"vars": ["(game)"]
 				},
+				"message_tracked": {
+					"default": "The current game we're playing is: (game) — (status), (time)(100)",
+					"label": "Currently playing (tracked)",
+					"vars": ["(game)", "(status)", "(time)", "(100)"]
+				},
 				"message_none": {
 					"default": "We're not currently streaming any specific game category.",
 					"label": "No game set",
+					"vars": []
+				},
+				"message_lookup": {
+					"default": "(game): (status) · (time)(100)",
+					"label": "Lookup tracked game",
+					"vars": ["(game)", "(status)", "(time)", "(100)"]
+				},
+				"message_lookup_none": {
+					"default": "(game) is not on the game list.",
+					"label": "Lookup not on list",
+					"vars": ["(game)"]
+				},
+				"message_list": {
+					"default": "In progress: (list)",
+					"label": "Playing list",
+					"vars": ["(list)"]
+				},
+				"message_list_empty": {
+					"default": "No games currently marked as playing.",
+					"label": "Playing list empty",
+					"vars": []
+				},
+				"message_done": {
+					"default": "Marked (game) as finished in (time).",
+					"label": "Marked finished",
+					"vars": ["(game)", "(time)"]
+				},
+				"message_hold": {
+					"default": "Put (game) on hold at (time).",
+					"label": "Put on hold",
+					"vars": ["(game)", "(time)"]
+				},
+				"message_drop": {
+					"default": "Dropped (game) after (time).",
+					"label": "Dropped",
+					"vars": ["(game)", "(time)"]
+				},
+				"message_time": {
+					"default": "Set (game) time to (time).",
+					"label": "Time updated",
+					"vars": ["(game)", "(time)"]
+				},
+				"message_100": {
+					"default": "Marked (game) as 100% complete in (time).",
+					"label": "Marked 100%",
+					"vars": ["(game)", "(time)"]
+				},
+				"message_ambiguous": {
+					"default": "More than one game matches that name. Use the dashboard to pick the right one.",
+					"label": "Ambiguous title",
+					"vars": []
+				},
+				"message_no_current": {
+					"default": "No current tracked game. Pass a title, e.g. !game done Hollow Knight.",
+					"label": "No current tracked game",
+					"vars": []
+				},
+				"message_not_mod": {
+					"default": "Only the streamer or mods can update the game list.",
+					"label": "Not a mod",
+					"vars": []
+				},
+				"message_bad_time": {
+					"default": "I couldn't read that time. Try 12h, 30m, 12h30m, or 12:30.",
+					"label": "Bad time format",
 					"vars": []
 				}
 			}
