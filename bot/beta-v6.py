@@ -369,6 +369,8 @@ OPENAI_MODEL = "gpt-5.4-mini"                           # OpenAI chat model for 
 _shared_http_session = None                             # Shared aiohttp session (lazy-created)
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
+current_game = None                                     # Live Twitch category name
+current_game_id = None                                  # Live Twitch category id (Helix) 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
 HEARTRATE = None                                        # Current heart rate value 
 hyperate_task = None                                    # HypeRate WebSocket task
@@ -1784,13 +1786,15 @@ async def process_twitch_eventsub_message(message):
                     }))
                 # Channel Update Event
                 elif event_type == 'channel.update':
-                    global current_game
-                    global stream_title
+                    global current_game, current_game_id, stream_title, stream_online
                     title = event_data["title"]
-                    category_name = event_data["category_name"]
+                    category_name = event_data.get("category_name")
+                    category_id = event_data.get("category_id")
                     stream_title = title
-                    current_game = category_name
+                    current_game = (category_name or "").strip() or None
+                    current_game_id = str(category_id).strip() if category_id else None
                     event_logger.info(f"Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
+                    safe_create_task(tracked_game_sync(current_game_id, current_game, stream_online))
                 # Ad Break Begin Event
                 elif event_type == 'channel.ad_break.begin':
                     create_task(handle_ad_break_start(event_data["duration_seconds"]))
@@ -9599,7 +9603,7 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='game')
-    async def game_command(self, ctx: commands.Context):
+    async def game_command(self, ctx: commands.Context, *, extra: str = None):
         global current_game, bot_owner
         connection = None
         connection = await mysql_handler.get_connection()
@@ -9616,22 +9620,24 @@ class TwitchBot(commands.AutoBot):
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Check cooldown
-                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
-                if not await check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                    return
-                await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("game",))
-                game_options = parse_command_options_json(await cursor.fetchone())
-                if current_game is not None:
-                    await send_chat_message(resolve_builtin_chat_message(
-                        game_options, "game", "message", {"(game)": current_game},
-                    ))
-                else:
-                    await send_chat_message(resolve_builtin_chat_message(
-                        game_options, "game", "message_none", {},
-                    ))
-            # Record usage
-            add_usage('game', bucket_key, cooldown_bucket)
+                    bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                    if not await check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    await cursor.execute("SELECT options FROM command_options WHERE command=%s", ("game",))
+                    game_options = parse_command_options_json(await cursor.fetchone())
+                    is_mod = await command_permissions("mod", ctx.author)
+                    try:
+                        await tracked_game_handle_chat(cursor, game_options, extra, is_mod)
+                        await connection.commit()
+                    except Exception as track_err:
+                        if tracked_game_schema_missing(track_err):
+                            if current_game is not None:
+                                await send_chat_message(resolve_builtin_chat_message(game_options, "game", "message", {"(game)": current_game}))
+                            else:
+                                await send_chat_message(resolve_builtin_chat_message(game_options, "game", "message_none", {}))
+                        else:
+                            raise
+                    add_usage('game', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
@@ -15388,7 +15394,7 @@ async def process_weather_websocket(data):
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
-    global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
+    global stream_online, current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
     global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, stream_session_started_at
     was_offline = not stream_online
     stream_online = True
@@ -15411,6 +15417,7 @@ async def process_stream_online_websocket():
         if is_live:
             stream_data = data['data'][0]
             current_game = (stream_data.get('game_name') or '').strip() or None
+            current_game_id = str(stream_data.get('game_id') or '').strip() or None
             stream_title = (stream_data.get('title') or '').strip() or None
             started_at_str = stream_data.get('started_at')
             if started_at_str:
@@ -15422,6 +15429,7 @@ async def process_stream_online_websocket():
                     bot_logger.warning(f"Could not parse started_at '{started_at_str}', using bot-detected time: {e}")
         else:
             current_game = None
+            current_game_id = None
             stream_title = None
         if was_offline:
             ad_upcoming_notified = False
@@ -15437,8 +15445,11 @@ async def process_stream_online_websocket():
                             channel_data = channel_payload['data'][0]
                             fallback_game = (channel_data.get('game_name') or '').strip()
                             fallback_title = (channel_data.get('title') or '').strip()
+                            fallback_id = str(channel_data.get('game_id') or '').strip()
                             if fallback_game:
                                 current_game = fallback_game
+                            if fallback_id:
+                                current_game_id = fallback_id
                             if fallback_title:
                                 stream_title = fallback_title
                     else:
@@ -15468,12 +15479,15 @@ async def process_stream_online_websocket():
     start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
     if was_offline:
         await pet_reset_for_new_stream()
+    if current_game and str(current_game).strip().lower() != "unknown":
+        safe_create_task(tracked_game_sync(current_game_id, current_game, True))
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
     global stream_online, scheduled_clear_task, stream_session_started_at
     await pet_freeze_for_stream_offline()
     stream_online = False  # Update the stream status
+    safe_create_task(tracked_game_sync(None, None, False))
     stream_session_started_at = 0.0  # Clear so duration loop doesn't fire while offline
     # Cancel any previous scheduled task to avoid duplication
     if "hyperate_websocket" in looped_tasks:
@@ -17507,7 +17521,7 @@ async def wait_and_persist_outgoing_raid():
         outgoing_raid_task = None
 
 async def check_stream_online():
-    global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
+    global stream_online, current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
     global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at
     try:
         was_online = stream_online
@@ -17531,6 +17545,7 @@ async def check_stream_online():
                             channel_data = await channel_response.json()
                             if channel_data.get('data'):
                                 current_game = channel_data['data'][0].get('game_name', None)
+                                current_game_id = str(channel_data['data'][0].get('game_id') or '').strip() or None
                                 stream_title = channel_data['data'][0].get('title', None)
                     else:
                         stream_online = True
@@ -17542,6 +17557,7 @@ async def check_stream_online():
                             clear_ad_break_chat_history("stream-online-status-check-reset")
                         stream_data = data['data'][0]
                         current_game = stream_data.get('game_name', None)
+                        current_game_id = str(stream_data.get('game_id') or '').strip() or None
                         stream_title = stream_data.get('title', None)
                         start_looped_task("timed_message", timed_message)
                         start_looped_task("handle_upcoming_ads", handle_upcoming_ads)
@@ -17551,11 +17567,15 @@ async def check_stream_online():
                         await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
                         bot_logger.info(f"Bot Starting, Stream is online.")
                 await connection.commit()
+        if current_game and str(current_game).strip().lower() != "unknown":
+            safe_create_task(tracked_game_sync(current_game_id, current_game, stream_online))
+        elif not stream_online:
+            safe_create_task(tracked_game_sync(None, None, False))
     finally:
         pass
 
 async def refresh_stream_metadata():
-    global current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
+    global current_game, current_game_id, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
     if not stream_online:
         return False
     if 'current_game' not in globals():
@@ -17579,9 +17599,12 @@ async def refresh_stream_metadata():
                 previous_game = current_game
                 previous_title = stream_title
                 current_game = channel_data.get('game_name', None)
+                current_game_id = str(channel_data.get('game_id') or '').strip() or None
                 stream_title = channel_data.get('title', None)
                 if previous_game != current_game or previous_title != stream_title:
                     api_logger.info(f"Stream metadata refreshed. Title: {stream_title} | Category: {current_game}")
+                if previous_game != current_game:
+                    safe_create_task(tracked_game_sync(current_game_id, current_game, True))
                 return True
     except Exception as e:
         api_logger.error(f"Error refreshing stream metadata: {e}")
@@ -17601,8 +17624,385 @@ async def periodic_stream_metadata_refresh():
             api_logger.error(f"Unexpected error in periodic_stream_metadata_refresh: {e}")
             await sleep(60)
 
+# Tracked games: play log, auto-count while the live category matches, editable total via extra_seconds.
+TRACKED_GAME_STATUS_LABELS = {
+    "playing": "Playing",
+    "on_hold": "On hold",
+    "finished": "Finished",
+    "dropped": "Dropped",
+}
+TRACKED_GAME_MUTATIONS = {"done", "hold", "drop", "time", "100", "100%"}
+TRACKED_GAME_DEFAULT_MESSAGES = {
+    "message": "The current game we're playing is: (game)",
+    "message_tracked": "The current game we're playing is: (game) — (status), (time)(100)",
+    "message_none": "We're not currently streaming any specific game category.",
+    "message_lookup": "(game): (status) · (time)(100)",
+    "message_lookup_none": "(game) is not on the game list.",
+    "message_list": "In progress: (list)",
+    "message_list_empty": "No games currently marked as playing.",
+    "message_done": "Marked (game) as finished in (time).",
+    "message_hold": "Put (game) on hold at (time).",
+    "message_drop": "Dropped (game) after (time).",
+    "message_time": "Set (game) time to (time).",
+    "message_100": "Marked (game) as 100% complete in (time).",
+    "message_ambiguous": "More than one game matches that name. Use the dashboard to pick the right one.",
+    "message_no_current": "No current tracked game. Pass a title, e.g. !game done Hollow Knight.",
+    "message_not_mod": "Only the streamer or mods can update the game list.",
+    "message_bad_time": "I couldn't read that time. Try 12h, 30m, 12h30m, or 12:30.",
+}
+
+def tracked_game_chat_message(options, key, values=None):
+    msg = resolve_builtin_chat_message(options, "game", key, values)
+    if msg:
+        return msg
+    return format_builtin_chat_message(TRACKED_GAME_DEFAULT_MESSAGES.get(key, ""), values)
+
+def tracked_game_schema_missing(err):
+    text = str(err).lower()
+    return "tracked_game" in text or "1146" in text
+
+def tracked_game_utc_now():
+    return datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+
+def tracked_game_naive_utc(dt):
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        try:
+            dt = datetime.strptime(dt[:19], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+    if getattr(dt, "tzinfo", None) is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+def tracked_game_box_art_url(twitch_game_id):
+    if not twitch_game_id:
+        return None
+    return f"https://static-cdn.jtvnw.net/ttv-boxart/{twitch_game_id}-285x380.jpg"
+
+def tracked_game_format_seconds(total_seconds):
+    try:
+        total_seconds = max(0, int(total_seconds))
+    except (TypeError, ValueError):
+        total_seconds = 0
+    hours, rem = divmod(total_seconds, 3600)
+    minutes, _ = divmod(rem, 60)
+    if hours and minutes:
+        return f"{hours}h {minutes}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+def tracked_game_parse_duration(text):
+    if not text:
+        return None
+    raw = str(text).strip().lower().replace(" ", "")
+    if not raw:
+        return None
+    clock = re.fullmatch(r"(\d+):(\d{1,2})", raw)
+    if clock:
+        return int(clock.group(1)) * 3600 + int(clock.group(2)) * 60
+    hm = re.fullmatch(r"(?:(\d+)h(?:ours?)?)?(?:(\d+)m(?:in(?:utes?)?)?)?", raw)
+    if hm and (hm.group(1) or hm.group(2)):
+        hours = int(hm.group(1) or 0)
+        minutes = int(hm.group(2) or 0)
+        return hours * 3600 + minutes * 60
+    return None
+
+def tracked_game_peel_duration(tokens):
+    if not tokens:
+        return tokens, None
+    parsed = tracked_game_parse_duration(tokens[-1])
+    if parsed is not None:
+        return tokens[:-1], parsed
+    if len(tokens) >= 2:
+        parsed = tracked_game_parse_duration(tokens[-2] + tokens[-1])
+        if parsed is not None:
+            return tokens[:-2], parsed
+    return tokens, None
+
+def tracked_game_parse_extra(extra):
+    extra = (extra or "").strip()
+    if not extra:
+        return {"action": "current", "title": None, "seconds": None}
+    parts = extra.split()
+    first = parts[0].lower()
+    if first == "list":
+        return {"action": "list", "title": None, "seconds": None}
+    if first in TRACKED_GAME_MUTATIONS or first.rstrip("%") == "100":
+        action = "100" if first.rstrip("%") == "100" else first
+        rest, seconds = tracked_game_peel_duration(parts[1:])
+        title = " ".join(rest).strip() or None
+        return {"action": action, "title": title, "seconds": seconds}
+    return {"action": "lookup", "title": extra, "seconds": None}
+
+def tracked_game_percent_var(row):
+    if row and int(row.get("completion_100") or 0) == 1:
+        return " · 100%"
+    return ""
+
+async def tracked_game_session_seconds(cursor, game_id):
+    await cursor.execute("SELECT started_at, ended_at, duration_seconds FROM tracked_game_sessions WHERE game_id=%s", (game_id,))
+    total = 0
+    now = tracked_game_utc_now()
+    for row in await cursor.fetchall():
+        if row.get("ended_at") in (None, ""):
+            started = tracked_game_naive_utc(row.get("started_at"))
+            if started:
+                total += max(0, int((now - started).total_seconds()))
+        else:
+            try:
+                total += int(row.get("duration_seconds") or 0)
+            except (TypeError, ValueError):
+                pass
+    return total
+
+async def tracked_game_displayed_seconds(cursor, row):
+    extra = 0
+    try:
+        extra = int(row.get("extra_seconds") or 0)
+    except (TypeError, ValueError):
+        extra = 0
+    return await tracked_game_session_seconds(cursor, row["id"]) + extra
+
+async def tracked_game_is_denylisted(cursor, twitch_game_id, title):
+    twitch_game_id = str(twitch_game_id).strip() if twitch_game_id else ""
+    title = (title or "").strip()
+    if twitch_game_id:
+        await cursor.execute("SELECT id FROM tracked_game_denylist WHERE twitch_game_id=%s LIMIT 1", (twitch_game_id,))
+        if await cursor.fetchone():
+            return True
+    if title:
+        await cursor.execute("SELECT id FROM tracked_game_denylist WHERE LOWER(title)=LOWER(%s) LIMIT 1", (title,))
+        if await cursor.fetchone():
+            return True
+    return False
+
+async def tracked_game_close_open_sessions(cursor):
+    await cursor.execute("SELECT id, game_id, started_at FROM tracked_game_sessions WHERE ended_at IS NULL")
+    rows = await cursor.fetchall()
+    now = tracked_game_utc_now()
+    now_s = now.strftime("%Y-%m-%d %H:%M:%S")
+    for row in rows:
+        started = tracked_game_naive_utc(row.get("started_at"))
+        duration = max(0, int((now - started).total_seconds())) if started else 0
+        await cursor.execute("UPDATE tracked_game_sessions SET ended_at=%s, duration_seconds=%s WHERE id=%s", (now_s, duration, row["id"]))
+        await cursor.execute("UPDATE tracked_games SET updated_at=CURRENT_TIMESTAMP WHERE id=%s", (row["game_id"],))
+
+async def tracked_game_open_session(cursor, game_row, twitch_game_id):
+    await cursor.execute("SELECT id, game_id FROM tracked_game_sessions WHERE ended_at IS NULL LIMIT 1")
+    open_row = await cursor.fetchone()
+    if open_row and int(open_row["game_id"]) == int(game_row["id"]):
+        return
+    if open_row:
+        await tracked_game_close_open_sessions(cursor)
+    now_s = tracked_game_utc_now().strftime("%Y-%m-%d %H:%M:%S")
+    gid = twitch_game_id or game_row.get("twitch_game_id")
+    await cursor.execute("INSERT INTO tracked_game_sessions (game_id, started_at, twitch_game_id) VALUES (%s, %s, %s)", (game_row["id"], now_s, gid))
+    await cursor.execute("UPDATE tracked_games SET updated_at=CURRENT_TIMESTAMP WHERE id=%s", (game_row["id"],))
+
+async def tracked_game_upsert_category(cursor, twitch_game_id, title, stream_is_live):
+    title = (title or "").strip()
+    twitch_game_id = str(twitch_game_id).strip() if twitch_game_id else ""
+    if not title or title.lower() == "unknown":
+        await tracked_game_close_open_sessions(cursor)
+        return None
+    if await tracked_game_is_denylisted(cursor, twitch_game_id, title):
+        await tracked_game_close_open_sessions(cursor)
+        return None
+    row = None
+    if twitch_game_id:
+        await cursor.execute("SELECT * FROM tracked_games WHERE twitch_game_id=%s LIMIT 1", (twitch_game_id,))
+        row = await cursor.fetchone()
+    if not row:
+        await cursor.execute("SELECT * FROM tracked_games WHERE LOWER(title)=LOWER(%s) LIMIT 1", (title,))
+        row = await cursor.fetchone()
+    box = tracked_game_box_art_url(twitch_game_id)
+    if row:
+        new_status = row["status"]
+        if row["status"] in ("playing", "on_hold"):
+            new_status = "playing"
+        updates = ["title=%s", "status=%s"]
+        params = [title, new_status]
+        if twitch_game_id and not row.get("twitch_game_id"):
+            updates.append("twitch_game_id=%s")
+            params.append(twitch_game_id)
+        if box and not row.get("box_art_url"):
+            updates.append("box_art_url=%s")
+            params.append(box)
+        params.append(row["id"])
+        await cursor.execute(f"UPDATE tracked_games SET {', '.join(updates)} WHERE id=%s", tuple(params))
+        await cursor.execute("SELECT * FROM tracked_games WHERE id=%s", (row["id"],))
+        row = await cursor.fetchone()
+    else:
+        await cursor.execute("INSERT INTO tracked_games (twitch_game_id, title, box_art_url, status) VALUES (%s, %s, %s, %s)", (twitch_game_id or None, title, box, "playing"))
+        await cursor.execute("SELECT * FROM tracked_games WHERE id=%s", (cursor.lastrowid,))
+        row = await cursor.fetchone()
+    if stream_is_live:
+        await tracked_game_open_session(cursor, row, twitch_game_id)
+    else:
+        await tracked_game_close_open_sessions(cursor)
+    return row
+
+async def tracked_game_sync(twitch_game_id, title, stream_is_live):
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            if stream_is_live:
+                await tracked_game_upsert_category(cursor, twitch_game_id, title, True)
+            else:
+                await tracked_game_close_open_sessions(cursor)
+                if title:
+                    await tracked_game_upsert_category(cursor, twitch_game_id, title, False)
+            await connection.commit()
+    except Exception as e:
+        if tracked_game_schema_missing(e):
+            bot_logger.info("[TRACKED GAMES] Tables not ready yet.")
+        else:
+            bot_logger.error(f"[TRACKED GAMES] Sync failed: {e}")
+    finally:
+        if connection:
+            await connection.release()
+
+async def tracked_game_find_rows(cursor, title=None, twitch_game_id=None):
+    twitch_game_id = str(twitch_game_id).strip() if twitch_game_id else ""
+    title = (title or "").strip()
+    if twitch_game_id:
+        await cursor.execute("SELECT * FROM tracked_games WHERE twitch_game_id=%s LIMIT 2", (twitch_game_id,))
+        rows = await cursor.fetchall()
+        if rows:
+            return rows
+    if title:
+        await cursor.execute("SELECT * FROM tracked_games WHERE LOWER(title)=LOWER(%s)", (title,))
+        return await cursor.fetchall()
+    return []
+
+async def tracked_game_set_displayed_total(cursor, row, desired_seconds):
+    session_seconds = await tracked_game_session_seconds(cursor, row["id"])
+    extra = int(desired_seconds) - session_seconds
+    await cursor.execute("UPDATE tracked_games SET extra_seconds=%s WHERE id=%s", (extra, row["id"]))
+    row["extra_seconds"] = extra
+    return row
+
+async def tracked_game_apply_status(cursor, row, status, completion_100=None, desired_seconds=None):
+    global current_game, current_game_id
+    if status in ("finished", "dropped"):
+        same_live = False
+        if current_game_id and row.get("twitch_game_id") and str(row["twitch_game_id"]) == str(current_game_id):
+            same_live = True
+        elif current_game and row.get("title") and row["title"].lower() == str(current_game).lower():
+            same_live = True
+        if same_live:
+            await tracked_game_close_open_sessions(cursor)
+    if desired_seconds is not None:
+        await tracked_game_set_displayed_total(cursor, row, desired_seconds)
+    fields = ["status=%s"]
+    params = [status]
+    if completion_100 is not None:
+        fields.append("completion_100=%s")
+        params.append(1 if completion_100 else 0)
+    params.append(row["id"])
+    await cursor.execute(f"UPDATE tracked_games SET {', '.join(fields)} WHERE id=%s", tuple(params))
+    await cursor.execute("SELECT * FROM tracked_games WHERE id=%s", (row["id"],))
+    return await cursor.fetchone()
+
+async def tracked_game_chat_vars(cursor, row):
+    seconds = await tracked_game_displayed_seconds(cursor, row) if row else 0
+    status = TRACKED_GAME_STATUS_LABELS.get((row or {}).get("status"), (row or {}).get("status") or "")
+    return {
+        "(game)": (row or {}).get("title") or "",
+        "(status)": status,
+        "(time)": tracked_game_format_seconds(seconds),
+        "(100)": tracked_game_percent_var(row),
+    }
+
+async def tracked_game_handle_chat(cursor, options, extra, is_mod):
+    global current_game, current_game_id
+    parsed = tracked_game_parse_extra(extra)
+    action = parsed["action"]
+    if action == "list":
+        await cursor.execute("SELECT title FROM tracked_games WHERE status='playing' ORDER BY updated_at DESC")
+        titles = [r["title"] for r in await cursor.fetchall() if r.get("title")]
+        if not titles:
+            await send_chat_message(tracked_game_chat_message(options, "message_list_empty", {}))
+            return
+        shown = []
+        extra_count = 0
+        used = 0
+        for title in titles:
+            piece = f"{title}, "
+            if used + len(piece) > 380:
+                extra_count += 1
+                continue
+            shown.append(title)
+            used += len(piece)
+        extra_count += max(0, len(titles) - len(shown) - extra_count)
+        listing = ", ".join(shown)
+        leftover = len(titles) - len(shown)
+        if leftover > 0:
+            listing = f"{listing} +{leftover} more" if listing else f"+{leftover} more"
+        await send_chat_message(tracked_game_chat_message(options, "message_list", {"(list)": listing}))
+        return
+    if action in ("done", "hold", "drop", "time", "100"):
+        if not is_mod:
+            await send_chat_message(tracked_game_chat_message(options, "message_not_mod", {}))
+            return
+        rows = await tracked_game_find_rows(cursor, parsed["title"], None if parsed["title"] else current_game_id)
+        if not parsed["title"] and not rows:
+            rows = await tracked_game_find_rows(cursor, current_game, current_game_id)
+        if len(rows) > 1:
+            await send_chat_message(tracked_game_chat_message(options, "message_ambiguous", {}))
+            return
+        if not rows:
+            await send_chat_message(tracked_game_chat_message(options, "message_no_current" if not parsed["title"] else "message_lookup_none", {"(game)": parsed["title"] or current_game or ""}))
+            return
+        row = rows[0]
+        if action == "time":
+            if parsed["seconds"] is None:
+                await send_chat_message(tracked_game_chat_message(options, "message_bad_time", {}))
+                return
+            row = await tracked_game_set_displayed_total(cursor, row, parsed["seconds"])
+            await cursor.execute("SELECT * FROM tracked_games WHERE id=%s", (row["id"],))
+            row = await cursor.fetchone()
+            vars_map = await tracked_game_chat_vars(cursor, row)
+            await send_chat_message(tracked_game_chat_message(options, "message_time", vars_map))
+            return
+        status_map = {"done": "finished", "hold": "on_hold", "drop": "dropped", "100": "finished"}
+        row = await tracked_game_apply_status(cursor, row, status_map[action], completion_100=True if action == "100" else None, desired_seconds=parsed["seconds"])
+        vars_map = await tracked_game_chat_vars(cursor, row)
+        key = {"done": "message_done", "hold": "message_hold", "drop": "message_drop", "100": "message_100"}[action]
+        await send_chat_message(tracked_game_chat_message(options, key, vars_map))
+        return
+    if action == "lookup":
+        rows = await tracked_game_find_rows(cursor, parsed["title"])
+        if len(rows) > 1:
+            playing = [r for r in rows if r.get("status") == "playing"]
+            rows = playing if len(playing) == 1 else rows
+        if len(rows) > 1:
+            await send_chat_message(tracked_game_chat_message(options, "message_ambiguous", {}))
+            return
+        if not rows:
+            await send_chat_message(tracked_game_chat_message(options, "message_lookup_none", {"(game)": parsed["title"]}))
+            return
+        vars_map = await tracked_game_chat_vars(cursor, rows[0])
+        await send_chat_message(tracked_game_chat_message(options, "message_lookup", vars_map))
+        return
+    if current_game is None:
+        await send_chat_message(tracked_game_chat_message(options, "message_none", {}))
+        return
+    rows = await tracked_game_find_rows(cursor, current_game, current_game_id)
+    if len(rows) == 1:
+        vars_map = await tracked_game_chat_vars(cursor, rows[0])
+        tracked_msg = tracked_game_chat_message(options, "message_tracked", vars_map)
+        if tracked_msg:
+            await send_chat_message(tracked_msg)
+            return
+    await send_chat_message(tracked_game_chat_message(options, "message", {"(game)": current_game}))
+
 async def get_current_game():
-    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, current_game
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, current_game, current_game_id
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}"
     headers = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}"}
     try:
@@ -17613,6 +18013,7 @@ async def get_current_game():
                     if data['data']:
                         game_name = data['data'][0]['game_name']
                         current_game = game_name
+                        current_game_id = str(data['data'][0].get('game_id') or '').strip() or None
                         return game_name
                     else:
                         api_logger.info("Stream is offline or no game data available")

@@ -52,6 +52,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => 'Social Roller', 'icon' => 'fas fa-share-alt', 'href' => 'socials.php' ],
             [ 'label' => t('navbar_makers_crafting'), 'icon' => 'fas fa-palette', 'href' => 'makers.php' ],
             [ 'label' => t('navbar_working_study'), 'icon' => 'fas fa-user-clock', 'href' => 'working-or-study.php' ],
+            [ 'label' => t('navbar_game_tracker'), 'icon' => 'fas fa-gamepad', 'href' => 'tracked-games.php' ],
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
             [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
             [ 'label' => t('navbar_walkon_alerts'), 'icon' => 'fas fa-door-open', 'href' => 'walkons.php' ],
