@@ -110,6 +110,40 @@ def _path_needles(path: str) -> list[str]:
     return [item for item in names if item]
 
 
+def live_ffmpeg_cmdlines() -> list[str]:
+    cmds = []
+    if not os.path.isdir("/proc"):
+        return cmds
+    try:
+        for name in os.listdir("/proc"):
+            if not name.isdigit():
+                continue
+            try:
+                comm = open(f"/proc/{name}/comm", encoding="utf-8").read().strip()
+            except OSError:
+                continue
+            if comm != "ffmpeg":
+                continue
+            cmd = proc_cmdline(int(name))
+            if cmd:
+                cmds.append(cmd)
+    except OSError:
+        return cmds
+    return cmds
+
+
+def ffmpeg_is_writing_path(path: str, cmdlines: Optional[list[str]] = None) -> bool:
+    needles = _path_needles(path)
+    if not needles:
+        return False
+    cmds = cmdlines if cmdlines is not None else live_ffmpeg_cmdlines()
+    for cmd in cmds:
+        for needle in needles:
+            if needle in cmd:
+                return True
+    return False
+
+
 def find_ffmpeg_pid_for_path(path: str) -> Optional[int]:
     """Return the PID of a live ffmpeg whose cmdline points at this file or .part."""
     needles = _path_needles(path)

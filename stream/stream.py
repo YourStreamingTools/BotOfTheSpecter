@@ -24,10 +24,12 @@ from quart import Quart, render_template_string, request, jsonify, redirect, ses
 from ffmpeg_jobs import (
     atomic_write_json,
     download_mp4_name,
+    ffmpeg_is_writing_path,
     ffmpeg_log_finished_ok,
     ffmpeg_log_progress,
     ffmpeg_returncode,
     find_ffmpeg_pid_for_path,
+    live_ffmpeg_cmdlines,
     load_json,
     pull_ffmpeg_log_path,
     remove_media_and_sidecars,
@@ -1525,6 +1527,7 @@ def list_user_recording_files(root_path: str, username: str) -> list[dict]:
         names = os.listdir(user_dir)
     except OSError:
         return []
+    ffmpeg_cmds = live_ffmpeg_cmdlines()
     for fname in names:
         if not _safe_recording_name(fname):
             continue
@@ -1541,7 +1544,7 @@ def list_user_recording_files(root_path: str, username: str) -> list[dict]:
             "name": fname,
             "size": stat.st_size,
             "mtime": stat.st_mtime,
-            "is_partial": fname.endswith(".part"),
+            "is_partial": fname.endswith(".part") or ffmpeg_is_writing_path(fpath, ffmpeg_cmds),
         })
     files.sort(key=lambda f: f["mtime"], reverse=True)
     return files
