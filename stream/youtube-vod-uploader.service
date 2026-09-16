@@ -1,0 +1,14 @@
+[Unit]
+Description=Specter YouTube VOD uploader (one queued job)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/specter-stream
+EnvironmentFile=/opt/specter-stream/.env
+ExecStart=/opt/specter-stream/venv/bin/python /opt/specter-stream/youtube_vod_uploader.py
+Nice=10
+KillMode=process
+TimeoutStartSec=infinity
