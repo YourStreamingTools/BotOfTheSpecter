@@ -158,6 +158,14 @@ $pullingCount = count($activePulls);
                                 $displayTitle = recordingDisplayName($file['name'], $file['title'] ?? '');
                                 $namedUrl = (string) ($file['download_url'] ?? '');
                                 $canDl = empty($file['is_partial']) && strtolower((string) pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4';
+                                $kind = recordingFileKind($file);
+                                $tid = recordingTwitchId($file);
+                                $ytJob = $youtubeJobs[$file['name']] ?? null;
+                                $ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
+                                $durSeconds = youtube_parse_duration_seconds($helixDurations[$tid] ?? '');
+                                $fileSize = (int) ($file['size'] ?? 0);
+                                $ytLimit = youtube_upload_limit_reason($durSeconds, $fileSize > 0 ? $fileSize : null);
+                                $showYoutube = $canUpload && !$isActAsUser && $canDl;
                                 ?>
                                 <tr>
                                     <td>
@@ -167,13 +175,20 @@ $pullingCount = count($activePulls);
                                     </td>
                                     <td><?php echo htmlspecialchars($displayTitle); ?></td>
                                     <td>
-                                        <?php if (!empty($file['is_partial'])): ?>
+                                        <div class="stream-hub-type">
+                                        <?php if ($kind === 'recording'): ?>
                                             <span class="sp-badge sp-badge-amber"><?php echo t('recording_type_in_progress'); ?></span>
-                                        <?php elseif (($file['storage'] ?? '') === 's4'): ?>
-                                            <span class="sp-badge sp-badge-blue"><?php echo t('recording_type_extended'); ?></span>
+                                        <?php elseif ($kind === 'storing'): ?>
+                                            <span class="sp-badge sp-badge-amber"><?php echo t('youtube_vod_status_pulling'); ?></span>
+                                        <?php elseif ($kind === 'stored'): ?>
+                                            <span class="sp-badge sp-badge-blue"><?php echo t('recording_type_stored'); ?></span>
                                         <?php else: ?>
-                                            <span class="sp-badge sp-badge-grey"><?php echo t('recording_type_file'); ?></span>
+                                            <span class="sp-badge sp-badge-accent"><?php echo t('recording_type_recorded'); ?></span>
                                         <?php endif; ?>
+                                        <?php if (($file['storage'] ?? '') === 's4' && $kind !== 'recording' && $kind !== 'storing'): ?>
+                                            <span class="sp-badge sp-badge-grey"><?php echo t('recording_type_extended'); ?></span>
+                                        <?php endif; ?>
+                                        </div>
                                     </td>
                                     <td><?php echo htmlspecialchars(formatBytes((int) $file['size'])); ?></td>
                                     <td>
@@ -189,6 +204,27 @@ $pullingCount = count($activePulls);
                                             <a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($namedUrl); ?>"><?php echo t('recording_btn_download'); ?></a>
                                             <?php if (!empty($file['can_extend'])): ?>
                                                 <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="<?php echo htmlspecialchars($file['name']); ?>"><?php echo t('recording_btn_extend'); ?></button>
+                                            <?php endif; ?>
+                                            <?php if ($showYoutube): ?>
+                                                <?php if ($ytStatus === 'done'): ?>
+                                                    <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
+                                                <?php elseif (in_array($ytStatus, ['queued', 'pulling', 'uploading'], true)): ?>
+                                                    <span class="sp-badge sp-badge-amber"><?php echo t('youtube_status_' . $ytStatus); ?></span>
+                                                <?php elseif ($ytLimit !== null): ?>
+                                                    <span class="youtube-upload-limit" title="<?php echo htmlspecialchars(t(youtube_upload_limit_lang_key($ytLimit))); ?>">
+                                                        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled><?php echo t('videos_send_to_youtube'); ?></button>
+                                                    </span>
+                                                <?php else: ?>
+                                                    <form method="post" action="streaming.php#library" data-send-youtube="1">
+                                                        <input type="hidden" name="action" value="send_library_youtube">
+                                                        <input type="hidden" name="filename" value="<?php echo htmlspecialchars($file['name']); ?>">
+                                                        <input type="hidden" name="file_title" value="<?php echo htmlspecialchars($displayTitle); ?>">
+                                                        <input type="hidden" name="twitch_video_id" value="<?php echo htmlspecialchars($tid); ?>">
+                                                        <input type="hidden" name="file_size" value="<?php echo (int) $file['size']; ?>">
+                                                        <input type="hidden" name="file_duration" value="<?php echo htmlspecialchars($helixDurations[$tid] ?? ''); ?>">
+                                                        <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo $ytStatus === 'failed' ? t('youtube_btn_retry') : t('videos_send_to_youtube'); ?></button>
+                                                    </form>
+                                                <?php endif; ?>
                                             <?php endif; ?>
                                             </div>
                                         <?php else: ?>
@@ -521,8 +557,20 @@ $pullingCount = count($activePulls);
         download: <?php echo json_encode(t('recording_btn_download')); ?>,
         extend: <?php echo json_encode(t('recording_btn_extend')); ?>,
         inProgress: <?php echo json_encode(t('recording_type_in_progress')); ?>,
+        storing: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
+        recorded: <?php echo json_encode(t('recording_type_recorded')); ?>,
+        storedType: <?php echo json_encode(t('recording_type_stored')); ?>,
         extended: <?php echo json_encode(t('recording_type_extended')); ?>,
         file: <?php echo json_encode(t('recording_type_file')); ?>,
+        sendYoutube: <?php echo json_encode(t('videos_send_to_youtube')); ?>,
+        retryYoutube: <?php echo json_encode(t('youtube_btn_retry')); ?>,
+        ytQueued: <?php echo json_encode(t('youtube_status_queued')); ?>,
+        ytPulling: <?php echo json_encode(t('youtube_status_pulling')); ?>,
+        ytUploading: <?php echo json_encode(t('youtube_status_uploading')); ?>,
+        ytDone: <?php echo json_encode(t('youtube_status_done')); ?>,
+        ytTooLong: <?php echo json_encode(t('youtube_upload_too_long')); ?>,
+        ytTooLarge: <?php echo json_encode(t('youtube_upload_too_large')); ?>,
+        ytSendFailed: <?php echo json_encode(t('youtube_vod_youtube_failed')); ?>,
         noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
         expired: <?php echo json_encode(t('recording_countdown_expired')); ?>,
         extendFailed: <?php echo json_encode(t('recording_extend_failed')); ?>,
@@ -534,6 +582,16 @@ $pullingCount = count($activePulls);
         storageUsedUnlimited: <?php echo json_encode(t('recording_storage_used_unlimited')); ?>
     };
     var helixTitles = <?php echo json_encode($helixTitles, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    var helixDurations = <?php echo json_encode($helixDurations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    var canUpload = <?php echo ($canUpload && !$isActAsUser) ? 'true' : 'false'; ?>;
+    var youtubeJobs = <?php echo json_encode(array_map(static function ($row) {
+        return [
+            'status' => (string) ($row['status'] ?? ''),
+            'youtube_video_id' => (string) ($row['youtube_video_id'] ?? ''),
+        ];
+    }, $youtubeJobs), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    var YT_MAX_SECONDS = 12 * 3600;
+    var YT_MAX_BYTES = 256 * 1024 * 1024 * 1024;
     function escapeHtml(value) {
         return String(value == null ? '' : value).replace(/[<>&"]/g, function (ch) {
             return ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch];
@@ -556,6 +614,77 @@ $pullingCount = count($activePulls);
         }
         if (id && helixTitles[id]) return String(helixTitles[id]);
         return String((file && file.name) || '').replace(/\.mp4(\.part)?$/i, '');
+    }
+    function twitchIdOf(file) {
+        var id = file && file.twitch_video_id ? String(file.twitch_video_id) : '';
+        if (!id && file && file.name) {
+            var m = String(file.name).match(/^twitch-([0-9]{1,20})\.mp4/i);
+            if (m) id = m[1];
+        }
+        return id;
+    }
+    function fileKind(file) {
+        var isTwitch = twitchIdOf(file) !== '';
+        if (file && file.is_partial) return isTwitch ? 'storing' : 'recording';
+        return isTwitch ? 'stored' : 'recorded';
+    }
+    function parseDurationSeconds(value) {
+        if (value == null || value === '') return null;
+        if (typeof value === 'number' && isFinite(value)) return value >= 0 ? Math.round(value) : null;
+        var s = String(value).trim().toUpperCase();
+        if (!s) return null;
+        if (/^\d+(\.\d+)?$/.test(s)) return Math.round(Number(s));
+        var iso = s.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+        if (iso && (iso[1] || iso[2] || iso[3])) {
+            return Math.round((Number(iso[1] || 0) * 3600) + (Number(iso[2] || 0) * 60) + Number(iso[3] || 0));
+        }
+        var tw = s.match(/^(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+        if (tw && (tw[1] || tw[2] || tw[3])) {
+            return (Number(tw[1] || 0) * 3600) + (Number(tw[2] || 0) * 60) + Number(tw[3] || 0);
+        }
+        return null;
+    }
+    function youtubeLimitReason(durationS, sizeBytes) {
+        if (durationS != null && durationS > YT_MAX_SECONDS) return 'too_long';
+        if (sizeBytes != null && sizeBytes > YT_MAX_BYTES) return 'too_large';
+        return null;
+    }
+    function typeBadgesHtml(file) {
+        var kind = fileKind(file);
+        var html = '<div class="stream-hub-type">';
+        if (kind === 'recording') html += '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.inProgress) + '</span>';
+        else if (kind === 'storing') html += '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.storing) + '</span>';
+        else if (kind === 'stored') html += '<span class="sp-badge sp-badge-blue">' + escapeHtml(I18N.storedType) + '</span>';
+        else html += '<span class="sp-badge sp-badge-accent">' + escapeHtml(I18N.recorded) + '</span>';
+        if (file && file.storage === 's4' && kind !== 'recording' && kind !== 'storing') {
+            html += '<span class="sp-badge sp-badge-grey">' + escapeHtml(I18N.extended) + '</span>';
+        }
+        return html + '</div>';
+    }
+    function youtubeActionHtml(file, title) {
+        if (!canUpload || !file || file.is_partial || !/\.mp4$/i.test(String(file.name || ''))) return '';
+        var job = youtubeJobs[file.name] || {};
+        var status = String(job.status || '');
+        if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.ytDone) + '</span>';
+        if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytQueued) + '</span>';
+        if (status === 'pulling') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytPulling) + '</span>';
+        if (status === 'uploading') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytUploading) + '</span>';
+        var tid = twitchIdOf(file);
+        var size = Number(file.size || file.size_bytes || 0) || 0;
+        var limit = youtubeLimitReason(parseDurationSeconds(helixDurations[tid] || ''), size > 0 ? size : null);
+        if (limit) {
+            var why = limit === 'too_large' ? I18N.ytTooLarge : I18N.ytTooLong;
+            return '<span class="youtube-upload-limit" title="' + escapeHtml(why) + '"><button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled>' + escapeHtml(I18N.sendYoutube) + '</button></span>';
+        }
+        var label = status === 'failed' ? I18N.retryYoutube : I18N.sendYoutube;
+        return '<form method="post" action="streaming.php#library" data-send-youtube="1">'
+            + '<input type="hidden" name="action" value="send_library_youtube">'
+            + '<input type="hidden" name="filename" value="' + escapeHtml(file.name || '') + '">'
+            + '<input type="hidden" name="file_title" value="' + escapeHtml(title || '') + '">'
+            + '<input type="hidden" name="twitch_video_id" value="' + escapeHtml(tid) + '">'
+            + '<input type="hidden" name="file_size" value="' + size + '">'
+            + '<input type="hidden" name="file_duration" value="' + escapeHtml(helixDurations[tid] || '') + '">'
+            + '<button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">' + escapeHtml(label) + '</button></form>';
     }
     function namedDownloadUrl(url, title, diskName) {
         url = String(url || '').split('?')[0];
@@ -639,6 +768,8 @@ $pullingCount = count($activePulls);
     }
     function render(data) {
         if (!data) return;
+        if (data.youtube_jobs && typeof data.youtube_jobs === 'object') youtubeJobs = data.youtube_jobs;
+        if (typeof data.can_upload === 'boolean') canUpload = data.can_upload;
         updateStorageBar(data.storage);
         var filesStat = document.getElementById('stream-hub-stat-files');
         var pullStat = document.getElementById('stream-hub-stat-pulling');
@@ -702,11 +833,7 @@ $pullingCount = count($activePulls);
             var title = displayName(file);
             var named = namedDownloadUrl(file.download_url || '', title, file.name || '');
             var canDl = !file.is_partial && /\.mp4$/i.test(String(file.name || ''));
-            var type = file.is_partial
-                ? '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.inProgress) + '</span>'
-                : (file.storage === 's4'
-                    ? '<span class="sp-badge sp-badge-blue">' + escapeHtml(I18N.extended) + '</span>'
-                    : '<span class="sp-badge sp-badge-grey">' + escapeHtml(I18N.file) + '</span>');
+            var type = typeBadgesHtml(file);
             var check = (canDl && named) ? '<input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="' + escapeHtml(named) + '" data-vod-title="' + escapeHtml(title) + '" data-vod-name="' + escapeHtml(file.name || '') + '">' : '';
             var actions = '—';
             if (canDl && named) {
@@ -714,6 +841,7 @@ $pullingCount = count($activePulls);
                 if (file.can_extend) {
                     actions += '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="' + escapeHtml(file.name || '') + '">' + escapeHtml(I18N.extend) + '</button>';
                 }
+                actions += youtubeActionHtml(file, title);
                 actions += '</div>';
             }
             var expires = Number(file.expires_unix || file.expires_at_unix || 0);
@@ -735,7 +863,9 @@ $pullingCount = count($activePulls);
     }
     document.addEventListener('submit', function (event) {
         var form = event.target;
-        if (!form || form.getAttribute('data-store-vod') !== '1') return;
+        var isStore = form && form.getAttribute('data-store-vod') === '1';
+        var isSend = form && form.getAttribute('data-send-youtube') === '1';
+        if (!isStore && !isSend) return;
         event.preventDefault();
         var btn = form.querySelector('button[type="submit"]');
         if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
@@ -748,6 +878,12 @@ $pullingCount = count($activePulls);
             return response.json().then(function (json) { return json || {}; }).catch(function () { return {}; });
         }).then(function (json) {
             var ok = json.ok === true;
+            if (isSend) {
+                setNotice(json.message || (ok ? '' : I18N.ytSendFailed), ok ? 'success' : 'warning');
+                if (ok) poll();
+                else if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
+                return;
+            }
             setNotice(json.message || (ok ? '' : I18N.storeFailed), ok ? 'success' : (json.status === 'full' ? 'warning' : 'danger'));
             if (ok) {
                 fillStoreCell(form.closest('[data-vod-store]'), json.status === 'stored' ? 'stored' : 'pulling');
@@ -759,7 +895,7 @@ $pullingCount = count($activePulls);
                 btn.classList.remove('sp-btn-loading');
             }
         }).catch(function () {
-            setNotice(I18N.storeFailed, 'danger');
+            setNotice(isSend ? I18N.ytSendFailed : I18N.storeFailed, 'danger');
             if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
         });
     });

@@ -46,6 +46,31 @@ if (!function_exists('recordingDisplayName')) {
     }
 }
 
+if (!function_exists('recordingTwitchId')) {
+    function recordingTwitchId(array $file): string
+    {
+        $tid = trim((string) ($file['twitch_video_id'] ?? ''));
+        if ($tid !== '') {
+            return $tid;
+        }
+        if (preg_match('/^twitch-([0-9]{1,20})\.mp4(?:\.part)?$/i', (string) ($file['name'] ?? ''), $m)) {
+            return $m[1];
+        }
+        return '';
+    }
+}
+
+if (!function_exists('recordingFileKind')) {
+    function recordingFileKind(array $file): string
+    {
+        $isTwitch = recordingTwitchId($file) !== '';
+        if (!empty($file['is_partial'])) {
+            return $isTwitch ? 'storing' : 'recording';
+        }
+        return $isTwitch ? 'stored' : 'recorded';
+    }
+}
+
 if (!function_exists('formatBytes')) {
     function formatBytes($bytes): string
     {
@@ -345,6 +370,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             !empty($queued['ok']) ? 'is-success' : 'is-warning'
         );
     }
+    if ($action === 'send_library_youtube' && $canYoutube) {
+        $wantsJson = stream_hub_wants_json();
+        if ($isActAsUser) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('youtube_link_actas_disabled')], 403);
+            }
+            stream_hub_redirect('library', t('youtube_link_actas_disabled'), 'is-warning');
+        }
+        $filename = trim((string) ($_POST['filename'] ?? ''));
+        $fileTitle = trim((string) ($_POST['file_title'] ?? ''));
+        $twitchId = trim((string) ($_POST['twitch_video_id'] ?? ''));
+        $sizeBytes = (int) ($_POST['file_size'] ?? 0);
+        $sizeBytes = $sizeBytes > 0 ? $sizeBytes : null;
+        $durationSeconds = youtube_parse_duration_seconds($_POST['file_duration'] ?? '');
+        if (!youtube_safe_filename($filename)) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('youtube_vod_youtube_failed')], 400);
+            }
+            stream_hub_redirect('library', t('youtube_vod_youtube_failed'), 'is-danger');
+        }
+        if ($twitchId === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4$/i', $filename, $m)) {
+            $twitchId = $m[1];
+        }
+        if ($twitchId !== '' && youtube_twitch_video_id_ok($twitchId)) {
+            $helixVideo = youtube_helix_video((string) ($_SESSION['access_token'] ?? ''), (string) ($clientID ?? ''), $twitchId);
+            if (is_array($helixVideo)) {
+                $durationSeconds = youtube_parse_duration_seconds($helixVideo['duration'] ?? '') ?? $durationSeconds;
+                if ($fileTitle === '' && !empty($helixVideo['title'])) {
+                    $fileTitle = (string) $helixVideo['title'];
+                }
+            }
+            $limit = youtube_upload_limit_reason($durationSeconds, $sizeBytes);
+            if ($limit !== null) {
+                $msg = t(youtube_upload_limit_lang_key($limit));
+                if ($wantsJson) {
+                    stream_hub_json(['ok' => false, 'error' => $limit, 'message' => $msg], 400);
+                }
+                stream_hub_redirect('library', $msg, 'is-warning');
+            }
+            $queued = youtube_enqueue_twitch_vod(
+                $conn,
+                $userId,
+                $twitchId,
+                $fileTitle !== '' ? $fileTitle : null,
+                null,
+                $durationSeconds,
+                $sizeBytes
+            );
+        } else {
+            $limit = youtube_upload_limit_reason($durationSeconds, $sizeBytes);
+            if ($limit !== null) {
+                $msg = t(youtube_upload_limit_lang_key($limit));
+                if ($wantsJson) {
+                    stream_hub_json(['ok' => false, 'error' => $limit, 'message' => $msg], 400);
+                }
+                stream_hub_redirect('library', $msg, 'is-warning');
+            }
+            $queued = youtube_enqueue_vod(
+                $conn,
+                $userId,
+                $filename,
+                $fileTitle !== '' ? $fileTitle : null,
+                null,
+                $durationSeconds,
+                $sizeBytes
+            );
+        }
+        $ok = !empty($queued['ok']);
+        $err = (string) ($queued['error'] ?? '');
+        $msg = $ok ? t('youtube_upload_queued') : t('youtube_vod_youtube_failed');
+        if ($ok && !empty($queued['already']) && ($queued['status'] ?? '') === 'done') {
+            $msg = t('youtube_upload_already_done');
+        } elseif ($ok && !empty($queued['already'])) {
+            $msg = t('youtube_upload_already_queued');
+        } elseif (!$ok && ($err === 'too_long' || $err === 'too_large')) {
+            $msg = t(youtube_upload_limit_lang_key($err));
+        }
+        if ($wantsJson) {
+            stream_hub_json([
+                'ok' => $ok,
+                'status' => (string) ($queued['status'] ?? ''),
+                'filename' => $filename,
+                'message' => $msg,
+            ], $ok ? 200 : 400);
+        }
+        stream_hub_redirect('library', $msg, $ok ? 'is-success' : 'is-warning');
+    }
 }
 
 if (isset($_GET['extend'])) {
@@ -386,12 +498,14 @@ $libraryFiles = [];
 $pullJobs = [];
 $remoteFileError = null;
 $helixTitles = [];
+$helixDurations = [];
 $twitchVideos = [];
 $twitchVideosError = '';
 $linkRow = null;
 $linked = false;
 $needsReauth = false;
 $canUpload = false;
+$youtubeJobs = [];
 
 $list = streamApiRequest($streamApiBase, $streamUserApiKey, '/api/me/recordings', $streamApiTimeout);
 if (!$list['ok']) {
@@ -455,6 +569,7 @@ if ($canYoutube && isset($conn) && $conn instanceof mysqli) {
         && (int) ($linkRow['needs_reauth'] ?? 0) === 0;
     $needsReauth = $linkRow && (int) ($linkRow['needs_reauth'] ?? 0) === 1;
     $canUpload = $linked && (int) ($linkRow['can_upload'] ?? 0) === 1;
+    $youtubeJobs = youtube_upload_map($conn, $userId);
 }
 
 $isAjax = isset($_GET['ajax']);
@@ -487,6 +602,7 @@ if (!$isAjax && $canYoutube) {
         $hid = (string) ($video['id'] ?? '');
         if ($hid !== '') {
             $helixTitles[$hid] = (string) ($video['title'] ?? '');
+            $helixDurations[$hid] = (string) ($video['duration'] ?? '');
         }
     }
     $titleBackfill = [];
@@ -513,6 +629,16 @@ if (!$isAjax && $canYoutube) {
 }
 
 if ($isAjax) {
+    $youtubeJobsPublic = [];
+    foreach ($youtubeJobs as $jobName => $jobRow) {
+        if (!is_array($jobRow)) {
+            continue;
+        }
+        $youtubeJobsPublic[(string) $jobName] = [
+            'status' => (string) ($jobRow['status'] ?? ''),
+            'youtube_video_id' => (string) ($jobRow['youtube_video_id'] ?? ''),
+        ];
+    }
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'files' => $libraryFiles,
@@ -524,6 +650,8 @@ if ($isAjax) {
         ],
         'remoteFileError' => $remoteFileError,
         'remoteFileSections' => $libraryFiles ? [['directory' => $recorderUsername, 'files' => $libraryFiles]] : [],
+        'can_upload' => $canUpload && !$isActAsUser,
+        'youtube_jobs' => $youtubeJobsPublic,
     ]);
     exit();
 }
