@@ -180,8 +180,9 @@ $pullingCount = count($activePulls);
                                 <?php
                                 $displayTitle = recordingDisplayName($file['name'], $file['title'] ?? '');
                                 $namedUrl = (string) ($file['download_url'] ?? '');
-                                $canDl = empty($file['is_partial']) && strtolower((string) pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4';
                                 $kind = recordingFileKind($file);
+                                $inProgress = in_array($kind, ['recording', 'storing'], true);
+                                $canDl = !$inProgress && empty($file['is_partial']) && strtolower((string) pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4';
                                 $tid = recordingTwitchId($file);
                                 $ytJob = $youtubeJobs[$file['name']] ?? null;
                                 $ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
@@ -648,10 +649,23 @@ $pullingCount = count($activePulls);
         }
         return id;
     }
+    function fileMtime(file) {
+        if (file && file.modified) return Number(file.modified) || 0;
+        if (file && file.modified_at) {
+            var parsed = Date.parse(file.modified_at);
+            return isFinite(parsed) ? parsed / 1000 : 0;
+        }
+        return 0;
+    }
     function fileKind(file) {
         var isTwitch = twitchIdOf(file) !== '';
         if (file && file.is_partial) return isTwitch ? 'storing' : 'recording';
-        return isTwitch ? 'stored' : 'recorded';
+        if (isTwitch) return 'stored';
+        if (file && file.storage === 's4') return 'recorded';
+        var mt = fileMtime(file);
+        var age = (Date.now() / 1000) - mt;
+        if (mt && age >= 0 && age < 180) return 'recording';
+        return 'recorded';
     }
     function parseDurationSeconds(value) {
         if (value == null || value === '') return null;
@@ -687,7 +701,7 @@ $pullingCount = count($activePulls);
         return html + '</div>';
     }
     function youtubeActionHtml(file, title) {
-        if (!canUpload || !file || file.is_partial || !/\.mp4$/i.test(String(file.name || ''))) return '';
+        if (!canUpload || !file || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || !/\.mp4$/i.test(String(file.name || ''))) return '';
         var job = youtubeJobs[file.name] || {};
         var status = String(job.status || '');
         if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.ytDone) + '</span>';
@@ -885,7 +899,9 @@ $pullingCount = count($activePulls);
         files.forEach(function (file) {
             var title = displayName(file);
             var named = namedDownloadUrl(file.download_url || '', title, file.name || '');
-            var canDl = !file.is_partial && /\.mp4$/i.test(String(file.name || ''));
+            var kind = fileKind(file);
+            var inProgress = kind === 'recording' || kind === 'storing' || !!file.is_partial;
+            var canDl = !inProgress && /\.mp4$/i.test(String(file.name || ''));
             var type = typeBadgesHtml(file);
             var check = (canDl && named) ? '<input type="checkbox" class="youtube-vod-check youtube-vod-pick" data-vod-url="' + escapeHtml(named) + '" data-vod-title="' + escapeHtml(title) + '" data-vod-name="' + escapeHtml(file.name || '') + '">' : '';
             var actions = '—';

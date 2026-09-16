@@ -67,7 +67,17 @@ if (!function_exists('recordingFileKind')) {
         if (!empty($file['is_partial'])) {
             return $isTwitch ? 'storing' : 'recording';
         }
-        return $isTwitch ? 'stored' : 'recorded';
+        if ($isTwitch) {
+            return 'stored';
+        }
+        if (($file['storage'] ?? '') === 's4') {
+            return 'recorded';
+        }
+        $mtime = (int) ($file['modified'] ?? 0);
+        if ($mtime > 0 && (time() - $mtime) >= 0 && (time() - $mtime) < 180) {
+            return 'recording';
+        }
+        return 'recorded';
     }
 }
 
