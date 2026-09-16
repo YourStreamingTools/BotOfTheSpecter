@@ -98,6 +98,60 @@ if (!function_exists('formatBytes')) {
     }
 }
 
+if (!function_exists('stream_hub_fetch_helix_videos')) {
+    function stream_hub_fetch_helix_videos(string $accessToken, string $clientId, string $channelUserId, int $maxItems = 1000): array
+    {
+        $videos = [];
+        $cursor = '';
+        $error = '';
+        $maxItems = max(1, min(1000, $maxItems));
+        while (count($videos) < $maxItems) {
+            $query = [
+                'user_id' => $channelUserId,
+                'first' => min(100, $maxItems - count($videos)),
+            ];
+            if ($cursor !== '') {
+                $query['after'] = $cursor;
+            }
+            $url = 'https://api.twitch.tv/helix/videos?' . http_build_query($query);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Client-Id: ' . $clientId,
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+            if ($curlErr !== '' || $code !== 200) {
+                $error = t('youtube_vod_helix_failed');
+                break;
+            }
+            $json = json_decode((string) $body, true);
+            $page = is_array($json['data'] ?? null) ? $json['data'] : [];
+            if (!$page) {
+                break;
+            }
+            $space = $maxItems - count($videos);
+            if (count($page) > $space) {
+                $page = array_slice($page, 0, $space);
+            }
+            $videos = array_merge($videos, $page);
+            $cursor = (string) ($json['pagination']['cursor'] ?? '');
+            if ($cursor === '') {
+                break;
+            }
+        }
+        return [
+            'videos' => $videos,
+            'error' => $error,
+            'capped' => $cursor !== '' && count($videos) >= $maxItems,
+        ];
+    }
+}
+
 function stream_hub_wants_json(): bool
 {
     $xhr = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
@@ -511,6 +565,7 @@ $helixTitles = [];
 $helixDurations = [];
 $twitchVideos = [];
 $twitchVideosError = '';
+$twitchVideosCapped = false;
 $linkRow = null;
 $linked = false;
 $needsReauth = false;
@@ -587,25 +642,11 @@ if (!$isAjax && $canYoutube) {
     $accessToken = (string) ($_SESSION['access_token'] ?? '');
     $channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ''));
     if ($accessToken !== '' && $channelUserId !== '' && !empty($clientID)) {
-        $helixUrl = 'https://api.twitch.tv/helix/videos?' . http_build_query([
-            'user_id' => $channelUserId,
-            'first' => 20,
-        ]);
-        $ch = curl_init($helixUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $accessToken,
-            'Client-Id: ' . $clientID,
-        ]);
-        $helixBody = curl_exec($ch);
-        $helixCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        $helixJson = json_decode((string) $helixBody, true);
-        if ($helixCode !== 200) {
-            $twitchVideosError = t('youtube_vod_helix_failed');
-        } else {
-            $twitchVideos = is_array($helixJson['data'] ?? null) ? $helixJson['data'] : [];
+        $helixList = stream_hub_fetch_helix_videos($accessToken, (string) $clientID, $channelUserId, 1000);
+        $twitchVideos = $helixList['videos'];
+        $twitchVideosCapped = !empty($helixList['capped']);
+        if ($helixList['error'] !== '') {
+            $twitchVideosError = $helixList['error'];
         }
     }
     foreach ($twitchVideos as $video) {

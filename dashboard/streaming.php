@@ -281,6 +281,11 @@ $pullingCount = count($activePulls);
     </div>
     <div class="sp-card-body">
         <p class="sp-help"><?php echo t('youtube_vod_fetch_help'); ?></p>
+        <?php if ($twitchVideos): ?>
+            <p class="sp-help"><?php echo htmlspecialchars($twitchVideosCapped
+                ? t('youtube_vod_showing_capped', ['count' => (string) count($twitchVideos)])
+                : t('youtube_vod_showing', ['count' => (string) count($twitchVideos)])); ?></p>
+        <?php endif; ?>
         <?php if ($twitchVideosError): ?>
             <div class="sp-alert sp-alert-warning"><?php echo htmlspecialchars($twitchVideosError); ?></div>
         <?php elseif (!$twitchVideos): ?>
