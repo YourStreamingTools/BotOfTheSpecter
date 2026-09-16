@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Specter YouTube VOD uploader when idle
+After=network-online.target
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=60s
+Persistent=true
+Unit=youtube-vod-uploader.service
+
+[Install]
+WantedBy=timers.target

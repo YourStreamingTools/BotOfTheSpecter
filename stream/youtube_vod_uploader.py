@@ -287,6 +287,7 @@ async def resumable_upload(session, access_token, path, title, privacy):
     if not location:
         return None, "no_session_url", None
 
+    logger.info(f"⬆️  Uploading {path} ({size} bytes) as {title!r}")
     sent = 0
     with open(path, "rb") as handle:
         while sent < size:
