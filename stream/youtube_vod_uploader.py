@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import json
+import time
 import asyncio
 from urllib.parse import urljoin
 import aiohttp
@@ -206,6 +207,23 @@ async def set_job(pool, job_id, status, video_id=None, error=None):
             await conn.commit()
 
 
+async def set_progress(pool, job_id, sent, total):
+    sent = int(sent or 0)
+    total = int(total or 0)
+    pct = round((100.0 * sent / total), 1) if total > 0 else 0.0
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE youtube_vod_uploads SET bytes_sent = %s, bytes_total = %s, progress_percent = %s WHERE id = %s",
+                    (sent, total, pct, job_id),
+                )
+                await conn.commit()
+    except Exception as e:
+        logger.warning(f"Could not store upload progress for job {job_id}: {e}")
+    return pct
+
+
 def _error_reason(body):
     if not isinstance(body, dict):
         return ""
@@ -258,7 +276,7 @@ async def probe_duration_seconds(path):
         return None
 
 
-async def resumable_upload(session, access_token, path, title, privacy):
+async def resumable_upload(session, access_token, path, title, privacy, on_progress=None):
     size = os.path.getsize(path)
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -288,6 +306,8 @@ async def resumable_upload(session, access_token, path, title, privacy):
         return None, "no_session_url", None
 
     logger.info(f"⬆️  Uploading {path} ({size} bytes) as {title!r}")
+    if on_progress:
+        await on_progress(0, size)
     sent = 0
     with open(path, "rb") as handle:
         while sent < size:
@@ -302,6 +322,8 @@ async def resumable_upload(session, access_token, path, title, privacy):
             }
             async with session.put(location, headers=put_headers, data=data) as resp:
                 if resp.status in (200, 201):
+                    if on_progress:
+                        await on_progress(size, size)
                     result = await read_json(resp)
                     video_id = result.get("id") if isinstance(result, dict) else None
                     if not video_id:
@@ -309,6 +331,8 @@ async def resumable_upload(session, access_token, path, title, privacy):
                     return video_id, None, result
                 if resp.status == 308:
                     sent = end + 1
+                    if on_progress:
+                        await on_progress(sent, size)
                     continue
                 if resp.status == 401:
                     return None, "unauthorized", await read_json(resp)
@@ -641,18 +665,30 @@ async def process_one(pool, session):
         return
     access, refresh = await persist_access(pool, user_id, token_body, refresh)
 
+    last_progress_at = 0.0
+
+    async def report_progress(sent, total):
+        nonlocal last_progress_at
+        now = time.monotonic()
+        if sent < total and now - last_progress_at < 2:
+            return
+        last_progress_at = now
+        pct = await set_progress(pool, job_id, sent, total)
+        logger.info(f"⬆️  Job {job_id} upload {pct}% ({sent}/{total})")
+
     video_id, err, body = await resumable_upload(
-        session, access, path, job["title"], job["privacy_status"]
+        session, access, path, job["title"], job["privacy_status"], on_progress=report_progress
     )
     if err == "unauthorized":
         token_body, token_err = await refresh_access(session, refresh)
         if token_err is None:
             access, refresh = await persist_access(pool, user_id, token_body, refresh)
             video_id, err, body = await resumable_upload(
-                session, access, path, job["title"], job["privacy_status"]
+                session, access, path, job["title"], job["privacy_status"], on_progress=report_progress
             )
 
     if video_id:
+        await set_progress(pool, job_id, os.path.getsize(path), os.path.getsize(path))
         await set_job(pool, job_id, "done", video_id=video_id)
         logger.info(f"✅ Uploaded job {job_id} for {username} as {video_id}")
         return

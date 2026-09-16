@@ -6048,6 +6048,9 @@ label.checkbox input[type="checkbox"] {
     display: inline-flex;
     cursor: help;
 }
+.stream-hub-upload-bar progress {
+    accent-color: var(--accent);
+}
 .stream-hub-forward-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

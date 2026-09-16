@@ -634,10 +634,12 @@ if ($isAjax) {
         if (!is_array($jobRow)) {
             continue;
         }
-        $youtubeJobsPublic[(string) $jobName] = [
-            'status' => (string) ($jobRow['status'] ?? ''),
-            'youtube_video_id' => (string) ($jobRow['youtube_video_id'] ?? ''),
-        ];
+        $youtubeJobsPublic[(string) $jobName] = function_exists('youtube_job_client_row')
+            ? youtube_job_client_row($jobRow)
+            : [
+                'status' => (string) ($jobRow['status'] ?? ''),
+                'youtube_video_id' => (string) ($jobRow['youtube_video_id'] ?? ''),
+            ];
     }
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
