@@ -229,6 +229,7 @@ $pullingCount = count($activePulls);
                                             <?php if (!empty($file['can_extend'])): ?>
                                                 <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="<?php echo htmlspecialchars($file['name']); ?>"><?php echo t('recording_btn_extend'); ?></button>
                                             <?php endif; ?>
+                                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="<?php echo htmlspecialchars($file['name']); ?>" data-delete-title="<?php echo htmlspecialchars($displayTitle); ?>"><?php echo t('recording_btn_delete'); ?></button>
                                             <?php if ($showYoutube): ?>
                                                 <?php if ($ytStatus === 'done'): ?>
                                                     <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
@@ -592,6 +593,13 @@ $pullingCount = count($activePulls);
         failed: <?php echo json_encode(t('youtube_vod_status_failed')); ?>,
         download: <?php echo json_encode(t('recording_btn_download')); ?>,
         extend: <?php echo json_encode(t('recording_btn_extend')); ?>,
+        deleteFile: <?php echo json_encode(t('recording_btn_delete')); ?>,
+        deleteTitle: <?php echo json_encode(t('recording_delete_title')); ?>,
+        deleteText: <?php echo json_encode(t('recording_delete_text')); ?>,
+        deleteConfirm: <?php echo json_encode(t('recording_delete_confirm')); ?>,
+        deleteCancel: <?php echo json_encode(t('recording_delete_cancel')); ?>,
+        deleteFailed: <?php echo json_encode(t('recording_delete_failed')); ?>,
+        deleteBusy: <?php echo json_encode(t('recording_delete_in_progress')); ?>,
         inProgress: <?php echo json_encode(t('recording_type_in_progress')); ?>,
         storing: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
         recorded: <?php echo json_encode(t('recording_type_recorded')); ?>,
@@ -915,6 +923,7 @@ $pullingCount = count($activePulls);
                 if (file.can_extend) {
                     actions += '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="' + escapeHtml(file.name || '') + '">' + escapeHtml(I18N.extend) + '</button>';
                 }
+                actions += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="' + escapeHtml(file.name || '') + '" data-delete-title="' + escapeHtml(title) + '">' + escapeHtml(I18N.deleteFile) + '</button>';
                 actions += youtubeActionHtml(file, title);
                 actions += '</div>';
             }
@@ -982,6 +991,41 @@ $pullingCount = count($activePulls);
         if (target.id === 'youtube-vod-select-all' || (target.classList && target.classList.contains('youtube-vod-pick'))) syncCopyBtn();
     });
     document.addEventListener('click', function (event) {
+        var delBtn = event.target && event.target.closest('[data-delete-file]');
+        if (delBtn && !delBtn.disabled) {
+            var delName = delBtn.getAttribute('data-delete-file') || '';
+            var delTitle = delBtn.getAttribute('data-delete-title') || delName;
+            if (!delName || typeof Swal === 'undefined') return;
+            Swal.fire({
+                title: I18N.deleteTitle,
+                text: I18N.deleteText.replace('%s', delTitle),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: I18N.deleteConfirm,
+                cancelButtonText: I18N.deleteCancel,
+                background: '#333',
+                color: '#fff'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+                delBtn.disabled = true;
+                fetch('streaming.php?delete=1&file=' + encodeURIComponent(delName), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+                    .then(function (result) {
+                        if (!result.ok || !result.body || !result.body.ok) {
+                            var err = (result.body && result.body.error) ? result.body.error : I18N.deleteFailed;
+                            throw new Error(err);
+                        }
+                        poll();
+                    })
+                    .catch(function (err) {
+                        delBtn.disabled = false;
+                        Swal.fire({ icon: 'error', title: I18N.deleteFailed, text: (err && err.message) ? err.message : I18N.deleteFailed, background: '#333', color: '#fff' });
+                    });
+            });
+            return;
+        }
         var ext = event.target && event.target.closest('[data-extend-file]');
         if (ext && !ext.disabled) {
             var fileName = ext.getAttribute('data-extend-file');

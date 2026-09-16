@@ -523,6 +523,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if (isset($_GET['delete'])) {
+    header('Content-Type: application/json');
+    $requestedFileName = isset($_GET['file']) ? (string) $_GET['file'] : '';
+    if (!isSafeRecorderFileName($requestedFileName) || strtolower((string) pathinfo($requestedFileName, PATHINFO_EXTENSION)) !== 'mp4') {
+        stream_hub_json(['ok' => false, 'error' => t('recording_http_invalid_file_name')], 400);
+    }
+    $del = streamApiRequest(
+        $streamApiBase,
+        $streamUserApiKey,
+        '/api/me/recordings/delete',
+        0,
+        'POST',
+        ['name' => $requestedFileName]
+    );
+    if (!$del['ok']) {
+        $http = $del['http'] >= 400 ? (int) $del['http'] : 502;
+        $msg = t('recording_delete_failed');
+        $body = json_decode((string) ($del['body'] ?? ''), true);
+        $err = is_array($body) ? (string) ($body['error'] ?? '') : '';
+        if ($http === 409 || $err === 'recording still in progress' || $err === 'youtube upload in progress') {
+            $msg = t('recording_delete_in_progress');
+        }
+        stream_hub_json(['ok' => false, 'error' => $msg], $http);
+    }
+    echo $del['body'];
+    exit();
+}
+
 if (isset($_GET['extend'])) {
     header('Content-Type: application/json');
     $requestedFileName = isset($_GET['file']) ? (string) $_GET['file'] : '';
