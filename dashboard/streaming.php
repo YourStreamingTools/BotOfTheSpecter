@@ -264,12 +264,30 @@ $pullingCount = count($activePulls);
                                         <?php endif; ?>
                                         </span>
                                         <?php if ($canUpload && !$isActAsUser && $vid !== ''): ?>
-                                            <form method="post" action="streaming.php#youtube">
+                                            <?php
+                                            $durSeconds = youtube_parse_duration_seconds($vdur);
+                                            $sizeBytes = null;
+                                            if ($ready && is_array($stored)) {
+                                                $storedSize = (int) ($stored['size'] ?? 0);
+                                                if ($storedSize > 0) {
+                                                    $sizeBytes = $storedSize;
+                                                }
+                                            }
+                                            $ytLimit = youtube_upload_limit_reason($durSeconds, $sizeBytes);
+                                            ?>
+                                            <?php if ($ytLimit !== null): ?>
+                                                <span class="youtube-upload-limit" title="<?php echo htmlspecialchars(t(youtube_upload_limit_lang_key($ytLimit))); ?>">
+                                                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled><?php echo t('videos_send_to_youtube'); ?></button>
+                                                </span>
+                                            <?php else: ?>
+                                            <form method="post" action="streaming.php#import">
                                                 <input type="hidden" name="action" value="send_twitch_youtube">
                                                 <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
                                                 <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
+                                                <input type="hidden" name="vod_duration" value="<?php echo htmlspecialchars($vdur); ?>">
                                                 <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo t('videos_send_to_youtube'); ?></button>
                                             </form>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                         </div>
                                     </td>

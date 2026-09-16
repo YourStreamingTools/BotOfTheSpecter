@@ -43,6 +43,8 @@ DB_NAME = "website"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 UPLOAD_INIT = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status"
 CHUNK_SIZE = 8 * 1024 * 1024
+YOUTUBE_MAX_DURATION_S = 12 * 3600
+YOUTUBE_MAX_BYTES = 256 * 1024 * 1024 * 1024
 TWITCH_WEB_CLIENT_ID = os.getenv("TWITCH_WEB_CLIENT_ID", "kimne78kx3ncx6brgo4mv6wki5h1ko")
 TWITCH_GQL = "https://gql.twitch.tv/gql"
 TWITCH_USHER = "https://usher.ttvnw.net/vod/{vod_id}.m3u8"
@@ -216,6 +218,44 @@ def _error_reason(body):
     if isinstance(errors, str):
         return errors
     return ""
+
+
+def youtube_file_over_limit(path, duration_s=None):
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        size = 0
+    if size > YOUTUBE_MAX_BYTES:
+        return "too_large"
+    if duration_s is not None and duration_s > YOUTUBE_MAX_DURATION_S:
+        return "too_long"
+    return None
+
+
+async def probe_duration_seconds(path):
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        out, _ = await proc.communicate()
+        raw = (out or b"").decode("utf-8", "replace").strip()
+        if not raw:
+            return None
+        value = float(raw)
+        if value < 0:
+            return None
+        return value
+    except Exception:
+        return None
 
 
 async def resumable_upload(session, access_token, path, title, privacy):
@@ -569,6 +609,20 @@ async def process_one(pool, session):
         if not await claim_job(pool, job_id, "uploading"):
             logger.info(f"⏭️  Job {job_id} already claimed")
             return
+
+    if not os.path.isfile(path):
+        await set_job(pool, job_id, "failed", error="missing_file")
+        logger.error(f"❌ Missing file for job {job_id}: {path}")
+        return
+
+    duration_s = await probe_duration_seconds(path)
+    limit = youtube_file_over_limit(path, duration_s)
+    if limit:
+        await set_job(pool, job_id, "failed", error=f"youtube_limit:{limit}")
+        logger.warning(
+            f"⏭️  Job {job_id} for {username} exceeds YouTube limits ({limit}); file kept"
+        )
+        return
 
     await set_job(pool, job_id, "uploading")
     access = job["access_token"]

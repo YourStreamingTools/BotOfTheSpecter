@@ -312,11 +312,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $vodId = trim((string) ($_POST['vod_id'] ?? ''));
         $vodTitle = trim((string) ($_POST['vod_title'] ?? ''));
-        $queued = youtube_enqueue_twitch_vod($conn, $userId, $vodId, $vodTitle !== '' ? $vodTitle : null);
+        $durationSeconds = youtube_parse_duration_seconds($_POST['vod_duration'] ?? '');
+        $accessToken = (string) ($_SESSION['access_token'] ?? '');
+        $helixVideo = youtube_helix_video($accessToken, (string) ($clientID ?? ''), $vodId);
+        if (is_array($helixVideo)) {
+            $durationSeconds = youtube_parse_duration_seconds($helixVideo['duration'] ?? '') ?? $durationSeconds;
+            if ($vodTitle === '' && !empty($helixVideo['title'])) {
+                $vodTitle = (string) $helixVideo['title'];
+            }
+        }
+        $limit = youtube_upload_limit_reason($durationSeconds, null);
+        if ($limit !== null) {
+            stream_hub_redirect('import', t(youtube_upload_limit_lang_key($limit)), 'is-warning');
+        }
+        $queued = youtube_enqueue_twitch_vod(
+            $conn,
+            $userId,
+            $vodId,
+            $vodTitle !== '' ? $vodTitle : null,
+            null,
+            $durationSeconds,
+            null
+        );
+        $failKey = 'youtube_vod_youtube_failed';
+        $err = (string) ($queued['error'] ?? '');
+        if ($err === 'too_long' || $err === 'too_large') {
+            $failKey = youtube_upload_limit_lang_key($err);
+        }
         stream_hub_redirect(
-            'youtube',
-            !empty($queued['ok']) ? t('youtube_vod_youtube_queued') : t('youtube_vod_youtube_failed'),
-            !empty($queued['ok']) ? 'is-success' : 'is-danger'
+            'import',
+            !empty($queued['ok']) ? t('youtube_vod_youtube_queued') : t($failKey),
+            !empty($queued['ok']) ? 'is-success' : 'is-warning'
         );
     }
 }

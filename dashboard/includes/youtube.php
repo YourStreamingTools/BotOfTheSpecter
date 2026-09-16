@@ -80,6 +80,72 @@ function youtube_privacy_allowed($value): string
     return 'private';
 }
 
+function youtube_upload_max_duration_seconds(): int
+{
+    return 12 * 3600;
+}
+
+function youtube_upload_max_bytes(): int
+{
+    return 256 * 1024 * 1024 * 1024;
+}
+
+function youtube_parse_duration_seconds($duration): ?int
+{
+    if ($duration === null || $duration === '') {
+        return null;
+    }
+    if (is_int($duration)) {
+        return $duration >= 0 ? $duration : null;
+    }
+    if (is_float($duration)) {
+        return $duration >= 0 ? (int) round($duration) : null;
+    }
+    if (is_numeric($duration)) {
+        $n = (int) round((float) $duration);
+        return $n >= 0 ? $n : null;
+    }
+    $s = strtoupper(trim((string) $duration));
+    if ($s === '') {
+        return null;
+    }
+    if (preg_match('/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/', $s, $m)) {
+        if (($m[1] ?? '') === '' && ($m[2] ?? '') === '' && ($m[3] ?? '') === '') {
+            return null;
+        }
+        return (int) round(((int) ($m[1] ?? 0)) * 3600 + ((int) ($m[2] ?? 0)) * 60 + (float) ($m[3] ?? 0));
+    }
+    if (preg_match('/^(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/', $s, $m)) {
+        if (($m[1] ?? '') === '' && ($m[2] ?? '') === '' && ($m[3] ?? '') === '') {
+            return null;
+        }
+        return ((int) ($m[1] ?? 0)) * 3600 + ((int) ($m[2] ?? 0)) * 60 + ((int) ($m[3] ?? 0));
+    }
+    return null;
+}
+
+function youtube_upload_limit_reason(?int $durationSeconds, ?int $sizeBytes): ?string
+{
+    if ($durationSeconds !== null && $durationSeconds > youtube_upload_max_duration_seconds()) {
+        return 'too_long';
+    }
+    if ($sizeBytes !== null && $sizeBytes > youtube_upload_max_bytes()) {
+        return 'too_large';
+    }
+    return null;
+}
+
+function youtube_upload_limit_lang_key(?string $reason): string
+{
+    if ($reason === 'too_large') {
+        return 'youtube_upload_too_large';
+    }
+    if ($reason === 'too_long') {
+        return 'youtube_upload_too_long';
+    }
+    return 'youtube_upload_over_limit';
+}
+
 function youtube_safe_filename($fileName): bool
 {
     if (!is_string($fileName) || $fileName === '') {
@@ -139,6 +205,30 @@ function youtube_http(string $method, string $url, array $headers = [], ?string 
         'json' => is_array($json) ? $json : [],
         'error' => $err,
     ];
+}
+
+function youtube_helix_video(string $accessToken, string $clientId, string $videoId): ?array
+{
+    if ($accessToken === '' || $clientId === '' || !youtube_twitch_video_id_ok($videoId)) {
+        return null;
+    }
+    $resp = youtube_http(
+        'GET',
+        'https://api.twitch.tv/helix/videos?id=' . rawurlencode($videoId),
+        [
+            'Authorization: Bearer ' . $accessToken,
+            'Client-Id: ' . $clientId,
+            'Accept: application/json',
+        ]
+    );
+    if ((int) ($resp['code'] ?? 0) !== 200) {
+        return null;
+    }
+    $items = $resp['json']['data'] ?? null;
+    if (!is_array($items) || !isset($items[0]) || !is_array($items[0])) {
+        return null;
+    }
+    return $items[0];
 }
 
 function youtube_auth_url(string $state): string
@@ -653,13 +743,24 @@ function youtube_twitch_job_map(mysqli $conn, int $userId): array
     return $map;
 }
 
-function youtube_enqueue_twitch_vod(mysqli $conn, int $userId, string $twitchVideoId, ?string $title = null, ?string $privacy = null): array
-{
+function youtube_enqueue_twitch_vod(
+    mysqli $conn,
+    int $userId,
+    string $twitchVideoId,
+    ?string $title = null,
+    ?string $privacy = null,
+    ?int $durationSeconds = null,
+    ?int $sizeBytes = null
+): array {
     if ($userId <= 0 || !youtube_tables_ready($conn)) {
         return ['ok' => false, 'error' => 'not_ready'];
     }
     if (!youtube_twitch_video_id_ok($twitchVideoId)) {
         return ['ok' => false, 'error' => 'bad_video'];
+    }
+    $limit = youtube_upload_limit_reason($durationSeconds, $sizeBytes);
+    if ($limit !== null) {
+        return ['ok' => false, 'error' => $limit];
     }
     $row = youtube_token_row($conn, $userId);
     if (!$row || (int) ($row['needs_reauth'] ?? 0) === 1 || trim((string) ($row['refresh_token'] ?? '')) === '') {

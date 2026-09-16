@@ -348,11 +348,25 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 							<?php elseif (in_array($ytStatus, ['queued', 'pulling', 'uploading'], true)): ?>
 								<span class="sp-badge sp-badge-amber"><?php echo htmlspecialchars(t('youtube_status_' . $ytStatus), ENT_QUOTES, 'UTF-8'); ?></span>
 							<?php else: ?>
+								<?php
+									$ytLimit = youtube_upload_limit_reason(
+										youtube_parse_duration_seconds($video['duration'] ?? null),
+										null
+									);
+								?>
+								<?php if ($ytLimit !== null): ?>
+									<span class="youtube-upload-limit" title="<?php echo htmlspecialchars(t(youtube_upload_limit_lang_key($ytLimit)), ENT_QUOTES, 'UTF-8'); ?>">
+										<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled>
+											<i class="fab fa-youtube mr-1"></i><?php echo htmlspecialchars(t('videos_send_to_youtube'), ENT_QUOTES, 'UTF-8'); ?>
+										</button>
+									</span>
+								<?php else: ?>
 								<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm youtube-twitch-vod-btn"
 									data-video-id="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>"
 									data-video-title="<?php echo htmlspecialchars($videoTitle, ENT_QUOTES, 'UTF-8'); ?>">
 									<i class="fab fa-youtube mr-1"></i><?php echo htmlspecialchars($ytStatus === 'failed' ? t('youtube_btn_retry') : t('videos_send_to_youtube'), ENT_QUOTES, 'UTF-8'); ?>
 								</button>
+								<?php endif; ?>
 							<?php endif; ?>
 						<?php else: ?>
 							<a class="sp-btn sp-btn-secondary sp-btn-sm" href="streaming.php#youtube">
@@ -522,7 +536,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 	if ($vodTitle === '' && !empty($ownedItem['title'])) {
 		$vodTitle = (string) $ownedItem['title'];
 	}
-	$queued = youtube_enqueue_twitch_vod($conn, (int) ($user_id ?? 0), $vodId, $vodTitle);
+	$durationSeconds = youtube_parse_duration_seconds($ownedItem['duration'] ?? null);
+	$limit = youtube_upload_limit_reason($durationSeconds, null);
+	if ($limit !== null) {
+		echo json_encode(['ok' => false, 'error' => t(youtube_upload_limit_lang_key($limit))]);
+		exit();
+	}
+	$queued = youtube_enqueue_twitch_vod($conn, (int) ($user_id ?? 0), $vodId, $vodTitle, null, $durationSeconds, null);
 	if (!empty($queued['ok'])) {
 		$msg = t('youtube_upload_queued');
 		if (!empty($queued['already']) && ($queued['status'] ?? '') === 'done') {
@@ -545,6 +565,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 		'bad_video' => t('videos_error_video_id_required'),
 		'not_ready' => t('youtube_upload_not_ready'),
 		'db' => t('youtube_upload_failed'),
+		'too_long' => t('youtube_upload_too_long'),
+		'too_large' => t('youtube_upload_too_large'),
 	];
 	echo json_encode(['ok' => false, 'error' => $map[$err] ?? t('youtube_upload_failed')]);
 	exit();
@@ -777,6 +799,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			if (button.dataset.bound === '1') return;
 			button.dataset.bound = '1';
 			button.addEventListener('click', function () {
+				if (button.disabled) {
+					return;
+				}
 				const videoId = button.getAttribute('data-video-id') || '';
 				const videoTitle = button.getAttribute('data-video-title') || '';
 				if (!videoId) {
