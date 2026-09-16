@@ -600,9 +600,17 @@ function youtube_uploads_for_user(mysqli $conn, int $userId, int $limit = 25): a
     }
     $limit = max(1, min(100, $limit));
     $sql = 'SELECT id, filename, title, privacy_status, youtube_video_id, status, error_message,
-                   created_at, updated_at, source, twitch_video_id
+                   created_at, updated_at, source, twitch_video_id,
+                   bytes_sent, bytes_total, progress_percent
             FROM youtube_vod_uploads WHERE user_id = ? ORDER BY id DESC LIMIT ' . $limit;
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        $stmt = $conn->prepare(
+            'SELECT id, filename, title, privacy_status, youtube_video_id, status, error_message,
+                    created_at, updated_at, source, twitch_video_id
+             FROM youtube_vod_uploads WHERE user_id = ? ORDER BY id DESC LIMIT ' . $limit
+        );
+    }
     if (!$stmt) {
         $stmt = $conn->prepare(
             'SELECT id, filename, title, privacy_status, youtube_video_id, status, error_message,
@@ -637,6 +645,27 @@ function youtube_upload_map(mysqli $conn, int $userId): array
         }
     }
     return $map;
+}
+
+function youtube_job_client_row(array $row): array
+{
+    $sent = (int) ($row['bytes_sent'] ?? 0);
+    $total = (int) ($row['bytes_total'] ?? 0);
+    $pct = $row['progress_percent'] ?? null;
+    if ($pct === null || $pct === '') {
+        $pct = $total > 0 ? round(100.0 * $sent / $total, 1) : 0.0;
+    } else {
+        $pct = round((float) $pct, 1);
+    }
+    return [
+        'status' => (string) ($row['status'] ?? ''),
+        'youtube_video_id' => (string) ($row['youtube_video_id'] ?? ''),
+        'title' => (string) ($row['title'] ?? ''),
+        'filename' => (string) ($row['filename'] ?? ''),
+        'percent' => $pct,
+        'bytes_sent' => $sent,
+        'bytes_total' => $total,
+    ];
 }
 
 function youtube_enqueue_vod(
