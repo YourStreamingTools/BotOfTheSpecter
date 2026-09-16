@@ -1465,6 +1465,67 @@ async def save_extended_vod(user_id: int, username: str, filename: str, s4_key: 
             await sqldb.ensure_closed()
 
 
+async def get_extended_vod(username: str, filename: str) -> dict | None:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT s4_key FROM vod_extensions
+                WHERE username = %s AND filename = %s
+                LIMIT 1
+                """,
+                (username, filename),
+            )
+            return await cursor.fetchone()
+    except Exception as e:
+        logger.error(f"get_extended_vod failed for {username}: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def delete_extended_vod_row(username: str, filename: str) -> None:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor() as cursor:
+            await cursor.execute(
+                "DELETE FROM vod_extensions WHERE username = %s AND filename = %s",
+                (username, filename),
+            )
+            await sqldb.commit()
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def recording_youtube_busy(user_id: int, filename: str) -> bool:
+    if user_id <= 0 or not filename:
+        return False
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT id FROM youtube_vod_uploads
+                WHERE user_id = %s AND filename = %s
+                  AND status IN ('queued', 'pulling', 'uploading')
+                LIMIT 1
+                """,
+                (user_id, filename),
+            )
+            return await cursor.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
 async def lookup_user_id(username: str) -> int | None:
     sqldb = None
     try:
@@ -1740,6 +1801,20 @@ def stream_openapi_spec() -> dict:
                         "content": {"application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}},
                     },
                     "responses": {"200": {"description": "Extended"}},
+                }
+            },
+            "/api/me/recordings/delete": {
+                "post": {
+                    "tags": ["Recordings"],
+                    "summary": "Delete a stored MP4 from local disk and Mega S4",
+                    "requestBody": {
+                        "required": True,
+                        "content": {"application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}},
+                    },
+                    "responses": {
+                        "200": {"description": "Deleted"},
+                        "409": {"description": "Still recording or uploading"},
+                    },
                 }
             },
             "/api/me/recordings/pull-twitch": {
@@ -2166,6 +2241,48 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "expires_at": expires.isoformat(),
             "download_url": vod_cdn_url(username, fname, title),
         })
+
+    @app.post("/api/me/recordings/delete")
+    async def api_delete_recording():
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        body = await request.get_json(silent=True) or {}
+        fname = (body.get("name") or request.args.get("name") or "").strip()
+        if not _safe_recording_name(fname) or not fname.lower().endswith(".mp4") or fname.endswith(".part"):
+            return jsonify({"error": "invalid file name"}), 400
+        path = os.path.join(recorder_storage_path, username, fname)
+        local = os.path.isfile(path)
+        if local and find_ffmpeg_pid_for_path(path):
+            return jsonify({"error": "recording still in progress"}), 409
+        if local and (time.time() - os.path.getmtime(path) < 15):
+            return jsonify({"error": "recording still in progress"}), 409
+        user_id = await lookup_user_id(username)
+        if user_id and await recording_youtube_busy(user_id, fname):
+            return jsonify({"error": "youtube upload in progress"}), 409
+        extended = await get_extended_vod(username, fname)
+        if not local and not extended:
+            return jsonify({"error": "file not found"}), 404
+        if local:
+            try:
+                remove_media_and_sidecars(path)
+            except OSError as e:
+                logger.error(f"Could not delete local VOD {path}: {e}")
+                return jsonify({"error": "delete_failed"}), 500
+        if extended and extended.get("s4_key"):
+            from vod_s4 import delete_vod
+
+            try:
+                await asyncio.to_thread(delete_vod, extended["s4_key"])
+            except Exception as e:
+                logger.warning(f"S4 VOD delete failed for {fname}: {e}")
+            try:
+                await delete_extended_vod_row(username, fname)
+            except Exception as e:
+                logger.warning(f"vod_extensions delete failed for {fname}: {e}")
+        logger.info(f"Deleted recording {username}/{fname}")
+        return jsonify({"ok": True, "filename": fname})
 
     @app.post("/api/me/recordings/pull-twitch")
     async def api_pull_twitch_vod():
