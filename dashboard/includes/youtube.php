@@ -639,13 +639,24 @@ function youtube_upload_map(mysqli $conn, int $userId): array
     return $map;
 }
 
-function youtube_enqueue_vod(mysqli $conn, int $userId, string $filename, ?string $title = null, ?string $privacy = null): array
-{
+function youtube_enqueue_vod(
+    mysqli $conn,
+    int $userId,
+    string $filename,
+    ?string $title = null,
+    ?string $privacy = null,
+    ?int $durationSeconds = null,
+    ?int $sizeBytes = null
+): array {
     if ($userId <= 0 || !youtube_tables_ready($conn)) {
         return ['ok' => false, 'error' => 'not_ready'];
     }
     if (!youtube_safe_filename($filename)) {
         return ['ok' => false, 'error' => 'bad_file'];
+    }
+    $limit = youtube_upload_limit_reason($durationSeconds, $sizeBytes);
+    if ($limit !== null) {
+        return ['ok' => false, 'error' => $limit];
     }
     $row = youtube_token_row($conn, $userId);
     if (!$row || (int) ($row['needs_reauth'] ?? 0) === 1 || trim((string) ($row['refresh_token'] ?? '')) === '') {
