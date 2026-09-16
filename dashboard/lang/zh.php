@@ -7004,6 +7004,8 @@ return [
     'youtube_link_intro' => '如果你希望 Specter 把录制的录像上传到 YouTube，请连接你拥有的频道。在 Google 账号选择器中选品牌账号或个人频道——上传会发到那个频道。',
     'youtube_vod_fetch_heading' => 'Twitch 录像',
     'youtube_vod_fetch_help' => 'Helix 列出此频道的视频。用 FFmpeg 存一份到悉尼（计入 VOD 存储，默认 24 小时，除非延长）。连接 YouTube 后可发送到 YouTube。',
+    'youtube_vod_showing' => '正在显示 :count 条 Twitch 视频。',
+    'youtube_vod_showing_capped' => '正在显示最近的 :count 条 Twitch 视频。',
     'youtube_vod_fetch_empty' => '此频道没有返回 Twitch 视频。',
     'youtube_vod_helix_failed' => '无法列出 Twitch 视频。请重新登录控制台后再试。',
     'youtube_vod_th_title' => '标题',
