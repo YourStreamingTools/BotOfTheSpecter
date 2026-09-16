@@ -6038,6 +6038,10 @@ label.checkbox input[type="checkbox"] {
     gap: 0.4rem;
     align-items: center;
 }
+.youtube-upload-limit {
+    display: inline-flex;
+    cursor: help;
+}
 .stream-hub-forward-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
