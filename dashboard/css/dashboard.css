@@ -1233,10 +1233,15 @@ ul { list-style: none; margin: 0; padding: 0; }
    All JS-updated elements remain in DOM; we just hide columns + secondary buttons.
  */
 
-/* Reserve 2-line height so switching button sets (running vs not) doesn't shift rows */
+/* Reserve 2-line height so switching button sets (running vs not) doesn't shift rows.
+   Wrap at all widths: table cells otherwise grow to the unwrapped min-content and
+   push the action buttons past the 1600px content cap. */
 .start-bots-table .col-actions .sp-btn-group {
     min-height: 5.5rem;
     align-content: flex-start;
+    flex-wrap: wrap;
+    max-width: 100%;
+    margin-bottom: 0;
 }
 
 @media (max-width: 1600px) {
@@ -1275,7 +1280,6 @@ ul { list-style: none; margin: 0; padding: 0; }
     .start-bots-table .col-user .admin-bot-avatar {
         width: 24px;
         height: 24px;
-        margin-right: 0.35rem !important;
     }
     .start-bots-table .col-user span {
         font-size: 0.9rem;
@@ -1300,19 +1304,6 @@ ul { list-style: none; margin: 0; padding: 0; }
     /* Hide Attach Console on small screens (Make Mod button is intentionally kept visible in compact view) */
     .start-bots-table .attach-console-btn {
         display: none !important;
-    }
-
-    /* Give the actions cell a bit more breathing room */
-    .start-bots-table .col-actions {
-        min-width: 170px;
-    }
-
-    /* Encourage sensible column sizing on simplified view */
-    .start-bots-table .col-user {
-        min-width: 130px;
-    }
-    .start-bots-table .col-status {
-        min-width: 110px;
     }
 }
 
