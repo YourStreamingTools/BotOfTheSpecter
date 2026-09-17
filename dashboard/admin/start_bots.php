@@ -1216,16 +1216,16 @@ $stmt->close();
 ob_start();
 ?>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<div class="sp-card">
+<div class="sp-card start-bots-page">
     <div class="sp-card-body">
-    <h1 style="font-size:1.25rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-play-circle"></i></span> <?php echo t('admin_start_bots_page_title'); ?></h1>
-    <p class="mb-4"><?php echo t('admin_start_bots_intro'); ?></p>
-    <div id="bots-snapshot-banner" class="sp-alert sp-alert-warning" style="display:none;margin-bottom:1rem;" role="status" aria-live="polite">
-        <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:0.75rem;">
-            <div style="flex:1;min-width:14rem;">
+    <h1 class="start-bots-title"><span class="icon"><i class="fas fa-play-circle"></i></span> <?php echo t('admin_start_bots_page_title'); ?></h1>
+    <p class="start-bots-intro"><?php echo t('admin_start_bots_intro'); ?></p>
+    <div id="bots-snapshot-banner" class="sp-alert sp-alert-warning start-bots-banner" style="display:none;" role="status" aria-live="polite">
+        <div class="start-bots-banner-inner">
+            <div class="start-bots-banner-copy">
                 <strong><i class="fas fa-exclamation-triangle"></i> <span id="bots-snapshot-banner-title"><?php echo t('admin_start_bots_snapshot_banner_title'); ?></span></strong>
-                <p id="bots-snapshot-banner-text" style="margin:0.35rem 0 0;font-size:0.9rem;"></p>
-                <p id="bots-snapshot-banner-list" style="margin:0.5rem 0 0;font-size:0.85rem;opacity:0.95;"></p>
+                <p id="bots-snapshot-banner-text" class="start-bots-banner-text"></p>
+                <p id="bots-snapshot-banner-list" class="start-bots-banner-list"></p>
             </div>
             <button type="button" class="sp-btn sp-btn-warning" onclick="refreshRunningStatus()" title="<?php echo htmlspecialchars(t('admin_start_bots_btn_refresh_status'), ENT_QUOTES); ?>">
                 <span class="icon"><i class="fas fa-tasks"></i></span>
@@ -1233,8 +1233,8 @@ ob_start();
             </button>
         </div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-        <div class="sp-btn-group">
+    <div class="start-bots-toolbar">
+        <div class="sp-btn-group start-bots-toolbar-actions">
             <button class="sp-btn sp-btn-info" onclick="refreshBotStatus()">
                 <span class="icon"><i class="fas fa-sync-alt"></i></span>
                 <span><?php echo t('admin_start_bots_btn_refresh_all'); ?></span>
@@ -1256,14 +1256,14 @@ ob_start();
                 <span><?php echo t('admin_start_bots_btn_restart_all'); ?></span>
             </button>
         </div>
-        <div class="sp-form-group" style="margin:0;">
-            <div style="position:relative;">
-                <span class="icon is-left" style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);pointer-events:none;"><i class="fas fa-search"></i></span>
-                <input class="sp-input" style="padding-left:2.25rem;" type="text" id="user-search" placeholder="<?php echo htmlspecialchars(t('admin_start_bots_search_placeholder'), ENT_QUOTES); ?>">
+        <div class="sp-form-group start-bots-search">
+            <div class="start-bots-search-wrap">
+                <span class="icon is-left"><i class="fas fa-search"></i></span>
+                <input class="sp-input" type="text" id="user-search" placeholder="<?php echo htmlspecialchars(t('admin_start_bots_search_placeholder'), ENT_QUOTES); ?>">
             </div>
         </div>
     </div>
-    <div class="sp-table-wrap">
+    <div class="sp-table-wrap start-bots-table-wrap">
         <table class="sp-table start-bots-table">
             <thead>
                 <tr>
@@ -1284,10 +1284,10 @@ ob_start();
                         data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>"
                         data-custom-enabled="<?php echo $customBotEnabled ? '1' : '0'; ?>">
                         <td class="col-user">
-                            <div style="display:flex;align-items:center;">
+                            <div class="start-bots-user">
                                 <img src="<?php echo htmlspecialchars($user['profile_image']); ?>"
                                     alt="<?php echo htmlspecialchars($user['username']); ?>"
-                                    class="admin-bot-avatar" style="margin-right:0.5rem;">
+                                    class="admin-bot-avatar">
                                 <span><?php echo htmlspecialchars($user['twitch_display_name'] ?: $user['username']); ?></span>
                             </div>
                         </td>

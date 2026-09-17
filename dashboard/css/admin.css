@@ -528,6 +528,193 @@
     }
 }
 
+/* ===== Start User Bots (admin/start_bots.php) =====
+   Action buttons wrap inside a fixed-layout table so they stay in the
+   content width. The table grows with every row; the page scrolls. */
+
+.sp-card.start-bots-page {
+    min-width: 0;
+    overflow: visible;
+}
+
+.start-bots-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+}
+
+.start-bots-intro {
+    margin: 0 0 1rem;
+}
+
+.start-bots-banner {
+    margin-bottom: 1rem;
+}
+
+.start-bots-banner-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.start-bots-banner-copy {
+    flex: 1;
+    min-width: 14rem;
+}
+
+.start-bots-banner-text {
+    margin: 0.35rem 0 0;
+    font-size: 0.9rem;
+}
+
+.start-bots-banner-list {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    opacity: 0.95;
+}
+
+.start-bots-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.start-bots-toolbar-actions {
+    margin-bottom: 0;
+    min-width: 0;
+    flex: 1 1 18rem;
+}
+
+.start-bots-search {
+    margin: 0;
+    min-width: 12rem;
+    flex: 0 1 16rem;
+}
+
+.start-bots-search-wrap {
+    position: relative;
+}
+
+.start-bots-search-wrap .icon.is-left {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-muted);
+}
+
+.start-bots-search-wrap .sp-input {
+    padding-left: 2.25rem;
+    width: 100%;
+}
+
+.start-bots-table-wrap {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+.start-bots-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.start-bots-table .col-user { width: 14%; }
+.start-bots-table .col-twitch-id { width: 10%; }
+.start-bots-table .col-status { width: 12%; }
+.start-bots-table .col-type { width: 8%; }
+.start-bots-table .col-uptime { width: 9%; }
+.start-bots-table .col-token { width: 11%; }
+.start-bots-table .col-mod { width: 11%; }
+.start-bots-table .col-actions { width: 25%; }
+
+.start-bots-user {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.start-bots-table .col-user span {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.start-bots-table .col-user,
+.start-bots-table .col-twitch-id {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.start-bots-table .col-status,
+.start-bots-table .col-type,
+.start-bots-table .col-uptime,
+.start-bots-table .col-token,
+.start-bots-table .col-mod {
+    overflow: hidden;
+}
+
+.start-bots-table th.col-actions,
+.start-bots-table td.col-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    white-space: normal;
+    vertical-align: middle;
+    background: var(--bg-card);
+    box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.45);
+}
+
+.start-bots-table thead th.col-actions {
+    z-index: 3;
+    background: var(--bg-surface);
+}
+
+.start-bots-table tbody tr:hover td.col-actions {
+    background: var(--bg-card-hover);
+}
+
+.start-bots-table .col-actions .sp-btn-group {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.start-bots-table .col-actions .sp-btn {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+}
+
+@media (max-width: 1600px) {
+    .start-bots-table .col-user { width: 30%; }
+    .start-bots-table .col-status { width: 22%; }
+    .start-bots-table .col-actions { width: 48%; }
+}
+
+@media (max-width: 640px) {
+    .start-bots-table th.col-actions,
+    .start-bots-table td.col-actions {
+        position: static;
+        box-shadow: none;
+    }
+
+    .start-bots-search {
+        flex: 1 1 100%;
+    }
+}
+
 /* User schema (per-user DB check/apply) */
 .usr-schema-intro {
     color: var(--text-secondary);
