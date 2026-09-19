@@ -66,7 +66,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.21"
+VERSION = "5.7.22"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -7540,10 +7540,10 @@ async def trigger_twitch_title_update(new_title):
     }
     async with httpClientSession() as session:
         async with session.patch(url, headers=headers, json=params) as response:
-            if response.status == 200:
+            if response.status in (200, 204):
                 twitch_logger.info(f'Stream title updated to: {new_title}')
             else:
-                twitch_logger.error(f'Failed to update stream title: {await response.text()}')
+                twitch_logger.error(f'Failed to update stream title (HTTP {response.status}): {await response.text()}')
 
 # Function to update the current stream category
 async def update_twitch_game(game_name: str):
@@ -7579,12 +7579,12 @@ async def update_twitch_game(game_name: str):
         }
         # Update the Twitch stream game/category
         async with session.patch(twitch_game_update_url, headers=twitch_headers, json=payload) as twitch_response:
-            if twitch_response.status == 200:
+            if twitch_response.status in (200, 204):
                 twitch_logger.info(f"Stream game updated to: {game_name}")
                 return game_name
             else:
                 error_message = await twitch_response.text()
-                raise GameUpdateFailedException(f"Failed to update stream game: {error_message}")
+                raise GameUpdateFailedException(f"Failed to update stream game (HTTP {twitch_response.status}): {error_message}")
 
 # Enqueue shoutout requests
 async def add_shoutout(user_to_shoutout, user_id):
