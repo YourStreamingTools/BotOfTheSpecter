@@ -2066,6 +2066,27 @@ async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"status": "error", "message": "Error forwarding to websocket server"}) # Return 500 on websocket send failure
     return {"status": "success", "message": "Patreon Webhook received and processed"}
 
+def _is_freestuff_keep_forever(product):
+    # FreeStuff Channel: keep = 100% off / add to account; timed = free weekend or play time
+    if not isinstance(product, dict):
+        return False
+    channel = str(product.get("type") or "").strip().lower()
+    if channel not in ("", "keep"):
+        return False
+    new_values = []
+    prices = product.get("prices") or []
+    if isinstance(prices, list):
+        for price in prices:
+            if not isinstance(price, dict) or "newValue" not in price:
+                continue
+            try:
+                new_values.append(int(price.get("newValue")))
+            except (TypeError, ValueError):
+                continue
+    if new_values:
+        return 0 in new_values
+    return channel == "keep"
+
 async def save_freestuff_game(webhook_data):
     try:
         conn = await get_mysql_connection()
@@ -2084,6 +2105,12 @@ async def save_freestuff_game(webhook_data):
                 # Fallback: if no products found, try top-level 'product' or 'data' keys
                 if not products and isinstance(webhook_data.get("product"), dict):
                     products = [webhook_data.get("product")]
+                keep_products = [p for p in products if _is_freestuff_keep_forever(p)]
+                skipped = len(products) - len(keep_products)
+                if skipped:
+                    skipped_titles = [str((p or {}).get("title") or "Unknown Game") for p in products if not _is_freestuff_keep_forever(p)]
+                    logging.info(f"Skipped {skipped} FreeStuff product(s) that are not free-to-keep: {', '.join(skipped_titles)}")
+                products = keep_products
                 # Determine a received_at timestamp (prefer webhook timestamp if present)
                 received_at = None
                 ts = webhook_data.get("timestamp")
@@ -2096,6 +2123,8 @@ async def save_freestuff_game(webhook_data):
                         except Exception:
                             received_at = None
                 if not products:
+                    if skipped:
+                        return
                     logging.warning("FreeStuff webhook contained no recognized product data")
                     return
                 for product in products:
@@ -2642,7 +2671,7 @@ async def receive_custom_webhook(slug: str, request: Request):
     "/freestuff/games",
     response_model=FreeStuffGamesResponse,
     summary="Get recent free games",
-    description="Retrieve the last 5 free games announced via FreeStuff webhooks.",
+    description="Retrieve the last 5 free-to-keep games announced via FreeStuff webhooks.",
     tags=["Public"],
     operation_id="get_freestuff_games"
 )
@@ -2684,7 +2713,7 @@ async def get_freestuff_games():
     "/freestuff/latest",
     response_model=FreeStuffGame,
     summary="Get the most recent free game",
-    description="Retrieve the most recent free game announced via FreeStuff webhooks.",
+    description="Retrieve the most recent free-to-keep game announced via FreeStuff webhooks.",
     tags=["Public"],
     operation_id="get_freestuff_latest"
 )

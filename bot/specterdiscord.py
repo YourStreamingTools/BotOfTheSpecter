@@ -39,7 +39,7 @@ import yt_dlp
 from openai import AsyncOpenAI
 
 # Bot version
-VERSION = "6.4"
+VERSION = "6.5"
 
 # Global configuration class
 class Config:
@@ -1387,6 +1387,27 @@ async def handle_webhook_log(bot, data):
     except Exception as e:
         logger.error(f"Failed to post webhook log: {e}")
 
+def _is_freestuff_keep_forever(product):
+    # FreeStuff Channel: keep = 100% off / add to account; timed = free weekend or play time
+    if not isinstance(product, dict):
+        return False
+    channel = str(product.get("type") or "").strip().lower()
+    if channel not in ("", "keep"):
+        return False
+    new_values = []
+    prices = product.get("prices") or []
+    if isinstance(prices, list):
+        for price in prices:
+            if not isinstance(price, dict) or "newValue" not in price:
+                continue
+            try:
+                new_values.append(int(price.get("newValue")))
+            except (TypeError, ValueError):
+                continue
+    if new_values:
+        return 0 in new_values
+    return channel == "keep"
+
 async def handle_freestuff_announcement(bot, data):
     try:
         event_type = data.get('type')
@@ -1412,8 +1433,16 @@ async def handle_freestuff_announcement(bot, data):
         if not resolved_products:
             logger.info("No products in announcement")
             return
+        keep_products = [p for p in resolved_products[:10] if _is_freestuff_keep_forever(p)]
+        skipped = len(resolved_products[:10]) - len(keep_products)
+        if skipped:
+            skipped_titles = [str((p or {}).get("title") or "Unknown Game") for p in resolved_products[:10] if not _is_freestuff_keep_forever(p)]
+            logger.info(f"Skipping {skipped} FreeStuff product(s) that are not free-to-keep: {', '.join(skipped_titles)}")
+        if not keep_products:
+            logger.info("No free-to-keep products in announcement")
+            return
         # Process each product and create individual embeds
-        for product in resolved_products[:10]:
+        for product in keep_products:
             title = product.get('title', 'Unknown Game')
             store_name = product.get('store', 'Unknown Store')
             kind = product.get('kind', 'game').capitalize()
