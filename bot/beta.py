@@ -15205,7 +15205,7 @@ async def trigger_twitch_title_update(new_title):
             if response.status in (200, 204):
                 twitch_logger.info(f'[SET TITLE] Stream title updated to: {new_title}')
             else:
-                twitch_logger.error(f'[SET TITLE] Failed to update stream title: {await response.text()}')
+                twitch_logger.error(f'[SET TITLE] Failed to update stream title (HTTP {response.status}): {await response.text()}')
 
 # Function to update the current stream category
 async def update_twitch_game(game_name: str):
@@ -15245,7 +15245,7 @@ async def update_twitch_game(game_name: str):
                 return game_name
             else:
                 error_message = await twitch_response.text()
-                raise GameUpdateFailedException(f"Failed to update stream game: {error_message}")
+                raise GameUpdateFailedException(f"Failed to update stream game (HTTP {twitch_response.status}): {error_message}")
 
 # Helper function to check if user has received automated shoutout today
 async def get_automated_shoutout_cooldown():
