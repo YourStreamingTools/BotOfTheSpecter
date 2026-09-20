@@ -6007,7 +6007,7 @@ label.checkbox input[type="checkbox"] {
 .sp-modal-wide {
     max-width: 720px;
 }
-#library, #record, #ingest, #forward, #youtube, #import {
+#library, #record, #ingest, #forward, #youtube, #import, #s3 {
     scroll-margin-top: 1rem;
 }
 .stream-hub-panel { display: none; }

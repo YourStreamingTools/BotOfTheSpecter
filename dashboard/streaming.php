@@ -11,6 +11,7 @@ include 'includes/userdata.php';
 include 'includes/mod_access.php';
 include 'includes/user_db_connect.php';
 require_once __DIR__ . '/includes/youtube.php';
+require_once __DIR__ . '/includes/user_s3.php';
 require_once __DIR__ . '/includes/stream_api_client.php';
 if (function_exists('botofthespecter_twitch_apply_db_override')) {
     botofthespecter_twitch_apply_db_override($conn, $clientID, $clientSecret, $oauth);
@@ -84,6 +85,37 @@ foreach ($youtubeJobs as $jobName => $job) {
         . '<progress class="progress" value="' . htmlspecialchars((string) $pctVal) . '" max="100"></progress></div>';
 }
 
+$s3Jobs = isset($s3Jobs) && is_array($s3Jobs) ? $s3Jobs : [];
+$s3ProgressHtml = '';
+foreach ($s3Jobs as $jobName => $job) {
+    if (!is_array($job)) {
+        continue;
+    }
+    $s3BarStatus = (string) ($job['status'] ?? '');
+    if ($s3BarStatus !== 'uploading' && $s3BarStatus !== 'queued') {
+        continue;
+    }
+    if ($s3BarStatus === 'uploading' && function_exists('user_s3_job_is_live') && !user_s3_job_is_live($job)) {
+        continue;
+    }
+    $s3Client = user_s3_job_client_row($job);
+    $pctVal = max(0, min(100, (float) $s3Client['percent']));
+    $label = (string) ($s3Client['title'] ?: $jobName);
+    $phase = $s3BarStatus === 'queued' ? t('s3_vod_status_queued') : t('s3_vod_status_uploading');
+    $right = $s3BarStatus === 'queued' ? '' : (rtrim(rtrim(number_format($pctVal, 1, '.', ''), '0'), '.') . '%');
+    if ($s3BarStatus === 'uploading' && (int) $s3Client['bytes_total'] > 0) {
+        $right .= ($right !== '' ? ' · ' : '') . formatBytes((int) $s3Client['bytes_sent']) . ' / ' . formatBytes((int) $s3Client['bytes_total']);
+    }
+    $s3ProgressHtml .= '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
+        . htmlspecialchars($label) . ' — ' . htmlspecialchars($phase)
+        . '</span><span>' . htmlspecialchars($right) . '</span></div>';
+    if ($s3BarStatus === 'uploading') {
+        $s3ProgressHtml .= '<progress class="progress" value="' . htmlspecialchars((string) $pctVal) . '" max="100"></progress>';
+    }
+    $s3ProgressHtml .= '</div>';
+}
+$s3Public = function_exists('user_s3_public_row') ? user_s3_public_row($s3Settings ?? null) : ['connected' => false];
+
 ob_start();
 $libraryCount = count($libraryFiles);
 $ytPullingCount = 0;
@@ -147,6 +179,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         <div id="youtube-vod-notice" data-vod-notice></div>
         <p class="sp-help"><?php echo t('stream_hub_library_help'); ?></p>
         <div id="stream-hub-uploads" class="stream-hub-yt-jobs"><?php echo $ytProgressHtml; ?></div>
+        <div id="stream-hub-s3-jobs" class="stream-hub-s3-jobs"><?php echo $s3ProgressHtml; ?></div>
         <div id="stream-hub-pulls">
             <?php foreach ($activePulls as $job): ?>
                 <?php
@@ -268,6 +301,32 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                                         <input type="hidden" name="file_size" value="<?php echo (int) $file['size']; ?>">
                                                         <input type="hidden" name="file_duration" value="<?php echo htmlspecialchars($helixDurations[$tid] ?? ''); ?>">
                                                         <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo $ytStatus === 'failed' ? t('youtube_btn_retry') : t('videos_send_to_youtube'); ?></button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                            <?php
+                                            $s3Job = $s3Jobs[$file['name']] ?? null;
+                                            $s3Status = is_array($s3Job) ? (string) ($s3Job['status'] ?? '') : '';
+                                            $s3Live = is_array($s3Job) && (!function_exists('user_s3_job_is_live') || user_s3_job_is_live($s3Job) || $s3Status === 'queued');
+                                            if ($canS3 && $canDl):
+                                                if ($s3Status === 'done'): ?>
+                                                    <span class="sp-badge sp-badge-green"><?php echo t('s3_vod_status_done'); ?></span>
+                                                <?php elseif ($s3Status === 'queued' || ($s3Status === 'uploading' && $s3Live)): ?>
+                                                    <?php
+                                                    $s3ClientRow = user_s3_job_client_row(is_array($s3Job) ? $s3Job : []);
+                                                    $s3Pct = max(0, min(100, (float) $s3ClientRow['percent']));
+                                                    $s3PctLabel = '';
+                                                    if ($s3Status === 'uploading' && $s3Pct > 0) {
+                                                        $s3PctLabel = ' ' . rtrim(rtrim(number_format($s3Pct, 1, '.', ''), '0'), '.') . '%';
+                                                    }
+                                                    ?>
+                                                    <span class="sp-badge sp-badge-amber"><?php echo t('s3_vod_status_' . $s3Status); ?><?php echo htmlspecialchars($s3PctLabel); ?></span>
+                                                <?php else: ?>
+                                                    <form method="post" action="streaming.php#library" data-send-s3="1">
+                                                        <input type="hidden" name="action" value="send_library_s3">
+                                                        <input type="hidden" name="filename" value="<?php echo htmlspecialchars($file['name']); ?>">
+                                                        <input type="hidden" name="file_title" value="<?php echo htmlspecialchars($displayTitle); ?>">
+                                                        <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo $s3Status === 'failed' ? t('s3_vod_retry') : t('s3_vod_send'); ?></button>
                                                     </form>
                                                 <?php endif; ?>
                                             <?php endif; ?>
@@ -476,6 +535,74 @@ $pullingCount = count($activePulls) + $ytPullingCount;
 </div>
 </div>
 
+<div class="sp-card" id="s3">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-database"></i> <?php echo t('s3_vod_card_title'); ?></div>
+        <?php if (!empty($s3Public['connected'])): ?>
+            <span class="sp-badge sp-badge-green"><?php echo t('s3_vod_badge_connected'); ?></span>
+        <?php else: ?>
+            <span class="sp-badge sp-badge-grey"><?php echo t('s3_vod_badge_not_connected'); ?></span>
+        <?php endif; ?>
+    </div>
+    <div class="sp-card-body">
+        <p class="sp-help"><?php echo t('s3_vod_help'); ?></p>
+        <?php if ($isActAsUser): ?>
+            <p class="sp-help"><?php echo t('s3_vod_actas_disabled'); ?></p>
+        <?php else: ?>
+            <form method="post" action="streaming.php#s3">
+                <input type="hidden" name="action" value="save_s3_settings">
+                <div class="sp-form-group">
+                    <label class="sp-label" for="s3_endpoint"><?php echo t('s3_vod_endpoint_label'); ?></label>
+                    <input class="sp-input w-100" id="s3_endpoint" name="s3_endpoint" type="text" value="<?php echo htmlspecialchars((string) ($s3Public['endpoint'] ?? '')); ?>" placeholder="https://s3.example.com" autocomplete="off">
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="s3_region"><?php echo t('s3_vod_region_label'); ?></label>
+                    <input class="sp-input w-100" id="s3_region" name="s3_region" type="text" value="<?php echo htmlspecialchars((string) ($s3Public['region'] ?? '')); ?>" placeholder="us-east-1" autocomplete="off">
+                    <span class="sp-help"><?php echo t('s3_vod_region_help'); ?></span>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="s3_bucket"><?php echo t('s3_vod_bucket_label'); ?></label>
+                    <input class="sp-input w-100" id="s3_bucket" name="s3_bucket" type="text" value="<?php echo htmlspecialchars((string) ($s3Public['bucket'] ?? '')); ?>" autocomplete="off">
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="s3_prefix"><?php echo t('s3_vod_prefix_label'); ?></label>
+                    <input class="sp-input w-100" id="s3_prefix" name="s3_prefix" type="text" value="<?php echo htmlspecialchars((string) ($s3Public['prefix'] ?? '')); ?>" placeholder="vods" autocomplete="off">
+                    <span class="sp-help"><?php echo t('s3_vod_prefix_help'); ?></span>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="s3_access_key"><?php echo t('s3_vod_access_key_label'); ?></label>
+                    <input class="sp-input w-100" id="s3_access_key" name="s3_access_key" type="text" value="<?php echo htmlspecialchars((string) ($s3Public['access_key'] ?? '')); ?>" autocomplete="off">
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="s3_secret_key"><?php echo t('s3_vod_secret_key_label'); ?></label>
+                    <input class="sp-input w-100" id="s3_secret_key" name="s3_secret_key" type="password" value="" placeholder="<?php echo !empty($s3Public['secret_set']) ? htmlspecialchars(t('s3_vod_secret_kept', ['last4' => (string) ($s3Public['secret_last4'] ?? '')])) : ''; ?>" autocomplete="new-password">
+                </div>
+                <div class="sp-form-group">
+                    <label class="youtube-toggle">
+                        <input type="checkbox" name="s3_path_style" value="1" <?php echo !empty($s3Public['path_style']) || empty($s3Public['connected']) ? 'checked' : ''; ?>>
+                        <?php echo t('s3_vod_path_style_label'); ?>
+                    </label>
+                    <span class="sp-help"><?php echo t('s3_vod_path_style_help'); ?></span>
+                </div>
+                <div class="sp-form-group">
+                    <label class="youtube-toggle">
+                        <input type="checkbox" name="s3_auto_copy" value="1" <?php echo !empty($s3Public['auto_copy']) ? 'checked' : ''; ?>>
+                        <?php echo t('s3_vod_auto_copy_label'); ?>
+                    </label>
+                    <span class="sp-help"><?php echo t('s3_vod_auto_copy_help'); ?></span>
+                </div>
+                <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><?php echo t('s3_vod_save'); ?></button>
+            </form>
+            <?php if (!empty($s3Public['connected']) && !$isActAsUser): ?>
+                <form method="post" action="streaming.php#s3" class="youtube-disconnect-form" onsubmit="return confirm(<?php echo json_encode(t('s3_vod_disconnect_confirm')); ?>);">
+                    <input type="hidden" name="action" value="disconnect_s3">
+                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm"><?php echo t('s3_vod_disconnect'); ?></button>
+                </form>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</div>
+
 <div class="sp-two-col">
 <div class="sp-card" id="ingest">
     <div class="sp-card-header">
@@ -590,7 +717,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
 </div>
 <script>
 (function () {
-    var TAB_MAP = { library: 'library', import: 'import', setup: 'setup', record: 'setup', ingest: 'setup', forward: 'setup', youtube: 'setup' };
+    var TAB_MAP = { library: 'library', import: 'import', setup: 'setup', record: 'setup', ingest: 'setup', forward: 'setup', youtube: 'setup', s3: 'setup' };
     function activateTab(name, scrollId) {
         var tab = TAB_MAP[name] || 'library';
         if (tab === 'import' && !document.querySelector('[data-stream-tab="import"]')) tab = 'library';
@@ -657,12 +784,20 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         linksNone: <?php echo json_encode(t('youtube_vod_links_none')); ?>,
         linksCopied: <?php echo json_encode(t('youtube_vod_links_copied')); ?>,
         storageUsedOf: <?php echo json_encode(t('recording_storage_used_of')); ?>,
-        storageUsedUnlimited: <?php echo json_encode(t('recording_storage_used_unlimited')); ?>
+        storageUsedUnlimited: <?php echo json_encode(t('recording_storage_used_unlimited')); ?>,
+        sendS3: <?php echo json_encode(t('s3_vod_send')); ?>,
+        retryS3: <?php echo json_encode(t('s3_vod_retry')); ?>,
+        s3Queued: <?php echo json_encode(t('s3_vod_status_queued')); ?>,
+        s3Uploading: <?php echo json_encode(t('s3_vod_status_uploading')); ?>,
+        s3Done: <?php echo json_encode(t('s3_vod_status_done')); ?>,
+        s3SendFailed: <?php echo json_encode(t('s3_vod_send_failed')); ?>
     };
     var helixTitles = <?php echo json_encode($helixTitles, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
     var helixDurations = <?php echo json_encode($helixDurations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
     var canUpload = <?php echo ($canUpload && !$isActAsUser) ? 'true' : 'false'; ?>;
     var youtubeJobs = <?php echo json_encode(array_map('youtube_job_client_row', $youtubeJobs), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    var canS3 = <?php echo (!empty($canS3)) ? 'true' : 'false'; ?>;
+    var s3Jobs = <?php echo json_encode($s3Jobs ? array_map('user_s3_job_client_row', $s3Jobs) : new stdClass(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
     var YT_MAX_SECONDS = 12 * 3600;
     var YT_MAX_BYTES = 256 * 1024 * 1024 * 1024;
     function escapeHtml(value) {
@@ -946,11 +1081,66 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         document.querySelectorAll('.stream-hub-yt-jobs').forEach(function (host) {
             host.innerHTML = html;
         });
+        var s3html = '';
+        Object.keys(s3Jobs || {}).forEach(function (name) {
+            var job = s3Jobs[name];
+            if (!job) return;
+            var status = String(job.status || '');
+            var live = job.live !== false;
+            if (status === 'queued') {
+                s3html += '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
+                    + escapeHtml(job.title || name) + ' — ' + escapeHtml(I18N.s3Queued)
+                    + '</span><span></span></div></div>';
+                return;
+            }
+            if (status !== 'uploading' || !live) return;
+            var pct = Number(job.percent);
+            if (!isFinite(pct)) pct = 0;
+            pct = Math.max(0, Math.min(100, pct));
+            var sent = Number(job.bytes_sent) || 0;
+            var total = Number(job.bytes_total) || 0;
+            var right = (Math.round(pct * 10) / 10) + '%';
+            if (total > 0) right += ' · ' + formatBytes(sent) + ' / ' + formatBytes(total);
+            s3html += '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
+                + escapeHtml(job.title || name) + ' — ' + escapeHtml(I18N.s3Uploading)
+                + '</span><span>' + escapeHtml(right) + '</span></div><progress class="progress" value="'
+                + pct + '" max="100"></progress></div>';
+        });
+        document.querySelectorAll('.stream-hub-s3-jobs').forEach(function (host) {
+            host.innerHTML = s3html;
+        });
+    }
+    function s3JobLive(job) {
+        if (!job) return false;
+        if (job.status === 'queued') return true;
+        if (job.status !== 'uploading') return false;
+        if (typeof job.live === 'boolean') return job.live;
+        return true;
+    }
+    function s3ActionHtml(file, title) {
+        if (!canS3 || !file || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || !/\.mp4$/i.test(String(file.name || ''))) return '';
+        var job = s3Jobs[file.name] || {};
+        var status = String(job.status || '');
+        if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.s3Done) + '</span>';
+        if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Queued) + '</span>';
+        if (status === 'uploading' && s3JobLive(job)) {
+            var pct = Number(job.percent);
+            var extra = (isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
+            return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Uploading + extra) + '</span>';
+        }
+        var label = status === 'failed' ? I18N.retryS3 : I18N.sendS3;
+        return '<form method="post" action="streaming.php#library" data-send-s3="1">'
+            + '<input type="hidden" name="action" value="send_library_s3">'
+            + '<input type="hidden" name="filename" value="' + escapeHtml(file.name || '') + '">'
+            + '<input type="hidden" name="file_title" value="' + escapeHtml(title || '') + '">'
+            + '<button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">' + escapeHtml(label) + '</button></form>';
     }
     function render(data) {
         if (!data) return;
         if (data.youtube_jobs && typeof data.youtube_jobs === 'object') youtubeJobs = data.youtube_jobs;
         if (typeof data.can_upload === 'boolean') canUpload = data.can_upload;
+        if (data.s3_jobs && typeof data.s3_jobs === 'object') s3Jobs = data.s3_jobs;
+        if (typeof data.can_s3 === 'boolean') canS3 = data.can_s3;
         renderUploadBars();
         updateImportYoutubeCells();
         updateStorageBar(data.storage);
@@ -1031,6 +1221,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                 }
                 actions += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="' + escapeHtml(file.name || '') + '" data-delete-title="' + escapeHtml(title) + '">' + escapeHtml(I18N.deleteFile) + '</button>';
                 actions += youtubeActionHtml(file, title);
+                actions += s3ActionHtml(file, title);
                 actions += '</div>';
             }
             var expires = Number(file.expires_unix || file.expires_at_unix || 0);
@@ -1059,7 +1250,8 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         var form = event.target;
         var isStore = form && form.getAttribute('data-store-vod') === '1';
         var isSend = form && form.getAttribute('data-send-youtube') === '1';
-        if (!isStore && !isSend) return;
+        var isSendS3 = form && form.getAttribute('data-send-s3') === '1';
+        if (!isStore && !isSend && !isSendS3) return;
         event.preventDefault();
         var btn = form.querySelector('button[type="submit"]');
         if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
@@ -1072,6 +1264,26 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             return response.json().then(function (json) { return json || {}; }).catch(function () { return {}; });
         }).then(function (json) {
             var ok = json.ok === true;
+            if (isSendS3) {
+                setNotice(json.message || (ok ? '' : I18N.s3SendFailed), ok ? 'success' : 'warning');
+                if (ok) {
+                    pollSeq += 1;
+                    var fileInput = form.querySelector('input[name="filename"]');
+                    var titleInput = form.querySelector('input[name="file_title"]');
+                    var name = (json.filename || (fileInput && fileInput.value) || '').trim();
+                    if (name) {
+                        s3Jobs[name] = s3Jobs[name] || {};
+                        s3Jobs[name].status = json.status || 'queued';
+                        s3Jobs[name].filename = name;
+                        if (titleInput && titleInput.value) s3Jobs[name].title = titleInput.value;
+                        if (s3Jobs[name].percent == null) s3Jobs[name].percent = 0;
+                        s3Jobs[name].live = true;
+                    }
+                    renderUploadBars();
+                    poll();
+                } else if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
+                return;
+            }
             if (isSend) {
                 setNotice(json.message || (ok ? '' : I18N.ytSendFailed), ok ? 'success' : 'warning');
                 if (ok) {
@@ -1105,7 +1317,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                 btn.classList.remove('sp-btn-loading');
             }
         }).catch(function () {
-            setNotice(isSend ? I18N.ytSendFailed : I18N.storeFailed, 'danger');
+            setNotice(isSendS3 ? I18N.s3SendFailed : (isSend ? I18N.ytSendFailed : I18N.storeFailed), 'danger');
             if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
         });
     });

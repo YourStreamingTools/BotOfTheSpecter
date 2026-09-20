@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Specter user S3 VOD copier when idle
+After=network-online.target
+
+[Timer]
+OnBootSec=50s
+OnUnitInactiveSec=60s
+Persistent=true
+Unit=s3-vod-uploader.service
+
+[Install]
+WantedBy=timers.target
