@@ -615,6 +615,57 @@ async def maybe_queue_youtube_vod(username, filename):
             await sqldb.ensure_closed()
 
 
+async def maybe_queue_s3_vod(username, filename):
+    if not username or not filename:
+        return
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT u.id AS user_id, s.auto_copy
+                FROM users u
+                JOIN user_s3_settings s ON s.user_id = u.id
+                WHERE u.username = %s
+                  AND s.endpoint IS NOT NULL AND s.endpoint != ''
+                  AND s.bucket IS NOT NULL AND s.bucket != ''
+                  AND s.access_key IS NOT NULL AND s.access_key != ''
+                  AND s.secret_key IS NOT NULL AND s.secret_key != ''
+                LIMIT 1
+                """,
+                (username,),
+            )
+            row = await cursor.fetchone()
+            if not row or not row.get("auto_copy"):
+                return
+            await cursor.execute(
+                """
+                SELECT id FROM user_s3_uploads
+                WHERE user_id = %s AND filename = %s AND status IN ('queued','uploading','done')
+                ORDER BY id DESC LIMIT 1
+                """,
+                (row["user_id"], filename),
+            )
+            if await cursor.fetchone():
+                return
+            title = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ").strip()[:100]
+            await cursor.execute(
+                """
+                INSERT INTO user_s3_uploads (user_id, filename, title, status)
+                VALUES (%s, %s, %s, 'queued')
+                """,
+                (row["user_id"], filename, title),
+            )
+            await sqldb.commit()
+            logger.info(f"Queued S3 VOD copy for {username}: {filename}")
+    except Exception as e:
+        logger.error(f"S3 auto-queue failed for {username}: {e}")
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
 def user_storage_dir(output_directory: str, username: str) -> str:
     return os.path.join(output_directory, username)
 
@@ -1141,6 +1192,7 @@ class RTMP2FLVController(SimpleRTMPController):
             os.remove(flv_file_path)
             logger.info(f"Converted file saved to {final_mp4_path}; removed source {flv_file_path}")
             await maybe_queue_youtube_vod(username, os.path.basename(final_mp4_path))
+            await maybe_queue_s3_vod(username, os.path.basename(final_mp4_path))
         else:
             logger.error(
                 f"FFmpeg conversion failed (exit code {process.returncode}). "

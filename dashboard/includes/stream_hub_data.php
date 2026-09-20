@@ -341,6 +341,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_streaming_settin
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'save_s3_settings') {
+        $wantsJson = stream_hub_wants_json();
+        if ($isActAsUser) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('s3_vod_actas_disabled')], 403);
+            }
+            stream_hub_redirect('s3', t('s3_vod_actas_disabled'), 'is-warning');
+        }
+        $saved = user_s3_save($conn, $userId, [
+            'endpoint' => (string) ($_POST['s3_endpoint'] ?? ''),
+            'region' => (string) ($_POST['s3_region'] ?? ''),
+            'bucket' => (string) ($_POST['s3_bucket'] ?? ''),
+            'prefix' => (string) ($_POST['s3_prefix'] ?? ''),
+            'access_key' => (string) ($_POST['s3_access_key'] ?? ''),
+            'secret_key' => (string) ($_POST['s3_secret_key'] ?? ''),
+            'path_style' => isset($_POST['s3_path_style']),
+            'auto_copy' => isset($_POST['s3_auto_copy']),
+        ]);
+        $ok = !empty($saved['ok']);
+        $msg = $ok ? t('s3_vod_saved') : user_s3_error_message((string) ($saved['error'] ?? 'db'), (string) ($saved['detail'] ?? ''));
+        if ($wantsJson) {
+            stream_hub_json(['ok' => $ok, 'message' => $msg], $ok ? 200 : 400);
+        }
+        stream_hub_redirect('s3', $msg, $ok ? 'is-success' : 'is-warning');
+    }
+    if ($action === 'disconnect_s3') {
+        if ($isActAsUser) {
+            stream_hub_redirect('s3', t('s3_vod_actas_disabled'), 'is-warning');
+        }
+        user_s3_delete($conn, $userId);
+        stream_hub_redirect('s3', t('s3_vod_disconnected'), 'is-success');
+    }
+    if ($action === 'send_library_s3') {
+        $wantsJson = stream_hub_wants_json();
+        if ($isActAsUser) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('s3_vod_actas_disabled')], 403);
+            }
+            stream_hub_redirect('library', t('s3_vod_actas_disabled'), 'is-warning');
+        }
+        $filename = trim((string) ($_POST['filename'] ?? ''));
+        $fileTitle = trim((string) ($_POST['file_title'] ?? ''));
+        $queued = user_s3_enqueue($conn, $userId, $filename, $fileTitle !== '' ? $fileTitle : null);
+        $ok = !empty($queued['ok']);
+        $msg = $ok ? t('s3_vod_queued') : user_s3_error_message((string) ($queued['error'] ?? 'db'));
+        if ($ok && !empty($queued['already']) && ($queued['status'] ?? '') === 'done') {
+            $msg = t('s3_vod_already_done');
+        } elseif ($ok && !empty($queued['already'])) {
+            $msg = t('s3_vod_already_queued');
+        }
+        if ($wantsJson) {
+            stream_hub_json([
+                'ok' => $ok,
+                'status' => (string) ($queued['status'] ?? ''),
+                'filename' => $filename,
+                'message' => $msg,
+            ], $ok ? 200 : 400);
+        }
+        stream_hub_redirect('library', $msg, $ok ? 'is-success' : 'is-warning');
+    }
     if ($action === 'disconnect' && $canYoutube) {
         if ($isActAsUser) {
             if (stream_hub_wants_json()) {
@@ -677,6 +737,20 @@ if (!$list['ok']) {
     }
 }
 
+$s3Settings = null;
+$s3Connected = false;
+$canS3 = false;
+$s3Jobs = [];
+if (isset($conn) && $conn instanceof mysqli && function_exists('user_s3_settings_row')) {
+    $s3Settings = user_s3_settings_row($conn, $userId);
+    $s3Connected = user_s3_connected($s3Settings);
+    $canS3 = $s3Connected && !$isActAsUser;
+    if ($s3Connected) {
+        user_s3_fail_stale_jobs($conn, $userId);
+        $s3Jobs = user_s3_upload_map($conn, $userId);
+    }
+}
+
 if ($canYoutube && isset($conn) && $conn instanceof mysqli) {
     $linkRow = youtube_token_row($conn, $userId);
     $linked = $linkRow
@@ -748,6 +822,19 @@ if ($isAjax) {
                 'live' => function_exists('youtube_job_is_live') ? youtube_job_is_live($jobRow) : true,
             ];
     }
+    $s3JobsPublic = [];
+    foreach ($s3Jobs as $jobName => $jobRow) {
+        if (!is_array($jobRow)) {
+            continue;
+        }
+        $s3JobsPublic[(string) $jobName] = function_exists('user_s3_job_client_row')
+            ? user_s3_job_client_row($jobRow)
+            : [
+                'status' => (string) ($jobRow['status'] ?? ''),
+                'filename' => (string) ($jobRow['filename'] ?? ''),
+                'percent' => (float) ($jobRow['progress_percent'] ?? 0),
+            ];
+    }
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'files' => $libraryFiles,
@@ -761,6 +848,8 @@ if ($isAjax) {
         'remoteFileSections' => $libraryFiles ? [['directory' => $recorderUsername, 'files' => $libraryFiles]] : [],
         'can_upload' => $canUpload && !$isActAsUser,
         'youtube_jobs' => $youtubeJobsPublic,
+        'can_s3' => $canS3,
+        's3_jobs' => $s3JobsPublic,
     ]);
     exit();
 }
