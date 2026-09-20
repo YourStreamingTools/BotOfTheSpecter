@@ -600,8 +600,8 @@ function youtube_uploads_for_user(mysqli $conn, int $userId, int $limit = 25): a
     }
     $limit = max(1, min(100, $limit));
     $sql = 'SELECT id, filename, title, privacy_status, youtube_video_id, status, error_message,
-                   created_at, updated_at, source, twitch_video_id,
-                   bytes_sent, bytes_total, progress_percent
+                   created_at, updated_at, UNIX_TIMESTAMP(updated_at) AS updated_unix,
+                   source, twitch_video_id, bytes_sent, bytes_total, progress_percent
             FROM youtube_vod_uploads WHERE user_id = ? ORDER BY id DESC LIMIT ' . $limit;
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -647,6 +647,70 @@ function youtube_upload_map(mysqli $conn, int $userId): array
     return $map;
 }
 
+function youtube_job_stale_after_seconds(): int
+{
+    return 30 * 60;
+}
+
+function youtube_job_is_live(array $row): bool
+{
+    $status = (string) ($row['status'] ?? '');
+    if ($status !== 'uploading' && $status !== 'pulling') {
+        return false;
+    }
+    $unix = (int) ($row['updated_unix'] ?? 0);
+    if ($unix <= 0) {
+        return true;
+    }
+    return (time() - $unix) < youtube_job_stale_after_seconds();
+}
+
+function youtube_fail_stale_jobs(mysqli $conn, int $userId): int
+{
+    if ($userId <= 0 || !youtube_tables_ready($conn)) {
+        return 0;
+    }
+    $age = (int) youtube_job_stale_after_seconds();
+    $stmt = $conn->prepare(
+        "UPDATE youtube_vod_uploads
+         SET status = 'failed', error_message = 'stale_progress'
+         WHERE user_id = ? AND status IN ('pulling','uploading')
+           AND updated_at < (NOW() - INTERVAL $age SECOND)"
+    );
+    if (!$stmt) {
+        return 0;
+    }
+    $stmt->bind_param('i', $userId);
+    $ok = $stmt->execute();
+    $n = $ok ? (int) $stmt->affected_rows : 0;
+    $stmt->close();
+    return $n;
+}
+
+function youtube_job_for_twitch_id(array $jobs, string $twitchVideoId, string $title = ''): ?array
+{
+    if ($twitchVideoId !== '') {
+        $file = youtube_twitch_filename($twitchVideoId);
+        if (isset($jobs[$file]) && is_array($jobs[$file])) {
+            return $jobs[$file];
+        }
+        foreach ($jobs as $job) {
+            if (is_array($job) && (string) ($job['twitch_video_id'] ?? '') === $twitchVideoId) {
+                return $job;
+            }
+        }
+    }
+    $title = trim($title);
+    if ($title !== '') {
+        foreach ($jobs as $job) {
+            if (is_array($job) && strcasecmp(trim((string) ($job['title'] ?? '')), $title) === 0) {
+                return $job;
+            }
+        }
+    }
+    return null;
+}
+
 function youtube_job_client_row(array $row): array
 {
     $sent = (int) ($row['bytes_sent'] ?? 0);
@@ -657,8 +721,10 @@ function youtube_job_client_row(array $row): array
     } else {
         $pct = round((float) $pct, 1);
     }
+    $status = (string) ($row['status'] ?? '');
+    $live = youtube_job_is_live($row);
     return [
-        'status' => (string) ($row['status'] ?? ''),
+        'status' => $status,
         'youtube_video_id' => (string) ($row['youtube_video_id'] ?? ''),
         'twitch_video_id' => (string) ($row['twitch_video_id'] ?? ''),
         'title' => (string) ($row['title'] ?? ''),
@@ -666,6 +732,8 @@ function youtube_job_client_row(array $row): array
         'percent' => $pct,
         'bytes_sent' => $sent,
         'bytes_total' => $total,
+        'updated_unix' => (int) ($row['updated_unix'] ?? 0),
+        'live' => $live,
     ];
 }
 

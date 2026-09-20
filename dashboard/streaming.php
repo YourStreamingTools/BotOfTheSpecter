@@ -65,6 +65,9 @@ foreach ($youtubeJobs as $jobName => $job) {
     if ($ytBarStatus !== 'uploading' && $ytBarStatus !== 'pulling') {
         continue;
     }
+    if (function_exists('youtube_job_is_live') && !youtube_job_is_live($job)) {
+        continue;
+    }
     $ytClient = youtube_job_client_row($job);
     $pctVal = max(0, min(100, (float) $ytClient['percent']));
     $label = (string) ($ytClient['title'] ?: $jobName);
@@ -242,7 +245,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                             <?php if ($showYoutube): ?>
                                                 <?php if ($ytStatus === 'done'): ?>
                                                     <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
-                                                <?php elseif (in_array($ytStatus, ['uploading', 'pulling', 'queued'], true)): ?>
+                                                <?php elseif ($ytStatus === 'queued' || (in_array($ytStatus, ['uploading', 'pulling'], true) && (!function_exists('youtube_job_is_live') || youtube_job_is_live(is_array($ytJob) ? $ytJob : [])))): ?>
                                                     <?php
                                                     $ytClient = youtube_job_client_row(is_array($ytJob) ? $ytJob : []);
                                                     $ytPct = max(0, min(100, (float) $ytClient['percent']));
@@ -328,8 +331,11 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                     }
                                 }
                                 $ready = $stored && empty($stored['is_partial']) && !$pulling;
-                                $ytJob = $vid !== '' ? ($youtubeJobs[youtube_twitch_filename($vid)] ?? null) : null;
+                                $ytJob = function_exists('youtube_job_for_twitch_id')
+                                    ? youtube_job_for_twitch_id($youtubeJobs, $vid, $vtitle)
+                                    : ($vid !== '' ? ($youtubeJobs[youtube_twitch_filename($vid)] ?? null) : null);
                                 $ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
+                                $ytLive = is_array($ytJob) && (!function_exists('youtube_job_is_live') || youtube_job_is_live($ytJob));
                                 ?>
                                 <tr data-vod-id="<?php echo htmlspecialchars($vid); ?>" data-vod-title="<?php echo htmlspecialchars($vtitle); ?>" data-vod-duration="<?php echo htmlspecialchars($vdur); ?>">
                                     <td><?php echo htmlspecialchars($vtitle); ?></td>
@@ -365,7 +371,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                             <span data-vod-youtube>
                                             <?php if ($ytStatus === 'done'): ?>
                                                 <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
-                                            <?php elseif (in_array($ytStatus, ['uploading', 'pulling', 'queued'], true)): ?>
+                                            <?php elseif ($ytStatus === 'queued' || ($ytLive && in_array($ytStatus, ['uploading', 'pulling'], true))): ?>
                                                 <?php
                                                 $ytClient = youtube_job_client_row(is_array($ytJob) ? $ytJob : []);
                                                 $ytPct = max(0, min(100, (float) $ytClient['percent']));
@@ -741,20 +747,38 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         }
         return html + '</div>';
     }
-    function youtubeJobForVod(vodId) {
+    function youtubeJobLive(job) {
+        if (!job) return false;
+        var status = String(job.status || '');
+        if (status !== 'uploading' && status !== 'pulling') return false;
+        if (typeof job.live === 'boolean') return job.live;
+        var ts = Number(job.updated_unix || 0);
+        if (!ts) return true;
+        return (Date.now() / 1000 - ts) < 30 * 60;
+    }
+    function youtubeJobForVod(vodId, title) {
         vodId = String(vodId || '');
-        if (!vodId) return {};
+        title = String(title || '').trim().toLowerCase();
         var jobs = youtubeJobs || {};
-        var fileKey = 'twitch-' + vodId + '.mp4';
-        if (jobs[fileKey]) return jobs[fileKey];
         var found = null;
-        Object.keys(jobs).forEach(function (name) {
-            if (String(jobs[name].twitch_video_id || '') === vodId) found = jobs[name];
-        });
+        if (vodId) {
+            var fileKey = 'twitch-' + vodId + '.mp4';
+            if (jobs[fileKey]) return jobs[fileKey];
+            Object.keys(jobs).forEach(function (name) {
+                if (String(jobs[name].twitch_video_id || '') === vodId) found = jobs[name];
+            });
+            if (found) return found;
+        }
+        if (title) {
+            Object.keys(jobs).forEach(function (name) {
+                if (String(jobs[name].title || '').trim().toLowerCase() === title) found = jobs[name];
+            });
+        }
         return found || {};
     }
     function youtubeStatusHtml(job) {
         var status = String((job && job.status) || '');
+        if ((status === 'uploading' || status === 'pulling') && !youtubeJobLive(job)) return '';
         var pct = Number(job && job.percent);
         var extra = (status !== 'queued' && isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
         if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.ytDone) + '</span>';
@@ -765,10 +789,11 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     }
     function importYoutubeActionHtml(vodId, title, duration) {
         if (!canUpload || !vodId) return '';
-        var job = youtubeJobForVod(vodId);
+        var job = youtubeJobForVod(vodId, title);
         var badge = youtubeStatusHtml(job);
         if (badge) return badge;
         var status = String(job.status || '');
+        if ((status === 'uploading' || status === 'pulling') && !youtubeJobLive(job)) status = 'failed';
         var limit = youtubeLimitReason(parseDurationSeconds(duration), null);
         if (limit) {
             var why = limit === 'too_large' ? I18N.ytTooLarge : I18N.ytTooLong;
@@ -796,8 +821,9 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     }
     function youtubeActionHtml(file, title) {
         if (!canUpload || !file || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || !/\.mp4$/i.test(String(file.name || ''))) return '';
-        var job = youtubeJobs[file.name] || {};
+        var job = youtubeJobs[file.name] || youtubeJobForVod(twitchIdOf(file), title);
         var status = String(job.status || '');
+        if ((status === 'uploading' || status === 'pulling') && !youtubeJobLive(job)) status = 'failed';
         var badge = youtubeStatusHtml(job);
         if (badge) return badge;
         var tid = twitchIdOf(file);
@@ -901,7 +927,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         var html = '';
         Object.keys(youtubeJobs || {}).forEach(function (name) {
             var job = youtubeJobs[name];
-            if (!job || (job.status !== 'uploading' && job.status !== 'pulling')) return;
+            if (!job || (job.status !== 'uploading' && job.status !== 'pulling') || !youtubeJobLive(job)) return;
             var pct = Number(job.percent);
             if (!isFinite(pct)) pct = 0;
             pct = Math.max(0, Math.min(100, pct));
@@ -1209,6 +1235,9 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     });
     setInterval(tickCountdowns, 1000);
     tickCountdowns();
+    renderUploadBars();
+    updateImportYoutubeCells();
+    poll();
     setInterval(poll, 5000);
     syncCopyBtn();
 })();
