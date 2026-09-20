@@ -684,6 +684,9 @@ if ($canYoutube && isset($conn) && $conn instanceof mysqli) {
         && (int) ($linkRow['needs_reauth'] ?? 0) === 0;
     $needsReauth = $linkRow && (int) ($linkRow['needs_reauth'] ?? 0) === 1;
     $canUpload = $linked && (int) ($linkRow['can_upload'] ?? 0) === 1;
+    if (function_exists('youtube_fail_stale_jobs')) {
+        youtube_fail_stale_jobs($conn, $userId);
+    }
     $youtubeJobs = youtube_upload_map($conn, $userId);
 }
 
@@ -741,6 +744,8 @@ if ($isAjax) {
                 'status' => (string) ($jobRow['status'] ?? ''),
                 'youtube_video_id' => (string) ($jobRow['youtube_video_id'] ?? ''),
                 'twitch_video_id' => (string) ($jobRow['twitch_video_id'] ?? ''),
+                'updated_unix' => (int) ($jobRow['updated_unix'] ?? 0),
+                'live' => function_exists('youtube_job_is_live') ? youtube_job_is_live($jobRow) : true,
             ];
     }
     header('Content-Type: application/json; charset=utf-8');

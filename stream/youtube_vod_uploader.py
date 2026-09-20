@@ -546,8 +546,31 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None, on_pid=No
         return False, "\n".join(tail[-8:]) or f"ffmpeg_exit_{rc}"
     os.replace(part_path, dest_path)
     if on_progress:
-        on_progress(100.0, duration_s or 0.0, duration_s, os.path.getsize(dest_path))
+        maybe = on_progress(100.0, duration_s or 0.0, duration_s, os.path.getsize(dest_path))
+        if inspect.isawaitable(maybe):
+            await maybe
     return True, None
+
+
+STALE_JOB_SECONDS = 30 * 60
+
+
+async def fail_stale_jobs(pool):
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                UPDATE youtube_vod_uploads
+                SET status = 'failed', error_message = 'stale_progress'
+                WHERE status IN ('pulling', 'uploading')
+                  AND updated_at < (NOW() - INTERVAL %s SECOND)
+                """,
+                (STALE_JOB_SECONDS,),
+            )
+            n = cur.rowcount
+            await conn.commit()
+    if n:
+        logger.warning(f"Marked {n} stale YouTube job(s) as failed")
 
 
 async def claim_job(pool, job_id, status):
@@ -761,10 +784,11 @@ async def main():
     try:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
         async with aiohttp.ClientSession(timeout=timeout) as session:
+            await fail_stale_jobs(pool)
             while True:
                 result = await process_one(pool, session)
                 if result is None or result == "skipped":
-                    break
+                    break;
     except Exception as e:
         logger.error(f"❌ Uploader error: {e}")
     finally:
