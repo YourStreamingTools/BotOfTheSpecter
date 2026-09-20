@@ -394,6 +394,7 @@ ad_upcoming_notified = False                            # Flag to prevent duplic
 ad_upcoming_last_notified_next_ad_at = None             # Tracks which next_ad_at already triggered a notice
 AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
 last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
+ad_break_end_routine = None                             # One-shot routine that posts the ad-end chat notice
 stream_session_started_at = 0.0                         # UTC timestamp when the current stream session started
 bot_initiated_ad_snooze_until = 0.0                     # UTC epoch; suppress generic ad_snoozed chat after bot raid-snooze
 pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
@@ -1797,7 +1798,7 @@ async def process_twitch_eventsub_message(message):
                     safe_create_task(tracked_game_sync(current_game_id, current_game, stream_online))
                 # Ad Break Begin Event
                 elif event_type == 'channel.ad_break.begin':
-                    create_task(handle_ad_break_start(event_data["duration_seconds"]))
+                    create_task(handle_ad_break_start(event_data.get("duration_seconds"), event_data.get("started_at")))
                 # Charity Campaign Donate Event
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["user_name"]
@@ -15489,6 +15490,8 @@ async def process_stream_offline_websocket():
     stream_online = False  # Update the stream status
     safe_create_task(tracked_game_sync(None, None, False))
     stream_session_started_at = 0.0  # Clear so duration loop doesn't fire while offline
+    stop_ad_break_end_routine()
+    await mark_ad_break_end_sent()
     # Cancel any previous scheduled task to avoid duplication
     if "hyperate_websocket" in looped_tasks:
         looped_tasks["hyperate_websocket"].cancel()
@@ -17549,13 +17552,17 @@ async def check_stream_online():
                                 stream_title = channel_data['data'][0].get('title', None)
                     else:
                         stream_online = True
+                        stream_data = data['data'][0]
                         if not was_online:
-                            stream_session_started_at = datetime.now(timezone.utc).timestamp()
+                            started_at_str = stream_data.get('started_at')
+                            if started_at_str:
+                                stream_session_started_at = parse_ad_break_started_at(started_at_str)
+                            else:
+                                stream_session_started_at = datetime.now(timezone.utc).timestamp()
                             ad_upcoming_notified = False
                             ad_upcoming_last_notified_next_ad_at = None
                             last_ad_message_ts = 0.0
                             clear_ad_break_chat_history("stream-online-status-check-reset")
-                        stream_data = data['data'][0]
                         current_game = stream_data.get('game_name', None)
                         current_game_id = str(stream_data.get('game_id') or '').strip() or None
                         stream_title = stream_data.get('title', None)
@@ -17571,6 +17578,11 @@ async def check_stream_online():
             safe_create_task(tracked_game_sync(current_game_id, current_game, stream_online))
         elif not stream_online:
             safe_create_task(tracked_game_sync(None, None, False))
+        if stream_online:
+            await recover_ad_break_end_notice()
+        else:
+            stop_ad_break_end_routine()
+            await mark_ad_break_end_sent()
     finally:
         pass
 
@@ -19497,51 +19509,214 @@ async def get_remote_instruction_messages(discord=False, ad_messages=False, home
         api_logger.error(f"Error fetching remote instruction messages: {e}")
         return []
 
-async def handle_ad_break_start(duration_seconds):
+# Function to parse EventSub/Helix ad timestamps to UTC unix seconds
+def parse_ad_break_started_at(value):
+    if value is None or value == "":
+        return datetime.now(timezone.utc).timestamp()
+    if isinstance(value, (int, float)):
+        try:
+            ts = float(value)
+            if ts > 1e12:
+                ts = ts / 1000.0
+            return ts
+        except (TypeError, ValueError):
+            return datetime.now(timezone.utc).timestamp()
+    text = str(value).strip()
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        if "." in text:
+            head, rest = text.split(".", 1)
+            digits = []
+            tzpart = "+00:00"
+            for i, ch in enumerate(rest):
+                if ch.isdigit():
+                    digits.append(ch)
+                else:
+                    tzpart = rest[i:]
+                    break
+            frac = "".join(digits)[:6].ljust(6, "0")
+            text = f"{head}.{frac}{tzpart}"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except Exception:
+        return datetime.now(timezone.utc).timestamp()
+
+# Function to stop a pending ad-end chat routine
+def stop_ad_break_end_routine():
+    global ad_break_end_routine
+    routine = ad_break_end_routine
+    ad_break_end_routine = None
+    if routine is None:
+        return
+    try:
+        if hasattr(routine, "stop"):
+            routine.stop()
+        elif hasattr(routine, "cancel"):
+            routine.cancel()
+    except Exception:
+        pass
+
+# Function to persist the in-progress ad break for reboot recovery
+async def save_ad_break_state(started_at, duration_seconds, eta_end):
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "INSERT INTO ad_break_state (id, started_at, duration_seconds, eta_end, end_notice_sent) VALUES (1, %s, %s, %s, 0) ON DUPLICATE KEY UPDATE started_at = VALUES(started_at), duration_seconds = VALUES(duration_seconds), eta_end = VALUES(eta_end), end_notice_sent = 0",
+                (int(started_at), int(duration_seconds), int(eta_end)),
+            )
+            await connection.commit()
+    except Exception as e:
+        api_logger.error(f"Error saving ad break state: {e}")
+    finally:
+        if connection:
+            await connection.release()
+
+# Function to load the persisted ad break row
+async def load_ad_break_state():
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT started_at, duration_seconds, eta_end, end_notice_sent FROM ad_break_state WHERE id = 1")
+            return await cursor.fetchone()
+    except Exception as e:
+        api_logger.error(f"Error loading ad break state: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.release()
+
+# Function to mark the ad-end chat notice as sent
+async def mark_ad_break_end_sent():
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor() as cursor:
+            await cursor.execute("UPDATE ad_break_state SET end_notice_sent = 1 WHERE id = 1")
+            await connection.commit()
+    except Exception as e:
+        api_logger.error(f"Error marking ad break end sent: {e}")
+    finally:
+        if connection:
+            await connection.release()
+
+# Function to send the ad-end chat notice and mark it sent
+async def send_ad_break_end_notice():
+    state = await load_ad_break_state()
+    if state and int(state.get("end_notice_sent") or 0):
+        return
+    settings = await get_ad_settings()
+    if not settings.get('enable_ad_notice', True) or not settings.get('enable_end_ad_message', True):
+        await mark_ad_break_end_sent()
+        return
+    sent_ok = False
+    try:
+        if can_send_ad_message():
+            sent_ok = await send_chat_message(settings['ad_end_message'])
+            if not sent_ok:
+                api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+        else:
+            api_logger.info("Skipped ad end immediate message due to cooldown")
+    except Exception as e:
+        api_logger.error(f"Exception while sending immediate ad end message: {e}")
+    if not sent_ok:
+        try:
+            if can_send_ad_message():
+                sent_ok = await send_chat_message(settings['ad_end_message'])
+                if not sent_ok:
+                    api_logger.error(f"Ad end message failed to send (fallback): {settings.get('ad_end_message')}")
+            else:
+                api_logger.info("Skipped ad end fallback due to cooldown")
+        except Exception as e:
+            api_logger.error(f"Exception while sending ad end fallback message: {e}")
+    if sent_ok:
+        try_mark_ad_message_sent_after(True)
+        await mark_ad_break_end_sent()
+    try:
+        ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+        headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+        create_task(check_next_ad_after_completion(ads_api_url, headers))
+    except Exception as e:
+        api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
+
+# Function to schedule the ad-end chat notice for eta_end
+async def schedule_ad_break_end_notice(eta_end):
+    global ad_break_end_routine
+    stop_ad_break_end_routine()
+    try:
+        eta_end = int(eta_end)
+    except (TypeError, ValueError):
+        api_logger.error(f"Invalid ad break eta_end: {eta_end}")
+        return
+    remaining = eta_end - datetime.now(timezone.utc).timestamp()
+    if remaining <= 0:
+        await send_ad_break_end_notice()
+        return
+    wait_seconds = max(1, int(math.ceil(remaining)))
+    @routines.routine(delta=timedelta(seconds=wait_seconds), iterations=1, wait_first=True)
+    async def handle_ad_break_end():
+        await send_ad_break_end_notice()
+    try:
+        handle_ad_break_end.start()
+        ad_break_end_routine = handle_ad_break_end
+        api_logger.info(f"Scheduled ad-end notice in {wait_seconds}s")
+    except Exception as e:
+        api_logger.error(f"Failed to start ad-end routine: {e}")
+
+# Function to restore the ad-end chat notice after a bot reboot
+async def recover_ad_break_end_notice():
+    global stream_online, stream_session_started_at
+    if not stream_online:
+        return
+    state = await load_ad_break_state()
+    if not state:
+        return
+    if int(state.get("end_notice_sent") or 0):
+        return
+    try:
+        started_at = int(state.get("started_at") or 0)
+        eta_end = int(state.get("eta_end") or 0)
+    except (TypeError, ValueError):
+        return
+    if eta_end <= 0:
+        return
+    now_ts = datetime.now(timezone.utc).timestamp()
+    session_start = float(stream_session_started_at or 0)
+    if session_start > 0 and (now_ts - session_start) > 15 and started_at and started_at < (session_start - 5):
+        api_logger.info("Clearing stale ad break state from a previous stream")
+        await mark_ad_break_end_sent()
+        return
+    remaining = eta_end - now_ts
+    if remaining > 0:
+        api_logger.info(f"Recovered in-progress ad break, end in {remaining:.0f}s")
+        await schedule_ad_break_end_notice(eta_end)
+    else:
+        api_logger.info("Recovered ad break already ended, sending end notice now")
+        await send_ad_break_end_notice()
+
+async def handle_ad_break_start(duration_seconds, started_at=None):
     global stream_session_started_at
     settings = await get_ad_settings()
     if not settings.get('enable_ad_notice', True):
         return
-    formatted_duration = format_duration(duration_seconds)
-    @routines.routine(delta=timedelta(seconds=duration_seconds), iterations=1, wait_first=True)
-    async def handle_ad_break_end():
-        end_notice_sent = False
-        if settings.get('enable_end_ad_message', True):
-            try:
-                if can_send_ad_message():
-                    sent_ok = await send_chat_message(settings['ad_end_message'])
-                    if sent_ok:
-                        end_notice_sent = True
-                        try_mark_ad_message_sent_after(True)
-                    else:
-                        api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
-                else:
-                    api_logger.info("Skipped ad end immediate message due to cooldown")
-            except Exception as e:
-                api_logger.error(f"Exception while sending immediate ad end message: {e}")
-        if not end_notice_sent and settings.get('enable_end_ad_message', True):
-            try:
-                if can_send_ad_message():
-                    sent_ok = await send_chat_message(settings['ad_end_message'])
-                    if sent_ok:
-                        try_mark_ad_message_sent_after(True)
-                    else:
-                        api_logger.error(f"Ad end message failed to send (fallback): {settings.get('ad_end_message')}")
-                else:
-                    api_logger.info("Skipped ad end fallback due to cooldown")
-            except Exception as e:
-                api_logger.error(f"Exception while sending ad end fallback message: {e}")
-        try:
-            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-            create_task(check_next_ad_after_completion(ads_api_url, headers))
-        except Exception as e:
-            api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
     try:
-        handle_ad_break_end.start()
-    except Exception as e:
-        api_logger.error(f"Failed to start ad-end routine: {e}")
+        duration_seconds = int(float(duration_seconds))
+    except (TypeError, ValueError):
+        api_logger.error(f"Invalid ad break duration: {duration_seconds}")
+        return
+    if duration_seconds <= 0:
+        api_logger.error(f"Non-positive ad break duration: {duration_seconds}")
+        return
+    formatted_duration = format_duration(duration_seconds)
+    started_at_ts = parse_ad_break_started_at(started_at)
+    eta_end = int(started_at_ts) + duration_seconds
+    await save_ad_break_state(started_at_ts, duration_seconds, eta_end)
+    await schedule_ad_break_end_notice(eta_end)
     ad_break_count = 1
     connection = None
     try:

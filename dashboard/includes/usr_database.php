@@ -850,6 +850,14 @@ try {
                 enable_raid_ad_snooze_message TINYINT(1) DEFAULT 1,
                 raid_ad_snooze_message VARCHAR(255)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'ad_break_state' => "
+            CREATE TABLE IF NOT EXISTS ad_break_state (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                started_at BIGINT NOT NULL DEFAULT 0,
+                duration_seconds INT NOT NULL DEFAULT 0,
+                eta_end BIGINT NOT NULL DEFAULT 0,
+                end_notice_sent TINYINT(1) NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'streaming_settings' => "
             CREATE TABLE IF NOT EXISTS streaming_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,
