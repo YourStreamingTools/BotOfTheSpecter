@@ -20,6 +20,7 @@ import re
 import sys
 import json
 import time
+import inspect
 import asyncio
 from urllib.parse import urljoin
 import aiohttp
@@ -207,10 +208,16 @@ async def set_job(pool, job_id, status, video_id=None, error=None):
             await conn.commit()
 
 
-async def set_progress(pool, job_id, sent, total):
+async def set_progress(pool, job_id, sent, total, percent=None):
     sent = int(sent or 0)
     total = int(total or 0)
-    pct = round((100.0 * sent / total), 1) if total > 0 else 0.0
+    if percent is not None:
+        try:
+            pct = round(max(0.0, min(100.0, float(percent))), 1)
+        except (TypeError, ValueError):
+            pct = round((100.0 * sent / total), 1) if total > 0 else 0.0
+    else:
+        pct = round((100.0 * sent / total), 1) if total > 0 else 0.0
     try:
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -523,7 +530,9 @@ async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None, on_pid=No
                     pct = max(0.0, min(100.0, cur / duration_s * 100.0)) if duration_s else None
                     sm = SIZE_RE.search(raw)
                     nbytes = int(sm.group(1)) * 1024 if sm else None
-                    on_progress(pct, cur, duration_s, nbytes)
+                    maybe = on_progress(pct, cur, duration_s, nbytes)
+                    if inspect.isawaitable(maybe):
+                        await maybe
         rc = await proc.wait()
     except asyncio.CancelledError:
         # Leave ffmpeg running across a Python restart.
@@ -576,7 +585,7 @@ async def process_one(pool, session):
             job = await cur.fetchone()
     if not job:
         logger.info("ℹ️  No queued YouTube VOD uploads")
-        return
+        return None
 
     job_id = job["job_id"]
     user_id = job["user_id"]
@@ -589,7 +598,7 @@ async def process_one(pool, session):
     if not _safe_username(username) or not _safe_filename(filename):
         await set_job(pool, job_id, "failed", error="unsafe_path")
         logger.error(f"❌ Unsafe username or filename for job {job_id}")
-        return
+        return True
 
     path = os.path.join(VOD_ROOT, username, filename)
     if is_twitch_vod:
@@ -600,45 +609,58 @@ async def process_one(pool, session):
                 f"❌ {username} has no stream storage slot "
                 f"(max 5 users due to limited storage space)"
             )
-            return
+            return True
         used = _directory_size_bytes(os.path.join(VOD_ROOT, username))
         if quota > 0 and used >= quota:
             await set_job(pool, job_id, "failed", error="stream_storage_full")
             logger.error(f"❌ {username} stream storage is full ({used} / {quota} bytes)")
-            return
+            return True
         if not await claim_job(pool, job_id, "pulling"):
             logger.info(f"⏭️  Job {job_id} already claimed")
-            return
+            return True
+        await set_progress(pool, job_id, 0, 0, percent=0)
         if not os.path.isfile(path):
             if not twitch_video_id:
                 await set_job(pool, job_id, "failed", error="missing_twitch_video_id")
-                return
+                return True
             logger.info(f"⬇️  Pulling Twitch VOD {twitch_video_id} via ffmpeg")
             hls_url, hls_err = await twitch_vod_hls_url(session, twitch_video_id, job.get("twitch_oauth"))
             if hls_err:
                 await set_job(pool, job_id, "failed", error=f"twitch_hls:{hls_err}")
                 logger.error(f"❌ Could not resolve Twitch HLS for {twitch_video_id}: {hls_err}")
-                return
-            ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(hls_url, path)
+                return True
+            last_pull_at = 0.0
+
+            async def on_pull_progress(pct, cur, duration_s, nbytes):
+                nonlocal last_pull_at
+                now = time.monotonic()
+                if now - last_pull_at < 2:
+                    return
+                last_pull_at = now
+                await set_progress(pool, job_id, int(nbytes or 0), 0, percent=pct)
+                if pct is not None:
+                    logger.info(f"⬇️  Job {job_id} download {pct:.1f}%")
+
+            ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(hls_url, path, on_progress=on_pull_progress)
             if not ok:
                 await set_job(pool, job_id, "failed", error=f"ffmpeg:{ffmpeg_err}")
                 logger.error(f"❌ ffmpeg pull failed for {twitch_video_id}: {ffmpeg_err}")
-                return
+                return True
             logger.info(f"✅ Twitch VOD saved to {path}")
     else:
         if not os.path.isfile(path):
             logger.info(
                 f"⏭️  {username}/{filename} is not on this stream host ({VOD_ROOT}); leaving queued"
             )
-            return
+            return "skipped"
         if not await claim_job(pool, job_id, "uploading"):
             logger.info(f"⏭️  Job {job_id} already claimed")
-            return
+            return True
 
     if not os.path.isfile(path):
         await set_job(pool, job_id, "failed", error="missing_file")
         logger.error(f"❌ Missing file for job {job_id}: {path}")
-        return
+        return True
 
     duration_s = await probe_duration_seconds(path)
     limit = youtube_file_over_limit(path, duration_s)
@@ -647,8 +669,13 @@ async def process_one(pool, session):
         logger.warning(
             f"⏭️  Job {job_id} for {username} exceeds YouTube limits ({limit}); file kept"
         )
-        return
+        return True
 
+    try:
+        file_size = os.path.getsize(path)
+    except OSError:
+        file_size = 0
+    await set_progress(pool, job_id, 0, file_size, percent=0)
     await set_job(pool, job_id, "uploading")
     access = job["access_token"]
     refresh = job["refresh_token"]
@@ -659,10 +686,10 @@ async def process_one(pool, session):
             await mark_reauth(pool, user_id)
             await set_job(pool, job_id, "failed", error="youtube_reauth_required")
             logger.warning(f"🚫 YouTube re-auth required for {username}")
-            return
+            return True
         await set_job(pool, job_id, "failed", error="token_refresh_failed")
         logger.error(f"❌ Token refresh failed for {username}")
-        return
+        return True
     access, refresh = await persist_access(pool, user_id, token_body, refresh)
 
     last_progress_at = 0.0
@@ -691,15 +718,16 @@ async def process_one(pool, session):
         await set_progress(pool, job_id, os.path.getsize(path), os.path.getsize(path))
         await set_job(pool, job_id, "done", video_id=video_id)
         logger.info(f"✅ Uploaded job {job_id} for {username} as {video_id}")
-        return
+        return True
 
     reason = _error_reason(body) if body else err or "upload_failed"
     if reason in ("quotaExceeded", "uploadLimitExceeded"):
         await set_job(pool, job_id, "failed", error="youtube_daily_upload_quota_reached")
         logger.warning(f"⏳ YouTube quota hit; job {job_id} marked failed for retry later")
-        return
+        return True
     await set_job(pool, job_id, "failed", error=str(err or reason)[:500])
     logger.error(f"❌ Upload failed for job {job_id}: {err}")
+    return True
 
 
 async def main():
@@ -733,7 +761,10 @@ async def main():
     try:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            await process_one(pool, session)
+            while True:
+                result = await process_one(pool, session)
+                if result is None or result == "skipped":
+                    break
     except Exception as e:
         logger.error(f"❌ Uploader error: {e}")
     finally:

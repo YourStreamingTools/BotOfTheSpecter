@@ -660,6 +660,7 @@ function youtube_job_client_row(array $row): array
     return [
         'status' => (string) ($row['status'] ?? ''),
         'youtube_video_id' => (string) ($row['youtube_video_id'] ?? ''),
+        'twitch_video_id' => (string) ($row['twitch_video_id'] ?? ''),
         'title' => (string) ($row['title'] ?? ''),
         'filename' => (string) ($row['filename'] ?? ''),
         'percent' => $pct,
