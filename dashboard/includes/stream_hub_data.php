@@ -396,7 +396,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         stream_hub_redirect('library', t('youtube_vod_store_failed'), 'is-danger');
     }
     if ($action === 'send_twitch_youtube' && $canYoutube) {
+        $wantsJson = stream_hub_wants_json();
         if ($isActAsUser) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('youtube_link_actas_disabled')], 403);
+            }
             stream_hub_redirect('youtube', t('youtube_link_actas_disabled'), 'is-warning');
         }
         $vodId = trim((string) ($_POST['vod_id'] ?? ''));
@@ -412,7 +416,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $limit = youtube_upload_limit_reason($durationSeconds, null);
         if ($limit !== null) {
-            stream_hub_redirect('import', t(youtube_upload_limit_lang_key($limit)), 'is-warning');
+            $msg = t(youtube_upload_limit_lang_key($limit));
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'error' => $limit, 'vod_id' => $vodId, 'message' => $msg], 400);
+            }
+            stream_hub_redirect('import', $msg, 'is-warning');
         }
         $queued = youtube_enqueue_twitch_vod(
             $conn,
@@ -423,16 +431,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $durationSeconds,
             null
         );
-        $failKey = 'youtube_vod_youtube_failed';
+        $ok = !empty($queued['ok']);
         $err = (string) ($queued['error'] ?? '');
-        if ($err === 'too_long' || $err === 'too_large') {
-            $failKey = youtube_upload_limit_lang_key($err);
+        $msg = $ok ? t('youtube_vod_youtube_queued') : t('youtube_vod_youtube_failed');
+        if ($ok && !empty($queued['already']) && ($queued['status'] ?? '') === 'done') {
+            $msg = t('youtube_upload_already_done');
+        } elseif ($ok && !empty($queued['already'])) {
+            $msg = t('youtube_upload_already_queued');
+        } elseif (!$ok && ($err === 'too_long' || $err === 'too_large')) {
+            $msg = t(youtube_upload_limit_lang_key($err));
+        } elseif (!$ok && $err === 'not_linked') {
+            $msg = t('youtube_upload_not_linked');
+        } elseif (!$ok && $err === 'no_upload_scope') {
+            $msg = t('youtube_upload_no_scope');
         }
-        stream_hub_redirect(
-            'import',
-            !empty($queued['ok']) ? t('youtube_vod_youtube_queued') : t($failKey),
-            !empty($queued['ok']) ? 'is-success' : 'is-warning'
-        );
+        if ($wantsJson) {
+            stream_hub_json([
+                'ok' => $ok,
+                'status' => (string) ($queued['status'] ?? ''),
+                'vod_id' => $vodId,
+                'filename' => function_exists('youtube_twitch_filename') ? youtube_twitch_filename($vodId) : '',
+                'message' => $msg,
+            ], $ok ? 200 : 400);
+        }
+        stream_hub_redirect('import', $msg, $ok ? 'is-success' : 'is-warning');
     }
     if ($action === 'send_library_youtube' && $canYoutube) {
         $wantsJson = stream_hub_wants_json();
@@ -718,6 +740,7 @@ if ($isAjax) {
             : [
                 'status' => (string) ($jobRow['status'] ?? ''),
                 'youtube_video_id' => (string) ($jobRow['youtube_video_id'] ?? ''),
+                'twitch_video_id' => (string) ($jobRow['twitch_video_id'] ?? ''),
             ];
     }
     header('Content-Type: application/json; charset=utf-8');

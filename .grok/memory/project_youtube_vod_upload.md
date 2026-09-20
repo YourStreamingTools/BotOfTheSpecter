@@ -38,6 +38,6 @@ Set `STREAM_SERVER` on each stream host to the same value as `stream.py -server`
 
 If a **stream** MP4 is not on this host, the uploader leaves the job queued (another region may have it).
 
-**Twitch VOD import:** any stream host can pull (Twitch CDN). Job `source=twitch_vod`. Worker claims `pulling`, FFmpeg copies HLS to MP4 (`-c copy`), then uploads. Playback URL comes from Twitch GQL `videoPlaybackAccessToken` + Usher, using the streamer's `users.access_token` when present (subscriber-only VODs). Only the channel's own archive/highlight IDs can be queued.
+**Twitch VOD import:** any stream host can pull (Twitch CDN). Job `source=twitch_vod`. Worker claims `pulling`, FFmpeg copies HLS to MP4 (`-c copy`), writes download progress to `progress_percent`, then uploads. Playback URL comes from Twitch GQL `videoPlaybackAccessToken` + Usher, using the streamer's `users.access_token` when present (subscriber-only VODs). Only the channel's own archive/highlight IDs can be queued. One uploader run drains the queue (still one job at a time). Dashboard Twitch VODs tab queues with AJAX and shows per-row queued / downloading / uploading.
 
 Related: [[feedback_php_config]].

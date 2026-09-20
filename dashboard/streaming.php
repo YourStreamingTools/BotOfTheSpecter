@@ -56,9 +56,40 @@ $failedPulls = array_values(array_filter($pullJobs, static function ($job) {
     return is_array($job) && ($job['status'] ?? '') === 'failed';
 }));
 
+$ytProgressHtml = '';
+foreach ($youtubeJobs as $jobName => $job) {
+    if (!is_array($job)) {
+        continue;
+    }
+    $ytBarStatus = (string) ($job['status'] ?? '');
+    if ($ytBarStatus !== 'uploading' && $ytBarStatus !== 'pulling') {
+        continue;
+    }
+    $ytClient = youtube_job_client_row($job);
+    $pctVal = max(0, min(100, (float) $ytClient['percent']));
+    $label = (string) ($ytClient['title'] ?: $jobName);
+    $phase = $ytBarStatus === 'pulling' ? t('youtube_status_pulling') : t('youtube_status_uploading');
+    $right = rtrim(rtrim(number_format($pctVal, 1, '.', ''), '0'), '.') . '%';
+    if ($ytBarStatus === 'uploading' && (int) $ytClient['bytes_total'] > 0) {
+        $right .= ' · ' . formatBytes((int) $ytClient['bytes_sent']) . ' / ' . formatBytes((int) $ytClient['bytes_total']);
+    } elseif ($ytBarStatus === 'pulling' && (int) $ytClient['bytes_sent'] > 0) {
+        $right .= ' · ' . formatBytes((int) $ytClient['bytes_sent']);
+    }
+    $ytProgressHtml .= '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
+        . htmlspecialchars($label) . ' — ' . htmlspecialchars($phase)
+        . '</span><span>' . htmlspecialchars($right) . '</span></div>'
+        . '<progress class="progress" value="' . htmlspecialchars((string) $pctVal) . '" max="100"></progress></div>';
+}
+
 ob_start();
 $libraryCount = count($libraryFiles);
-$pullingCount = count($activePulls);
+$ytPullingCount = 0;
+foreach ($youtubeJobs as $job) {
+    if (is_array($job) && ($job['status'] ?? '') === 'pulling') {
+        $ytPullingCount++;
+    }
+}
+$pullingCount = count($activePulls) + $ytPullingCount;
 ?>
 <div class="sp-page-header">
     <h1><?php echo t('menu_streaming'); ?></h1>
@@ -110,31 +141,9 @@ $pullingCount = count($activePulls);
         </div>
     </div>
     <div class="sp-card-body">
-        <div id="youtube-vod-notice"></div>
+        <div id="youtube-vod-notice" data-vod-notice></div>
         <p class="sp-help"><?php echo t('stream_hub_library_help'); ?></p>
-        <div id="stream-hub-uploads">
-            <?php foreach ($youtubeJobs as $jobName => $job): ?>
-                <?php
-                if (!is_array($job) || ($job['status'] ?? '') !== 'uploading') {
-                    continue;
-                }
-                $ytClient = youtube_job_client_row($job);
-                $pctVal = max(0, min(100, (float) $ytClient['percent']));
-                $label = (string) ($ytClient['title'] ?: $jobName);
-                $right = rtrim(rtrim(number_format($pctVal, 1, '.', ''), '0'), '.') . '%';
-                if ((int) $ytClient['bytes_total'] > 0) {
-                    $right .= ' · ' . formatBytes((int) $ytClient['bytes_sent']) . ' / ' . formatBytes((int) $ytClient['bytes_total']);
-                }
-                ?>
-                <div class="media-storage-bar mb-4 stream-hub-upload-bar">
-                    <div class="media-storage-header">
-                        <span><?php echo htmlspecialchars($label); ?> — <?php echo t('youtube_status_uploading'); ?></span>
-                        <span><?php echo htmlspecialchars($right); ?></span>
-                    </div>
-                    <progress class="progress" value="<?php echo htmlspecialchars((string) $pctVal); ?>" max="100"></progress>
-                </div>
-            <?php endforeach; ?>
-        </div>
+        <div id="stream-hub-uploads" class="stream-hub-yt-jobs"><?php echo $ytProgressHtml; ?></div>
         <div id="stream-hub-pulls">
             <?php foreach ($activePulls as $job): ?>
                 <?php
@@ -233,15 +242,16 @@ $pullingCount = count($activePulls);
                                             <?php if ($showYoutube): ?>
                                                 <?php if ($ytStatus === 'done'): ?>
                                                     <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
-                                                <?php elseif ($ytStatus === 'uploading'): ?>
+                                                <?php elseif (in_array($ytStatus, ['uploading', 'pulling', 'queued'], true)): ?>
                                                     <?php
                                                     $ytClient = youtube_job_client_row(is_array($ytJob) ? $ytJob : []);
                                                     $ytPct = max(0, min(100, (float) $ytClient['percent']));
-                                                    $ytPctLabel = rtrim(rtrim(number_format($ytPct, 1, '.', ''), '0'), '.') . '%';
+                                                    $ytPctLabel = '';
+                                                    if ($ytStatus !== 'queued' && $ytPct > 0) {
+                                                        $ytPctLabel = ' ' . rtrim(rtrim(number_format($ytPct, 1, '.', ''), '0'), '.') . '%';
+                                                    }
                                                     ?>
-                                                    <span class="sp-badge sp-badge-amber"><?php echo t('youtube_status_uploading'); ?> <?php echo htmlspecialchars($ytPctLabel); ?></span>
-                                                <?php elseif (in_array($ytStatus, ['queued', 'pulling'], true)): ?>
-                                                    <span class="sp-badge sp-badge-amber"><?php echo t('youtube_status_' . $ytStatus); ?></span>
+                                                    <span class="sp-badge sp-badge-amber"><?php echo t('youtube_status_' . $ytStatus); ?><?php echo htmlspecialchars($ytPctLabel); ?></span>
                                                 <?php elseif ($ytLimit !== null): ?>
                                                     <span class="youtube-upload-limit" title="<?php echo htmlspecialchars(t(youtube_upload_limit_lang_key($ytLimit))); ?>">
                                                         <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled><?php echo t('videos_send_to_youtube'); ?></button>
@@ -282,6 +292,8 @@ $pullingCount = count($activePulls);
     </div>
     <div class="sp-card-body">
         <p class="sp-help"><?php echo t('youtube_vod_fetch_help'); ?></p>
+        <div id="youtube-vod-import-notice" data-vod-notice></div>
+        <div id="stream-hub-import-jobs" class="stream-hub-yt-jobs"><?php echo $ytProgressHtml; ?></div>
         <?php if ($twitchVideos): ?>
             <p class="sp-help"><?php echo htmlspecialchars($twitchVideosCapped
                 ? t('youtube_vod_showing_capped', ['count' => (string) count($twitchVideos)])
@@ -316,8 +328,10 @@ $pullingCount = count($activePulls);
                                     }
                                 }
                                 $ready = $stored && empty($stored['is_partial']) && !$pulling;
+                                $ytJob = $vid !== '' ? ($youtubeJobs[youtube_twitch_filename($vid)] ?? null) : null;
+                                $ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
                                 ?>
-                                <tr data-vod-id="<?php echo htmlspecialchars($vid); ?>">
+                                <tr data-vod-id="<?php echo htmlspecialchars($vid); ?>" data-vod-title="<?php echo htmlspecialchars($vtitle); ?>" data-vod-duration="<?php echo htmlspecialchars($vdur); ?>">
                                     <td><?php echo htmlspecialchars($vtitle); ?></td>
                                     <td><?php echo htmlspecialchars($vdur); ?></td>
                                     <td>
@@ -348,19 +362,33 @@ $pullingCount = count($activePulls);
                                             }
                                             $ytLimit = youtube_upload_limit_reason($durSeconds, $sizeBytes);
                                             ?>
-                                            <?php if ($ytLimit !== null): ?>
+                                            <span data-vod-youtube>
+                                            <?php if ($ytStatus === 'done'): ?>
+                                                <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
+                                            <?php elseif (in_array($ytStatus, ['uploading', 'pulling', 'queued'], true)): ?>
+                                                <?php
+                                                $ytClient = youtube_job_client_row(is_array($ytJob) ? $ytJob : []);
+                                                $ytPct = max(0, min(100, (float) $ytClient['percent']));
+                                                $ytPctLabel = '';
+                                                if ($ytStatus !== 'queued' && $ytPct > 0) {
+                                                    $ytPctLabel = ' ' . rtrim(rtrim(number_format($ytPct, 1, '.', ''), '0'), '.') . '%';
+                                                }
+                                                ?>
+                                                <span class="sp-badge sp-badge-amber"><?php echo t('youtube_status_' . $ytStatus); ?><?php echo htmlspecialchars($ytPctLabel); ?></span>
+                                            <?php elseif ($ytLimit !== null): ?>
                                                 <span class="youtube-upload-limit" title="<?php echo htmlspecialchars(t(youtube_upload_limit_lang_key($ytLimit))); ?>">
                                                     <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled><?php echo t('videos_send_to_youtube'); ?></button>
                                                 </span>
                                             <?php else: ?>
-                                            <form method="post" action="streaming.php#import">
+                                            <form method="post" action="streaming.php#import" data-send-youtube="1">
                                                 <input type="hidden" name="action" value="send_twitch_youtube">
                                                 <input type="hidden" name="vod_id" value="<?php echo htmlspecialchars($vid); ?>">
                                                 <input type="hidden" name="vod_title" value="<?php echo htmlspecialchars($vtitle); ?>">
                                                 <input type="hidden" name="vod_duration" value="<?php echo htmlspecialchars($vdur); ?>">
-                                                <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo t('videos_send_to_youtube'); ?></button>
+                                                <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo $ytStatus === 'failed' ? t('youtube_btn_retry') : t('videos_send_to_youtube'); ?></button>
                                             </form>
                                             <?php endif; ?>
+                                            </span>
                                         <?php endif; ?>
                                         </div>
                                     </td>
@@ -713,19 +741,65 @@ $pullingCount = count($activePulls);
         }
         return html + '</div>';
     }
+    function youtubeJobForVod(vodId) {
+        vodId = String(vodId || '');
+        if (!vodId) return {};
+        var jobs = youtubeJobs || {};
+        var fileKey = 'twitch-' + vodId + '.mp4';
+        if (jobs[fileKey]) return jobs[fileKey];
+        var found = null;
+        Object.keys(jobs).forEach(function (name) {
+            if (String(jobs[name].twitch_video_id || '') === vodId) found = jobs[name];
+        });
+        return found || {};
+    }
+    function youtubeStatusHtml(job) {
+        var status = String((job && job.status) || '');
+        var pct = Number(job && job.percent);
+        var extra = (status !== 'queued' && isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
+        if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.ytDone) + '</span>';
+        if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytQueued) + '</span>';
+        if (status === 'pulling') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytPulling + extra) + '</span>';
+        if (status === 'uploading') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytUploading + extra) + '</span>';
+        return '';
+    }
+    function importYoutubeActionHtml(vodId, title, duration) {
+        if (!canUpload || !vodId) return '';
+        var job = youtubeJobForVod(vodId);
+        var badge = youtubeStatusHtml(job);
+        if (badge) return badge;
+        var status = String(job.status || '');
+        var limit = youtubeLimitReason(parseDurationSeconds(duration), null);
+        if (limit) {
+            var why = limit === 'too_large' ? I18N.ytTooLarge : I18N.ytTooLong;
+            return '<span class="youtube-upload-limit" title="' + escapeHtml(why) + '"><button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" disabled>' + escapeHtml(I18N.sendYoutube) + '</button></span>';
+        }
+        var label = status === 'failed' ? I18N.retryYoutube : I18N.sendYoutube;
+        return '<form method="post" action="streaming.php#import" data-send-youtube="1">'
+            + '<input type="hidden" name="action" value="send_twitch_youtube">'
+            + '<input type="hidden" name="vod_id" value="' + escapeHtml(vodId) + '">'
+            + '<input type="hidden" name="vod_title" value="' + escapeHtml(title || '') + '">'
+            + '<input type="hidden" name="vod_duration" value="' + escapeHtml(duration || '') + '">'
+            + '<button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">' + escapeHtml(label) + '</button></form>';
+    }
+    function updateImportYoutubeCells() {
+        document.querySelectorAll('tr[data-vod-id] [data-vod-youtube]').forEach(function (cell) {
+            if (cell.querySelector('.sp-btn-loading')) return;
+            var row = cell.closest('tr[data-vod-id]');
+            if (!row) return;
+            cell.innerHTML = importYoutubeActionHtml(
+                row.getAttribute('data-vod-id') || '',
+                row.getAttribute('data-vod-title') || '',
+                row.getAttribute('data-vod-duration') || ''
+            );
+        });
+    }
     function youtubeActionHtml(file, title) {
         if (!canUpload || !file || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || !/\.mp4$/i.test(String(file.name || ''))) return '';
         var job = youtubeJobs[file.name] || {};
         var status = String(job.status || '');
-        if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.ytDone) + '</span>';
-        if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytQueued) + '</span>';
-        if (status === 'pulling') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytPulling) + '</span>';
-        if (status === 'uploading') {
-            var livePct = Number(job.percent);
-            var liveLabel = I18N.ytUploading;
-            if (isFinite(livePct) && livePct > 0) liveLabel += ' ' + (Math.round(livePct * 10) / 10) + '%';
-            return '<span class="sp-badge sp-badge-amber">' + escapeHtml(liveLabel) + '</span>';
-        }
+        var badge = youtubeStatusHtml(job);
+        if (badge) return badge;
         var tid = twitchIdOf(file);
         var size = Number(file.size || file.size_bytes || 0) || 0;
         var limit = youtubeLimitReason(parseDurationSeconds(helixDurations[tid] || ''), size > 0 ? size : null);
@@ -790,12 +864,12 @@ $pullingCount = count($activePulls);
         });
     }
     function setNotice(message, kind) {
-        var el = document.getElementById('youtube-vod-notice');
-        if (!el) return;
-        if (!message) { el.innerHTML = ''; return; }
-        var cls = kind === 'success' ? 'sp-alert-success' : kind === 'warning' ? 'sp-alert-warning' : kind === 'danger' ? 'sp-alert-danger' : 'sp-alert-info';
-        el.innerHTML = '<div class="sp-alert ' + cls + '"></div>';
-        el.firstChild.textContent = message;
+        document.querySelectorAll('[data-vod-notice]').forEach(function (el) {
+            if (!message) { el.innerHTML = ''; return; }
+            var cls = kind === 'success' ? 'sp-alert-success' : kind === 'warning' ? 'sp-alert-warning' : kind === 'danger' ? 'sp-alert-danger' : 'sp-alert-info';
+            el.innerHTML = '<div class="sp-alert ' + cls + '"></div>';
+            el.firstChild.textContent = message;
+        });
     }
     function syncCopyBtn() {
         var btn = document.getElementById('youtube-vod-copy-links');
@@ -824,32 +898,35 @@ $pullingCount = count($activePulls);
         if (mode === 'stored') cell.innerHTML = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
     }
     function renderUploadBars() {
-        var host = document.getElementById('stream-hub-uploads');
-        if (!host) return;
         var html = '';
         Object.keys(youtubeJobs || {}).forEach(function (name) {
             var job = youtubeJobs[name];
-            if (!job || job.status !== 'uploading') return;
+            if (!job || (job.status !== 'uploading' && job.status !== 'pulling')) return;
             var pct = Number(job.percent);
             if (!isFinite(pct)) pct = 0;
             pct = Math.max(0, Math.min(100, pct));
             var title = job.title || name;
             var sent = Number(job.bytes_sent) || 0;
             var total = Number(job.bytes_total) || 0;
+            var phase = job.status === 'pulling' ? I18N.ytPulling : I18N.ytUploading;
             var right = (Math.round(pct * 10) / 10) + '%';
-            if (total > 0) right += ' · ' + formatBytes(sent) + ' / ' + formatBytes(total);
+            if (job.status === 'uploading' && total > 0) right += ' · ' + formatBytes(sent) + ' / ' + formatBytes(total);
+            else if (job.status === 'pulling' && sent > 0) right += ' · ' + formatBytes(sent);
             html += '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
-                + escapeHtml(title) + ' — ' + escapeHtml(I18N.ytUploading)
+                + escapeHtml(title) + ' — ' + escapeHtml(phase)
                 + '</span><span>' + escapeHtml(right) + '</span></div><progress class="progress" value="'
                 + pct + '" max="100"></progress></div>';
         });
-        host.innerHTML = html;
+        document.querySelectorAll('.stream-hub-yt-jobs').forEach(function (host) {
+            host.innerHTML = html;
+        });
     }
     function render(data) {
         if (!data) return;
         if (data.youtube_jobs && typeof data.youtube_jobs === 'object') youtubeJobs = data.youtube_jobs;
         if (typeof data.can_upload === 'boolean') canUpload = data.can_upload;
         renderUploadBars();
+        updateImportYoutubeCells();
         updateStorageBar(data.storage);
         var filesStat = document.getElementById('stream-hub-stat-files');
         var pullStat = document.getElementById('stream-hub-stat-pulling');
@@ -857,6 +934,9 @@ $pullingCount = count($activePulls);
         if (filesStat) filesStat.textContent = String((data.files || []).length);
         if (pullStat) {
             var pullingN = (data.pulls || []).filter(function (j) { return j && j.status === 'pulling'; }).length;
+            Object.keys(youtubeJobs || {}).forEach(function (name) {
+                if (youtubeJobs[name] && youtubeJobs[name].status === 'pulling') pullingN += 1;
+            });
             pullStat.textContent = String(pullingN);
             var pullCard = pullStat.closest('.sp-stat');
             if (pullCard) pullCard.classList.toggle('warn', pullingN > 0);
@@ -938,10 +1018,15 @@ $pullingCount = count($activePulls);
         tickCountdowns();
         syncCopyBtn();
     }
+    var pollSeq = 0;
     function poll() {
+        var seq = ++pollSeq;
         fetch('streaming.php?ajax=vods&_ts=' + Date.now(), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) { return r.json(); })
-            .then(render)
+            .then(function (data) {
+                if (seq !== pollSeq) return;
+                render(data);
+            })
             .catch(function () {});
     }
     document.addEventListener('submit', function (event) {
@@ -963,8 +1048,24 @@ $pullingCount = count($activePulls);
             var ok = json.ok === true;
             if (isSend) {
                 setNotice(json.message || (ok ? '' : I18N.ytSendFailed), ok ? 'success' : 'warning');
-                if (ok) poll();
-                else if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
+                if (ok) {
+                    pollSeq += 1;
+                    var vodInput = form.querySelector('input[name="vod_id"]');
+                    var fileInput = form.querySelector('input[name="filename"]');
+                    var titleInput = form.querySelector('input[name="vod_title"], input[name="file_title"]');
+                    var name = (json.filename || (fileInput && fileInput.value) || (vodInput && vodInput.value ? ('twitch-' + vodInput.value + '.mp4') : '')).trim();
+                    if (name) {
+                        youtubeJobs[name] = youtubeJobs[name] || {};
+                        youtubeJobs[name].status = json.status || 'queued';
+                        youtubeJobs[name].filename = name;
+                        if (titleInput && titleInput.value) youtubeJobs[name].title = titleInput.value;
+                        if (vodInput && vodInput.value) youtubeJobs[name].twitch_video_id = vodInput.value;
+                        if (youtubeJobs[name].percent == null) youtubeJobs[name].percent = 0;
+                    }
+                    renderUploadBars();
+                    updateImportYoutubeCells();
+                    poll();
+                } else if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
                 return;
             }
             setNotice(json.message || (ok ? '' : I18N.storeFailed), ok ? 'success' : (json.status === 'full' ? 'warning' : 'danger'));
