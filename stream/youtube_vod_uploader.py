@@ -44,7 +44,7 @@ DB_PASS = os.getenv("SQL_PASSWORD")
 DB_NAME = "website"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 UPLOAD_INIT = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status"
-CHUNK_SIZE = 8 * 1024 * 1024
+CHUNK_SIZE = 64 * 1024 * 1024
 YOUTUBE_MAX_DURATION_S = 12 * 3600
 YOUTUBE_MAX_BYTES = 256 * 1024 * 1024 * 1024
 TWITCH_WEB_CLIENT_ID = os.getenv("TWITCH_WEB_CLIENT_ID", "kimne78kx3ncx6brgo4mv6wki5h1ko")
