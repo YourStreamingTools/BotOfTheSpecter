@@ -1320,6 +1320,8 @@ return [
     'alerts_cat_weather' => 'Wetter',
     'alerts_cat_deaths' => 'Todeszähler',
     'alerts_cat_walkons' => 'Walk-ons',
+    'alerts_cat_ad_break' => 'Werbung',
+    'alerts_ad_break_note' => 'Während Werbung läuft, bleibt diese Benachrichtigung auf dem Bildschirm und {duration} zählt die Restzeit herunter. Die Dauer oben gilt nur für die Vorschau und den Test. Schalte die Variante aus, um sie auszublenden.',
     'alerts_simple_note' => 'Diese Benachrichtigung behält ihr eigenes Overlay-Design. Wähle, wo sie auf dem Bildschirm erscheint, und schalte sie ein oder aus.',
     'alerts_walkon_note' => 'Walk-ons werden so angezeigt, wie du jeden Zuschauer auf der Medienseite einstellst (Sound, Sound + Bild & Name oder Video). Wähle unten, wo das Visual auf dem Bildschirm erscheint.',
     'alerts_screen_position' => 'Bildschirmposition',

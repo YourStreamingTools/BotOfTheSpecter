@@ -1377,6 +1377,8 @@ return [
     'alerts_cat_weather' => 'Weather',
     'alerts_cat_deaths' => 'Death counter',
     'alerts_cat_walkons' => 'Walk-ons',
+    'alerts_cat_ad_break' => 'Ads',
+    'alerts_ad_break_note' => 'While ads are playing this alert stays on screen and {duration} counts down the time left. The duration above is only for the preview replay and the test alert. Switch the variant off to hide it.',
     'alerts_simple_note' => 'This alert keeps its own overlay theme. Choose where it appears on screen, then switch it on or off.',
     'alerts_walkon_note' => 'Walk-ons show however you set each viewer on the Media page (sound, sound + picture & name, or video). Choose where the visual appears on screen below.',
     'alerts_screen_position' => 'Screen position',

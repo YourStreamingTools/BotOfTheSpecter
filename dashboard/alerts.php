@@ -23,6 +23,7 @@ $variantLimits = [
     'patreon'      => 1,
     'fourthwall'   => 1,
     'watch_streak' => 1,
+    'ad_break'     => 1,
     'stream_bingo' => 4,   // one per bingo sub-event (Started / Event / Winner / Ended)
     // Enable/disable-only categories: they render through their own overlay theme
     // (ported into overlay/index.php), so a single on/off variant is all that fits.
@@ -86,6 +87,8 @@ $simpleCategorySeeds = [
     'patreon'      => 'Patreon',
     'fourthwall'   => 'Fourthwall'
 ];
+$adBreakSeedName = 'Ads playing';
+$adBreakSeedMessage = "Ads are playing\nBack in {duration}";
 
 // List endpoint first so the browser can paint skeletons, then fetch variants + library + rewards.
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
@@ -131,6 +134,17 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
                     $db->query("DELETE FROM twitch_alerts WHERE id IN ($inClause)");
                 }
             }
+        }
+        $adChk = $db->prepare("SELECT id FROM twitch_alerts WHERE alert_category = 'ad_break' LIMIT 1");
+        $adChk->execute();
+        $adRes = $adChk->get_result();
+        $adExists = $adRes && $adRes->fetch_assoc();
+        $adChk->close();
+        if (!$adExists) {
+            $adIns = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, enabled, message_template) VALUES ('ad_break', ?, 0, 1, ?)");
+            $adIns->bind_param('ss', $adBreakSeedName, $adBreakSeedMessage);
+            $adIns->execute();
+            $adIns->close();
         }
         $allAlerts = [];
         if ($result = $db->query("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index")) {
@@ -453,6 +467,7 @@ $categoryMeta = [
     'bits'              => ['icon' => 'fas fa-gem', 'label' => 'Bits'],
     'raid'              => ['icon' => 'fas fa-bullhorn', 'label' => 'Raids'],
     'hype_train'        => ['icon' => 'fas fa-train', 'label' => 'Hype trains'],
+    'ad_break'          => ['icon' => 'fas fa-rectangle-ad', 'label' => 'Ads'],
     'charity'           => ['icon' => 'fas fa-hand-holding-heart', 'label' => 'Charity'],
     'channel_points'    => ['icon' => 'fas fa-circle-dot', 'label' => 'Channel points'],
     // BotOfTheSpecter-specific integration categories
@@ -688,6 +703,7 @@ ob_start();
                         <div class="alerts-form-group">
                             <label><?= t('alerts_onscreen_duration') ?></label>
                             <input type="number" class="sp-input" id="set-duration" min="1" max="99" value="8">
+                            <small class="alerts-help-text" id="ad-break-duration-note" style="display:none;"><?= t('alerts_ad_break_note') ?></small>
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
@@ -1409,7 +1425,8 @@ $(document).ready(function() {
         fourthwall:        ['{username}', '{amount}', '{item}', '{message}', '{interval}'],
         subathon:          ['{added_minutes}'],
         stream_bingo:      ['{username}', '{rank_text}', '{bingo_event_name}', '{bingo_number}', '{events_count}'],
-        watch_streak:      ['{username}', '{streak}']
+        watch_streak:      ['{username}', '{streak}'],
+        ad_break:          ['{duration}', '{seconds}']
     };
     function renderVariableHints(category) {
         var vars = categoryVariables[category] || ['{username}'];
@@ -1464,6 +1481,7 @@ $(document).ready(function() {
     });
     function applyCategoryUI(category, condition) {
         renderVariableHints(category);
+        $('#ad-break-duration-note').toggle(category === 'ad_break');
         if (category === 'channel_points') {
             $('#variant-name-group').hide();
             $('#variant-condition-group').hide();
@@ -1483,7 +1501,7 @@ $(document).ready(function() {
             $('#variant-reward-group').hide();
             $('#variant-bingo-group').show();
             $('#set-bingo-event').val(extractBingoEvent(condition) || '');
-        } else if (['follow'].indexOf(category) !== -1) {
+        } else if (['follow', 'ad_break'].indexOf(category) !== -1) {
             $('#variant-name-group').show();
             $('#variant-condition-group').hide();
             $('#variant-reward-group').hide();
@@ -1738,6 +1756,8 @@ $(document).ready(function() {
             .replace(/\{tier\}/g, '<span class="preview-accent">1</span>')
             .replace(/\{added_minutes\}/g, '<span class="preview-accent">5</span>')
             .replace(/\{streak\}/g, '<span class="preview-accent">7</span>')
+            .replace(/\{duration\}/g, '<span class="preview-accent">1:30</span>')
+            .replace(/\{seconds\}/g, '<span class="preview-accent">90</span>')
             .replace(/\n/g, '<br>');
         var $text = $('#preview-text');
         $text.html(displayMsg);
@@ -2107,6 +2127,7 @@ $(document).ready(function() {
             'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: '100' } },
             'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: '42' } },
             'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: '5' } },
+            'ad_break':          { event: 'TWITCH_AD_BREAK', params: { duration_seconds: String(Math.max(5, Math.min(30, parseInt($('#set-duration').val(), 10) || 15))) } },
             'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: '100.00 USD', charity_name: 'Example Charity' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };

@@ -1320,6 +1320,8 @@ return [
     'alerts_cat_weather' => 'Météo',
     'alerts_cat_deaths' => 'Compteur de morts',
     'alerts_cat_walkons' => 'Walk-ons',
+    'alerts_cat_ad_break' => 'Publicités',
+    'alerts_ad_break_note' => 'Pendant la pub, cette alerte reste à l\'écran et {duration} compte le temps restant. La durée ci-dessus ne sert qu\'à l\'aperçu et au test. Désactivez la variante pour la masquer.',
     'alerts_simple_note' => 'Cette alerte conserve son propre thème d\'overlay. Choisissez où elle apparaît à l\'écran, puis activez-la ou désactivez-la.',
     'alerts_walkon_note' => 'Les walk-ons s\'affichent selon ce que vous définissez pour chaque spectateur sur la page Médias (son, son + image & nom, ou vidéo). Choisissez ci-dessous où le visuel apparaît à l\'écran.',
     'alerts_screen_position' => 'Position à l\'écran',

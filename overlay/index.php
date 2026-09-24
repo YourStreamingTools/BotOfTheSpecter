@@ -229,25 +229,13 @@ if ($username) {
                 const { config, eventData } = alertQueue.shift();
                 renderAlert(config, eventData);
             }
-            function renderAlert(config, eventData) {
-                const container = document.getElementById('alertContainer');
-                applyScreenPosition(container, config, config.alert_category);
-                const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
-                const cssWeight = weightMap[config.font_weight] || '600';
-                // Load font
-                if (config.font_family) loadGoogleFont(config.font_family);
-                // Parse background color - fall back to #000000 if the stored value
-                // isn't a valid #RRGGBB literal (anything else produces NaN channels
-                // and CSS silently drops the whole rgba()).
-                const hex6 = /^#[0-9a-fA-F]{6}$/;
-                const bgColor = hex6.test(config.bg_color) ? config.bg_color : '#000000';
-                const bgOpacity = (config.bg_opacity || 0) / 100;
-                const r = parseInt(bgColor.substr(1,2), 16);
-                const g = parseInt(bgColor.substr(3,2), 16);
-                const b = parseInt(bgColor.substr(5,2), 16);
-                const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
-                // Process message template
-                let message = (config.message_template || '').replace(/\\n/g, '\n');
+            // rawTokens inject HTML after escaping (ad countdown spans). Other tokens are text.
+            function composeAlertMessageHtml(template, eventData, rawTokens) {
+                let message = (template || '').replace(/\\n/g, '\n');
+                const tokens = rawTokens || {};
+                Object.keys(tokens).forEach((key) => {
+                    message = message.split('{' + key + '}').join('@@' + key + '@@');
+                });
                 message = message.replace(/\{username\}/g, eventData.username || '')
                     .replace(/\{amount\}/g, eventData.amount || '')
                     .replace(/\{months\}/g, eventData.months || '')
@@ -265,8 +253,9 @@ if ($username) {
                     .replace(/\{rank_text\}/g, eventData.rank_text || '')
                     .replace(/\{bingo_event_name\}/g, eventData.bingo_event_name || '')
                     .replace(/\{bingo_number\}/g, eventData.bingo_number || '')
-                    .replace(/\{events_count\}/g, eventData.events_count || '');
-                // Split message into lines, first line uses accent color
+                    .replace(/\{events_count\}/g, eventData.events_count || '')
+                    .replace(/\{duration\}/g, eventData.duration || '')
+                    .replace(/\{seconds\}/g, eventData.seconds || '');
                 const lines = message.split('\n');
                 let messageHtml = '';
                 if (lines.length > 1) {
@@ -274,6 +263,29 @@ if ($username) {
                 } else {
                     messageHtml = escapeHtml(message).replace(/\n/g, '<br>');
                 }
+                Object.keys(tokens).forEach((key) => {
+                    messageHtml = messageHtml.split('@@' + key + '@@').join(tokens[key]);
+                });
+                return messageHtml;
+            }
+            function renderAlert(config, eventData) {
+                const container = document.getElementById('alertContainer');
+                applyScreenPosition(container, config, config.alert_category);
+                const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
+                const cssWeight = weightMap[config.font_weight] || '600';
+                // Load font
+                if (config.font_family) loadGoogleFont(config.font_family);
+                // Parse background color - fall back to #000000 if the stored value
+                // isn't a valid #RRGGBB literal (anything else produces NaN channels
+                // and CSS silently drops the whole rgba()).
+                const hex6 = /^#[0-9a-fA-F]{6}$/;
+                const bgColor = hex6.test(config.bg_color) ? config.bg_color : '#000000';
+                const bgOpacity = (config.bg_opacity || 0) / 100;
+                const r = parseInt(bgColor.substr(1,2), 16);
+                const g = parseInt(bgColor.substr(3,2), 16);
+                const b = parseInt(bgColor.substr(5,2), 16);
+                const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
+                const messageHtml = composeAlertMessageHtml(config.message_template, eventData);
                 // Build layout
                 const layout = config.layout_preset || 'above';
                 const imageScale = (config.image_scale || 100) / 100;
@@ -352,6 +364,146 @@ if ($username) {
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+            // Ad card is outside the alert queue: a break lasts the full Twitch duration
+            // and must not hold follows, subs, and cheers behind it.
+            let adBreakGen = 0;
+            let adBreakTimer = null;
+            let adBreakHideTimer = null;
+            let adBreakAudio = null;
+            function formatAdClock(totalSeconds) {
+                const s = Math.max(0, Math.floor(totalSeconds));
+                const m = Math.floor(s / 60);
+                const r = s % 60;
+                return m + ':' + String(r).padStart(2, '0');
+            }
+            function adBreakEndMs(data) {
+                const ends = parseInt(data && data.ends_at, 10);
+                if (ends > 1000000000000) return ends;
+                if (ends > 1000000000) return ends * 1000;
+                const dur = parseInt(data && data.duration_seconds, 10);
+                if (dur > 0) return Date.now() + dur * 1000;
+                return 0;
+            }
+            function paintAdClocks(container, endMs) {
+                const left = Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
+                container.querySelectorAll('[data-ad="duration"]').forEach((el) => {
+                    el.textContent = formatAdClock(left);
+                });
+                container.querySelectorAll('[data-ad="seconds"]').forEach((el) => {
+                    el.textContent = String(left);
+                });
+                return left;
+            }
+            function clearAdBreakTimers() {
+                if (adBreakTimer) { clearInterval(adBreakTimer); adBreakTimer = null; }
+                if (adBreakHideTimer) { clearTimeout(adBreakHideTimer); adBreakHideTimer = null; }
+            }
+            function hideAdBreak(animated) {
+                const gen = ++adBreakGen;
+                clearAdBreakTimers();
+                if (adBreakAudio) {
+                    adBreakAudio.pause();
+                    adBreakAudio = null;
+                }
+                const container = document.getElementById('adBreakOverlay');
+                if (!container || !container.classList.contains('show')) {
+                    if (container) container.innerHTML = '';
+                    return;
+                }
+                const config = container._adConfig || {};
+                const animOutDur = parseFloat(config.animation_out_duration) || 1;
+                const box = container.querySelector('.twitch-alert-box');
+                if (!animated || !box) {
+                    container.classList.remove('show');
+                    container.innerHTML = '';
+                    return;
+                }
+                box.style.animation = `${config.animation_out || 'fadeOut'} ${animOutDur}s forwards`;
+                adBreakHideTimer = setTimeout(() => {
+                    if (gen !== adBreakGen) return;
+                    container.classList.remove('show');
+                    container.innerHTML = '';
+                    adBreakHideTimer = null;
+                }, animOutDur * 1000);
+            }
+            function showAdBreak(data) {
+                data = data || {};
+                const config = getMatchingVariant('ad_break', data);
+                if (!config) return;
+                const endMs = adBreakEndMs(data);
+                if (!endMs || endMs - Date.now() < 400) return;
+                hideAdBreak(false);
+                const gen = adBreakGen;
+                const container = document.getElementById('adBreakOverlay');
+                if (!container) return;
+                container._adConfig = config;
+                const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
+                const cssWeight = weightMap[config.font_weight] || '600';
+                if (config.font_family) loadGoogleFont(config.font_family);
+                const hex6 = /^#[0-9a-fA-F]{6}$/;
+                const bgColor = hex6.test(config.bg_color) ? config.bg_color : '#000000';
+                const bgOpacity = (config.bg_opacity || 0) / 100;
+                const r = parseInt(bgColor.substr(1, 2), 16);
+                const g = parseInt(bgColor.substr(3, 2), 16);
+                const b = parseInt(bgColor.substr(5, 2), 16);
+                const messageHtml = composeAlertMessageHtml(config.message_template, data, {
+                    duration: '<span class="ad-break-clock" data-ad="duration"></span>',
+                    seconds: '<span class="ad-break-clock" data-ad="seconds"></span>'
+                });
+                const layout = config.layout_preset || 'above';
+                const imageScale = (config.image_scale || 100) / 100;
+                let imageHtml = '';
+                if (config.alert_image) {
+                    const imgUrl = mediaBase + config.alert_image;
+                    const ext = config.alert_image.split('.').pop().toLowerCase();
+                    if (ext === 'webm') {
+                        imageHtml = `<video class="twitch-alert-image" src="${imgUrl}" autoplay loop muted style="transform:scale(${imageScale})"></video>`;
+                    } else {
+                        imageHtml = `<img class="twitch-alert-image" src="${imgUrl}" alt="" style="transform:scale(${imageScale})">`;
+                    }
+                }
+                const boxStyles = [
+                    `background:rgba(${r},${g},${b},${bgOpacity})`,
+                    `padding:${config.padding || 16}px`,
+                    `gap:${config.gap || 16}px`,
+                    `border-radius:${config.rounded_corners == 1 ? '12px' : '0'}`,
+                    `box-shadow:${config.drop_shadow == 1 ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'}`
+                ].join(';');
+                const textStyles = [
+                    `font-family:"${config.font_family || 'Roboto'}",sans-serif`,
+                    `font-weight:${cssWeight}`,
+                    `font-size:${config.font_size || 24}px`,
+                    `color:${config.text_color || '#FFFFFF'}`,
+                    `text-align:${config.text_alignment || 'center'}`,
+                    `text-shadow:${config.text_drop_shadow == 1 ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'}`
+                ].join(';');
+                container.innerHTML = `
+                    <div class="twitch-alert-box layout-${layout}" style="${boxStyles}">
+                        ${imageHtml}
+                        <div class="twitch-alert-text" style="${textStyles}">${messageHtml}</div>
+                    </div>
+                `;
+                container.querySelectorAll('.twitch-alert-accent').forEach((el) => {
+                    el.style.color = config.accent_color || '#A1C53A';
+                });
+                paintAdClocks(container, endMs);
+                container.classList.add('show');
+                applyScreenPosition(container, config, 'ad_break');
+                const box = container.querySelector('.twitch-alert-box');
+                const animInDur = parseFloat(config.animation_in_duration) || 1;
+                if (box) {
+                    box.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
+                }
+                if (config.alert_sound) {
+                    adBreakAudio = new Audio(SpecterOverlayWS.playbackUrl(mediaBase + config.alert_sound));
+                    adBreakAudio.volume = (config.sound_volume || 50) / 100;
+                    adBreakAudio.play().catch((e) => console.error('Ad break audio error:', e));
+                }
+                adBreakTimer = setInterval(() => {
+                    if (gen !== adBreakGen) return;
+                    if (paintAdClocks(container, endMs) <= 0) hideAdBreak(true);
+                }, 250);
             }
             const celebration = (function () {
                 let canvas = null, ctx = null, particles = [], rafId = null;
@@ -821,6 +973,14 @@ if ($username) {
                             level: parseInt(data['twitch-hype-level'] || data['level'] || 1)
                         });
                     });
+                    socket.on('TWITCH_AD_BREAK', (data) => {
+                        console.log('TWITCH_AD_BREAK', data && data.duration_seconds, data && data.ends_at);
+                        showAdBreak(data || {});
+                    });
+                    socket.on('TWITCH_AD_BREAK_END', () => {
+                        console.log('TWITCH_AD_BREAK_END');
+                        hideAdBreak(true);
+                    });
                     socket.on('TWITCH_CHARITY', (data) => {
                         console.log('TWITCH_CHARITY event received:', data);
                         queueAlert('charity', {
@@ -1048,6 +1208,7 @@ if ($username) {
 </head>
 <body>
     <div id="alertContainer" class="twitch-alert-container"></div>
+    <div id="adBreakOverlay" class="twitch-alert-container ad-break-overlay"></div>
     <!-- Legacy overlays folded in (weather, deaths). Walk-ons is audio-only. -->
     <div id="deathOverlay" class="deaths-overlay-page"></div>
     <div id="weatherOverlay" class="weather-overlay-page hide"></div>
