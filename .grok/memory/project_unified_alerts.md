@@ -15,4 +15,6 @@ The "new alert system" = `dashboard/alerts.php` (configurator) writing per-user 
 
 **Walk-on modes:** per-viewer, chosen on the **Media page** (`dashboard/media.php`) when tagging a file to a Twitch user → `walkons.mode` column (`sound` / `sound_overlay` / `video`; video auto for mp4). The bot (`beta.py` + `beta-v6.py`) reads `mode` in the WALKON enrichment inside `websocket_notice`, and for `sound_overlay` adds `display_name` + `avatar_url` via the `get_user_display_and_avatar()` helper. `overlay/index.php` `handleWalkon()` branches on `data.mode`.
 
+**Ads:** category `ad_break` (one variant, seeded **enabled**). The card stays up for the Twitch ad-break length with a live `{duration}` / `{seconds}` countdown, in its own `#adBreakOverlay` so it does not block the alert queue. Beta and v6 emit `TWITCH_AD_BREAK` / `TWITCH_AD_BREAK_END` from the ad-break handler; the chat-notice toggle does not gate the overlay. The browser source must be refreshed after the variant is switched on.
+
 **Gotcha that bit once:** the `save_alert` `bind_param` type string in alerts.php must stay aligned with the column order — it had a decimal-as-`i` truncation bug that was fixed when `screen_position` was added. See [[per-user-schema]] (schema lives in `dashboard/usr_database.php` `$tables`, auto-migrates columns) and [[dashboard-page-menu-registration]].

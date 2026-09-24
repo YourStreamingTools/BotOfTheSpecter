@@ -1377,6 +1377,8 @@ return [
     'alerts_cat_weather' => 'Clima',
     'alerts_cat_deaths' => 'Contador de muertes',
     'alerts_cat_walkons' => 'Caminantes',
+    'alerts_cat_ad_break' => 'Anuncios',
+    'alerts_ad_break_note' => 'Mientras hay anuncios, esta alerta permanece en pantalla y {duration} cuenta el tiempo restante. La duración de arriba solo se usa para la vista previa y la prueba. Desactiva la variante para ocultarla.',
     'alerts_simple_note' => 'Esta alerta mantiene su propio tema superpuesto. Elija dónde aparece en la pantalla y luego actívelo o desactívelo.',
     'alerts_walkon_note' => 'Los walk-ons muestran cómo configuraste a cada espectador en la página de Medios (sonido, sonido + imagen y nombre, o video). Elija dónde aparece la imagen en la pantalla a continuación.',
     'alerts_screen_position' => 'Posición de la pantalla',

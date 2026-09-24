@@ -360,6 +360,11 @@ html, body {
     display: flex;
 }
 
+/* Sits under a normal alert so a follow can still draw on top during ads. */
+.ad-break-overlay {
+    z-index: 900;
+}
+
 .twitch-alert-box {
     display: flex;
     align-items: center;

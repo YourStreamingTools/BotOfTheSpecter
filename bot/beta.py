@@ -17736,6 +17736,12 @@ async def websocket_notice(
                             if _pet_val is None:
                                 continue
                             params[_pet_key] = json.dumps(_pet_val) if isinstance(_pet_val, (dict, list)) else _pet_val
+                elif event in ["TWITCH_AD_BREAK", "TWITCH_AD_BREAK_END"]:
+                    if additional_data:
+                        for _ad_key, _ad_val in additional_data.items():
+                            if _ad_val is None:
+                                continue
+                            params[_ad_key] = _ad_val
                 else:
                     websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters or is not recognized")
                     return
@@ -20253,6 +20259,19 @@ async def load_ad_break_state():
         if connection:
             await connection.close()
 
+def emit_ad_overlay_start(duration_seconds, started_at_ts, eta_end):
+    safe_create_task(websocket_notice(
+        event="TWITCH_AD_BREAK",
+        additional_data={
+            "duration_seconds": int(duration_seconds),
+            "started_at": int(started_at_ts),
+            "ends_at": int(eta_end),
+        },
+    ))
+
+def emit_ad_overlay_end():
+    safe_create_task(websocket_notice(event="TWITCH_AD_BREAK_END"))
+
 # Function to mark the ad-end chat notice as sent
 async def mark_ad_break_end_sent():
     connection = None
@@ -20266,6 +20285,7 @@ async def mark_ad_break_end_sent():
     finally:
         if connection:
             await connection.close()
+    emit_ad_overlay_end()
 
 # Function to send the ad-end chat notice and mark it sent
 async def send_ad_break_end_notice():
@@ -20350,6 +20370,13 @@ async def recover_ad_break_end_notice():
     remaining = eta_end - now_ts
     if remaining > 0:
         api_logger.info(f"[ADS] Recovered in-progress ad break, end in {remaining:.0f}s")
+        try:
+            recover_duration = int(state.get("duration_seconds") or 0)
+        except (TypeError, ValueError):
+            recover_duration = 0
+        if recover_duration <= 0:
+            recover_duration = max(1, int(math.ceil(remaining)))
+        emit_ad_overlay_start(recover_duration, started_at, eta_end)
         await schedule_ad_break_end_notice(eta_end)
     else:
         api_logger.info("[ADS] Recovered ad break already ended, sending end notice now")
@@ -20357,10 +20384,6 @@ async def recover_ad_break_end_notice():
 
 async def handle_ad_break_start(duration_seconds, started_at=None):
     global stream_session_started_at
-    settings = await get_ad_settings()
-    # Honor global ad-notice toggle - if disabled, do nothing (same behavior as main bot)
-    if not settings.get('enable_ad_notice', True):
-        return
     try:
         duration_seconds = int(float(duration_seconds))
     except (TypeError, ValueError):
@@ -20369,9 +20392,14 @@ async def handle_ad_break_start(duration_seconds, started_at=None):
     if duration_seconds <= 0:
         api_logger.error(f"[ADS] Non-positive ad break duration: {duration_seconds}")
         return
-    formatted_duration = format_duration(duration_seconds)
     started_at_ts = parse_ad_break_started_at(started_at)
     eta_end = int(started_at_ts) + duration_seconds
+    # Specter Alerts has its own switch. Chat ad notices stay on enable_ad_notice.
+    emit_ad_overlay_start(duration_seconds, started_at_ts, eta_end)
+    settings = await get_ad_settings()
+    if not settings.get('enable_ad_notice', True):
+        return
+    formatted_duration = format_duration(duration_seconds)
     await save_ad_break_state(started_at_ts, duration_seconds, eta_end)
     await schedule_ad_break_end_notice(eta_end)
     # 1. Update Ad Break Count

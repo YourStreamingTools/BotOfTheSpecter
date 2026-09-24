@@ -1338,6 +1338,8 @@ return [
     'alerts_cat_weather' => '天气',
     'alerts_cat_deaths' => '死亡计数器',
     'alerts_cat_walkons' => '步行者',
+    'alerts_cat_ad_break' => '广告',
+    'alerts_ad_break_note' => '广告播放时此警报会留在画面上，{duration} 会倒计时剩余时间。上方的时长只用于预览和测试。关闭此变体即可隐藏。',
     'alerts_simple_note' => '此警报保留其自己的覆盖主题。选择它在屏幕上的显示位置，然后将其打开或关闭。',
     'alerts_walkon_note' => '临时演示显示您在媒体页面上设置每个观看者的方式（声音、声音+图片和名称或视频）。选择视觉效果在下面屏幕上的显示位置。',
     'alerts_screen_position' => '屏幕位置',

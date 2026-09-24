@@ -152,6 +152,15 @@ try {
                 $params['twitch-charity-value'] = isset($m[0]) ? floatval($m[0]) : 0;
             }
             if (isset($_POST['charity_name'])) $params['twitch-charity-name'] = $_POST['charity_name'];
+        } elseif ($event === "TWITCH_AD_BREAK") {
+            $duration = isset($_POST['duration_seconds']) ? intval($_POST['duration_seconds']) : 15;
+            if ($duration < 1) $duration = 15;
+            if ($duration > 180) $duration = 180;
+            $params['duration_seconds'] = $duration;
+            $params['started_at'] = time();
+            $params['ends_at'] = time() + $duration;
+        } elseif ($event === "TWITCH_AD_BREAK_END") {
+            // Hide the ad card. No extra fields.
         } elseif ($event === "TTS" && isset($_POST['text'])) {
             $params['text'] = $_POST['text'];
         } elseif (in_array($event, ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]) && isset($_POST['additional_data'])) {
