@@ -477,7 +477,7 @@ function user_s3_enqueue(mysqli $conn, int $userId, string $filename, ?string $t
         $title = pathinfo($filename, PATHINFO_FILENAME);
         $title = trim(preg_replace('/\\s+/', ' ', str_replace(['_', '-'], ' ', (string) $title)));
     }
-    $title = function_exists('mb_substr') ? mb_substr($title, 0, 100) : substr($title, 0, 100);
+    $title = function_exists('mb_substr') ? mb_substr($title, 0, 180) : substr($title, 0, 180);
     $check = $conn->prepare(
         "SELECT id, status FROM user_s3_uploads
          WHERE user_id = ? AND filename = ? AND status IN ('queued','uploading','done')

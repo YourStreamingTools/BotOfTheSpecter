@@ -110,6 +110,9 @@ def endpoint_ok(raw):
     return _host_is_public(parsed.hostname)
 
 
+_ID_NAME = re.compile(r"^twitch[- ]\d{1,20}$", re.I)
+
+
 def object_key(prefix, username, filename):
     if not SAFE_USER.match(username or "") or not _safe_filename(filename):
         return None
@@ -118,6 +121,58 @@ def object_key(prefix, username, filename):
         return None
     base = f"{username}/{filename}"
     return f"{prefix}/{base}" if prefix else base
+
+
+def upload_basename(filename, title, media_path):
+    from ffmpeg_jobs import sanitize_download_basename, vod_title_from_sidecar
+
+    stem = os.path.splitext(os.path.basename(filename or ""))[0]
+    side = vod_title_from_sidecar(media_path) if media_path else ""
+    chosen = ""
+    for candidate in (side, title):
+        text = (candidate or "").strip()
+        if not text or _ID_NAME.match(text):
+            continue
+        if text.lower() == stem.lower() and _ID_NAME.match(stem):
+            continue
+        chosen = text
+        break
+    if not chosen:
+        chosen = stem or "video"
+    base = sanitize_download_basename(chosen)
+    if base.lower().endswith(".mp4"):
+        return base
+    return base + ".mp4"
+
+
+def _object_is_absent(client, bucket, key):
+    from botocore.exceptions import ClientError
+
+    try:
+        client.head_object(Bucket=bucket, Key=key)
+    except ClientError as e:
+        status = int((e.response or {}).get("ResponseMetadata", {}).get("HTTPStatusCode") or 0)
+        code = str((e.response or {}).get("Error", {}).get("Code") or "")
+        if status == 404 or code in ("404", "NoSuchKey", "NotFound"):
+            return True
+        return None
+    except Exception:
+        return None
+    return False
+
+
+def vacant_object_key(client, bucket, prefix, username, basename):
+    stem, ext = os.path.splitext(basename)
+    for n in range(1, 26):
+        name = basename if n == 1 else f"{stem} ({n}){ext}"
+        key = object_key(prefix, username, name)
+        if not key:
+            return None
+        absent = _object_is_absent(client, bucket, key)
+        if absent is False:
+            continue
+        return key
+    return None
 
 
 def make_client(row):
@@ -136,6 +191,17 @@ def make_client(row):
             s3={"addressing_style": "path" if int(1 if row.get("path_style") is None else row.get("path_style")) else "virtual"}
         ),
     )
+
+
+async def set_title(pool, job_id, title):
+    title = (title or "")[:255]
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE user_s3_uploads SET title = %s WHERE id = %s",
+                (title, job_id),
+            )
+            await conn.commit()
 
 
 async def set_job(pool, job_id, status, object_key=None, error=None):
@@ -199,7 +265,12 @@ def upload_file_sync(client, path, bucket, key, size, progress_state):
     def cb(n):
         progress_state["sent"] = progress_state.get("sent", 0) + n
 
-    extra = {"ContentType": "video/mp4"}
+    from ffmpeg_jobs import content_disposition_attachment
+
+    extra = {
+        "ContentType": "video/mp4",
+        "ContentDisposition": content_disposition_attachment(os.path.basename(key)),
+    }
     client.upload_file(
         path,
         bucket,
@@ -249,11 +320,8 @@ async def process_one(pool):
     if not endpoint_ok(job.get("endpoint") or ""):
         await set_job(pool, job_id, "failed", error="bad_endpoint")
         return True
-    key = object_key(job.get("prefix") or "", username, filename)
-    if not key:
-        await set_job(pool, job_id, "failed", error="bad_key")
-        return True
     path = os.path.join(VOD_ROOT, username, filename)
+    upload_name = upload_basename(filename, job.get("title") or "", path)
     if not os.path.isfile(path):
         logger.info(f"{username}/{filename} is not on this stream host; leaving queued")
         return "skipped"
@@ -280,6 +348,13 @@ async def process_one(pool):
     tick = asyncio.create_task(ticker())
     try:
         client = make_client(job)
+        key = vacant_object_key(client, job["bucket"], job.get("prefix") or "", username, upload_name)
+        if not key:
+            stop.set()
+            await tick
+            await set_job(pool, job_id, "failed", error="bad_key")
+            return True
+        await set_title(pool, job_id, os.path.splitext(os.path.basename(key))[0])
         await asyncio.to_thread(upload_file_sync, client, path, job["bucket"], key, size, progress_state)
     except Exception as e:
         stop.set()
