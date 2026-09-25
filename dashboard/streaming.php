@@ -251,10 +251,15 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                             <span class="sp-badge sp-badge-amber"><?php echo t('youtube_vod_status_pulling'); ?></span>
                                         <?php elseif ($kind === 'stored'): ?>
                                             <span class="sp-badge sp-badge-blue"><?php echo t('recording_type_stored'); ?></span>
+                                        <?php elseif ($kind === 's3'): ?>
+                                            <span class="sp-badge sp-badge-green"><?php echo t('recording_type_s3'); ?></span>
                                         <?php else: ?>
                                             <span class="sp-badge sp-badge-accent"><?php echo t('recording_type_recorded'); ?></span>
                                         <?php endif; ?>
-                                        <?php if (($file['storage'] ?? '') === 's4' && $kind !== 'recording' && $kind !== 'storing'): ?>
+                                        <?php if (!empty($file['on_s3']) && $kind !== 's3'): ?>
+                                            <span class="sp-badge sp-badge-green"><?php echo t('recording_type_s3'); ?></span>
+                                        <?php endif; ?>
+                                        <?php if (($file['storage'] ?? '') === 's4' && $kind !== 'recording' && $kind !== 'storing' && $kind !== 's3'): ?>
                                             <span class="sp-badge sp-badge-grey"><?php echo t('recording_type_extended'); ?></span>
                                         <?php endif; ?>
                                         </div>
@@ -308,10 +313,8 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                             $s3Job = $s3Jobs[$file['name']] ?? null;
                                             $s3Status = is_array($s3Job) ? (string) ($s3Job['status'] ?? '') : '';
                                             $s3Live = is_array($s3Job) && (!function_exists('user_s3_job_is_live') || user_s3_job_is_live($s3Job) || $s3Status === 'queued');
-                                            if ($canS3 && $canDl):
-                                                if ($s3Status === 'done'): ?>
-                                                    <span class="sp-badge sp-badge-green"><?php echo t('s3_vod_status_done'); ?></span>
-                                                <?php elseif ($s3Status === 'queued' || ($s3Status === 'uploading' && $s3Live)): ?>
+                                            if ($canS3 && $canDl && empty($file['on_s3']) && ($file['storage'] ?? '') !== 'user_s3' && ($s3ListOk || $s3Status !== 'done')):
+                                                if ($s3Status === 'queued' || ($s3Status === 'uploading' && $s3Live)): ?>
                                                     <?php
                                                     $s3ClientRow = user_s3_job_client_row(is_array($s3Job) ? $s3Job : []);
                                                     $s3Pct = max(0, min(100, (float) $s3ClientRow['percent']));
@@ -766,6 +769,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         recorded: <?php echo json_encode(t('recording_type_recorded')); ?>,
         storedType: <?php echo json_encode(t('recording_type_stored')); ?>,
         extended: <?php echo json_encode(t('recording_type_extended')); ?>,
+        s3Type: <?php echo json_encode(t('recording_type_s3')); ?>,
         file: <?php echo json_encode(t('recording_type_file')); ?>,
         sendYoutube: <?php echo json_encode(t('videos_send_to_youtube')); ?>,
         retryYoutube: <?php echo json_encode(t('youtube_btn_retry')); ?>,
@@ -841,6 +845,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         return 0;
     }
     function fileKind(file) {
+        if (file && file.storage === 'user_s3') return 's3';
         var isTwitch = twitchIdOf(file) !== '';
         if (file && file.is_partial) return isTwitch ? 'storing' : 'recording';
         if (isTwitch) return 'stored';
@@ -877,8 +882,10 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         if (kind === 'recording') html += '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.inProgress) + '</span>';
         else if (kind === 'storing') html += '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.storing) + '</span>';
         else if (kind === 'stored') html += '<span class="sp-badge sp-badge-blue">' + escapeHtml(I18N.storedType) + '</span>';
+        else if (kind === 's3') html += '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.s3Type) + '</span>';
         else html += '<span class="sp-badge sp-badge-accent">' + escapeHtml(I18N.recorded) + '</span>';
-        if (file && file.storage === 's4' && kind !== 'recording' && kind !== 'storing') {
+        if (file && file.on_s3 && kind !== 's3') html += '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.s3Type) + '</span>';
+        if (file && file.storage === 's4' && kind !== 'recording' && kind !== 'storing' && kind !== 's3') {
             html += '<span class="sp-badge sp-badge-grey">' + escapeHtml(I18N.extended) + '</span>';
         }
         return html + '</div>';
@@ -1186,10 +1193,11 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         return true;
     }
     function s3ActionHtml(file, title) {
-        if (!canS3 || !file || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || !/\.mp4$/i.test(String(file.name || ''))) return '';
+        if (!canS3 || !file || file.storage === 'user_s3' || file.on_s3 || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || fileKind(file) === 's3' || !/\.mp4$/i.test(String(file.name || ''))) return '';
         var job = s3Jobs[file.name] || {};
         var status = String(job.status || '');
-        if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.s3Done) + '</span>';
+        if (status === 'done' && file.s3_checked === false) return '';
+        if (status === 'done') status = '';
         if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Queued) + '</span>';
         if (status === 'uploading' && s3JobLive(job)) {
             var pct = Number(job.percent);

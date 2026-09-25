@@ -70,6 +70,9 @@ if (!function_exists('recordingFileKind')) {
         if ($isTwitch) {
             return 'stored';
         }
+        if (($file['storage'] ?? '') === 'user_s3') {
+            return 's3';
+        }
         if (($file['storage'] ?? '') === 's4') {
             return 'recorded';
         }
@@ -811,6 +814,92 @@ if (!$isAjax && $canYoutube) {
             ['items' => $titleBackfill]
         );
     }
+}
+
+$s3ListOk = false;
+$s3Objects = [];
+if ($s3Connected && is_array($s3Settings) && function_exists('user_s3_list_vods')) {
+    $listed = user_s3_list_vods($s3Settings);
+    $s3ListOk = !empty($listed['ok']);
+    $s3Objects = is_array($listed['objects'] ?? null) ? $listed['objects'] : [];
+}
+if ($s3ListOk) {
+    $s3ByKey = [];
+    $s3ByName = [];
+    foreach ($s3Objects as $obj) {
+        if (!is_array($obj) || empty($obj['key']) || empty($obj['name'])) {
+            continue;
+        }
+        $s3ByKey[(string) $obj['key']] = $obj;
+        $s3ByName[strtolower((string) $obj['name'])] = $obj;
+    }
+    $s3Matched = [];
+    $s3DropIds = [];
+    foreach ($libraryFiles as &$libraryFile) {
+        $libraryFile['on_s3'] = false;
+        $libraryFile['s3_checked'] = true;
+        $candidates = [strtolower((string) ($libraryFile['name'] ?? ''))];
+        $matchTitle = trim((string) ($libraryFile['title'] ?? ''));
+        $matchTid = recordingTwitchId($libraryFile);
+        if ($matchTitle === '' && $matchTid !== '' && !empty($helixTitles[$matchTid])) {
+            $matchTitle = (string) $helixTitles[$matchTid];
+        }
+        if (function_exists('specter_vod_download_basename')) {
+            $candidates[] = strtolower(specter_vod_download_basename($matchTitle, (string) pathinfo((string) ($libraryFile['name'] ?? ''), PATHINFO_FILENAME)));
+        }
+        $matchJob = $s3Jobs[$libraryFile['name']] ?? null;
+        $matchKey = is_array($matchJob) ? (string) ($matchJob['object_key'] ?? '') : '';
+        $hit = ($matchKey !== '' && isset($s3ByKey[$matchKey])) ? $s3ByKey[$matchKey] : null;
+        if ($hit === null) {
+            foreach ($candidates as $candidate) {
+                if ($candidate !== '' && isset($s3ByName[$candidate])) {
+                    $hit = $s3ByName[$candidate];
+                    break;
+                }
+            }
+        }
+        if (is_array($hit)) {
+            $libraryFile['on_s3'] = true;
+            $s3Matched[(string) $hit['key']] = true;
+        } elseif (is_array($matchJob) && (string) ($matchJob['status'] ?? '') === 'done') {
+            $s3DropIds[] = (int) ($matchJob['id'] ?? 0);
+            unset($s3Jobs[$libraryFile['name']]);
+        }
+    }
+    unset($libraryFile);
+    if ($s3DropIds && isset($conn) && $conn instanceof mysqli && function_exists('user_s3_drop_done_jobs')) {
+        user_s3_drop_done_jobs($conn, (int) $userId, $s3DropIds);
+    }
+    foreach ($s3Objects as $obj) {
+        if (!is_array($obj) || empty($obj['key']) || !empty($s3Matched[(string) $obj['key']])) {
+            continue;
+        }
+        $s3Name = (string) $obj['name'];
+        $s3Size = (int) ($obj['size'] ?? 0);
+        $libraryFiles[] = [
+            'name' => $s3Name,
+            'title' => (string) pathinfo($s3Name, PATHINFO_FILENAME),
+            'size' => $s3Size,
+            'size_bytes' => $s3Size,
+            'modified' => null,
+            'is_directory' => false,
+            'is_partial' => false,
+            'storage' => 'user_s3',
+            'on_s3' => true,
+            's3_checked' => true,
+            'can_extend' => false,
+            'download_url' => '',
+            'expires_at' => null,
+            'expires_unix' => 0,
+            'twitch_video_id' => '',
+        ];
+    }
+} else {
+    foreach ($libraryFiles as &$libraryFile) {
+        $libraryFile['on_s3'] = false;
+        $libraryFile['s3_checked'] = false;
+    }
+    unset($libraryFile);
 }
 
 if ($isAjax) {
