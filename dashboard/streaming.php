@@ -779,6 +779,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
         expired: <?php echo json_encode(t('recording_countdown_expired')); ?>,
         extendFailed: <?php echo json_encode(t('recording_extend_failed')); ?>,
+        dismiss: <?php echo json_encode(t('layout_close')); ?>,
         storeFailed: <?php echo json_encode(t('youtube_vod_store_failed')); ?>,
         copyLinks: <?php echo json_encode(t('youtube_vod_copy_links')); ?>,
         linksNone: <?php echo json_encode(t('youtube_vod_links_none')); ?>,
@@ -1023,6 +1024,31 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             var expires = Number(el.getAttribute('data-expires') || 0);
             if (expires) el.textContent = formatCountdown(expires);
         });
+    }
+    function showToast(message, kind) {
+        var host = document.getElementById('sp-toast-container');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'sp-toast-container';
+            host.style.cssText = 'position:fixed;top:1.25rem;right:1.25rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:420px;width:calc(100% - 2.5rem);pointer-events:none;';
+            document.body.appendChild(host);
+        }
+        var note = document.createElement('div');
+        var cls = kind === 'success' ? 'sp-alert-success' : kind === 'warning' ? 'sp-alert-warning' : 'sp-alert-danger';
+        note.className = 'sp-alert ' + cls + ' sp-notif';
+        note.style.cssText = 'display:flex;align-items:flex-start;gap:0.5rem;pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin:0;';
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'sp-notif-close';
+        close.setAttribute('aria-label', I18N.dismiss || 'close');
+        close.textContent = '\u00d7';
+        close.addEventListener('click', function () { note.remove(); });
+        var text = document.createElement('span');
+        text.textContent = message || '';
+        note.appendChild(close);
+        note.appendChild(text);
+        host.appendChild(note);
+        setTimeout(function () { if (note.parentNode) note.remove(); }, 5000);
     }
     function setNotice(message, kind) {
         document.querySelectorAll('[data-vod-notice]').forEach(function (el) {
@@ -1372,10 +1398,14 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             fetch('streaming.php?extend=1&file=' + encodeURIComponent(fileName), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
                 .then(function (result) {
-                    if (!result.ok || !result.body || !result.body.ok) throw new Error('extend');
+                    if (!result.ok || !result.body || !result.body.ok) {
+                        ext.disabled = false;
+                        showToast((result.body && result.body.error) || I18N.extendFailed, 'danger');
+                        return;
+                    }
                     poll();
                 })
-                .catch(function () { ext.disabled = false; window.alert(I18N.extendFailed); });
+                .catch(function () { ext.disabled = false; showToast(I18N.extendFailed, 'danger'); });
             return;
         }
         if (event.target && event.target.closest('#youtube-vod-copy-links')) {

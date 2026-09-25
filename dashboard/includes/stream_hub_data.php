@@ -648,7 +648,14 @@ if (isset($_GET['extend'])) {
         ['name' => $requestedFileName]
     );
     if (!$ext['ok']) {
-        stream_hub_json(['ok' => false, 'error' => t('recording_extend_failed')], $ext['http'] >= 400 ? (int) $ext['http'] : 502);
+        $http = $ext['http'] >= 400 ? (int) $ext['http'] : 502;
+        $msg = t('recording_extend_failed');
+        $body = json_decode((string) ($ext['body'] ?? ''), true);
+        $err = is_array($body) ? (string) ($body['error'] ?? '') : '';
+        if ($http === 409 || $err === 'recording still in progress') {
+            $msg = t('recording_extend_busy');
+        }
+        stream_hub_json(['ok' => false, 'error' => $msg], $http);
     }
     echo $ext['body'];
     exit();
