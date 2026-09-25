@@ -1816,7 +1816,7 @@ def stream_openapi_spec() -> dict:
             "title": "Sydney Stream API",
             "version": "1.0.0",
             "description": (
-                "Recordings, Twitch VOD store, and Mega S4 extend on syd1. "
+                "Recordings, Twitch VOD store, and extended VOD storage on syd1. "
                 "User routes take the streamer's API key in X-API-KEY. "
                 "Operator routes also accept an admin key with service rtmp-server or admin."
             ),
@@ -1847,7 +1847,7 @@ def stream_openapi_spec() -> dict:
             "/api/me/recordings/extend": {
                 "post": {
                     "tags": ["Recordings"],
-                    "summary": "Move a local MP4 to Mega S4 for 3 extra days",
+                    "summary": "Move a local MP4 to extended storage for 3 extra days",
                     "requestBody": {
                         "required": True,
                         "content": {"application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}},
@@ -1858,7 +1858,7 @@ def stream_openapi_spec() -> dict:
             "/api/me/recordings/delete": {
                 "post": {
                     "tags": ["Recordings"],
-                    "summary": "Delete a stored MP4 from local disk and Mega S4",
+                    "summary": "Delete a stored MP4 from local disk and extended storage",
                     "requestBody": {
                         "required": True,
                         "content": {"application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}},
@@ -2258,7 +2258,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         if not os.path.isfile(path):
             return jsonify({"error": "file not found"}), 404
         age = time.time() - os.path.getmtime(path)
-        if age < 15:
+        if age < 15 or find_ffmpeg_pid_for_path(path):
             return jsonify({"error": "recording still in progress"}), 409
         user_id = await lookup_user_id(username)
         if not user_id:
@@ -2268,7 +2268,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         try:
             s4_key = await asyncio.to_thread(upload_vod, path, username, fname)
         except Exception as e:
-            logger.error(f"VOD extend upload failed for {username}: {e}")
+            logger.error(f"VOD extend upload failed for {username}/{fname}: {e}")
             return jsonify({"error": "upload_failed"}), 502
         expires = extend_until()
         try:
