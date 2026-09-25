@@ -919,8 +919,9 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         var extra = (status !== 'queued' && isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
         if (status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.ytDone) + '</span>';
         if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytQueued) + '</span>';
-        if (status === 'pulling') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytPulling + extra) + '</span>';
-        if (status === 'uploading') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytUploading + extra) + '</span>';
+        var speed = (job && job.filename) ? speedSuffix('yt:' + job.filename, job.bytes_sent) : '';
+        if (status === 'pulling') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytPulling + extra + speed) + '</span>';
+        if (status === 'uploading') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.ytUploading + extra + speed) + '</span>';
         return '';
     }
     function importYoutubeActionHtml(vodId, title, duration) {
@@ -1084,6 +1085,45 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         if (mode === 'pulling') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.pulling) + '</span>';
         if (mode === 'stored') cell.innerHTML = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
     }
+    var rateSamples = {};
+    var seenRates = {};
+    var RATE_WINDOW_MS = 15000;
+    function beginRates() {
+        Object.keys(rateSamples).forEach(function (key) {
+            if (!seenRates[key]) delete rateSamples[key];
+        });
+        seenRates = {};
+    }
+    function nowMs() {
+        return (window.performance && performance.now) ? performance.now() : Date.now();
+    }
+    function transferRate(key, bytes) {
+        bytes = Number(bytes) || 0;
+        seenRates[key] = true;
+        var now = nowMs();
+        var samples = rateSamples[key];
+        if (!samples || (samples.length && bytes < samples[samples.length - 1].bytes)) samples = [];
+        var last = samples.length ? samples[samples.length - 1] : null;
+        if (!last || now - last.t >= 1000) samples.push({ t: now, bytes: bytes });
+        else { last.t = now; last.bytes = bytes; }
+        var cutoff = now - RATE_WINDOW_MS;
+        while (samples.length > 2 && samples[0].t < cutoff) samples.shift();
+        if (samples.length > 12) samples.splice(0, samples.length - 12);
+        rateSamples[key] = samples;
+        if (samples.length < 2) return null;
+        var oldest = samples[0];
+        var latest = samples[samples.length - 1];
+        var dt = (latest.t - oldest.t) / 1000;
+        if (dt < 2) return null;
+        var delta = latest.bytes - oldest.bytes;
+        if (delta < 0) return null;
+        return delta / dt;
+    }
+    function speedSuffix(key, bytes) {
+        var rate = transferRate(key, bytes);
+        if (rate == null || !isFinite(rate)) return '';
+        return ' · ' + formatBytes(rate) + '/s';
+    }
     function renderUploadBars() {
         var html = '';
         Object.keys(youtubeJobs || {}).forEach(function (name) {
@@ -1099,6 +1139,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             var right = (Math.round(pct * 10) / 10) + '%';
             if (job.status === 'uploading' && total > 0) right += ' · ' + formatBytes(sent) + ' / ' + formatBytes(total);
             else if (job.status === 'pulling' && sent > 0) right += ' · ' + formatBytes(sent);
+            right += speedSuffix('yt:' + name, sent);
             html += '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
                 + escapeHtml(title) + ' — ' + escapeHtml(phase)
                 + '</span><span>' + escapeHtml(right) + '</span></div><progress class="progress" value="'
@@ -1127,6 +1168,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             var total = Number(job.bytes_total) || 0;
             var right = (Math.round(pct * 10) / 10) + '%';
             if (total > 0) right += ' · ' + formatBytes(sent) + ' / ' + formatBytes(total);
+            right += speedSuffix('s3:' + name, sent);
             s3html += '<div class="media-storage-bar mb-4 stream-hub-upload-bar"><div class="media-storage-header"><span>'
                 + escapeHtml(job.title || name) + ' — ' + escapeHtml(I18N.s3Uploading)
                 + '</span><span>' + escapeHtml(right) + '</span></div><progress class="progress" value="'
@@ -1152,6 +1194,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         if (status === 'uploading' && s3JobLive(job)) {
             var pct = Number(job.percent);
             var extra = (isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
+            extra += speedSuffix('s3:' + (file.name || ''), job.bytes_sent);
             return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Uploading + extra) + '</span>';
         }
         var label = status === 'failed' ? I18N.retryS3 : I18N.sendS3;
@@ -1163,6 +1206,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     }
     function render(data) {
         if (!data) return;
+        beginRates();
         if (data.youtube_jobs && typeof data.youtube_jobs === 'object') youtubeJobs = data.youtube_jobs;
         if (typeof data.can_upload === 'boolean') canUpload = data.can_upload;
         if (data.s3_jobs && typeof data.s3_jobs === 'object') s3Jobs = data.s3_jobs;
@@ -1195,7 +1239,10 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             if (job.vod_id) pullingIds[String(job.vod_id)] = true;
             var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
             var label = job.title || job.filename || job.vod_id || '';
+            var sentBytes = Number(job.bytes) || 0;
             var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : I18N.pulling;
+            if (sentBytes > 0) pctLabel += ' · ' + formatBytes(sentBytes);
+            pctLabel += speedSuffix('pull:' + (job.vod_id || job.filename || ''), sentBytes);
             html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' + escapeHtml(label) + '</span><span>' + escapeHtml(pctLabel) + '</span></div><progress class="progress" value="' + pct + '" max="100"></progress></div>';
         });
         pulls.filter(function (j) { return j && j.status === 'failed'; }).forEach(function (job) {
