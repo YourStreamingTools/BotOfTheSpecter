@@ -137,7 +137,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         elseif ($hubMessageType === 'is-warning') $hubAlert = 'sp-alert-warning';
         else $hubAlert = 'sp-alert-info';
     ?>
-    <div class="sp-alert <?php echo $hubAlert; ?> mb-4"><?php echo htmlspecialchars($hubMessage); ?></div>
+    <div class="sp-alert <?php echo $hubAlert; ?> mb-4" data-hub-notice><?php echo htmlspecialchars($hubMessage); ?></div>
 <?php endif; ?>
 <div class="sp-stat-row">
     <div class="sp-stat">
@@ -1058,13 +1058,23 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         host.appendChild(note);
         setTimeout(function () { if (note.parentNode) note.remove(); }, 5000);
     }
+    var noticeTimer = null;
     function setNotice(message, kind) {
+        if (noticeTimer) {
+            clearTimeout(noticeTimer);
+            noticeTimer = null;
+        }
         document.querySelectorAll('[data-vod-notice]').forEach(function (el) {
             if (!message) { el.innerHTML = ''; return; }
             var cls = kind === 'success' ? 'sp-alert-success' : kind === 'warning' ? 'sp-alert-warning' : kind === 'danger' ? 'sp-alert-danger' : 'sp-alert-info';
             el.innerHTML = '<div class="sp-alert ' + cls + '"></div>';
             el.firstChild.textContent = message;
         });
+        if (!message) return;
+        noticeTimer = setTimeout(function () {
+            noticeTimer = null;
+            document.querySelectorAll('[data-vod-notice]').forEach(function (el) { el.innerHTML = ''; });
+        }, kind === 'danger' || kind === 'warning' ? 8000 : 5000);
     }
     function syncCopyBtn() {
         var btn = document.getElementById('youtube-vod-copy-links');
@@ -1537,6 +1547,10 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     poll();
     setInterval(poll, 5000);
     syncCopyBtn();
+    var hubNotice = document.querySelector('[data-hub-notice]');
+    if (hubNotice) {
+        setTimeout(function () { if (hubNotice.parentNode) hubNotice.remove(); }, 5000);
+    }
 })();
 </script>
 <?php
