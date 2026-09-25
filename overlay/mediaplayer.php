@@ -2,8 +2,9 @@
 include '/var/www/config/database.php';
 $primary_db_name = 'website';
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
+$api_key = $_GET['code'] ?? '';
 $username = '';
-if (!empty($api_key) && preg_match('/^[A-Za-z0-9_-]+$/', $api_key) && !$conn->connect_error) {
+if (!empty($api_key) && !$conn->connect_error) {
     $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
     if ($stmt) {
         $stmt->bind_param("s", $api_key);
