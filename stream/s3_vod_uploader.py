@@ -113,14 +113,13 @@ def endpoint_ok(raw):
 _ID_NAME = re.compile(r"^twitch[- ]\d{1,20}$", re.I)
 
 
-def object_key(prefix, username, filename):
-    if not SAFE_USER.match(username or "") or not _safe_filename(filename):
+def object_key(prefix, filename):
+    if not _safe_filename(filename):
         return None
     prefix = (prefix or "").strip("/")
     if prefix and (".." in prefix or not re.match(r"^[A-Za-z0-9._/-]+$", prefix)):
         return None
-    base = f"{username}/{filename}"
-    return f"{prefix}/{base}" if prefix else base
+    return f"{prefix}/{filename}" if prefix else filename
 
 
 def upload_basename(filename, title, media_path):
@@ -161,11 +160,11 @@ def _object_is_absent(client, bucket, key):
     return False
 
 
-def vacant_object_key(client, bucket, prefix, username, basename):
+def vacant_object_key(client, bucket, prefix, basename):
     stem, ext = os.path.splitext(basename)
     for n in range(1, 26):
         name = basename if n == 1 else f"{stem} ({n}){ext}"
-        key = object_key(prefix, username, name)
+        key = object_key(prefix, name)
         if not key:
             return None
         absent = _object_is_absent(client, bucket, key)
@@ -348,7 +347,7 @@ async def process_one(pool):
     tick = asyncio.create_task(ticker())
     try:
         client = make_client(job)
-        key = vacant_object_key(client, job["bucket"], job.get("prefix") or "", username, upload_name)
+        key = vacant_object_key(client, job["bucket"], job.get("prefix") or "", upload_name)
         if not key:
             stop.set()
             await tick

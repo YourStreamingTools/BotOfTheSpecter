@@ -130,17 +130,16 @@ function user_s3_bucket_ok(string $bucket): bool
     return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9.-]{1,61}[A-Za-z0-9]$/', $bucket);
 }
 
-function user_s3_object_key(string $prefix, string $username, string $filename): ?string
+function user_s3_object_key(string $prefix, string $filename): ?string
 {
-    if (!preg_match('/^[a-zA-Z0-9_]{1,64}$/', $username) || !youtube_safe_filename($filename)) {
+    if (!function_exists('youtube_safe_filename') || !youtube_safe_filename($filename)) {
         return null;
     }
     $prefix = trim($prefix, '/');
     if ($prefix !== '' && !user_s3_prefix_ok($prefix)) {
         return null;
     }
-    $base = $username . '/' . $filename;
-    return $prefix === '' ? $base : ($prefix . '/' . $base);
+    return $prefix === '' ? $filename : ($prefix . '/' . $filename);
 }
 
 function user_s3_settings_row(mysqli $conn, int $userId): ?array
@@ -205,7 +204,7 @@ function user_s3_public_row(?array $row): array
     ];
 }
 
-function user_s3_client(array $row)
+function user_s3_client(array $row, int $timeout = 0)
 {
     if (!user_s3_load_aws()) {
         return null;
@@ -215,7 +214,7 @@ function user_s3_client(array $row)
     if ($region === '') {
         $region = 'us-east-1';
     }
-    return new \Aws\S3\S3Client([
+    $config = [
         'version' => 'latest',
         'region' => $region,
         'endpoint' => $endpoint,
@@ -225,7 +224,78 @@ function user_s3_client(array $row)
             'secret' => (string) ($row['secret_key'] ?? ''),
         ],
         'suppress_php_deprecation_warning' => true,
-    ]);
+    ];
+    if ($timeout > 0) {
+        $config['http'] = ['connect_timeout' => 3, 'timeout' => $timeout];
+    }
+    return new \Aws\S3\S3Client($config);
+}
+
+function user_s3_list_vods(array $row): array
+{
+    $prefix = trim((string) ($row['prefix'] ?? ''), '/');
+    if ($prefix !== '' && !user_s3_prefix_ok($prefix)) {
+        return ['ok' => false, 'objects' => []];
+    }
+    $client = user_s3_client($row, 8);
+    if (!$client) {
+        return ['ok' => false, 'objects' => []];
+    }
+    $listPrefix = $prefix === '' ? '' : ($prefix . '/');
+    $objects = [];
+    $token = null;
+    try {
+        do {
+            $args = [
+                'Bucket' => (string) $row['bucket'],
+                'Prefix' => $listPrefix,
+                'Delimiter' => '/',
+                'MaxKeys' => 200,
+            ];
+            if ($token) {
+                $args['ContinuationToken'] = $token;
+            }
+            $page = $client->listObjectsV2($args);
+            foreach ($page['Contents'] ?? [] as $item) {
+                $key = (string) ($item['Key'] ?? '');
+                if ($key === '' || str_ends_with($key, '/')) {
+                    continue;
+                }
+                $name = basename($key);
+                if (!preg_match('/\.mp4$/i', $name) || str_contains($name, '/') || str_contains($name, '\\')) {
+                    continue;
+                }
+                $objects[] = [
+                    'key' => $key,
+                    'name' => $name,
+                    'size' => (int) ($item['Size'] ?? 0),
+                ];
+            }
+            $token = !empty($page['IsTruncated']) ? (string) ($page['NextContinuationToken'] ?? '') : '';
+        } while ($token !== '' && count($objects) < 500);
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'objects' => []];
+    }
+    return ['ok' => true, 'objects' => $objects];
+}
+
+function user_s3_drop_done_jobs(mysqli $conn, int $userId, array $ids): void
+{
+    $ids = array_values(array_filter(array_map('intval', $ids), static function ($id) {
+        return $id > 0;
+    }));
+    if ($userId <= 0 || !$ids) {
+        return;
+    }
+    $stmt = $conn->prepare("DELETE FROM user_s3_uploads WHERE user_id = ? AND status = 'done' AND id = ?");
+    if (!$stmt) {
+        return;
+    }
+    foreach ($ids as $id) {
+        $stmt->bind_param('ii', $userId, $id);
+        $stmt->execute();
+    }
+    $stmt->close();
 }
 
 function user_s3_test(array $row): array
