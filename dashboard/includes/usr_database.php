@@ -1311,7 +1311,9 @@ try {
                 max_song_seconds INT NOT NULL DEFAULT 600,
                 max_queue_length INT NOT NULL DEFAULT 20,
                 per_viewer_limit INT NOT NULL DEFAULT 2,
-                volume INT NOT NULL DEFAULT 30
+                volume INT NOT NULL DEFAULT 30,
+                artist_limit_count INT NOT NULL DEFAULT 0,
+                artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_banlist' => "
             CREATE TABLE IF NOT EXISTS media_banlist (

@@ -19,7 +19,7 @@ from collections import defaultdict
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from media_helpers import clean_youtube_title, evaluate_guardrails, format_queue_line
+from media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
 from websockets import ConnectionClosedError as WebSocketConnectionClosedError
@@ -6423,6 +6423,12 @@ class TwitchBot(commands.Bot):
                 }
                 await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
                 return
+            if not is_broadcaster:
+                artist_block = await artist_request_block_message(connection, artist_name, settings)
+                if artist_block:
+                    await send_chat_message(artist_block)
+                    return
+            artist_name = clean_request_artist(artist_name) or artist_name
             api_logger.info(f"[SONG REQUEST] Song Request from {ctx.message.author.name} for {song_name} by {artist_name} song id: {song_id}")
             song_requests[song_id] = { "user": ctx.message.author.name, "song_name": song_name, "artist_name": artist_name, "timestamp": time_right_now()}
             # Add to Spotify queue
@@ -6484,10 +6490,17 @@ class TwitchBot(commands.Bot):
                 }
                 await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
                 return
+            request_artist = clean_request_artist(resolved.get("uploader") or "") or (resolved.get("uploader") or "YouTube")
+            is_owner = (ctx.author.name or "").lower() in ((CHANNEL_NAME or "").lower(), (bot_owner or "").lower())
+            if not is_owner:
+                artist_block = await artist_request_block_message(connection, request_artist, settings)
+                if artist_block:
+                    await send_chat_message(artist_block)
+                    return
             async with connection.cursor() as cursor:
                 await cursor.execute(
                     "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
-                    (resolved["video_id"], resolved["title"], resolved["uploader"], resolved["duration"], ctx.author.name))
+                    (resolved["video_id"], resolved["title"], request_artist, resolved["duration"], ctx.author.name))
             await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
@@ -6498,7 +6511,7 @@ class TwitchBot(commands.Bot):
                 async with connection.cursor() as acur:
                     await acur.execute(
                         "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
-                        (resolved["title"], resolved.get("uploader") or "YouTube", ctx.author.name))
+                        (resolved["title"], request_artist, ctx.author.name))
             except Exception as analytics_err:
                 api_logger.error(f"[MEDIA REQUEST] analytics insert failed: {analytics_err}")
         except Exception as e:
@@ -16356,11 +16369,54 @@ async def send_timed_message(message_id, message, delay):
         chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
+_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period FROM media_request_settings WHERE id=1"
+_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream"}
+
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
-        await cursor.execute("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume FROM media_request_settings WHERE id=1")
+        try:
+            await cursor.execute(_MEDIA_SETTINGS_SQL)
+        except Exception:
+            for alter in (
+                "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
+                "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
+            ):
+                try:
+                    await cursor.execute(alter)
+                except Exception:
+                    pass
+            await cursor.execute(_MEDIA_SETTINGS_SQL)
         row = await cursor.fetchone()
-    return row or {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30}
+    if not row:
+        return dict(_MEDIA_SETTINGS_DEFAULTS)
+    row.setdefault("artist_limit_count", 0)
+    row.setdefault("artist_limit_period", "stream")
+    return row
+
+async def artist_request_block_message(connection, artist_name, settings):
+    limit = int(settings.get("artist_limit_count") or 0)
+    if limit <= 0:
+        return None
+    keys = artist_match_keys(artist_name)
+    if not keys:
+        return None
+    period = str(settings.get("artist_limit_period") or "stream").lower()
+    if period not in ("stream", "week", "month"):
+        period = "stream"
+    sql, needs_start = artist_limit_query(period, len(keys))
+    params = list(keys)
+    if needs_start:
+        started = float(stream_session_started_at or 0)
+        if started <= 0:
+            return None
+        params.append(started)
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute(sql, params)
+        row = await cursor.fetchone()
+    count = int((row or {}).get("c") or 0)
+    if count >= limit:
+        return artist_limit_reply(artist_name, limit, period)
+    return None
 
 async def get_media_banlist(connection):
     async with connection.cursor(DictCursor) as cursor:
