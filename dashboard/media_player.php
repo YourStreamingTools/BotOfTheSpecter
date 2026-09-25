@@ -17,17 +17,31 @@ session_write_close();
 // The media tables (media_queue / media_request_settings / media_banlist) are created
 // centrally by usr_database.php. Here we only handle settings/ban-list edits and load
 // current state. $db is the channel's own per-user database connection (same one music.php uses).
-$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30];
+$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream'];
 $banlist = [];
 try {
+    foreach ([
+        "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
+        "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
+    ] as $artistLimitSql) {
+        try {
+            $db->query($artistLimitSql);
+        } catch (Throwable $ignored) {
+        }
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         $en = isset($_POST['enabled']) ? 1 : 0;
         $mss = max(30, (int)($_POST['max_song_seconds'] ?? 600));
         $mql = max(1, (int)($_POST['max_queue_length'] ?? 20));
         $pvl = max(1, (int)($_POST['per_viewer_limit'] ?? 2));
         $vol = max(0, min(100, (int)($_POST['volume'] ?? 30)));
-        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume) VALUES (1, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume)");
-        $stmt->bind_param("iiiii", $en, $mss, $mql, $pvl, $vol);
+        $alc = max(0, (int)($_POST['artist_limit_count'] ?? 0));
+        $alp = (string) ($_POST['artist_limit_period'] ?? 'stream');
+        if (!in_array($alp, ['stream', 'week', 'month'], true)) {
+            $alp = 'stream';
+        }
+        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period)");
+        $stmt->bind_param("iiiiiis", $en, $mss, $mql, $pvl, $vol, $alc, $alp);
         $stmt->execute();
         $stmt->close();
     }
@@ -49,7 +63,7 @@ try {
         $stmt->close();
     }
 
-    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume FROM media_request_settings WHERE id=1");
+    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period FROM media_request_settings WHERE id=1");
     if ($res && ($row = $res->fetch_assoc())) {
         $mediaSettings = $row;
     }
@@ -88,8 +102,20 @@ ob_start();
                 <input class="sp-input" type="number" name="max_queue_length" min="1" value="<?php echo (int)$mediaSettings['max_queue_length']; ?>"></label>
             <label class="sp-label"><?php echo t('media_player_per_viewer'); ?>
                 <input class="sp-input" type="number" name="per_viewer_limit" min="1" value="<?php echo (int)$mediaSettings['per_viewer_limit']; ?>"></label>
-            <label class="sp-label"><?php echo t('media_player_volume'); ?>
-                <input id="vol-range" class="modern-volume" type="range" min="0" max="100" value="<?php echo (int)$mediaSettings['volume']; ?>"></label>
+            <label class="sp-label"><?php echo t('media_player_artist_limit'); ?>
+                <input class="sp-input" type="number" name="artist_limit_count" min="0" value="<?php echo (int)($mediaSettings['artist_limit_count'] ?? 0); ?>">
+                <span class="sp-help"><?php echo t('media_player_artist_limit_help'); ?></span></label>
+            <label class="sp-label"><?php echo t('media_player_artist_period'); ?>
+                <select class="sp-select" name="artist_limit_period">
+                    <?php $artistPeriod = (string)($mediaSettings['artist_limit_period'] ?? 'stream'); ?>
+                    <option value="stream" <?php echo $artistPeriod === 'stream' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_stream'); ?></option>
+                    <option value="week" <?php echo $artistPeriod === 'week' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_week'); ?></option>
+                    <option value="month" <?php echo $artistPeriod === 'month' ? 'selected' : ''; ?>><?php echo t('media_player_artist_period_month'); ?></option>
+                </select></label>
+            <div>
+                <label class="sp-label" for="vol-range"><?php echo t('media_player_volume'); ?></label>
+                <input id="vol-range" name="volume" class="modern-volume" type="range" min="0" max="100" value="<?php echo (int)$mediaSettings['volume']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_volume')); ?>">
+            </div>
             <button class="sp-btn sp-btn-primary" type="submit" name="save_settings" value="1"><?php echo t('media_player_save'); ?></button>
         </form>
     </div>
@@ -203,7 +229,12 @@ $spotifyActAs = !empty($_SESSION['admin_act_as_active']);
                 <button id="sp-prev" class="sp-btn sp-btn-ghost" type="button" aria-label="Previous">&#9198;</button>
                 <button id="sp-playpause" class="sp-btn sp-btn-primary" type="button" aria-label="Play/Pause">&#9654;</button>
                 <button id="sp-next" class="sp-btn sp-btn-ghost" type="button" aria-label="Next">&#9197;</button>
-                <input id="sp-volume" type="range" min="0" max="100" value="0" class="modern-volume" style="flex:1; min-width:120px;" aria-label="Volume">
+                <label class="sp-label" for="sp-volume" style="margin:0;text-transform:none;letter-spacing:0;"><?php echo t('music_volume'); ?></label>
+                <input id="sp-volume" type="range" min="0" max="100" value="0" class="modern-volume" style="flex:1; min-width:120px;" aria-label="<?php echo htmlspecialchars(t('music_volume')); ?>">
+            </div>
+            <div id="sp-upcoming" style="display:none; margin-top:1rem;">
+                <div class="sp-label"><?php echo t('media_player_spotify_upcoming'); ?></div>
+                <ol id="sp-upcoming-list" style="margin:0.35rem 0 0; padding-left:1.25rem;"></ol>
             </div>
         <?php endif; ?>
     </div>
@@ -573,6 +604,7 @@ ob_start();
             setStatus(ERR.no_device);
             if (np) np.style.display = 'none';
             if (ctl) ctl.style.display = 'none';
+            renderUpcoming([]);
             durMs = 0; renderProgress();
             return;
         }
@@ -593,12 +625,36 @@ ob_start();
         $('sp-next').disabled = !!dis.skipping_next;
         $('sp-prev').disabled = !!dis.skipping_prev;
         const vol = $('sp-volume');
+        const volLabel = document.querySelector('label[for="sp-volume"]');
         if (d.device && d.device.supports_volume) {
             vol.style.display = '';
+            if (volLabel) volLabel.style.display = '';
             if (Date.now() > suppressVolUntil) vol.value = d.device.volume_percent;
         } else {
             vol.style.display = 'none';
+            if (volLabel) volLabel.style.display = 'none';
         }
+        renderUpcoming(d.upcoming);
+    }
+
+    function renderUpcoming(tracks) {
+        const box = $('sp-upcoming');
+        const list = $('sp-upcoming-list');
+        if (!box || !list) return;
+        const items = Array.isArray(tracks) ? tracks.slice(0, 5) : [];
+        list.replaceChildren();
+        if (!items.length) {
+            box.style.display = 'none';
+            return;
+        }
+        items.forEach(function (track) {
+            const li = document.createElement('li');
+            const name = track && track.name ? String(track.name) : '';
+            const artists = track && track.artists ? String(track.artists) : '';
+            li.textContent = artists ? (name + ' — ' + artists) : name;
+            list.appendChild(li);
+        });
+        box.style.display = 'block';
     }
 
     async function poll() {

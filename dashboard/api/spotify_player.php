@@ -32,6 +32,47 @@ if (!$connected) {
     exit;
 }
 
+function spotify_player_track_summary($item): ?array
+{
+    if (!is_array($item) || trim((string) ($item['name'] ?? '')) === '') {
+        return null;
+    }
+    $artists = '';
+    if (!empty($item['artists']) && is_array($item['artists'])) {
+        $names = [];
+        foreach ($item['artists'] as $artist) {
+            $name = is_array($artist) ? trim((string) ($artist['name'] ?? '')) : '';
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+        $artists = implode(', ', $names);
+    }
+    return ['name' => (string) $item['name'], 'artists' => $artists];
+}
+
+function spotify_player_upcoming(string $accessToken): array
+{
+    $ch = curl_init('https://api.spotify.com/v1/me/player/queue');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+    $resp = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($httpCode !== 200 || $resp === false || $resp === '') {
+        return [];
+    }
+    $data = json_decode($resp, true);
+    $queue = [];
+    foreach (array_slice(is_array($data['queue'] ?? null) ? $data['queue'] : [], 0, 5) as $item) {
+        $summary = spotify_player_track_summary($item);
+        if ($summary) {
+            $queue[] = $summary;
+        }
+    }
+    return $queue;
+}
+
 // Resolve the requested action.
 $action = $_POST['action'] ?? $_GET['action'] ?? 'state';
 $base = 'https://api.spotify.com/v1/me/player';
@@ -100,6 +141,7 @@ if ($action === 'state') {
                 'album_art'   => $item['album']['images'][0]['url'] ?? '',
                 'url'         => $item['external_urls']['spotify'] ?? '',
             ] : null,
+            'upcoming'      => spotify_player_upcoming($accessToken),
         ]);
         exit;
     }
