@@ -7114,7 +7114,7 @@ return [
     's3_vod_region_help' => '填服务商要求的区域。无所谓的话用 us-east-1 即可。',
     's3_vod_bucket_label' => '存储桶',
     's3_vod_prefix_label' => '对象前缀（可选）',
-    's3_vod_prefix_help' => '对象路径为 {prefix}/{用户名}/{文件名}。留空则不加额外目录。',
+    's3_vod_prefix_help' => '对象路径为 {prefix}/{用户名}/{视频标题}.mp4。留空则不加额外目录。',
     's3_vod_access_key_label' => 'Access key',
     's3_vod_secret_key_label' => 'Secret key',
     's3_vod_secret_kept' => '留空以保留当前密钥（末尾 :last4）',
