@@ -876,6 +876,10 @@ if ($s3ListOk) {
         }
         $s3Name = (string) $obj['name'];
         $s3Size = (int) ($obj['size'] ?? 0);
+        $s3Download = '';
+        if (is_array($s3Settings) && function_exists('user_s3_presign_download')) {
+            $s3Download = user_s3_presign_download($s3Settings, (string) $obj['key'], $s3Name);
+        }
         $libraryFiles[] = [
             'name' => $s3Name,
             'title' => (string) pathinfo($s3Name, PATHINFO_FILENAME),
@@ -888,7 +892,8 @@ if ($s3ListOk) {
             'on_s3' => true,
             's3_checked' => true,
             'can_extend' => false,
-            'download_url' => '',
+            'download_direct' => $s3Download !== '',
+            'download_url' => $s3Download,
             'expires_at' => null,
             'expires_unix' => 0,
             'twitch_video_id' => '',

@@ -279,6 +279,29 @@ function user_s3_list_vods(array $row): array
     return ['ok' => true, 'objects' => $objects];
 }
 
+function user_s3_presign_download(array $row, string $key, string $filename): string
+{
+    $client = user_s3_client($row, 8);
+    if (!$client || $key === '' || trim((string) ($row['bucket'] ?? '')) === '') {
+        return '';
+    }
+    $name = str_replace(['"', "\r", "\n"], '', basename($filename));
+    if ($name === '') {
+        $name = 'video.mp4';
+    }
+    try {
+        $cmd = $client->getCommand('GetObject', [
+            'Bucket' => (string) $row['bucket'],
+            'Key' => $key,
+            'ResponseContentDisposition' => 'attachment; filename="' . $name . '"',
+        ]);
+        $request = $client->createPresignedRequest($cmd, '+12 hours');
+        return (string) $request->getUri();
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
 function user_s3_drop_done_jobs(mysqli $conn, int $userId, array $ids): void
 {
     $ids = array_values(array_filter(array_map('intval', $ids), static function ($id) {

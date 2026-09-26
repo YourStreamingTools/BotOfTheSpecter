@@ -228,6 +228,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                 $kind = recordingFileKind($file);
                                 $inProgress = in_array($kind, ['recording', 'storing'], true);
                                 $canDl = !$inProgress && empty($file['is_partial']) && strtolower((string) pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4';
+                                $isUserS3 = ($file['storage'] ?? '') === 'user_s3';
                                 $tid = recordingTwitchId($file);
                                 $ytJob = $youtubeJobs[$file['name']] ?? null;
                                 $ytStatus = is_array($ytJob) ? (string) ($ytJob['status'] ?? '') : '';
@@ -276,10 +277,12 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                                         <?php if ($canDl && $namedUrl !== ''): ?>
                                             <div class="stream-hub-file-actions">
                                             <a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($namedUrl); ?>"><?php echo t('recording_btn_download'); ?></a>
-                                            <?php if (!empty($file['can_extend'])): ?>
+                                            <?php if (!$isUserS3 && !empty($file['can_extend'])): ?>
                                                 <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="<?php echo htmlspecialchars($file['name']); ?>"><?php echo t('recording_btn_extend'); ?></button>
                                             <?php endif; ?>
+                                            <?php if (!$isUserS3): ?>
                                             <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="<?php echo htmlspecialchars($file['name']); ?>" data-delete-title="<?php echo htmlspecialchars($displayTitle); ?>"><?php echo t('recording_btn_delete'); ?></button>
+                                            <?php endif; ?>
                                             <?php if ($showYoutube): ?>
                                                 <?php if ($ytStatus === 'done'): ?>
                                                     <span class="sp-badge sp-badge-green"><?php echo t('youtube_status_done'); ?></span>
@@ -1298,7 +1301,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
         var rows = '';
         files.forEach(function (file) {
             var title = displayName(file);
-            var named = namedDownloadUrl(file.download_url || '', title, file.name || '');
+            var named = file.download_direct ? String(file.download_url || '') : namedDownloadUrl(file.download_url || '', title, file.name || '');
             var kind = fileKind(file);
             var inProgress = kind === 'recording' || kind === 'storing' || !!file.is_partial;
             var canDl = !inProgress && /\.mp4$/i.test(String(file.name || ''));
@@ -1307,10 +1310,12 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             var actions = '—';
             if (canDl && named) {
                 actions = '<div class="stream-hub-file-actions"><a class="sp-btn sp-btn-primary sp-btn-sm" href="' + escapeHtml(named) + '">' + escapeHtml(I18N.download) + '</a>';
-                if (file.can_extend) {
+                if (file.storage !== 'user_s3' && file.can_extend) {
                     actions += '<button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="' + escapeHtml(file.name || '') + '">' + escapeHtml(I18N.extend) + '</button>';
                 }
-                actions += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="' + escapeHtml(file.name || '') + '" data-delete-title="' + escapeHtml(title) + '">' + escapeHtml(I18N.deleteFile) + '</button>';
+                if (file.storage !== 'user_s3') {
+                    actions += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="' + escapeHtml(file.name || '') + '" data-delete-title="' + escapeHtml(title) + '">' + escapeHtml(I18N.deleteFile) + '</button>';
+                }
                 actions += youtubeActionHtml(file, title);
                 actions += s3ActionHtml(file, title);
                 actions += '</div>';
