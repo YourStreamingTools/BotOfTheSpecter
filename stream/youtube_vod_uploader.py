@@ -22,6 +22,7 @@ import json
 import time
 import inspect
 import asyncio
+import tempfile
 from urllib.parse import urljoin
 import aiohttp
 import aiomysql
@@ -584,6 +585,59 @@ async def claim_job(pool, job_id, status):
             return cur.rowcount == 1
 
 
+def _discard_file(path):
+    if path and os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+async def pull_user_s3_vod(pool, user_id, filename, job_id):
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                """
+                SELECT endpoint, region, bucket, prefix, access_key, secret_key, path_style
+                FROM user_s3_settings WHERE user_id = %s LIMIT 1
+                """,
+                (user_id,),
+            )
+            row = await cur.fetchone()
+    if not row or not (row.get("access_key") or "") or not (row.get("bucket") or ""):
+        return None
+    from s3_vod_uploader import _object_is_absent, make_client, object_key
+
+    key = object_key(row.get("prefix") or "", filename)
+    if not key:
+        return None
+    dest = os.path.join(tempfile.gettempdir(), f"yt-s3-{int(job_id)}.mp4")
+
+    def fetch():
+        client = make_client(row)
+        state = _object_is_absent(client, row["bucket"], key)
+        if state is not False:
+            return state
+        client.download_file(row["bucket"], key, dest)
+        return False
+
+    try:
+        state = await asyncio.to_thread(fetch)
+    except Exception as exc:
+        _discard_file(dest)
+        await set_job(pool, job_id, "failed", error="s3_download_failed")
+        logger.error(f"S3 download failed for job {job_id}: {type(exc).__name__}")
+        return ""
+    if state is not False:
+        _discard_file(dest)
+        return None
+    if not os.path.isfile(dest):
+        await set_job(pool, job_id, "failed", error="s3_download_failed")
+        return ""
+    logger.info(f"Downloaded user S3 object for YouTube job {job_id}")
+    return dest
+
+
 async def process_one(pool, session):
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
@@ -624,6 +678,7 @@ async def process_one(pool, session):
         return True
 
     path = os.path.join(VOD_ROOT, username, filename)
+    s3_temp = None
     if is_twitch_vod:
         quota = await get_storage_slot(pool, user_id)
         if quota is None:
@@ -671,16 +726,27 @@ async def process_one(pool, session):
                 return True
             logger.info(f"✅ Twitch VOD saved to {path}")
     else:
+        s3_temp = None
         if not os.path.isfile(path):
-            logger.info(
-                f"⏭️  {username}/{filename} is not on this stream host ({VOD_ROOT}); leaving queued"
-            )
-            return "skipped"
-        if not await claim_job(pool, job_id, "uploading"):
+            if not await claim_job(pool, job_id, "pulling"):
+                logger.info(f"⏭️  Job {job_id} already claimed")
+                return True
+            s3_temp = await pull_user_s3_vod(pool, user_id, filename, job_id)
+            if s3_temp is None:
+                await set_job(pool, job_id, "queued")
+                logger.info(
+                    f"⏭️  {username}/{filename} is not on this stream host ({VOD_ROOT}); leaving queued"
+                )
+                return "skipped"
+            if s3_temp == "":
+                return True
+            path = s3_temp
+        elif not await claim_job(pool, job_id, "uploading"):
             logger.info(f"⏭️  Job {job_id} already claimed")
             return True
 
     if not os.path.isfile(path):
+        _discard_file(s3_temp)
         await set_job(pool, job_id, "failed", error="missing_file")
         logger.error(f"❌ Missing file for job {job_id}: {path}")
         return True
@@ -688,6 +754,7 @@ async def process_one(pool, session):
     duration_s = await probe_duration_seconds(path)
     limit = youtube_file_over_limit(path, duration_s)
     if limit:
+        _discard_file(s3_temp)
         await set_job(pool, job_id, "failed", error=f"youtube_limit:{limit}")
         logger.warning(
             f"⏭️  Job {job_id} for {username} exceeds YouTube limits ({limit}); file kept"
@@ -707,9 +774,11 @@ async def process_one(pool, session):
     if token_err is not None:
         if (token_err or {}).get("error") == "invalid_grant":
             await mark_reauth(pool, user_id)
+            _discard_file(s3_temp)
             await set_job(pool, job_id, "failed", error="youtube_reauth_required")
             logger.warning(f"🚫 YouTube re-auth required for {username}")
             return True
+        _discard_file(s3_temp)
         await set_job(pool, job_id, "failed", error="token_refresh_failed")
         logger.error(f"❌ Token refresh failed for {username}")
         return True
@@ -739,15 +808,18 @@ async def process_one(pool, session):
 
     if video_id:
         await set_progress(pool, job_id, os.path.getsize(path), os.path.getsize(path))
+        _discard_file(s3_temp)
         await set_job(pool, job_id, "done", video_id=video_id)
         logger.info(f"✅ Uploaded job {job_id} for {username} as {video_id}")
         return True
 
     reason = _error_reason(body) if body else err or "upload_failed"
     if reason in ("quotaExceeded", "uploadLimitExceeded"):
+        _discard_file(s3_temp)
         await set_job(pool, job_id, "failed", error="youtube_daily_upload_quota_reached")
         logger.warning(f"⏳ YouTube quota hit; job {job_id} marked failed for retry later")
         return True
+    _discard_file(s3_temp)
     await set_job(pool, job_id, "failed", error=str(err or reason)[:500])
     logger.error(f"❌ Upload failed for job {job_id}: {err}")
     return True
