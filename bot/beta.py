@@ -19,7 +19,7 @@ from collections import defaultdict
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from media_helpers import artist_limit_applies, artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
+from modules.media_helpers import artist_limit_applies, artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
 from websockets import ConnectionClosedError as WebSocketConnectionClosedError
@@ -6394,7 +6394,7 @@ class TwitchBot(commands.Bot):
                             error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
                             await send_chat_message(f"Sorry, I couldn't add the song to the queue. {error_message}")
                             return
-            # Run evaluate_guardrails from media_helpers.py
+            # Run evaluate_guardrails from modules/media_helpers.py
             try:
                 banlist = await get_media_banlist(connection)
             except Exception as e:

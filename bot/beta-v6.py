@@ -43,7 +43,7 @@ from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
-from media_helpers import artist_limit_applies, artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
+from modules.media_helpers import artist_limit_applies, artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
 from openai import AsyncOpenAI
 
 # Load environment variables from .env file
