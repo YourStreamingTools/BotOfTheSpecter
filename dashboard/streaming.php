@@ -125,6 +125,30 @@ foreach ($youtubeJobs as $job) {
     }
 }
 $pullingCount = count($activePulls) + $ytPullingCount;
+$ytUploadingCount = 0;
+foreach ($youtubeJobs as $job) {
+    if (is_array($job) && ($job['status'] ?? '') === 'uploading' && (!function_exists('youtube_job_is_live') || youtube_job_is_live($job))) {
+        $ytUploadingCount++;
+    }
+}
+$s3UploadingCount = 0;
+foreach ($s3Jobs as $job) {
+    if (is_array($job) && ($job['status'] ?? '') === 'uploading' && (!function_exists('user_s3_job_is_live') || user_s3_job_is_live($job))) {
+        $s3UploadingCount++;
+    }
+}
+$ytQueuedCount = 0;
+foreach ($youtubeJobs as $job) {
+    if (is_array($job) && ($job['status'] ?? '') === 'queued') {
+        $ytQueuedCount++;
+    }
+}
+$s3QueuedCount = 0;
+foreach ($s3Jobs as $job) {
+    if (is_array($job) && ($job['status'] ?? '') === 'queued') {
+        $s3QueuedCount++;
+    }
+}
 ?>
 <div class="sp-page-header">
     <h1><?php echo t('menu_streaming'); ?></h1>
@@ -147,6 +171,16 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     <div class="sp-stat<?php echo $pullingCount > 0 ? ' warn' : ''; ?>">
         <span class="sp-stat-label"><?php echo t('stream_hub_stat_pulling'); ?></span>
         <span class="sp-stat-value" id="stream-hub-stat-pulling"><?php echo (int) $pullingCount; ?></span>
+    </div>
+    <div class="sp-stat<?php echo ($ytUploadingCount + $ytQueuedCount) > 0 ? ' warn' : ''; ?>">
+        <span class="sp-stat-label"><?php echo t('stream_hub_stat_yt_uploading'); ?></span>
+        <span class="sp-stat-value" id="stream-hub-stat-yt-uploading"><?php echo (int) $ytUploadingCount; ?></span>
+        <span class="sp-stat-sub" id="stream-hub-stat-yt-queued"><?php echo htmlspecialchars(sprintf(t('stream_hub_stat_queued'), (int) $ytQueuedCount)); ?></span>
+    </div>
+    <div class="sp-stat<?php echo ($s3UploadingCount + $s3QueuedCount) > 0 ? ' warn' : ''; ?>">
+        <span class="sp-stat-label"><?php echo t('stream_hub_stat_s3_uploading'); ?></span>
+        <span class="sp-stat-value" id="stream-hub-stat-s3-uploading"><?php echo (int) $s3UploadingCount; ?></span>
+        <span class="sp-stat-sub" id="stream-hub-stat-s3-queued"><?php echo htmlspecialchars(sprintf(t('stream_hub_stat_queued'), (int) $s3QueuedCount)); ?></span>
     </div>
     <div class="sp-stat<?php echo $storageUnlimited ? ' online' : ''; ?>">
         <span class="sp-stat-label"><?php echo t('recording_storage_usage'); ?></span>
@@ -189,7 +223,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
                 ?>
                 <div class="media-storage-bar mb-4">
                     <div class="media-storage-header">
-                        <span><?php echo htmlspecialchars($label); ?></span>
+                        <span><?php echo htmlspecialchars($label); ?> — <?php echo t('youtube_vod_status_pulling'); ?></span>
                         <span><?php echo is_numeric($pct) ? htmlspecialchars((string) $pctVal) . '%' : t('youtube_vod_status_pulling'); ?></span>
                     </div>
                     <progress class="progress" value="<?php echo htmlspecialchars((string) $pctVal); ?>" max="100"></progress>
@@ -756,6 +790,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
     tabFromHash();
     var I18N = {
         pulling: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
+        queuedFmt: <?php echo json_encode(t('stream_hub_stat_queued')); ?>,
         stored: <?php echo json_encode(t('youtube_vod_status_stored')); ?>,
         failed: <?php echo json_encode(t('youtube_vod_status_failed')); ?>,
         download: <?php echo json_encode(t('recording_btn_download')); ?>,
@@ -1249,6 +1284,25 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             if (pullCard) pullCard.classList.toggle('warn', pullingN > 0);
         }
         if (usedStat && data.storage) usedStat.textContent = formatBytes(data.storage.used_bytes || 0);
+        function setPipelineStat(valueId, queuedId, jobs) {
+            var valueEl = document.getElementById(valueId);
+            var queuedEl = document.getElementById(queuedId);
+            if (!valueEl) return;
+            var uploadingN = 0;
+            var queuedN = 0;
+            Object.keys(jobs || {}).forEach(function (name) {
+                var job = jobs[name];
+                if (!job) return;
+                if (job.status === 'uploading' && job.live !== false) uploadingN += 1;
+                else if (job.status === 'queued') queuedN += 1;
+            });
+            valueEl.textContent = String(uploadingN);
+            if (queuedEl) queuedEl.textContent = String(I18N.queuedFmt || '%d queued').replace('%d', String(queuedN));
+            var card = valueEl.closest('.sp-stat');
+            if (card) card.classList.toggle('warn', uploadingN + queuedN > 0);
+        }
+        setPipelineStat('stream-hub-stat-yt-uploading', 'stream-hub-stat-yt-queued', youtubeJobs);
+        setPipelineStat('stream-hub-stat-s3-uploading', 'stream-hub-stat-s3-queued', s3Jobs);
         var pullsHost = document.getElementById('stream-hub-pulls');
         var filesHost = document.getElementById('remote-files-container');
         var pulls = Array.isArray(data.pulls) ? data.pulls : [];
@@ -1264,7 +1318,7 @@ $pullingCount = count($activePulls) + $ytPullingCount;
             var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : I18N.pulling;
             if (sentBytes > 0) pctLabel += ' · ' + formatBytes(sentBytes);
             pctLabel += speedSuffix('pull:' + (job.vod_id || job.filename || ''), sentBytes);
-            html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' + escapeHtml(label) + '</span><span>' + escapeHtml(pctLabel) + '</span></div><progress class="progress" value="' + pct + '" max="100"></progress></div>';
+            html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' + escapeHtml(label) + ' — ' + escapeHtml(I18N.pulling) + '</span><span>' + escapeHtml(pctLabel) + '</span></div><progress class="progress" value="' + pct + '" max="100"></progress></div>';
         });
         pulls.filter(function (j) { return j && j.status === 'failed'; }).forEach(function (job) {
             html += '<div class="sp-alert sp-alert-danger mb-4">' + escapeHtml(job.title || job.filename || '') + ' — ' + escapeHtml(I18N.failed) + '</div>';
