@@ -20,7 +20,7 @@ session_write_close();
 $mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream', 'artist_limit_scope' => 'all'];
 $banlist = [];
 $artistLimits = [];
-// Same normalisation as clean_request_artist()/artist_list_key() in bot/media_helpers.py, so list entries match what the bot sees.
+// Same normalisation as clean_request_artist()/artist_list_key() in bot/modules/media_helpers.py, so list entries match what the bot sees.
 function mp_artist_key($name) {
     $text = trim(preg_replace('/\s+/u', ' ', (string)$name));
     if (mb_strtolower(mb_substr($text, -8)) === ' - topic') {

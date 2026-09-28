@@ -1,4 +1,4 @@
-# ./bot/media_helpers.py
+# ./bot/modules/media_helpers.py
 import re
 
 _TITLE_CLEANUP_PATTERNS = [
