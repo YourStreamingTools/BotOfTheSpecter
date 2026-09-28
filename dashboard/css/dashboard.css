@@ -4827,6 +4827,30 @@ label.checkbox input[type="checkbox"] {
     white-space: nowrap;
     margin-bottom: 0;
 }
+.mp-artist-intro {
+    margin-bottom: 1rem;
+}
+.mp-artist-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.mp-artist-form .sp-input {
+    flex: 1;
+    min-width: 160px;
+}
+.mp-artist-list {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+.mp-artist-list li {
+    margin-bottom: 0.35rem;
+}
+.mp-artist-remove {
+    display: inline;
+}
 .cc-browser-note {
     display: flex;
     gap: 1.25rem;

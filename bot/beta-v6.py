@@ -43,7 +43,7 @@ from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
-from media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
+from media_helpers import artist_limit_applies, artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
 from openai import AsyncOpenAI
 
 # Load environment variables from .env file
@@ -15939,8 +15939,8 @@ async def send_timed_message(message_id, message, delay):
         chat_logger.info(f'Stream is offline. Message ID: {message_id} not sent.')
 
 # Media-player song request helpers (non-Spotify fallback) The per-user media tables (media_queue / media_request_settings / media_banlist) are created centrally by dashboard/usr_database.php, like every other per-user table.
-_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period FROM media_request_settings WHERE id=1"
-_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream"}
+_MEDIA_SETTINGS_SQL = "SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope FROM media_request_settings WHERE id=1"
+_MEDIA_SETTINGS_DEFAULTS = {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30, "artist_limit_count": 0, "artist_limit_period": "stream", "artist_limit_scope": "all"}
 
 async def get_media_settings(connection):
     async with connection.cursor(DictCursor) as cursor:
@@ -15950,6 +15950,7 @@ async def get_media_settings(connection):
             for alter in (
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
                 "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
+                "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
             ):
                 try:
                     await cursor.execute(alter)
@@ -15961,6 +15962,7 @@ async def get_media_settings(connection):
         return dict(_MEDIA_SETTINGS_DEFAULTS)
     row.setdefault("artist_limit_count", 0)
     row.setdefault("artist_limit_period", "stream")
+    row.setdefault("artist_limit_scope", "all")
     return row
 
 async def artist_request_block_message(connection, artist_name, settings):
@@ -15970,6 +15972,19 @@ async def artist_request_block_message(connection, artist_name, settings):
     keys = artist_match_keys(artist_name)
     if not keys:
         return None
+    scope = str(settings.get("artist_limit_scope") or "all").lower()
+    if scope not in ("all", "listed", "except_listed"):
+        scope = "all"
+    if scope != "all":
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(f"SELECT 1 AS hit FROM media_artist_limits WHERE artist_key IN ({','.join(['%s'] * len(keys))}) LIMIT 1", keys)
+                listed = (await cursor.fetchone()) is not None
+        except Exception as e:
+            api_logger.error(f"[MEDIA REQUEST] Could not read media_artist_limits, skipping artist limit: {e}")
+            return None
+        if not artist_limit_applies(scope, listed):
+            return None
     period = str(settings.get("artist_limit_period") or "stream").lower()
     if period not in ("stream", "week", "month"):
         period = "stream"

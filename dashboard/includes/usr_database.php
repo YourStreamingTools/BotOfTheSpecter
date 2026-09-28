@@ -1313,7 +1313,16 @@ try {
                 per_viewer_limit INT NOT NULL DEFAULT 2,
                 volume INT NOT NULL DEFAULT 30,
                 artist_limit_count INT NOT NULL DEFAULT 0,
-                artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'
+                artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream',
+                artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'media_artist_limits' => "
+            CREATE TABLE IF NOT EXISTS media_artist_limits (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                artist_name VARCHAR(255) NOT NULL,
+                artist_key VARCHAR(255) NOT NULL,
+                added_by VARCHAR(255) DEFAULT NULL,
+                UNIQUE KEY uniq_artist_key (artist_key)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_banlist' => "
             CREATE TABLE IF NOT EXISTS media_banlist (

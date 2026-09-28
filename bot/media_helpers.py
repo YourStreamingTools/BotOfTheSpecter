@@ -48,6 +48,16 @@ def artist_match_keys(name: str) -> list:
     topic = f"{key} - topic"
     return [key, topic] if topic != key else [key]
 
+def artist_list_key(name: str) -> str:
+    return clean_request_artist(name).lower()
+
+def artist_limit_applies(scope: str, is_listed: bool) -> bool:
+    if scope == "listed":
+        return is_listed
+    if scope == "except_listed":
+        return not is_listed
+    return True
+
 def artist_limit_reply(artist: str, limit: int, period: str) -> str:
     window = {"stream": "this stream", "week": "this week", "month": "this month"}.get(period, "this stream")
     shown = clean_request_artist(artist) or "That artist"

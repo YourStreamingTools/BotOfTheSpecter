@@ -17,12 +17,22 @@ session_write_close();
 // The media tables (media_queue / media_request_settings / media_banlist) are created
 // centrally by usr_database.php. Here we only handle settings/ban-list edits and load
 // current state. $db is the channel's own per-user database connection (same one music.php uses).
-$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream'];
+$mediaSettings = ['enabled' => 1, 'max_song_seconds' => 600, 'max_queue_length' => 20, 'per_viewer_limit' => 2, 'volume' => 30, 'artist_limit_count' => 0, 'artist_limit_period' => 'stream', 'artist_limit_scope' => 'all'];
 $banlist = [];
+$artistLimits = [];
+// Same normalisation as clean_request_artist()/artist_list_key() in bot/media_helpers.py, so list entries match what the bot sees.
+function mp_artist_key($name) {
+    $text = trim(preg_replace('/\s+/u', ' ', (string)$name));
+    if (mb_strtolower(mb_substr($text, -8)) === ' - topic') {
+        $text = trim(mb_substr($text, 0, -8));
+    }
+    return mb_strtolower($text);
+}
 try {
     foreach ([
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_period ENUM('stream','week','month') NOT NULL DEFAULT 'stream'",
+        "ALTER TABLE media_request_settings ADD COLUMN artist_limit_scope ENUM('all','listed','except_listed') NOT NULL DEFAULT 'all'",
     ] as $artistLimitSql) {
         try {
             $db->query($artistLimitSql);
@@ -40,8 +50,12 @@ try {
         if (!in_array($alp, ['stream', 'week', 'month'], true)) {
             $alp = 'stream';
         }
-        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period)");
-        $stmt->bind_param("iiiiiis", $en, $mss, $mql, $pvl, $vol, $alc, $alp);
+        $als = (string) ($_POST['artist_limit_scope'] ?? 'all');
+        if (!in_array($als, ['all', 'listed', 'except_listed'], true)) {
+            $als = 'all';
+        }
+        $stmt = $db->prepare("INSERT INTO media_request_settings (id, enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), max_song_seconds=VALUES(max_song_seconds), max_queue_length=VALUES(max_queue_length), per_viewer_limit=VALUES(per_viewer_limit), volume=VALUES(volume), artist_limit_count=VALUES(artist_limit_count), artist_limit_period=VALUES(artist_limit_period), artist_limit_scope=VALUES(artist_limit_scope)");
+        $stmt->bind_param("iiiiiiss", $en, $mss, $mql, $pvl, $vol, $alc, $alp, $als);
         $stmt->execute();
         $stmt->close();
     }
@@ -63,7 +77,7 @@ try {
         $stmt->close();
     }
 
-    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period FROM media_request_settings WHERE id=1");
+    $res = $db->query("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume, artist_limit_count, artist_limit_period, artist_limit_scope FROM media_request_settings WHERE id=1");
     if ($res && ($row = $res->fetch_assoc())) {
         $mediaSettings = $row;
     }
@@ -73,6 +87,32 @@ try {
     }
 } catch (Throwable $e) {
     // Fall back to defaults if anything goes wrong (e.g. table just created)
+}
+// The artist list has its own try so a missing media_artist_limits table (first load after deploy,
+// before usr_database.php has run) can't blank the settings and ban list above.
+try {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_artist_limit'])) {
+        $artistName = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST['artist_name'] ?? ''))), 0, 255);
+        $artistKey = mp_artist_key($artistName);
+        if ($artistKey !== '') {
+            $stmt = $db->prepare("INSERT INTO media_artist_limits (artist_name, artist_key, added_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE artist_name=VALUES(artist_name)");
+            $stmt->bind_param("sss", $artistName, $artistKey, $username);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['del_artist_limit'])) {
+        $aid = (int)$_POST['del_artist_limit'];
+        $stmt = $db->prepare("DELETE FROM media_artist_limits WHERE id=?");
+        $stmt->bind_param("i", $aid);
+        $stmt->execute();
+        $stmt->close();
+    }
+    $res = $db->query("SELECT id, artist_name FROM media_artist_limits ORDER BY artist_name ASC");
+    while ($res && ($row = $res->fetch_assoc())) {
+        $artistLimits[] = $row;
+    }
+} catch (Throwable $e) {
 }
 
 $overlayBase = "https://overlay.botofthespecter.com/mediaplayer.php";
@@ -105,6 +145,14 @@ ob_start();
             <label class="sp-label"><?php echo t('media_player_artist_limit'); ?>
                 <input class="sp-input" type="number" name="artist_limit_count" min="0" value="<?php echo (int)($mediaSettings['artist_limit_count'] ?? 0); ?>">
                 <span class="sp-help"><?php echo t('media_player_artist_limit_help'); ?></span></label>
+            <label class="sp-label"><?php echo t('media_player_artist_scope'); ?>
+                <?php $artistScope = (string)($mediaSettings['artist_limit_scope'] ?? 'all'); ?>
+                <select class="sp-select" name="artist_limit_scope">
+                    <option value="all" <?php echo $artistScope === 'all' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_all'); ?></option>
+                    <option value="listed" <?php echo $artistScope === 'listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_listed'); ?></option>
+                    <option value="except_listed" <?php echo $artistScope === 'except_listed' ? 'selected' : ''; ?>><?php echo t('media_player_artist_scope_except'); ?></option>
+                </select>
+                <span class="sp-help"><?php echo t('media_player_artist_scope_help'); ?></span></label>
             <label class="sp-label"><?php echo t('media_player_artist_period'); ?>
                 <select class="sp-select" name="artist_limit_period">
                     <?php $artistPeriod = (string)($mediaSettings['artist_limit_period'] ?? 'stream'); ?>
@@ -118,6 +166,33 @@ ob_start();
             </div>
             <button class="sp-btn sp-btn-primary" type="submit" name="save_settings" value="1"><?php echo t('media_player_save'); ?></button>
         </form>
+    </div>
+</div>
+
+<div class="sp-card mb-4">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-user-lock"></i> <?php echo t('media_player_artist_list'); ?></span>
+    </header>
+    <div class="sp-card-body">
+        <p class="sp-help mp-artist-intro"><?php echo t('media_player_artist_list_help'); ?></p>
+        <form method="post" class="mp-artist-form">
+            <input class="sp-input" name="artist_name" maxlength="255" required placeholder="<?php echo htmlspecialchars(t('media_player_artist_list_placeholder')); ?>">
+            <button class="sp-btn sp-btn-primary" type="submit" name="add_artist_limit" value="1"><?php echo t('media_player_add'); ?></button>
+        </form>
+        <?php if (empty($artistLimits)): ?>
+            <p class="sp-help"><?php echo t('media_player_artist_list_empty'); ?></p>
+        <?php else: ?>
+            <ul class="mp-artist-list">
+                <?php foreach ($artistLimits as $a): ?>
+                    <li>
+                        <?php echo htmlspecialchars($a['artist_name']); ?>
+                        <form method="post" class="mp-artist-remove">
+                            <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit" name="del_artist_limit" value="<?php echo (int)$a['id']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_artist_list_remove')); ?>">✕</button>
+                        </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
     </div>
 </div>
 
