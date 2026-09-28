@@ -654,6 +654,18 @@ $pet = [
     'start_happiness' => 80,
     'start_hunger' => 80,
     'start_energy' => 80,
+    'alert_enabled' => 0,
+    'alert_threshold' => 10,
+    'alert_cooldown_minutes' => 30,
+    'alert_msg_energy' => '',
+    'alert_msg_hunger' => '',
+    'alert_msg_happiness' => '',
+];
+// Shown as the placeholder when a low stat message box is left empty; keep in step with PET_ALERT_DEFAULT_MESSAGES in bot/modules/pet.py.
+$petAlertDefaults = [
+    'energy' => "(pet) is running low on energy.\n(pet) is exhausted, let them rest. Don't forget me!",
+    'hunger' => "(pet) is hungry, consider feeding the pet.\n(pet) is starving. Don't forget me!",
+    'happiness' => "(pet) is not very happy right now.\n(pet) is feeling down. Don't forget me!",
 ];
 $petAnimations = [];
 $petTriggers = [];
@@ -688,6 +700,17 @@ if (pet_table_exists($db, 'pet_settings')) {
         $st->close();
     }
 }
+// Low stat alert columns are read on their own so a missing column (before usr_database.php has added it) can't break the rest of the page.
+try {
+    $alertRes = $db->query('SELECT alert_enabled, alert_threshold, alert_cooldown_minutes, alert_msg_energy, alert_msg_hunger, alert_msg_happiness FROM pet_settings WHERE id = 1');
+    if ($alertRes && ($alertRow = $alertRes->fetch_assoc())) {
+        $pet = array_merge($pet, array_filter($alertRow, static fn($v) => $v !== null));
+    }
+} catch (Throwable $e) {
+}
+$pet['alert_enabled'] = ((int) ($pet['alert_enabled'] ?? 0)) === 1 ? 1 : 0;
+$pet['alert_threshold'] = pet_clamp_stat($pet['alert_threshold'] ?? 10);
+$pet['alert_cooldown_minutes'] = max(0, min(1440, (int) ($pet['alert_cooldown_minutes'] ?? 30)));
 if (!in_array((string) ($pet['position'] ?? ''), $petAllowedPositions, true)) {
     $pet['position'] = 'bottom-right';
 }
@@ -887,6 +910,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
         $startHappiness = pet_clamp_stat($_POST['happiness'] ?? 80);
         $startHunger = pet_clamp_stat($_POST['hunger'] ?? 80);
         $startEnergy = pet_clamp_stat($_POST['energy'] ?? 80);
+        $alertEnabled = ((int) ($_POST['alert_enabled'] ?? 0)) === 1 ? 1 : 0;
+        $alertThreshold = pet_clamp_stat($_POST['alert_threshold'] ?? 10);
+        $alertCooldown = max(0, min(1440, (int) ($_POST['alert_cooldown_minutes'] ?? 30)));
+        $alertMessages = [];
+        foreach (['energy', 'hunger', 'happiness'] as $alertStat) {
+            $lines = [];
+            foreach (preg_split('/\R/u', (string) ($_POST['alert_msg_' . $alertStat] ?? '')) as $line) {
+                $line = trim(preg_replace('/\s+/u', ' ', $line));
+                if ($line !== '') {
+                    $lines[] = mb_substr($line, 0, 200);
+                }
+            }
+            $alertMessages[$alertStat] = implode("\n", array_slice($lines, 0, 10));
+        }
 
         $db->begin_transaction();
         try {
@@ -922,6 +959,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pet_action'])) {
                 throw new Exception($stmt->error);
             }
             $stmt->close();
+
+            $alertStmt = $db->prepare(
+                'UPDATE pet_settings SET alert_enabled = ?, alert_threshold = ?, alert_cooldown_minutes = ?, '
+                . 'alert_msg_energy = ?, alert_msg_hunger = ?, alert_msg_happiness = ? WHERE id = 1'
+            );
+            if (!$alertStmt) {
+                throw new Exception($db->error);
+            }
+            $alertStmt->bind_param(
+                'iiisss',
+                $alertEnabled,
+                $alertThreshold,
+                $alertCooldown,
+                $alertMessages['energy'],
+                $alertMessages['hunger'],
+                $alertMessages['happiness']
+            );
+            if (!$alertStmt->execute()) {
+                throw new Exception($alertStmt->error);
+            }
+            $alertStmt->close();
 
             $stateRes = $db->query('SELECT happiness, hunger, energy FROM pet_state WHERE id = 1');
             $stateRow = $stateRes ? $stateRes->fetch_assoc() : null;
@@ -1703,6 +1761,35 @@ ob_start();
                 <input type="number" id="petDecayEnergy" name="decay_energy" class="sp-input" min="0" max="99.99" step="0.25" value="<?= htmlspecialchars(number_format((float) $pet['decay_energy'], 2, '.', '')) ?>">
             </div>
         </div>
+        <div class="sp-form-group">
+            <span class="sp-label"><?= t('pet_alerts_title') ?></span>
+            <p class="sp-help"><?= t('pet_alerts_help') ?></p>
+            <div class="pet-page-toggle-row">
+                <label class="switch">
+                    <input type="checkbox" id="petAlertEnabled" <?= $pet['alert_enabled'] === 1 ? 'checked' : '' ?>>
+                    <span><?= t('pet_alerts_enabled') ?></span>
+                </label>
+            </div>
+        </div>
+        <div class="pet-page-form-grid">
+            <div class="sp-form-group">
+                <label class="sp-label" for="petAlertThreshold"><?= t('pet_alert_threshold') ?></label>
+                <input type="number" id="petAlertThreshold" class="sp-input" min="0" max="100" step="1" value="<?= (int) $pet['alert_threshold'] ?>">
+            </div>
+            <div class="sp-form-group">
+                <label class="sp-label" for="petAlertCooldown"><?= t('pet_alert_cooldown') ?></label>
+                <input type="number" id="petAlertCooldown" class="sp-input" min="0" max="1440" step="1" value="<?= (int) $pet['alert_cooldown_minutes'] ?>">
+                <span class="sp-help"><?= t('pet_alert_cooldown_help') ?></span>
+            </div>
+        </div>
+        <div class="pet-page-form-grid">
+            <?php foreach (['energy', 'hunger', 'happiness'] as $alertStat): ?>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="petAlertMsg<?= ucfirst($alertStat) ?>"><?= t('pet_alert_msg_' . $alertStat) ?></label>
+                    <textarea id="petAlertMsg<?= ucfirst($alertStat) ?>" class="sp-textarea" rows="4" maxlength="2200" placeholder="<?= htmlspecialchars($petAlertDefaults[$alertStat]) ?>"><?= htmlspecialchars((string) ($pet['alert_msg_' . $alertStat] ?? '')) ?></textarea>
+                </div>
+            <?php endforeach; ?>
+        </div>
         <div class="pet-page-save-row">
             <span class="pet-page-save-status" id="petSaveStatus"></span>
             <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-save"></i> <?= t('pet_save_settings') ?></button>
@@ -2380,7 +2467,13 @@ ob_start();
                 decay_energy: document.getElementById('petDecayEnergy')?.value || '1',
                 happiness: document.getElementById('petStartHappiness')?.value || '80',
                 hunger: document.getElementById('petStartHunger')?.value || '80',
-                energy: document.getElementById('petStartEnergy')?.value || '80'
+                energy: document.getElementById('petStartEnergy')?.value || '80',
+                alert_enabled: document.getElementById('petAlertEnabled')?.checked ? '1' : '0',
+                alert_threshold: document.getElementById('petAlertThreshold')?.value || '10',
+                alert_cooldown_minutes: document.getElementById('petAlertCooldown')?.value || '30',
+                alert_msg_energy: document.getElementById('petAlertMsgEnergy')?.value || '',
+                alert_msg_hunger: document.getElementById('petAlertMsgHunger')?.value || '',
+                alert_msg_happiness: document.getElementById('petAlertMsgHappiness')?.value || ''
             }).then((data) => {
                 setStatus(saveStatus, !!(data && data.success), (data && (data.message || data.error)) || '');
                 if (data && data.success) {

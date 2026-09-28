@@ -1363,6 +1363,12 @@ try {
                 start_happiness TINYINT UNSIGNED NOT NULL DEFAULT 80,
                 start_hunger TINYINT UNSIGNED NOT NULL DEFAULT 80,
                 start_energy TINYINT UNSIGNED NOT NULL DEFAULT 80,
+                alert_enabled TINYINT(1) NOT NULL DEFAULT 0,
+                alert_threshold TINYINT UNSIGNED NOT NULL DEFAULT 10,
+                alert_cooldown_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+                alert_msg_energy TEXT NULL,
+                alert_msg_hunger TEXT NULL,
+                alert_msg_happiness TEXT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'pet_animations' => "
