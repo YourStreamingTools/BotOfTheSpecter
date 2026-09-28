@@ -19,6 +19,13 @@ function pet_template_anims($overrides = []) {
         $extra = isset($overrides[$name]) && is_array($overrides[$name]) ? $overrides[$name] : [];
         $anims[$name] = array_merge($frame, ['file' => $name . '.png'], $extra);
     }
+    // gift.png is a 30-frame open, held-open, then a hard cut back to closed on loop (pops when it repeats
+    // during a gift_sub celebration, or if a streamer sets it as their idle animation). The art is unchanged;
+    // the CDN file is now 58 frames (open 0-29, then the same frames played back 28-1) so it closes again
+    // before looping. Only bump frame_count when the caller hasn't already given 'gift' its own override.
+    if (isset($anims['gift']) && !isset($overrides['gift']['frame_count'])) {
+        $anims['gift']['frame_count'] = 58;
+    }
     return $anims;
 }
 
@@ -59,7 +66,10 @@ function pet_template_catalog() {
             'name_key' => 'pet_template_dog_name',
             'desc_key' => 'pet_template_dog_desc',
             'preview' => 'idle.png',
-            'animations' => array_merge(pet_template_anims(), pet_template_extra_anims(['bark', 'bite'])),
+            // sad.png was a hard cut from standing (frames 0-9) to lying down (10-29) with no way back,
+            // so looping it snapped the dog upright again. The CDN file is now 58 frames (the same lie-down,
+            // then played back in reverse) so it stands back up before looping instead of popping.
+            'animations' => array_merge(pet_template_anims(['sad' => ['frame_count' => 58]]), pet_template_extra_anims(['bark', 'bite'])),
         ],
         'bat' => [
             'id' => 'bat',
@@ -137,7 +147,7 @@ function pet_template_cdn_url($packId, $file) {
     if ($packId === '' || $file === '') {
         return '';
     }
-    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20260827';
+    return PET_TEMPLATE_CDN_BASE . rawurlencode($packId) . '/' . rawurlencode($file) . '?v=20260929';
 }
 
 function pet_parse_template_sprite($filename) {
