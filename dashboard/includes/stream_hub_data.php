@@ -101,6 +101,17 @@ if (!function_exists('formatBytes')) {
     }
 }
 
+if (!function_exists('stream_hub_format_duration')) {
+    function stream_hub_format_duration($seconds): string
+    {
+        if ($seconds === null || $seconds === '' || !is_numeric($seconds) || (int) $seconds < 0) {
+            return '—';
+        }
+        $seconds = (int) $seconds;
+        return sprintf('%d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+    }
+}
+
 if (!function_exists('stream_hub_fetch_helix_videos')) {
     function stream_hub_fetch_helix_videos(string $accessToken, string $clientId, string $channelUserId, int $maxItems = 1000): array
     {
@@ -403,6 +414,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ], $ok ? 200 : 400);
         }
         stream_hub_redirect('library', $msg, $ok ? 'is-success' : 'is-warning');
+    }
+    if ($action === 'send_twitch_s3') {
+        $wantsJson = stream_hub_wants_json();
+        if ($isActAsUser) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('s3_vod_actas_disabled')], 403);
+            }
+            stream_hub_redirect('import', t('s3_vod_actas_disabled'), 'is-warning');
+        }
+        $vodId = trim((string) ($_POST['vod_id'] ?? ''));
+        $vodTitle = trim((string) ($_POST['vod_title'] ?? ''));
+        $queued = user_s3_enqueue_twitch_vod($conn, $userId, $vodId, $vodTitle !== '' ? $vodTitle : null);
+        $ok = !empty($queued['ok']);
+        $msg = $ok ? t('s3_vod_twitch_queued') : user_s3_error_message((string) ($queued['error'] ?? 'db'));
+        if ($ok && !empty($queued['already']) && ($queued['status'] ?? '') === 'done') {
+            $msg = t('s3_vod_already_done');
+        } elseif ($ok && !empty($queued['already'])) {
+            $msg = t('s3_vod_already_queued');
+        }
+        if ($wantsJson) {
+            stream_hub_json([
+                'ok' => $ok,
+                'status' => (string) ($queued['status'] ?? ''),
+                'vod_id' => $vodId,
+                'filename' => youtube_twitch_video_id_ok($vodId) ? youtube_twitch_filename($vodId) : '',
+                'message' => $msg,
+            ], $ok ? 200 : 400);
+        }
+        stream_hub_redirect('import', $msg, $ok ? 'is-success' : 'is-warning');
     }
     if ($action === 'disconnect' && $canYoutube) {
         if ($isActAsUser) {
@@ -727,6 +767,7 @@ if (!$list['ok']) {
                 $libraryFiles[] = [
                     'name' => $name,
                     'title' => $title,
+                    'duration_seconds' => isset($row['duration_seconds']) && $row['duration_seconds'] !== null ? (int) $row['duration_seconds'] : null,
                     'size' => $size,
                     'size_bytes' => $size,
                     'modified' => $mtime,
@@ -772,6 +813,41 @@ if ($canYoutube && isset($conn) && $conn instanceof mysqli) {
         youtube_fail_stale_jobs($conn, $userId);
     }
     $youtubeJobs = youtube_upload_map($conn, $userId);
+}
+
+// YouTube / S3 jobs for a Twitch VOD sit in 'pulling' while the shared download runs;
+// show that download's live progress on them.
+if (!function_exists('stream_hub_overlay_pull_progress')) {
+    function stream_hub_overlay_pull_progress(array &$jobs, array $livePullsById): void
+    {
+        foreach ($jobs as $jobName => $jobRow) {
+            if (!is_array($jobRow) || ($jobRow['status'] ?? '') !== 'pulling') {
+                continue;
+            }
+            $tid = (string) ($jobRow['twitch_video_id'] ?? '');
+            if ($tid === '' && preg_match('/^twitch-([0-9]{1,20})\.mp4$/i', (string) $jobName, $m)) {
+                $tid = $m[1];
+            }
+            if ($tid === '' || !isset($livePullsById[$tid])) {
+                continue;
+            }
+            $pull = $livePullsById[$tid];
+            $jobs[$jobName]['progress_percent'] = is_numeric($pull['percent'] ?? null) ? (float) $pull['percent'] : 0.0;
+            $jobs[$jobName]['bytes_sent'] = (int) ($pull['bytes'] ?? 0);
+            $jobs[$jobName]['bytes_total'] = (int) ($pull['bytes_total'] ?? 0);
+            $jobs[$jobName]['updated_unix'] = time();
+        }
+    }
+}
+$livePullsById = [];
+foreach ($pullJobs as $pull) {
+    if (is_array($pull) && ($pull['status'] ?? '') === 'pulling' && (string) ($pull['vod_id'] ?? '') !== '') {
+        $livePullsById[(string) $pull['vod_id']] = $pull;
+    }
+}
+if ($livePullsById) {
+    stream_hub_overlay_pull_progress($youtubeJobs, $livePullsById);
+    stream_hub_overlay_pull_progress($s3Jobs, $livePullsById);
 }
 
 $isAjax = isset($_GET['ajax']);

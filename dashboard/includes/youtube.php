@@ -675,6 +675,7 @@ function youtube_fail_stale_jobs(mysqli $conn, int $userId): int
         "UPDATE youtube_vod_uploads
          SET status = 'failed', error_message = 'stale_progress'
          WHERE user_id = ? AND status IN ('pulling','uploading')
+           AND NOT (status = 'pulling' AND source = 'twitch_vod')
            AND updated_at < (NOW() - INTERVAL $age SECOND)"
     );
     if (!$stmt) {

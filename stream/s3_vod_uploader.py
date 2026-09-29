@@ -11,6 +11,7 @@ import aiomysql
 import logging
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
+from twitch_vod_downloader import pull_gate
 
 try:
     import fcntl
@@ -234,11 +235,30 @@ async def claim_job(pool, job_id):
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "UPDATE user_s3_uploads SET status = 'uploading', error_message = NULL WHERE id = %s AND status = 'queued'",
+                "UPDATE user_s3_uploads SET status = 'uploading', error_message = NULL "
+                "WHERE id = %s AND status IN ('queued', 'pulling')",
                 (job_id,),
             )
             await conn.commit()
             return cur.rowcount == 1
+
+
+async def mark_waiting_on_pull(pool, job_id, pull):
+    """Job stays 'pulling' while the shared Twitch pull runs; mirror its progress."""
+    pull = pull or {}
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                UPDATE user_s3_uploads
+                SET status = 'pulling', error_message = NULL, bytes_sent = %s, bytes_total = %s,
+                    progress_percent = %s, updated_at = NOW()
+                WHERE id = %s AND status IN ('queued', 'pulling')
+                """,
+                (int(pull.get("bytes_sent") or 0), int(pull.get("bytes_total") or 0),
+                 float(pull.get("progress_percent") or 0), job_id),
+            )
+            await conn.commit()
 
 
 async def fail_stale_jobs(pool):
@@ -284,35 +304,45 @@ def upload_file_sync(client, path, bucket, key, size, progress_state):
     )
 
 
-async def process_one(pool):
+async def process_one(pool, skip_ids):
+    skip_sql = ""
+    params = []
+    if skip_ids:
+        skip_sql = "AND u.id NOT IN (" + ", ".join(["%s"] * len(skip_ids)) + ")"
+        params = list(skip_ids)
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
-                """
-                SELECT u.id AS job_id, u.user_id, u.filename, u.title,
+                f"""
+                SELECT u.id AS job_id, u.user_id, u.filename, u.title, u.status AS job_status,
+                       u.source, u.twitch_video_id,
                        s.endpoint, s.region, s.bucket, s.prefix, s.access_key, s.secret_key, s.path_style,
                        usr.username
                 FROM user_s3_uploads u
                 JOIN user_s3_settings s ON s.user_id = u.user_id
                 JOIN users usr ON usr.id = u.user_id
-                WHERE u.status = 'queued'
+                WHERE (u.status = 'queued' OR (u.status = 'pulling' AND u.source = 'twitch_vod'))
                   AND s.endpoint IS NOT NULL AND s.endpoint != ''
                   AND s.bucket IS NOT NULL AND s.bucket != ''
                   AND s.access_key IS NOT NULL AND s.access_key != ''
                   AND s.secret_key IS NOT NULL AND s.secret_key != ''
+                  {skip_sql}
                 ORDER BY u.id ASC
                 LIMIT 1
-                """
+                """,
+                params,
             )
             job = await cur.fetchone()
     if not job:
-        logger.info("No queued user S3 VOD copies")
+        if not skip_ids:
+            logger.info("No queued user S3 VOD copies")
         return None
 
     job_id = job["job_id"]
     username = job["username"]
     filename = job["filename"]
-    logger.info(f"Starting S3 copy job {job_id} for {username} ({filename})")
+    twitch_video_id = (job.get("twitch_video_id") or "").strip()
+    is_twitch_vod = (job.get("source") or "stream") == "twitch_vod"
     if not SAFE_USER.match(username or "") or not _safe_filename(filename):
         await set_job(pool, job_id, "failed", error="unsafe_path")
         return True
@@ -320,10 +350,29 @@ async def process_one(pool):
         await set_job(pool, job_id, "failed", error="bad_endpoint")
         return True
     path = os.path.join(VOD_ROOT, username, filename)
-    upload_name = upload_basename(filename, job.get("title") or "", path)
-    if not os.path.isfile(path):
+    if is_twitch_vod:
+        if not twitch_video_id:
+            await set_job(pool, job_id, "failed", error="missing_twitch_video_id")
+            return True
+        gate, info = await pull_gate(
+            pool, job["user_id"], username, twitch_video_id, job.get("title") or "", path,
+            waiting=job.get("job_status") == "pulling",
+        )
+        if gate == "failed":
+            await set_job(pool, job_id, "failed", error=f"twitch_pull_failed:{info}"[:500])
+            logger.error(f"Twitch pull for S3 job {job_id} ({twitch_video_id}) failed: {info}")
+            return True
+        if gate == "waiting":
+            await mark_waiting_on_pull(pool, job_id, info)
+            logger.info(f"S3 job {job_id} waiting on Twitch VOD {twitch_video_id} download")
+            skip_ids.add(job_id)
+            return "waiting"
+    elif not os.path.isfile(path):
         logger.info(f"{username}/{filename} is not on this stream host; leaving queued")
+        skip_ids.add(job_id)
         return "skipped"
+    upload_name = upload_basename(filename, job.get("title") or "", path)
+    logger.info(f"Starting S3 copy job {job_id} for {username} ({filename})")
     if not await claim_job(pool, job_id):
         return True
     size = os.path.getsize(path)
@@ -395,9 +444,10 @@ async def main():
         return
     try:
         await fail_stale_jobs(pool)
+        skip_ids = set()
         while True:
-            result = await process_one(pool)
-            if result is None or result == "skipped":
+            result = await process_one(pool, skip_ids)
+            if result is None:
                 break
     except Exception as e:
         logger.error(f"S3 copier error: {e}")

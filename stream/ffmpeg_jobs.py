@@ -67,9 +67,47 @@ def sidecar_paths_for_media(media_path: str) -> list:
     ]
 
 
+def media_meta_path(media_path: str) -> str:
+    base = media_path or ""
+    if base.endswith(".part"):
+        base = base[:-5]
+    if base.lower().endswith(".mp4"):
+        return base[:-4] + ".json"
+    return os.path.splitext(base)[0] + ".json"
+
+
+def read_media_meta(media_path: str) -> dict:
+    meta = load_json(media_meta_path(media_path), {})
+    return meta if isinstance(meta, dict) else {}
+
+
+def update_media_meta(media_path: str, **fields: Any) -> dict:
+    """Merge fields into the per-video JSON sidecar (title, vod_id, duration_seconds)."""
+    path = media_meta_path(media_path)
+    meta = read_media_meta(media_path)
+    meta.update({k: v for k, v in fields.items() if v is not None})
+    # Temp name still ends in .json so recording listings keep skipping it.
+    tmp = path[:-5] + ".tmp.json"
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(meta, handle)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+    return meta
+
+
 def remove_media_and_sidecars(media_path: str) -> int:
     removed = 0
     seen = set()
+    base = media_path[:-5] if media_path.endswith(".part") else media_path
+    segments = base + ".part.d"
+    if os.path.isdir(segments):
+        import shutil
+
+        shutil.rmtree(segments, ignore_errors=True)
+        removed += 1
     for path in [media_path, *sidecar_paths_for_media(media_path)]:
         if not path or path in seen:
             continue

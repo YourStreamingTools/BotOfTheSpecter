@@ -66,6 +66,10 @@ foreach ($youtubeJobs as $jobName => $job) {
     if ($ytBarStatus !== 'uploading' && $ytBarStatus !== 'pulling') {
         continue;
     }
+    // Waiting on a Twitch download: the download's own bar already shows it.
+    if ($ytBarStatus === 'pulling' && (string) ($job['twitch_video_id'] ?? '') !== '') {
+        continue;
+    }
     if (function_exists('youtube_job_is_live') && !youtube_job_is_live($job)) {
         continue;
     }
@@ -120,7 +124,7 @@ ob_start();
 $libraryCount = count($libraryFiles);
 $ytPullingCount = 0;
 foreach ($youtubeJobs as $job) {
-    if (is_array($job) && ($job['status'] ?? '') === 'pulling') {
+    if (is_array($job) && ($job['status'] ?? '') === 'pulling' && (string) ($job['twitch_video_id'] ?? '') === '') {
         $ytPullingCount++;
     }
 }
@@ -139,13 +143,14 @@ foreach ($s3Jobs as $job) {
 }
 $ytQueuedCount = 0;
 foreach ($youtubeJobs as $job) {
-    if (is_array($job) && ($job['status'] ?? '') === 'queued') {
+    $st = is_array($job) ? (string) ($job['status'] ?? '') : '';
+    if ($st === 'queued' || ($st === 'pulling' && (string) ($job['twitch_video_id'] ?? '') !== '')) {
         $ytQueuedCount++;
     }
 }
 $s3QueuedCount = 0;
 foreach ($s3Jobs as $job) {
-    if (is_array($job) && ($job['status'] ?? '') === 'queued') {
+    if (is_array($job) && in_array((string) ($job['status'] ?? ''), ['queued', 'pulling'], true)) {
         $s3QueuedCount++;
     }
 }
@@ -250,6 +255,7 @@ foreach ($s3Jobs as $job) {
                                 <th><?php echo t('recording_th_file'); ?></th>
                                 <th><?php echo t('recording_th_type'); ?></th>
                                 <th><?php echo t('recording_th_size'); ?></th>
+                                <th><?php echo t('recording_th_length'); ?></th>
                                 <th><?php echo t('recording_th_expires'); ?></th>
                                 <th><?php echo t('recording_th_action'); ?></th>
                             </tr>
@@ -300,6 +306,7 @@ foreach ($s3Jobs as $job) {
                                         </div>
                                     </td>
                                     <td><?php echo htmlspecialchars(formatBytes((int) $file['size'])); ?></td>
+                                    <td><?php echo htmlspecialchars(stream_hub_format_duration($file['duration_seconds'] ?? $durSeconds)); ?></td>
                                     <td>
                                         <?php if (!empty($file['expires_unix'])): ?>
                                             <span class="recording-countdown" data-expires="<?php echo (int) $file['expires_unix']; ?>">—</span>
@@ -494,6 +501,9 @@ foreach ($s3Jobs as $job) {
                                             </form>
                                             <?php endif; ?>
                                             </span>
+                                        <?php endif; ?>
+                                        <?php if ($canS3 && $vid !== ''): ?>
+                                            <span data-vod-s3></span>
                                         <?php endif; ?>
                                         </div>
                                     </td>
@@ -832,6 +842,7 @@ foreach ($s3Jobs as $job) {
         retryS3: <?php echo json_encode(t('s3_vod_retry')); ?>,
         s3Queued: <?php echo json_encode(t('s3_vod_status_queued')); ?>,
         s3Uploading: <?php echo json_encode(t('s3_vod_status_uploading')); ?>,
+        s3Pulling: <?php echo json_encode(t('s3_vod_status_pulling')); ?>,
         s3Done: <?php echo json_encode(t('s3_vod_status_done')); ?>,
         s3SendFailed: <?php echo json_encode(t('s3_vod_send_failed')); ?>
     };
@@ -841,6 +852,16 @@ foreach ($s3Jobs as $job) {
     var youtubeJobs = <?php echo json_encode(array_map('youtube_job_client_row', $youtubeJobs), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
     var canS3 = <?php echo (!empty($canS3)) ? 'true' : 'false'; ?>;
     var s3Jobs = <?php echo json_encode($s3Jobs ? array_map('user_s3_job_client_row', $s3Jobs) : new stdClass(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS); ?>;
+    var storedOnS3 = <?php
+        $onS3Ids = [];
+        foreach ($libraryFiles as $f) {
+            $fid = recordingTwitchId($f);
+            if ($fid !== '' && !empty($f['on_s3'])) {
+                $onS3Ids[$fid] = true;
+            }
+        }
+        echo json_encode($onS3Ids ?: new stdClass());
+    ?>;
     var YT_MAX_SECONDS = 12 * 3600;
     var YT_MAX_BYTES = 256 * 1024 * 1024 * 1024;
     function escapeHtml(value) {
@@ -908,6 +929,17 @@ foreach ($s3Jobs as $job) {
             return (Number(tw[1] || 0) * 3600) + (Number(tw[2] || 0) * 60) + Number(tw[3] || 0);
         }
         return null;
+    }
+    function formatDuration(seconds) {
+        if (seconds == null || !isFinite(seconds) || seconds < 0) return '—';
+        seconds = Math.round(seconds);
+        var pad = function (v) { return String(v).padStart(2, '0'); };
+        return Math.floor(seconds / 3600) + ':' + pad(Math.floor((seconds % 3600) / 60)) + ':' + pad(seconds % 60);
+    }
+    function fileDurationSeconds(file) {
+        if (file && file.duration_seconds != null && isFinite(Number(file.duration_seconds))) return Number(file.duration_seconds);
+        var tid = twitchIdOf(file);
+        return tid ? parseDurationSeconds(helixDurations[tid] || '') : null;
     }
     function youtubeLimitReason(durationS, sizeBytes) {
         if (durationS != null && durationS > YT_MAX_SECONDS) return 'too_long';
@@ -1000,6 +1032,40 @@ foreach ($s3Jobs as $job) {
                 row.getAttribute('data-vod-duration') || ''
             );
         });
+        document.querySelectorAll('tr[data-vod-id] [data-vod-s3]').forEach(function (cell) {
+            if (cell.querySelector('.sp-btn-loading')) return;
+            var row = cell.closest('tr[data-vod-id]');
+            if (!row) return;
+            cell.innerHTML = importS3ActionHtml(row.getAttribute('data-vod-id') || '', row.getAttribute('data-vod-title') || '');
+        });
+    }
+    function s3JobForVod(vodId) {
+        var jobs = s3Jobs || {};
+        if (jobs['twitch-' + vodId + '.mp4']) return jobs['twitch-' + vodId + '.mp4'];
+        var found = null;
+        Object.keys(jobs).forEach(function (name) {
+            if (jobs[name] && String(jobs[name].twitch_video_id || '') === String(vodId)) found = jobs[name];
+        });
+        return found || {};
+    }
+    function importS3ActionHtml(vodId, title) {
+        if (!canS3 || !vodId) return '';
+        var job = s3JobForVod(vodId);
+        var status = String(job.status || '');
+        if (storedOnS3[vodId] || status === 'done') return '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.s3Done) + '</span>';
+        if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Queued) + '</span>';
+        var pct = Number(job.percent);
+        var extra = (isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
+        if (status === 'pulling' && s3JobLive(job)) return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Pulling + extra) + '</span>';
+        if (status === 'uploading' && s3JobLive(job)) {
+            return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Uploading + extra + speedSuffix('s3:twitch-' + vodId + '.mp4', job.bytes_sent)) + '</span>';
+        }
+        var label = status ? I18N.retryS3 : I18N.sendS3;
+        return '<form method="post" action="streaming.php#import" data-send-s3="1">'
+            + '<input type="hidden" name="action" value="send_twitch_s3">'
+            + '<input type="hidden" name="vod_id" value="' + escapeHtml(vodId) + '">'
+            + '<input type="hidden" name="vod_title" value="' + escapeHtml(title || '') + '">'
+            + '<button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">' + escapeHtml(label) + '</button></form>';
     }
     function youtubeActionHtml(file, title) {
         if (!canUpload || !file || file.is_partial || fileKind(file) === 'recording' || fileKind(file) === 'storing' || !/\.mp4$/i.test(String(file.name || ''))) return '';
@@ -1184,6 +1250,8 @@ foreach ($s3Jobs as $job) {
         Object.keys(youtubeJobs || {}).forEach(function (name) {
             var job = youtubeJobs[name];
             if (!job || (job.status !== 'uploading' && job.status !== 'pulling') || !youtubeJobLive(job)) return;
+            // Waiting on a Twitch download: that download has its own bar.
+            if (job.status === 'pulling' && job.twitch_video_id) return;
             var pct = Number(job.percent);
             if (!isFinite(pct)) pct = 0;
             pct = Math.max(0, Math.min(100, pct));
@@ -1236,7 +1304,7 @@ foreach ($s3Jobs as $job) {
     function s3JobLive(job) {
         if (!job) return false;
         if (job.status === 'queued') return true;
-        if (job.status !== 'uploading') return false;
+        if (job.status !== 'uploading' && job.status !== 'pulling') return false;
         if (typeof job.live === 'boolean') return job.live;
         return true;
     }
@@ -1247,6 +1315,7 @@ foreach ($s3Jobs as $job) {
         if (status === 'done' && file.s3_checked === false) return '';
         if (status === 'done') status = '';
         if (status === 'queued') return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Queued) + '</span>';
+        if (status === 'pulling' && s3JobLive(job)) return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.s3Pulling) + '</span>';
         if (status === 'uploading' && s3JobLive(job)) {
             var pct = Number(job.percent);
             var extra = (isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
@@ -1267,6 +1336,13 @@ foreach ($s3Jobs as $job) {
         if (typeof data.can_upload === 'boolean') canUpload = data.can_upload;
         if (data.s3_jobs && typeof data.s3_jobs === 'object') s3Jobs = data.s3_jobs;
         if (typeof data.can_s3 === 'boolean') canS3 = data.can_s3;
+        if (Array.isArray(data.files)) {
+            storedOnS3 = {};
+            data.files.forEach(function (file) {
+                var fid = twitchIdOf(file);
+                if (fid && file.on_s3) storedOnS3[fid] = true;
+            });
+        }
         renderUploadBars();
         updateImportYoutubeCells();
         updateStorageBar(data.storage);
@@ -1277,7 +1353,8 @@ foreach ($s3Jobs as $job) {
         if (pullStat) {
             var pullingN = (data.pulls || []).filter(function (j) { return j && j.status === 'pulling'; }).length;
             Object.keys(youtubeJobs || {}).forEach(function (name) {
-                if (youtubeJobs[name] && youtubeJobs[name].status === 'pulling') pullingN += 1;
+                var yj = youtubeJobs[name];
+                if (yj && yj.status === 'pulling' && !yj.twitch_video_id) pullingN += 1;
             });
             pullStat.textContent = String(pullingN);
             var pullCard = pullStat.closest('.sp-stat');
@@ -1294,7 +1371,7 @@ foreach ($s3Jobs as $job) {
                 var job = jobs[name];
                 if (!job) return;
                 if (job.status === 'uploading' && job.live !== false) uploadingN += 1;
-                else if (job.status === 'queued') queuedN += 1;
+                else if (job.status === 'queued' || (job.status === 'pulling' && job.twitch_video_id)) queuedN += 1;
             });
             valueEl.textContent = String(uploadingN);
             if (queuedEl) queuedEl.textContent = String(I18N.queuedFmt || '%d queued').replace('%d', String(queuedN));
@@ -1376,9 +1453,9 @@ foreach ($s3Jobs as $job) {
             }
             var expires = Number(file.expires_unix || file.expires_at_unix || 0);
             var expCell = expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—';
-            rows += '<tr><td>' + check + '</td><td>' + escapeHtml(title) + '</td><td>' + type + '</td><td>' + formatBytes(file.size || file.size_bytes || 0) + '</td><td>' + expCell + '</td><td>' + actions + '</td></tr>';
+            rows += '<tr><td>' + check + '</td><td>' + escapeHtml(title) + '</td><td>' + type + '</td><td>' + formatBytes(file.size || file.size_bytes || 0) + '</td><td>' + escapeHtml(formatDuration(fileDurationSeconds(file))) + '</td><td>' + expCell + '</td><td>' + actions + '</td></tr>';
         });
-        filesHost.innerHTML = '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all"></th><th><?php echo htmlspecialchars(t('recording_th_file')); ?></th><th><?php echo htmlspecialchars(t('recording_th_type')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('recording_th_expires')); ?></th><th><?php echo htmlspecialchars(t('recording_th_action')); ?></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        filesHost.innerHTML = '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all"></th><th><?php echo htmlspecialchars(t('recording_th_file')); ?></th><th><?php echo htmlspecialchars(t('recording_th_type')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('recording_th_length')); ?></th><th><?php echo htmlspecialchars(t('recording_th_expires')); ?></th><th><?php echo htmlspecialchars(t('recording_th_action')); ?></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
         document.querySelectorAll('.youtube-vod-pick').forEach(function (box) {
             if (selected[box.getAttribute('data-vod-url') || '']) box.checked = true;
         });
@@ -1419,17 +1496,21 @@ foreach ($s3Jobs as $job) {
                 if (ok) {
                     pollSeq += 1;
                     var fileInput = form.querySelector('input[name="filename"]');
-                    var titleInput = form.querySelector('input[name="file_title"]');
-                    var name = (json.filename || (fileInput && fileInput.value) || '').trim();
+                    var s3VodInput = form.querySelector('input[name="vod_id"]');
+                    var titleInput = form.querySelector('input[name="file_title"], input[name="vod_title"]');
+                    var name = (json.filename || (fileInput && fileInput.value) || (s3VodInput && s3VodInput.value ? ('twitch-' + s3VodInput.value + '.mp4') : '')).trim();
                     if (name) {
                         s3Jobs[name] = s3Jobs[name] || {};
                         s3Jobs[name].status = json.status || 'queued';
                         s3Jobs[name].filename = name;
                         if (titleInput && titleInput.value) s3Jobs[name].title = titleInput.value;
+                        if (s3VodInput && s3VodInput.value) s3Jobs[name].twitch_video_id = s3VodInput.value;
                         if (s3Jobs[name].percent == null) s3Jobs[name].percent = 0;
                         s3Jobs[name].live = true;
                     }
+                    if (btn) btn.classList.remove('sp-btn-loading');
                     renderUploadBars();
+                    updateImportYoutubeCells();
                     poll();
                 } else if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
                 return;
@@ -1450,6 +1531,7 @@ foreach ($s3Jobs as $job) {
                         if (vodInput && vodInput.value) youtubeJobs[name].twitch_video_id = vodInput.value;
                         if (youtubeJobs[name].percent == null) youtubeJobs[name].percent = 0;
                     }
+                    if (btn) btn.classList.remove('sp-btn-loading');
                     renderUploadBars();
                     updateImportYoutubeCells();
                     poll();
