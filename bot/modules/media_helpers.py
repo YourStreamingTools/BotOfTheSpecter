@@ -58,6 +58,18 @@ def artist_limit_applies(scope: str, is_listed: bool) -> bool:
         return not is_listed
     return True
 
+def resolve_artist_limit(global_limit, scope, listed, custom_count):
+    """Cap for this artist, or None when no cap applies.
+    custom_count is None when the artist has no per-artist number.
+    A custom count of 0 means that artist is unlimited."""
+    if custom_count is not None:
+        cap = int(custom_count)
+        return cap if cap > 0 else None
+    if not artist_limit_applies(str(scope or "all"), bool(listed)):
+        return None
+    cap = int(global_limit or 0)
+    return cap if cap > 0 else None
+
 def artist_limit_reply(artist: str, limit: int, period: str) -> str:
     window = {"stream": "this stream", "week": "this week", "month": "this month"}.get(period, "this stream")
     shown = clean_request_artist(artist) or "That artist"

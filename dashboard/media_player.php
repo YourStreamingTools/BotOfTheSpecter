@@ -28,6 +28,14 @@ function mp_artist_key($name) {
     }
     return mb_strtolower($text);
 }
+// Blank means use the global cap. 0 means this artist has no cap.
+function mp_artist_override($raw) {
+    $text = trim((string)$raw);
+    if ($text === '') {
+        return null;
+    }
+    return max(0, (int)$text);
+}
 try {
     foreach ([
         "ALTER TABLE media_request_settings ADD COLUMN artist_limit_count INT NOT NULL DEFAULT 0",
@@ -91,12 +99,37 @@ try {
 // The artist list has its own try so a missing media_artist_limits table (first load after deploy,
 // before usr_database.php has run) can't blank the settings and ban list above.
 try {
+    try {
+        $db->query("ALTER TABLE media_artist_limits ADD COLUMN limit_count INT NULL DEFAULT NULL");
+    } catch (Throwable $ignored) {
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_artist_limit'])) {
         $artistName = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST['artist_name'] ?? ''))), 0, 255);
         $artistKey = mp_artist_key($artistName);
+        $artistOverride = mp_artist_override($_POST['artist_limit_override'] ?? '');
         if ($artistKey !== '') {
-            $stmt = $db->prepare("INSERT INTO media_artist_limits (artist_name, artist_key, added_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE artist_name=VALUES(artist_name)");
-            $stmt->bind_param("sss", $artistName, $artistKey, $username);
+            if ($artistOverride === null) {
+                $stmt = $db->prepare("INSERT INTO media_artist_limits (artist_name, artist_key, added_by, limit_count) VALUES (?,?,?,NULL) ON DUPLICATE KEY UPDATE artist_name=VALUES(artist_name), limit_count=NULL");
+                $stmt->bind_param("sss", $artistName, $artistKey, $username);
+            } else {
+                $stmt = $db->prepare("INSERT INTO media_artist_limits (artist_name, artist_key, added_by, limit_count) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE artist_name=VALUES(artist_name), limit_count=VALUES(limit_count)");
+                $stmt->bind_param("sssi", $artistName, $artistKey, $username, $artistOverride);
+            }
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_artist_limit'])) {
+        $aid = (int)$_POST['save_artist_limit'];
+        $artistOverride = mp_artist_override($_POST['artist_limit_override'] ?? '');
+        if ($aid > 0) {
+            if ($artistOverride === null) {
+                $stmt = $db->prepare("UPDATE media_artist_limits SET limit_count=NULL WHERE id=?");
+                $stmt->bind_param("i", $aid);
+            } else {
+                $stmt = $db->prepare("UPDATE media_artist_limits SET limit_count=? WHERE id=?");
+                $stmt->bind_param("ii", $artistOverride, $aid);
+            }
             $stmt->execute();
             $stmt->close();
         }
@@ -108,7 +141,7 @@ try {
         $stmt->execute();
         $stmt->close();
     }
-    $res = $db->query("SELECT id, artist_name FROM media_artist_limits ORDER BY artist_name ASC");
+    $res = $db->query("SELECT id, artist_name, limit_count FROM media_artist_limits ORDER BY artist_name ASC");
     while ($res && ($row = $res->fetch_assoc())) {
         $artistLimits[] = $row;
     }
@@ -176,17 +209,26 @@ ob_start();
     <div class="sp-card-body">
         <p class="sp-help mp-artist-intro"><?php echo t('media_player_artist_list_help'); ?></p>
         <form method="post" class="mp-artist-form">
-            <input class="sp-input" name="artist_name" maxlength="255" required placeholder="<?php echo htmlspecialchars(t('media_player_artist_list_placeholder')); ?>">
+            <label class="sp-label mp-artist-field mp-artist-field-name"><?php echo t('media_player_artist_list_placeholder'); ?>
+                <input class="sp-input" name="artist_name" maxlength="255" required placeholder="<?php echo htmlspecialchars(t('media_player_artist_list_placeholder')); ?>">
+            </label>
+            <label class="sp-label mp-artist-field mp-artist-field-limit"><?php echo t('media_player_artist_custom_limit'); ?>
+                <input class="sp-input" type="number" name="artist_limit_override" min="0" placeholder="<?php echo htmlspecialchars(t('media_player_artist_custom_placeholder')); ?>">
+            </label>
             <button class="sp-btn sp-btn-primary" type="submit" name="add_artist_limit" value="1"><?php echo t('media_player_add'); ?></button>
         </form>
+        <p class="sp-help"><?php echo t('media_player_artist_custom_help'); ?></p>
         <?php if (empty($artistLimits)): ?>
             <p class="sp-help"><?php echo t('media_player_artist_list_empty'); ?></p>
         <?php else: ?>
             <ul class="mp-artist-list">
                 <?php foreach ($artistLimits as $a): ?>
-                    <li>
-                        <?php echo htmlspecialchars($a['artist_name']); ?>
-                        <form method="post" class="mp-artist-remove">
+                    <?php $overrideValue = ($a['limit_count'] === null || $a['limit_count'] === '') ? '' : (int)$a['limit_count']; ?>
+                    <li class="mp-artist-row">
+                        <span class="mp-artist-name"><?php echo htmlspecialchars($a['artist_name']); ?></span>
+                        <form method="post" class="mp-artist-row-form">
+                            <input class="sp-input mp-artist-limit" type="number" name="artist_limit_override" min="0" value="<?php echo $overrideValue; ?>" placeholder="<?php echo htmlspecialchars(t('media_player_artist_custom_placeholder')); ?>" aria-label="<?php echo htmlspecialchars(t('media_player_artist_custom_limit')); ?>">
+                            <button class="sp-btn sp-btn-secondary sp-btn-sm" type="submit" name="save_artist_limit" value="<?php echo (int)$a['id']; ?>"><?php echo t('media_player_save'); ?></button>
                             <button class="sp-btn sp-btn-ghost sp-btn-sm" type="submit" name="del_artist_limit" value="<?php echo (int)$a['id']; ?>" aria-label="<?php echo htmlspecialchars(t('media_player_artist_list_remove')); ?>">✕</button>
                         </form>
                     </li>

@@ -1322,6 +1322,7 @@ try {
                 artist_name VARCHAR(255) NOT NULL,
                 artist_key VARCHAR(255) NOT NULL,
                 added_by VARCHAR(255) DEFAULT NULL,
+                limit_count INT NULL DEFAULT NULL,
                 UNIQUE KEY uniq_artist_key (artist_key)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'media_banlist' => "
