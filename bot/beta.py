@@ -19,7 +19,7 @@ from collections import defaultdict
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
-from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line, resolve_artist_limit
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line, load_open_song_requests, record_open_song_request, resolve_artist_limit, same_requester, sync_song_request_cache
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
@@ -3628,6 +3628,7 @@ class TwitchBot(commands.Bot):
         await builtin_commands_creation()
         await load_word_replace_settings(force=True)
         await load_media_settings()
+        await load_song_request_cache()
         await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         looped_tasks["periodic_stream_metadata_refresh"] = create_task(periodic_stream_metadata_refresh())
@@ -6159,6 +6160,16 @@ class TwitchBot(commands.Bot):
                     requested_by = None
                     if song_id in song_requests:
                         requested_by = song_requests[song_id].get("user")
+                    if not requested_by and song_id:
+                        try:
+                            await cursor.execute(
+                                "SELECT requested_by FROM song_request_analytics WHERE in_queue=1 AND song_id=%s ORDER BY id DESC LIMIT 1",
+                                (song_id,),
+                            )
+                            request_row = await cursor.fetchone()
+                            requested_by = request_row.get("requested_by") if request_row else None
+                        except Exception:
+                            requested_by = None
                     if requested_by:
                         await send_chat_message(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
@@ -6251,11 +6262,9 @@ class TwitchBot(commands.Bot):
                                 currently_playing = data.get('currently_playing')
                                 if currently_playing and 'uri' in currently_playing:
                                     queue_ids.add(currently_playing['uri'])
-                                for song_id in list(song_requests):
-                                    if song_id not in queue_ids:
-                                        song_info = song_requests[song_id]
-                                        del song_requests[song_id]
-                                        api_logger.info(f"[SONG REQUEST] Song \"{song_info['song_name']} by {song_info['artist_name']}\" removed from tracking list (real-time sync).")
+                                removed = await sync_song_request_cache(connection, song_requests, queue_ids)
+                                for _song_id, song_info in removed:
+                                    api_logger.info(f"[SONG REQUEST] Song \"{song_info.get('song_name')} by {song_info.get('artist_name')}\" removed from tracking list (real-time sync).")
             except Exception as e:
                 api_logger.error(f"[SONG REQUEST] Failed to prune song requests before limit check: {e}")
             # Enforce song limit check (broadcaster/streamer is exempt)
@@ -6441,11 +6450,7 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
                         add_usage('songrequest', bucket_key, cooldown_bucket)
                         try:
-                            async with connection.cursor() as analytics_cursor:
-                                await analytics_cursor.execute(
-                                    "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
-                                    (song_name, artist_name, ctx.message.author.name)
-                                )
+                            await record_open_song_request(connection, song_id, song_name, artist_name, ctx.message.author.name)
                         except Exception as analytics_err:
                             api_logger.error(f"[SONG REQUEST] Failed to record analytics: {analytics_err}")
                     else:
@@ -6582,20 +6587,33 @@ class TwitchBot(commands.Bot):
                 # Check if the user is the requester of the currently playing song
                 is_requester = False
                 if not await command_permissions(permissions, ctx.author):
-                    # Before denying, check if they requested the current song
+                    # Requester is stored on song_request_analytics (in_queue=1). Memory is only a cache.
                     try:
+                        author_name = ctx.author.name
                         req_access_token = await get_spotify_access_token()
-                        req_headers = {"Authorization": f"Bearer {req_access_token}"}
-                        async with httpClientSession() as req_session:
-                            async with req_session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=req_headers) as req_response:
-                                if req_response.status == 200:
-                                    req_data = await req_response.json()
-                                    item = req_data.get("item")
-                                    current_song_id = item.get("uri") if item else None
-                                    if current_song_id and current_song_id in song_requests:
-                                        requested_user = song_requests[current_song_id].get("user")
-                                        if requested_user and requested_user.lower() == ctx.author.name.lower():
+                        if req_access_token:
+                            req_headers = {"Authorization": f"Bearer {req_access_token}"}
+                            async with httpClientSession() as req_session:
+                                async with req_session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=req_headers) as req_response:
+                                    if req_response.status == 200:
+                                        req_data = await req_response.json()
+                                        item = req_data.get("item")
+                                        current_song_id = item.get("uri") if item else None
+                                        requested_user = song_requests.get(current_song_id, {}).get("user") if current_song_id else None
+                                        if not requested_user and current_song_id:
+                                            await cursor.execute(
+                                                "SELECT requested_by FROM song_request_analytics WHERE in_queue=1 AND song_id=%s ORDER BY id DESC LIMIT 1",
+                                                (current_song_id,),
+                                            )
+                                            request_row = await cursor.fetchone()
+                                            requested_user = request_row.get("requested_by") if request_row else None
+                                        if same_requester(requested_user, author_name):
                                             is_requester = True
+                        else:
+                            await cursor.execute("SELECT requested_by FROM media_queue WHERE status='playing' ORDER BY id LIMIT 1")
+                            playing_row = await cursor.fetchone()
+                            if playing_row and same_requester(playing_row.get("requested_by"), author_name):
+                                is_requester = True
                     except Exception:
                         pass
                     if not is_requester:
@@ -19385,33 +19403,61 @@ async def track_watch_time(active_users):
         if connection:
             await connection.close()
 
+async def load_song_request_cache():
+    global song_requests
+    connection = None
+    try:
+        connection = await mysql_connection()
+        loaded = await load_open_song_requests(connection)
+        for song_id, info in loaded.items():
+            song_requests.setdefault(song_id, info)
+        if loaded:
+            api_logger.info(f"[SONG REQUEST] Restored {len(loaded)} open request(s) from the database.")
+    except Exception as e:
+        api_logger.error(f"[SONG REQUEST] Could not restore open requests: {e}")
+    finally:
+        if connection:
+            await connection.close()
+
 # Function to periodically check the queue
 async def check_song_requests():
     global song_requests
     while True:
         await sleep(180)
-        if song_requests:
-            # Get the Spotify access token from the database
-            access_token = await get_spotify_access_token()
-            headers = { "Authorization": f"Bearer {access_token}" }
+        access_token = await get_spotify_access_token()
+        if not access_token:
+            continue
+        connection = None
+        try:
+            connection = await mysql_connection()
+            if not song_requests:
+                loaded = await load_open_song_requests(connection)
+                for song_id, info in loaded.items():
+                    song_requests.setdefault(song_id, info)
+            if not song_requests:
+                continue
+            headers = {"Authorization": f"Bearer {access_token}"}
             queue_url = "https://api.spotify.com/v1/me/player/queue"
             async with httpClientSession() as session:
                 async with session.get(queue_url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if data and 'queue' in data:
-                            queue = data['queue']
-                            queue_ids = {song['uri'] for song in queue}
-                            currently_playing = data.get('currently_playing')
-                            if currently_playing and 'uri' in currently_playing:
-                                queue_ids.add(currently_playing['uri'])
-                            for song_id in list(song_requests):
-                                if song_id not in queue_ids:
-                                    song_info = song_requests[song_id]
-                                    del song_requests[song_id]
-                                    api_logger.info(f"[SONG REQUEST] Song \"{song_info['song_name']} by {song_info['artist_name']}\" removed from tracking list.")
-                    else:
+                    if response.status != 200:
                         api_logger.error(f"[SONG REQUEST] Failed to fetch queue from Spotify, status code: {response.status}")
+                        continue
+                    data = await response.json()
+            if not data or "queue" not in data:
+                continue
+            queue_ids = {song["uri"] for song in data["queue"]}
+            currently_playing = data.get("currently_playing")
+            if currently_playing and "uri" in currently_playing:
+                queue_ids.add(currently_playing["uri"])
+            removed = await sync_song_request_cache(connection, song_requests, queue_ids)
+            for _song_id, song_info in removed:
+                api_logger.info(f"[SONG REQUEST] Song \"{song_info.get('song_name')} by {song_info.get('artist_name')}\" removed from tracking list.")
+        except Exception as e:
+            api_logger.error(f"[SONG REQUEST] Failed to sync open requests: {e}")
+        finally:
+            if connection:
+                await connection.close()
 
 # Function to return the action back to the user
 async def return_the_action_back(ctx, author, action):
