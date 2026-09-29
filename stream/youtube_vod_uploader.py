@@ -17,18 +17,16 @@ Not the bot host. Not twitch-recorder /mnt/blockstorage.
 """
 import os
 import re
-import sys
 import json
 import time
-import inspect
 import asyncio
 import tempfile
-from urllib.parse import urljoin
 import aiohttp
 import aiomysql
 import logging
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
+from twitch_vod_downloader import pull_gate
 
 try:
     import fcntl
@@ -48,19 +46,6 @@ UPLOAD_INIT = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=re
 CHUNK_SIZE = 64 * 1024 * 1024
 YOUTUBE_MAX_DURATION_S = 12 * 3600
 YOUTUBE_MAX_BYTES = 256 * 1024 * 1024 * 1024
-TWITCH_WEB_CLIENT_ID = os.getenv("TWITCH_WEB_CLIENT_ID", "kimne78kx3ncx6brgo4mv6wki5h1ko")
-TWITCH_GQL = "https://gql.twitch.tv/gql"
-TWITCH_USHER = "https://usher.ttvnw.net/vod/{vod_id}.m3u8"
-PLAYBACK_QUERY = """
-query PlaybackAccessToken($id: ID!, $playerType: String!) {
-  video(id: $id) {
-    playbackAccessToken(params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) {
-      value
-      signature
-    }
-  }
-}
-"""
 
 STREAM_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -111,41 +96,6 @@ def _safe_username(name):
     if not isinstance(name, str):
         return False
     return bool(re.match(r"^[a-zA-Z0-9_]{1,64}$", name))
-
-
-STREAM_STORAGE_QUOTA_BYTES = int(os.getenv("STREAM_STORAGE_QUOTA_BYTES") or str(100 * 1024 * 1024 * 1024))
-
-
-def _directory_size_bytes(path):
-    total = 0
-    if not os.path.isdir(path):
-        return 0
-    for root, _dirs, files in os.walk(path):
-        for name in files:
-            file_path = os.path.join(root, name)
-            try:
-                total += os.path.getsize(file_path)
-            except OSError:
-                continue
-    return total
-
-
-async def get_storage_slot(pool, user_id):
-    async with pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute(
-                "SELECT quota_bytes, bonus_bytes FROM stream_storage_slots WHERE user_id = %s LIMIT 1",
-                (user_id,),
-            )
-            row = await cur.fetchone()
-    if not row:
-        return STREAM_STORAGE_QUOTA_BYTES
-    raw_quota = row.get("quota_bytes")
-    quota = STREAM_STORAGE_QUOTA_BYTES if raw_quota is None else int(raw_quota)
-    bonus = int(row.get("bonus_bytes") or 0)
-    if quota == 0:
-        return 0
-    return quota + bonus
 
 
 async def read_json(resp):
@@ -349,210 +299,6 @@ async def resumable_upload(session, access_token, path, title, privacy, on_progr
     return None, "incomplete", None
 
 
-def _pick_hls_variant(master_text):
-    best_url = None
-    best_bw = -1
-    chunked_url = None
-    lines = master_text.splitlines()
-    for i, line in enumerate(lines):
-        if not line.startswith("#EXT-X-STREAM-INF"):
-            continue
-        url = lines[i + 1].strip() if i + 1 < len(lines) else ""
-        if not url or url.startswith("#"):
-            continue
-        bw = -1
-        m = re.search(r"BANDWIDTH=(\d+)", line)
-        if m:
-            bw = int(m.group(1))
-        if 'VIDEO="chunked"' in line or 'NAME="chunked"' in line:
-            chunked_url = url
-        if bw > best_bw:
-            best_bw = bw
-            best_url = url
-    return chunked_url or best_url
-
-
-def _gql_playback_headers(twitch_oauth):
-    headers = {
-        "Client-ID": TWITCH_WEB_CLIENT_ID,
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
-    }
-    oauth = (twitch_oauth or "").strip()
-    if oauth.lower().startswith("oauth:"):
-        oauth = oauth.split(":", 1)[1]
-    if oauth:
-        headers["Authorization"] = f"OAuth {oauth}"
-    return headers
-
-
-def _playback_token_from_gql(body):
-    data = body.get("data") if isinstance(body, dict) else None
-    if not isinstance(data, dict):
-        return None, None
-    token_row = data.get("videoPlaybackAccessToken")
-    if not isinstance(token_row, dict):
-        video = data.get("video") if isinstance(data.get("video"), dict) else {}
-        token_row = video.get("playbackAccessToken") if isinstance(video.get("playbackAccessToken"), dict) else {}
-    return token_row.get("value"), token_row.get("signature")
-
-
-async def twitch_vod_hls_url(session, vod_id, twitch_oauth):
-    payload = {
-        "operationName": "PlaybackAccessToken",
-        "query": PLAYBACK_QUERY,
-        "variables": {
-            "id": str(vod_id),
-            "playerType": "site",
-        },
-    }
-    attempts = [twitch_oauth, ""] if (twitch_oauth or "").strip() else [""]
-    body = {}
-    last_status = None
-    for oauth in attempts:
-        headers = _gql_playback_headers(oauth)
-        async with session.post(TWITCH_GQL, headers=headers, json=payload) as resp:
-            last_status = resp.status
-            body = await read_json(resp)
-        if last_status != 200:
-            continue
-        value, signature = _playback_token_from_gql(body)
-        if value and signature:
-            break
-    else:
-        value, signature = None, None
-    if last_status != 200 and not value:
-        return None, f"gql_http_{last_status}"
-    if not value or not signature:
-        return None, "gql_no_token"
-    params = {
-        "player": "twitchweb",
-        "allow_source": "true",
-        "allow_audio_only": "false",
-        "allow_spectre": "false",
-        "playlist_include_framerate": "true",
-        "sig": signature,
-        "token": value,
-    }
-    usher = TWITCH_USHER.format(vod_id=vod_id)
-    async with session.get(usher, params=params, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-        playlist = await resp.text()
-        playlist_url = str(resp.url)
-        if resp.status != 200 or not playlist:
-            return None, f"usher_http_{resp.status}"
-    if "#EXT-X-STREAM-INF" in playlist:
-        variant = _pick_hls_variant(playlist)
-        if not variant:
-            return None, "no_hls_variant"
-        if not variant.startswith("http"):
-            variant = urljoin(playlist_url, variant)
-        return variant, None
-    if "#EXTINF" in playlist:
-        return playlist_url, None
-    return None, "unrecognised_playlist"
-
-
-DURATION_RE = re.compile(rb"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
-TIME_RE = re.compile(rb"time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
-SIZE_RE = re.compile(rb"size=\s*(\d+)kB", re.I)
-
-
-def _hms_to_s(h, m, s):
-    return int(h) * 3600 + int(m) * 60 + float(s)
-
-
-async def ffmpeg_pull_twitch_vod(hls_url, dest_path, on_progress=None, on_pid=None):
-    from ffmpeg_jobs import find_ffmpeg_pid_for_path
-
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    part_path = dest_path + ".part"
-    if find_ffmpeg_pid_for_path(dest_path):
-        return False, "already_running"
-    if os.path.isfile(part_path):
-        try:
-            os.remove(part_path)
-        except OSError:
-            pass
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-hide_banner",
-        "-loglevel",
-        "info",
-        "-stats",
-        "-user_agent",
-        "Mozilla/5.0",
-        "-i",
-        hls_url,
-        "-c",
-        "copy",
-        "-bsf:a",
-        "aac_adtstoasc",
-        "-movflags",
-        "+faststart",
-        "-f",
-        "mp4",
-        part_path,
-    ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.PIPE,
-        start_new_session=True,
-    )
-    if on_pid:
-        on_pid(proc.pid)
-    buf = b""
-    duration_s = None
-    tail = []
-    try:
-        while True:
-            chunk = await proc.stderr.read(256)
-            if not chunk:
-                break
-            buf += chunk
-            parts = re.split(rb"[\r\n]", buf)
-            buf = parts[-1]
-            for raw in parts[:-1]:
-                if not raw:
-                    continue
-                line = raw.decode("utf-8", "replace").rstrip()
-                if line:
-                    tail.append(line)
-                    if len(tail) > 40:
-                        del tail[: len(tail) - 40]
-                if duration_s is None:
-                    dm = DURATION_RE.search(raw)
-                    if dm:
-                        duration_s = _hms_to_s(*dm.groups())
-                tm = TIME_RE.search(raw)
-                if tm and on_progress:
-                    cur = _hms_to_s(*tm.groups())
-                    pct = max(0.0, min(100.0, cur / duration_s * 100.0)) if duration_s else None
-                    sm = SIZE_RE.search(raw)
-                    nbytes = int(sm.group(1)) * 1024 if sm else None
-                    maybe = on_progress(pct, cur, duration_s, nbytes)
-                    if inspect.isawaitable(maybe):
-                        await maybe
-        rc = await proc.wait()
-    except asyncio.CancelledError:
-        # Leave ffmpeg running across a Python restart.
-        raise
-    if rc != 0 or not os.path.isfile(part_path):
-        try:
-            if os.path.isfile(part_path) and not find_ffmpeg_pid_for_path(dest_path):
-                os.remove(part_path)
-        except OSError:
-            pass
-        return False, "\n".join(tail[-8:]) or f"ffmpeg_exit_{rc}"
-    os.replace(part_path, dest_path)
-    if on_progress:
-        maybe = on_progress(100.0, duration_s or 0.0, duration_s, os.path.getsize(dest_path))
-        if inspect.isawaitable(maybe):
-            await maybe
-    return True, None
-
-
 STALE_JOB_SECONDS = 30 * 60
 
 
@@ -564,6 +310,7 @@ async def fail_stale_jobs(pool):
                 UPDATE youtube_vod_uploads
                 SET status = 'failed', error_message = 'stale_progress'
                 WHERE status IN ('pulling', 'uploading')
+                  AND NOT (status = 'pulling' AND source = 'twitch_vod')
                   AND updated_at < (NOW() - INTERVAL %s SECOND)
                 """,
                 (STALE_JOB_SECONDS,),
@@ -574,15 +321,34 @@ async def fail_stale_jobs(pool):
         logger.warning(f"Marked {n} stale YouTube job(s) as failed")
 
 
-async def claim_job(pool, job_id, status):
+async def claim_job(pool, job_id, status, from_statuses=("queued",)):
+    placeholders = ", ".join(["%s"] * len(from_statuses))
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "UPDATE youtube_vod_uploads SET status = %s, error_message = NULL WHERE id = %s AND status = 'queued'",
-                (status, job_id),
+                f"UPDATE youtube_vod_uploads SET status = %s, error_message = NULL WHERE id = %s AND status IN ({placeholders})",
+                (status, job_id, *from_statuses),
             )
             await conn.commit()
             return cur.rowcount == 1
+
+
+async def mark_waiting_on_pull(pool, job_id, pull):
+    """Job stays 'pulling' while the shared Twitch pull runs; mirror its progress."""
+    pull = pull or {}
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                UPDATE youtube_vod_uploads
+                SET status = 'pulling', error_message = NULL, bytes_sent = %s, bytes_total = %s,
+                    progress_percent = %s, updated_at = NOW()
+                WHERE id = %s AND status IN ('queued', 'pulling')
+                """,
+                (int(pull.get("bytes_sent") or 0), int(pull.get("bytes_total") or 0),
+                 float(pull.get("progress_percent") or 0), job_id),
+            )
+            await conn.commit()
 
 
 def _discard_file(path):
@@ -638,30 +404,38 @@ async def pull_user_s3_vod(pool, user_id, filename, job_id):
     return dest
 
 
-async def process_one(pool, session):
+async def process_one(pool, session, skip_ids):
+    skip_sql = ""
+    params = []
+    if skip_ids:
+        skip_sql = "AND u.id NOT IN (" + ", ".join(["%s"] * len(skip_ids)) + ")"
+        params = list(skip_ids)
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
-                """
+                f"""
                 SELECT u.id AS job_id, u.user_id, u.filename, u.title, u.privacy_status,
-                       u.source, u.twitch_video_id,
+                       u.status AS job_status, u.source, u.twitch_video_id,
                        t.access_token, t.refresh_token, t.can_upload, t.needs_reauth,
-                       usr.username, usr.access_token AS twitch_oauth
+                       usr.username
                 FROM youtube_vod_uploads u
                 JOIN youtube_tokens t ON t.user_id = u.user_id
                 JOIN users usr ON usr.id = u.user_id
-                WHERE u.status = 'queued'
+                WHERE (u.status = 'queued' OR (u.status = 'pulling' AND u.source = 'twitch_vod'))
                   AND t.refresh_token IS NOT NULL AND t.refresh_token != ''
                   AND t.needs_reauth = 0
                   AND t.can_upload = 1
                   AND usr.is_admin = 1
+                  {skip_sql}
                 ORDER BY u.id ASC
                 LIMIT 1
-                """
+                """,
+                params,
             )
             job = await cur.fetchone()
     if not job:
-        logger.info("ℹ️  No queued YouTube VOD uploads")
+        if not skip_ids:
+            logger.info("ℹ️  No queued YouTube VOD uploads")
         return None
 
     job_id = job["job_id"]
@@ -671,7 +445,6 @@ async def process_one(pool, session):
     source = (job.get("source") or "stream")
     twitch_video_id = (job.get("twitch_video_id") or "").strip()
     is_twitch_vod = source == "twitch_vod" or twitch_video_id != ""
-    logger.info(f"📤 Starting YouTube upload job {job_id} for {username} ({filename})")
     if not _safe_username(username) or not _safe_filename(filename):
         await set_job(pool, job_id, "failed", error="unsafe_path")
         logger.error(f"❌ Unsafe username or filename for job {job_id}")
@@ -680,52 +453,28 @@ async def process_one(pool, session):
     path = os.path.join(VOD_ROOT, username, filename)
     s3_temp = None
     if is_twitch_vod:
-        quota = await get_storage_slot(pool, user_id)
-        if quota is None:
-            await set_job(pool, job_id, "failed", error="no_stream_storage_slot")
-            logger.error(
-                f"❌ {username} has no stream storage slot "
-                f"(max 5 users due to limited storage space)"
-            )
+        if not twitch_video_id:
+            await set_job(pool, job_id, "failed", error="missing_twitch_video_id")
             return True
-        used = _directory_size_bytes(os.path.join(VOD_ROOT, username))
-        if quota > 0 and used >= quota:
-            await set_job(pool, job_id, "failed", error="stream_storage_full")
-            logger.error(f"❌ {username} stream storage is full ({used} / {quota} bytes)")
+        gate, info = await pull_gate(
+            pool, user_id, username, twitch_video_id, job.get("title") or "", path,
+            waiting=job.get("job_status") == "pulling",
+        )
+        if gate == "failed":
+            await set_job(pool, job_id, "failed", error=f"twitch_pull_failed:{info}"[:500])
+            logger.error(f"❌ Twitch pull for job {job_id} ({twitch_video_id}) failed: {info}")
             return True
-        if not await claim_job(pool, job_id, "pulling"):
+        if gate == "waiting":
+            await mark_waiting_on_pull(pool, job_id, info)
+            logger.info(f"⏳ Job {job_id} waiting on Twitch VOD {twitch_video_id} download")
+            skip_ids.add(job_id)
+            return "waiting"
+        if not await claim_job(pool, job_id, "uploading", ("queued", "pulling")):
             logger.info(f"⏭️  Job {job_id} already claimed")
             return True
-        await set_progress(pool, job_id, 0, 0, percent=0)
-        if not os.path.isfile(path):
-            if not twitch_video_id:
-                await set_job(pool, job_id, "failed", error="missing_twitch_video_id")
-                return True
-            logger.info(f"⬇️  Pulling Twitch VOD {twitch_video_id} via ffmpeg")
-            hls_url, hls_err = await twitch_vod_hls_url(session, twitch_video_id, job.get("twitch_oauth"))
-            if hls_err:
-                await set_job(pool, job_id, "failed", error=f"twitch_hls:{hls_err}")
-                logger.error(f"❌ Could not resolve Twitch HLS for {twitch_video_id}: {hls_err}")
-                return True
-            last_pull_at = 0.0
-
-            async def on_pull_progress(pct, cur, duration_s, nbytes):
-                nonlocal last_pull_at
-                now = time.monotonic()
-                if now - last_pull_at < 2:
-                    return
-                last_pull_at = now
-                await set_progress(pool, job_id, int(nbytes or 0), 0, percent=pct)
-                if pct is not None:
-                    logger.info(f"⬇️  Job {job_id} download {pct:.1f}%")
-
-            ok, ffmpeg_err = await ffmpeg_pull_twitch_vod(hls_url, path, on_progress=on_pull_progress)
-            if not ok:
-                await set_job(pool, job_id, "failed", error=f"ffmpeg:{ffmpeg_err}")
-                logger.error(f"❌ ffmpeg pull failed for {twitch_video_id}: {ffmpeg_err}")
-                return True
-            logger.info(f"✅ Twitch VOD saved to {path}")
+        logger.info(f"📤 Starting YouTube upload job {job_id} for {username} ({filename})")
     else:
+        logger.info(f"📤 Starting YouTube upload job {job_id} for {username} ({filename})")
         s3_temp = None
         if not os.path.isfile(path):
             if not await claim_job(pool, job_id, "pulling"):
@@ -737,6 +486,7 @@ async def process_one(pool, session):
                 logger.info(
                     f"⏭️  {username}/{filename} is not on this stream host ({VOD_ROOT}); leaving queued"
                 )
+                skip_ids.add(job_id)
                 return "skipped"
             if s3_temp == "":
                 return True
@@ -857,10 +607,13 @@ async def main():
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=300)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             await fail_stale_jobs(pool)
+            # Jobs waiting on a Twitch download (or on another host's file) are skipped
+            # for this run so they don't block the rest of the queue.
+            skip_ids = set()
             while True:
-                result = await process_one(pool, session)
-                if result is None or result == "skipped":
-                    break;
+                result = await process_one(pool, session, skip_ids)
+                if result is None:
+                    break
     except Exception as e:
         logger.error(f"❌ Uploader error: {e}")
     finally:

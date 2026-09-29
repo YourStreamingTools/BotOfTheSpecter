@@ -465,9 +465,16 @@ function user_s3_uploads_for_user(mysqli $conn, int $userId, int $limit = 100): 
     $limit = max(1, min(100, $limit));
     $stmt = $conn->prepare(
         'SELECT id, filename, title, object_key, status, error_message, bytes_sent, bytes_total, progress_percent,
-                created_at, updated_at, UNIX_TIMESTAMP(updated_at) AS updated_unix
+                created_at, updated_at, UNIX_TIMESTAMP(updated_at) AS updated_unix, source, twitch_video_id
          FROM user_s3_uploads WHERE user_id = ? ORDER BY id DESC LIMIT ' . $limit
     );
+    if (!$stmt) {
+        $stmt = $conn->prepare(
+            'SELECT id, filename, title, object_key, status, error_message, bytes_sent, bytes_total, progress_percent,
+                    created_at, updated_at, UNIX_TIMESTAMP(updated_at) AS updated_unix
+             FROM user_s3_uploads WHERE user_id = ? ORDER BY id DESC LIMIT ' . $limit
+        );
+    }
     if (!$stmt) {
         return [];
     }
@@ -500,7 +507,7 @@ function user_s3_upload_map(mysqli $conn, int $userId): array
 function user_s3_job_is_live(array $row): bool
 {
     $status = (string) ($row['status'] ?? '');
-    if ($status !== 'uploading') {
+    if ($status !== 'uploading' && $status !== 'pulling') {
         return false;
     }
     $unix = (int) ($row['updated_unix'] ?? 0);
@@ -545,6 +552,7 @@ function user_s3_job_client_row(array $row): array
         'status' => (string) ($row['status'] ?? ''),
         'title' => (string) ($row['title'] ?? ''),
         'filename' => (string) ($row['filename'] ?? ''),
+        'twitch_video_id' => (string) ($row['twitch_video_id'] ?? ''),
         'object_key' => (string) ($row['object_key'] ?? ''),
         'percent' => $pct,
         'bytes_sent' => $sent,
@@ -573,7 +581,7 @@ function user_s3_enqueue(mysqli $conn, int $userId, string $filename, ?string $t
     $title = function_exists('mb_substr') ? mb_substr($title, 0, 180) : substr($title, 0, 180);
     $check = $conn->prepare(
         "SELECT id, status FROM user_s3_uploads
-         WHERE user_id = ? AND filename = ? AND status IN ('queued','uploading','done')
+         WHERE user_id = ? AND filename = ? AND status IN ('queued','pulling','uploading','done')
          ORDER BY id DESC LIMIT 1"
     );
     if ($check) {
@@ -620,6 +628,82 @@ function user_s3_enqueue(mysqli $conn, int $userId, string $filename, ?string $t
         return ['ok' => false, 'error' => 'db'];
     }
     $ins->bind_param('iss', $userId, $filename, $title);
+    $ok = $ins->execute();
+    $ins->close();
+    return $ok ? ['ok' => true, 'status' => 'queued'] : ['ok' => false, 'error' => 'db'];
+}
+
+// Queue a Twitch VOD for S3: the stream server downloads it first (or waits for a
+// download already running), then copies it to the bucket.
+function user_s3_enqueue_twitch_vod(mysqli $conn, int $userId, string $twitchVideoId, ?string $title = null): array
+{
+    if ($userId <= 0 || !user_s3_tables_ready($conn)) {
+        return ['ok' => false, 'error' => 'not_ready'];
+    }
+    if (!youtube_twitch_video_id_ok($twitchVideoId)) {
+        return ['ok' => false, 'error' => 'bad_file'];
+    }
+    $settings = user_s3_settings_row($conn, $userId);
+    if (!user_s3_connected($settings)) {
+        return ['ok' => false, 'error' => 'not_linked'];
+    }
+    $filename = youtube_twitch_filename($twitchVideoId);
+    $title = trim((string) $title);
+    if ($title === '') {
+        $title = 'Twitch VOD ' . $twitchVideoId;
+    }
+    $title = function_exists('mb_substr') ? mb_substr($title, 0, 180) : substr($title, 0, 180);
+    $check = $conn->prepare(
+        "SELECT id, status FROM user_s3_uploads
+         WHERE user_id = ? AND (twitch_video_id = ? OR filename = ?)
+           AND status IN ('queued','pulling','uploading','done')
+         ORDER BY id DESC LIMIT 1"
+    );
+    if (!$check) {
+        return ['ok' => false, 'error' => 'not_ready'];
+    }
+    $check->bind_param('iss', $userId, $twitchVideoId, $filename);
+    $check->execute();
+    $existing = $check->get_result()->fetch_assoc();
+    $check->close();
+    if ($existing) {
+        return ['ok' => true, 'already' => true, 'status' => (string) ($existing['status'] ?? '')];
+    }
+    $failed = $conn->prepare(
+        "SELECT id FROM user_s3_uploads
+         WHERE user_id = ? AND (twitch_video_id = ? OR filename = ?) AND status = 'failed'
+         ORDER BY id DESC LIMIT 1"
+    );
+    if ($failed) {
+        $failed->bind_param('iss', $userId, $twitchVideoId, $filename);
+        $failed->execute();
+        $failedRow = $failed->get_result()->fetch_assoc();
+        $failed->close();
+        if ($failedRow) {
+            $id = (int) $failedRow['id'];
+            $upd = $conn->prepare(
+                "UPDATE user_s3_uploads
+                 SET status = 'queued', error_message = NULL, title = ?, object_key = NULL, filename = ?,
+                     source = 'twitch_vod', twitch_video_id = ?, bytes_sent = 0, bytes_total = 0, progress_percent = 0
+                 WHERE id = ?"
+            );
+            if (!$upd) {
+                return ['ok' => false, 'error' => 'db'];
+            }
+            $upd->bind_param('sssi', $title, $filename, $twitchVideoId, $id);
+            $ok = $upd->execute();
+            $upd->close();
+            return $ok ? ['ok' => true, 'status' => 'queued'] : ['ok' => false, 'error' => 'db'];
+        }
+    }
+    $ins = $conn->prepare(
+        "INSERT INTO user_s3_uploads (user_id, filename, title, status, source, twitch_video_id)
+         VALUES (?, ?, ?, 'queued', 'twitch_vod', ?)"
+    );
+    if (!$ins) {
+        return ['ok' => false, 'error' => 'db'];
+    }
+    $ins->bind_param('isss', $userId, $filename, $title, $twitchVideoId);
     $ok = $ins->execute();
     $ins->close();
     return $ok ? ['ok' => true, 'status' => 'queued'] : ['ok' => false, 'error' => 'db'];
