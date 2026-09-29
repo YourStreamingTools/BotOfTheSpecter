@@ -1,0 +1,19 @@
+[Unit]
+Description=Specter internal storage HTTP (VODs + cached media stores, VPC only)
+After=network-online.target specter-media-mount@cdn.service specter-media-mount@media.service specter-media-mount@soundalerts.service specter-media-mount@videoalerts.service specter-media-mount@walkons.service specter-media-mount@usermusic.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/specter-stream
+ExecStart=/opt/specter-stream/venv/bin/python /opt/specter-stream/storage_http.py
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/specter-stream/.env
+Environment=STORAGE_HTTP_HOST=10.240.0.9
+Environment=STORAGE_HTTP_PORT=8092
+Environment=STORAGE_MEDIA_ROOT=/mnt/specter-media
+
+[Install]
+WantedBy=multi-user.target

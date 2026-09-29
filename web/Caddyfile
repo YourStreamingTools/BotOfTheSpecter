@@ -52,26 +52,41 @@
     header @assets Cache-Control "public, max-age=31536000, immutable"
 }
 
-# Static asset hosts proxy to the object-storage origin (STORAGE_HOST /
-# STORAGE_PREFIX from caddy.env); each host appends its bucket prefix.
-(asset_origin) {
+# Durable media hosts are served by the storage server (syd1, VPC 10.240.0.9) from
+# its cached read-only Mega S4 mounts (specter-media-mount@<store>, storage_http.py).
+# Usage: import storage_origin <store>. A 404/503 there (a file uploaded seconds ago,
+# or a store that is down) and an unreachable storage server fall back to S4 directly.
+# web1 keeps no media read cache; dashboard uploads still write to S4 via its rclone mounts.
+(storage_fallback) {
+    rewrite * {env.STORAGE_PREFIX}/{args[0]}{http.request.orig_uri}
     reverse_proxy {env.STORAGE_HOST}:443 {
         header_up Host {env.STORAGE_HOST}
+        header_down -Access-Control-Allow-Origin
+        header_down -Access-Control-Allow-Methods
         transport http {
             tls
         }
     }
-    import security
-    @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
-    header @assets Cache-Control "public, max-age=31536000, immutable"
 }
 
-# Hot mp3/mp4 hosts (soundalerts, videoalerts, media) serve off the rclone
-# mount with a capped VFS disk cache. Do not use this for cdn — keep cdn on S4.
-(hot_media_origin) {
-    file_server
-    encode zstd gzip
+(storage_origin) {
+    rewrite * /media/{args[0]}{uri}
+    # HEAD is answered by the storage server only: S4's public URL returns 400 to
+    # HEAD, which would turn a missing file's 404 into a 400 (bots probe walk-ons
+    # with HEAD). Unreachable storage still falls back via handle_errors.
+    @head method HEAD
+    reverse_proxy @head 10.240.0.9:8092
+    reverse_proxy 10.240.0.9:8092 {
+        @fallback status 404 503
+        handle_response @fallback {
+            import storage_fallback {args[0]}
+        }
+    }
+    handle_errors 502 503 504 {
+        import storage_fallback {args[0]}
+    }
     import security
+    encode zstd gzip
     @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
     header @assets Cache-Control "public, max-age=31536000, immutable"
 }
@@ -349,22 +364,10 @@ vods.botofthespecter.com {
     }
 }
 
+# The S4 fallback strips the origin's reflected CORS headers so they don't
+# collide with the Access-Control-Allow-Origin set for the fonts below.
 cdn.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/cdn{uri}
-    # own proxy block: strip the origin's reflected CORS header so it doesn't
-    # collide with the Access-Control-Allow-Origin we set for the fonts below.
-    reverse_proxy {env.STORAGE_HOST}:443 {
-        header_up Host {env.STORAGE_HOST}
-        transport http {
-            tls
-        }
-        header_down -Access-Control-Allow-Origin
-        header_down -Access-Control-Allow-Methods
-    }
-    import security
-    encode zstd gzip
-    @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.ogg *.woff *.woff2 *.ttf
-    header @assets Cache-Control "public, max-age=31536000, immutable"
+    import storage_origin cdn
     header /css/fontawesome* Access-Control-Allow-Origin "*"
     header /css/fontawesome* Access-Control-Allow-Methods "GET, OPTIONS"
     log {
@@ -373,34 +376,29 @@ cdn.botofthespecter.com {
 }
 
 walkons.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/walkons{uri}
-    import asset_origin
+    import storage_origin walkons
     log {
         output file /var/log/caddy/walkons.log
     }
 }
 
 # Unified per-channel media library (migrated streamers).
-# Served from the rclone mount + capped VFS disk cache (not the S4 proxy).
 media.botofthespecter.com {
-    root * /var/www/media
-    import hot_media_origin
+    import storage_origin media
     log {
         output file /var/log/caddy/media.log
     }
 }
 
 music.botspecter.com, music.botofthespecter.com {
-    rewrite * {env.STORAGE_PREFIX}/usermusic{uri}
-    import asset_origin
+    import storage_origin usermusic
     log {
         output file /var/log/caddy/usermusic.log
     }
 }
 
 soundalerts.botofthespecter.com {
-    root * /var/www/soundalerts
-    import hot_media_origin
+    import storage_origin soundalerts
     log {
         output file /var/log/caddy/soundalerts.log
     }
@@ -424,8 +422,7 @@ tts.botofthespecter.com {
 }
 
 videoalerts.botofthespecter.com {
-    root * /var/www/videoalerts
-    import hot_media_origin
+    import storage_origin videoalerts
     log {
         output file /var/log/caddy/videoalerts.log
     }

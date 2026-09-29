@@ -17,4 +17,4 @@ All current boxes are **Ubuntu 26.04 LTS**. Operator SSH (`ssh bots`, `ssh api`,
 | `web1.botofthespecter.com` | `web` / `web1` | `66.226.145.231` | `10.240.0.4` | 2048 MB | 20 GB |
 | `websocket.botofthespecter.com` | `websocket` | `66.226.147.137` | `10.240.0.5` | 2048 MB | 40 GB |
 
-There is no backup SQL host. Stream ingest currently has one region: Sydney (`syd1.stream`). DNS is `syd1.stream.botofthespecter.com`.
+There is no backup SQL host. `syd1.stream` is the **storage server** (1 TB disk): cached media for all durable hosts plus VODs via `specter-storage` on `10.240.0.9:8092`, with RTMPS ingest, Twitch VOD pulls and YouTube/S3 uploaders as add-ons. It is the only stream ingest region; DNS is `syd1.stream.botofthespecter.com`.

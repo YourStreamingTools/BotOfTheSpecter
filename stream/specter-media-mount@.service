@@ -1,0 +1,29 @@
+[Unit]
+Description=Specter storage: cached read-only Mega S4 mount for %i
+After=network-online.target
+Wants=network-online.target
+
+# One unit per store: systemctl enable --now specter-media-mount@walkons
+# Read-only on purpose: dashboard uploads still write to S4 from web1. The VFS cache
+# lives on this host's large disk, so every file is local after its first read.
+# --use-server-modtime avoids one HEAD per file on listings/stat (S3 mtime metadata),
+# and re-uploaded files get a new server time so the cached copy is replaced.
+[Service]
+Type=notify
+ExecStartPre=/bin/mkdir -p /mnt/specter-media/%i
+ExecStart=/usr/bin/rclone mount megas4:botofthespecter/%i /mnt/specter-media/%i \
+    --config /root/.config/rclone/rclone.conf \
+    --read-only \
+    --cache-dir /var/cache/specter-media-vfs \
+    --vfs-cache-mode full \
+    --vfs-cache-max-size 50G \
+    --vfs-cache-max-age 8760h \
+    --use-server-modtime \
+    --dir-cache-time 30s
+ExecStop=/bin/fusermount3 -uz /mnt/specter-media/%i
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
