@@ -63,7 +63,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Admin Caddy control page](project_admin_caddy_page.md) — SHIPPED; localhost:2019 control plane
 - [Caddy CF token env](project_caddy_cf_token_env.md) — CF token in caddy.env; restart not reload when env changes
 - [Caddyfile deploy path](project_caddy_deploy_path.md) — live file is /etc/caddy/Caddyfile, separate from repo copy
-- [MEGA S4 public serving](project_megas4_public_serving.md) — durable hosts via Caddy reverse_proxy to S4 public-token URL; PHP I/O is rclone FUSE; TTS local disk
+- [Media storage server](project_megas4_public_serving.md) — syd1 serves all durable media hosts from cached read-only S4 mounts (web1 Caddy → 10.240.0.9:8092, S4 fallback, HEAD syd1-only); web1 mounts write-only; `--use-server-modtime` required; TTS local on web1
 - [Twitch OAuth token semantics](reference_twitch_oauth_token_semantics.md) — refresh does not invalidate prior access token
 - [Custom command aliases (BETA)](project_custom_command_aliases.md) — SHIPPED; aliases CSV + FIND_IN_SET in beta/v6
 - [Point Store](project_point_store.md) — SHIPPED; bot points loyalty store + STORE websocket
@@ -72,7 +72,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Word Replacer feature](project_word_replace_feature.md) — SHIPPED; random syllable-swap chat module (beta-only)
 - [Cloudflare zone owner](project_cloudflare_zone_owner.md) — botofthespecter.com zone on LochStudios CF account
 - [Credential logging](project_credential_logging.md) — never log raw user code/api_key
-- [rclone storage + admin file manager](project_s3fs_storage_and_file_manager.md) — MEGA S4 rclone mounts for 6 durable dirs (not TTS) + admin CDN file manager; s3fs retired
+- [rclone storage + admin file manager](project_s3fs_storage_and_file_manager.md) — web1 write-only MEGA S4 rclone mounts for PHP uploads (not TTS) + admin CDN file manager; s3fs retired
 - [V6 module host parity](project_v6_module_host_parity.md) — BETA→V6 custom channel module host call sites (websocket_notice intercept, CP, chat, Stream Bingo)
 - [Pet starter packs](project_pet_templates.md) — CDN Specter, Specter Bot, cat, dog, bat, alien, squirrel, chicken, cow, duck, bunny; 128×128, 30 frames, 15 FPS; `template:` sprite tokens
 - [YouTube VOD upload](project_youtube_vod_upload.md) — user OAuth (`youtube.readonly` + `youtube.upload`), profile connect, stream-server `videos.insert` from `/mnt/s3/bots-stream`
