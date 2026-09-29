@@ -93,6 +93,38 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
     return $column_html;
 }
 
+function build_gift_column($user_db) {
+    // The bots store each gift batch as event "Gift Subscriptions" with data like
+    // "5 - GIFT SUBSCRIPTIONS"; total them per gifter.
+    $totals = [];
+    if ($stmt = $user_db->prepare("SELECT username, data FROM stream_credits WHERE event = 'Gift Subscriptions' ORDER BY id ASC")) {
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $name = trim((string) $row['username']);
+            if ($name === '' || in_array(strtolower($name), ['ananonymousgifter', 'anonymous'], true)) {
+                $name = 'Anonymous';
+            }
+            $count = (int) $row['data'];
+            $totals[$name] = ($totals[$name] ?? 0) + max(1, $count);
+        }
+        $stmt->close();
+    }
+    if (!$totals) {
+        return '';
+    }
+    uksort($totals, 'strcasecmp');
+    $column_html = "<div class='column has-text-centered'>";
+    $column_html .= "<h2 class='subtitle has-text-white'>Gifted Subs</h2>";
+    $column_html .= "<ul class='content has-text-white'>";
+    foreach ($totals as $name => $count) {
+        $column_html .= "<li>" . sanitize_input($name) . " - " . $count . " gifted</li>";
+    }
+    $column_html .= "</ul>";
+    $column_html .= "</div>";
+    return $column_html;
+}
+
 function build_chatters_column($user_db) {
     $column_html = "<div class='column has-text-centered'>";
     $column_html .= "<h2 class='subtitle has-text-white'>Chatters</h2>";
@@ -156,6 +188,7 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 $columns .= build_event_column($user_db, 'raid', 'Raiders');
                 $columns .= build_event_column($user_db, 'bits', 'Cheers');
                 $columns .= build_event_column($user_db, 'subscriptions', 'Subscriptions');
+                $columns .= build_gift_column($user_db);
                 $columns .= build_event_column($user_db, 'watch_streak', 'Watch Streaks');
                 $columns .= build_event_column($user_db, 'follow', 'Followers', true);
                 $columns .= build_chatters_column($user_db);
