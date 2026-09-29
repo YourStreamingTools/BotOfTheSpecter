@@ -43,7 +43,7 @@ from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
 import yt_dlp
-from modules.media_helpers import artist_limit_applies, artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line
+from modules.media_helpers import artist_limit_query, artist_limit_reply, artist_match_keys, clean_request_artist, clean_youtube_title, evaluate_guardrails, format_queue_line, resolve_artist_limit
 from modules.pet import (configure as pet_configure, pet_current_stats, pet_freeze_for_stream_offline, pet_get_cache, pet_invalidate_cache, pet_low_stat_watch, pet_reset_for_new_stream, pet_try_chat_keywords, pet_try_command_trigger, pet_try_event_trigger, pet_try_interaction, pet_try_redemption_trigger)
 from openai import AsyncOpenAI
 
@@ -15473,25 +15473,40 @@ async def get_media_settings(connection):
     return row
 
 async def artist_request_block_message(connection, artist_name, settings):
-    limit = int(settings.get("artist_limit_count") or 0)
-    if limit <= 0:
-        return None
     keys = artist_match_keys(artist_name)
     if not keys:
         return None
     scope = str(settings.get("artist_limit_scope") or "all").lower()
     if scope not in ("all", "listed", "except_listed"):
         scope = "all"
-    if scope != "all":
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute(f"SELECT 1 AS hit FROM media_artist_limits WHERE artist_key IN ({','.join(['%s'] * len(keys))}) LIMIT 1", keys)
-                listed = (await cursor.fetchone()) is not None
-        except Exception as e:
-            api_logger.error(f"[MEDIA REQUEST] Could not read media_artist_limits, skipping artist limit: {e}")
-            return None
-        if not artist_limit_applies(scope, listed):
-            return None
+    custom = None
+    listed = False
+    lookup_failed = False
+    placeholders = ",".join(["%s"] * len(keys))
+    lookup_sql = f"SELECT limit_count FROM media_artist_limits WHERE artist_key IN ({placeholders}) ORDER BY limit_count IS NULL LIMIT 1"
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            try:
+                await cursor.execute(lookup_sql, keys)
+            except Exception:
+                try:
+                    await cursor.execute("ALTER TABLE media_artist_limits ADD COLUMN limit_count INT NULL DEFAULT NULL")
+                except Exception:
+                    pass
+                await cursor.execute(lookup_sql, keys)
+            row = await cursor.fetchone()
+            if row:
+                listed = True
+                if row.get("limit_count") is not None:
+                    custom = int(row["limit_count"])
+    except Exception as e:
+        lookup_failed = True
+        api_logger.error(f"[MEDIA REQUEST] Could not read media_artist_limits, using the global artist limit only: {e}")
+    if lookup_failed and scope != "all":
+        return None
+    limit = resolve_artist_limit(settings.get("artist_limit_count"), scope, listed, None if lookup_failed else custom)
+    if limit is None:
+        return None
     period = str(settings.get("artist_limit_period") or "stream").lower()
     if period not in ("stream", "week", "month"):
         period = "stream"
