@@ -164,7 +164,7 @@ overlay.botofthespecter.com {
     }
 }
 
-help.botofthespecter.com {
+help.botofthespecter.com, docs.botofthespecter.com, wiki.botofthespecter.com {
     redir https://support.botofthespecter.com{uri} permanent
 }
 
