@@ -943,6 +943,20 @@ if ($s3ListOk) {
         }
     }
     unset($libraryFile);
+    // Done copies whose local recording is already gone (e.g. Twitch VODs) never pass
+    // through the loop above; drop those too once their object is no longer in the bucket.
+    foreach ($s3Jobs as $jobName => $jobRow) {
+        if (!is_array($jobRow) || (string) ($jobRow['status'] ?? '') !== 'done') {
+            continue;
+        }
+        $jobKey = (string) ($jobRow['object_key'] ?? '');
+        $jobBase = strtolower(basename($jobKey));
+        if (($jobKey !== '' && isset($s3ByKey[$jobKey])) || ($jobBase !== '' && isset($s3ByName[$jobBase]))) {
+            continue;
+        }
+        $s3DropIds[] = (int) ($jobRow['id'] ?? 0);
+        unset($s3Jobs[$jobName]);
+    }
     if ($s3DropIds && isset($conn) && $conn instanceof mysqli && function_exists('user_s3_drop_done_jobs')) {
         user_s3_drop_done_jobs($conn, (int) $userId, $s3DropIds);
     }
