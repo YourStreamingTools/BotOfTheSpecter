@@ -443,7 +443,7 @@ class PullWorker:
         n = await self._exec(
             """
             UPDATE twitch_vod_pulls
-            SET status = 'pulling', owner_host = %s, owner_pid = %s, error_message = NULL,
+            SET status = 'pulling', phase = 'downloading', owner_host = %s, owner_pid = %s, error_message = NULL,
                 bytes_sent = 0, bytes_total = 0, progress_percent = 0,
                 username = %s, filename = %s, title = COALESCE(NULLIF(%s, ''), title), updated_at = NOW()
             WHERE user_id = %s AND twitch_video_id = %s
@@ -479,7 +479,7 @@ class PullWorker:
             except Exception as e:
                 logger.warning(f"Heartbeat failed for VOD {self.vod_id}: {e}")
 
-    async def progress(self, percent, sent, total, force=False):
+    async def progress(self, percent, sent, total, force=False, phase="downloading"):
         now = time.monotonic()
         if not force and now - self._last_progress < 2:
             return
@@ -491,10 +491,10 @@ class PullWorker:
             await self._exec(
                 """
                 UPDATE twitch_vod_pulls
-                SET progress_percent = %s, bytes_sent = %s, bytes_total = %s, updated_at = NOW()
+                SET progress_percent = %s, bytes_sent = %s, bytes_total = %s, phase = %s, updated_at = NOW()
                 WHERE user_id = %s AND twitch_video_id = %s AND owner_pid = %s
                 """,
-                (pct, int(sent), int(total), self.user_id, self.vod_id, self.pid),
+                (pct, int(sent), int(total), phase, self.user_id, self.vod_id, self.pid),
             )
         except Exception as e:
             logger.warning(f"Could not store pull progress for {self.vod_id}: {e}")
@@ -686,6 +686,7 @@ async def download_hls(session, playlist_url, dest, on_progress):
 
     part = dest + ".part"
     log_path = pull_ffmpeg_log_path(dest)
+    await on_progress(DOWNLOAD_SHARE, 0, state["bytes"], True, phase="saving")
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-nostats",
         "-progress", "pipe:1",
@@ -713,8 +714,15 @@ async def download_hls(session, playlist_url, dest, on_progress):
                         frac = min(1.0, int(value) / 1e6 / total_s)
                     except ValueError:
                         continue
+                    # Saving phase: report bytes written to the MP4 so the dashboard
+                    # shows real progress/speed instead of a frozen download total.
+                    try:
+                        written = os.path.getsize(part)
+                    except OSError:
+                        written = 0
                     await on_progress(
-                        DOWNLOAD_SHARE + (100.0 - DOWNLOAD_SHARE) * frac, state["bytes"], state["bytes"], False
+                        DOWNLOAD_SHARE + (100.0 - DOWNLOAD_SHARE) * frac, written, state["bytes"], False,
+                        phase="saving",
                     )
             rc = await proc.wait()
         except BaseException:

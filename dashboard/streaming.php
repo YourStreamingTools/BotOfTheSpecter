@@ -225,11 +225,12 @@ foreach ($s3Jobs as $job) {
                 $pct = $job['percent'];
                 $pctVal = is_numeric($pct) ? max(0, min(100, (float) $pct)) : 0;
                 $label = (string) ($job['title'] ?: ($job['filename'] ?? $job['vod_id'] ?? ''));
+                $phaseLabel = ($job['phase'] ?? '') === 'saving' ? t('youtube_vod_status_saving') : t('youtube_vod_status_pulling');
                 ?>
                 <div class="media-storage-bar mb-4">
                     <div class="media-storage-header">
-                        <span><?php echo htmlspecialchars($label); ?> — <?php echo t('youtube_vod_status_pulling'); ?></span>
-                        <span><?php echo is_numeric($pct) ? htmlspecialchars((string) $pctVal) . '%' : t('youtube_vod_status_pulling'); ?></span>
+                        <span><?php echo htmlspecialchars($label); ?> — <?php echo htmlspecialchars($phaseLabel); ?></span>
+                        <span><?php echo is_numeric($pct) ? htmlspecialchars((string) $pctVal) . '%' : htmlspecialchars($phaseLabel); ?></span>
                     </div>
                     <progress class="progress" value="<?php echo htmlspecialchars((string) $pctVal); ?>" max="100"></progress>
                 </div>
@@ -430,9 +431,11 @@ foreach ($s3Jobs as $job) {
                                 $vdur = (string) ($video['duration'] ?? '');
                                 $stored = $storedByTwitchId[$vid] ?? null;
                                 $pulling = false;
+                                $pullPhase = '';
                                 foreach ($pullJobs as $job) {
                                     if ((string) ($job['vod_id'] ?? '') === $vid && ($job['status'] ?? '') === 'pulling') {
                                         $pulling = true;
+                                        $pullPhase = (string) ($job['phase'] ?? '');
                                         break;
                                     }
                                 }
@@ -450,7 +453,7 @@ foreach ($s3Jobs as $job) {
                                         <div class="stream-hub-file-actions">
                                         <span data-vod-store>
                                         <?php if ($pulling): ?>
-                                            <span class="sp-badge sp-badge-amber"><?php echo t('youtube_vod_status_pulling'); ?></span>
+                                            <span class="sp-badge sp-badge-amber"><?php echo t($pullPhase === 'saving' ? 'youtube_vod_status_saving' : 'youtube_vod_status_pulling'); ?></span>
                                         <?php elseif ($ready): ?>
                                             <span class="sp-badge sp-badge-green"><?php echo t('youtube_vod_status_stored'); ?></span>
                                         <?php elseif (!$isActAsUser): ?>
@@ -800,6 +803,7 @@ foreach ($s3Jobs as $job) {
     tabFromHash();
     var I18N = {
         pulling: <?php echo json_encode(t('youtube_vod_status_pulling')); ?>,
+        saving: <?php echo json_encode(t('youtube_vod_status_saving')); ?>,
         queuedFmt: <?php echo json_encode(t('stream_hub_stat_queued')); ?>,
         stored: <?php echo json_encode(t('youtube_vod_status_stored')); ?>,
         failed: <?php echo json_encode(t('youtube_vod_status_failed')); ?>,
@@ -1204,6 +1208,7 @@ foreach ($s3Jobs as $job) {
     function fillStoreCell(cell, mode) {
         if (!cell) return;
         if (mode === 'pulling') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.pulling) + '</span>';
+        if (mode === 'saving') cell.innerHTML = '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.saving) + '</span>';
         if (mode === 'stored') cell.innerHTML = '<span class="sp-badge sp-badge-green">' + escapeHtml(I18N.stored) + '</span>';
     }
     var rateSamples = {};
@@ -1388,14 +1393,24 @@ foreach ($s3Jobs as $job) {
         var storedIds = {};
         var html = '';
         pulls.filter(function (j) { return j && j.status === 'pulling'; }).forEach(function (job) {
-            if (job.vod_id) pullingIds[String(job.vod_id)] = true;
+            var saving = job.phase === 'saving';
+            if (job.vod_id) pullingIds[String(job.vod_id)] = saving ? 'saving' : 'pulling';
             var pct = (typeof job.percent === 'number') ? Math.max(0, Math.min(100, job.percent)) : 0;
             var label = job.title || job.filename || job.vod_id || '';
+            var phaseLabel = saving ? I18N.saving : I18N.pulling;
             var sentBytes = Number(job.bytes) || 0;
-            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : I18N.pulling;
-            if (sentBytes > 0) pctLabel += ' · ' + formatBytes(sentBytes);
-            pctLabel += speedSuffix('pull:' + (job.vod_id || job.filename || ''), sentBytes);
-            html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' + escapeHtml(label) + ' — ' + escapeHtml(I18N.pulling) + '</span><span>' + escapeHtml(pctLabel) + '</span></div><progress class="progress" value="' + pct + '" max="100"></progress></div>';
+            var totalBytes = Number(job.bytes_total) || 0;
+            var pctLabel = (typeof job.percent === 'number') ? (pct.toFixed(1) + '%') : phaseLabel;
+            if (saving) {
+                // Bytes written to the MP4 so far; no speed shown until it is actually moving.
+                if (sentBytes > 0 && totalBytes > sentBytes) pctLabel += ' · ' + formatBytes(sentBytes) + ' / ' + formatBytes(totalBytes);
+                var saveRate = transferRate('save:' + (job.vod_id || job.filename || ''), sentBytes);
+                if (saveRate != null && isFinite(saveRate) && saveRate > 0) pctLabel += ' · ' + formatBytes(saveRate) + '/s';
+            } else {
+                if (sentBytes > 0) pctLabel += ' · ' + formatBytes(sentBytes);
+                pctLabel += speedSuffix('pull:' + (job.vod_id || job.filename || ''), sentBytes);
+            }
+            html += '<div class="media-storage-bar mb-4"><div class="media-storage-header"><span>' + escapeHtml(label) + ' — ' + escapeHtml(phaseLabel) + '</span><span>' + escapeHtml(pctLabel) + '</span></div><progress class="progress" value="' + pct + '" max="100"></progress></div>';
         });
         pulls.filter(function (j) { return j && j.status === 'failed'; }).forEach(function (job) {
             html += '<div class="sp-alert sp-alert-danger mb-4">' + escapeHtml(job.title || job.filename || '') + ' — ' + escapeHtml(I18N.failed) + '</div>';
@@ -1412,7 +1427,7 @@ foreach ($s3Jobs as $job) {
         document.querySelectorAll('tr[data-vod-id] [data-vod-store]').forEach(function (cell) {
             var row = cell.closest('tr[data-vod-id]');
             var id = row ? row.getAttribute('data-vod-id') : '';
-            if (id && pullingIds[id]) fillStoreCell(cell, 'pulling');
+            if (id && pullingIds[id]) fillStoreCell(cell, pullingIds[id]);
             else if (id && storedIds[id]) fillStoreCell(cell, 'stored');
         });
         if (!filesHost) return;

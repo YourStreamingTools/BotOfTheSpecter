@@ -788,6 +788,35 @@ if (!$list['ok']) {
     }
 }
 
+// Pull phase (downloading from Twitch vs saving the MP4 to storage) comes from the
+// shared twitch_vod_pulls row. Downloads are the first 85% of progress, so a row
+// without a phase (older worker) at 85%+ is already saving.
+if ($pullJobs && $userId > 0 && isset($conn) && $conn instanceof mysqli) {
+    $phaseById = [];
+    $phaseStmt = $conn->prepare("SELECT twitch_video_id, phase FROM twitch_vod_pulls WHERE user_id = ? AND status IN ('queued', 'pulling')");
+    if ($phaseStmt) {
+        $phaseStmt->bind_param('i', $userId);
+        if ($phaseStmt->execute()) {
+            $phaseRes = $phaseStmt->get_result();
+            while ($phaseRow = $phaseRes->fetch_assoc()) {
+                $phaseById[(string) $phaseRow['twitch_video_id']] = (string) ($phaseRow['phase'] ?? '');
+            }
+        }
+        $phaseStmt->close();
+    }
+    foreach ($pullJobs as &$pullJob) {
+        if (!is_array($pullJob)) {
+            continue;
+        }
+        $phase = $phaseById[(string) ($pullJob['vod_id'] ?? '')] ?? '';
+        if ($phase === '') {
+            $phase = (is_numeric($pullJob['percent'] ?? null) && (float) $pullJob['percent'] >= 85) ? 'saving' : 'downloading';
+        }
+        $pullJob['phase'] = $phase;
+    }
+    unset($pullJob);
+}
+
 $s3Settings = null;
 $s3Connected = false;
 $canS3 = false;
