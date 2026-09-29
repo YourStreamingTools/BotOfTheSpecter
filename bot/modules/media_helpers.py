@@ -1,6 +1,8 @@
 # ./bot/modules/media_helpers.py
 import re
 
+from aiomysql import DictCursor
+
 _TITLE_CLEANUP_PATTERNS = [
     r'\s*\[.*?\]\s*',
     r'\s*\(.*?\)\s*',
@@ -74,6 +76,68 @@ def artist_limit_reply(artist: str, limit: int, period: str) -> str:
     window = {"stream": "this stream", "week": "this week", "month": "this month"}.get(period, "this stream")
     shown = clean_request_artist(artist) or "That artist"
     return f"{shown} has already been requested {int(limit)} times {window}. Try another artist."
+
+def same_requester(requested_by: str, author_name: str) -> bool:
+    return bool(requested_by) and bool(author_name) and requested_by.lower() == author_name.lower()
+
+async def record_open_song_request(connection, song_id, song_name, artist_name, requested_by):
+    # Same song_request_analytics log the media player page shows. in_queue marks rows still waiting.
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "INSERT INTO song_request_analytics (song_name, artist_name, requested_by, song_id, in_queue) VALUES (%s, %s, %s, %s, 1)",
+                (song_name, artist_name, requested_by, song_id),
+            )
+    except Exception as e:
+        if getattr(e, "args", [None])[0] != 1054 and "Unknown column" not in str(e):
+            raise
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
+                (song_name, artist_name, requested_by),
+            )
+
+async def load_open_song_requests(connection):
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute(
+            "SELECT song_id, song_name, artist_name, requested_by FROM song_request_analytics "
+            "WHERE in_queue=1 AND song_id IS NOT NULL AND song_id<>'' ORDER BY id ASC"
+        )
+        rows = await cursor.fetchall()
+    loaded = {}
+    for row in rows or []:
+        song_id = row.get("song_id")
+        if not song_id:
+            continue
+        loaded[song_id] = {
+            "user": row.get("requested_by") or "",
+            "song_name": row.get("song_name") or "",
+            "artist_name": row.get("artist_name") or "",
+            "timestamp": None,
+        }
+    return loaded
+
+async def close_open_song_requests(connection, song_ids):
+    ids = [song_id for song_id in song_ids if song_id]
+    if not ids:
+        return
+    placeholders = ",".join(["%s"] * len(ids))
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            f"UPDATE song_request_analytics SET in_queue=0 WHERE in_queue=1 AND song_id IN ({placeholders})",
+            tuple(ids),
+        )
+
+async def sync_song_request_cache(connection, song_requests, queue_ids):
+    loaded = await load_open_song_requests(connection)
+    for song_id, info in loaded.items():
+        song_requests.setdefault(song_id, info)
+    removed = []
+    for song_id in list(song_requests):
+        if song_id not in queue_ids:
+            removed.append((song_id, song_requests.pop(song_id, {})))
+    await close_open_song_requests(connection, [song_id for song_id, _info in removed])
+    return removed
 
 def artist_limit_query(period: str, key_count: int):
     placeholders = ",".join(["%s"] * key_count)

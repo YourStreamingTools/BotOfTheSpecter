@@ -1204,16 +1204,20 @@ try {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_enabled (enabled)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        // song_id + in_queue mark a Spotify request that is still in the queue. The media player log is this same table.
         'song_request_analytics' => "
             CREATE TABLE IF NOT EXISTS song_request_analytics (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 song_name VARCHAR(255) NOT NULL,
                 artist_name VARCHAR(255) NOT NULL,
                 requested_by VARCHAR(255) NOT NULL,
+                song_id VARCHAR(255) DEFAULT NULL,
+                in_queue TINYINT(1) NOT NULL DEFAULT 0,
                 source VARCHAR(50) DEFAULT 'Twitch',
                 requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_requested_at (requested_at),
-                INDEX idx_song_name (song_name)
+                INDEX idx_song_name (song_name),
+                INDEX idx_song_id_queue (song_id, in_queue)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'stored_redeems' => "
             CREATE TABLE IF NOT EXISTS stored_redeems (
