@@ -170,7 +170,7 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
    - Graceful shutdown: stdin close → SIGTERM → SIGKILL
    - Real-time stderr logging
 
-3. **Operator Web UI** (Quart app, default port 8080):
+3. **Operator Web UI** (Quart app, default port 80 HTTP redirect to 443 HTTPS):
    - Dashboard tab: Live sessions with connection details, FLV size, FFmpeg PID
    - Recordings tab: Directory listing from storage with file sizes/timestamps
    - API endpoints for programmatic access

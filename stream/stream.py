@@ -74,7 +74,8 @@ SERVER_DISPLAY_NAMES = {
 }
 
 DEFAULT_WEB_HOST = "0.0.0.0"
-DEFAULT_WEB_PORT = 8080
+DEFAULT_WEB_PORT = 80
+DEFAULT_HTTPS_PORT = 443
 # Where twitch-recorder.py writes its per-user recordings (matches its STREAM_ROOT_PATH default)
 DEFAULT_RECORDER_STORAGE_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
 
@@ -112,7 +113,9 @@ def parse_args():
     parser.add_argument('--web-host', type=str, default=DEFAULT_WEB_HOST,
                        help='Bind address for the operator web UI')
     parser.add_argument('--web-port', type=int, default=DEFAULT_WEB_PORT,
-                       help='Port for the operator web UI')
+                       help='Port for HTTP redirect to HTTPS (default: 80)')
+    parser.add_argument('--https-port', type=int, default=DEFAULT_HTTPS_PORT,
+                       help='Port for HTTPS operator web UI (default: 443)')
     parser.add_argument('--recorder-path', type=str, default=DEFAULT_RECORDER_STORAGE_PATH,
                        help='Filesystem root where twitch-recorder.py stores per-user recordings')
     return parser.parse_args()
@@ -1691,6 +1694,24 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
     app.config["SESSION_COOKIE_SAMESITE"]    = "Lax"
     app.config["PERMANENT_SESSION_LIFETIME"] = WEB_SESSION_LIFETIME_SECONDS
 
+    ACME_CHALLENGE_DIR = "/var/lib/letsencrypt/http_challenges"
+
+    @app.before_request
+    async def enforce_https():
+        if request.path.startswith("/.well-known/acme-challenge/"):
+            return None
+        if request.scheme == "http":
+            host = request.headers.get("Host", "").split(":")[0] or request.host.split(":")[0]
+            qs = request.query_string.decode("utf-8") if request.query_string else ""
+            target = f"https://{host}{request.path}" + (f"?{qs}" if qs else "")
+            return redirect(target, 301)
+
+    @app.get("/.well-known/acme-challenge/<path:filename>")
+    async def acme_challenge(filename: str):
+        if os.path.isdir(ACME_CHALLENGE_DIR):
+            return await send_from_directory(ACME_CHALLENGE_DIR, filename)
+        return "Not found", 404
+
     sso_target = SSO_TARGET_BY_REGION.get(region, f"rtmp-{region}")
 
     def _require_sso_session(view):
@@ -2214,21 +2235,52 @@ async def _serve_rtmp(server: SimpleServer) -> None:
     await server.start()
     await server.wait_closed()
 
-async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: str) -> None:
+async def _serve_web(
+    app: Quart,
+    host: str,
+    port: int,
+    certfile: str,
+    keyfile: str,
+    https_port: int = DEFAULT_HTTPS_PORT,
+) -> None:
     from hypercorn.asyncio import serve
     from hypercorn.config import Config
 
     cfg = Config()
-    binds = [f"{host}:{int(port)}"]
-    if int(port) != 443:
-        binds.append(f"{host}:443")
-    cfg.bind = binds
     cfg.certfile = certfile
     cfg.keyfile = keyfile
-    logger.info(f"HTTPS binds: {', '.join(binds)}")
+
+    # HTTPS is served on https_port (default 443)
+    cfg.bind = [f"{host}:{int(https_port)}"]
+
+    # HTTP redirect on port (default 80)
+    insecure = []
+    if int(port) != int(https_port):
+        insecure.append(f"{host}:{int(port)}")
+
+    # Also bind legacy 8080 to redirect callers to HTTPS, if free
+    if 8080 not in (int(port), int(https_port)):
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            probe.bind((host if host not in ("0.0.0.0", "") else "0.0.0.0", 8080))
+            probe.close()
+            insecure.append(f"{host}:8080")
+        except OSError:
+            probe.close()
+
+    cfg.insecure_bind = insecure
+    logger.info(f"HTTPS bind(s): {', '.join(cfg.bind)}")
+    if cfg.insecure_bind:
+        logger.info(f"HTTP redirect bind(s): {', '.join(cfg.insecure_bind)}")
     await serve(app, cfg)
 
-async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, recorder_storage_path: str) -> None:
+async def start_rtmp_server(
+    twitch_server: str,
+    web_host: str,
+    web_port: int,
+    recorder_storage_path: str,
+    https_port: int = DEFAULT_HTTPS_PORT,
+) -> None:
     global FFMPEG_VERSION
     # Determine output directory based on server location
     files_root = (os.getenv("STREAM_FILES_ROOT") or "").strip()
@@ -2258,18 +2310,27 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, re
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
     server_title = SERVER_DISPLAY_NAMES.get(twitch_server, f"RTMP Server - {twitch_server}")
     web_app = create_web_app(server_title, twitch_server, session_registry, recorder_storage_path)
-    logger.info(f"Operator web UI: https://{domain}:{web_port}/ (binding {web_host}:{web_port})")
+    ui_url = f"https://{domain}/" if https_port == 443 else f"https://{domain}:{https_port}/"
+    logger.info(f"Operator web UI: {ui_url} (HTTP port {web_port} redirects to HTTPS)")
     logger.info(f"API docs: https://{domain}/docs")
     logger.info(f"Recordings page reading from: {recorder_storage_path}")
     await asyncio.gather(
         _serve_rtmp(server),
-        _serve_web(web_app, web_host, web_port, cert_path, key_path),
+        _serve_web(web_app, web_host, web_port, cert_path, key_path, https_port),
         _expired_vod_loop(),
         _resume_twitch_pulls(recorder_storage_path),
     )
 
 if __name__ == "__main__":
     try:
-        asyncio.run(start_rtmp_server(server_location, args.web_host, args.web_port, args.recorder_path))
+        asyncio.run(
+            start_rtmp_server(
+                server_location,
+                args.web_host,
+                args.web_port,
+                args.recorder_path,
+                getattr(args, "https_port", DEFAULT_HTTPS_PORT),
+            )
+        )
     except KeyboardInterrupt:
         logger.info("Server shutdown gracefully due to CTRL+C")
