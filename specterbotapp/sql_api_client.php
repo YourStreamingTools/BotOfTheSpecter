@@ -43,6 +43,10 @@ function sql_api_username_from_host(): string
     $host = preg_replace('/:\d+$/', '', $host) ?? $host;
     $parts = explode('.', $host);
     if (count($parts) >= 3 && $parts[count($parts) - 2] . '.' . $parts[count($parts) - 1] === 'specterbot.app') {
+        // www is the public portal, same as the apex (website DB), never a tenant.
+        if ($parts[0] === 'www') {
+            return '';
+        }
         $user = preg_replace('/[^a-z0-9_]/', '', $parts[0]) ?? '';
         return $user;
     }
