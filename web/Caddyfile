@@ -70,16 +70,25 @@
 }
 
 (storage_origin) {
-    rewrite * /media/{args[0]}{uri}
-    # HEAD is answered by the storage server only: S4's public URL returns 400 to
-    # HEAD, which would turn a missing file's 404 into a 400 (bots probe walk-ons
-    # with HEAD). Unreachable storage still falls back via handle_errors.
-    @head method HEAD
-    reverse_proxy @head 10.240.0.9:8092
-    reverse_proxy 10.240.0.9:8092 {
-        @fallback status 404 503
-        handle_response @fallback {
-            import storage_fallback {args[0]}
+    # The store root is not an object. Answer here so a probe does not wait on
+    # syd1 and then Mega S4 (NoSuchKey, about 1–3s) and does not reveal the bucket.
+    @store_root path /
+    handle @store_root {
+        header Cache-Control "public, max-age=60"
+        respond "Not found" 404
+    }
+    handle {
+        rewrite * /media/{args[0]}{uri}
+        # HEAD is answered by the storage server only: S4's public URL returns 400 to
+        # HEAD, which would turn a missing file's 404 into a 400 (bots probe walk-ons
+        # with HEAD). Unreachable storage still falls back via handle_errors.
+        @head method HEAD
+        reverse_proxy @head 10.240.0.9:8092
+        reverse_proxy 10.240.0.9:8092 {
+            @fallback status 404 503
+            handle_response @fallback {
+                import storage_fallback {args[0]}
+            }
         }
     }
     handle_errors 502 503 504 {
@@ -201,10 +210,19 @@ roadmap.botofthespecter.com {
     }
 }
 
-# Apex + www serve the landing page directly from the /home/ subdirectory.
+# www is not a tenant. Send it to the apex before PHP can treat the label as a DB name.
+www.specterbot.app {
+    redir https://specterbot.app{uri} 308
+    import security
+    log {
+        output file /var/log/caddy/specterbotapp.log
+    }
+}
+
+# Apex serves the landing page directly from the /home/ subdirectory.
 # Using /home/ as the docroot (not /var/www/specterbotapp) means relative
 # asset paths in the landing page HTML resolve naturally.
-specterbot.app, www.specterbot.app {
+specterbot.app {
     root * /var/www/specterbotapp/home
     import php_app
     log {
@@ -425,6 +443,18 @@ videoalerts.botofthespecter.com {
     import storage_origin videoalerts
     log {
         output file /var/log/caddy/videoalerts.log
+    }
+}
+
+# *.botofthespecter.com is one label only, so *.webhook never matches that cert
+# and the handshake fails. DNS for the zone is grey-cloud (not proxied), so
+# clients verify this origin cert. Same placeholder site as other unmatched hosts.
+# The only stream host is syd1.stream.botofthespecter.com, on the storage server.
+*.webhook.botofthespecter.com {
+    root * /var/www/html
+    import php_app
+    log {
+        output file /var/log/caddy/multilevel.log
     }
 }
 
