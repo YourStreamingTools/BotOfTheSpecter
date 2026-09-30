@@ -371,7 +371,7 @@ return [
     'recording_delete_confirm' => 'Sí, eliminar',
     'recording_delete_cancel' => 'No',
     'recording_delete_failed' => 'No se pudo eliminar ese archivo.',
-    'recording_delete_in_progress' => 'Ese archivo todavía se está grabando o subiendo a YouTube.',
+    'recording_delete_in_progress' => 'Ese archivo todavía se está grabando o subiendo.',
     'recording_type_extended' => 'Ampliado',
     'recording_type_s3' => 'S3',
     'recording_extend_failed' => 'No se pudo ampliar esta grabación. Inténtalo de nuevo en un momento.',

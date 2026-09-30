@@ -371,7 +371,7 @@ return [
     'recording_delete_confirm' => '是，删除',
     'recording_delete_cancel' => '否',
     'recording_delete_failed' => '无法删除该文件。',
-    'recording_delete_in_progress' => '该文件仍在录制或正在上传到 YouTube。',
+    'recording_delete_in_progress' => '该文件仍在录制或正在上传。',
     'recording_type_extended' => '已延长',
     'recording_type_s3' => 'S3',
     'recording_extend_failed' => '无法延长此录像。请稍后再试。',
