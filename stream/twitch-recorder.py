@@ -797,8 +797,27 @@ class RecordChecker:
             await asyncio.sleep(CHECK_INTERVAL)
 
     async def cleanup_old_files(self):
+        from upload_hold import connect_website, filenames_held_for_upload, names_kept_with
+
         cutoff_timestamp = time.time() - self.file_retention_seconds
         removed_count = 0
+        try:
+            conn = await connect_website()
+        except Exception as e:
+            self.logger.error(f"Skipping retention cleanup; database unavailable: {e}")
+            return
+        held = None
+        try:
+            held = await filenames_held_for_upload(conn)
+        except Exception as e:
+            self.logger.error(f"Skipping retention cleanup; could not read in-progress uploads: {e}")
+        finally:
+            await conn.ensure_closed()
+        if held is None:
+            return
+        kept = {}
+        for username, filename in held:
+            kept.setdefault(username, set()).update(names_kept_with(filename))
         active_paths = {
             rec.get("filename")
             for rec in self.active_recordings.values()
@@ -815,6 +834,8 @@ class RecordChecker:
                 for filename in filenames:
                     file_path = os.path.join(current_root, filename)
                     if file_path in active_paths or file_path in active_sidecars:
+                        continue
+                    if filename in kept.get(os.path.basename(current_root), set()):
                         continue
                     try:
                         if filename.lower().endswith(".mp4"):

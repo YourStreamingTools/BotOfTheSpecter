@@ -309,7 +309,9 @@ foreach ($s3Jobs as $job) {
                                     <td><?php echo htmlspecialchars(formatBytes((int) $file['size'])); ?></td>
                                     <td><?php echo htmlspecialchars(stream_hub_format_duration($file['duration_seconds'] ?? $durSeconds)); ?></td>
                                     <td>
-                                        <?php if (!empty($file['expires_unix'])): ?>
+                                        <?php if (!empty($file['upload_hold'])): ?>
+                                            <?php echo t('recording_kept_for_upload'); ?>
+                                        <?php elseif (!empty($file['expires_unix'])): ?>
                                             <span class="recording-countdown" data-expires="<?php echo (int) $file['expires_unix']; ?>">—</span>
                                         <?php else: ?>
                                             —
@@ -319,6 +321,25 @@ foreach ($s3Jobs as $job) {
                                         <?php if ($canDl && $namedUrl !== ''): ?>
                                             <div class="stream-hub-file-actions">
                                             <a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($namedUrl); ?>"><?php echo t('recording_btn_download'); ?></a>
+                                            <?php if ($isUserS3 && !empty($canS3) && !empty($file['s3_key'])): ?>
+                                                <?php $restoreStatus = (string) ($file['restore_status'] ?? ''); ?>
+                                                <?php if ($restoreStatus === 'copying'): ?>
+                                                    <?php
+                                                    $restorePct = max(0, min(100, (float) ($file['restore_percent'] ?? 0)));
+                                                    $restoreLabel = t('recording_restore_copying');
+                                                    if ($restorePct > 0) {
+                                                        $restoreLabel .= ' ' . rtrim(rtrim(number_format($restorePct, 1, '.', ''), '0'), '.') . '%';
+                                                    }
+                                                    ?>
+                                                    <span class="sp-badge sp-badge-amber"><?php echo htmlspecialchars($restoreLabel); ?></span>
+                                                <?php else: ?>
+                                                    <form method="post" action="streaming.php#library" data-restore-s3="1">
+                                                        <input type="hidden" name="action" value="restore_s3_local">
+                                                        <input type="hidden" name="object_key" value="<?php echo htmlspecialchars((string) $file['s3_key']); ?>">
+                                                        <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm"><?php echo $restoreStatus === 'failed' ? t('recording_restore_retry') : t('recording_btn_restore'); ?></button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
                                             <?php if (!$isUserS3 && !empty($file['can_extend'])): ?>
                                                 <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" data-extend-file="<?php echo htmlspecialchars($file['name']); ?>"><?php echo t('recording_btn_extend'); ?></button>
                                             <?php endif; ?>
@@ -834,6 +855,11 @@ foreach ($s3Jobs as $job) {
         ytSendFailed: <?php echo json_encode(t('youtube_vod_youtube_failed')); ?>,
         noFiles: <?php echo json_encode(t('recording_error_no_files')); ?>,
         expired: <?php echo json_encode(t('recording_countdown_expired')); ?>,
+        keptForUpload: <?php echo json_encode(t('recording_kept_for_upload')); ?>,
+        restoreLocal: <?php echo json_encode(t('recording_btn_restore')); ?>,
+        restoreRetry: <?php echo json_encode(t('recording_restore_retry')); ?>,
+        restoreCopying: <?php echo json_encode(t('recording_restore_copying')); ?>,
+        restoreFailed: <?php echo json_encode(t('recording_restore_failed')); ?>,
         extendFailed: <?php echo json_encode(t('recording_extend_failed')); ?>,
         dismiss: <?php echo json_encode(t('layout_close')); ?>,
         storeFailed: <?php echo json_encode(t('youtube_vod_store_failed')); ?>,
@@ -1069,6 +1095,19 @@ foreach ($s3Jobs as $job) {
             + '<input type="hidden" name="action" value="send_twitch_s3">'
             + '<input type="hidden" name="vod_id" value="' + escapeHtml(vodId) + '">'
             + '<input type="hidden" name="vod_title" value="' + escapeHtml(title || '') + '">'
+            + '<button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">' + escapeHtml(label) + '</button></form>';
+    }
+    function restoreActionHtml(file) {
+        if (!canS3 || !file || file.storage !== 'user_s3' || !file.s3_key) return '';
+        if (file.restore_status === 'copying') {
+            var pct = Number(file.restore_percent);
+            var extra = (isFinite(pct) && pct > 0) ? (' ' + (Math.round(pct * 10) / 10) + '%') : '';
+            return '<span class="sp-badge sp-badge-amber">' + escapeHtml(I18N.restoreCopying + extra) + '</span>';
+        }
+        var label = file.restore_status === 'failed' ? I18N.restoreRetry : I18N.restoreLocal;
+        return '<form method="post" action="streaming.php#library" data-restore-s3="1">'
+            + '<input type="hidden" name="action" value="restore_s3_local">'
+            + '<input type="hidden" name="object_key" value="' + escapeHtml(file.s3_key) + '">'
             + '<button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">' + escapeHtml(label) + '</button></form>';
     }
     function youtubeActionHtml(file, title) {
@@ -1462,12 +1501,15 @@ foreach ($s3Jobs as $job) {
                 if (file.storage !== 'user_s3') {
                     actions += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm" data-delete-file="' + escapeHtml(file.name || '') + '" data-delete-title="' + escapeHtml(title) + '">' + escapeHtml(I18N.deleteFile) + '</button>';
                 }
+                actions += restoreActionHtml(file);
                 actions += youtubeActionHtml(file, title);
                 actions += s3ActionHtml(file, title);
                 actions += '</div>';
             }
             var expires = Number(file.expires_unix || file.expires_at_unix || 0);
-            var expCell = expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—';
+            var expCell = file.upload_hold
+                ? escapeHtml(I18N.keptForUpload)
+                : (expires ? '<span class="recording-countdown" data-expires="' + expires + '">—</span>' : '—');
             rows += '<tr><td>' + check + '</td><td>' + escapeHtml(title) + '</td><td>' + type + '</td><td>' + formatBytes(file.size || file.size_bytes || 0) + '</td><td>' + escapeHtml(formatDuration(fileDurationSeconds(file))) + '</td><td>' + expCell + '</td><td>' + actions + '</td></tr>';
         });
         filesHost.innerHTML = '<div class="sp-table-wrap"><table class="sp-table"><thead><tr><th><input type="checkbox" class="youtube-vod-check" id="youtube-vod-select-all"></th><th><?php echo htmlspecialchars(t('recording_th_file')); ?></th><th><?php echo htmlspecialchars(t('recording_th_type')); ?></th><th><?php echo htmlspecialchars(t('recording_th_size')); ?></th><th><?php echo htmlspecialchars(t('recording_th_length')); ?></th><th><?php echo htmlspecialchars(t('recording_th_expires')); ?></th><th><?php echo htmlspecialchars(t('recording_th_action')); ?></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
@@ -1493,7 +1535,8 @@ foreach ($s3Jobs as $job) {
         var isStore = form && form.getAttribute('data-store-vod') === '1';
         var isSend = form && form.getAttribute('data-send-youtube') === '1';
         var isSendS3 = form && form.getAttribute('data-send-s3') === '1';
-        if (!isStore && !isSend && !isSendS3) return;
+        var isRestore = form && form.getAttribute('data-restore-s3') === '1';
+        if (!isStore && !isSend && !isSendS3 && !isRestore) return;
         event.preventDefault();
         var btn = form.querySelector('button[type="submit"]');
         if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
@@ -1506,6 +1549,15 @@ foreach ($s3Jobs as $job) {
             return response.json().then(function (json) { return json || {}; }).catch(function () { return {}; });
         }).then(function (json) {
             var ok = json.ok === true;
+            if (isRestore) {
+                setNotice(json.message || (ok ? '' : I18N.restoreFailed), ok ? 'success' : (json.status === 'full' ? 'warning' : 'danger'));
+                if (ok) {
+                    pollSeq += 1;
+                    if (btn) btn.classList.remove('sp-btn-loading');
+                    poll();
+                } else if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
+                return;
+            }
             if (isSendS3) {
                 setNotice(json.message || (ok ? '' : I18N.s3SendFailed), ok ? 'success' : 'warning');
                 if (ok) {
@@ -1564,7 +1616,7 @@ foreach ($s3Jobs as $job) {
                 btn.classList.remove('sp-btn-loading');
             }
         }).catch(function () {
-            setNotice(isSendS3 ? I18N.s3SendFailed : (isSend ? I18N.ytSendFailed : I18N.storeFailed), 'danger');
+            setNotice(isRestore ? I18N.restoreFailed : (isSendS3 ? I18N.s3SendFailed : (isSend ? I18N.ytSendFailed : I18N.storeFailed)), 'danger');
             if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
         });
     });

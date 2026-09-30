@@ -169,6 +169,9 @@ FAVICON_URL = "https://cdn.botofthespecter.com/favicon.ico"
 LOGO_URL = "https://cdn.botofthespecter.com/logo.png"
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
 DURATION_BACKFILL_PER_REQUEST = 3
+# In-progress copies from a user's S3 bucket back onto this server. Keyed by username + filename.
+_s3_restores: dict[str, dict] = {}
+_s3_restore_tasks: dict[str, asyncio.Task] = {}
 STREAM_DIR = os.path.dirname(os.path.abspath(__file__))
 DOCS_UI_DIR = os.path.join(STREAM_DIR, "docs_ui")
 _PULL_RESUME_MAX_AGE_SECONDS = 24 * 3600
@@ -1321,6 +1324,7 @@ async def delete_extended_vod_row(username: str, filename: str) -> None:
 
 
 async def recording_youtube_busy(user_id: int, filename: str) -> bool:
+    # YouTube or S3 still has this file queued or in flight.
     if user_id <= 0 or not filename:
         return False
     sqldb = None
@@ -1336,12 +1340,325 @@ async def recording_youtube_busy(user_id: int, filename: str) -> bool:
                 """,
                 (user_id, filename),
             )
+            if await cursor.fetchone() is not None:
+                return True
+            await cursor.execute(
+                """
+                SELECT id FROM user_s3_uploads
+                WHERE user_id = %s AND filename = %s
+                  AND status IN ('queued', 'pulling', 'uploading')
+                LIMIT 1
+                """,
+                (user_id, filename),
+            )
             return await cursor.fetchone() is not None
     except Exception:
         return False
     finally:
         if sqldb is not None:
             await sqldb.ensure_closed()
+
+
+async def filenames_held_for_user(user_id: int) -> set[str]:
+    if user_id <= 0:
+        return set()
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        names = set()
+        for table in ("youtube_vod_uploads", "user_s3_uploads"):
+            try:
+                async with sqldb.cursor() as cursor:
+                    await cursor.execute(
+                        f"""
+                        SELECT filename FROM {table}
+                        WHERE user_id = %s AND status IN ('queued', 'pulling', 'uploading')
+                        """,
+                        (user_id,),
+                    )
+                    rows = await cursor.fetchall()
+            except Exception:
+                continue
+            for row in rows or []:
+                if row and row[0]:
+                    names.add(str(row[0]))
+        return names
+    except Exception as e:
+        logger.warning(f"Could not load in-progress uploads for user {user_id}: {e}")
+        return set()
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+def _restore_state_key(username: str, filename: str) -> str:
+    return username + "\0" + filename
+
+
+def _restores_for_user(username: str) -> list[dict]:
+    prefix = username + "\0"
+    out = []
+    for key, state in list(_s3_restores.items()):
+        if not key.startswith(prefix):
+            continue
+        if state.get("status") == "done" and os.path.isfile(state.get("dest") or ""):
+            _s3_restores.pop(key, None)
+            continue
+        out.append({
+            "object_key": state.get("object_key") or "",
+            "filename": state.get("filename") or "",
+            "status": state.get("status") or "",
+            "percent": state.get("percent") or 0,
+            "bytes": int(state.get("bytes") or 0),
+            "bytes_total": int(state.get("bytes_total") or 0),
+        })
+    return out
+
+
+async def cleanup_expired_local_vods(root: str) -> None:
+    # Drop local MP4s past the retention window. Leave a file alone while YouTube or S3 is still using it.
+    if not root or not os.path.isdir(root):
+        return
+    from upload_hold import connect_website, filenames_held_for_upload, names_kept_with
+
+    try:
+        conn = await connect_website()
+    except Exception as e:
+        logger.error(f"Skipping local VOD retention; database unavailable: {e}")
+        return
+    try:
+        held = await filenames_held_for_upload(conn)
+    except Exception as e:
+        logger.error(f"Skipping local VOD retention; could not read in-progress uploads: {e}")
+        held = None
+    finally:
+        await conn.ensure_closed()
+    if held is None:
+        return
+    kept = {}
+    for username, filename in held:
+        kept.setdefault(username, set()).update(names_kept_with(filename))
+    cutoff = time.time() - RECORDING_RETENTION_SECONDS
+    removed = 0
+    try:
+        user_dirs = os.listdir(root)
+    except OSError as e:
+        logger.error(f"Local VOD retention could not list {root}: {e}")
+        return
+    for username in user_dirs:
+        if not re.match(r"^[a-zA-Z0-9_]{1,64}$", username):
+            continue
+        user_dir = os.path.join(root, username)
+        if not os.path.isdir(user_dir):
+            continue
+        protect = kept.get(username, set())
+        try:
+            names = os.listdir(user_dir)
+        except OSError:
+            continue
+        for name in names:
+            path = os.path.join(user_dir, name)
+            if name == "_restore":
+                if os.path.isdir(path):
+                    _cleanup_restore_parts(path, cutoff)
+                continue
+            if name in protect or not os.path.isfile(path):
+                continue
+            try:
+                if os.path.getmtime(path) >= cutoff:
+                    continue
+                lower = name.lower()
+                if lower.endswith(".mp4") or lower.endswith(".flv"):
+                    if find_ffmpeg_pid_for_path(path):
+                        continue
+                    if lower.endswith(".mp4"):
+                        remove_media_and_sidecars(path)
+                    else:
+                        os.remove(path)
+                    removed += 1
+                    continue
+                # Leave a sidecar alone while its video is still on disk. The video's own pass removes it.
+                media = _sidecar_media_path(path, name)
+                if not media or os.path.isfile(media):
+                    continue
+                os.remove(path)
+                removed += 1
+            except FileNotFoundError:
+                continue
+            except OSError as e:
+                logger.warning(f"Could not remove expired recording {path}: {e}")
+    if removed:
+        logger.info(f"Removed {removed} recording file(s) past retention")
+
+
+def _safe_object_key(key: str) -> bool:
+    if not key or len(key) > 512 or ".." in key or "\\" in key or "\x00" in key:
+        return False
+    if key.startswith("/") or not key.lower().endswith(".mp4"):
+        return False
+    return True
+
+
+async def _s3_done_job(user_id: int, object_key: str) -> dict | None:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT filename, title, object_key, twitch_video_id
+                FROM user_s3_uploads
+                WHERE user_id = %s AND object_key = %s AND status = 'done'
+                ORDER BY id DESC LIMIT 1
+                """,
+                (user_id, object_key),
+            )
+            return await cursor.fetchone()
+    except Exception as e:
+        logger.error(f"S3 restore lookup failed: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+async def _s3_settings_for_user(user_id: int) -> dict | None:
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                """
+                SELECT endpoint, region, bucket, prefix, access_key, secret_key, path_style
+                FROM user_s3_settings WHERE user_id = %s LIMIT 1
+                """,
+                (user_id,),
+            )
+            row = await cursor.fetchone()
+        if not row or not (row.get("access_key") or "") or not (row.get("bucket") or "") or not (row.get("endpoint") or ""):
+            return None
+        return row
+    except Exception as e:
+        logger.error(f"S3 settings lookup failed: {e}")
+        return None
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+
+def _s3_object_size(settings: dict, object_key: str) -> tuple[int, bool]:
+    from botocore.exceptions import ClientError
+    from s3_vod_uploader import make_client
+
+    client = make_client(settings)
+    try:
+        meta = client.head_object(Bucket=settings["bucket"], Key=object_key)
+    except ClientError as e:
+        status = int((e.response or {}).get("ResponseMetadata", {}).get("HTTPStatusCode") or 0)
+        code = str((e.response or {}).get("Error", {}).get("Code") or "")
+        if status in (403, 404) or code in ("404", "NoSuchKey", "NotFound", "403", "Forbidden"):
+            return 0, True
+        raise
+    return int(meta.get("ContentLength") or 0), False
+
+
+def _link_restored_file(dest: str, username: str, filename: str) -> None:
+    # YouTube and S3 workers read stream_files_root(), which can differ from the library folder.
+    try:
+        from s3_vod_uploader import stream_files_root
+        other_dir = os.path.join(stream_files_root(), username)
+        other = os.path.join(other_dir, filename)
+    except Exception:
+        return
+    if os.path.abspath(other) == os.path.abspath(dest) or os.path.isfile(other):
+        return
+    try:
+        os.makedirs(other_dir, exist_ok=True)
+        os.link(dest, other)
+    except OSError:
+        try:
+            os.symlink(dest, other)
+        except OSError as e:
+            logger.warning(f"Could not link restored VOD into the uploader folder: {e}")
+
+
+async def _restore_s3_file(state_key, username, filename, object_key, settings, dest, title, vod_id):
+    state = _s3_restores.get(state_key) or {}
+    part_dir = os.path.join(os.path.dirname(dest), "_restore")
+    part = os.path.join(part_dir, filename + ".part")
+
+    def download():
+        from s3_vod_uploader import make_client
+        os.makedirs(part_dir, exist_ok=True)
+        client = make_client(settings)
+
+        def cb(n):
+            state["bytes"] = int(state.get("bytes") or 0) + int(n or 0)
+            total = int(state.get("bytes_total") or 0)
+            if total > 0:
+                state["percent"] = round(min(100.0, 100.0 * state["bytes"] / total), 1)
+
+        client.download_file(settings["bucket"], object_key, part, Callback=cb)
+
+    try:
+        await asyncio.to_thread(download)
+        os.replace(part, dest)
+        await asyncio.to_thread(cache_duration, dest, vod_id, title)
+        _link_restored_file(dest, username, filename)
+        state["status"] = "done"
+        state["percent"] = 100
+        logger.info(f"Restored {username}/{filename} from user S3")
+    except Exception as e:
+        state["status"] = "failed"
+        logger.error(f"S3 restore failed for {username}/{filename}: {type(e).__name__}")
+        try:
+            if os.path.isfile(part):
+                os.remove(part)
+        except OSError:
+            pass
+    finally:
+        _s3_restore_tasks.pop(state_key, None)
+
+
+def _sidecar_media_path(path: str, name: str) -> str:
+    lower = name.lower()
+    if lower.endswith(".mp4.part"):
+        return path[:-5]
+    for suffix in (".ffmpeg.log", ".ytdlp.log", ".fwd.log", ".json"):
+        if lower.endswith(suffix):
+            media = path[: -len(suffix)]
+            if media.lower().endswith(".mp4"):
+                return media
+            return media + ".mp4"
+    return ""
+
+
+def _cleanup_restore_parts(part_dir: str, cutoff: float) -> None:
+    try:
+        names = os.listdir(part_dir)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(part_dir, name)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError:
+            continue
+
+
+async def _expired_vod_loop(root: str) -> None:
+    while True:
+        await cleanup_expired_s4_vods()
+        await cleanup_expired_local_vods(root)
+        try:
+            from s3_vod_uploader import stream_files_root
+            other = stream_files_root()
+            if other and os.path.abspath(other) != os.path.abspath(root or ""):
+                await cleanup_expired_local_vods(other)
+        except Exception as e:
+            logger.warning(f"Uploader-folder retention skipped: {e}")
+        await asyncio.sleep(60)
 
 
 async def lookup_user_id(username: str) -> int | None:
@@ -1387,12 +1704,6 @@ async def cleanup_expired_s4_vods() -> None:
     finally:
         if sqldb is not None:
             await sqldb.ensure_closed()
-
-
-async def _expired_vod_loop() -> None:
-    while True:
-        await cleanup_expired_s4_vods()
-        await asyncio.sleep(900)
 
 
 def list_user_recording_files(root_path: str, username: str) -> list[dict]:
@@ -1655,6 +1966,13 @@ def stream_openapi_spec() -> dict:
                         },
                     },
                     "responses": {"202": {"description": "Download started"}},
+                }
+            },
+            "/api/me/recordings/restore-s3": {
+                "post": {
+                    "tags": ["Recordings"],
+                    "summary": "Copy an S3 archive back into local storage",
+                    "responses": {"202": {"description": "Copy started"}},
                 }
             },
             "/api/server": {
@@ -1922,18 +2240,18 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         files = list_user_recording_files(recorder_storage_path, username)
         used_bytes = sum(int(f.get("size") or 0) for f in files)
         local_names = {f["name"] for f in files}
+        held_names = await filenames_held_for_user(await lookup_user_id(username) or 0)
         payload_files = []
         probe_budget = DURATION_BACKFILL_PER_REQUEST
         for f in files:
             expires_unix = int(f["mtime"]) + RECORDING_RETENTION_SECONDS
             twitch_id = None
-            title = None
             fpath = os.path.join(recorder_storage_path, username, f["name"])
             meta = read_media_meta(fpath)
+            title = str(meta.get("title") or "").strip() or None
             tm = re.match(r"^twitch-([0-9]{1,20})\.mp4(?:\.part)?$", f["name"], re.I)
             if tm:
                 twitch_id = tm.group(1)
-                title = str(meta.get("title") or "").strip() or None
             duration = meta.get("duration_seconds")
             if duration is None and probe_budget > 0 and not f["is_partial"] and f["name"].lower().endswith(".mp4"):
                 # Older files have no cached length yet: probe a few per request and remember it.
@@ -1952,6 +2270,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 "expires_at": datetime.datetime.fromtimestamp(expires_unix).isoformat(),
                 "expires_at_unix": expires_unix,
                 "twitch_video_id": twitch_id,
+                "upload_hold": f["name"] in held_names,
             })
         for row in await list_extended_vods(username):
             name = str(row.get("filename") or "")
@@ -2002,6 +2321,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "quota_unlimited": unlimited,
             "files": payload_files,
             "pulls": pulls,
+            "restores": _restores_for_user(username),
         })
 
     @app.post("/api/me/recordings/titles")
@@ -2156,6 +2476,75 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "filename": os.path.basename(dest),
             "vod_id": vod_id,
         }), 202
+
+    @app.post("/api/me/recordings/restore-s3")
+    async def api_restore_s3_vod():
+        # Copy one object from the user's bucket back into the local library so it can be sent to YouTube.
+        provided = request.headers.get("X-API-Key", "") or request.args.get("api_key", "")
+        username = await get_username_from_api_key(provided)
+        if not username:
+            return jsonify({"error": "incorrect API key"}), 401
+        body = await request.get_json(silent=True) or {}
+        object_key = str(body.get("object_key") or "").strip()
+        if not _safe_object_key(object_key):
+            return jsonify({"error": "invalid_object_key"}), 400
+        user_id = await lookup_user_id(username)
+        if not user_id:
+            return jsonify({"error": "user_not_found"}), 404
+        job = await _s3_done_job(user_id, object_key)
+        if not job:
+            return jsonify({"error": "not_found"}), 404
+        filename = str(job.get("filename") or "")
+        if not _safe_recording_name(filename) or not filename.lower().endswith(".mp4"):
+            return jsonify({"error": "invalid file name"}), 400
+        settings = await _s3_settings_for_user(user_id)
+        if not settings:
+            return jsonify({"error": "s3_not_connected"}), 400
+        user_dir = os.path.join(recorder_storage_path, username)
+        dest = os.path.join(user_dir, filename)
+        if os.path.isfile(dest):
+            if find_ffmpeg_pid_for_path(dest):
+                return jsonify({"error": "recording still in progress"}), 409
+            return jsonify({"ok": True, "already": True, "status": "stored", "filename": filename})
+        state_key = _restore_state_key(username, filename)
+        existing = _s3_restore_tasks.get(state_key)
+        if existing and not existing.done():
+            state = _s3_restores.get(state_key) or {}
+            return jsonify({
+                "ok": True,
+                "status": "copying",
+                "filename": filename,
+                "percent": state.get("percent") or 0,
+            }), 202
+        try:
+            size, missing = await asyncio.to_thread(_s3_object_size, settings, object_key)
+        except Exception as e:
+            logger.error(f"S3 restore head failed for {username}: {type(e).__name__}")
+            return jsonify({"error": "s3_unavailable"}), 502
+        if missing:
+            return jsonify({"error": "not_found"}), 404
+        slot = await get_storage_slot(username)
+        quota = STREAM_STORAGE_QUOTA_BYTES if slot is None else int(slot.get("quota_bytes") or 0)
+        used = directory_size_bytes(user_dir)
+        if quota > 0 and size > 0 and used + size > quota:
+            return jsonify({"error": "stream_storage_full"}), 507
+        os.makedirs(user_dir, exist_ok=True)
+        state = {
+            "object_key": object_key,
+            "filename": filename,
+            "status": "copying",
+            "percent": 0,
+            "bytes": 0,
+            "bytes_total": size,
+            "dest": dest,
+        }
+        _s3_restores[state_key] = state
+        task = asyncio.create_task(_restore_s3_file(
+            state_key, username, filename, object_key, settings, dest,
+            str(job.get("title") or ""), str(job.get("twitch_video_id") or ""),
+        ))
+        _s3_restore_tasks[state_key] = task
+        return jsonify({"ok": True, "status": "copying", "filename": filename, "percent": 0}), 202
 
     @app.get("/api/me/recordings/file")
     async def api_my_recording_file():
@@ -2317,7 +2706,7 @@ async def start_rtmp_server(
     await asyncio.gather(
         _serve_rtmp(server),
         _serve_web(web_app, web_host, web_port, cert_path, key_path, https_port),
-        _expired_vod_loop(),
+        _expired_vod_loop(recorder_storage_path),
         _resume_twitch_pulls(recorder_storage_path),
     )
 

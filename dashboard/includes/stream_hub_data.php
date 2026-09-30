@@ -415,6 +415,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         stream_hub_redirect('library', $msg, $ok ? 'is-success' : 'is-warning');
     }
+    if ($action === 'restore_s3_local') {
+        $wantsJson = stream_hub_wants_json();
+        if ($isActAsUser) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('s3_vod_actas_disabled')], 403);
+            }
+            stream_hub_redirect('library', t('s3_vod_actas_disabled'), 'is-warning');
+        }
+        $objectKey = trim((string) ($_POST['object_key'] ?? ''));
+        $keyOk = $objectKey !== ''
+            && strlen($objectKey) <= 512
+            && !str_contains($objectKey, '..')
+            && !str_contains($objectKey, '\\')
+            && !str_contains($objectKey, "\0")
+            && str_ends_with(strtolower($objectKey), '.mp4');
+        if (!$keyOk) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('recording_restore_failed')], 400);
+            }
+            stream_hub_redirect('library', t('recording_restore_failed'), 'is-danger');
+        }
+        $restore = streamApiRequest(
+            $streamApiBase,
+            $streamUserApiKey,
+            '/api/me/recordings/restore-s3',
+            30,
+            'POST',
+            ['object_key' => $objectKey]
+        );
+        $http = (int) ($restore['http'] ?? 0);
+        $body = json_decode((string) ($restore['body'] ?? ''), true);
+        $already = is_array($body) && !empty($body['already']);
+        if ($restore['ok'] || $http === 202) {
+            $msg = $already ? t('recording_restore_already') : t('recording_restore_started');
+            if ($wantsJson) {
+                stream_hub_json([
+                    'ok' => true,
+                    'status' => $already ? 'stored' : 'copying',
+                    'filename' => is_array($body) ? (string) ($body['filename'] ?? '') : '',
+                    'message' => $msg,
+                ]);
+            }
+            stream_hub_redirect('library', $msg, 'is-success');
+        }
+        if ($http === 507) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'status' => 'full', 'message' => t('recording_restore_full')], 507);
+            }
+            stream_hub_redirect('library', t('recording_restore_full'), 'is-warning');
+        }
+        if ($http === 409) {
+            if ($wantsJson) {
+                stream_hub_json(['ok' => false, 'message' => t('recording_delete_in_progress')], 409);
+            }
+            stream_hub_redirect('library', t('recording_delete_in_progress'), 'is-warning');
+        }
+        $missing = $http === 404;
+        $msg = $missing ? t('recording_restore_missing') : t('recording_restore_failed');
+        if ($wantsJson) {
+            stream_hub_json(['ok' => false, 'message' => $msg], $missing ? 404 : 502);
+        }
+        stream_hub_redirect('library', $msg, $missing ? 'is-warning' : 'is-danger');
+    }
     if ($action === 'send_twitch_s3') {
         $wantsJson = stream_hub_wants_json();
         if ($isActAsUser) {
@@ -779,6 +842,7 @@ if (!$list['ok']) {
                     'expires_at' => $row['expires_at'] ?? null,
                     'expires_unix' => (int) ($row['expires_at_unix'] ?? 0),
                     'twitch_video_id' => (string) ($row['twitch_video_id'] ?? ''),
+                    'upload_hold' => !empty($row['upload_hold']),
                 ];
             }
         }
@@ -995,9 +1059,10 @@ if ($s3ListOk) {
         }
         $s3Name = (string) $obj['name'];
         $s3Size = (int) ($obj['size'] ?? 0);
+        $s3Key = (string) $obj['key'];
         $s3Download = '';
         if (is_array($s3Settings) && function_exists('user_s3_presign_download')) {
-            $s3Download = user_s3_presign_download($s3Settings, (string) $obj['key'], $s3Name);
+            $s3Download = user_s3_presign_download($s3Settings, $s3Key, $s3Name);
         }
         $libraryFiles[] = [
             'name' => $s3Name,
@@ -1010,6 +1075,7 @@ if ($s3ListOk) {
             'storage' => 'user_s3',
             'on_s3' => true,
             's3_checked' => true,
+            's3_key' => $s3Key,
             'can_extend' => false,
             'download_direct' => $s3Download !== '',
             'download_url' => $s3Download,
@@ -1022,6 +1088,31 @@ if ($s3ListOk) {
     foreach ($libraryFiles as &$libraryFile) {
         $libraryFile['on_s3'] = false;
         $libraryFile['s3_checked'] = false;
+    }
+    unset($libraryFile);
+}
+
+$restoreByKey = [];
+if (isset($payload) && is_array($payload) && !empty($payload['restores']) && is_array($payload['restores'])) {
+    foreach ($payload['restores'] as $restoreRow) {
+        if (!is_array($restoreRow)) {
+            continue;
+        }
+        $restoreKey = (string) ($restoreRow['object_key'] ?? '');
+        if ($restoreKey !== '') {
+            $restoreByKey[$restoreKey] = $restoreRow;
+        }
+    }
+}
+if ($restoreByKey) {
+    foreach ($libraryFiles as &$libraryFile) {
+        $restoreKey = (string) ($libraryFile['s3_key'] ?? '');
+        if ($restoreKey === '' || !isset($restoreByKey[$restoreKey])) {
+            continue;
+        }
+        $restoreRow = $restoreByKey[$restoreKey];
+        $libraryFile['restore_status'] = (string) ($restoreRow['status'] ?? '');
+        $libraryFile['restore_percent'] = (float) ($restoreRow['percent'] ?? 0);
     }
     unset($libraryFile);
 }
