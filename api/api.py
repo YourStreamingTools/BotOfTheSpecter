@@ -2715,8 +2715,10 @@ async def receive_custom_webhook(slug: str, request: Request):
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
     service    = webhook["service"]
-    event_name = webhook["event_name"]
     scope      = webhook["scope"]
+    # Discord-log webhooks always ride the WebSocket server's dedicated WEBHOOK_LOG event,
+    # whatever event name the row holds.
+    event_name = "WEBHOOK_LOG" if scope == "discord_logs" else webhook["event_name"]
     # Resolve the routing code. channel -> the streamer's api_key (reaches their
     # clients). global -> the service-scoped admin key (reaches admin global-
     # listeners; the WebSocket server identifies the service by this key). We never
