@@ -1059,25 +1059,31 @@ class BotOfTheSpecter_WebsocketServer:
         channel = str(data.get("channel", "Unknown-Channel"))
         sid_name = data.get("name", f"Unnamed-{sid}")
         is_global_listener = data.get("global_listener", False)
-        self.logger.info(f"Register event received from SID {sid} with code: '{code}', channel: '{channel}', name: '{sid_name}', global_listener: {is_global_listener}")
+        legacy_env = bool(self.admin_code and code and code == self.admin_code)
+        admin_info = await self.verify_admin_key(code) if code else self._admin_key_denied()
+        code_label = admin_info.get("service") or ("env" if legacy_env else ("set" if code else "missing"))
+        self.logger.info(f"Register event received from SID {sid} code={code_label} channel={channel!r} name={sid_name!r} global_listener={is_global_listener}")
         name = f"{channel} - {sid_name}"
+        # Admin keys need the websocket mark. The env ADMIN_KEY stays a break-glass global listener.
+        if admin_info.get("service") and not admin_info.get("legacy") and not admin_info.get("websocket_access") and not legacy_env:
+            self.logger.warning(f"WebSocket registration denied for SID [{sid}] service={admin_info.get('service')!r} — websocket access is off")
+            await self.sio.emit("ERROR", {"message": "WebSocket access is not enabled for this key"}, to=sid)
+            return
         # Handle global listener registration
         if is_global_listener:
-            # Validate admin key for global listeners (check database first, then fallback to env)
-            is_valid_admin = False
-            # Check database for admin key
-            admin_info = await self.verify_admin_key(code)
-            if admin_info['valid'] and admin_info['is_super_admin']:
-                is_valid_admin = True
-                self.logger.info(f"Global listener authenticated with database admin key")
-            # Fallback to environment variable ADMIN_KEY for backward compatibility
-            elif self.admin_code and code == self.admin_code:
-                is_valid_admin = True
-                self.logger.info(f"Global listener authenticated with environment admin key (legacy)")
-            if not is_valid_admin:
-                self.logger.warning(f"Global listener registration denied for SID [{sid}] - invalid admin key provided: '{code}'")
-                await self.sio.emit("ERROR", {"message": "Global listener registration denied - invalid admin key"}, to=sid)
+            allowed = legacy_env
+            if admin_info.get("legacy"):
+                allowed = allowed or (admin_info.get("valid") and admin_info.get("is_super_admin"))
+            else:
+                allowed = allowed or bool(admin_info.get("websocket_global"))
+            if not allowed:
+                self.logger.warning(f"Global listener registration denied for SID [{sid}] service={code_label!r}")
+                await self.sio.emit("ERROR", {"message": "Global WebSocket access is not enabled for this key"}, to=sid)
                 return
+            if admin_info.get("service"):
+                self.logger.info(f"Global listener authenticated with admin key service={admin_info.get('service')!r}")
+            elif legacy_env:
+                self.logger.info("Global listener authenticated with environment admin key (legacy)")
             # Disconnect other global listeners with same name; same-SID re-REGISTER is idempotent (no self-disconnect)
             for listener in list(self.global_listeners):
                 if listener['name'] == name:
@@ -1098,8 +1104,8 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.info(f"Total global listeners: {len(self.global_listeners)}")
         elif code:
             # Handle regular client registration
-            # Check if this is admin key being used for regular registration
-            is_admin = (code == self.admin_code) if self.admin_code else False
+            # Env break-glass key or a super-admin row marked for websocket access
+            is_admin = legacy_env or bool(admin_info.get("valid") and admin_info.get("is_super_admin") and (admin_info.get("legacy") or admin_info.get("websocket_access")))
             # Disconnect other clients with same name; same-SID re-REGISTER is idempotent (connect+WELCOME must not self-disconnect)
             for client in list(self.registered_clients.get(code, [])):
                 if client['name'] == name:
@@ -1125,10 +1131,10 @@ class BotOfTheSpecter_WebsocketServer:
             client_data = {"sid": sid, "name": name, "is_admin": is_admin, "channel": channel}
             self.registered_clients[code].append(client_data)
             if is_admin:
-                self.logger.info(f"Admin client [{sid}] with name [{name}] registered with admin key: {code}")
+                self.logger.info(f"Admin client [{sid}] with name [{name}] registered")
                 await self.sio.emit("SUCCESS", {"message": "Admin registration successful", "code": code, "name": name, "admin_authenticated": True}, to=sid)
             else:
-                self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
+                self.logger.info(f"Client [{sid}] with name [{name}] registered")
                 await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             if channel.lower() == 'overlay' and 'avatar' in sid_name.lower():
                 await self._emit_avatar_state_to_sid(sid, code)
@@ -1211,6 +1217,19 @@ class BotOfTheSpecter_WebsocketServer:
             ]
         }
         await self.sio.emit("LIST_CLIENTS", output, to=sid)
+
+    async def _emit_registered_only(self, event_name, data, code):
+        # Channel-scoped admin key: clients registered under this code only. Strip the key.
+        count = 0
+        if not code or code not in self.registered_clients:
+            return 0
+        payload = dict(data) if isinstance(data, dict) else {}
+        payload.pop("code", None)
+        payload["channel_code"] = code
+        for client in self.registered_clients[code]:
+            await self.sio.emit(event_name, payload, to=client["sid"])
+            count += 1
+        return count
 
     async def broadcast_event_with_globals(self, event_name, data, code=None, source_sid=None):
         count = 0
@@ -1295,29 +1314,73 @@ class BotOfTheSpecter_WebsocketServer:
                     return code
         return None
 
+    def _admin_key_denied(self):
+        return {
+            'valid': False,
+            'service': None,
+            'is_super_admin': False,
+            'websocket_access': False,
+            'websocket_global': False,
+            'legacy': False,
+        }
+
+    async def _admin_key_columns_ready(self):
+        # Cache only a positive result so a migration applied after startup is picked up.
+        if getattr(self, "_admin_key_ws_cols", False):
+            return True
+        rows = await self.execute_query(
+            "SELECT COLUMN_NAME AS column_name FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = 'website' AND TABLE_NAME = 'admin_api_keys' "
+            "AND COLUMN_NAME IN ('websocket_access', 'websocket_global')"
+        )
+        names = set()
+        for row in rows or []:
+            name = row.get('column_name') or row.get('COLUMN_NAME')
+            if name:
+                names.add(str(name).lower())
+        ready = 'websocket_access' in names and 'websocket_global' in names
+        if ready:
+            self._admin_key_ws_cols = True
+        return ready
+
     async def verify_admin_key(self, admin_key, service=None):
         try:
-            query = "SELECT service FROM admin_api_keys WHERE api_key = %s"
+            legacy = not await self._admin_key_columns_ready()
+            if legacy:
+                query = "SELECT service FROM admin_api_keys WHERE api_key = %s"
+            else:
+                query = "SELECT service, websocket_access, websocket_global FROM admin_api_keys WHERE api_key = %s"
             result = await self.execute_query(query, (admin_key,), database_name='website')
             if not result:
-                return {'valid': False, 'service': None, 'is_super_admin': False}
-            key_service = result[0]['service']
+                return self._admin_key_denied()
+            row = result[0]
+            key_service = row['service']
             is_super_admin = (key_service == 'admin')
-            # Super admin can access everything
+            if legacy:
+                access, glob = True, True
+            else:
+                access = bool(row.get('websocket_access'))
+                glob = access and bool(row.get('websocket_global'))
+            base = {
+                'service': key_service,
+                'is_super_admin': is_super_admin,
+                'websocket_access': access,
+                'websocket_global': glob,
+                'legacy': legacy,
+            }
+            # Super admin can access every service. Flags still gate websocket use once columns exist.
             if is_super_admin:
-                return {'valid': True, 'service': 'admin', 'is_super_admin': True}
-            # Service-specific admin can only access their service
-            if service and key_service.lower() == service.lower():
-                return {'valid': True, 'service': key_service, 'is_super_admin': False}
-            # Service-specific key used for wrong service
-            if service and key_service.lower() != service.lower():
+                return {**base, 'valid': True, 'service': 'admin'}
+            if service and str(key_service).lower() == service.lower():
+                return {**base, 'valid': True}
+            if service and str(key_service).lower() != service.lower():
                 self.logger.warning(f"Admin key for service '{key_service}' attempted to access '{service}'")
-                return {'valid': False, 'service': key_service, 'is_super_admin': False}
-            # No service specified but key is service-specific (shouldn't happen)
-            return {'valid': False, 'service': key_service, 'is_super_admin': False}
+                return {**base, 'valid': False}
+            # Key exists but no service was requested (websocket flag checks use this)
+            return {**base, 'valid': False}
         except Exception as e:
             self.logger.error(f"Error verifying admin key: {e}")
-            return {'valid': False, 'service': None, 'is_super_admin': False}
+            return self._admin_key_denied()
 
     async def verify_user_key(self, api_key):
         try:
@@ -1357,24 +1420,31 @@ class BotOfTheSpecter_WebsocketServer:
         is_service_admin = False
         admin_info = None
         if required_service:
-            # Events that require admin keys
+            # Events that require admin keys. These only reach global listeners.
             admin_info = await self.verify_admin_key(code, service=required_service)
             is_valid_key = admin_info['valid']
             is_admin_key = True
             if not is_valid_key:
                 self.logger.warning(f"Invalid or unauthorized admin key for {event} event")
                 raise web.HTTPForbidden(text="403 Forbidden: Invalid or unauthorized admin key")
+            if not admin_info.get('legacy') and not admin_info.get('websocket_global'):
+                self.logger.warning(f"{event} denied: service '{admin_info.get('service')}' is not marked for global websocket access")
+                raise web.HTTPForbidden(text="403 Forbidden: Global WebSocket access is not enabled for this key")
         else:
-            # Check if it's an admin key (super admin can do anything)
+            # Check if it's an admin key (super admin can do anything the flags allow)
             admin_info = await self.verify_admin_key(code)
             if admin_info['valid'] and admin_info['is_super_admin']:
+                if not admin_info.get('legacy') and not admin_info.get('websocket_access'):
+                    self.logger.warning("Super admin key is not marked for websocket access")
+                    raise web.HTTPForbidden(text="403 Forbidden: WebSocket access is not enabled for this key")
                 is_valid_key = True
                 is_admin_key = True
                 self.logger.info(f"Super admin key used for {event} event")
             elif admin_info.get('service'):
-                # Service-scoped admin key (e.g. a global custom webhook): valid for
-                # broadcasting custom events to global listeners only, identified by
-                # its service. The key itself is never echoed back to clients.
+                # Service key. Global fan-out needs websocket_global; otherwise only clients on this key.
+                if not admin_info.get('legacy') and not admin_info.get('websocket_access'):
+                    self.logger.warning(f"Service '{admin_info.get('service')}' is not marked for websocket access")
+                    raise web.HTTPForbidden(text="403 Forbidden: WebSocket access is not enabled for this key")
                 is_valid_key = True
                 is_admin_key = True
                 is_service_admin = True
@@ -1386,19 +1456,28 @@ class BotOfTheSpecter_WebsocketServer:
                     self.logger.warning(f"Invalid API key for {event} event")
                     raise web.HTTPForbidden(text="403 Forbidden: Invalid API key")
         data = {k: v for k, v in request.query.items()}
-        self.logger.info(f"Notify request data: {data} (admin_key: {is_admin_key})")
+        safe_log = {k: ("[redacted]" if k == "code" else v) for k, v in data.items()}
+        self.logger.info(f"Notify request data: {safe_log} (admin_key: {is_admin_key})")
+        # Admin keys reach every channel only when marked global. User keys still do.
+        allow_global_fanout = True
+        if is_admin_key and admin_info and not admin_info.get('legacy'):
+            allow_global_fanout = bool(admin_info.get('websocket_global'))
+        async def fanout(event_name, payload, channel_code):
+            if allow_global_fanout:
+                return await self.broadcast_event_with_globals(event_name, payload, channel_code)
+            return await self._emit_registered_only(event_name, payload, channel_code)
         count = 0
         if event == "TWITCH_FOLLOW":
-            await self.broadcast_event_with_globals(event, data, code)
+            await fanout(event, data, code)
         elif event == "TWITCH_CHEER":
-            await self.broadcast_event_with_globals(event, data, code)
+            await fanout(event, data, code)
         elif event == "TWITCH_RAID":
-            await self.broadcast_event_with_globals(event, data, code)
+            await fanout(event, data, code)
         elif event == "TWITCH_SUB":
-            await self.broadcast_event_with_globals(event, data, code)
+            await fanout(event, data, code)
         elif event == "TWITCH_CHANNELPOINTS":
             # Just broadcast channel points events, TTS is handled by dedicated TTS event
-            await self.broadcast_event_with_globals(event, data, code)
+            await fanout(event, data, code)
         elif event == "TTS" and text:
             # Add TTS request to queue with additional parameters
             await self.tts_handler.add_tts_request(text, code, language_code, gender, voice_name, tts_style, expressive_voice)
@@ -1421,7 +1500,7 @@ class BotOfTheSpecter_WebsocketServer:
             await self.handle_github_event(code, data)
         elif event in ["STREAM_ONLINE", "STREAM_OFFLINE", "POST_REACTION_ROLES_MESSAGE", "POST_RULES_MESSAGE", "POST_STREAM_SCHEDULE_MESSAGE"]:
             # Handle stream status events, reaction roles message, rules message, and stream schedule message with proper global broadcasting
-            count = await self.broadcast_event_with_globals(event, data, code)
+            count = await fanout(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
         elif event in [
             "TANNGLE_COMPLETE",
@@ -1431,7 +1510,7 @@ class BotOfTheSpecter_WebsocketServer:
             "STORE",
         ]:
             # Tanngle / Stream Bingo / Point Store purchases
-            count = await self.broadcast_event_with_globals(event, data, code)
+            count = await fanout(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
         elif event in ["TASK_CREATE", "TASK_UPDATE", "TASK_COMPLETE", "TASK_DELETE", "TASK_REWARD_CONFIRM", "PROJECT_UPDATE"]:
             raw_task = data.get("task")
@@ -1447,10 +1526,9 @@ class BotOfTheSpecter_WebsocketServer:
         ]:
             # Personal timers are bot-owned (DB + schedule). /notify only fans out to overlays.
             count = await self.broadcast_to_task_clients_only(event, data)
-        elif is_service_admin:
-            # Service-scoped admin key (global custom webhook): deliver the custom
-            # event to global listeners only, tagged with the service name. Strip the
-            # 'code' (the admin key) so it is never echoed to any client.
+        elif is_service_admin and allow_global_fanout:
+            # Service-scoped admin key marked global: deliver the custom event to
+            # global listeners only, tagged with the service name. Strip the key.
             svc = admin_info.get('service') or "unknown"
             safe_data = {k: v for k, v in data.items() if k != 'code'}
             payload = {**safe_data, "channel_code": svc, "webhook_event": event}
@@ -1462,19 +1540,26 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Emitted {'WEBHOOK_LOG' if logs_only else event + ' + WEBHOOK_LOG'} to global listener SID [{listener['sid']}] (service: {svc})")
                 count += 1
             self.logger.info(f"Broadcasted service event '{event}' to {count} global listeners")
+        elif is_service_admin:
+            # WebSocket access without global: only clients registered with this key.
+            count = await self._emit_registered_only(event, data, code)
+            self.logger.info(f"Broadcasted service event '{event}' to {count} clients registered on this key")
         else:
             # Broadcast other events to connected clients
+            emit_data = {k: v for k, v in data.items() if k != 'code'} if is_admin_key else data
+            channel_for_globals = (admin_info.get('service') if is_admin_key and admin_info else None) or code or "unknown"
             if code in self.registered_clients:
                 for client in self.registered_clients[code]:
                     sid = client['sid']
-                    await self.sio.emit(event, data, to=sid)
+                    await self.sio.emit(event, emit_data, to=sid)
                     self.logger.info(f"Emitted event '{event}' to client {sid}")
                     count += 1
-            # Broadcast to all global listeners as well
-            for listener in self.global_listeners:
-                await self.sio.emit(event, {**data, "channel_code": code or "unknown"}, to=listener['sid'])
-                self.logger.info(f"Emitted event '{event}' to global listener SID [{listener['sid']}] (name: {listener['name']})")
-                count += 1
+            # Global listeners hear user-channel events, and admin keys only when marked global
+            if allow_global_fanout:
+                for listener in self.global_listeners:
+                    await self.sio.emit(event, {**emit_data, "channel_code": channel_for_globals}, to=listener['sid'])
+                    self.logger.info(f"Emitted event '{event}' to global listener SID [{listener['sid']}] (name: {listener['name']})")
+                    count += 1
             self.logger.info(f"Broadcasted event to {count} clients (including global listeners)")
         # Return a JSON response indicating success
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})

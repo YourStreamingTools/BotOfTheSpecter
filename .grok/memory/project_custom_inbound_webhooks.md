@@ -16,4 +16,6 @@ Built 2026-06-14 (uncommitted): admin-managed generic inbound webhooks so new in
 
 **Global-scope routing** therefore uses a **service-scoped admin key** (looked up by the webhook's `service` via `_get_admin_key_for_service`; admin creates it on the API Keys page = "the secret key is the service it knows"), NOT the master key. `server.py notify_http` was extended: service-scoped admin keys are accepted for custom events, broadcast to global-listeners ONLY, tagged with the service name, with `code` stripped so the key is never echoed. **Deploying the global feature needs a WebSocket server restart.** `verify_mode='none'` is blocked for global. Channel-scope routes to the streamer's api_key and needs no WS change.
 
+**WebSocket flags (2026-10-01):** a service key used for `scope=global` or `discord_logs` must have `admin_api_keys.websocket_access` and `websocket_global` set (Admin → API Keys). The API returns a note and does not forward when they are off. FreeStuff, GitHub, the super-admin key, and existing global custom-webhook services are turned on when the columns are first added. Other service keys (bots, sql, and so on) stay off and can no longer call `/notify` until marked.
+
 Related: [[project_bot_websocket_signaling]], [[project_websocket_wildcard]], [[feedback_no_commits]].

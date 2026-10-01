@@ -1399,6 +1399,80 @@ async def get_user_info(user_id):
     finally:
         conn.close()
 
+def _unknown_column(exc) -> bool:
+    return bool(getattr(exc, "args", None)) and exc.args[0] == 1054
+
+def _admin_key_flags(row: dict, legacy: bool) -> dict:
+    service = row.get("service")
+    if legacy:
+        access, glob = True, True
+    else:
+        access = bool(row.get("websocket_access"))
+        glob = access and bool(row.get("websocket_global"))
+    return {
+        "service": service,
+        "api_key": row.get("api_key"),
+        "is_super_admin": str(service or "") == "admin",
+        "websocket_access": access,
+        "websocket_global": glob,
+        "legacy": legacy,
+    }
+
+async def lookup_admin_key(admin_key: str) -> dict | None:
+    # websocket_access / websocket_global on website.admin_api_keys.
+    # legacy=True until those columns exist, so a deploy before the migration keeps working.
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            legacy = False
+            try:
+                await cur.execute(
+                    "SELECT service, api_key, websocket_access, websocket_global FROM admin_api_keys WHERE api_key = %s LIMIT 1",
+                    (admin_key,),
+                )
+            except Exception as e:
+                if not _unknown_column(e):
+                    logging.error(f"Error looking up admin key websocket flags: {e}")
+                    return None
+                legacy = True
+                await cur.execute(
+                    "SELECT service, api_key FROM admin_api_keys WHERE api_key = %s LIMIT 1",
+                    (admin_key,),
+                )
+            row = await cur.fetchone()
+            return _admin_key_flags(row, legacy) if row else None
+    finally:
+        conn.close()
+
+async def lookup_admin_key_for_service(service: str) -> dict | None:
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            legacy = False
+            try:
+                await cur.execute(
+                    "SELECT service, api_key, websocket_access, websocket_global FROM admin_api_keys WHERE LOWER(service) = LOWER(%s) LIMIT 1",
+                    (service,),
+                )
+            except Exception as e:
+                if not _unknown_column(e):
+                    logging.error(f"Error looking up admin key for service {service!r}: {e}")
+                    return None
+                legacy = True
+                await cur.execute(
+                    "SELECT service, api_key FROM admin_api_keys WHERE LOWER(service) = LOWER(%s) LIMIT 1",
+                    (service,),
+                )
+            row = await cur.fetchone()
+            return _admin_key_flags(row, legacy) if row else None
+    finally:
+        conn.close()
+
+def admin_key_lacks_global_websocket(record: dict | None) -> bool:
+    if not record or record.get("legacy"):
+        return False
+    return not record.get("websocket_access") or not record.get("websocket_global")
+
 # Verify the ADMIN API Key Given
 async def verify_admin_key(admin_key: str, service: str = None):
     try:
@@ -2269,6 +2343,8 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
     key_info = await verify_key(api_key, service="FreeStuff")
     if not key_info or key_info["type"] != "admin":
         raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    if admin_key_lacks_global_websocket(await lookup_admin_key(api_key)):
+        raise HTTPException(status_code=403, detail="Admin key is not marked for global WebSocket access")
     webhook_id = request.headers.get("Webhook-Id")
     compatibility_date = request.headers.get("X-Compatibility-Date")
     try:
@@ -2326,6 +2402,8 @@ async def handle_github_webhook(request: Request, api_key: str = Query(...)):
     key_info = await verify_key(api_key, service="GitHub")
     if not key_info or key_info["type"] != "admin":
         raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    if admin_key_lacks_global_websocket(await lookup_admin_key(api_key)):
+        raise HTTPException(status_code=403, detail="Admin key is not marked for global WebSocket access")
     github_event = request.headers.get("X-GitHub-Event", "unknown")
     github_delivery = request.headers.get("X-GitHub-Delivery")
     try:
@@ -2610,10 +2688,14 @@ async def receive_custom_webhook(slug: str, request: Request):
     # listeners; the WebSocket server identifies the service by this key). We never
     # forward the super-admin/master key, so it can't end up in WS access logs.
     if scope in ("global", "discord_logs"):
-        code = await _get_admin_key_for_service(service)
-        if not code:
+        record = await lookup_admin_key_for_service(service)
+        if not record or not record.get("api_key"):
             logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} scope={scope!r} but no admin key exists for service={service!r}")
             return {"status": "ok", "note": "service admin key not configured"}
+        if admin_key_lacks_global_websocket(record):
+            logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} service={service!r} is not marked for global websocket access")
+            return {"status": "ok", "note": "service key is not marked for global websocket access"}
+        code = record["api_key"]
         channel_label = service
     else:
         target = webhook.get("target_username")

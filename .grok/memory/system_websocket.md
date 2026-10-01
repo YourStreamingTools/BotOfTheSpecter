@@ -20,10 +20,12 @@ Real-time event distribution backbone using asyncio + aiohttp + python-socketio 
    - Multiple clients per code allowed (e.g., "dashboard - music", "overlay - dmca", "bot - twitch")
    - Enforces uniqueness by name (duplicate names disconnect old sessions)
 
-2. **Global Listeners** - Authenticated with admin key
+2. **Global Listeners** - Authenticated with an admin key marked for global WebSocket access
    - Discord bots, monitoring services, system-wide event consumers
    - Access to all events across all channels
-   - Must authenticate with ADMIN_KEY from env or database `admin_api_keys` table
+   - `website.admin_api_keys.websocket_access` must be on, and `websocket_global` must be on, for that key to register as a global listener or to fan events out to every channel
+   - A key with WebSocket access but not global can connect and send events only to clients registered with that same key
+   - Env `ADMIN_KEY` remains a break-glass global listener. Until the columns exist, registration stays on the old rule (super-admin `service=admin` or the env key)
 
 **Client Storage Structure**:
 ```

@@ -41,6 +41,7 @@ This directory is the **project AI knowledge base** (under `./.grok/memory/`). G
 - [Specter app token stale env](project_specter_app_token_stale_env.md) — chat-send paths must read app token from `bot_chat_token` DB, not stale env
 - [Websocket wildcard is intentional](project_websocket_wildcard.md) — the `*` catch-all in websocket/server.py is deliberate
 - [Custom inbound webhooks](project_custom_inbound_webhooks.md) — admin-defined `/webhook/{slug}`; /notify authenticates `code`
+- [Admin API key WebSocket flags](project_admin_api_key_websocket.md) — `websocket_access` and `websocket_global` on `admin_api_keys`
 - [Network architecture](project_network_architecture.md) — Cloudflare DNS-only; XFF/X-Real-IP are attacker-controlled
 - [Hosts](project_hosts.md) — public + private IPs, OS, RAM, disk for each VPS
 - [Grok SSH key](project_grok_ssh_key.md) — operator Ed25519 key; SSH by public IP (`ssh bots` / `api` / `websocket` / `sql` / `web` / `syd1.stream`)
