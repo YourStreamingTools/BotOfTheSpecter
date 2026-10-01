@@ -25,6 +25,7 @@ Real-time event distribution backbone using asyncio + aiohttp + python-socketio 
    - Access to all events across all channels
    - `website.admin_api_keys.websocket_access` must be on, and `websocket_global` must be on, for that key to register as a global listener or to fan events out to every channel
    - A key with WebSocket access but not global can connect and send events only to clients registered with that same key
+   - A key with WebSocket access off still connects. REGISTER replies SUCCESS `"Not registered, no WebSocket Access"` and then disconnects that session
    - Env `ADMIN_KEY` remains a break-glass global listener. Until the columns exist, registration stays on the old rule (super-admin `service=admin` or the env key)
 
 **Client Storage Structure**:
