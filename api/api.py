@@ -43,6 +43,7 @@ from urllib.parse import urlencode, parse_qsl, quote
 from contextlib import asynccontextmanager
 import math
 import ipaddress
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 
 # Co-located themed docs SPA (./api/docs_ui/)
 _API_DIR = Path(__file__).resolve().parent
@@ -5075,13 +5076,20 @@ async def fetch_weather_data(lat, lon, units='metric'):
                 raise ValueError("Invalid weather data received: 'current' section missing")
             return data['current']
 
+def whole_degrees(value):
+    # OpenWeatherMap always returns a float; nearest degree, halves away from zero.
+    try:
+        return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, TypeError):
+        return value
+
 def format_weather_data(current_metric, current_imperial, location):
     try:
         status = current_metric['weather'][0]['description']
     except (KeyError, IndexError):
         status = 'Unknown status'
-    temperature_c = current_metric.get('temp', 'Unknown')
-    temperature_f = current_imperial.get('temp', 'Unknown')
+    temperature_c = whole_degrees(current_metric.get('temp', 'Unknown'))
+    temperature_f = whole_degrees(current_imperial.get('temp', 'Unknown'))
     wind_speed_kph = current_metric.get('wind_speed', 'Unknown')
     wind_speed_mph = current_imperial.get('wind_speed', 'Unknown')
     humidity = current_metric.get('humidity', 'Unknown')

@@ -5,6 +5,7 @@ from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop
 from datetime import datetime, date, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from urllib.parse import urlencode, quote
 from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
@@ -1109,6 +1110,13 @@ async def cmd_joke(_ctx: _Ctx):
         bot_logger.error(f"[JOKE] {e}")
         await send_chat_message("Couldn't fetch a joke right now.")
 
+def whole_degrees(value):
+    # WeatherAPI.com always returns a float; nearest degree, halves away from zero.
+    try:
+        return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, TypeError):
+        return value
+
 async def cmd_weather(ctx: _Ctx):
     location = ctx.args_str
     if not location:
@@ -1136,7 +1144,7 @@ async def cmd_weather(ctx: _Ctx):
                 cur = d["current"]
                 await send_chat_message(
                     f"Weather in {loc['name']}, {loc['country']}: {cur['condition']['text']}, "
-                    f"{cur['temp_c']}°C / {cur['temp_f']}°F, "
+                    f"{whole_degrees(cur['temp_c'])}°C / {whole_degrees(cur['temp_f'])}°F, "
                     f"Humidity: {cur['humidity']}%, Wind: {cur['wind_kph']} km/h"
                 )
             else:

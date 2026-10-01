@@ -1260,7 +1260,7 @@ $(document).ready(function() {
         var html = '';
         if (category === 'weather') {
             html = '<div class="alerts-preview-weather">'
-                 + '<div class="apw-header"><span class="apw-loc">Sydney</span><span class="apw-temp">22°C</span></div>'
+                 + '<div class="apw-header"><span class="apw-loc">Sydney</span><span class="apw-temp">22°C | 72°F</span></div>'
                  + '<div class="apw-details"><i class="fas fa-cloud-sun apw-icon"></i><span class="apw-status">Partly cloudy</span><span class="apw-wind">10 kph</span><span class="apw-humidity">60%</span></div>'
                  + '</div>';
         } else if (category === 'deaths') {

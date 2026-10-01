@@ -88,6 +88,16 @@ if ($username) {
                     .replace(/'/g, '&#39;');
             }
 
+            // Nearest degree, halves away from zero. Matches api.py whole_degrees.
+            function wholeDegreesText(text) {
+                return String(text ?? '').replace(/-?\d+(?:\.\d+)?/g, (n) => {
+                    const v = Number(n);
+                    if (!Number.isFinite(v)) return n;
+                    const sign = v < 0 ? -1 : 1;
+                    return String(sign * Math.round(Math.abs(v)));
+                });
+            }
+
             function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
@@ -96,7 +106,7 @@ if ($username) {
                         <div class="weather-overlay-page-header">
                             ${timezone ? '<div id="currentTime" class="weather-overlay-page-time"></div>' : ''}
                             <div class="weather-overlay-page-location">${escapeHtml(location)}</div>
-                            <div class="weather-overlay-page-temperature">${escapeHtml(weather.temperature)}</div>
+                            <div class="weather-overlay-page-temperature">${escapeHtml(wholeDegreesText(weather.temperature))}</div>
                         </div>
                         <div class="weather-overlay-page-details">
                             <img src="${escapeHtml(weather.icon)}" alt="${escapeHtml(weather.status)}" class="weather-overlay-page-icon">
