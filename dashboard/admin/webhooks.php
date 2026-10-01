@@ -59,6 +59,63 @@ function wh_load_admin_keys($conn) {
     return $keys;
 }
 
+// A global/discord_logs webhook reaches the WebSocket server through its service's admin key
+// (the API never forwards the master key). Make sure that key exists and is enabled for global
+// WebSocket access so nobody has to set it up by hand on the API Keys page.
+// Returns: 'ready', 'created', 'enabled', 'failed', or null when the scope does not need a key.
+function wh_ensure_service_key($conn, $service, $scope) {
+    if (!in_array($scope, ['global', 'discord_logs'], true)) return null;
+    try {
+        $legacy = false;
+        try {
+            $stmt = $conn->prepare("SELECT service, websocket_access, websocket_global FROM admin_api_keys WHERE LOWER(service) = LOWER(?) LIMIT 1");
+        } catch (Throwable $e) {
+            $stmt = false;
+        }
+        if (!$stmt) {
+            // Flag columns not migrated yet: every key is treated as websocket-enabled.
+            $legacy = true;
+            $stmt = $conn->prepare("SELECT service FROM admin_api_keys WHERE LOWER(service) = LOWER(?) LIMIT 1");
+        }
+        $stmt->bind_param('s', $service);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row) {
+            if ($legacy || ((int) $row['websocket_access'] === 1 && (int) $row['websocket_global'] === 1)) return 'ready';
+            $upd = $conn->prepare("UPDATE admin_api_keys SET websocket_access = 1, websocket_global = 1 WHERE service = ?");
+            $upd->bind_param('s', $row['service']);
+            $ok = $upd->execute();
+            $upd->close();
+            if ($ok) admin_audit_log('admin_api_key_websocket', 'info', ['service' => $row['service'], 'websocket_access' => 1, 'websocket_global' => 1, 'via' => 'custom_webhook'], 'admin_api_key', $row['service']);
+            return $ok ? 'enabled' : 'failed';
+        }
+        $apiKey = bin2hex(random_bytes(16));
+        if ($legacy) {
+            $ins = $conn->prepare("INSERT INTO admin_api_keys (service, api_key) VALUES (?, ?)");
+            $ins->bind_param('ss', $service, $apiKey);
+        } else {
+            $ins = $conn->prepare("INSERT INTO admin_api_keys (service, api_key, websocket_access, websocket_global) VALUES (?, ?, 1, 1)");
+            $ins->bind_param('ss', $service, $apiKey);
+        }
+        $ok = $ins->execute();
+        $ins->close();
+        if ($ok) admin_audit_log('admin_api_key_create', 'info', ['service' => $service, 'websocket_access' => 1, 'websocket_global' => 1, 'via' => 'custom_webhook'], 'admin_api_key', $service);
+        return $ok ? 'created' : 'failed';
+    } catch (Throwable $e) {
+        return 'failed';
+    }
+}
+
+// Short note appended to an action message when the service key was provisioned or needs attention.
+function wh_key_note($result, $service) {
+    if ($result === 'created') return ' ' . t('admin_webhooks_msg_key_created', [$service]);
+    if ($result === 'enabled') return ' ' . t('admin_webhooks_msg_key_enabled', [$service]);
+    if ($result === 'failed')  return ' ' . t('admin_webhooks_msg_key_failed', [$service]);
+    return '';
+}
+
 // Whether the service's admin key can carry a global/discord_logs webhook (null = not applicable).
 function wh_key_state($wh, $keys) {
     if (!in_array($wh['scope'], ['global', 'discord_logs'], true)) return null;
@@ -66,6 +123,9 @@ function wh_key_state($wh, $keys) {
     if (!$key) return 'missing';
     return ($key['access'] && $key['global']) ? 'ready' : 'not_marked';
 }
+
+// Discord-log webhooks always use the WebSocket server's dedicated log event.
+$discordLogEvent = 'WEBHOOK_LOG';
 
 $validScopes = ['channel', 'global', 'discord_logs'];
 $validModes  = ['none', 'secret', 'hmac'];
@@ -80,15 +140,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
     $target        = trim($_POST['target_username'] ?? '');
     $verify_mode   = in_array($_POST['verify_mode'] ?? '', $validModes, true) ? $_POST['verify_mode'] : 'secret';
     $secret_header = trim($_POST['secret_header'] ?? '');
+    if ($scope === 'discord_logs') $event_name = $discordLogEvent;
 
     if ($name === '')            wh_json(['success' => false, 'message' => t('admin_webhooks_err_name_required')]);
-    if ($slug === '' && $verify_mode === 'none') $slug = bin2hex(random_bytes(16));
+    if ($slug === ''&& $verify_mode === 'none') $slug = bin2hex(random_bytes(16));
     if ($slug === '')            wh_json(['success' => false, 'message' => t('admin_webhooks_err_slug_required')]);
     if (!preg_match('/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/', $slug)) wh_json(['success' => false, 'message' => t('admin_webhooks_err_slug_format')]);
     if ($service === '')         wh_json(['success' => false, 'message' => t('admin_webhooks_err_service_required')]);
     if ($event_name === '')      wh_json(['success' => false, 'message' => t('admin_webhooks_err_event_required')]);
     if ($scope === 'channel' && $target === '') wh_json(['success' => false, 'message' => t('admin_webhooks_err_target_required')]);
-    if (in_array($scope, ['global', 'discord_logs'], true) && $verify_mode === 'none') wh_json(['success' => false, 'message' => t('admin_webhooks_err_global_needs_secret')]);
 
     // Uniqueness check
     $chk = $conn->prepare("SELECT id FROM custom_webhooks WHERE slug = ? LIMIT 1");
@@ -113,7 +173,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_webhook'])) {
         if ($stmt->execute()) {
             $stmt->close();
             admin_audit_log('custom_webhook_create', 'success', ['slug' => $slug, 'service' => $service, 'scope' => $scope, 'verify_mode' => $verify_mode], 'custom_webhook', $slug);
-            wh_json(['success' => true, 'message' => t('admin_webhooks_msg_created'), 'secret' => $secret, 'secret_header' => $secret_header, 'url' => $apiBase . '/webhook/' . $slug]);
+            $keyNote = wh_key_note(wh_ensure_service_key($conn, $service, $scope), $service);
+            wh_json(['success' => true, 'message' => t('admin_webhooks_msg_created') . $keyNote, 'secret' => $secret, 'secret_header' => $secret_header, 'url' => $apiBase . '/webhook/' . $slug]);
         } else {
             $err = $stmt->error; $stmt->close();
             wh_json(['success' => false, 'message' => t('admin_webhooks_err_generic', [$err])]);
@@ -133,13 +194,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_webhook'])) {
     $target        = trim($_POST['target_username'] ?? '');
     $verify_mode   = in_array($_POST['verify_mode'] ?? '', $validModes, true) ? $_POST['verify_mode'] : 'secret';
     $secret_header = trim($_POST['secret_header'] ?? '');
+    if ($scope === 'discord_logs') $event_name = $discordLogEvent;
 
     if ($id <= 0)                wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
     if ($name === '')            wh_json(['success' => false, 'message' => t('admin_webhooks_err_name_required')]);
     if ($service === '')         wh_json(['success' => false, 'message' => t('admin_webhooks_err_service_required')]);
     if ($event_name === '')      wh_json(['success' => false, 'message' => t('admin_webhooks_err_event_required')]);
     if ($scope === 'channel' && $target === '') wh_json(['success' => false, 'message' => t('admin_webhooks_err_target_required')]);
-    if (in_array($scope, ['global', 'discord_logs'], true) && $verify_mode === 'none') wh_json(['success' => false, 'message' => t('admin_webhooks_err_global_needs_secret')]);
 
     // Load current row (need slug for audit + current secret state)
     $cur = $conn->prepare("SELECT slug, secret FROM custom_webhooks WHERE id = ? LIMIT 1");
@@ -182,7 +243,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_webhook'])) {
             wh_json(['success' => false, 'message' => t('admin_webhooks_err_generic', [$err])]);
         }
         admin_audit_log('custom_webhook_update', 'success', ['slug' => $curRow['slug'], 'service' => $service, 'scope' => $scope, 'verify_mode' => $verify_mode], 'custom_webhook', $curRow['slug']);
-        wh_json(['success' => true, 'message' => t('admin_webhooks_msg_updated'), 'secret' => $newSecret, 'secret_header' => $secret_header]);
+        $keyNote = wh_key_note(wh_ensure_service_key($conn, $service, $scope), $service);
+        wh_json(['success' => true, 'message' => t('admin_webhooks_msg_updated') . $keyNote, 'secret' => $newSecret, 'secret_header' => $secret_header]);
     } catch (Exception $e) {
         wh_json(['success' => false, 'message' => t('admin_webhooks_err_generic', [$e->getMessage()])]);
     }
@@ -258,11 +320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_secret']))
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_webhook'])) {
     $id = (int) ($_POST['webhook_id'] ?? 0);
     if ($id <= 0) wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
-    $g = $conn->prepare("SELECT slug, verify_mode, secret, secret_header, enabled FROM custom_webhooks WHERE id = ? LIMIT 1");
+    $g = $conn->prepare("SELECT slug, service, scope, verify_mode, secret, secret_header, enabled FROM custom_webhooks WHERE id = ? LIMIT 1");
     $g->bind_param('i', $id); $g->execute(); $gr = $g->get_result();
     $row = $gr ? $gr->fetch_assoc() : null; $g->close();
     if (!$row) wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
     if (!(int) $row['enabled']) wh_json(['success' => false, 'message' => t('admin_webhooks_err_test_disabled')]);
+    // Webhooks created before keys were auto-provisioned may have no usable service key.
+    $keyNote = wh_key_note(wh_ensure_service_key($conn, $row['service'], $row['scope']), $row['service']);
     $body = json_encode([
         'type' => 'test',
         'data' => ['status' => 'test', 'message' => 'BotOfTheSpecter webhook test'],
@@ -303,10 +367,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_webhook'])) {
     }
     $decoded = json_decode($response, true);
     if ($httpCode === 200) {
-        wh_json(['success' => true, 'message' => t('admin_webhooks_msg_test_ok', [(int) ($decoded['delivered'] ?? 0)])]);
+        wh_json(['success' => true, 'message' => t('admin_webhooks_msg_test_ok', [(int) ($decoded['delivered'] ?? 0)]) . $keyNote]);
     }
     $detail = is_array($decoded) && isset($decoded['detail']) && is_string($decoded['detail']) ? $decoded['detail'] : substr((string) $response, 0, 200);
-    wh_json(['success' => false, 'message' => t('admin_webhooks_err_test_failed', [$httpCode, $detail])]);
+    wh_json(['success' => false, 'message' => t('admin_webhooks_err_test_failed', [$httpCode, $detail]) . $keyNote]);
 }
 
 // Map a stored delivery status to its translated label (unknown codes are shown as-is)
@@ -381,7 +445,7 @@ ob_start();
             <input class="sp-input" type="text" name="service" id="f_service" placeholder="<?php echo htmlspecialchars(t('admin_webhooks_field_service_ph')); ?>" required>
             <p class="sp-help"><?php echo t('admin_webhooks_field_service_help'); ?></p>
         </div>
-        <div class="sp-form-group">
+        <div class="sp-form-group" id="eventGroup">
             <label class="sp-label"><?php echo t('admin_webhooks_field_event'); ?></label>
             <input class="sp-input" type="text" name="event_name" id="f_event" placeholder="<?php echo htmlspecialchars(t('admin_webhooks_field_event_ph')); ?>" style="font-family:monospace;" required>
             <p class="sp-help"><?php echo t('admin_webhooks_field_event_help'); ?></p>
@@ -590,7 +654,19 @@ document.addEventListener('DOMContentLoaded', function() {
         crypto.getRandomValues(arr);
         return Array.from(arr, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
     }
+    const eventGroup  = document.getElementById('eventGroup');
+    const eventField  = document.getElementById('f_event');
+    const DISCORD_LOG_EVENT = <?php echo json_encode($discordLogEvent); ?>;
     function refreshConditionalFields() {
+        // Discord-log webhooks always use the dedicated log event, so the field is hidden and fixed.
+        var logsScope = scopeSel.value === 'discord_logs';
+        eventGroup.style.display = logsScope ? 'none' : '';
+        eventField.required = !logsScope;
+        if (logsScope) {
+            eventField.value = DISCORD_LOG_EVENT;
+        } else if (eventField.value === DISCORD_LOG_EVENT) {
+            eventField.value = '';
+        }
         var noneMode = verifySel.value === 'none';
         targetGroup.style.display = (scopeSel.value === 'channel') ? '' : 'none';
         headerGroup.style.display = noneMode ? 'none' : '';
