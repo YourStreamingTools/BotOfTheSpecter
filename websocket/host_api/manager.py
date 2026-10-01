@@ -57,7 +57,13 @@ def unit_status(name: str) -> dict[str, Any]:
             "pid": None,
             "error": f"Unit not allowlisted: {name}",
         }
-    code, out = _systemctl("show", unit, "--property=ActiveState,SubState,MainPID", "--no-pager")
+    code, out = _systemctl(
+        "show",
+        unit,
+        "--property=ActiveState,SubState,MainPID,ActiveEnterTimestamp",
+        "--timestamp=unix",
+        "--no-pager",
+    )
     if code != 0:
         return {
             "ok": False,
@@ -88,6 +94,7 @@ def unit_status(name: str) -> dict[str, Any]:
         status_label = active or "Unknown"
         if sub:
             status_label = f"{status_label} ({sub})"
+    started = _unix_timestamp(props.get("ActiveEnterTimestamp", ""))
     return {
         "ok": True,
         "unit": unit,
@@ -95,8 +102,26 @@ def unit_status(name: str) -> dict[str, Any]:
         "active_state": active,
         "sub_state": sub,
         "pid": pid,
+        "active_enter_unix": started if status_label == "Running" else None,
         "error": None,
     }
+
+
+def _unix_timestamp(raw: str) -> int | None:
+    text = (raw or "").strip()
+    if text.startswith("@"):
+        text = text[1:]
+    if not text or text.lower() == "n/a":
+        return None
+    head = text.split(".", 1)[0]
+    if not head.isdigit():
+        return None
+    value = int(head)
+    if value > 20_000_000_000:
+        value //= 1_000_000
+    if value <= 0:
+        return None
+    return value
 
 
 def list_services() -> dict[str, Any]:
