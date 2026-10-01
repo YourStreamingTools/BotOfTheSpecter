@@ -9,6 +9,56 @@ require_once "/var/www/config/db_connect.php";
 include "../includes/userdata.php";
 session_write_close();
 
+function admin_api_keys_column_exists(mysqli $conn, $column) {
+    $stmt = $conn->prepare("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_api_keys' AND COLUMN_NAME = ?");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('s', $column);
+    $stmt->execute();
+    $exists = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    return $exists;
+}
+
+function admin_api_keys_ensure_websocket_columns(mysqli $conn) {
+    // Same change as migrations/website/20261001_0001_admin_api_keys_websocket.php, so the page works before that migration is applied.
+    $added = false;
+    if (!admin_api_keys_column_exists($conn, 'websocket_access')) {
+        if (!$conn->query("ALTER TABLE admin_api_keys ADD COLUMN websocket_access TINYINT(1) NOT NULL DEFAULT 0")) {
+            return false;
+        }
+        $added = true;
+    }
+    if (!admin_api_keys_column_exists($conn, 'websocket_global')) {
+        if (!$conn->query("ALTER TABLE admin_api_keys ADD COLUMN websocket_global TINYINT(1) NOT NULL DEFAULT 0")) {
+            return false;
+        }
+        $added = true;
+    }
+    if (!$added) {
+        // Columns already present. Do not overwrite toggles the admin has set.
+        return true;
+    }
+    $conn->query("UPDATE admin_api_keys SET websocket_access = 1, websocket_global = 1 WHERE LOWER(service) IN ('admin', 'freestuff', 'github')");
+    $tables = $conn->query("SHOW TABLES LIKE 'custom\\_webhooks'");
+    if ($tables && $tables->num_rows > 0) {
+        $conn->query("UPDATE admin_api_keys k INNER JOIN custom_webhooks w ON LOWER(w.service) = LOWER(k.service) SET k.websocket_access = 1, k.websocket_global = 1 WHERE w.scope IN ('global', 'discord_logs')");
+    }
+    if ($tables) {
+        $tables->free();
+    }
+    return true;
+}
+
+function admin_api_keys_flag($value) {
+    return ((string) $value === '1' || $value === 1) ? 1 : 0;
+}
+
+if ($conn) {
+    admin_api_keys_ensure_websocket_columns($conn);
+}
+
 // Handle API key creation
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_key'])) {
     $service = trim($_POST['service']);
@@ -19,12 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_key'])) {
     } else {
         // Generate a random 32-character API key
         $api_key = bin2hex(random_bytes(16));
+        $ws_access = admin_api_keys_flag($_POST['websocket_access'] ?? 0);
+        $ws_global = $ws_access ? admin_api_keys_flag($_POST['websocket_global'] ?? 0) : 0;
         try {
-            $stmt = $conn->prepare("INSERT INTO admin_api_keys (service, api_key) VALUES (?, ?)");
-            $stmt->bind_param("ss", $service, $api_key);
+            $stmt = $conn->prepare("INSERT INTO admin_api_keys (service, api_key, websocket_access, websocket_global) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssii", $service, $api_key, $ws_access, $ws_global);
             if ($stmt->execute()) {
                 $success = true;
                 $message = t('admin_api_keys_msg_created');
+                admin_audit_log('admin_api_key_create', 'info', [
+                    'service' => $service,
+                    'websocket_access' => $ws_access,
+                    'websocket_global' => $ws_global,
+                ], 'admin_api_key', $service);
             } else {
                 $message = t('admin_api_keys_error_create_failed', [$stmt->error]);
             }
@@ -35,7 +92,64 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_key'])) {
     }
     ob_end_clean();
     header('Content-Type: application/json');
-    echo json_encode(['success' => $success, 'message' => $message, 'api_key' => $success ? $api_key : null]);
+    echo json_encode([
+        'success' => $success,
+        'message' => $message,
+        'api_key' => $success ? $api_key : null,
+        'websocket_access' => $success ? $ws_access : 0,
+        'websocket_global' => $success ? $ws_global : 0,
+    ]);
+    exit;
+}
+
+// Handle WebSocket access flags
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_ws'])) {
+    $service = trim($_POST['service'] ?? '');
+    $success = false;
+    $message = '';
+    $ws_access = 0;
+    $ws_global = 0;
+    if ($service === '') {
+        $message = t('admin_api_keys_error_service_empty');
+    } else {
+        $ws_access = admin_api_keys_flag($_POST['websocket_access'] ?? 0);
+        $ws_global = $ws_access ? admin_api_keys_flag($_POST['websocket_global'] ?? 0) : 0;
+        try {
+            $check = $conn->prepare("SELECT service FROM admin_api_keys WHERE service = ? LIMIT 1");
+            $check->bind_param('s', $service);
+            $check->execute();
+            $found = $check->get_result()->num_rows > 0;
+            $check->close();
+            if (!$found) {
+                $message = t('admin_api_keys_error_ws_update_failed');
+            } else {
+                $stmt = $conn->prepare("UPDATE admin_api_keys SET websocket_access = ?, websocket_global = ? WHERE service = ?");
+                $stmt->bind_param('iis', $ws_access, $ws_global, $service);
+                if ($stmt->execute()) {
+                    $success = true;
+                    $message = t('admin_api_keys_msg_ws_updated');
+                    admin_audit_log('admin_api_key_websocket', 'info', [
+                        'service' => $service,
+                        'websocket_access' => $ws_access,
+                        'websocket_global' => $ws_global,
+                    ], 'admin_api_key', $service);
+                } else {
+                    $message = t('admin_api_keys_error_ws_update_failed');
+                }
+                $stmt->close();
+            }
+        } catch (Exception $e) {
+            $message = t('admin_api_keys_error_generic', [$e->getMessage()]);
+        }
+    }
+    ob_end_clean();
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => $success,
+        'message' => $message,
+        'websocket_access' => $ws_access,
+        'websocket_global' => $ws_global,
+    ]);
     exit;
 }
 
@@ -101,13 +215,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['regenerate_key'])) {
 
 // Fetch all API keys
 $api_keys = [];
+$api_keys_error = '';
 if ($conn) {
-    $result = $conn->query("SELECT service, api_key FROM admin_api_keys ORDER BY service");
+    $result = $conn->query("SELECT service, api_key, websocket_access, websocket_global FROM admin_api_keys ORDER BY service");
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $api_keys[] = $row;
         }
         $result->free();
+    } else {
+        $api_keys_error = $conn->error;
     }
 }
 
@@ -134,6 +251,16 @@ ob_start();
             <p class="sp-help"><?php echo t('admin_api_keys_service_name_help'); ?></p>
         </div>
         <div class="sp-form-group">
+            <input type="checkbox" class="switch" id="create-ws-access" name="websocket_access" value="1">
+            <label for="create-ws-access"><?php echo t('admin_api_keys_ws_access_label'); ?></label>
+            <p class="sp-help"><?php echo t('admin_api_keys_ws_access_help'); ?></p>
+        </div>
+        <div class="sp-form-group">
+            <input type="checkbox" class="switch" id="create-ws-global" name="websocket_global" value="1" disabled>
+            <label for="create-ws-global"><?php echo t('admin_api_keys_ws_global_label'); ?></label>
+            <p class="sp-help"><?php echo t('admin_api_keys_ws_global_help'); ?></p>
+        </div>
+        <div class="sp-form-group">
             <button type="submit" class="sp-btn sp-btn-primary">
                 <span class="icon">
                     <i class="fas fa-plus"></i>
@@ -149,7 +276,11 @@ ob_start();
         <h2 class="sp-card-title"><?php echo t('admin_api_keys_existing_heading'); ?></h2>
     </div>
     <div class="sp-card-body">
-    <?php if (empty($api_keys)): ?>
+    <?php if ($api_keys_error !== ''): ?>
+        <div class="sp-alert sp-alert-danger">
+            <?php echo htmlspecialchars($api_keys_error); ?>
+        </div>
+    <?php elseif (empty($api_keys)): ?>
         <div class="sp-alert sp-alert-info">
             <?php echo t('admin_api_keys_empty_state'); ?>
         </div>
@@ -160,11 +291,18 @@ ob_start();
                     <tr>
                         <th><?php echo t('admin_api_keys_th_service'); ?></th>
                         <th><?php echo t('admin_api_keys_th_api_key'); ?></th>
+                        <th><?php echo t('admin_api_keys_th_websocket'); ?></th>
+                        <th><?php echo t('admin_api_keys_th_global'); ?></th>
                         <th><?php echo t('admin_api_keys_th_actions'); ?></th>
                     </tr>
                 </thead>
                 <tbody id="apiKeysTable">
                     <?php foreach ($api_keys as $key): ?>
+                        <?php
+                            $wsOn = (int) ($key['websocket_access'] ?? 0) === 1;
+                            $wsGlobal = $wsOn && (int) ($key['websocket_global'] ?? 0) === 1;
+                            $flagId = substr(hash('sha256', $key['service']), 0, 12);
+                        ?>
                         <tr data-service="<?php echo htmlspecialchars($key['service']); ?>">
                             <td><strong><?php echo htmlspecialchars($key['service']); ?></strong></td>
                             <td>
@@ -181,6 +319,14 @@ ob_start();
                                         </span>
                                     </button>
                                 </div>
+                            </td>
+                            <td>
+                                <input type="checkbox" class="switch ws-access-toggle" id="ws-access-<?php echo $flagId; ?>" data-service="<?php echo htmlspecialchars($key['service'], ENT_QUOTES); ?>"<?php echo $wsOn ? ' checked' : ''; ?>>
+                                <label for="ws-access-<?php echo $flagId; ?>" aria-label="<?php echo htmlspecialchars(t('admin_api_keys_ws_access_label')); ?>"></label>
+                            </td>
+                            <td>
+                                <input type="checkbox" class="switch ws-global-toggle" id="ws-global-<?php echo $flagId; ?>" data-service="<?php echo htmlspecialchars($key['service'], ENT_QUOTES); ?>"<?php echo $wsGlobal ? ' checked' : ''; ?><?php echo $wsOn ? '' : ' disabled'; ?>>
+                                <label for="ws-global-<?php echo $flagId; ?>" aria-label="<?php echo htmlspecialchars(t('admin_api_keys_ws_global_label')); ?>"></label>
                             </td>
                             <td>
                                 <div class="sp-btn-group">
@@ -237,13 +383,27 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleTitle: <?php echo json_encode(t('admin_api_keys_toggle_title')); ?>,
         copyTitle: <?php echo json_encode(t('admin_api_keys_copy_title')); ?>,
         regenerateButton: <?php echo json_encode(t('admin_api_keys_regenerate_button')); ?>,
-        deleteButton: <?php echo json_encode(t('admin_api_keys_delete_button')); ?>
+        deleteButton: <?php echo json_encode(t('admin_api_keys_delete_button')); ?>,
+        thWebsocket: <?php echo json_encode(t('admin_api_keys_th_websocket')); ?>,
+        thGlobal: <?php echo json_encode(t('admin_api_keys_th_global')); ?>,
+        wsAccessLabel: <?php echo json_encode(t('admin_api_keys_ws_access_label')); ?>,
+        wsGlobalLabel: <?php echo json_encode(t('admin_api_keys_ws_global_label')); ?>,
+        wsError: <?php echo json_encode(t('admin_api_keys_js_ws_error')); ?>
     };
     // Helper function to escape HTML
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    function flagSwitch(kind, service, on, disabled) {
+        const id = kind + '-' + Math.random().toString(36).slice(2, 10);
+        const cls = kind === 'access' ? 'ws-access-toggle' : 'ws-global-toggle';
+        const label = kind === 'access' ? I18N.wsAccessLabel : I18N.wsGlobalLabel;
+        const serviceAttr = escapeHtml(service).replace(/"/g, '&quot;');
+        return '<input type="checkbox" class="switch ' + cls + '" id="' + id + '" data-service="' + serviceAttr + '"' +
+            (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '>' +
+            '<label for="' + id + '" aria-label="' + escapeHtml(label) + '"></label>';
     }
     // Function to attach event listeners to row buttons
     function attachRowEventListeners(row) {
@@ -297,6 +457,50 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deleteBtn) {
             deleteBtn.addEventListener('click', handleDeleteKey);
         }
+        row.querySelectorAll('.ws-access-toggle, .ws-global-toggle').forEach(function(input) {
+            input.addEventListener('change', handleWsToggle);
+        });
+    }
+    async function handleWsToggle(event) {
+        const changed = event.currentTarget;
+        const row = changed.closest('tr');
+        const accessEl = row.querySelector('.ws-access-toggle');
+        const globalEl = row.querySelector('.ws-global-toggle');
+        const prevAccess = changed === accessEl ? !accessEl.checked : accessEl.checked;
+        const prevGlobal = changed === globalEl ? !globalEl.checked : globalEl.checked;
+        if (changed === globalEl && globalEl.checked) {
+            accessEl.checked = true;
+        }
+        if (changed === accessEl && !accessEl.checked) {
+            globalEl.checked = false;
+        }
+        globalEl.disabled = !accessEl.checked;
+        accessEl.disabled = true;
+        globalEl.disabled = true;
+        const formData = new FormData();
+        formData.append('update_ws', '1');
+        formData.append('service', accessEl.dataset.service);
+        formData.append('websocket_access', accessEl.checked ? '1' : '0');
+        formData.append('websocket_global', globalEl.checked ? '1' : '0');
+        try {
+            const response = await fetch('api_keys.php', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.message || I18N.wsError);
+            }
+            accessEl.checked = !!Number(data.websocket_access);
+            globalEl.checked = !!Number(data.websocket_global);
+        } catch (error) {
+            accessEl.checked = prevAccess;
+            globalEl.checked = prevGlobal;
+            Swal.fire({
+                icon: 'error',
+                title: I18N.errorTitle,
+                text: error.message || I18N.wsError
+            });
+        }
+        accessEl.disabled = false;
+        globalEl.disabled = !accessEl.checked;
     }
     // Handle regenerate key
     async function handleRegenerateKey() {
@@ -440,7 +644,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData();
         formData.append('create_key', '1');
         const service = createForm.querySelector('[name="service"]').value;
+        const accessOn = createForm.querySelector('[name="websocket_access"]').checked;
+        const globalOn = accessOn && createForm.querySelector('[name="websocket_global"]').checked;
         formData.append('service', service);
+        formData.append('websocket_access', accessOn ? '1' : '0');
+        formData.append('websocket_global', globalOn ? '1' : '0');
         try {
             const response = await fetch('api_keys.php', {
                 method: 'POST',
@@ -478,6 +686,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <tr>
                                         <th>${escapeHtml(I18N.thService)}</th>
                                         <th>${escapeHtml(I18N.thApiKey)}</th>
+                                        <th>${escapeHtml(I18N.thWebsocket)}</th>
+                                        <th>${escapeHtml(I18N.thGlobal)}</th>
                                         <th>${escapeHtml(I18N.thActions)}</th>
                                     </tr>
                                 </thead>
@@ -508,6 +718,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             </button>
                         </div>
                     </td>
+                    <td>${flagSwitch('access', service, accessOn, false)}</td>
+                    <td>${flagSwitch('global', service, globalOn, !accessOn)}</td>
                     <td>
                         <div class="sp-btn-group">
                             <button class="sp-btn sp-btn-warning sp-btn-sm regenerate-key" data-service="${escapeHtml(service)}">
@@ -530,6 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 attachRowEventListeners(newRow);
                 // Clear form
                 createForm.reset();
+                syncCreateGlobal();
             } else {
                 Swal.fire({
                     icon: 'error',
@@ -545,6 +758,27 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+    function syncCreateGlobal() {
+        const accessEl = document.getElementById('create-ws-access');
+        const globalEl = document.getElementById('create-ws-global');
+        if (!accessEl || !globalEl) return;
+        if (!accessEl.checked) {
+            globalEl.checked = false;
+            globalEl.disabled = true;
+        } else {
+            globalEl.disabled = false;
+        }
+    }
+    const createAccess = document.getElementById('create-ws-access');
+    const createGlobal = document.getElementById('create-ws-global');
+    if (createAccess && createGlobal) {
+        createAccess.addEventListener('change', syncCreateGlobal);
+        createGlobal.addEventListener('change', function() {
+            if (this.checked) createAccess.checked = true;
+            syncCreateGlobal();
+        });
+        syncCreateGlobal();
+    }
     // Initialize event listeners for existing rows
     document.querySelectorAll('#apiKeysTable tr').forEach(row => {
         attachRowEventListeners(row);
