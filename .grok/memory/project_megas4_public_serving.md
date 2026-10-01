@@ -24,8 +24,9 @@ Since 2026-09-29, **syd1.stream is the storage server**. RTMPS ingest, Twitch VO
 ## syd1 storage side
 
 - `specter-media-mount@<store>.service` (template, `stream/specter-media-mount@.service`) → `rclone mount megas4:botofthespecter/<store> /mnt/specter-media/<store> --read-only --vfs-cache-mode full --vfs-cache-max-size 50G --vfs-cache-max-age 8760h --use-server-modtime --dir-cache-time 30s`, cache in `/var/cache/specter-media-vfs` on the 1 TB disk.
+- **CDN only:** `stream/specter-media-mount@cdn.service.d/dir-cache.conf` raises `--dir-cache-time` to **1h** (live on syd1 since 2026-10-01). A 30s cache re-listed Mega S4 after a short idle (~1s). User-upload stores stay at 30s until an upload invalidates the directory cache; a longer cache would keep a replaced file stale. A new CDN object still 404s on syd1 until the directory cache refreshes, and Caddy falls back to S4.
 - **Mount root must be under `/mnt`**: Ubuntu's AppArmor `fusermount3` profile only allows `@{HOME}`, `/mnt`, `/media`, `/tmp`, `/run/user`; `/srv/...` fails with "fusermount: mount failed: Permission denied" (`failed mntpnt match` in dmesg). web1 doesn't load that profile.
-- New/changed uploads show up on syd1 within ~30s (dir cache); meanwhile GETs fall back to S4. First read of a file ~0.6–2.5s from S4, then ~2–40ms from syd1 disk.
+- New/changed uploads on the 30s stores show up on syd1 within ~30s (dir cache); CDN listings can take up to an hour. Meanwhile GETs of a missing path fall back to S4. First read of a file ~0.6–2.5s from S4, then ~2–40ms from syd1 disk. A replaced file that is still in the directory cache is served stale until that cache expires.
 - rclone config `/root/.config/rclone/rclone.conf` (remote `megas4`) was copied from web1; rclone is the Ubuntu package (v1.60).
 
 ## web1 PHP / upload side
