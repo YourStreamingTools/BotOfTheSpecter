@@ -2638,6 +2638,40 @@ def _verify_custom_webhook(verify_mode: str, secret: str, secret_header: str, re
         return hmac.compare_digest(sig.lower(), computed.lower())
     return False
 
+async def _record_custom_webhook_result(slug: str, status: str, error: str | None, delivered: bool):
+    # Best-effort observability. The last_* columns come from a migration, so a
+    # missing column must not break delivery.
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor() as cur:
+                if delivered:
+                    await cur.execute(
+                        "UPDATE custom_webhooks SET last_received_at = UTC_TIMESTAMP(), "
+                        "received_count = received_count + 1 WHERE slug = %s",
+                        (slug,)
+                    )
+                try:
+                    await cur.execute(
+                        "UPDATE custom_webhooks SET last_attempt_at = UTC_TIMESTAMP(), "
+                        "last_status = %s, last_error = %s WHERE slug = %s",
+                        (status, error[:255] if error else None, slug)
+                    )
+                except Exception as e:
+                    if not _unknown_column(e):
+                        raise
+                await conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"[CUSTOM_WEBHOOK] Failed to record result slug={slug!r}: {e}")
+
+async def _fail_custom_webhook(slug: str, status: str, detail: str, http_status: int = 503):
+    # A verified webhook that could not be delivered must not look successful to the sender.
+    logging.error(f"[CUSTOM_WEBHOOK] {status} | slug={slug!r} | {detail}")
+    await _record_custom_webhook_result(slug, status, detail, False)
+    raise HTTPException(status_code=http_status, detail=detail)
+
 @app.post(
     "/webhook/{slug}",
     summary="Receive a Custom (admin-defined) Inbound Webhook",
@@ -2690,25 +2724,23 @@ async def receive_custom_webhook(slug: str, request: Request):
     if scope in ("global", "discord_logs"):
         record = await lookup_admin_key_for_service(service)
         if not record or not record.get("api_key"):
-            logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} scope={scope!r} but no admin key exists for service={service!r}")
-            return {"status": "ok", "note": "service admin key not configured"}
+            await _fail_custom_webhook(slug, "no_admin_key", f"No admin API key exists for service {service!r}")
         if admin_key_lacks_global_websocket(record):
-            logging.error(f"[CUSTOM_WEBHOOK] slug={slug!r} service={service!r} is not marked for global websocket access")
-            return {"status": "ok", "note": "service key is not marked for global websocket access"}
+            await _fail_custom_webhook(slug, "key_not_marked", f"Admin API key for service {service!r} is not marked for global WebSocket access")
         code = record["api_key"]
         channel_label = service
     else:
         target = webhook.get("target_username")
         if not target:
-            logging.warning(f"[CUSTOM_WEBHOOK] slug={slug!r} scope=channel but no target_username")
-            return {"status": "ok", "note": "no target channel configured"}
+            await _fail_custom_webhook(slug, "no_target", "Channel webhook has no target channel configured")
         code = await _get_api_key_for_username(target)
         if not code:
-            logging.warning(f"[CUSTOM_WEBHOOK] slug={slug!r} target {target!r} not registered")
-            return {"status": "ok", "note": "channel not registered"}
+            await _fail_custom_webhook(slug, "channel_not_registered", f"Target channel {target!r} is not registered")
         channel_label = target
     logging.info(f"[CUSTOM_WEBHOOK] received | slug={slug!r} service={service!r} event={event_name!r} scope={scope!r}")
     # Forward to the internal WebSocket server
+    delivered_to = 0
+    forward_error = None
     async with aiohttp.ClientSession() as session:
         try:
             params = {
@@ -2722,32 +2754,22 @@ async def receive_custom_webhook(slug: str, request: Request):
             url = f"https://websocket.botofthespecter.com/notify?{urlencode(params)}"
             async with session.get(url, timeout=10) as response:
                 if response.status != 200:
-                    logging.error(f"[CUSTOM_WEBHOOK] WS forward failed: HTTP {response.status} slug={slug!r}")
-                    raise HTTPException(status_code=502, detail="Error forwarding to WebSocket server")
+                    forward_error = f"WebSocket server replied HTTP {response.status}"
+                else:
+                    ws_result = await response.json(content_type=None)
+                    delivered_to = int((ws_result or {}).get("count") or 0)
         except asyncio.TimeoutError:
-            logging.error(f"[CUSTOM_WEBHOOK] Timeout forwarding to WebSocket server slug={slug!r}")
-            raise HTTPException(status_code=502, detail="Timeout forwarding to WebSocket server")
-        except HTTPException:
-            raise
+            forward_error = "Timeout forwarding to WebSocket server"
         except Exception as e:
-            logging.error(f"[CUSTOM_WEBHOOK] Unexpected error forwarding slug={slug!r}: {e}")
-            raise HTTPException(status_code=502, detail="Error forwarding to WebSocket server")
-    # Best-effort observability update
-    try:
-        conn = await get_mysql_connection()
-        try:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE custom_webhooks SET last_received_at = UTC_TIMESTAMP(), "
-                    "received_count = received_count + 1 WHERE slug = %s",
-                    (slug,)
-                )
-                await conn.commit()
-        finally:
-            conn.close()
-    except Exception as e:
-        logging.error(f"[CUSTOM_WEBHOOK] Failed to update stats slug={slug!r}: {e}")
-    return {"status": "success", "event": event_name}
+            forward_error = f"Error forwarding to WebSocket server: {e}"
+    if forward_error:
+        await _fail_custom_webhook(slug, "forward_failed", forward_error, 502)
+    # Global and Discord-log webhooks exist to reach the global listeners (the Discord bot).
+    # Channel webhooks legitimately reach nobody when the streamer has no client open.
+    if scope in ("global", "discord_logs") and delivered_to == 0:
+        await _fail_custom_webhook(slug, "no_listeners", "No global WebSocket listener is connected to receive this event")
+    await _record_custom_webhook_result(slug, "ok", None, True)
+    return {"status": "success", "event": event_name, "delivered": delivered_to}
 
 # FreeStuff Games List Endpoint
 @app.get(

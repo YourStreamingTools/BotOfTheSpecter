@@ -36,6 +36,37 @@ function wh_default_header($mode) {
     return ($mode === 'hmac') ? 'X-Webhook-Signature' : 'X-Webhook-Secret';
 }
 
+// Admin keys by lowercase service name, flagged the same way the API reads them.
+// Falls back to a plain existence check when the websocket flag columns are not migrated yet.
+function wh_load_admin_keys($conn) {
+    $keys = [];
+    $queries = [
+        "SELECT service, websocket_access, websocket_global FROM admin_api_keys",
+        "SELECT service FROM admin_api_keys",
+    ];
+    foreach ($queries as $sql) {
+        try { $res = $conn->query($sql); } catch (Throwable $e) { $res = false; }
+        if (!$res) continue;
+        while ($row = $res->fetch_assoc()) {
+            $keys[strtolower($row['service'])] = [
+                'access' => !array_key_exists('websocket_access', $row) || (int) $row['websocket_access'] === 1,
+                'global' => !array_key_exists('websocket_global', $row) || (int) $row['websocket_global'] === 1,
+            ];
+        }
+        $res->free();
+        break;
+    }
+    return $keys;
+}
+
+// Whether the service's admin key can carry a global/discord_logs webhook (null = not applicable).
+function wh_key_state($wh, $keys) {
+    if (!in_array($wh['scope'], ['global', 'discord_logs'], true)) return null;
+    $key = $keys[strtolower($wh['service'])] ?? null;
+    if (!$key) return 'missing';
+    return ($key['access'] && $key['global']) ? 'ready' : 'not_marked';
+}
+
 $validScopes = ['channel', 'global', 'discord_logs'];
 $validModes  = ['none', 'secret', 'hmac'];
 
@@ -222,15 +253,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_secret']))
     }
 }
 
-// Fetch all webhooks for display
+// Send a signed test through the real public endpoint so it exercises verification,
+// routing and the WebSocket hop exactly like an external sender would.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_webhook'])) {
+    $id = (int) ($_POST['webhook_id'] ?? 0);
+    if ($id <= 0) wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
+    $g = $conn->prepare("SELECT slug, verify_mode, secret, secret_header, enabled FROM custom_webhooks WHERE id = ? LIMIT 1");
+    $g->bind_param('i', $id); $g->execute(); $gr = $g->get_result();
+    $row = $gr ? $gr->fetch_assoc() : null; $g->close();
+    if (!$row) wh_json(['success' => false, 'message' => t('admin_webhooks_err_not_found')]);
+    if (!(int) $row['enabled']) wh_json(['success' => false, 'message' => t('admin_webhooks_err_test_disabled')]);
+    $body = json_encode([
+        'type' => 'test',
+        'data' => ['status' => 'test', 'message' => 'BotOfTheSpecter webhook test'],
+        'sent_by' => $_SESSION['username'] ?? '',
+        'sent_at' => gmdate('c'),
+    ]);
+    $headers = ['Content-Type: application/json'];
+    if ($row['verify_mode'] !== 'none') {
+        $headerName = $row['secret_header'] !== '' ? $row['secret_header'] : wh_default_header($row['verify_mode']);
+        $secret = (string) $row['secret'];
+        if ($row['verify_mode'] === 'hmac') {
+            if (strtolower($headerName) === 'elevenlabs-signature') {
+                $ts = time();
+                $value = 't=' . $ts . ',v0=' . hash_hmac('sha256', $ts . '.' . $body, $secret);
+            } else {
+                $value = hash_hmac('sha256', $body, $secret);
+            }
+        } else {
+            $value = $secret;
+        }
+        $headers[] = $headerName . ': ' . $value;
+    }
+    $ch = curl_init($apiBase . '/webhook/' . rawurlencode($row['slug']));
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 20,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    admin_audit_log('custom_webhook_test', $httpCode === 200 ? 'success' : 'warning', ['slug' => $row['slug'], 'http' => $httpCode], 'custom_webhook', $row['slug']);
+    if ($response === false) {
+        wh_json(['success' => false, 'message' => t('admin_webhooks_err_test_unreachable', [$curlError])]);
+    }
+    $decoded = json_decode($response, true);
+    if ($httpCode === 200) {
+        wh_json(['success' => true, 'message' => t('admin_webhooks_msg_test_ok', [(int) ($decoded['delivered'] ?? 0)])]);
+    }
+    $detail = is_array($decoded) && isset($decoded['detail']) && is_string($decoded['detail']) ? $decoded['detail'] : substr((string) $response, 0, 200);
+    wh_json(['success' => false, 'message' => t('admin_webhooks_err_test_failed', [$httpCode, $detail])]);
+}
+
+// Map a stored delivery status to its translated label (unknown codes are shown as-is)
+function wh_status_label($status) {
+    $keys = [
+        'ok' => 'admin_webhooks_status_ok',
+        'no_admin_key' => 'admin_webhooks_status_no_admin_key',
+        'key_not_marked' => 'admin_webhooks_status_key_not_marked',
+        'no_target' => 'admin_webhooks_status_no_target',
+        'channel_not_registered' => 'admin_webhooks_status_channel_not_registered',
+        'no_listeners' => 'admin_webhooks_status_no_listeners',
+        'forward_failed' => 'admin_webhooks_status_forward_failed',
+    ];
+    return isset($keys[$status]) ? t($keys[$status]) : $status;
+}
+
+// Fetch all webhooks for display. The last_* delivery columns come from a migration,
+// so fall back to the base columns until it has been applied.
 $webhooks = [];
+$adminKeys = [];
 if ($conn) {
-    $conn->query("ALTER TABLE custom_webhooks MODIFY scope ENUM('channel','global','discord_logs') NOT NULL DEFAULT 'channel'");
-    $result = $conn->query("SELECT id, slug, name, service, event_name, scope, target_username, verify_mode, secret, secret_header, enabled, last_received_at, received_count FROM custom_webhooks ORDER BY name");
+    $baseCols = "id, slug, name, service, event_name, scope, target_username, verify_mode, secret, secret_header, enabled, last_received_at, received_count";
+    $result = false;
+    foreach ([$baseCols . ", last_attempt_at, last_status, last_error", $baseCols] as $cols) {
+        try { $result = $conn->query("SELECT $cols FROM custom_webhooks ORDER BY name"); } catch (Throwable $e) { $result = false; }
+        if ($result) break;
+    }
     if ($result) {
         while ($row = $result->fetch_assoc()) { $webhooks[] = $row; }
         $result->free();
     }
+    $adminKeys = wh_load_admin_keys($conn);
 }
 
 ob_end_clean();
@@ -351,6 +459,7 @@ ob_start();
                         <th><?php echo t('admin_webhooks_th_verify'); ?></th>
                         <th><?php echo t('admin_webhooks_th_enabled'); ?></th>
                         <th><?php echo t('admin_webhooks_th_received'); ?></th>
+                        <th><?php echo t('admin_webhooks_th_delivery'); ?></th>
                         <th><?php echo t('admin_webhooks_th_actions'); ?></th>
                     </tr>
                 </thead>
@@ -403,7 +512,21 @@ ob_start();
                                 <span class="sp-help"><?php echo $wh['last_received_at'] ? htmlspecialchars($wh['last_received_at']) : t('admin_webhooks_never_received'); ?></span>
                             </td>
                             <td>
+                                <?php $keyState = wh_key_state($wh, $adminKeys); ?>
+                                <?php if ($keyState): ?>
+                                    <span class="sp-badge <?php echo $keyState === 'ready' ? 'sp-badge-green' : 'sp-badge-red'; ?>" title="<?php echo htmlspecialchars(t('admin_webhooks_key_' . $keyState . '_help', [$wh['service']])); ?>"><?php echo t('admin_webhooks_key_' . $keyState); ?></span><br>
+                                <?php endif; ?>
+                                <?php if (!empty($wh['last_status'])): ?>
+                                    <span class="sp-badge <?php echo $wh['last_status'] === 'ok' ? 'sp-badge-green' : 'sp-badge-red'; ?>"><?php echo htmlspecialchars(wh_status_label($wh['last_status'])); ?></span>
+                                    <?php if (!empty($wh['last_error'])): ?><br><span class="sp-help"><?php echo htmlspecialchars($wh['last_error']); ?></span><?php endif; ?>
+                                    <?php if (!empty($wh['last_attempt_at'])): ?><br><span class="sp-help"><?php echo htmlspecialchars($wh['last_attempt_at']); ?></span><?php endif; ?>
+                                <?php else: ?>
+                                    <span class="sp-help"><?php echo t('admin_webhooks_status_none'); ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
                                 <div class="sp-btn-group">
+                                    <button class="sp-btn sp-btn-success sp-btn-sm test-webhook" title="<?php echo htmlspecialchars(t('admin_webhooks_test_title')); ?>"><span class="icon"><i class="fas fa-paper-plane"></i></span></button>
                                     <button class="sp-btn sp-btn-info sp-btn-sm edit-webhook"><span class="icon"><i class="fas fa-edit"></i></span></button>
                                     <button class="sp-btn sp-btn-sm toggle-webhook"><span class="icon"><i class="fas <?php echo $wh['enabled'] ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span></button>
                                     <?php if ($wh['verify_mode'] !== 'none'): ?>
@@ -442,7 +565,8 @@ document.addEventListener('DOMContentLoaded', function() {
         regenConfirmTitle: <?php echo json_encode(t('admin_webhooks_js_regen_confirm_title')); ?>,
         regenConfirmText:  <?php echo json_encode(t('admin_webhooks_js_regen_confirm_text')); ?>,
         regenConfirmBtn:   <?php echo json_encode(t('admin_webhooks_js_regen_confirm_btn')); ?>,
-        urlLabel:          <?php echo json_encode(t('admin_webhooks_js_url_label')); ?>
+        urlLabel:          <?php echo json_encode(t('admin_webhooks_js_url_label')); ?>,
+        testTitle:         <?php echo json_encode(t('admin_webhooks_js_test_title')); ?>
     };
 
     const form        = document.getElementById('webhookForm');
@@ -631,6 +755,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (toggleBtn) toggleBtn.addEventListener('click', function() {
             const newEnabled = row.dataset.enabled === '1' ? 0 : 1;
             postAction({ toggle_webhook: '1', webhook_id: row.dataset.id, enabled: newEnabled }, { onSuccess: () => location.reload() });
+        });
+
+        const testBtn = row.querySelector('.test-webhook');
+        if (testBtn) testBtn.addEventListener('click', async function() {
+            testBtn.disabled = true;
+            await postAction({ test_webhook: '1', webhook_id: row.dataset.id }, { onSuccess: (d) => {
+                Swal.fire({ icon: 'success', title: I18N.testTitle, text: d.message }).then(() => location.reload());
+            }});
+            testBtn.disabled = false;
         });
 
         const regenBtn = row.querySelector('.regen-secret');
