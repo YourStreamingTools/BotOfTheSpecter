@@ -810,7 +810,7 @@ async function refreshInternalWebsocket(button = null, opts = {}) {
             const sidRaw = c.sid || c.id || c.connectionId || '';
             const name = escapeHtml(c.name || c.client_name || c.clientName || NOTIF_I18N.unknownClient);
             const sid = escapeHtml(sidRaw || NOTIF_I18N.notAvailable);
-            const isAdmin = !!(c.is_admin || c.isAdmin || c.admin);
+            const isAdmin = c.key_type === 'admin' ? true : (c.key_type === 'user' || c.key_type === 'unknown') ? false : !!(c.is_admin || c.isAdmin || c.admin);
             const adminBadge = isAdmin
                 ? `<span class="sp-badge sp-badge-red">${escapeHtml(NOTIF_I18N.badgeAdmin)}</span>`
                 : `<span class="sp-badge sp-badge-blue">${escapeHtml(NOTIF_I18N.badgeUser)}</span>`;

@@ -27,6 +27,8 @@ Real-time event distribution backbone using asyncio + aiohttp + python-socketio 
    - A key with WebSocket access but not global can connect and send events only to clients registered with that same key
    - A key with WebSocket access off still connects. REGISTER replies SUCCESS `"Not registered, no WebSocket Access"` and then disconnects that session
    - Env `ADMIN_KEY` remains a break-glass global listener. Until the columns exist, registration stays on the old rule (super-admin `service=admin` or the env key)
+   - Each connection is noted `key_type` `admin` (with `service`), `user` (`website.users.api_key`), or `unknown`. SUCCESS keeps the same message text and adds those fields. `is_admin` on the client record is still only the super-admin / env key, which selects the "Admin registration successful" message
+   - Delivery to everyone on a key uses a Socket.IO room named `key:` plus the registration code. Global listeners join `specter-global-listeners` and not the key room. Timer, task, music-by-name, and TTS still emit to session ids from `registered_clients`
 
 **Client Storage Structure**:
 ```

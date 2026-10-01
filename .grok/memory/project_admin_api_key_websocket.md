@@ -11,7 +11,7 @@ Admin → API Keys (`./dashboard/admin/api_keys.php`) stores two flags on `websi
 - `websocket_access` — the key may connect to the WebSocket and call `/notify`
 - `websocket_global` — requires access. The key may register as a global listener, and events it sends are delivered across every channel. Without it, events only reach clients registered with that same key.
 
-FreeStuff, GitHub, and global/discord_logs custom webhooks require both flags. `./api/api.py` checks them before forwarding. `./websocket/server.py` enforces them on `REGISTER` and `/notify`. An admin key with `websocket_access` off still connects; REGISTER sends SUCCESS `"Not registered, no WebSocket Access"` and then disconnects that session.
+FreeStuff, GitHub, and global/discord_logs custom webhooks require both flags. `./api/api.py` checks them before forwarding. `./websocket/server.py` enforces them on `REGISTER` and `/notify`. An admin key with `websocket_access` off still connects; REGISTER sends SUCCESS `"Not registered, no WebSocket Access"` and then disconnects that session. REGISTER also records `key_type` (`admin`, `user`, or `unknown`) and joins a Socket.IO room `key:` + the code. Global listeners join `specter-global-listeners`.
 
 When the columns are first added (migration `20261001_0001_admin_api_keys_websocket`, or the admin page on first load), `admin`, `freestuff`, `github`, and services used by global custom webhooks are turned on. Other keys stay off. Env `ADMIN_KEY` can still register as a global listener. Until the columns exist, both servers keep the previous rules.
 
