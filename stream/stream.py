@@ -169,6 +169,33 @@ FAVICON_URL = "https://cdn.botofthespecter.com/favicon.ico"
 LOGO_URL = "https://cdn.botofthespecter.com/logo.png"
 RECORDING_RETENTION_SECONDS = int(os.getenv("RECORDING_RETENTION_SECONDS") or "86400")
 DURATION_BACKFILL_PER_REQUEST = 3
+DURATION_PROBE_RETRY_SECONDS = 600
+_duration_probes: set[str] = set()
+
+
+def _duration_probe_due(meta: dict) -> bool:
+    stamped = meta.get("duration_unavailable_at")
+    if not isinstance(stamped, (int, float)):
+        return True
+    return time.time() - float(stamped) >= DURATION_PROBE_RETRY_SECONDS
+
+
+async def _run_duration_probe(path: str) -> None:
+    try:
+        await asyncio.to_thread(cache_duration, path)
+    finally:
+        _duration_probes.discard(path)
+
+
+def _schedule_duration_probe(path: str, meta: dict) -> bool:
+    # One probe per file. The library response does not wait for it.
+    if path in _duration_probes or not _duration_probe_due(meta):
+        return False
+    _duration_probes.add(path)
+    asyncio.create_task(_run_duration_probe(path))
+    return True
+
+
 # In-progress copies from a user's S3 bucket back onto this server. Keyed by username + filename.
 _s3_restores: dict[str, dict] = {}
 _s3_restore_tasks: dict[str, asyncio.Task] = {}
@@ -2254,9 +2281,8 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
                 twitch_id = tm.group(1)
             duration = meta.get("duration_seconds")
             if duration is None and probe_budget > 0 and not f["is_partial"] and f["name"].lower().endswith(".mp4"):
-                # Older files have no cached length yet: probe a few per request and remember it.
-                probe_budget -= 1
-                duration = await asyncio.to_thread(cache_duration, fpath)
+                if _schedule_duration_probe(fpath, meta):
+                    probe_budget -= 1
             payload_files.append({
                 "name": f["name"],
                 "title": title,
