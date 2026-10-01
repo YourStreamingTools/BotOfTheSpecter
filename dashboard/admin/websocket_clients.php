@@ -282,6 +282,17 @@ ob_start();
                         <tr>
                             <td>
                                 <?php echo htmlspecialchars($userData['twitch_display_name']); ?>
+                                <?php
+                                $firstClient = $userData['clients'][0] ?? [];
+                                $keyType = (string) ($firstClient['key_type'] ?? '');
+                                $keyIsAdmin = $keyType === 'admin' || ($keyType === '' && !empty($firstClient['is_admin']));
+                                if ($keyIsAdmin) {
+                                    $serviceTitle = (string) ($firstClient['service'] ?? '');
+                                    echo ' <span class="sp-badge sp-badge-red"' . ($serviceTitle !== '' ? ' title="' . htmlspecialchars($serviceTitle) . '"' : '') . '>' . htmlspecialchars(t('admin_websocket_clients_badge_admin')) . '</span>';
+                                } else {
+                                    echo ' <span class="sp-badge sp-badge-blue">' . htmlspecialchars(t('admin_websocket_clients_badge_user')) . '</span>';
+                                }
+                                ?>
                             </td>
                             <td>
                                 <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -598,6 +609,21 @@ function updateStatistics(data) {
     document.getElementById('stat-global').textContent = totalGlobalListeners;
 }
 
+function connectionIsAdminKey(client) {
+    if (!client) return false;
+    if (client.key_type === 'admin') return true;
+    if (client.key_type === 'user' || client.key_type === 'unknown') return false;
+    return !!client.is_admin;
+}
+
+function keyBadgeHtml(client) {
+    if (connectionIsAdminKey(client)) {
+        const service = client && client.service ? ` title="${escapeHtml(client.service)}"` : '';
+        return `<span class="sp-badge sp-badge-red"${service}>${escapeHtml(i18n.badgeAdmin)}</span>`;
+    }
+    return `<span class="sp-badge sp-badge-blue">${escapeHtml(i18n.badgeUser)}</span>`;
+}
+
 function updateClientsTable(registeredClients) {
     const table = document.getElementById('clients-table');
     const wrap = document.getElementById('clients-table-wrap');
@@ -619,7 +645,7 @@ function updateClientsTable(registeredClients) {
     for (const [apiKey, userData] of sortedClients) {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${escapeHtml(userData.twitch_display_name)}</td>
+            <td>${escapeHtml(userData.twitch_display_name)} ${keyBadgeHtml((userData.clients && userData.clients[0]) || {})}</td>
             <td>
                 <div style="display:flex;align-items:center;gap:0.5rem;">
                     <code class="masked-api-key">${'•'.repeat(Math.min(apiKey.length, 32))}</code>
@@ -827,7 +853,7 @@ async function showUserClients(apiKey, displayName) {
                     <td>${escapeHtml(client.name)}</td>
                     <td><code>${escapeHtml(client.sid)}</code></td>
                     <td>
-                        ${client.is_admin ? `<span class="sp-badge sp-badge-red">${escapeHtml(i18n.badgeAdmin)}</span>` : `<span class="sp-badge sp-badge-blue">${escapeHtml(i18n.badgeUser)}</span>`}
+                        ${keyBadgeHtml(client)}
                     </td>
                     <td>${client.connected_at || i18n.notAvailable}</td>
                     <td>${client.last_activity || i18n.notAvailable}</td>

@@ -97,6 +97,8 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger = logger
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.registered_clients = {}
+        # Global listeners share this room. Key rooms are "key:" + the code so they are not session ids.
+        self.global_room = "specter-global-listeners"
         self.last_timer_control_event = {}
         self.last_avatar_state = {}
         # Global listeners that receive events from all channels
@@ -1007,10 +1009,8 @@ class BotOfTheSpecter_WebsocketServer:
                 if code:
                     break
             if code:
-                for client in self.registered_clients[code]:
-                    if client['sid'] != sid:
-                        await self.sio.emit(event, data, to=client['sid'])
-                self.logger.info(f"Relayed {event} from SID [{sid}] to other clients for code {code}")
+                await self.sio.emit(event, data, to=self._key_room(code), skip_sid=sid)
+                self.logger.info(f"Relayed {event} from SID [{sid}] to other clients on this key")
             # Save settings if MUSIC_SETTINGS event received
             if event == "MUSIC_SETTINGS" and code:
                 self.settings_manager.save_music_settings(code, data)
@@ -1053,6 +1053,35 @@ class BotOfTheSpecter_WebsocketServer:
             else:
                 self.logger.info(f"SID [{sid}] not found in registered clients.")
 
+    def _key_room(self, code):
+        # Room id is the registration code, prefixed so it is not a session id.
+        return "key:" + str(code)
+
+    async def _join_key_room(self, sid, code):
+        await self.sio.leave_room(sid, self.global_room)
+        await self.sio.enter_room(sid, self._key_room(code))
+
+    async def _join_global_room(self, sid, code=None):
+        if code:
+            await self.sio.leave_room(sid, self._key_room(code))
+        await self.sio.enter_room(sid, self.global_room)
+
+    async def _note_key_type(self, code, admin_info, legacy_env):
+        # Admin row or the env break-glass key. Otherwise a users.api_key, or an unknown code.
+        if legacy_env or admin_info.get("service"):
+            service = admin_info.get("service") or ("env" if legacy_env else None)
+            return "admin", service
+        if code and await self.verify_user_key(code):
+            return "user", None
+        return "unknown", None
+
+    def _success_body(self, message, **fields):
+        payload = {"message": message}
+        for key, value in fields.items():
+            if value is not None:
+                payload[key] = value
+        return payload
+
     async def register(self, sid, data):
         # Handle the register event for SocketIO.
         code = data.get("code")
@@ -1067,9 +1096,10 @@ class BotOfTheSpecter_WebsocketServer:
         # Admin keys need the websocket mark. The env ADMIN_KEY stays a break-glass global listener.
         if admin_info.get("service") and not admin_info.get("legacy") and not admin_info.get("websocket_access") and not legacy_env:
             self.logger.warning(f"WebSocket registration denied for SID [{sid}] service={admin_info.get('service')!r} — websocket access is off")
-            await self.sio.emit("SUCCESS", {"message": "Not registered, no WebSocket Access"}, to=sid)
+            await self.sio.emit("SUCCESS", {"message": "Not registered, no WebSocket Access", "key_type": "admin", "service": admin_info.get("service")}, to=sid)
             await self.sio.disconnect(sid)
             return
+        key_type, key_service = await self._note_key_type(code, admin_info, legacy_env)
         # Handle global listener registration
         if is_global_listener:
             allowed = legacy_env
@@ -1090,18 +1120,22 @@ class BotOfTheSpecter_WebsocketServer:
                 if listener['name'] == name:
                     old_sid = listener['sid']
                     if old_sid == sid:
-                        self.logger.info(f"Global listener [{sid}] name [{name}] already registered — re-confirming SUCCESS")
-                        await self.sio.emit("SUCCESS", {"message": "Global listener registration successful", "name": name, "admin_authenticated": True}, to=sid)
+                        listener["key_type"] = key_type
+                        listener["service"] = key_service
+                        await self._join_global_room(sid, code)
+                        self.logger.info(f"Global listener [{sid}] name [{name}] already registered — re-confirming SUCCESS key_type={key_type} service={key_service or '-'}")
+                        await self.sio.emit("SUCCESS", self._success_body("Global listener registration successful", name=name, admin_authenticated=True, key_type=key_type, service=key_service), to=sid)
                         return
                     self.logger.info(f"Disconnecting old global listener [{old_sid}] for name [{name}] before registering new session [{sid}]")
                     await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate global listener for name {name}"}, to=old_sid)
                     await self.sio.disconnect(old_sid)
                     break
             # Register the new global listener
-            listener_data = {"sid": sid, "name": name, "admin_authenticated": True}
+            listener_data = {"sid": sid, "name": name, "admin_authenticated": True, "key_type": key_type, "service": key_service}
+            await self._join_global_room(sid, code)
             self.global_listeners.append(listener_data)
-            self.logger.info(f"Global listener [{sid}] with name [{name}] registered successfully with admin authentication")
-            await self.sio.emit("SUCCESS", {"message": "Global listener registration successful", "name": name, "admin_authenticated": True}, to=sid)
+            self.logger.info(f"Global listener [{sid}] with name [{name}] registered key_type={key_type} service={key_service or '-'}")
+            await self.sio.emit("SUCCESS", self._success_body("Global listener registration successful", name=name, admin_authenticated=True, key_type=key_type, service=key_service), to=sid)
             self.logger.info(f"Total global listeners: {len(self.global_listeners)}")
         elif code:
             # Handle regular client registration
@@ -1114,11 +1148,14 @@ class BotOfTheSpecter_WebsocketServer:
                     if old_sid == sid:
                         client['is_admin'] = is_admin
                         client['channel'] = channel
-                        self.logger.info(f"Client [{sid}] name [{name}] already registered — re-confirming SUCCESS")
+                        client['key_type'] = key_type
+                        client['service'] = key_service
+                        await self._join_key_room(sid, code)
+                        self.logger.info(f"Client [{sid}] name [{name}] already registered — re-confirming SUCCESS key_type={key_type} service={key_service or '-'}")
                         if is_admin:
-                            await self.sio.emit("SUCCESS", {"message": "Admin registration successful", "code": code, "name": name, "admin_authenticated": True}, to=sid)
+                            await self.sio.emit("SUCCESS", self._success_body("Admin registration successful", code=code, name=name, admin_authenticated=True, key_type=key_type, service=key_service), to=sid)
                         else:
-                            await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+                            await self.sio.emit("SUCCESS", self._success_body("Registration successful", code=code, name=name, key_type=key_type, service=key_service), to=sid)
                         if channel.lower() == 'overlay' and 'avatar' in sid_name.lower():
                             await self._emit_avatar_state_to_sid(sid, code)
                         return
@@ -1129,17 +1166,20 @@ class BotOfTheSpecter_WebsocketServer:
             # disconnect handler may have removed the code key; ensure it exists
             if code not in self.registered_clients:
                 self.registered_clients[code] = []
-            client_data = {"sid": sid, "name": name, "is_admin": is_admin, "channel": channel}
+            client_data = {"sid": sid, "name": name, "is_admin": is_admin, "channel": channel, "key_type": key_type, "service": key_service}
+            await self._join_key_room(sid, code)
+            if code not in self.registered_clients:
+                self.registered_clients[code] = []
             self.registered_clients[code].append(client_data)
             if is_admin:
-                self.logger.info(f"Admin client [{sid}] with name [{name}] registered")
-                await self.sio.emit("SUCCESS", {"message": "Admin registration successful", "code": code, "name": name, "admin_authenticated": True}, to=sid)
+                self.logger.info(f"Admin client [{sid}] with name [{name}] registered key_type={key_type} service={key_service or '-'}")
+                await self.sio.emit("SUCCESS", self._success_body("Admin registration successful", code=code, name=name, admin_authenticated=True, key_type=key_type, service=key_service), to=sid)
             else:
-                self.logger.info(f"Client [{sid}] with name [{name}] registered")
-                await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
+                self.logger.info(f"Client [{sid}] with name [{name}] registered key_type={key_type} service={key_service or '-'}")
+                await self.sio.emit("SUCCESS", self._success_body("Registration successful", code=code, name=name, key_type=key_type, service=key_service), to=sid)
             if channel.lower() == 'overlay' and 'avatar' in sid_name.lower():
                 await self._emit_avatar_state_to_sid(sid, code)
-            self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
+            self.logger.info(f"Registered clients on this key: {len(self.registered_clients[code])} key_type={key_type}")
         else:
             self.logger.warning("Code not provided and not a global listener during registration")
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)
@@ -1201,7 +1241,7 @@ class BotOfTheSpecter_WebsocketServer:
         output = {
             "clients": self.registered_clients,
             "global_listeners": [
-                {"sid": l["sid"], "name": l["name"], "admin_authenticated": l.get("admin_authenticated", False)}
+                {"sid": l["sid"], "name": l["name"], "admin_authenticated": l.get("admin_authenticated", False), "key_type": l.get("key_type") or "admin", "service": l.get("service")}
                 for l in self.global_listeners
             ]
         }
@@ -1213,7 +1253,7 @@ class BotOfTheSpecter_WebsocketServer:
         output = {
             "clients": self.registered_clients,
             "global_listeners": [
-                {"sid": l["sid"], "name": l["name"], "admin_authenticated": l.get("admin_authenticated", False)}
+                {"sid": l["sid"], "name": l["name"], "admin_authenticated": l.get("admin_authenticated", False), "key_type": l.get("key_type") or "admin", "service": l.get("service")}
                 for l in self.global_listeners
             ]
         }
@@ -1221,16 +1261,13 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def _emit_registered_only(self, event_name, data, code):
         # Channel-scoped admin key: clients registered under this code only. Strip the key.
-        count = 0
         if not code or code not in self.registered_clients:
             return 0
         payload = dict(data) if isinstance(data, dict) else {}
         payload.pop("code", None)
         payload["channel_code"] = code
-        for client in self.registered_clients[code]:
-            await self.sio.emit(event_name, payload, to=client["sid"])
-            count += 1
-        return count
+        await self.sio.emit(event_name, payload, to=self._key_room(code))
+        return len(self.registered_clients[code])
 
     async def broadcast_event_with_globals(self, event_name, data, code=None, source_sid=None):
         count = 0
@@ -1244,22 +1281,19 @@ class BotOfTheSpecter_WebsocketServer:
         # DEBUG LOGGING FOR SPECTER EVENTS
         if event_name.startswith("SPECTER_"):
             client_names = [client.get('name', '<unnamed>') for client in targeted_clients]
-            self.logger.info(f"debug_broadcast: event={event_name}, effective_code={effective_code}, source_sid={source_sid}")
+            kind = targeted_clients[0].get('key_type') if targeted_clients else None
+            self.logger.info(f"debug_broadcast: event={event_name}, key_type={kind}, source_sid={source_sid}")
             self.logger.info(f"debug_broadcast: found {len(targeted_clients)} targeted clients: {client_names}")
-        # Broadcast to specific code clients if code is provided
-        if effective_code and effective_code in self.registered_clients:
-            for client in self.registered_clients[effective_code]:
-                self.logger.info(f"debug_broadcast: emitting {event_name} to {client['sid']} (name: {client.get('name')})")
-                await self.sio.emit(event_name, {**data, "channel_code": effective_code}, to=client['sid'])
-                count += 1
-        else:
-             if event_name.startswith("SPECTER_"):
-                 self.logger.warning(f"debug_broadcast: effective_code {effective_code} NOT FOUND in registered_clients or has no clients")
-        # Broadcast to all global listeners
+        # Everyone registered under this key is in its Socket.IO room.
+        if effective_code and targeted_clients:
+            await self.sio.emit(event_name, {**data, "channel_code": effective_code}, to=self._key_room(effective_code))
+            count += len(targeted_clients)
+        elif event_name.startswith("SPECTER_"):
+            self.logger.warning(f"debug_broadcast: no registered clients for {event_name}")
         channel_code_for_globals = effective_code or "unknown"
-        for listener in self.global_listeners:
-            await self.sio.emit(event_name, {**data, "channel_code": channel_code_for_globals}, to=listener['sid'])
-            count += 1
+        if self.global_listeners:
+            await self.sio.emit(event_name, {**data, "channel_code": channel_code_for_globals}, to=self.global_room)
+            count += len(self.global_listeners)
         if data:
             try:
                 payload_repr = json.dumps(data, default=str)
@@ -1268,7 +1302,7 @@ class BotOfTheSpecter_WebsocketServer:
             payload_snippet = payload_repr if len(payload_repr) <= 400 else f"{payload_repr[:400]}..."
             source_info = f" source_sid={source_sid}" if source_sid else ""
             self.logger.info(f"Payload for {event_name}:{source_info} {payload_snippet}")
-        self.logger.info(f"Broadcasted {event_name} to {count} clients (code: {effective_code})")
+        self.logger.info(f"Broadcasted {event_name} to {count} clients")
         return count
 
     async def broadcast_to_timer_clients_only(self, event_name, data, source_sid=None):
@@ -1534,13 +1568,12 @@ class BotOfTheSpecter_WebsocketServer:
             safe_data = {k: v for k, v in data.items() if k != 'code'}
             payload = {**safe_data, "channel_code": svc, "webhook_event": event}
             logs_only = webhook_scope == "discord_logs" or (safe_data.get("scope") or "").strip().lower() == "discord_logs"
-            for listener in self.global_listeners:
+            if self.global_listeners:
                 if not logs_only:
-                    await self.sio.emit(event, payload, to=listener['sid'])
-                await self.sio.emit("WEBHOOK_LOG", payload, to=listener['sid'])
-                self.logger.info(f"Emitted {'WEBHOOK_LOG' if logs_only else event + ' + WEBHOOK_LOG'} to global listener SID [{listener['sid']}] (service: {svc})")
-                count += 1
-            self.logger.info(f"Broadcasted service event '{event}' to {count} global listeners")
+                    await self.sio.emit(event, payload, to=self.global_room)
+                await self.sio.emit("WEBHOOK_LOG", payload, to=self.global_room)
+                count = len(self.global_listeners)
+            self.logger.info(f"Broadcasted service event '{event}' to {count} global listeners (service: {svc})")
         elif is_service_admin:
             # WebSocket access without global: only clients registered with this key.
             count = await self._emit_registered_only(event, data, code)
@@ -1550,17 +1583,12 @@ class BotOfTheSpecter_WebsocketServer:
             emit_data = {k: v for k, v in data.items() if k != 'code'} if is_admin_key else data
             channel_for_globals = (admin_info.get('service') if is_admin_key and admin_info else None) or code or "unknown"
             if code in self.registered_clients:
-                for client in self.registered_clients[code]:
-                    sid = client['sid']
-                    await self.sio.emit(event, emit_data, to=sid)
-                    self.logger.info(f"Emitted event '{event}' to client {sid}")
-                    count += 1
+                await self.sio.emit(event, emit_data, to=self._key_room(code))
+                count += len(self.registered_clients[code])
             # Global listeners hear user-channel events, and admin keys only when marked global
-            if allow_global_fanout:
-                for listener in self.global_listeners:
-                    await self.sio.emit(event, {**emit_data, "channel_code": channel_for_globals}, to=listener['sid'])
-                    self.logger.info(f"Emitted event '{event}' to global listener SID [{listener['sid']}] (name: {listener['name']})")
-                    count += 1
+            if allow_global_fanout and self.global_listeners:
+                await self.sio.emit(event, {**emit_data, "channel_code": channel_for_globals}, to=self.global_room)
+                count += len(self.global_listeners)
             self.logger.info(f"Broadcasted event to {count} clients (including global listeners)")
         # Return a JSON response indicating success
         return web.json_response({"success": 1, "count": count, "msg": f"Broadcasted event to {count} clients"})
