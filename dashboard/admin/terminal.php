@@ -6,6 +6,28 @@ include_once __DIR__ . '/../lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 include '../includes/userdata.php';
+// The terminal is an arbitrary shell on production hosts: super admins only (re-checked server-side on every command).
+$isSuperAdmin = false;
+if (isset($conn) && ($uid = (int) ($_SESSION['user_id'] ?? 0)) > 0) {
+    $stmt = $conn->prepare("SELECT super_admin FROM users WHERE id = ? LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param("i", $uid);
+        $stmt->execute();
+        $stmt->bind_result($saFlag);
+        if ($stmt->fetch()) {
+            $isSuperAdmin = ((int) $saFlag === 1);
+        }
+        $stmt->close();
+    }
+}
+if (!$isSuperAdmin) {
+    session_write_close();
+    admin_access_deny(t('admin_terminal_super_admin_only'));
+}
+if (empty($_SESSION['terminal_csrf'])) {
+    $_SESSION['terminal_csrf'] = bin2hex(random_bytes(32));
+}
+$terminalCsrf = $_SESSION['terminal_csrf'];
 session_write_close();
 $pageTitle = t('admin_terminal_page_title');
 
@@ -168,7 +190,7 @@ const T = {
     commandCompletedExit: <?php echo json_encode(t('admin_terminal_command_completed_exit')); ?>,
     connectionClosed: <?php echo json_encode(t('admin_terminal_connection_closed')); ?>,
     connectionLost: <?php echo json_encode(t('admin_terminal_connection_lost')); ?>,
-    reconnecting: <?php echo json_encode(t('admin_terminal_reconnecting')); ?>,
+    startFailed: <?php echo json_encode(t('admin_terminal_start_failed')); ?>,
     bannerVersion: <?php echo json_encode(t('admin_terminal_banner_version')); ?>,
     bannerCommandsHeading: <?php echo json_encode(t('admin_terminal_banner_commands_heading')); ?>,
     bannerHistoryNav: <?php echo json_encode(t('admin_terminal_banner_history_nav')); ?>,
@@ -193,19 +215,7 @@ const HISTORY_STORAGE_KEY = 'botofthespecter_webterminal_history';
 const SNIPPETS_STORAGE_KEY = 'botofthespecter_webterminal_snippets';
 const HISTORY_LIMIT = 100;
 const SNIPPET_LIMIT = 40;
-const DANGEROUS_COMMAND_PATTERNS = [
-    /\brm\s+-rf\s+\//i,
-    /\bdd\s+if=.*\bof=\/dev\//i,
-    /\bmkfs(\.|\s)/i,
-    /:\s*\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\};\s*:/,
-    /\bshutdown\b/i,
-    /\breboot\b/i,
-    /\bpoweroff\b/i,
-    /\bhalt\b/i,
-    /\bformat\b/i,
-    /\bdel\s+\/f\s+\/s\s+\/q\b/i,
-    /\btruncate\s+-s\s+0\b/i
-];
+const CSRF_TOKEN = <?php echo json_encode($terminalCsrf); ?>;
 const PRESET_COMMANDS = {
     bots: [
         { label: <?php echo json_encode(t('admin_terminal_preset_discord_status')); ?>, command: 'systemctl status discordbot.service --no-pager' },
@@ -474,14 +484,32 @@ function stopExecutionTimer() {
     updateLiveStats();
 }
 
-function commandLooksDangerous(command) {
-    return DANGEROUS_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
+// Step 1 of a run: the server validates the request (CSRF, super admin, safe mode) and returns a one-shot stream id.
+async function requestStream(server, command, confirmed) {
+    const response = await fetch('terminal_stream.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': CSRF_TOKEN, 'Accept': 'application/json' },
+        body: new URLSearchParams({
+            server: server,
+            command: command,
+            safe: safeModeCheckbox.checked ? '1' : '0',
+            confirmed: confirmed ? '1' : '0'
+        })
+    });
+    let payload = null;
+    try {
+        payload = await response.json();
+    } catch (error) {
+        payload = null;
+    }
+    if (!payload) {
+        throw new Error(T.startFailed);
+    }
+    return payload;
 }
 
-async function confirmCommandSafety(command) {
-    if (!safeModeCheckbox.checked || !commandLooksDangerous(command)) {
-        return { proceed: true, force: false };
-    }
+async function confirmRiskyCommand() {
     const result = await Swal.fire({
         title: T.riskyTitle,
         text: T.riskyText,
@@ -491,7 +519,7 @@ async function confirmCommandSafety(command) {
         cancelButtonText: T.riskyCancel,
         confirmButtonColor: '#d33'
     });
-    return { proceed: result.isConfirmed, force: result.isConfirmed };
+    return result.isConfirmed;
 }
 
 function setStatus(message, type = 'info') {
@@ -647,9 +675,24 @@ async function executeCommand() {
         appendToTerminal(`${T.viewingTmux} ${session}`, 'info');
         appendToTerminal(T.tmuxTip, 'info');
     }
-    const safetyDecision = await confirmCommandSafety(command);
-    if (!safetyDecision.proceed) {
-        setStatus(T.commandCancelled, 'warning');
+    let started;
+    try {
+        started = await requestStream(server, command, false);
+        if (started.needs_confirm) {
+            if (!(await confirmRiskyCommand())) {
+                setStatus(T.commandCancelled, 'warning');
+                return;
+            }
+            started = await requestStream(server, command, true);
+        }
+    } catch (error) {
+        appendToTerminal(`${T.errorPrefix} ${error.message}`, 'error');
+        setStatus(T.commandFinishedErrors, 'danger');
+        return;
+    }
+    if (!started.ok) {
+        appendToTerminal(`${T.errorPrefix} ${started.error || T.startFailed}`, 'error');
+        setStatus(T.commandFinishedErrors, 'danger');
         return;
     }
     addToHistory(command);
@@ -659,17 +702,15 @@ async function executeCommand() {
     setStatus(T.executingOn.replace('%s', serverSelect.options[serverSelect.selectedIndex].text), 'warning');
     setExecutionState(true);
     startExecutionTimer();
-    const encodedCommand = encodeURIComponent(command);
-    const encodedServer = encodeURIComponent(server);
-    const encodedSafeMode = safeModeCheckbox.checked ? '1' : '0';
-    const encodedForce = safetyDecision.force ? '1' : '0';
-    currentEventSource = new EventSource(`terminal_stream.php?server=${encodedServer}&command=${encodedCommand}&safe=${encodedSafeMode}&force=${encodedForce}`);
+    currentEventSource = new EventSource(`terminal_stream.php?stream=${encodeURIComponent(started.stream)}`);
 
     currentEventSource.onmessage = function(event) {
-        if (event.data) {
-            appendToTerminal(event.data);
-        }
+        appendToTerminal(JSON.parse(event.data));
     };
+
+    currentEventSource.addEventListener('stderr', function(event) {
+        appendToTerminal(JSON.parse(event.data), 'error');
+    });
 
     currentEventSource.addEventListener('open', function() {
         setStatus(T.streamingOutput, 'warning');
@@ -686,7 +727,11 @@ async function executeCommand() {
                 eventType = 'danger';
                 statusLabel = T.commandFinishedErrors;
             } else {
-                message = T.commandCompletedExit.replace('%s', payload.exit_code || 0);
+                message = T.commandCompletedExit.replace('%s', payload.exit_code ?? '?');
+                if (payload.exit_code !== 0) {
+                    eventType = 'danger';
+                    statusLabel = T.commandFinishedErrors;
+                }
             }
         } catch (error) {
             message = T.commandCompleted;
@@ -694,15 +739,12 @@ async function executeCommand() {
         finalizeExecution(message, eventType === 'danger' ? 'danger' : 'info', statusLabel);
     });
 
+    // The stream id is single-use, so the browser must never auto-reconnect: that would not resume the run.
     currentEventSource.onerror = function() {
         if (!currentEventSource) {
             return;
         }
-        if (currentEventSource.readyState === EventSource.CLOSED) {
-            finalizeExecution(T.connectionClosed, 'danger', T.connectionLost);
-        } else if (currentEventSource.readyState === EventSource.CONNECTING) {
-            setStatus(T.reconnecting, 'warning');
-        }
+        finalizeExecution(T.connectionClosed, 'danger', T.connectionLost);
     };
 }
 
