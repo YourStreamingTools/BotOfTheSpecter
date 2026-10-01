@@ -53,12 +53,51 @@ if (!isAdmin()) {
 
 header('Content-Type: application/json');
 
+function serviceUptimeSecondsFromStamp($raw) {
+    $raw = trim((string)$raw);
+    if ($raw === '' || strcasecmp($raw, 'n/a') === 0) {
+        return null;
+    }
+    if (isset($raw[0]) && $raw[0] === '@') {
+        $raw = substr($raw, 1);
+    }
+    if (!preg_match('/^(\d+)(?:\.\d+)?/', $raw, $matches)) {
+        return null;
+    }
+    $stamp = (int)$matches[1];
+    if ($stamp > 20000000000) {
+        $stamp = intdiv($stamp, 1000000);
+    }
+    $now = time();
+    if ($stamp <= 0 || $stamp > ($now + 120)) {
+        return null;
+    }
+    return $now - $stamp;
+}
+
+function readUnitUptimeSeconds($connection, $service_name) {
+    if (!$connection || $service_name === '') {
+        return null;
+    }
+    $output = SSHConnectionManager::executeCommandNoMarker(
+        $connection,
+        'systemctl show --property=ActiveEnterTimestamp --timestamp=unix --value --no-pager ' . escapeshellarg($service_name),
+        3
+    );
+    if ($output === false) {
+        return null;
+    }
+    $line = preg_split("/\r\n|\n|\r/", (string)$output)[0] ?? '';
+    return serviceUptimeSecondsFromStamp($line);
+}
+
 // Function to get service status
 function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password) {
     $status = 'Unknown';
     $pid = 'N/A';
+    $uptime = null;
     if (empty($ssh_host)) {
-        return ['status' => $status, 'pid' => $pid];
+        return ['status' => $status, 'pid' => $pid, 'uptime_seconds' => $uptime];
     }
     try {
         $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
@@ -75,13 +114,17 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
                 if (preg_match('/Main PID:\s*(\d+)/', $output, $matches)) {
                     $pid = $matches[1];
                 }
+                if ($status === 'Running') {
+                    $uptime = readUnitUptimeSeconds($connection, $service_name);
+                }
             }
         }
     } catch (Exception $e) {
         $status = 'Error';
         $pid = 'N/A';
+        $uptime = null;
     }
-    return ['status' => $status, 'pid' => $pid];
+    return ['status' => $status, 'pid' => $pid, 'uptime_seconds' => $uptime];
 }
 
 // Lightweight systemd unit probe (ActiveState/SubState/MainPID). Used when HTTP
@@ -90,20 +133,21 @@ function getServiceStatus($service_name, $ssh_host, $ssh_username, $ssh_password
 function getSystemdUnitStatus($service_name, $ssh_host, $ssh_username, $ssh_password) {
     $status = 'Unknown';
     $pid = 'N/A';
+    $uptime = null;
     if (empty($ssh_host) || $service_name === '') {
-        return ['status' => $status, 'pid' => $pid];
+        return ['status' => $status, 'pid' => $pid, 'uptime_seconds' => $uptime];
     }
     try {
         $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
         if (!$connection) {
-            return ['status' => $status, 'pid' => $pid];
+            return ['status' => $status, 'pid' => $pid, 'uptime_seconds' => $uptime];
         }
         $output = SSHConnectionManager::executeCommandNoMarker(
             $connection,
             'systemctl show --property=ActiveState,SubState,MainPID --no-pager ' . $service_name
         );
         if ($output === false) {
-            return ['status' => 'Error', 'pid' => $pid];
+            return ['status' => 'Error', 'pid' => $pid, 'uptime_seconds' => $uptime];
         }
         $props = [];
         foreach (preg_split("/\r\n|\n|\r/", (string)$output) as $line) {
@@ -133,9 +177,12 @@ function getSystemdUnitStatus($service_name, $ssh_host, $ssh_username, $ssh_pass
         } elseif ($active !== '') {
             $status = ucfirst($active);
         }
-        return ['status' => $status, 'pid' => $pid];
+        if ($status === 'Running') {
+            $uptime = readUnitUptimeSeconds($connection, $service_name);
+        }
+        return ['status' => $status, 'pid' => $pid, 'uptime_seconds' => $uptime];
     } catch (Exception $e) {
-        return ['status' => 'Error', 'pid' => 'N/A'];
+        return ['status' => 'Error', 'pid' => 'N/A', 'uptime_seconds' => null];
     }
 }
 
@@ -272,7 +319,8 @@ if ($service === 'bots_api') {
             );
             $pid = (!empty($sys['pid']) && $sys['pid'] !== 'N/A') ? (string)$sys['pid'] : 'N/A';
         }
-        echo json_encode(['status' => 'Running', 'pid' => $pid]);
+        $uptime = isset($data['uptime_seconds']) && is_numeric($data['uptime_seconds']) ? (int)$data['uptime_seconds'] : null;
+        echo json_encode(['status' => 'Running', 'pid' => $pid, 'uptime_seconds' => $uptime]);
         exit();
     }
     // /health is down during restart (process up, socket not bound yet) or a 502
@@ -286,6 +334,7 @@ if ($service === 'bots_api') {
     $payload = [
         'status' => $sys['status'] ?? 'Unknown',
         'pid' => $sys['pid'] ?? 'N/A',
+        'uptime_seconds' => $sys['uptime_seconds'] ?? null,
     ];
     if (($payload['status'] === 'Error' || $payload['status'] === 'Unknown') && !empty($health['error'])) {
         $payload['error'] = $health['error'];
@@ -304,14 +353,21 @@ if (isset($wsControlStatusUnits[$service])) {
     $ws = websocket_control_service_status($wsControlStatusUnits[$service]);
     if (!empty($ws['ok']) && is_array($ws['data'] ?? null)) {
         $d = $ws['data'];
+        $uptime = null;
+        $started = isset($d['active_enter_unix']) && is_numeric($d['active_enter_unix']) ? (int)$d['active_enter_unix'] : 0;
+        if (($d['status'] ?? '') === 'Running' && $started > 0) {
+            $uptime = max(0, time() - $started);
+        }
         echo json_encode([
             'status' => $d['status'] ?? 'Unknown',
             'pid' => isset($d['pid']) && $d['pid'] ? (string)$d['pid'] : 'N/A',
+            'uptime_seconds' => $uptime,
         ]);
     } else {
         echo json_encode([
             'status' => 'Error',
             'pid' => 'N/A',
+            'uptime_seconds' => null,
             'error' => $ws['error'] ?? 'websocket control API failed',
         ]);
     }

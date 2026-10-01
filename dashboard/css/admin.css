@@ -528,6 +528,33 @@
     }
 }
 
+.admin-service-group-title {
+    flex-wrap: wrap;
+}
+
+.admin-host-uptime {
+    margin-left: auto;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.admin-host-uptime.is-loading,
+.admin-host-uptime.is-unavailable {
+    color: var(--text-muted);
+}
+
+.admin-host-uptime.admin-service-uptime {
+    margin-left: 0.45rem;
+}
+
 /* ===== Start User Bots (admin/start_bots.php) =====
    Action buttons wrap inside a fixed-layout table so they stay in the
    content width. The table grows with every row; the page scrolls. */

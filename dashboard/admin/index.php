@@ -2844,7 +2844,14 @@ document.addEventListener('DOMContentLoaded', function() {
             'stop' => t('admin_index_action_stopped'),
             'restart' => t('admin_index_action_restarted')
         ]); ?>,
-        serviceActionSuccess: <?php echo json_encode(t('admin_index_service_action_success')); ?>
+        serviceActionSuccess: <?php echo json_encode(t('admin_index_service_action_success')); ?>,
+        uptimeLoading: <?php echo json_encode(t('admin_index_uptime_loading')); ?>,
+        uptimeUnavailable: <?php echo json_encode(t('admin_index_uptime_unavailable')); ?>,
+        uptimePrefix: <?php echo json_encode(t('admin_index_uptime_prefix')); ?>,
+        uptimeDays: <?php echo json_encode(t('admin_index_uptime_days')); ?>,
+        uptimeHours: <?php echo json_encode(t('admin_index_uptime_hours')); ?>,
+        uptimeMinutes: <?php echo json_encode(t('admin_index_uptime_minutes')); ?>,
+        uptimeSeconds: <?php echo json_encode(t('admin_index_uptime_seconds')); ?>
     };
     // ===== Cookie Management for Collapsible Sections =====
     function setCookie(name, value, days = 365) {
@@ -3490,6 +3497,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (pidElement) {
                         pidElement.textContent = 'PID: ' + (data.pid || 'N/A');
                         setBusy(pidElement, false);
+                        paintServiceUptime(pidElement, data.status === 'Running' ? data.uptime_seconds : null);
                     }
                     setTimeout(() => {
                         updateServiceStatus(service, statusElementId, pidElementId, buttonsElementId, retriesLeft - 1, true);
@@ -3512,6 +3520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update PID
                 pidElement.textContent = `PID: ${data.pid}`;
                 setBusy(pidElement, false);
+                paintServiceUptime(pidElement, data.status === 'Running' ? data.uptime_seconds : null);
                 // Enable/disable buttons based on status
                 const startBtn = buttonsElement.querySelector('button[onclick*="start"]');
                 const stopBtn = buttonsElement.querySelector('button[onclick*="stop"]');
@@ -3553,7 +3562,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusElement.className = 'admin-service-status sp-text-danger';
                     setBusy(statusElement, false);
                 }
-                if (pidElement) setBusy(pidElement, false);
+                if (pidElement) {
+                    setBusy(pidElement, false);
+                    paintServiceUptime(pidElement, null);
+                }
             });
     }
     // Load service statuses after page load
@@ -3575,6 +3587,57 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('stream_server', 'stream-server-status', 'stream-server-pid', 'stream-server-buttons');
         updateServiceStatus('web_caddy', 'web-caddy-status', 'web-caddy-pid', 'web-caddy-buttons');
     }, 100);
+    const serviceUptimeState = {};
+    function formatServiceUptime(totalSeconds) {
+        const whole = Math.max(0, Math.floor(totalSeconds));
+        const days = Math.floor(whole / 86400);
+        const hours = Math.floor((whole % 86400) / 3600);
+        const minutes = Math.floor((whole % 3600) / 60);
+        const seconds = whole % 60;
+        const parts = [];
+        if (days > 0) parts.push(days + adminI18n.uptimeDays);
+        if (hours > 0) parts.push(hours + adminI18n.uptimeHours);
+        if (minutes > 0) parts.push(minutes + adminI18n.uptimeMinutes);
+        if (days === 0 && hours === 0 && (seconds > 0 || parts.length === 0)) parts.push(seconds + adminI18n.uptimeSeconds);
+        return adminI18n.uptimePrefix + ' ' + parts.join(' ');
+    }
+    function serviceUptimeElement(pidElement) {
+        if (!pidElement || !pidElement.parentElement) return null;
+        let el = pidElement.parentElement.querySelector('.admin-service-uptime');
+        if (!el) {
+            el = document.createElement('span');
+            el.className = 'admin-host-uptime admin-service-uptime';
+            el.hidden = true;
+            pidElement.insertAdjacentElement('afterend', el);
+        }
+        return el;
+    }
+    function paintOneServiceUptime(pidElementId) {
+        const pidElement = document.getElementById(pidElementId);
+        const el = serviceUptimeElement(pidElement);
+        if (!el) return;
+        const state = serviceUptimeState[pidElementId];
+        if (!state || typeof state.seconds !== 'number') {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        const extra = Math.floor((Date.now() - state.at) / 1000);
+        el.hidden = false;
+        el.textContent = formatServiceUptime(state.seconds + extra);
+    }
+    function paintServiceUptime(pidElement, seconds) {
+        if (!pidElement) return;
+        if (typeof seconds === 'number' && seconds >= 0) {
+            serviceUptimeState[pidElement.id] = { seconds: seconds, at: Date.now() };
+        } else {
+            delete serviceUptimeState[pidElement.id];
+        }
+        paintOneServiceUptime(pidElement.id);
+    }
+    function paintAllServiceUptimes() {
+        Object.keys(serviceUptimeState).forEach(paintOneServiceUptime);
+    }
     // Refresh all server overview statuses
     window.refreshServerOverview = function() {
         const btn = document.getElementById('refresh-server-overview');
@@ -3589,6 +3652,7 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.classList.remove('fa-spin');
         }, 1000);
     };
+    setInterval(paintAllServiceUptimes, 30000);
     // Utility to create safe DOM ids from channel names
     function sanitizeId(str) {
         return String(str).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
