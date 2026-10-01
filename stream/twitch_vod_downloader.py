@@ -228,12 +228,20 @@ def probe_duration_seconds(path, timeout=60):
     return int(round(value))
 
 
+# Library loads must not wait on a full-file scan. A miss is remembered on the sidecar.
+DURATION_PROBE_TIMEOUT = 8
+
+
 def cache_duration(path, vod_id="", title=""):
     """Probe once and store duration_seconds (plus vod_id/title when known) in the sidecar."""
-    duration = probe_duration_seconds(path)
+    if not os.path.isfile(path):
+        return None
+    duration = probe_duration_seconds(path, timeout=DURATION_PROBE_TIMEOUT)
     fields = {}
     if duration is not None:
         fields["duration_seconds"] = duration
+    else:
+        fields["duration_unavailable_at"] = int(time.time())
     if vod_id:
         fields["vod_id"] = str(vod_id)
     if title:
