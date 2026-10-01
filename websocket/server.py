@@ -1067,7 +1067,8 @@ class BotOfTheSpecter_WebsocketServer:
         # Admin keys need the websocket mark. The env ADMIN_KEY stays a break-glass global listener.
         if admin_info.get("service") and not admin_info.get("legacy") and not admin_info.get("websocket_access") and not legacy_env:
             self.logger.warning(f"WebSocket registration denied for SID [{sid}] service={admin_info.get('service')!r} — websocket access is off")
-            await self.sio.emit("ERROR", {"message": "WebSocket access is not enabled for this key"}, to=sid)
+            await self.sio.emit("SUCCESS", {"message": "Not registered, no WebSocket Access"}, to=sid)
+            await self.sio.disconnect(sid)
             return
         # Handle global listener registration
         if is_global_listener:
