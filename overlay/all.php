@@ -83,6 +83,16 @@ if ($username) {
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#39;');
             }
+
+            // Nearest degree, halves away from zero. Matches api.py whole_degrees.
+            function wholeDegreesText(text) {
+                return String(text ?? '').replace(/-?\d+(?:\.\d+)?/g, (n) => {
+                    const v = Number(n);
+                    if (!Number.isFinite(v)) return n;
+                    const sign = v < 0 ? -1 : 1;
+                    return String(sign * Math.round(Math.abs(v)));
+                });
+            }
             // Unlock audio context as early as possible (OBS browser source autoplay fix)
             function unlockAudio() {
                 try {
@@ -138,7 +148,7 @@ if ($username) {
                         <div class="weather-overlay-page-header">
                             <div id="currentTime" class="weather-overlay-page-time"></div>
                             <div class="weather-overlay-page-location">${escapeHtml(location)}</div>
-                            <div class="weather-overlay-page-temperature">${escapeHtml(weather.temperature)}</div>
+                            <div class="weather-overlay-page-temperature">${escapeHtml(wholeDegreesText(weather.temperature))}</div>
                         </div>
                         <div class="weather-overlay-page-details">
                             <img src="${escapeHtml(weather.icon)}" alt="${escapeHtml(weather.status)}" class="weather-overlay-page-icon">

@@ -7,6 +7,7 @@ from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, new_event_loop, set_event_loop
 from datetime import datetime, date, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from urllib.parse import urlencode
 from logging import getLogger
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
@@ -66,7 +67,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.22"
+VERSION = "5.7.23"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -7882,6 +7883,13 @@ async def process_patreon_event(data):
         message = f"A patreon supporter just subscribed for a {subscription_type} plan!"
     await send_chat_message(message)
 
+def whole_degrees(value):
+    # Nearest degree, halves away from zero.
+    try:
+        return str(int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
+    except (InvalidOperation, ValueError, TypeError):
+        return value
+
 async def process_weather_websocket(data):
     raw = data.get('weather_data', '{}')
     try:
@@ -7896,8 +7904,8 @@ async def process_weather_websocket(data):
     # Extract weather information from the weather_data
     location = weather_data.get('location', 'Unknown location')
     status = weather_data.get('status', 'Unknown status')
-    temperature_c = weather_data.get('temperature', 'Unknown').split('°C')[0].strip()
-    temperature_f = weather_data.get('temperature', 'Unknown').split('°F')[0].split('|')[-1].strip()
+    temperature_c = whole_degrees(weather_data.get('temperature', 'Unknown').split('°C')[0].strip())
+    temperature_f = whole_degrees(weather_data.get('temperature', 'Unknown').split('°F')[0].split('|')[-1].strip())
     wind_speed_kph = weather_data.get('wind', 'Unknown').split('kph')[0].strip()
     wind_speed_mph = weather_data.get('wind', 'Unknown').split('mph')[0].split('|')[-1].strip()
     wind_direction = weather_data.get('wind', 'Unknown').split()[-1]

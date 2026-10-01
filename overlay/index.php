@@ -365,6 +365,15 @@ if ($username) {
                 div.textContent = text;
                 return div.innerHTML;
             }
+            // Nearest degree, halves away from zero. Matches api.py whole_degrees.
+            function wholeDegreesText(text) {
+                return String(text ?? '').replace(/-?\d+(?:\.\d+)?/g, (n) => {
+                    const v = Number(n);
+                    if (!Number.isFinite(v)) return n;
+                    const sign = v < 0 ? -1 : 1;
+                    return String(sign * Math.round(Math.abs(v)));
+                });
+            }
             // Ad card is outside the alert queue: a break lasts the full Twitch duration
             // and must not hold follows, subs, and cheers behind it.
             let adBreakGen = 0;
@@ -817,7 +826,7 @@ if ($username) {
                         <div class="weather-overlay-page-header">
                             ${weatherTimezone ? '<div id="currentTime" class="weather-overlay-page-time"></div>' : ''}
                             <div class="weather-overlay-page-location">${escapeHtml(weather.location)}</div>
-                            <div class="weather-overlay-page-temperature">${escapeHtml(weather.temperature)}</div>
+                            <div class="weather-overlay-page-temperature">${escapeHtml(wholeDegreesText(weather.temperature))}</div>
                         </div>
                         <div class="weather-overlay-page-details">
                             <img src="${escapeHtml(weather.icon)}" alt="${escapeHtml(weather.status)}" class="weather-overlay-page-icon">

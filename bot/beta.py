@@ -8,6 +8,7 @@ from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, date, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from urllib.parse import urlencode, quote
 from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
@@ -15307,6 +15308,13 @@ async def process_patreon_event(data):
         message = f"A patreon supporter just subscribed for a {subscription_type} plan!"
     await send_chat_message(message)
 
+def whole_degrees(value):
+    # Nearest degree, halves away from zero.
+    try:
+        return str(int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
+    except (InvalidOperation, ValueError, TypeError):
+        return value
+
 async def process_weather_websocket(data):
     raw = data.get('weather_data', '{}')
     try:
@@ -15321,8 +15329,8 @@ async def process_weather_websocket(data):
     # Extract weather information from the weather_data
     location = weather_data.get('location', 'Unknown location')
     status = weather_data.get('status', 'Unknown status')
-    temperature_c = weather_data.get('temperature', 'Unknown').split('°C')[0].strip()
-    temperature_f = weather_data.get('temperature', 'Unknown').split('°F')[0].split('|')[-1].strip()
+    temperature_c = whole_degrees(weather_data.get('temperature', 'Unknown').split('°C')[0].strip())
+    temperature_f = whole_degrees(weather_data.get('temperature', 'Unknown').split('°F')[0].split('|')[-1].strip())
     wind_speed_kph = weather_data.get('wind', 'Unknown').split('kph')[0].strip()
     wind_speed_mph = weather_data.get('wind', 'Unknown').split('mph')[0].split('|')[-1].strip()
     wind_direction = weather_data.get('wind', 'Unknown').split()[-1]
