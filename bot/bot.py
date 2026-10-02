@@ -67,7 +67,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.23"
+VERSION = "5.7.24"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -1978,6 +1978,8 @@ class TwitchBot(commands.Bot):
                             # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
                             if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
                                 return
+                            # Record usage right away so overlapping uses can't both pass the cooldown
+                            add_usage(command, 'global', 'default')
                             switches = [
                                 '(customapi.', '(count)', '(daysuntil.',
                                 '(command.', '(user)', '(author)', 
@@ -2136,8 +2138,6 @@ class TwitchBot(commands.Bot):
                             for resp in responses_to_send:
                                 chat_logger.info(f"{command} command ran with response: {resp}")
                                 await send_chat_message(resp)
-                            # Record usage
-                            add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"{command} not ran because it's disabled.")
                     else:
@@ -2150,13 +2150,12 @@ class TwitchBot(commands.Bot):
                             cooldown = custom_user_command['cooldown']
                             user_id = custom_user_command['user_id']
                             if cuc_status == 'Enabled':
-                                # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                                if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
-                                    return
                                 if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
-                                    await send_chat_message(response)
-                                    # Record usage
+                                    # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                                    if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                                        return
                                     add_usage(command, 'global', 'default')
+                                    await send_chat_message(response)
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
@@ -2759,12 +2758,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('commands', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('commands', bucket_key, cooldown_bucket)
                         # If the user is a mod, include both mod_commands and builtin_commands
                         is_mod = await command_permissions("mod", ctx.author)
                         if is_mod:
@@ -2776,8 +2776,6 @@ class TwitchBot(commands.Bot):
                         # Custom commands link
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
-                        # Record usage
-                        add_usage('commands', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the commands command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2805,16 +2803,15 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('bot', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('bot', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('bot', bucket_key, cooldown_bucket)
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
                         await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
-                        # Record usage
-                        add_usage('bot', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the bot command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2842,17 +2839,16 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('wsstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('wsstatus', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('wsstatus', bucket_key, cooldown_bucket)
                         websocket_status = "Connected" if is_websocket_connected() else "Disconnected"
                         chat_logger.info(f"{ctx.author.name} checked WebSocket status: {websocket_status}")
                         await send_chat_message(f"Internal system WebSocket status: {websocket_status}")
-                        # Record usage
-                        add_usage('wsstatus', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to check WebSocket status but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2880,18 +2876,17 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('forceonline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('forceonline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('forceonline', bucket_key, cooldown_bucket)
                         chat_logger.info(f"Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now online!")
                         await send_chat_message("Stream status has been forcibly set to online.")
                         create_task(websocket_notice(event="STREAM_ONLINE"))
-                        # Record usage
-                        add_usage('forceonline', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force online command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2919,18 +2914,17 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('forceoffline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('forceoffline', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('forceoffline', bucket_key, cooldown_bucket)
                         chat_logger.info(f"Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"Stream is now offline.")
                         await send_chat_message("Stream status has been forcibly set to offline.")
                         create_task(websocket_notice(event="STREAM_OFFLINE"))
-                        # Record usage
-                        add_usage('forceoffline', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the force offline command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -2960,12 +2954,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('version', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('version', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('version', bucket_key, cooldown_bucket)
                         # Check premium feature status
                         message_user = ctx.author.name
                         premium_tier = await check_premium_feature(message_user)
@@ -3002,8 +2997,6 @@ class TwitchBot(commands.Bot):
                         else:
                             premium_status = "Premium Features: None"
                         await send_chat_message(f"{message[:-2]}. {premium_status}")
-                        # Record usage
-                        add_usage('version', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the version command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3031,15 +3024,14 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('roadmap', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        await send_chat_message("BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/")
-                        # Record usage
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('roadmap', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
                         add_usage('roadmap', bucket_key, cooldown_bucket)
+                        await send_chat_message("BotOfTheSpecter Roadmap can be found here: https://roadmap.botofthespecter.com/")
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the roadmap command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3070,12 +3062,13 @@ class TwitchBot(commands.Bot):
                     # Weather is HTTP API; do not hard-block mid-reconnect
                     if not is_websocket_connected():
                         websocket_logger.warning("[WEATHER] Specter WS not registered — attempting weather via API anyway")
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('weather', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('weather', bucket_key, cooldown_bucket)
                         if not location:
                             location = await get_streamer_weather()
                         if location:
@@ -3089,8 +3082,6 @@ class TwitchBot(commands.Bot):
                                     api_logger.info(f"API - BotOfTheSpecter - WeatherCommand - {result}")
                         else:
                             await send_chat_message("Unable to retrieve location.")
-                        # Record usage
-                        add_usage('weather', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the weather command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3121,12 +3112,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('points', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('points', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('points', bucket_key, cooldown_bucket)
                         if user:
                             lookup_name = user.lstrip('@').lower()
                             user_info = await self.fetch_users(names=[lookup_name])
@@ -3144,8 +3136,6 @@ class TwitchBot(commands.Bot):
                             await send_chat_message(f'@{target_user_name}, you have {points} points.')
                         else:
                             await send_chat_message(f'@{target_user_name} has {points} points.')
-                        # Record usage
-                        add_usage('points', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the points command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3173,12 +3163,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('addpoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('addpoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('addpoints', bucket_key, cooldown_bucket)
                         lookup_name = user.lstrip('@').lower()
                         user_info = await self.fetch_users(names=[lookup_name])
                         if not user_info:
@@ -3197,8 +3188,6 @@ class TwitchBot(commands.Bot):
                         row = await cursor.fetchone()
                         new_points = row.get("points", 0) if row else 0
                         await send_chat_message(f"Added {points_to_add} points to {target_user_name}. They now have {new_points} points.")
-                        # Record usage
-                        add_usage('addpoints', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3223,12 +3212,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('removepoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('removepoints', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('removepoints', bucket_key, cooldown_bucket)
                         lookup_name = user.lstrip('@').lower()
                         user_info = await self.fetch_users(names=[lookup_name])
                         if not user_info:
@@ -3253,7 +3243,6 @@ class TwitchBot(commands.Bot):
                         row = await cursor.fetchone()
                         new_points = row.get("points", 0) if row else 0
                         await send_chat_message(f"Removed {actual_debit} points from {target_user_name}. They now have {new_points} points.")
-                        add_usage('removepoints', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3278,12 +3267,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('time', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('time', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('time', bucket_key, cooldown_bucket)
                         if timezone:
                             # Validate input format (should contain a comma for location,country)
                             if ',' not in timezone:
@@ -3343,8 +3333,6 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message("Streamer timezone is not set.")
                                 return
                         await send_chat_message(time_format)
-                        # Record usage
-                        add_usage('time', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the time command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3372,12 +3360,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('joke', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('joke', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('joke', bucket_key, cooldown_bucket)
                         # Retrieve the blacklist from the joke_settings table
                         await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
                         blacklist_result = await cursor.fetchone()
@@ -3423,8 +3412,6 @@ class TwitchBot(commands.Bot):
                             except Exception as e:
                                 chat_logger.error(f"Failed to send joke message: {e}")
                                 await send_chat_message("Sorry, I couldn't fetch a joke right now. Try again later.")
-                            # Record usage
-                            add_usage('joke', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message("Error: Could not fetch the blacklist settings.")
                     else:
@@ -3454,12 +3441,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('quote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('quote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('quote', bucket_key, cooldown_bucket)
                         if number is None:  # If no number is provided, get a random quote
                             await cursor.execute("SELECT quote FROM quotes ORDER BY RAND() LIMIT 1")
                             quote = await cursor.fetchone()
@@ -3474,8 +3462,6 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(f"Quote {number}: " + quote["quote"])
                             else:
                                 await send_chat_message(f"No quote found with ID {number}.")
-                        # Record usage
-                        add_usage('quote', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the quote command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3503,17 +3489,16 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('quoteadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('quoteadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('quoteadd', bucket_key, cooldown_bucket)
                         await cursor.execute("INSERT INTO quotes (quote) VALUES (%s)", (quote,))
                         await connection.commit()
                         await send_chat_message("Quote added successfully: " + quote)
-                        # Record usage
-                        add_usage('quoteadd', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to add a quote but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
@@ -3541,12 +3526,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('removequote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('removequote', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('removequote', bucket_key, cooldown_bucket)
                         if number is None:
                             await send_chat_message("Please specify the ID to remove.")
                             return
@@ -3554,8 +3540,6 @@ class TwitchBot(commands.Bot):
                         await connection.commit()
                         if cursor.rowcount > 0:  # Check if a row was deleted
                             await send_chat_message(f"Quote {number} has been removed.")
-                            # Record usage
-                            add_usage('removequote', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message(f"No quote found with ID {number}.")
                     else:
@@ -3585,18 +3569,17 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('permit', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('permit', bucket_key, cooldown_bucket)
                         permit_user = permit_user.lstrip('@')
                         if permit_user:
                             permitted_users[permit_user] = time.time() + 30
                             await send_chat_message(f"{permit_user} is now permitted to post links for the next 30 seconds.")
-                            # Record usage
-                            add_usage('permit', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message("Please specify a user to permit.")
                     else:
@@ -3626,12 +3609,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('settitle', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the required permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('settitle', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('settitle', bucket_key, cooldown_bucket)
                         if title is None:
                             await send_chat_message("Stream titles cannot be blank. You must provide a title for the stream.")
                             return
@@ -3639,8 +3623,6 @@ class TwitchBot(commands.Bot):
                         await trigger_twitch_title_update(title)
                         twitch_logger.info(f'Setting stream title to: {title}')
                         await send_chat_message(f'Stream title updated to: {title}')
-                        # Record usage
-                        add_usage('settitle', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message("You do not have the correct permissions to use this command.")
         except Exception as e:
@@ -3673,14 +3655,14 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('setgame', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
+                        # Record usage right away so overlapping uses can't both pass the cooldown
+                        add_usage('setgame', bucket_key, cooldown_bucket)
                         if game is None:
                             await send_chat_message("You must provide a game for the stream.")
                             return
                         try:
                             game_name = await update_twitch_game(game)
                             await send_chat_message(f'Stream game updated to: {game_name}')
-                            # Record usage
-                            add_usage('setgame', bucket_key, cooldown_bucket)
                         except GameNotFoundException as e:
                             await send_chat_message(f"Game not found: {str(e)}")
                         except GameUpdateFailedException as e:
@@ -3721,6 +3703,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('song', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('song', bucket_key, cooldown_bucket)
                 # Get the current song and artist from Spotify
                 song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
                 # If Spotify succeeded and returned song data
@@ -3728,7 +3712,6 @@ class TwitchBot(commands.Bot):
                     # If the stream is offline, notify that the user that the streamer is listening to music while offline
                     if not stream_online:
                         await send_chat_message(f"{CHANNEL_NAME} is currently listening to \"{song_name} by {artist_name}\" while being offline.")
-                        add_usage('song', bucket_key, cooldown_bucket)
                         return
                     # Check if the song is in the tracked list and if a user is associated
                     requested_by = None
@@ -3738,7 +3721,6 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"The current playing song is: {song_name} by {artist_name}, requested by {requested_by}")
                     else:
                         await send_chat_message(f"The current playing song is: {song_name} by {artist_name}")
-                    add_usage('song', bucket_key, cooldown_bucket)
                     return
                 # Spotify failed or returned no song, attempt failover to Shazam
                 if not stream_online:
@@ -3760,8 +3742,6 @@ class TwitchBot(commands.Bot):
                 else:
                     # No premium access
                     await send_chat_message("Sorry, I couldn't determine the current song.")
-                # Record usage
-                add_usage('song', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -3795,6 +3775,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('songrequest', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('songrequest', bucket_key, cooldown_bucket)
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
             message = ctx.message.content
@@ -3935,8 +3917,6 @@ class TwitchBot(commands.Bot):
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
-                        # Record usage
-                        add_usage('songrequest', bucket_key, cooldown_bucket)
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -3971,6 +3951,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('skipsong', bucket_key, cooldown_bucket)
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
             device_url = "https://api.spotify.com/v1/me/player/devices"
@@ -4006,8 +3988,6 @@ class TwitchBot(commands.Bot):
                     if response.status in (200, 204):
                         api_logger.info(f"Song skipped successfully by {ctx.message.author.name}")
                         await send_chat_message("Song skipped successfully.")
-                        # Record usage
-                        add_usage('skipsong', bucket_key, cooldown_bucket)
                     else:
                         api_logger.error(f"Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
@@ -4045,6 +4025,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('songqueue', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('songqueue', bucket_key, cooldown_bucket)
             # Request the queue information from Spotify
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
@@ -4095,8 +4077,6 @@ class TwitchBot(commands.Bot):
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Something went wrong with Spotify. Please try again soon.")
                         await send_chat_message(f"Sorry, I couldn't fetch the queue. {error_message}")
                         api_logger.error(f"Spotify returned response code: {response.status}")
-            # Record usage
-            add_usage('songqueue', bucket_key, cooldown_bucket)
         except Exception as e:
             await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             api_logger.error(f"Error in songqueue_command: {e}")
@@ -4129,6 +4109,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('timer', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('timer', bucket_key, cooldown_bucket)
                 # Check if the user already has an active timer
                 await cursor.execute("SELECT end_time FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 active_timer = await cursor.fetchone()
@@ -4151,8 +4133,6 @@ class TwitchBot(commands.Bot):
                 # Remove the timer from the active_timers table
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
-                # Record usage
-                add_usage('timer', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -4187,6 +4167,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('hug', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('hug', bucket_key, cooldown_bucket)
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
                     mentioned_username = mentioned_username.lstrip('@')
@@ -4220,8 +4202,6 @@ class TwitchBot(commands.Bot):
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "hug")
-                    # Record usage
-                    add_usage('hug', bucket_key, cooldown_bucket)
                 else:
                     chat_logger.error(f"No hug count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't hug @{mentioned_username} right now, there's an issue in my system.")
@@ -4257,6 +4237,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('highfive', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('highfive', bucket_key, cooldown_bucket)
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
                     mentioned_username = mentioned_username.lstrip('@')
@@ -4290,8 +4272,6 @@ class TwitchBot(commands.Bot):
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "highfive")
-                    # Record usage
-                    add_usage('highfive', bucket_key, cooldown_bucket)
                 else:
                     chat_logger.error(f"No high-five count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't high-five @{mentioned_username} right now, there's an issue in my system.")
@@ -4327,6 +4307,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('kiss', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('kiss', bucket_key, cooldown_bucket)
                 # Remove any '@' symbol from the mentioned username if present
                 if mentioned_username:
                     mentioned_username = mentioned_username.lstrip('@')
@@ -4360,8 +4342,6 @@ class TwitchBot(commands.Bot):
                     if mentioned_username == BOT_USERNAME:
                         author = ctx.author.name
                         await return_the_action_back(ctx, author, "kiss")
-                    # Record usage
-                    add_usage('kiss', bucket_key, cooldown_bucket)
                 else:
                     chat_logger.error(f"No kiss count found for user: {mentioned_username}")
                     await send_chat_message(f"Sorry @{ctx.author.name}, you can't kiss @{mentioned_username} right now, there's an issue in my system.")
@@ -4395,6 +4375,8 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
+                        # Record usage right away so overlapping uses can't both pass the cooldown
+                        add_usage('ping', bucket_key, cooldown_bucket)
                         # Using subprocess to run the ping command
                         result = subprocess.run(["ping", "-c", "1", "ping.botofthespecter.com"], stdout=subprocess.PIPE)
                         # Decode the result from bytes to string and search for the time
@@ -4405,8 +4387,6 @@ class TwitchBot(commands.Bot):
                             bot_logger.info(f"Pong: {ping_time} ms")
                             # Updated message to make it clear to the user
                             await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
-                            # Record usage
-                            add_usage('ping', bucket_key, cooldown_bucket)
                         else:
                             bot_logger.error(f"Error Pinging. {output}")
                             await send_chat_message(f'Error pinging the internet from the bot server.')
@@ -4443,6 +4423,8 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('translate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
+                        # Record usage right away so overlapping uses can't both pass the cooldown
+                        add_usage('translate', bucket_key, cooldown_bucket)
                         # Get the message content after the command
                         message = ctx.message.content[len("!translate "):]
                         # Check if there is a message to translate
@@ -4456,8 +4438,6 @@ class TwitchBot(commands.Bot):
                                 return
                             translate_message = translator(source='auto', target='en').translate(text=message)
                             await send_chat_message(f"Translation: {translate_message}")
-                            # Record usage
-                            add_usage('translate', bucket_key, cooldown_bucket)
                         except AttributeError as ae:
                             chat_logger.error(f"AttributeError: {ae}")
                             await send_chat_message("An error occurred while detecting the language.")
@@ -4497,6 +4477,8 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('cheerleader', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
+                        # Record usage right away so overlapping uses can't both pass the cooldown
+                        add_usage('cheerleader', bucket_key, cooldown_bucket)
                         headers = {
                             'Client-ID': CLIENT_ID,
                             'Authorization': f'Bearer {CHANNEL_AUTH}'
@@ -4512,8 +4494,6 @@ class TwitchBot(commands.Bot):
                                         top_cheerer = data['data'][0]
                                         score = "{:,}".format(top_cheerer['score'])
                                         await send_chat_message(f"The current top cheerleader is {top_cheerer['user_name']} with {score} bits!")
-                                        # Record usage
-                                        add_usage('cheerleader', bucket_key, cooldown_bucket)
                                     else:
                                         await send_chat_message("There is no one currently in the leaderboard for bits; cheer to take this spot.")
                                 elif response.status == 401:
@@ -4553,6 +4533,8 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('mybits', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
+                        # Record usage right away so overlapping uses can't both pass the cooldown
+                        add_usage('mybits', bucket_key, cooldown_bucket)
                         user_id = ctx.author.id
                         await cursor.execute("SELECT bits FROM bits_data WHERE user_id = %s", (user_id,))
                         db_bits = await cursor.fetchone()
@@ -4583,23 +4565,15 @@ class TwitchBot(commands.Bot):
                                             await connection.commit()
                                             bits = "{:,}".format(api_bits)
                                             await send_chat_message(f"You have given {bits} bits in total.")
-                                            # Record usage
-                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                         elif api_bits < db_bits:
                                             # Inform the user that the local database has a higher value
                                             bits = "{:,}".format(db_bits)
                                             await send_chat_message(f"Our records show you have given {bits} bits in total.")
-                                            # Record usage
-                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                         else:
                                             bits = "{:,}".format(api_bits)
                                             await send_chat_message(f"You have given {bits} bits in total.")
-                                            # Record usage
-                                            add_usage('mybits', bucket_key, cooldown_bucket)
                                     else:
                                         await send_chat_message("You haven't given any bits yet.")
-                                        # Record usage
-                                        add_usage('mybits', bucket_key, cooldown_bucket)
                                 elif response.status == 401:
                                     await send_chat_message("Sorry, something went wrong while reaching the Twitch API.")
                                 else:
@@ -4637,6 +4611,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('lurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('lurk', bucket_key, cooldown_bucket)
                     user_id = str(ctx.author.id)
                     now = time_right_now()
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
@@ -4678,8 +4654,6 @@ class TwitchBot(commands.Bot):
                         (user_id, formatted_datetime, formatted_datetime)
                     )
                     await connection.commit()
-                    # Record usage
-                    add_usage('lurk', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await send_chat_message(f"Thanks for lurking! See you soon.")
@@ -4710,6 +4684,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('lurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('lurking', bucket_key, cooldown_bucket)
                     user_id = str(ctx.author.id)
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await send_chat_message(f"Streamer, you're always present!")
@@ -4724,13 +4700,9 @@ class TwitchBot(commands.Bot):
                         # Send the lurk time message
                         await send_chat_message(f"{ctx.author.name}, you've been lurking for {time_string} so far.")
                         chat_logger.info(f"{ctx.author.name} checked their lurk time: {time_string}.")
-                        # Record usage
-                        add_usage('lurking', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message(f"{ctx.author.name}, you're not currently lurking.")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time but is not lurking.")
-                        # Record usage
-                        add_usage('lurking', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
             await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
@@ -4761,6 +4733,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('lurklead', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('lurklead', bucket_key, cooldown_bucket)
                     try:
                         await cursor.execute('SELECT user_id, start_time FROM lurk_times')
                         lurkers = await cursor.fetchall()
@@ -4784,15 +4758,11 @@ class TwitchBot(commands.Bot):
                                 time_string = format_lurk_time(longest_lurk)
                                 await send_chat_message(f"{display_name} is currently lurking the most with {time_string} on the clock.")
                                 chat_logger.info(f"Lurklead command run. User {display_name} has the longest lurk time of {time_string}.")
-                                # Record usage
-                                add_usage('lurklead', bucket_key, cooldown_bucket)
                             else:
                                 await send_chat_message("There was an issue retrieving the display name of the lurk leader.")
                         else:
                             await send_chat_message("No one is currently lurking.")
                             chat_logger.info("Lurklead command run but no lurkers found.")
-                            # Record usage
-                            add_usage('lurklead', bucket_key, cooldown_bucket)
                     except Exception as e:
                         chat_logger.error(f"Error in lurklead_command: {e}")
                         await send_chat_message("Oops, something went wrong while trying to find the lurk leader.")
@@ -4825,6 +4795,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('unlurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('unlurk', bucket_key, cooldown_bucket)
                     user_id = str(ctx.author.id)
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await send_chat_message(f"Streamer, you've been here all along!")
@@ -4858,10 +4830,8 @@ class TwitchBot(commands.Bot):
                         else:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking.")
                             await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
-                        add_usage('unlurk', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
-                        add_usage('unlurk', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await send_chat_message("Oops, something went wrong with the unlurk command.")
@@ -4892,17 +4862,15 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('userslurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('userslurking', bucket_key, cooldown_bucket)
                 await cursor.execute('SELECT COUNT(*) as count FROM lurk_times')
                 result = await cursor.fetchone()
                 count = result.get("count", 0)
                 if count == 0:
                     await send_chat_message("No one is currently lurking.")
-                    # Record usage
-                    add_usage('userslurking', bucket_key, cooldown_bucket)
                 else:
                     await send_chat_message(f"There are currently {count} user{'s' if count != 1 else ''} lurking.")
-                    # Record usage
-                    add_usage('userslurking', bucket_key, cooldown_bucket)
                 chat_logger.info(f"{ctx.author.name} checked the number of lurkers: {count}.")
         except Exception as e:
             chat_logger.error(f"Error in userslurking_command: {e}")
@@ -4933,6 +4901,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('clip', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('clip', bucket_key, cooldown_bucket)
                     if not stream_online:
                         await send_chat_message("Sorry, I can only create clips while the stream is online.")
                         return
@@ -4955,8 +4925,6 @@ class TwitchBot(commands.Bot):
                                     twitch_logger.info(f"A stream marker was created for the clip: {marker_description}.")
                                 else:
                                     twitch_logger.info("Failed to create a stream marker for the clip.")
-                                # Record usage
-                                add_usage('clip', bucket_key, cooldown_bucket)
                             else:
                                 marker_description = f"Failed to create clip."
                                 if await make_stream_marker(marker_description):
@@ -4994,6 +4962,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('marker', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('marker', bucket_key, cooldown_bucket)
                     if not stream_online:
                         await send_chat_message("Sorry, I can only create stream markers while the stream is online.")
                         return
@@ -5004,8 +4974,6 @@ class TwitchBot(commands.Bot):
                     else:
                         await send_chat_message("Failed to create a stream marker.")
                         twitch_logger.error("Failed to create a stream marker.")
-                    # Record usage
-                    add_usage('marker', bucket_key, cooldown_bucket)
         except Exception as e:
             twitch_logger.error(f"Error in marker_command: {e}")
             await send_chat_message("An error occurred while executing the marker command.")
@@ -5035,6 +5003,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('subscription', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('subscription', bucket_key, cooldown_bucket)
                     user_id = ctx.author.id
                     headers = {
                         "Client-ID": CLIENT_ID,
@@ -5070,8 +5040,6 @@ class TwitchBot(commands.Bot):
                             else:
                                 await send_chat_message("Failed to retrieve subscription information. Please try again later.")
                                 twitch_logger.error(f"Failed to retrieve subscription information. Status code: {subscription_response.status}")
-                    # Record usage
-                    add_usage('subscription', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5104,6 +5072,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('uptime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('uptime', bucket_key, cooldown_bucket)
                 if not stream_online:
                     await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
                     return
@@ -5129,8 +5099,6 @@ class TwitchBot(commands.Bot):
                                         minutes, seconds = divmod(remainder, 60)
                                         await send_chat_message(f"The stream has been live for {hours} hours, {minutes} minutes, and {seconds} seconds.")
                                         chat_logger.info(f"{CHANNEL_NAME} has been online for {uptime}.")
-                                        # Record usage
-                                        add_usage('uptime', bucket_key, cooldown_bucket)
                                     else:
                                         await send_chat_message(f"{CHANNEL_NAME} is currently offline.")
                                         api_logger.info(f"{CHANNEL_NAME} is currently offline.")
@@ -5174,6 +5142,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('typo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('typo', bucket_key, cooldown_bucket)
                 chat_logger.info("Typo Command ran.")
                 # Determine the target user: mentioned user or the command caller
                 target_user = mentioned_username.lower().lstrip('@') if mentioned_username else ctx.author.name.lower()
@@ -5194,8 +5164,6 @@ class TwitchBot(commands.Bot):
                 # Send the message
                 chat_logger.info(f"{target_user} has made a new typo in chat, their count is now at {typo_count}.")
                 await send_chat_message(f"Congratulations {target_user}, you've made a typo! You've made a typo in chat {typo_count} times.")
-                # Record usage
-                add_usage('typo', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await send_chat_message(f"An error occurred while trying to add to your typo count.")
@@ -5229,6 +5197,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('typos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('typos', bucket_key, cooldown_bucket)
                 chat_logger.info("Typos Command ran.")
                 if ctx.author.name.lower() == CHANNEL_NAME.lower():
                     await send_chat_message(f"Dear Streamer, you can never have a typo in your own channel.")
@@ -5240,8 +5210,6 @@ class TwitchBot(commands.Bot):
                 typo_count = result.get("typo_count") if result else 0
                 chat_logger.info(f"{target_user} has made {typo_count} typos in chat.")
                 await send_chat_message(f"{target_user} has made {typo_count} typos in chat.")
-                # Record usage
-                add_usage('typos', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to check typos.")
@@ -5271,6 +5239,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('edittypos', bucket_key, cooldown_bucket)
                     chat_logger.info("Edit Typos Command ran.")
                     try:
                         # Determine the target user: mentioned user or the command caller
@@ -5310,8 +5280,6 @@ class TwitchBot(commands.Bot):
                     except Exception as e:
                         chat_logger.error(f"Error in edit_typo_command: {e}")
                         await send_chat_message(f"An error occurred while trying to edit typos. {e}")
-            # Record usage
-            add_usage('edittypos', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5341,6 +5309,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('removetypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('removetypos', bucket_key, cooldown_bucket)
                     mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
                     target_user = mentioned_username_lower.lstrip('@')
                     chat_logger.info(f"Remove Typos Command ran with params: {target_user}, decrease_amount: {decrease_amount}")
@@ -5358,8 +5328,6 @@ class TwitchBot(commands.Bot):
                         await send_chat_message(f"Typo count for {target_user} decreased by {decrease_amount}. New count: {new_count}.")
                     else:
                         await send_chat_message(f"No typo record found for {target_user}.")
-            # Record usage
-            add_usage('removetypos', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to remove typos.")
@@ -5389,6 +5357,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('steam', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('steam', bucket_key, cooldown_bucket)
             # File path
             file_path = '/var/www/api/steamapplist.json'
             # Check if the file exists and if it's less than 1 hour old
@@ -5426,8 +5396,6 @@ class TwitchBot(commands.Bot):
                 await send_chat_message(f"{current_game} is available on Steam, you can get it here: {store_url}")
             else:
                 await send_chat_message("This game is not available on Steam.")
-            # Record usage
-            add_usage('steam', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
             await send_chat_message("An error occurred while trying to check the Steam store.")
@@ -5460,6 +5428,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('deaths', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('deaths', bucket_key, cooldown_bucket)
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't see death count.")
                     return
@@ -5467,8 +5437,6 @@ class TwitchBot(commands.Bot):
                 ignored_result = await cursor.fetchone()
                 if ignored_result:
                     await send_chat_message("Deaths are not counted for this game.")
-                    # Record usage
-                    add_usage('deaths', bucket_key, cooldown_bucket)
                 chat_logger.info("Deaths command ran.")
                 await cursor.execute('SELECT death_count FROM game_deaths WHERE game_name = %s', (current_game,))
                 game_death_count_result = await cursor.fetchone()
@@ -5484,8 +5452,6 @@ class TwitchBot(commands.Bot):
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
                     create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
-                # Record usage
-                add_usage('deaths', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
@@ -5515,6 +5481,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('deathadd', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('deathadd', bucket_key, cooldown_bucket)
                 if current_game is None:
                     await send_chat_message("Current game is not set. Cannot add death to nothing.")
                     return
@@ -5553,8 +5521,6 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathadd_command: {e}")
-            # Record usage
-            add_usage('deathadd', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathadd_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
@@ -5584,6 +5550,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('deathremove', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('deathremove', bucket_key, cooldown_bucket)
                 if current_game is None:
                     await send_chat_message("Current game is not set. Can't remove from nothing.")
                     return
@@ -5615,8 +5583,6 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     await send_chat_message(f"An error occurred while executing the command. {e}")
                     chat_logger.error(f"Error in deathremove_command: {e}")
-            # Record usage
-            add_usage('deathremove', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Unexpected error in deathremove_command: {e}")
             await send_chat_message(f"An unexpected error occurred: {e}")
@@ -5646,12 +5612,12 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('game', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('game', bucket_key, cooldown_bucket)
                 if current_game is not None:
                     await send_chat_message(f"The current game we're playing is: {current_game}")
                 else:
                     await send_chat_message("We're not currently streaming any specific game category.")
-            # Record usage
-            add_usage('game', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
@@ -5684,6 +5650,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('followage', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('followage', bucket_key, cooldown_bucket)
                 target_user = mentioned_username.lstrip('@') if mentioned_username else ctx.author.name
                 headers = {
                     'Client-ID': CLIENT_ID,
@@ -5734,13 +5702,9 @@ class TwitchBot(commands.Bot):
                                     followage_text = ", ".join(parts)
                                     await send_chat_message(f"{target_user} has been following for: {followage_text}.")
                                     chat_logger.info(f"{target_user} has been following for: {followage_text}.")
-                                    # Record usage
-                                    add_usage('followage', bucket_key, cooldown_bucket)
                                 else:
                                     await send_chat_message(f"{target_user} does not follow {CHANNEL_NAME}.")
                                     chat_logger.info(f"{target_user} does not follow {CHANNEL_NAME}.")
-                                    # Record usage
-                                    add_usage('followage', bucket_key, cooldown_bucket)
                             else:
                                 await send_chat_message(f"Failed to retrieve followage information for {target_user}.")
                                 chat_logger.info(f"Failed to retrieve followage information for {target_user}.")
@@ -5778,6 +5742,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('schedule', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('schedule', bucket_key, cooldown_bucket)
                 await cursor.execute("SELECT timezone FROM profile")
                 timezone_row = await cursor.fetchone()
                 timezone = timezone_row["timezone"] if timezone_row else 'UTC'
@@ -5848,8 +5814,6 @@ class TwitchBot(commands.Bot):
                 except Exception as e:
                     chat_logger.error(f"Error retrieving schedule: {e}")
                     await send_chat_message(f"Oops, something went wrong while trying to check the schedule.")
-            # Record usage
-            add_usage('schedule', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5879,6 +5843,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('checkupdate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('checkupdate', bucket_key, cooldown_bucket)
                 API_URL = "https://api.botofthespecter.com/versions"
                 async with httpClientSession() as session:
                     async with session.get(API_URL, headers={'accept': 'application/json'}) as response:
@@ -5903,8 +5869,6 @@ class TwitchBot(commands.Bot):
                                 await send_chat_message(message)
                         else:
                             await send_chat_message("Failed to check for updates. Please try again later.")
-            # Record usage
-            add_usage('checkupdate', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in checkupdate_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
@@ -5935,6 +5899,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('shoutout', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('shoutout', bucket_key, cooldown_bucket)
             chat_logger.info(f"Shoutout command running from {ctx.author.name}")
             if not user_to_shoutout:
                 chat_logger.error(f"Shoutout command missing username parameter.")
@@ -5969,8 +5935,6 @@ class TwitchBot(commands.Bot):
             chat_logger.info(shoutout_message)
             await send_chat_message(shoutout_message)
             await add_shoutout(user_to_shoutout, user_id)
-            # Record usage
-            add_usage('shoutout', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6001,6 +5965,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('addcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('addcommand', bucket_key, cooldown_bucket)
             # Parse the command and response from the message
             try:
                 command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -6013,8 +5979,6 @@ class TwitchBot(commands.Bot):
                 await connection.commit()
             chat_logger.info(f"{ctx.author.name} has added the command !{command} with the response: {response}")
             await send_chat_message(f'Custom command added: !{command}')
-            # Record usage
-            add_usage('addcommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6045,6 +6009,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('editcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('editcommand', bucket_key, cooldown_bucket)
             # Parse the command and new response from the message
             try:
                 command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
@@ -6057,8 +6023,6 @@ class TwitchBot(commands.Bot):
                 await connection.commit()
             chat_logger.info(f"{ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
             await send_chat_message(f'Custom command edited: !{command}')
-            # Record usage
-            add_usage('editcommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6089,6 +6053,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('removecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('removecommand', bucket_key, cooldown_bucket)
             # Parse the command from the message
             try:
                 command = ctx.message.content.strip().split(' ')[1]
@@ -6101,8 +6067,6 @@ class TwitchBot(commands.Bot):
                 await connection.commit()
             chat_logger.info(f"{ctx.author.name} has removed {command}")
             await send_chat_message(f'Custom command removed: !{command}')
-            # Record usage
-            add_usage('removecommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6133,6 +6097,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('enablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('enablecommand', bucket_key, cooldown_bucket)
             # Parse the command from the message
             try:
                 command = ctx.message.content.strip().split(' ')[1]
@@ -6161,8 +6127,6 @@ class TwitchBot(commands.Bot):
                 else:
                     # Command doesn't exist in either table
                     await send_chat_message(f"Command !{command} not found.")
-            # Record usage
-            add_usage('enablecommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6193,6 +6157,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('disablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('disablecommand', bucket_key, cooldown_bucket)
             # Parse the command from the message
             try:
                 command = ctx.message.content.strip().split(' ')[1]
@@ -6221,8 +6187,6 @@ class TwitchBot(commands.Bot):
                 else:
                     # Command doesn't exist in either table
                     await send_chat_message(f"Command !{command} not found.")
-            # Record usage
-            add_usage('disablecommand', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6254,6 +6218,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('slots', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('slots', bucket_key, cooldown_bucket)
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
@@ -6294,8 +6260,6 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                 await connection.commit()
                 await send_chat_message(message)
-            # Record usage
-            add_usage('slots', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the slots command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6325,6 +6289,8 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('kill', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
+            # Record usage right away so overlapping uses can't both pass the cooldown
+            add_usage('kill', bucket_key, cooldown_bucket)
             async with httpClientSession() as session:
                 async with session.get(f"https://api.botofthespecter.com/kill?api_key={API_TOKEN}") as response:
                     if response.status == 200:
@@ -6360,8 +6326,6 @@ class TwitchBot(commands.Bot):
                 api_logger.info(f"API - BotOfTheSpecter - KillCommand - {result}")
             await send_chat_message(result)
             chat_logger.info(f"Kill command executed by {ctx.author.name}: {result}")
-            # Record usage
-            add_usage('kill', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6396,6 +6360,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('roulette', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('roulette', bucket_key, cooldown_bucket)
                 # Fetch user's points from the database
                 await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                 user_data = await cursor.fetchone()
@@ -6423,8 +6389,6 @@ class TwitchBot(commands.Bot):
                     await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                     await connection.commit()
                 await send_chat_message(message)
-                # Record usage
-                add_usage('roulette', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6457,6 +6421,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('rps', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('rps', bucket_key, cooldown_bucket)
                 choices = ["rock", "paper", "scissors"]
                 bot_choice = random.choice(choices)
                 user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
@@ -6473,8 +6439,6 @@ class TwitchBot(commands.Bot):
                 else:
                     result = f"You lose! You chose {user_choice} and I chose {bot_choice}."
                 await send_chat_message(result)
-                # Record usage
-                add_usage('rps', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6509,6 +6473,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('gamble', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('gamble', bucket_key, cooldown_bucket)
                 # Parse command arguments
                 parts = ctx.message.content.split(' ')
                 if len(parts) < 2:
@@ -6591,8 +6557,6 @@ class TwitchBot(commands.Bot):
                 await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (user_points, user_id))
                 await connection.commit()
                 await send_chat_message(message)
-                # Record usage
-                add_usage('gamble', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6625,6 +6589,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('story', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('story', bucket_key, cooldown_bucket)
                 words = ctx.message.content.split(' ')[1:]
                 if len(words) < 5:
                     await send_chat_message(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
@@ -6638,8 +6604,6 @@ class TwitchBot(commands.Bot):
                 )
                 response = await self.handle_ai_response(seed_prompt, ctx.author.id, ctx.author.name)
                 await send_chat_message(response)
-                # Record usage
-                add_usage('story', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6672,6 +6636,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('convert', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('convert', bucket_key, cooldown_bucket)
                 try:
                     startwitch = ["€", "$", "£", "¥", "₹", "₣", "₽", "₺", "₩", "₼", "₱", "₪", "₴", "₭", "₨", "฿", "₮", "₳", "₵", "ƒ", "៛", "﷼", "R$"]
                     if len(args) == 3 and any(args[0].startswith(symbol) for symbol in startwitch):
@@ -6683,8 +6649,6 @@ class TwitchBot(commands.Bot):
                         converted_amount = await convert_currency(amount, from_currency, to_currency)
                         formatted_converted_amount = f"{converted_amount:,.2f}"
                         await send_chat_message(f"The currency exchange for {amount_str} {from_currency} is {formatted_converted_amount} {to_currency}")
-                        # Record usage
-                        add_usage('convert', bucket_key, cooldown_bucket)
                     elif len(args) == 3:
                         # Handle unit conversion
                         amount_str = args[0]
@@ -6709,8 +6673,6 @@ class TwitchBot(commands.Bot):
                         converted_quantity = quantity.to(to_unit)
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
                         await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
-                        # Record usage
-                        add_usage('convert', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message("Invalid format. Please use: !convert <amount> <unit> <to_unit> or !convert $<amount> <from_currency> <to_currency>")
                 except Exception as e:
@@ -6752,11 +6714,11 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('todo', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('todo', bucket_key, cooldown_bucket)
             if message_content.lower() == '!todo':
                 await send_chat_message(f"{user.name}, check the todo list at https://members.botofthespecter.com/{CHANNEL_NAME}/")
                 chat_logger.info(f"{user.name} viewed the todo list.")
-                # Record usage
-                add_usage('todo', bucket_key, cooldown_bucket)
                 return
             action, *params = message_content[5:].strip().split(' ', 1)
             action = action.lower()
@@ -6778,8 +6740,6 @@ class TwitchBot(commands.Bot):
                         return
                 await actions[action](ctx, params, user_id, connection)
                 chat_logger.info(f"{user.name} executed the action {action} with params {params}.")
-                # Record usage
-                add_usage('todo', bucket_key, cooldown_bucket)
             else:
                 await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
@@ -6813,6 +6773,8 @@ class TwitchBot(commands.Bot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('subathon', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
+                # Record usage right away so overlapping uses can't both pass the cooldown
+                add_usage('subathon', bucket_key, cooldown_bucket)
             user = ctx.author
             # Check permissions for valid actions
             if action in ['start', 'stop', 'pause', 'resume', 'addtime']:
@@ -6836,8 +6798,6 @@ class TwitchBot(commands.Bot):
                 await subathon_status(ctx)
             else:
                 await send_chat_message(f"{user.name}, invalid action. Use !subathon start|stop|pause|resume|addtime|status")
-            # Record usage
-            add_usage('subathon', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6870,6 +6830,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('heartrate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('heartrate', bucket_key, cooldown_bucket)
                     # Check if heartrate code exists in database
                     await cursor.execute('SELECT heartrate_code FROM profile')
                     heartrate_code_data = await cursor.fetchone()
@@ -6887,8 +6849,6 @@ class TwitchBot(commands.Bot):
                         await send_chat_message("The Heart Rate is not turned on right now.")
                     else:
                         await send_chat_message(f"The current Heart Rate is: {HEARTRATE}")
-            # Record usage
-            add_usage('heartrate', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -6921,6 +6881,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('watchtime', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('watchtime', bucket_key, cooldown_bucket)
                 # Query watch time for the user
                 await cursor.execute("""
                     SELECT total_watch_time_live, total_watch_time_offline
@@ -6959,8 +6921,6 @@ class TwitchBot(commands.Bot):
                 else:
                     # If no watch time data is found
                     await send_chat_message(f"@{username}, no watch time data recorded for you yet.")
-            # Record usage
-            add_usage('watchtime', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
@@ -6989,6 +6949,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('startlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('startlotto', bucket_key, cooldown_bucket)
                 done = await generate_winning_lotto_numbers()
                 if done == True:
                     await send_chat_message("Lotto numbers have been generated. Good luck everyone!")
@@ -6996,8 +6958,6 @@ class TwitchBot(commands.Bot):
                     await send_chat_message("Lotto numbers have already been generated. Ready to draw the winners.")
                 else:
                     await send_chat_message("There was an error generating the lotto numbers.")
-            # Record usage
-            add_usage('startlotto', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"Error in starting lotto game: {e}")
             await send_chat_message("There was an error generating the lotto numbers.")
@@ -7027,6 +6987,8 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('drawlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
+                    # Record usage right away so overlapping uses can't both pass the cooldown
+                    add_usage('drawlotto', bucket_key, cooldown_bucket)
                 prize_pool = {
                     "Division 1 (Jackpot!)": 100000,
                     "Division 2": 50000,
@@ -7107,8 +7069,6 @@ class TwitchBot(commands.Bot):
                 # Clear winning numbers after the draw
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
-            # Record usage
-            add_usage('drawlotto', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
@@ -7133,12 +7093,13 @@ class TwitchBot(commands.Bot):
                     # If the command is disabled, stop execution
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('obs', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        # Check cooldown and record usage right away so overlapping uses can't both pass the cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('obs', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                            return
+                        add_usage('obs', bucket_key, cooldown_bucket)
                         message_parts = ctx.message.content.split()
                         if len(message_parts) > 1:
                             subcommand = message_parts[1].lower()
@@ -7154,8 +7115,6 @@ class TwitchBot(commands.Bot):
                         else:
                             await websocket_notice(event="SEND_OBS_EVENT", additional_data={"command": "obs_triggered"})
                             chat_logger.info(f"{ctx.author.name} triggered OBS event")
-                        # Record usage
-                        add_usage('obs', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to trigger OBS event but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
