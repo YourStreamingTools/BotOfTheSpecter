@@ -3927,6 +3927,30 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         function narratorAllowMatched(text) {
             return narratorListMatched(text, loadNarratorAllowMessages());
         }
+        // Piper reads "$25" symbol-first ("dollar 25"). Rewrite currency amounts into
+        // spoken order: "$25" -> "25 dollars", "$25.50" -> "25 dollars and 50 cents",
+        // "$5k" -> "5 thousand dollars".
+        const NARRATOR_CURRENCIES = {
+            '$': { one: 'dollar', many: 'dollars', minorOne: 'cent', minorMany: 'cents' },
+            '£': { one: 'pound', many: 'pounds', minorOne: 'penny', minorMany: 'pence' },
+            '€': { one: 'euro', many: 'euros', minorOne: 'cent', minorMany: 'cents' }
+        };
+        const NARRATOR_AMOUNT_SUFFIXES = { k: 'thousand', m: 'million', b: 'billion' };
+        function narratorExpandCurrency(text) {
+            return text.replace(/([$£€])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?:([kmb])(?![a-z]))?(?![a-z])(?![\w.]*\d)/gi, (match, symbol, whole, minor, suffix) => {
+                const cur = NARRATOR_CURRENCIES[symbol];
+                const amount = whole.replace(/,/g, '');
+                if (suffix) {
+                    const scaled = minor ? `${amount}.${minor}` : amount;
+                    return `${scaled} ${NARRATOR_AMOUNT_SUFFIXES[suffix.toLowerCase()]} ${cur.many}`;
+                }
+                const cents = minor ? parseInt(minor.padEnd(2, '0'), 10) : 0;
+                const major = `${amount} ${amount === '1' ? cur.one : cur.many}`;
+                if (!cents) return major;
+                const minorText = `${cents} ${cents === 1 ? cur.minorOne : cur.minorMany}`;
+                return parseInt(amount, 10) === 0 ? minorText : `${major} and ${minorText}`;
+            });
+        }
         function buildNarrationText(event) {
             const raw = (event.message && event.message.text ? String(event.message.text) : '').trim();
             if (!raw) return '';
@@ -3967,6 +3991,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (spokenBody.charAt(0) === '!') {
                 spokenBody = 'command ' + spokenBody.replace(/^!+/, '').trimStart();
             }
+            spokenBody = narratorExpandCurrency(spokenBody);
             let spoken = !narratorSpeakName ? spokenBody : (name ? `${name} says ${spokenBody}` : spokenBody);
             if (spoken.length > NARRATOR_MAX_CHARS) spoken = spoken.slice(0, NARRATOR_MAX_CHARS);
             return spoken;
