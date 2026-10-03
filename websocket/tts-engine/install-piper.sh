@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Piper + four English voices on the websocket VM.
+# Install Piper + eight English voices on the websocket VM.
 # Run on websocket as root (or a user that can write /var/lib/yourchat-piper).
 # Does not run on web1. Streamers never run this.
 set -euo pipefail
@@ -14,7 +14,11 @@ VOICES=(
   "en/en_US/lessac/medium/en_US-lessac-medium"
   "en/en_US/hfc_female/medium/en_US-hfc_female-medium"
   "en/en_US/hfc_male/medium/en_US-hfc_male-medium"
+  "en/en_US/ryan/medium/en_US-ryan-medium"
+  "en/en_US/amy/medium/en_US-amy-medium"
   "en/en_GB/alba/medium/en_GB-alba-medium"
+  "en/en_GB/cori/medium/en_GB-cori-medium"
+  "en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium"
 )
 
 mkdir -p "${DEST}/voices" "${DEST}/tmp"

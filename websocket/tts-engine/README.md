@@ -17,7 +17,7 @@ Do **not** reverse-proxy port 8094 through Caddy / `websocket.botofthespecter.co
 | `/home/botofthespecter/tts-engine/server.py` | HTTP wrapper (this folder, deployed) |
 | `/etc/systemd/system/yourchat-piper.service` | unit |
 | `/var/lib/yourchat-piper/piper/piper` | binary (not in git) |
-| `/var/lib/yourchat-piper/voices/*.onnx` | four English voices (not in git) |
+| `/var/lib/yourchat-piper/voices/*.onnx` | eight English voices (not in git) |
 
 ## Install
 
