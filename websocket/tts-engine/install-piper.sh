@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Piper + eight English voices on the websocket VM.
+# Install Piper + every single-speaker English voice on the websocket VM.
 # Run on websocket as root (or a user that can write /var/lib/yourchat-piper).
 # Does not run on web1. Streamers never run this.
 set -euo pipefail
@@ -8,17 +8,42 @@ DEST="${NARRATOR_PIPER_ROOT:-/var/lib/yourchat-piper}"
 PIPER_VER="${PIPER_VER:-2023.11.14-2}"
 PIPER_TGZ="piper_linux_x86_64.tar.gz"
 PIPER_URL="https://github.com/rhasspy/piper/releases/download/${PIPER_VER}/${PIPER_TGZ}"
-HF_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0"
+HF_REPO="https://huggingface.co/rhasspy/piper-voices/resolve"
+HF_REF="v1.0.0"
 
+# Append "@<ref>" to pull a voice from a different piper-voices revision
+# (for voices published after v1.0.0).
 VOICES=(
-  "en/en_US/lessac/medium/en_US-lessac-medium"
+  "en/en_US/amy/low/en_US-amy-low"
+  "en/en_US/amy/medium/en_US-amy-medium"
+  "en/en_US/bryce/medium/en_US-bryce-medium"
+  "en/en_US/danny/low/en_US-danny-low"
   "en/en_US/hfc_female/medium/en_US-hfc_female-medium"
   "en/en_US/hfc_male/medium/en_US-hfc_male-medium"
+  "en/en_US/joe/medium/en_US-joe-medium"
+  "en/en_US/john/medium/en_US-john-medium"
+  "en/en_US/kathleen/low/en_US-kathleen-low"
+  "en/en_US/kristin/medium/en_US-kristin-medium"
+  "en/en_US/kusal/medium/en_US-kusal-medium"
+  "en/en_US/lessac/low/en_US-lessac-low"
+  "en/en_US/lessac/medium/en_US-lessac-medium"
+  "en/en_US/lessac/high/en_US-lessac-high"
+  "en/en_US/ljspeech/medium/en_US-ljspeech-medium"
+  "en/en_US/ljspeech/high/en_US-ljspeech-high"
+  "en/en_US/norman/medium/en_US-norman-medium"
+  "en/en_US/reza_ibrahim/medium/en_US-reza_ibrahim-medium"
+  "en/en_US/ryan/low/en_US-ryan-low"
   "en/en_US/ryan/medium/en_US-ryan-medium"
-  "en/en_US/amy/medium/en_US-amy-medium"
+  "en/en_US/ryan/high/en_US-ryan-high"
+  "en/en_US/sam/medium/en_US-sam-medium"
+  "en/en_GB/alan/low/en_GB-alan-low"
+  "en/en_GB/alan/medium/en_GB-alan-medium"
   "en/en_GB/alba/medium/en_GB-alba-medium"
   "en/en_GB/cori/medium/en_GB-cori-medium"
+  "en/en_GB/cori/high/en_GB-cori-high"
+  "en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium"
   "en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium"
+  "en/en_GB/southern_english_female/low/en_GB-southern_english_female-low"
 )
 
 mkdir -p "${DEST}/voices" "${DEST}/tmp"
@@ -34,7 +59,10 @@ else
   echo "Piper binary already present, skipping download."
 fi
 
-for rel in "${VOICES[@]}"; do
+for entry in "${VOICES[@]}"; do
+  rel="${entry%@*}"
+  ref="${HF_REF}"
+  [[ "${entry}" == *@* ]] && ref="${entry##*@}"
   base="$(basename "${rel}")"
   onnx="${DEST}/voices/${base}.onnx"
   json="${DEST}/voices/${base}.onnx.json"
@@ -42,9 +70,12 @@ for rel in "${VOICES[@]}"; do
     echo "Voice ${base} already present, skipping."
     continue
   fi
-  echo "Downloading voice ${base}..."
-  curl -fsSL -o "${onnx}" "${HF_BASE}/${rel}.onnx"
-  curl -fsSL -o "${json}" "${HF_BASE}/${rel}.onnx.json"
+  echo "Downloading voice ${base} (${ref})..."
+  # Download to temp names so an interrupted run is retried, not skipped.
+  curl -fsSL -o "${onnx}.part" "${HF_REPO}/${ref}/${rel}.onnx"
+  curl -fsSL -o "${json}.part" "${HF_REPO}/${ref}/${rel}.onnx.json"
+  mv "${onnx}.part" "${onnx}"
+  mv "${json}.part" "${json}"
 done
 
 if [[ ! -x "${DEST}/piper/piper" ]]; then

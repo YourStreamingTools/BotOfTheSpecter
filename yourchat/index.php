@@ -3,14 +3,36 @@ require_once "/var/www/config/twitch.php";
 require_once "/var/www/config/database.php";
 
 $YC_NARRATOR_VOICES = [
-    'en_US-lessac-medium' => 'Lessac (US, neutral)',
+    'en_US-amy-low' => 'Amy (US, low quality)',
+    'en_US-amy-medium' => 'Amy (US)',
+    'en_US-bryce-medium' => 'Bryce (US)',
+    'en_US-danny-low' => 'Danny (US, low quality)',
     'en_US-hfc_female-medium' => 'HFC Female (US)',
     'en_US-hfc_male-medium' => 'HFC Male (US)',
+    'en_US-joe-medium' => 'Joe (US)',
+    'en_US-john-medium' => 'John (US)',
+    'en_US-kathleen-low' => 'Kathleen (US, low quality)',
+    'en_US-kristin-medium' => 'Kristin (US)',
+    'en_US-kusal-medium' => 'Kusal (US)',
+    'en_US-lessac-low' => 'Lessac (US, low quality)',
+    'en_US-lessac-medium' => 'Lessac (US, neutral)',
+    'en_US-lessac-high' => 'Lessac (US, high quality)',
+    'en_US-ljspeech-medium' => 'LJSpeech (US)',
+    'en_US-ljspeech-high' => 'LJSpeech (US, high quality)',
+    'en_US-norman-medium' => 'Norman (US)',
+    'en_US-reza_ibrahim-medium' => 'Reza Ibrahim (US)',
+    'en_US-ryan-low' => 'Ryan (US, low quality)',
     'en_US-ryan-medium' => 'Ryan (US)',
-    'en_US-amy-medium' => 'Amy (US)',
+    'en_US-ryan-high' => 'Ryan (US, high quality)',
+    'en_US-sam-medium' => 'Sam (US)',
+    'en_GB-alan-low' => 'Alan (UK, low quality)',
+    'en_GB-alan-medium' => 'Alan (UK)',
     'en_GB-alba-medium' => 'Alba (UK)',
     'en_GB-cori-medium' => 'Cori (UK)',
+    'en_GB-cori-high' => 'Cori (UK, high quality)',
+    'en_GB-jenny_dioco-medium' => 'Jenny Dioco (UK)',
     'en_GB-northern_english_male-medium' => 'Northern English Male (UK)',
+    'en_GB-southern_english_female-low' => 'Southern English Female (UK, low quality)',
 ];
 $YC_NARRATOR_DEFAULT_VOICE = 'en_US-lessac-medium';
 
