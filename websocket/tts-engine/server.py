@@ -18,16 +18,39 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-VOICES = {
-    "en_US-lessac-medium": "en_US-lessac-medium.onnx",
-    "en_US-hfc_female-medium": "en_US-hfc_female-medium.onnx",
-    "en_US-hfc_male-medium": "en_US-hfc_male-medium.onnx",
-    "en_US-ryan-medium": "en_US-ryan-medium.onnx",
-    "en_US-amy-medium": "en_US-amy-medium.onnx",
-    "en_GB-alba-medium": "en_GB-alba-medium.onnx",
-    "en_GB-cori-medium": "en_GB-cori-medium.onnx",
-    "en_GB-northern_english_male-medium": "en_GB-northern_english_male-medium.onnx",
-}
+_VOICE_IDS = (
+    "en_US-amy-low",
+    "en_US-amy-medium",
+    "en_US-bryce-medium",
+    "en_US-danny-low",
+    "en_US-hfc_female-medium",
+    "en_US-hfc_male-medium",
+    "en_US-joe-medium",
+    "en_US-john-medium",
+    "en_US-kathleen-low",
+    "en_US-kristin-medium",
+    "en_US-kusal-medium",
+    "en_US-lessac-low",
+    "en_US-lessac-medium",
+    "en_US-lessac-high",
+    "en_US-ljspeech-medium",
+    "en_US-ljspeech-high",
+    "en_US-norman-medium",
+    "en_US-reza_ibrahim-medium",
+    "en_US-ryan-low",
+    "en_US-ryan-medium",
+    "en_US-ryan-high",
+    "en_US-sam-medium",
+    "en_GB-alan-low",
+    "en_GB-alan-medium",
+    "en_GB-alba-medium",
+    "en_GB-cori-medium",
+    "en_GB-cori-high",
+    "en_GB-jenny_dioco-medium",
+    "en_GB-northern_english_male-medium",
+    "en_GB-southern_english_female-low",
+)
+VOICES = {voice_id: f"{voice_id}.onnx" for voice_id in _VOICE_IDS}
 DEFAULT_VOICE = "en_US-lessac-medium"
 MAX_CHARS = 500
 DEFAULT_BIND = "10.240.0.5"
