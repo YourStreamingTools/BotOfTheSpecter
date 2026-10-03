@@ -6,7 +6,11 @@ $YC_NARRATOR_VOICES = [
     'en_US-lessac-medium' => 'Lessac (US, neutral)',
     'en_US-hfc_female-medium' => 'HFC Female (US)',
     'en_US-hfc_male-medium' => 'HFC Male (US)',
+    'en_US-ryan-medium' => 'Ryan (US)',
+    'en_US-amy-medium' => 'Amy (US)',
     'en_GB-alba-medium' => 'Alba (UK)',
+    'en_GB-cori-medium' => 'Cori (UK)',
+    'en_GB-northern_english_male-medium' => 'Northern English Male (UK)',
 ];
 $YC_NARRATOR_DEFAULT_VOICE = 'en_US-lessac-medium';
 

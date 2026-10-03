@@ -22,7 +22,11 @@ VOICES = {
     "en_US-lessac-medium": "en_US-lessac-medium.onnx",
     "en_US-hfc_female-medium": "en_US-hfc_female-medium.onnx",
     "en_US-hfc_male-medium": "en_US-hfc_male-medium.onnx",
+    "en_US-ryan-medium": "en_US-ryan-medium.onnx",
+    "en_US-amy-medium": "en_US-amy-medium.onnx",
     "en_GB-alba-medium": "en_GB-alba-medium.onnx",
+    "en_GB-cori-medium": "en_GB-cori-medium.onnx",
+    "en_GB-northern_english_male-medium": "en_GB-northern_english_male-medium.onnx",
 }
 DEFAULT_VOICE = "en_US-lessac-medium"
 MAX_CHARS = 500
