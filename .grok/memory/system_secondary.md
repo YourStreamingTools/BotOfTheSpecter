@@ -110,8 +110,8 @@ Rule: `.grok/rules/bots-api.md` · host code: `./bot/bots_api/`
 
 | File | Role |
 | ---- | ---- |
-| **index.php** | **Specter Alerts** overlay (Twitch follow/sub/bits/raid/…, channel points, Ko-fi/Patreon/Fourthwall, stream bingo, deaths/weather/walkons when enabled). Configured via `dashboard/alerts.php`. Listens for **`OVERLAY_REFRESH`** → injects meta refresh `content=0` (full page reload so PHP re-reads alert configs) |
-| **all.php** | Master / recommended multi-feature overlay |
+| **index.php** | **Specter Alerts** — the master overlay (Twitch follow/sub/bits/raid/…, channel points, Ko-fi/Patreon/Fourthwall, stream bingo, deaths/weather/walkons when enabled). Configured via `dashboard/alerts.php`. Listens for **`OVERLAY_REFRESH`** → injects meta refresh `content=0` (full page reload so PHP re-reads alert configs) |
+| all.php | Legacy multi-feature overlay, superseded by `index.php`; never load both (alerts fire twice) |
 | alert.php, sound-alert.php, video-alert.php | Focused alert media |
 | tts.php, music.php, mediaplayer.php, spotify.php, spotify_nowplaying.php | Audio / now playing |
 | walkons.php, chat.php, deaths.php, weather.php, discord.php | Classic widgets |
