@@ -108,7 +108,7 @@ Detailed system documentation lives in `./memory/`:
 
 - **Purpose**: Browser sources for OBS showing live stream events
 - **Tech**: PHP (auth/prefs) + JavaScript (Socket.io client) + HTML/CSS
-- **~28 pages**: all.php (master), index.php (Specter Alerts), music/tts/deaths/weather/chat/walkons/credits, working-or-study.php, kofi/patreon/fourthwall (live), plus others
+- **~28 pages**: index.php (Specter Alerts — the master overlay, configured by dashboard/alerts.php), all.php (legacy; never load alongside index.php), music/tts/deaths/weather/chat/walkons/credits, working-or-study.php, kofi/patreon/fourthwall (live), plus others
 - **Real-time**: WebSocket events; Specter Alerts also handles **OVERLAY_REFRESH** (full page reload from dashboard)
 - **Task badges**: use `backlog_position`, not global task id
 

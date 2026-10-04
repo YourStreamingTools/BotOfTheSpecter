@@ -271,7 +271,7 @@ The Twitch alert engine picks animations dynamically from JS based on user setti
 
 ### Recipe: adding a new overlay
 
-1. **Don't add casually.** Most "new overlay" requests are better as a configuration toggle in `all.php` (the master overlay). Confirm with the user first - see [`./.grok/rules/overlays.md`](../../rules/overlays.md).
+1. **Don't add casually.** Most "new overlay" requests are better as a configuration toggle in Specter Alerts (`index.php`, the master overlay, configured by `dashboard/alerts.php`). Confirm with the user first - see [`./.grok/rules/overlays.md`](../../rules/overlays.md).
 2. Create `./overlay/{name}.php`. Follow the auth/Socket.io scaffolding from a similar existing overlay.
 3. Add styles to `./overlay/index.css` in a new `/* ===== {Name} Overlay ===== */` section.
 4. Use `{name}-overlay-page-{element}` naming. Don't reuse another overlay's namespace.
