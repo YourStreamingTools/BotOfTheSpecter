@@ -587,6 +587,11 @@ return [
     'moderation_bans_reauth' => 'Twitch a refusé la demande. Déconnectez-vous puis reconnectez-vous pour actualiser vos autorisations.',
     'moderation_page_prev' => 'Précédent',
     'moderation_page_next' => 'Suivant',
+    'moderation_page_of' => 'Page :page sur :pages',
+    'moderation_bans_total' => ':count utilisateurs bannis ou exclus temporairement.',
+    'moderation_bans_loading_more' => 'Chargement de la liste complète en arrière-plan… :count pour le moment.',
+    'moderation_bans_truncated' => 'Seuls les :count premiers sont affichés.',
+    'moderation_bans_partial' => 'Une partie de la liste est indisponible sur Twitch, seuls :count sont affichés.',
     // stream_streak.php
     'stream_streak_beta_notice' => '<strong>Fonctionnalité Bêta 5.8 :</strong> Le suivi des séries de visionnage de streams est disponible à partir de la version 5.8. Les jalons sont enregistrés automatiquement lorsque les spectateurs atteignent des séries consécutives de visionnage (par ex. 3, 7, 10, 50 streams d\'affilée).',
     'stream_streak_page_title' => 'Séries de visionnage de streams',

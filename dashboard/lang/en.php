@@ -614,6 +614,11 @@ return [
     'moderation_bans_reauth' => 'Twitch rejected the request. Log out and back in to refresh your permissions.',
     'moderation_page_prev' => 'Previous',
     'moderation_page_next' => 'Next',
+    'moderation_page_of' => 'Page :page of :pages',
+    'moderation_bans_total' => ':count banned or timed-out users.',
+    'moderation_bans_loading_more' => 'Loading the full list in the background… :count so far.',
+    'moderation_bans_truncated' => 'Only the first :count are shown.',
+    'moderation_bans_partial' => 'Some could not be loaded from Twitch, so only :count are shown.',
     // stream_streak.php
     'stream_streak_beta_notice' => '<strong>Beta 5.8 Feature:</strong> Stream Watch Streak tracking is available in version 5.8 and above. Milestones are automatically recorded when viewers hit consecutive stream watch streaks (e.g. 3, 7, 10, 50 streams in a row).',
     'stream_streak_page_title' => 'Stream Watch Streaks',
