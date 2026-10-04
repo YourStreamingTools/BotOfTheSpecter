@@ -324,6 +324,15 @@
     justify-content: center;
 }
 
+/* More than one Specter Alerts page connected on this key */
+.alerts-overlay-duplicate {
+    margin: 12px 20px 0;
+}
+
+.alerts-overlay-duplicate[hidden] {
+    display: none;
+}
+
 .alerts-preview-area {
     flex: 1;
     display: flex;

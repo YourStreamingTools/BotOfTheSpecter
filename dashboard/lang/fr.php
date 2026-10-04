@@ -1372,6 +1372,7 @@ return [
     'alerts_refresh_overlay_title' => 'Actualisation envoyée',
     'alerts_refresh_overlay_text' => 'L\'overlay d\'alertes va se recharger dans OBS sous peu.',
     'alerts_refresh_overlay_failed' => 'Impossible de joindre l\'overlay. La source navigateur est-elle ouverte ?',
+    'alerts_overlay_duplicate_text' => 'Specter Alerts est ouvert à :count endroits : chaque alerte s’affiche et se joue une fois par copie. Supprimez la source navigateur OBS en trop (vérifiez les autres scènes, les sources masquées et les onglets du navigateur).',
     'alerts_preview_placeholder' => 'Sélectionnez une variante à gauche pour la prévisualiser ici.',
     'alerts_preview_canvas' => 'Zone d\'aperçu',
     'alerts_expand_editor' => 'Agrandir',

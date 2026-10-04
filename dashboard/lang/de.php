@@ -1372,6 +1372,7 @@ return [
     'alerts_refresh_overlay_title' => 'Aktualisierung gesendet',
     'alerts_refresh_overlay_text' => 'Das Alerts-Overlay wird in OBS gleich neu geladen.',
     'alerts_refresh_overlay_failed' => 'Overlay nicht erreichbar. Ist die Browserquelle geöffnet?',
+    'alerts_overlay_duplicate_text' => 'Specter Alerts ist an :count Stellen geöffnet, daher wird jeder Alert pro Kopie einmal angezeigt und abgespielt. Entferne die zusätzliche OBS-Browserquelle (prüfe andere Szenen, versteckte Quellen und Browser-Tabs).',
     'alerts_preview_placeholder' => 'Wähle links eine Variante aus, um sie hier in der Vorschau anzuzeigen.',
     'alerts_preview_canvas' => 'Vorschaubereich',
     'alerts_expand_editor' => 'Vergrößern',

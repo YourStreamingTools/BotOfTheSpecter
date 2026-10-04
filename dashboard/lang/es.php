@@ -1428,6 +1428,7 @@ return [
     'alerts_refresh_overlay_title' => 'Actualización enviada',
     'alerts_refresh_overlay_text' => 'El overlay de alertas se recargará en OBS en breve.',
     'alerts_refresh_overlay_failed' => 'No se pudo contactar el overlay. ¿Está abierta la fuente del navegador?',
+    'alerts_overlay_duplicate_text' => 'Specter Alerts está abierto en :count lugares, así que cada alerta se muestra y suena una vez por copia. Quita la fuente de navegador de OBS sobrante (revisa otras escenas, fuentes ocultas y pestañas del navegador).',
     'alerts_preview_placeholder' => 'Seleccione una variante de la izquierda para obtener una vista previa aquí.',
     'alerts_preview_canvas' => 'Vista previa del lienzo',
     'alerts_expand_editor' => 'Expandir',
