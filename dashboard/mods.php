@@ -126,7 +126,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             }
         }
 
-        $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+        include_once '/var/www/config/twitch.php'; // provides $clientID
         $allModerators = [];
         $cursor = null;
         do {

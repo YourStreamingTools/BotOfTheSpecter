@@ -26,7 +26,6 @@ date_default_timezone_set($timezone);
 
 // API endpoint to fetch subscribers
 $subscribersURL = "https://api.twitch.tv/helix/subscriptions?broadcaster_id=$broadcasterID";
-$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 $allSubscribers = [];
 $subscribersForCurrentPage = [];

@@ -25,7 +25,6 @@ date_default_timezone_set($timezone);
 
 // API endpoint to fetch VIPs of the channel
 $vipsURL = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID";
-$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 $allVIPs = [];
 $VIPUserStatus="";
 do {

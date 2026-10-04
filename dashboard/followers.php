@@ -40,7 +40,6 @@ if (isset($_GET['load']) && $_GET['load'] == 'followers') {
   }
   // Check for updates from Twitch API and update the database accordingly
   $followersURL = "https://api.twitch.tv/helix/channels/followers?broadcaster_id=$broadcasterID&first=100";
-  $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
   $apiFollowers = [];
   $apiFollowerDetails = [];
   do {
