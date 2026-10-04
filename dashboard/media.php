@@ -29,21 +29,10 @@ if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
         echo json_encode(['success' => false, 'error' => t('media_err_invalid_login')]);
         exit;
     }
-    $botClientId = '';
-    $botOauth    = '';
-    $bconn = new mysqli($db_servername, $db_username, $db_password, 'website');
-    if (!$bconn->connect_error) {
-        $bres = $bconn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
-        if ($bres && ($brow = $bres->fetch_assoc())) {
-            foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
-                if (!empty($brow[$k])) { $botClientId = trim($brow[$k]); break; }
-            }
-            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $k) {
-                if (!empty($brow[$k])) { $botOauth = trim($brow[$k]); break; }
-            }
-        }
-        $bconn->close();
-    }
+    // Client ID comes from config/twitch.php; the app token from bot_chat_token (applied by that config).
+    include_once '/var/www/config/twitch.php';
+    $botClientId = trim((string)($clientID ?? ''));
+    $botOauth    = trim((string)($oauth ?? ''));
     if ($botClientId === '' || $botOauth === '') {
         echo json_encode(['success' => false, 'error' => t('media_err_bot_credentials')]);
         exit;
