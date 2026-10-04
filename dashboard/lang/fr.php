@@ -576,7 +576,6 @@ return [
     'moderation_filter_user_title' => 'Filtrer le journal sur cet utilisateur',
     'moderation_unknown_date' => 'Inconnu',
     'moderation_limit_note' => 'Affichage des 500 avertissements correspondants les plus récents. Affinez votre recherche si vous avez besoin d\'entrées plus anciennes.',
-    'moderation_related_links' => 'Lié :',
     'moderation_msg_warning_deleted' => 'Avertissement supprimé.',
     'moderation_msg_warning_not_found' => 'Cet avertissement est introuvable (il a peut-être déjà été supprimé).',
     'moderation_msg_user_warnings_cleared' => ':count avertissement(s) supprimé(s) pour :user.',

@@ -593,7 +593,6 @@ return [
     'moderation_filter_user_title' => 'Filtrar el registro a este usuario',
     'moderation_unknown_date' => 'Desconocido',
     'moderation_limit_note' => 'Se muestran las 500 advertencias coincidentes más recientes. Refina tu búsqueda si necesitas entradas más antiguas.',
-    'moderation_related_links' => 'Relacionado:',
     'moderation_msg_warning_deleted' => 'Advertencia eliminada.',
     'moderation_msg_warning_not_found' => 'Esa advertencia no se encontró (puede que ya se haya eliminado).',
     'moderation_msg_user_warnings_cleared' => 'Se eliminaron :count advertencia(s) de :user.',
