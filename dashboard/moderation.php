@@ -111,7 +111,6 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
         $searchQuery = trim((string) ($_GET['q'] ?? ''));
         $filterUser = trim((string) ($_GET['user'] ?? ''));
         $warnings = [];
-        $topWarned = [];
         $totalWarnings = 0;
         $uniqueWarned = 0;
         $warningsThisWeek = 0;
@@ -129,21 +128,6 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
         if ($weekRes) {
             $weekRow = $weekRes->fetch_assoc();
             $warningsThisWeek = (int) ($weekRow['week_count'] ?? 0);
-        }
-
-        $topRes = $db->query(
-            "SELECT user_name, user_id, COUNT(*) AS warning_count, MAX(created_at) AS last_warned_at
-             FROM warnings
-             GROUP BY user_name, user_id
-             ORDER BY warning_count DESC, last_warned_at DESC
-             LIMIT 10"
-        );
-        if ($topRes) {
-            $topWarned = $topRes->fetch_all(MYSQLI_ASSOC);
-            foreach ($topWarned as &$row) {
-                $row['last_display'] = moderation_format_when($row['last_warned_at'] ?? '');
-            }
-            unset($row);
         }
 
         if ($searchQuery !== '' || $filterUser !== '') {
@@ -203,7 +187,6 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
             'unique' => $uniqueWarned,
             'week' => $warningsThisWeek,
             'warnings' => $warnings,
-            'top' => $topWarned,
         ]);
     } catch (mysqli_sql_exception $e) {
         error_log('moderation.php warnings query failed: ' . $e->getMessage());
@@ -220,7 +203,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'list') {
 $statusMessage = null;
 $statusType = 'is-info';
 
-// Handle moderation actions (delete single warning / clear user warnings)
+// Handle moderation actions (delete single warning)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'delete_warning') {
@@ -235,36 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $statusMessage = t('moderation_msg_warning_not_found');
                     $statusType = 'is-warning';
-                }
-                $del->close();
-            } else {
-                $statusMessage = t('moderation_msg_delete_failed');
-                $statusType = 'is-danger';
-            }
-        }
-    } elseif ($action === 'clear_user_warnings') {
-        $clearUserId = trim((string) ($_POST['user_id'] ?? ''));
-        $clearUserName = strtolower(trim((string) ($_POST['user_name'] ?? '')));
-        if ($clearUserId !== '' || $clearUserName !== '') {
-            if ($clearUserId !== '') {
-                $del = $db->prepare("DELETE FROM warnings WHERE user_id = ? OR user_name = ?");
-                if ($del) {
-                    $del->bind_param('ss', $clearUserId, $clearUserName);
-                }
-            } else {
-                $del = $db->prepare("DELETE FROM warnings WHERE user_name = ?");
-                if ($del) {
-                    $del->bind_param('s', $clearUserName);
-                }
-            }
-            if (!empty($del)) {
-                if ($del->execute()) {
-                    $removed = (int) $del->affected_rows;
-                    $statusMessage = t('moderation_msg_user_warnings_cleared', ['count' => $removed, 'user' => $clearUserName !== '' ? $clearUserName : $clearUserId]);
-                    $statusType = 'is-success';
-                } else {
-                    $statusMessage = t('moderation_msg_delete_failed');
-                    $statusType = 'is-danger';
                 }
                 $del->close();
             } else {
@@ -324,92 +277,55 @@ ob_start();
     </div>
 </div>
 
-<div class="raids-layout mb-5">
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <div class="sp-card-title">
-                <span class="icon mr-2"><i class="fas fa-triangle-exclamation"></i></span>
-                <?= t('moderation_log_title') ?>
-            </div>
-        </header>
-        <div class="sp-card-body">
-            <form method="get" action="moderation.php" class="mb-4" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
-                <div class="sp-form-group" style="flex:1; min-width:200px; margin-bottom:0;">
-                    <label class="sp-label" for="modSearch"><?= t('moderation_search_label') ?></label>
-                    <input type="text" class="sp-input" id="modSearch" name="q" value="<?= htmlspecialchars($searchQuery) ?>" placeholder="<?= htmlspecialchars(t('moderation_search_placeholder')) ?>">
-                </div>
-                <div class="sp-btn-group">
-                    <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm">
-                        <i class="fas fa-search"></i> <?= t('moderation_search_btn') ?>
-                    </button>
-                    <?php if ($searchQuery !== '' || $filterUser !== ''): ?>
-                    <a href="moderation.php" class="sp-btn sp-btn-secondary sp-btn-sm"><?= t('moderation_clear_filter') ?></a>
-                    <?php endif; ?>
-                </div>
-            </form>
-
-            <div id="mod-log-host" aria-busy="true">
-                <div class="sp-table-wrap">
-                    <table class="sp-table">
-                        <thead>
-                            <tr>
-                                <th><?= t('moderation_col_user') ?></th>
-                                <th><?= t('moderation_col_reason') ?></th>
-                                <th><?= t('moderation_col_by') ?></th>
-                                <th><?= t('moderation_col_when') ?></th>
-                                <th style="text-align:center;"><?= t('moderation_col_actions') ?></th>
-                            </tr>
-                        </thead>
-                        <tbody id="mod-log-body">
-                            <?php for ($sk = 0; $sk < 5; $sk++): ?>
-                            <tr aria-hidden="true">
-                                <td><span class="sp-skeleton-line w-50"></span></td>
-                                <td><span class="sp-skeleton-line w-80"></span></td>
-                                <td><span class="sp-skeleton-line w-40"></span></td>
-                                <td><span class="sp-skeleton-line w-60"></span></td>
-                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
-                            </tr>
-                            <?php endfor; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <p id="mod-limit-note" class="sp-help mt-3" style="display:none;"><?= t('moderation_limit_note') ?></p>
-            </div>
+<div class="sp-card mb-5">
+    <header class="sp-card-header">
+        <div class="sp-card-title">
+            <span class="icon mr-2"><i class="fas fa-triangle-exclamation"></i></span>
+            <?= t('moderation_log_title') ?>
         </div>
-    </div>
+    </header>
+    <div class="sp-card-body">
+        <form method="get" action="moderation.php" class="mb-4" style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+            <div class="sp-form-group" style="flex:1; min-width:200px; margin-bottom:0;">
+                <label class="sp-label" for="modSearch"><?= t('moderation_search_label') ?></label>
+                <input type="text" class="sp-input" id="modSearch" name="q" value="<?= htmlspecialchars($searchQuery) ?>" placeholder="<?= htmlspecialchars(t('moderation_search_placeholder')) ?>">
+            </div>
+            <div class="sp-btn-group">
+                <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm">
+                    <i class="fas fa-search"></i> <?= t('moderation_search_btn') ?>
+                </button>
+                <?php if ($searchQuery !== '' || $filterUser !== ''): ?>
+                <a href="moderation.php" class="sp-btn sp-btn-secondary sp-btn-sm"><?= t('moderation_clear_filter') ?></a>
+                <?php endif; ?>
+            </div>
+        </form>
 
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <div class="sp-card-title">
-                <span class="icon mr-2"><i class="fas fa-ranking-star"></i></span>
-                <?= t('moderation_top_title') ?>
+        <div id="mod-log-host" aria-busy="true">
+            <div class="sp-table-wrap">
+                <table class="sp-table">
+                    <thead>
+                        <tr>
+                            <th><?= t('moderation_col_user') ?></th>
+                            <th><?= t('moderation_col_reason') ?></th>
+                            <th><?= t('moderation_col_by') ?></th>
+                            <th><?= t('moderation_col_when') ?></th>
+                            <th style="text-align:center;"><?= t('moderation_col_actions') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody id="mod-log-body">
+                        <?php for ($sk = 0; $sk < 5; $sk++): ?>
+                        <tr aria-hidden="true">
+                            <td><span class="sp-skeleton-line w-50"></span></td>
+                            <td><span class="sp-skeleton-line w-80"></span></td>
+                            <td><span class="sp-skeleton-line w-40"></span></td>
+                            <td><span class="sp-skeleton-line w-60"></span></td>
+                            <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
+                        </tr>
+                        <?php endfor; ?>
+                    </tbody>
+                </table>
             </div>
-        </header>
-        <div class="sp-card-body">
-            <div id="mod-top-host" aria-busy="true">
-                <div class="sp-table-wrap">
-                    <table class="sp-table">
-                        <thead>
-                            <tr>
-                                <th><?= t('moderation_col_user') ?></th>
-                                <th><?= t('moderation_col_count') ?></th>
-                                <th><?= t('moderation_col_last') ?></th>
-                                <th style="text-align:center;"><?= t('moderation_col_actions') ?></th>
-                            </tr>
-                        </thead>
-                        <tbody id="mod-top-body">
-                            <?php for ($sk = 0; $sk < 5; $sk++): ?>
-                            <tr aria-hidden="true">
-                                <td><span class="sp-skeleton-line w-50"></span></td>
-                                <td><span class="sp-skeleton-badge"></span></td>
-                                <td><span class="sp-skeleton-line w-60"></span></td>
-                                <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
-                            </tr>
-                            <?php endfor; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <p id="mod-limit-note" class="sp-help mt-3" style="display:none;"><?= t('moderation_limit_note') ?></p>
         </div>
     </div>
 </div>
@@ -475,8 +391,6 @@ var MOD_I18N = {
     filterUserTitle: <?= json_encode(t('moderation_filter_user_title')) ?>,
     deleteOne: <?= json_encode(t('moderation_delete_one')) ?>,
     confirmDeleteOne: <?= json_encode(t('moderation_confirm_delete_one')) ?>,
-    clearUser: <?= json_encode(t('moderation_clear_user')) ?>,
-    confirmClearUser: <?= json_encode(t('moderation_confirm_clear_user')) ?>,
     bansEmpty: <?= json_encode(t('moderation_bans_empty')) ?>,
     bansError: <?= json_encode(t('moderation_bans_error')) ?>,
     bansReauth: <?= json_encode(t('moderation_bans_reauth')) ?>,
@@ -538,38 +452,9 @@ function renderModLog(warnings) {
     }).join('');
 }
 
-function renderModTop(topWarned) {
-    var host = document.getElementById('mod-top-host');
-    var tbody = document.getElementById('mod-top-body');
-    if (host) host.setAttribute('aria-busy', 'false');
-    if (!tbody) return;
-    if (!topWarned.length) {
-        tbody.innerHTML = '<tr><td colspan="4"><p class="sp-text-muted">' + escapeHtml(MOD_I18N.noWarnings) + '</p></td></tr>';
-        return;
-    }
-    tbody.innerHTML = topWarned.map(function(row) {
-        var tu = String(row.user_name || '');
-        var tid = String(row.user_id || '');
-        var confirmMsg = String(MOD_I18N.confirmClearUser).replace(':user', tu);
-        return '<tr>' +
-            '<td><a href="moderation.php?user=' + encodeURIComponent(tu) + '"><strong>' + escapeHtml(tu) + '</strong></a></td>' +
-            '<td><span class="sp-badge sp-badge-amber">' + escapeHtml(row.warning_count) + '</span></td>' +
-            '<td>' + escapeHtml(row.last_display || '') + '</td>' +
-            '<td style="text-align:center;">' +
-                '<form method="post" action="moderation.php" style="display:inline;" class="mod-delete-form" data-confirm="' + escapeHtml(confirmMsg) + '">' +
-                    '<input type="hidden" name="action" value="clear_user_warnings">' +
-                    '<input type="hidden" name="user_id" value="' + escapeHtml(tid) + '">' +
-                    '<input type="hidden" name="user_name" value="' + escapeHtml(tu) + '">' +
-                    '<button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="' + escapeHtml(MOD_I18N.clearUser) + '"><i class="fas fa-broom"></i></button>' +
-                '</form>' +
-            '</td></tr>';
-    }).join('');
-}
-
 function renderModUnavailable() {
     var stats = document.getElementById('mod-stats');
     var logHost = document.getElementById('mod-log-host');
-    var topHost = document.getElementById('mod-top-host');
     var limitNote = document.getElementById('mod-limit-note');
     if (stats) {
         stats.setAttribute('aria-busy', 'false');
@@ -582,10 +467,6 @@ function renderModUnavailable() {
     if (logHost) {
         logHost.setAttribute('aria-busy', 'false');
         logHost.innerHTML = '<p class="sp-text-muted">' + escapeHtml(MOD_I18N.tableUnavailable) + '</p>';
-    }
-    if (topHost) {
-        topHost.setAttribute('aria-busy', 'false');
-        topHost.innerHTML = '<p class="sp-text-muted">' + escapeHtml(MOD_I18N.tableUnavailable) + '</p>';
     }
 }
 
@@ -601,7 +482,6 @@ function loadModeration() {
             }
             renderModStats(data);
             renderModLog(Array.isArray(data.warnings) ? data.warnings : []);
-            renderModTop(Array.isArray(data.top) ? data.top : []);
         })
         .catch(function() {
             renderModUnavailable();
