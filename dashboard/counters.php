@@ -22,6 +22,7 @@ $pageTitle = t('navbar_counters');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
+include_once '/var/www/config/twitch.php';
 include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
@@ -80,7 +81,10 @@ function counters_helix_usernames(array $userIds, string $authToken): array
     if ($userIds === [] || $authToken === '') {
         return $names;
     }
-    $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+    $clientID = (string) ($GLOBALS['clientID'] ?? ''); // from config/twitch.php
+    if ($clientID === '') {
+        return $names;
+    }
     foreach (array_chunk($userIds, 100) as $chunk) {
         $url = 'https://api.twitch.tv/helix/users?id=' . implode('&id=', $chunk);
         $ch = curl_init($url);

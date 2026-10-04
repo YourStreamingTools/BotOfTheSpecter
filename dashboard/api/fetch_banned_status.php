@@ -34,7 +34,7 @@ if (!isset($_SESSION['access_token'])) {
 
 $access_token = $_SESSION['access_token'];
 $broadcasterID = $_SESSION['twitchUserId'];
-$clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
+include_once '/var/www/config/twitch.php'; // provides $clientID
 
 function getTwitchUserIds($usernames, $accessToken, $clientID) {
     $loginParams = array_map(function($username) { return 'login=' . urlencode($username); }, $usernames);
