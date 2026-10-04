@@ -1389,6 +1389,7 @@ return [
     'alerts_refresh_overlay_title' => '刷新已发送',
     'alerts_refresh_overlay_text' => '警报叠加层将很快在 OBS 中重新加载。',
     'alerts_refresh_overlay_failed' => '无法联系叠加层。浏览器源是否已打开？',
+    'alerts_overlay_duplicate_text' => 'Specter Alerts 在 :count 个地方同时打开，因此每个提醒都会按副本数重复显示和播放。请移除多余的 OBS 浏览器源（检查其他场景、隐藏的源和浏览器标签页）。',
     'alerts_preview_placeholder' => '从左侧选择一个变体以在此处预览。',
     'alerts_preview_canvas' => '预览画布',
     'alerts_expand_editor' => '扩张',

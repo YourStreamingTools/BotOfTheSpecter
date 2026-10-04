@@ -1428,6 +1428,7 @@ return [
     'alerts_refresh_overlay_title' => 'Refresh sent',
     'alerts_refresh_overlay_text' => 'The alerts overlay will reload in OBS shortly.',
     'alerts_refresh_overlay_failed' => 'Could not reach the overlay. Is the browser source open?',
+    'alerts_overlay_duplicate_text' => 'Specter Alerts is open in :count places, so every alert shows and plays once per copy. Remove the extra OBS browser source (check other scenes, hidden sources and browser tabs).',
     'alerts_preview_placeholder' => 'Select a variant from the left to preview it here.',
     'alerts_preview_canvas' => 'Preview canvas',
     'alerts_expand_editor' => 'Expand',

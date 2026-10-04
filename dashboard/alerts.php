@@ -204,6 +204,32 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// How many Specter Alerts pages are connected on this channel's key. More than one
+// means a stray OBS source (other scene, hidden source, browser tab) is also rendering.
+if (($_GET['ajax_action'] ?? '') === 'overlay_instances') {
+    header('Content-Type: application/json');
+    include_once '/var/www/config/admin_actions.php';
+    $clientsUrl = 'https://websocket.botofthespecter.com/clients';
+    if (!empty($admin_key)) {
+        $clientsUrl .= '?admin_key=' . urlencode($admin_key);
+    }
+    $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+    $raw = @file_get_contents($clientsUrl, false, $ctx);
+    $clientsData = $raw ? json_decode($raw, true) : null;
+    if (!is_array($clientsData) || !isset($clientsData['clients']) || !is_array($clientsData['clients'])) {
+        echo json_encode(['success' => false]);
+        exit();
+    }
+    $count = 0;
+    foreach ($clientsData['clients'][$api_key] ?? [] as $client) {
+        if (($client['name'] ?? '') === 'Overlay - Twitch Alerts') {
+            $count++;
+        }
+    }
+    echo json_encode(['success' => true, 'count' => $count]);
+    exit();
+}
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
     header('Content-Type: application/json');
@@ -582,6 +608,9 @@ ob_start();
                 <button type="button" class="sp-btn sp-btn-secondary" id="refresh-overlay-btn" title="<?= htmlspecialchars(t('alerts_refresh_overlay_help')) ?>">
                     <i class="fas fa-sync-alt"></i> <?= t('alerts_refresh_overlay') ?>
                 </button>
+            </div>
+            <div class="sp-alert sp-alert-warning alerts-overlay-duplicate" id="overlay-duplicate-warning" role="status" hidden>
+                <i class="fas fa-clone"></i> <span id="overlay-duplicate-text"></span>
             </div>
             <div class="alerts-preview-area alerts-pos-canvas" id="preview-area">
                 <div class="alerts-no-selection" id="preview-placeholder">
@@ -1151,6 +1180,7 @@ $(document).ready(function() {
         refreshOverlayTitle: <?php echo json_encode(t('alerts_refresh_overlay_title')); ?>,
         refreshOverlayText: <?php echo json_encode(t('alerts_refresh_overlay_text')); ?>,
         refreshOverlayFailed: <?php echo json_encode(t('alerts_refresh_overlay_failed')); ?>,
+        overlayDuplicateText: <?php echo json_encode(t('alerts_overlay_duplicate_text')); ?>,
         copied: <?php echo json_encode(t('alerts_copied')); ?>,
         editMultipleTitle: <?php echo json_encode(t('alerts_edit_multiple_title')); ?>,
         editMultipleText: <?php echo json_encode(t('alerts_edit_multiple_text')); ?>,
@@ -2090,6 +2120,33 @@ $(document).ready(function() {
             $box.css('animation', animOut + ' ' + animOutDur + 's forwards');
         }, duration);
     });
+    // The overlay reads alert configs once at page load, so any saved change
+    // reloads every open Specter Alerts page (batched so a drag reloads once).
+    var overlayRefreshTimer = null;
+    var overlayConfigActions = ['save_alert', 'set_alert_position', 'toggle_alert', 'set_category_randomize', 'create_variant', 'delete_variant', 'remove_alert_media'];
+    function queueOverlayRefresh() {
+        clearTimeout(overlayRefreshTimer);
+        overlayRefreshTimer = setTimeout(function() {
+            $.post('/api/notify_event.php', { event: 'OVERLAY_REFRESH', api_key: apiKey }, null, 'json');
+        }, 1500);
+    }
+    $(document).ajaxSuccess(function(evt, xhr, settings, resp) {
+        if (!settings || String(settings.type).toUpperCase() !== 'POST' || typeof settings.data !== 'string') return;
+        var action = new URLSearchParams(settings.data).get('action');
+        if (overlayConfigActions.indexOf(action) === -1) return;
+        if (resp && resp.success === false) return;
+        queueOverlayRefresh();
+    });
+    // Warn when more than one Specter Alerts page is connected on this key.
+    function checkOverlayInstances() {
+        $.getJSON('?ajax_action=overlay_instances', function(resp) {
+            var many = !!(resp && resp.success && resp.count > 1);
+            if (many) $('#overlay-duplicate-text').text(String(i18n.overlayDuplicateText).replace(':count', resp.count));
+            $('#overlay-duplicate-warning').prop('hidden', !many);
+        });
+    }
+    checkOverlayInstances();
+    setInterval(checkOverlayInstances, 60000);
     // Tell the live OBS browser source (overlay/index.php) to hard-reload so
     // it re-fetches alert configs from PHP/DB without the streamer touching OBS.
     $('#refresh-overlay-btn').on('click', function() {
