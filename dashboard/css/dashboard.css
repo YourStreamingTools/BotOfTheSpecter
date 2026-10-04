@@ -6443,3 +6443,11 @@ label.checkbox input[type="checkbox"] {
     .tg-card-main { flex-direction: column; }
     .tg-actions .sp-btn { width: 100%; justify-content: center; }
 }
+
+/* ── Birthdays (birthdays.php) ── */
+.bd-command-list { margin: 0 0 0.75rem 1.25rem; }
+.bd-command-list li { margin-bottom: 0.35rem; }
+.bd-filter { max-width: 320px; }
+.bd-col-actions { text-align: center; white-space: nowrap; }
+.bd-delete-form { display: inline; }
+.bd-empty { text-align: center; padding: 2rem 0; }
