@@ -59,6 +59,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_vips'), 'icon' => 'fas fa-gem', 'href' => 'vips.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_channel_moderation'), 'icon' => 'fas fa-gavel', 'href' => 'moderation.php' ],
+            [ 'label' => t('navbar_birthdays'), 'icon' => 'fas fa-cake-candles', 'href' => 'birthdays.php' ],
             [ 'label' => t('navbar_raids'), 'icon' => 'fas fa-bullhorn', 'href' => 'raids.php' ],
         ]],
         [ 'label' => t('menu_group_insights'), 'icon' => 'fas fa-chart-line', 'submenu' => [

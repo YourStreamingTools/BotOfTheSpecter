@@ -245,7 +245,8 @@ builtin_commands = {
     "now", "later", "soon", "backlog",
     "project", "projects", "personaltimer", "checktimer", "tasktimer", "taskhelp", "timerhelp",
     "wordreplaceoff", "wordreplaceon",
-    "pet", "feed", "play", "sad", "sleep"
+    "pet", "feed", "play", "sad", "sleep",
+    "mybirthday", "updatebirthday"
 }
 # Commands that must use a per-user cooldown bucket (not global 'default'). A global bucket lets one viewer's use lock the command for every other viewer.
 per_user_cooldown_commands = {
@@ -261,12 +262,13 @@ per_user_cooldown_commands = {
     "rps", "roulette", "gamble", "slots",
     "pet", "feed", "play", "sad", "sleep",
     "joinraffle", "leaveraffle",
+    "mybirthday", "updatebirthday",
 }
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong",
-    "puzzledone", "warn"
+    "puzzledone", "warn", "addbirthday"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -4205,6 +4207,7 @@ class TwitchBot(commands.AutoBot):
                                 command="welcome_message", response=message_to_send, user=messageAuthor
                             )
                         if message_to_send.strip():
+                            message_to_send = await append_birthday_wish(cursor, messageAuthorID, messageAuthor, message_to_send)
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
                             await add_shoutout(user_to_shoutout, user_id, is_automated=True)
@@ -4399,6 +4402,7 @@ class TwitchBot(commands.AutoBot):
                             user_to_shoutout = messageAuthor
                             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
                         if message_to_send.strip():
+                            message_to_send = await append_birthday_wish(cursor, messageAuthorID, messageAuthor, message_to_send)
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
                             await add_shoutout(user_to_shoutout, user_id, is_automated=True)
@@ -5906,6 +5910,169 @@ class TwitchBot(commands.AutoBot):
                 )
         except Exception as e:
             chat_logger.error(f"[WARN] An error occurred during the execution of the warn command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='addbirthday')
+    async def addbirthday_command(self, ctx: commands.Context, target_user: str = None, birthday: str = None):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("addbirthday",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    await send_chat_message("The addbirthday command is not configured yet. Please try again after a bot restart.")
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    chat_logger.info(f"[BIRTHDAY] {ctx.author.name} tried to use addbirthday but lacked permissions.")
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('addbirthday', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                add_usage('addbirthday', bucket_key, cooldown_bucket)
+                target_user = (target_user or "").lstrip('@').strip()
+                parsed = parse_birthday_date(birthday)
+                if not target_user or not parsed:
+                    await send_chat_message("Usage: !addbirthday @username DD/MM (e.g. !addbirthday @user1 15/10)")
+                    return
+                day, month = parsed
+                # Resolve Twitch user so we store a stable user_id (usernames can change)
+                target_user_name = target_user.lower()
+                try:
+                    target_user_id, display_name = await get_twitch_user_by_login(target_user_name)
+                except Exception as fetch_err:
+                    chat_logger.warning(f"[BIRTHDAY] Could not fetch Twitch user for {target_user_name}: {fetch_err}")
+                    target_user_id, display_name = None, None
+                if not target_user_id:
+                    await send_chat_message(f"User {target_user_name} not found.")
+                    return
+                target_user_id = str(target_user_id)
+                if display_name:
+                    target_user_name = display_name.lower()
+                await save_birthday(cursor, target_user_id, target_user_name, day, month, ctx.author.name)
+                await connection.commit()
+                chat_logger.info(f"[BIRTHDAY] {ctx.author.name} set birthday for {target_user_name} (id={target_user_id}) to {day}/{month}")
+                await send_chat_message(f"Birthday saved for @{target_user_name}: {format_birthday(day, month)}.")
+        except Exception as e:
+            chat_logger.error(f"[BIRTHDAY] An error occurred during the execution of the addbirthday command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='mybirthday')
+    async def mybirthday_command(self, ctx: commands.Context, birthday: str = None):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("mybirthday",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    await send_chat_message("The mybirthday command is not configured yet. Please try again after a bot restart.")
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('mybirthday', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                add_usage('mybirthday', bucket_key, cooldown_bucket)
+                author_id = str(ctx.author.id)
+                author_name = ctx.author.name.lower()
+                saved = await get_saved_birthday(cursor, author_id)
+                if not birthday:
+                    if saved:
+                        await send_chat_message(f"@{author_name}, your birthday is saved as {format_birthday(*saved)}.")
+                    else:
+                        await send_chat_message(f"@{author_name}, you don't have a birthday saved yet. Add it with !mybirthday DD/MM (e.g. !mybirthday 15/10).")
+                    return
+                if saved:
+                    await send_chat_message(f"@{author_name}, you already have a birthday saved ({format_birthday(*saved)}). Use !updatebirthday DD/MM to change it.")
+                    return
+                parsed = parse_birthday_date(birthday)
+                if not parsed:
+                    await send_chat_message(f"@{author_name}, please use the format DD/MM (e.g. !mybirthday 15/10).")
+                    return
+                await save_birthday(cursor, author_id, author_name, parsed[0], parsed[1], ctx.author.name)
+                await connection.commit()
+                chat_logger.info(f"[BIRTHDAY] {author_name} (id={author_id}) saved their birthday as {parsed[0]}/{parsed[1]}")
+                await send_chat_message(f"@{author_name}, your birthday has been saved as {format_birthday(*parsed)}!")
+        except Exception as e:
+            chat_logger.error(f"[BIRTHDAY] An error occurred during the execution of the mybirthday command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='updatebirthday')
+    async def updatebirthday_command(self, ctx: commands.Context, birthday: str = None):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket "
+                    "FROM builtin_commands WHERE command=%s",
+                    ("updatebirthday",),
+                )
+                result = await cursor.fetchone()
+                if not result:
+                    await send_chat_message("The updatebirthday command is not configured yet. Please try again after a bot restart.")
+                    return
+                status = result.get("status")
+                permissions = result.get("permission")
+                cooldown_rate, cooldown_time, cooldown_bucket = parse_builtin_cooldown_row(result)
+                if status == 'Disabled' and ctx.author.name != bot_owner:
+                    return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = await resolve_cooldown_bucket_key(cooldown_bucket, ctx.author)
+                if not await check_cooldown('updatebirthday', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                add_usage('updatebirthday', bucket_key, cooldown_bucket)
+                author_id = str(ctx.author.id)
+                author_name = ctx.author.name.lower()
+                parsed = parse_birthday_date(birthday)
+                if not parsed:
+                    await send_chat_message(f"@{author_name}, usage: !updatebirthday DD/MM (e.g. !updatebirthday 15/10).")
+                    return
+                had_birthday = await get_saved_birthday(cursor, author_id) is not None
+                await save_birthday(cursor, author_id, author_name, parsed[0], parsed[1], ctx.author.name)
+                await connection.commit()
+                chat_logger.info(f"[BIRTHDAY] {author_name} (id={author_id}) updated their birthday to {parsed[0]}/{parsed[1]}")
+                if had_birthday:
+                    await send_chat_message(f"@{author_name}, your birthday has been updated to {format_birthday(*parsed)}.")
+                else:
+                    await send_chat_message(f"@{author_name}, your birthday has been saved as {format_birthday(*parsed)}!")
+        except Exception as e:
+            chat_logger.error(f"[BIRTHDAY] An error occurred during the execution of the updatebirthday command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
         finally:
             if connection:
@@ -11881,6 +12048,64 @@ class TwitchBot(commands.AutoBot):
 
 # Functions for all the commands
 ##
+# Birthdays: !addbirthday (mods), !mybirthday and !updatebirthday store a viewer's day/month in the per-user `birthdays` table (keyed by Twitch user_id). When a viewer's first chat of the stream falls on their birthday (streamer's profile timezone), a birthday wish is attached to their welcome message.
+def parse_birthday_date(raw):
+    match = re.fullmatch(r"(\d{1,2})[/.\-](\d{1,2})", (raw or "").strip())
+    if not match:
+        return None
+    day, month = int(match.group(1)), int(match.group(2))
+    try:
+        date(2000, month, day)  # 2000 is a leap year, so 29/02 is accepted
+    except ValueError:
+        return None
+    return day, month
+
+def format_birthday(day, month):
+    return f"{int(day)} {date(2000, int(month), 1).strftime('%B')}"
+
+async def get_saved_birthday(cursor, user_id):
+    await cursor.execute("SELECT birth_day, birth_month FROM birthdays WHERE user_id = %s LIMIT 1", (str(user_id),))
+    row = await cursor.fetchone()
+    if not row:
+        return None
+    return int(row["birth_day"]), int(row["birth_month"])
+
+async def save_birthday(cursor, user_id, user_name, day, month, added_by):
+    await cursor.execute(
+        "INSERT INTO birthdays (user_id, user_name, birth_day, birth_month, added_by) VALUES (%s, %s, %s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), birth_day = VALUES(birth_day), "
+        "birth_month = VALUES(birth_month), added_by = VALUES(added_by)",
+        (str(user_id), user_name.lower(), day, month, added_by),
+    )
+
+async def append_birthday_wish(cursor, user_id, user_name, message):
+    try:
+        saved = await get_saved_birthday(cursor, user_id)
+        if not saved:
+            return message
+        await cursor.execute("SELECT timezone FROM profile LIMIT 1")
+        tz_row = await cursor.fetchone()
+        tz_name = tz_row.get("timezone") if tz_row else None
+        try:
+            tz = pytz_timezone(tz_name) if tz_name else set_timezone.UTC
+        except Exception:
+            tz = set_timezone.UTC
+        today = time_right_now(tz).date()
+        day, month = saved
+        # 29 Feb birthdays are celebrated on 28 Feb in non-leap years
+        if (day, month) == (29, 2):
+            try:
+                date(today.year, 2, 29)
+            except ValueError:
+                day = 28
+        if (today.day, today.month) != (day, month):
+            return message
+    except Exception as e:
+        chat_logger.error(f"[BIRTHDAY] Could not check birthday for {user_name}: {e}")
+        return message
+    chat_logger.info(f"[BIRTHDAY] Attaching birthday wish to the welcome message for {user_name}")
+    return f"{message.rstrip()} Happy Birthday, @{user_name}! 🎂"
+
 # Word Replacer (random syllable swap) Occasionally re-posts a viewer's chat line with random syllables swapped for a streamer-set word (default "fun"). Configured per channel via the `protection` table plus the word_replace_ignored_users / word_replace_ignored_words tables. Dashboard-only control; viewers self opt-out via !wordreplaceoff / !wordreplaceon.
 try:
     import pyphen

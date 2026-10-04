@@ -1349,6 +1349,20 @@ try {
                 INDEX idx_user_id (user_id),
                 INDEX idx_created_at (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'birthdays' => "
+            CREATE TABLE IF NOT EXISTS birthdays (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(255) NOT NULL,
+                user_name VARCHAR(255) NOT NULL,
+                birth_day TINYINT UNSIGNED NOT NULL,
+                birth_month TINYINT UNSIGNED NOT NULL,
+                added_by VARCHAR(255) DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_user_id (user_id),
+                INDEX idx_user_name (user_name),
+                INDEX idx_birth_date (birth_month, birth_day)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'pet_settings' => "
             CREATE TABLE IF NOT EXISTS pet_settings (
                 id TINYINT PRIMARY KEY DEFAULT 1,

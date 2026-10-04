@@ -651,6 +651,19 @@
 			"force_level": "mod",
 			"syntax": "!warn @username Reason for the warning here"
 		},
+		"addbirthday": {
+			"description": "Saves (or replaces) a viewer's birthday as day/month. On their birthday, their first-chat welcome message on stream gets a birthday wish attached. Mods and the broadcaster only. Birthdays are listed on the Birthdays dashboard page.",
+			"force_level": "mod",
+			"syntax": "!addbirthday @username 15/10"
+		},
+		"mybirthday": {
+			"description": "Shows the birthday you have saved. If you haven't saved one yet, add a day/month to save it. On your birthday, your welcome message on stream will include a birthday wish.",
+			"syntax": ["!mybirthday", "!mybirthday 15/10"]
+		},
+		"updatebirthday": {
+			"description": "Changes the birthday you have saved (day/month).",
+			"syntax": "!updatebirthday 15/10"
+		},
 		"removequote": {
 			"description": "Permanently deletes a specific quote from the quote list by its number.",
 			"syntax": "!removequote 5"
