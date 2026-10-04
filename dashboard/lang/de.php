@@ -587,6 +587,11 @@ return [
     'moderation_bans_reauth' => 'Twitch hat die Anfrage abgelehnt. Melde dich ab und wieder an, um deine Berechtigungen zu aktualisieren.',
     'moderation_page_prev' => 'Zurück',
     'moderation_page_next' => 'Weiter',
+    'moderation_page_of' => 'Seite :page von :pages',
+    'moderation_bans_total' => ':count gebannte oder per Timeout gesperrte Nutzer.',
+    'moderation_bans_loading_more' => 'Die vollständige Liste wird im Hintergrund geladen… bisher :count.',
+    'moderation_bans_truncated' => 'Es werden nur die ersten :count angezeigt.',
+    'moderation_bans_partial' => 'Einige konnten nicht von Twitch geladen werden, daher werden nur :count angezeigt.',
     // stream_streak.php
     'stream_streak_beta_notice' => '<strong>Beta-5.8-Funktion:</strong> Die Verfolgung von Stream-Watch-Streaks ist ab Version 5.8 verfügbar. Meilensteine werden automatisch aufgezeichnet, wenn Zuschauer aufeinanderfolgende Stream-Watch-Streaks erreichen (z. B. 3, 7, 10, 50 Streams in Folge).',
     'stream_streak_page_title' => 'Stream-Watch-Streaks',

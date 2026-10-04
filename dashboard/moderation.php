@@ -37,8 +37,9 @@ function moderation_apply_timezone($db)
     }
 }
 
-// Twitch ban list (Helix), one page per request. The browser keeps the cursors
-// it has seen so it can step back a page; Helix only hands out "after" cursors.
+// Twitch ban list (Helix), one Helix page (up to 100) per request. Helix has no
+// total count, so the browser keeps requesting with the returned cursor in the
+// background until it runs out, painting the first page as soon as it arrives.
 if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'bans') {
     header('Content-Type: application/json');
     try {
@@ -52,7 +53,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'bans') {
         echo json_encode(['success' => false, 'error' => 'missing_credentials']);
         exit();
     }
-    $bansUrl = 'https://api.twitch.tv/helix/moderation/banned?broadcaster_id=' . rawurlencode((string) $broadcasterID) . '&first=25';
+    $bansUrl = 'https://api.twitch.tv/helix/moderation/banned?broadcaster_id=' . rawurlencode((string) $broadcasterID) . '&first=100';
     $after = trim((string) ($_GET['after'] ?? ''));
     if ($after !== '') {
         $bansUrl .= '&after=' . rawurlencode($after);
@@ -97,7 +98,7 @@ if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'bans') {
     echo json_encode([
         'success' => true,
         'bans' => $bans,
-        'cursor' => (string) ($bansData['pagination']['cursor'] ?? ''),
+        'cursor' => empty($bans) ? '' : (string) ($bansData['pagination']['cursor'] ?? ''),
     ]);
     exit();
 }
@@ -338,7 +339,8 @@ ob_start();
         </div>
     </header>
     <div class="sp-card-body">
-        <p class="sp-text-muted mb-4"><?= t('moderation_bans_intro') ?></p>
+        <p class="sp-text-muted mb-2"><?= t('moderation_bans_intro') ?></p>
+        <p class="sp-help mb-4" id="mod-bans-status" aria-live="polite"></p>
         <div id="mod-bans-host" aria-busy="true">
             <div class="sp-table-wrap">
                 <table class="sp-table">
@@ -396,7 +398,12 @@ var MOD_I18N = {
     bansReauth: <?= json_encode(t('moderation_bans_reauth')) ?>,
     banPermanent: <?= json_encode(t('moderation_ban_permanent')) ?>,
     banTimeoutUntil: <?= json_encode(t('moderation_ban_timeout_until')) ?>,
-    noReason: <?= json_encode(t('moderation_no_reason')) ?>
+    noReason: <?= json_encode(t('moderation_no_reason')) ?>,
+    pageOf: <?= json_encode(t('moderation_page_of')) ?>,
+    bansTotal: <?= json_encode(t('moderation_bans_total')) ?>,
+    bansLoadingMore: <?= json_encode(t('moderation_bans_loading_more')) ?>,
+    bansTruncated: <?= json_encode(t('moderation_bans_truncated')) ?>,
+    bansPartial: <?= json_encode(t('moderation_bans_partial')) ?>
 };
 
 function escapeHtml(str) {
@@ -488,19 +495,47 @@ function loadModeration() {
         });
 }
 
-// Ban list paging: cursors[i] is the Helix "after" cursor that loads page i.
-var MOD_BANS = { cursors: [''], page: 0, hasNext: false, loading: false };
+// Ban list: the first Helix page (up to 100) is painted as soon as it arrives,
+// then the rest are fetched in the background and paged 25 at a time locally.
+var MOD_BANS = { all: [], page: 0, perPage: 25, maxRequests: 50, loading: true, truncated: false, partial: false };
+
+function bansPageCount() {
+    return Math.max(1, Math.ceil(MOD_BANS.all.length / MOD_BANS.perPage));
+}
 
 function setBansPager() {
     var pager = document.getElementById('mod-bans-pager');
     var prev = document.getElementById('mod-bans-prev');
     var next = document.getElementById('mod-bans-next');
     var label = document.getElementById('mod-bans-page');
-    if (!pager) return;
-    pager.hidden = MOD_BANS.page === 0 && !MOD_BANS.hasNext;
-    if (prev) prev.disabled = MOD_BANS.loading || MOD_BANS.page === 0;
-    if (next) next.disabled = MOD_BANS.loading || !MOD_BANS.hasNext;
-    if (label) label.textContent = String(MOD_BANS.page + 1);
+    var status = document.getElementById('mod-bans-status');
+    var pages = bansPageCount();
+    var count = MOD_BANS.all.length;
+    if (pager) pager.hidden = count <= MOD_BANS.perPage && !MOD_BANS.loading;
+    if (prev) prev.disabled = MOD_BANS.page === 0;
+    if (next) next.disabled = MOD_BANS.page >= pages - 1;
+    if (label) {
+        label.textContent = String(MOD_I18N.pageOf)
+            .replace(':page', MOD_BANS.page + 1)
+            .replace(':pages', pages + (MOD_BANS.loading ? '+' : ''));
+    }
+    if (status) {
+        var text = '';
+        if (MOD_BANS.loading && count) text = String(MOD_I18N.bansLoadingMore).replace(':count', count);
+        else if (!MOD_BANS.loading && count) {
+            text = String(MOD_I18N.bansTotal).replace(':count', count);
+            if (MOD_BANS.truncated) text += ' ' + String(MOD_I18N.bansTruncated).replace(':count', count);
+            if (MOD_BANS.partial) text += ' ' + String(MOD_I18N.bansPartial).replace(':count', count);
+        }
+        status.textContent = text;
+    }
+}
+
+function showBansPage(pageIdx) {
+    MOD_BANS.page = Math.min(Math.max(0, pageIdx), bansPageCount() - 1);
+    var start = MOD_BANS.page * MOD_BANS.perPage;
+    renderBans(MOD_BANS.all.slice(start, start + MOD_BANS.perPage));
+    setBansPager();
 }
 
 function renderBansMessage(text) {
@@ -534,54 +569,73 @@ function renderBans(bans) {
     }).join('');
 }
 
-function loadBans(pageIdx) {
-    if (MOD_BANS.loading) return;
-    MOD_BANS.loading = true;
-    setBansPager();
-    var host = document.getElementById('mod-bans-host');
-    if (host) host.setAttribute('aria-busy', 'true');
+function fetchBansChunk(cursor) {
     var url = new URL(window.location.href);
     url.search = '';
     url.searchParams.set('ajax_action', 'bans');
-    if (MOD_BANS.cursors[pageIdx]) url.searchParams.set('after', MOD_BANS.cursors[pageIdx]);
-    fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            if (!data || !data.success) {
-                renderBansMessage(data && data.token_invalid ? MOD_I18N.bansReauth : MOD_I18N.bansError);
-                MOD_BANS.hasNext = false;
-                return;
-            }
-            var bans = Array.isArray(data.bans) ? data.bans : [];
-            // Helix can hand out a cursor that leads to an empty page; stay on the last real page.
-            if (!bans.length && pageIdx > 0) {
-                MOD_BANS.cursors.length = pageIdx;
-                MOD_BANS.hasNext = false;
-                return;
-            }
-            MOD_BANS.page = pageIdx;
-            MOD_BANS.cursors.length = pageIdx + 1;
-            if (data.cursor) MOD_BANS.cursors.push(data.cursor);
-            MOD_BANS.hasNext = !!data.cursor;
-            renderBans(bans);
-        })
-        .catch(function () {
-            renderBansMessage(MOD_I18N.bansError);
-            MOD_BANS.hasNext = false;
-        })
-        .then(function () {
-            MOD_BANS.loading = false;
-            if (host) host.setAttribute('aria-busy', 'false');
-            setBansPager();
-        });
+    if (cursor) url.searchParams.set('after', cursor);
+    return fetch(url.toString(), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.json(); });
+}
+
+function loadAllBans() {
+    var host = document.getElementById('mod-bans-host');
+    var requests = 0;
+    function finish() {
+        MOD_BANS.loading = false;
+        if (host) host.setAttribute('aria-busy', 'false');
+        setBansPager();
+    }
+    function step(cursor) {
+        requests++;
+        fetchBansChunk(cursor)
+            .then(function (data) {
+                if (!data || !data.success) {
+                    if (!MOD_BANS.all.length) {
+                        renderBansMessage(data && data.token_invalid ? MOD_I18N.bansReauth : MOD_I18N.bansError);
+                    } else {
+                        MOD_BANS.partial = true;
+                    }
+                    finish();
+                    return;
+                }
+                var bans = Array.isArray(data.bans) ? data.bans : [];
+                var before = MOD_BANS.all.length;
+                MOD_BANS.all = MOD_BANS.all.concat(bans);
+                if (requests === 1) {
+                    if (host) host.setAttribute('aria-busy', 'false');
+                    showBansPage(0);
+                } else if ((MOD_BANS.page + 1) * MOD_BANS.perPage > before) {
+                    // The page being viewed was short; fill it in with the new rows.
+                    showBansPage(MOD_BANS.page);
+                }
+                if (!data.cursor) {
+                    finish();
+                    return;
+                }
+                if (requests >= MOD_BANS.maxRequests) {
+                    MOD_BANS.truncated = true;
+                    finish();
+                    return;
+                }
+                setBansPager();
+                step(data.cursor);
+            })
+            .catch(function () {
+                if (!MOD_BANS.all.length) renderBansMessage(MOD_I18N.bansError);
+                else MOD_BANS.partial = true;
+                finish();
+            });
+    }
+    step('');
 }
 
 document.addEventListener('DOMContentLoaded', function () {
     var bansPrev = document.getElementById('mod-bans-prev');
     var bansNext = document.getElementById('mod-bans-next');
-    if (bansPrev) bansPrev.addEventListener('click', function () { if (MOD_BANS.page > 0) loadBans(MOD_BANS.page - 1); });
-    if (bansNext) bansNext.addEventListener('click', function () { if (MOD_BANS.hasNext) loadBans(MOD_BANS.page + 1); });
-    loadBans(0);
+    if (bansPrev) bansPrev.addEventListener('click', function () { showBansPage(MOD_BANS.page - 1); });
+    if (bansNext) bansNext.addEventListener('click', function () { showBansPage(MOD_BANS.page + 1); });
+    loadAllBans();
     document.addEventListener('submit', function (e) {
         var form = e.target.closest ? e.target.closest('.mod-delete-form') : null;
         if (!form) return;

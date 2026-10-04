@@ -604,6 +604,11 @@ return [
     'moderation_bans_reauth' => 'Twitch rechazó la solicitud. Cierra sesión y vuelve a entrar para actualizar tus permisos.',
     'moderation_page_prev' => 'Anterior',
     'moderation_page_next' => 'Siguiente',
+    'moderation_page_of' => 'Página :page de :pages',
+    'moderation_bans_total' => ':count usuarios baneados o expulsados temporalmente.',
+    'moderation_bans_loading_more' => 'Cargando la lista completa en segundo plano… :count por ahora.',
+    'moderation_bans_truncated' => 'Solo se muestran los primeros :count.',
+    'moderation_bans_partial' => 'Algunos no se pudieron cargar desde Twitch, así que solo se muestran :count.',
     // stream_streak.php
     'stream_streak_beta_notice' => '<strong>Característica Beta 5.8:</strong> El seguimiento de Stream Watch Streak está disponible en la versión 5.8 y superiores. Los hitos se registran automáticamente cuando los espectadores alcanzan rachas consecutivas de visualización de transmisiones (por ejemplo, 3, 7, 10, 50 transmisiones seguidas).',
     'stream_streak_page_title' => 'Rachas de visualización de transmisiones',

@@ -602,6 +602,11 @@ return [
     'moderation_bans_reauth' => 'Twitch 拒绝了该请求。请退出并重新登录以刷新权限。',
     'moderation_page_prev' => '上一页',
     'moderation_page_next' => '下一页',
+    'moderation_page_of' => '第 :page 页，共 :pages 页',
+    'moderation_bans_total' => '共 :count 个被封禁或禁言的用户。',
+    'moderation_bans_loading_more' => '正在后台加载完整列表……目前已加载 :count 个。',
+    'moderation_bans_truncated' => '仅显示前 :count 个。',
+    'moderation_bans_partial' => '部分数据无法从 Twitch 加载，仅显示 :count 个。',
     // stream_streak.php
     'stream_streak_beta_notice' => '<strong>Beta 5.8 功能：</strong> Stream Watch Streak 跟踪在 5.8 及更高版本中可用。当观众连续观看直播（例如连续 3、7、10、50 个直播）时，系统会自动记录里程碑。',
     'stream_streak_page_title' => '连续观看流媒体',
