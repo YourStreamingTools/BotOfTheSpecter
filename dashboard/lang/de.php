@@ -576,7 +576,6 @@ return [
     'moderation_filter_user_title' => 'Protokoll auf diesen Benutzer filtern',
     'moderation_unknown_date' => 'Unbekannt',
     'moderation_limit_note' => 'Es werden die 500 neuesten passenden Verwarnungen angezeigt. Verfeinere deine Suche, wenn du ältere Einträge brauchst.',
-    'moderation_related_links' => 'Verwandt:',
     'moderation_msg_warning_deleted' => 'Verwarnung gelöscht.',
     'moderation_msg_warning_not_found' => 'Diese Verwarnung wurde nicht gefunden (sie wurde möglicherweise bereits entfernt).',
     'moderation_msg_user_warnings_cleared' => ':count Verwarnung(en) für :user entfernt.',

@@ -603,7 +603,6 @@ return [
     'moderation_filter_user_title' => 'Filter log to this user',
     'moderation_unknown_date' => 'Unknown',
     'moderation_limit_note' => 'Showing the 500 most recent matching warnings. Narrow your search if you need older entries.',
-    'moderation_related_links' => 'Related:',
     'moderation_msg_warning_deleted' => 'Warning deleted.',
     'moderation_msg_warning_not_found' => 'That warning was not found (it may have already been removed).',
     'moderation_msg_user_warnings_cleared' => 'Removed :count warning(s) for :user.',

@@ -410,13 +410,6 @@ ob_start();
                     </table>
                 </div>
             </div>
-            <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
-            <p class="sp-text-muted" style="font-size:0.9rem;margin:0;">
-                <?= t('moderation_related_links') ?>
-                <a href="mods.php"><?= t('navbar_moderators') ?></a>
-                ·
-                <a href="builtin.php"><?= t('navbar_view_builtin_commands') ?></a>
-            </p>
         </div>
     </div>
 </div>

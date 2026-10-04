@@ -591,7 +591,6 @@ return [
     'moderation_filter_user_title' => '筛选此用户的日志',
     'moderation_unknown_date' => '未知',
     'moderation_limit_note' => '显示最近 500 条匹配的警告。如需更早的记录，请缩小搜索范围。',
-    'moderation_related_links' => '相关：',
     'moderation_msg_warning_deleted' => '警告已删除。',
     'moderation_msg_warning_not_found' => '未找到该警告（可能已被删除）。',
     'moderation_msg_user_warnings_cleared' => '已为 :user 移除 :count 条警告。',
