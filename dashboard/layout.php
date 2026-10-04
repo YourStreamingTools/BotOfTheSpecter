@@ -216,6 +216,11 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                     <?php endif; ?>
                 </div>
                 <div class="sp-topbar-actions">
+                    <button class="sp-quickjump-trigger" id="spQuickJumpOpen" type="button" aria-haspopup="dialog" aria-controls="spQuickJump" title="<?php echo htmlspecialchars(t('layout_quick_jump_title')); ?>">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <span class="sp-quickjump-trigger-text"><?php echo t('layout_quick_jump_button'); ?></span>
+                        <kbd class="sp-quickjump-kbd" id="spQuickJumpKbd">Ctrl K</kbd>
+                    </button>
                     <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="<?php echo htmlspecialchars(t('layout_toggle_theme_aria')); ?>" title="<?php echo htmlspecialchars(t('layout_toggle_theme_title')); ?>">
                         <i class="fas fa-moon"></i>
                     </button>
@@ -265,6 +270,19 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             </footer>
         </div><!-- /.sp-main -->
     </div><!-- /.sp-layout -->
+    <!-- Quick-jump page search (Ctrl+K / Cmd+K); entries are read from the sidebar menu -->
+    <div class="sp-quickjump-backdrop" id="spQuickJump" role="dialog" aria-modal="true" aria-label="<?php echo htmlspecialchars(t('layout_quick_jump_title')); ?>" hidden>
+        <div class="sp-quickjump">
+            <div class="sp-quickjump-search">
+                <i class="fas fa-magnifying-glass"></i>
+                <input type="text" id="spQuickJumpInput" class="sp-quickjump-input" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="spQuickJumpList" aria-autocomplete="list" placeholder="<?php echo htmlspecialchars(t('layout_quick_jump_placeholder')); ?>">
+                <kbd class="sp-quickjump-kbd">Esc</kbd>
+            </div>
+            <ul class="sp-quickjump-list" id="spQuickJumpList" role="listbox"></ul>
+            <div class="sp-quickjump-empty" id="spQuickJumpEmpty" hidden><?php echo t('layout_quick_jump_empty'); ?></div>
+            <div class="sp-quickjump-foot"><?php echo t('layout_quick_jump_hint'); ?></div>
+        </div>
+    </div>
     <!-- JavaScript dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <!-- SweetAlert2 CDN -->

@@ -504,3 +504,169 @@ window.specterRenameMessage = function (data, i18n) {
     if (data && data.message) return data.message;
     return i18n.failed || 'Could not rename the file.';
 };
+
+// Quick-jump page search (Ctrl+K / Cmd+K).
+// Entries come from the rendered sidebar, so every page in menu.php is searchable
+// with its translated label and group name - no separate page list to keep in sync.
+(function () {
+    var backdrop = document.getElementById('spQuickJump');
+    var input = document.getElementById('spQuickJumpInput');
+    var list = document.getElementById('spQuickJumpList');
+    var empty = document.getElementById('spQuickJumpEmpty');
+    var trigger = document.getElementById('spQuickJumpOpen');
+    if (!backdrop || !input || !list) return;
+
+    var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    var kbd = document.getElementById('spQuickJumpKbd');
+    if (kbd && isMac) kbd.textContent = '⌘ K';
+
+    var entries = null;
+    var matches = [];
+    var selected = 0;
+    var lastFocus = null;
+
+    function textOf(el) {
+        return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    }
+
+    function buildEntries() {
+        var out = [];
+        var seen = {};
+        document.querySelectorAll('.sp-nav a.sidebar-submenu-link, .sp-nav a.sidebar-menu-link:not([onclick])').forEach(function (link) {
+            var href = link.getAttribute('href');
+            if (!href || href === '#' || seen[href]) return;
+            seen[href] = true;
+            var label = textOf(link.querySelector('.sidebar-menu-text'));
+            var groupItem = link.closest('.sidebar-submenu') ? link.closest('.sidebar-menu-item') : null;
+            var group = groupItem ? textOf(groupItem.querySelector(':scope > .sidebar-menu-link .sidebar-menu-text')) : '';
+            var iconEl = link.querySelector('i');
+            var imgEl = link.querySelector('img');
+            out.push({
+                href: href,
+                label: label,
+                group: group,
+                icon: iconEl ? iconEl.className : '',
+                img: imgEl ? imgEl.getAttribute('src') : '',
+                haystack: (label + ' ' + group + ' ' + href.split('/').pop().replace(/\.php.*$/, '').replace(/[-_]/g, ' ')).toLowerCase()
+            });
+        });
+        return out;
+    }
+
+    function score(entry, terms) {
+        var label = entry.label.toLowerCase();
+        var total = 0;
+        for (var i = 0; i < terms.length; i++) {
+            var t = terms[i];
+            if (entry.haystack.indexOf(t) === -1) return -1;
+            if (label.indexOf(t) === 0) total += 3;
+            else if (label.indexOf(' ' + t) !== -1) total += 2;
+            else if (label.indexOf(t) !== -1) total += 1;
+        }
+        return total;
+    }
+
+    function render() {
+        var q = input.value.toLowerCase().trim();
+        var terms = q ? q.split(/\s+/) : [];
+        if (!terms.length) {
+            matches = entries.slice();
+        } else {
+            matches = entries
+                .map(function (e, i) { return { e: e, s: score(e, terms), i: i }; })
+                .filter(function (m) { return m.s >= 0; })
+                .sort(function (a, b) { return (b.s - a.s) || (a.i - b.i); })
+                .map(function (m) { return m.e; });
+        }
+        selected = 0;
+        list.textContent = '';
+        matches.forEach(function (entry, idx) {
+            var li = document.createElement('li');
+            li.className = 'sp-quickjump-item';
+            li.id = 'spQuickJumpItem' + idx;
+            li.setAttribute('role', 'option');
+            var icon = document.createElement('span');
+            icon.className = 'sp-quickjump-icon';
+            if (entry.img) {
+                var img = document.createElement('img');
+                img.src = entry.img;
+                img.alt = '';
+                icon.appendChild(img);
+            } else if (entry.icon) {
+                var i = document.createElement('i');
+                i.className = entry.icon;
+                icon.appendChild(i);
+            }
+            var label = document.createElement('span');
+            label.className = 'sp-quickjump-label';
+            label.textContent = entry.label;
+            li.appendChild(icon);
+            li.appendChild(label);
+            if (entry.group) {
+                var group = document.createElement('span');
+                group.className = 'sp-quickjump-group';
+                group.textContent = entry.group;
+                li.appendChild(group);
+            }
+            li.addEventListener('mousemove', function () { if (selected !== idx) select(idx); });
+            li.addEventListener('click', function () { go(entry); });
+            list.appendChild(li);
+        });
+        if (empty) empty.hidden = matches.length > 0;
+        select(0);
+    }
+
+    function select(idx) {
+        var items = list.children;
+        if (!items.length) { input.removeAttribute('aria-activedescendant'); return; }
+        if (items[selected]) {
+            items[selected].classList.remove('is-selected');
+            items[selected].removeAttribute('aria-selected');
+        }
+        selected = (idx + items.length) % items.length;
+        var item = items[selected];
+        item.classList.add('is-selected');
+        item.setAttribute('aria-selected', 'true');
+        input.setAttribute('aria-activedescendant', item.id);
+        item.scrollIntoView({ block: 'nearest' });
+    }
+
+    function go(entry) {
+        if (entry) window.location.href = entry.href;
+    }
+
+    function open() {
+        if (!backdrop.hidden) return;
+        if (!entries) entries = buildEntries();
+        lastFocus = document.activeElement;
+        backdrop.hidden = false;
+        input.value = '';
+        render();
+        input.focus();
+    }
+
+    function close() {
+        if (backdrop.hidden) return;
+        backdrop.hidden = true;
+        if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+            e.preventDefault();
+            if (backdrop.hidden) open(); else close();
+        }
+    });
+
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); select(selected + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); select(selected - 1); }
+        else if (e.key === 'Enter') { e.preventDefault(); go(matches[selected]); }
+        else if (e.key === 'Escape') { e.preventDefault(); close(); }
+    });
+    backdrop.addEventListener('mousedown', function (e) {
+        if (e.target === backdrop) close();
+    });
+    if (trigger) trigger.addEventListener('click', open);
+})();
