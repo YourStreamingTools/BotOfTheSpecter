@@ -40,6 +40,24 @@ if ($username) {
         $alertDisplayScale = 1;
     }
 }
+// Ad break still running when the page loads (OBS refresh, or the dashboard
+// reloading the overlay after a save). The bot only sends TWITCH_AD_BREAK once.
+$activeAdBreak = null;
+if ($username) {
+    try {
+        $adStmt = $db->query("SELECT started_at, duration_seconds, eta_end FROM ad_break_state WHERE id = 1 AND end_notice_sent = 0");
+        $adRow = $adStmt ? $adStmt->fetch(PDO::FETCH_ASSOC) : null;
+        if (is_array($adRow) && (int)$adRow['eta_end'] > time()) {
+            $activeAdBreak = [
+                'duration_seconds' => (int)$adRow['duration_seconds'],
+                'started_at' => (int)$adRow['started_at'],
+                'ends_at' => (int)$adRow['eta_end'],
+            ];
+        }
+    } catch (Throwable $e) {
+        $activeAdBreak = null;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -405,6 +423,22 @@ if ($username) {
             let adBreakTimer = null;
             let adBreakHideTimer = null;
             let adBreakAudio = null;
+            // Kept so a reload mid-break picks the countdown back up (test breaks too).
+            const adBreakStorageKey = 'specterAdBreak:' + username;
+            function saveAdBreakState(endMs) {
+                try { localStorage.setItem(adBreakStorageKey, JSON.stringify({ ends_at: endMs })); } catch (e) {}
+            }
+            function clearAdBreakState() {
+                try { localStorage.removeItem(adBreakStorageKey); } catch (e) {}
+            }
+            function loadAdBreakState() {
+                try {
+                    const raw = localStorage.getItem(adBreakStorageKey);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) {
+                    return null;
+                }
+            }
             function formatAdClock(totalSeconds) {
                 const s = Math.max(0, Math.floor(totalSeconds));
                 const m = Math.floor(s / 60);
@@ -436,6 +470,7 @@ if ($username) {
             function hideAdBreak(animated) {
                 const gen = ++adBreakGen;
                 clearAdBreakTimers();
+                clearAdBreakState();
                 if (adBreakAudio) {
                     adBreakAudio.pause();
                     adBreakAudio = null;
@@ -461,13 +496,15 @@ if ($username) {
                     adBreakHideTimer = null;
                 }, animOutDur * 1000);
             }
-            function showAdBreak(data) {
+            // resume: picking up a break already in progress, so no alert sound.
+            function showAdBreak(data, resume) {
                 data = data || {};
                 const config = getMatchingVariant('ad_break', data);
                 if (!config) return;
                 const endMs = adBreakEndMs(data);
                 if (!endMs || endMs - Date.now() < 400) return;
                 hideAdBreak(false);
+                saveAdBreakState(endMs);
                 const gen = adBreakGen;
                 const container = document.getElementById('adBreakOverlay');
                 if (!container) return;
@@ -531,7 +568,7 @@ if ($username) {
                 if (box) {
                     box.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
                 }
-                if (config.alert_sound) {
+                if (config.alert_sound && !resume) {
                     adBreakAudio = new Audio(SpecterOverlayWS.playbackUrl(mediaBase + config.alert_sound));
                     adBreakAudio.volume = (config.sound_volume || 50) / 100;
                     adBreakAudio.play().catch((e) => console.error('Ad break audio error:', e));
@@ -971,6 +1008,17 @@ if ($username) {
                 } catch (_) {}
                 return null;
             }
+            // Resume a break that was running before this page loaded. Latest end wins.
+            (function resumeAdBreak() {
+                let resumeData = null;
+                [loadAdBreakState(), <?php echo json_encode($activeAdBreak); ?>].forEach((candidate) => {
+                    if (!candidate || !candidate.ends_at) return;
+                    if (!resumeData || adBreakEndMs(candidate) > adBreakEndMs(resumeData)) resumeData = candidate;
+                });
+                // showAdBreak saves it again only if the break is still live and enabled.
+                clearAdBreakState();
+                if (resumeData) showAdBreak(resumeData, true);
+            })();
             // Specter bus: helper owns reconnect (SUCCESS-gated ready, dispose + progressive backoff)
             SpecterOverlayWS.create({
                 code: code,
