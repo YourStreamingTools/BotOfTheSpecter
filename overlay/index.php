@@ -26,6 +26,20 @@ if ($username) {
     $tzRow = $tzStmt ? $tzStmt->fetch(PDO::FETCH_ASSOC) : null;
     $timezone = $tzRow['timezone'] ?? null;
 }
+$alertDisplayScale = 1;
+if ($username) {
+    try {
+        $canvasStmt = $db->query("SELECT canvas FROM twitch_alert_display WHERE id = 1");
+        $canvasRow = $canvasStmt ? $canvasStmt->fetch(PDO::FETCH_ASSOC) : null;
+        $canvasScales = ['1280x720' => 1.5, '1920x1080' => 1, '2560x1440' => 0.75];
+        $canvasName = is_array($canvasRow) ? ($canvasRow['canvas'] ?? '1920x1080') : '1920x1080';
+        if (isset($canvasScales[$canvasName])) {
+            $alertDisplayScale = $canvasScales[$canvasName];
+        }
+    } catch (Throwable $e) {
+        $alertDisplayScale = 1;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -70,6 +84,8 @@ if ($username) {
                 return;
             }
             const alertConfigs = <?php echo json_encode($alertConfigs); ?>;
+            // Same scale the alerts visual editor applies for the chosen OBS canvas.
+            const alertDisplayScale = <?php echo json_encode($alertDisplayScale); ?>;
             const username = <?php echo json_encode($username); ?>;
             if (!username) {
                 showOverlayError('Invalid code provided in the URL', 'danger');
@@ -757,6 +773,9 @@ if ($username) {
             // existing 9-preset screen_position string logic runs unchanged.
             function applyScreenPosition(el, cfg, category) {
                 if (!el) return;
+                // Visual editor scales the whole alert for 720p / 2K. Zoom keeps that
+                // size without fighting the slide/zoom animations, which own transform.
+                el.style.zoom = (alertDisplayScale && alertDisplayScale !== 1) ? String(alertDisplayScale) : '';
                 const rx = cfg && cfg.position_x != null && cfg.position_x !== '' ? parseFloat(cfg.position_x) : null;
                 const ry = cfg && cfg.position_y != null && cfg.position_y !== '' ? parseFloat(cfg.position_y) : null;
                 if (rx !== null && ry !== null) {
