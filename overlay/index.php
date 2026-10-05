@@ -306,11 +306,15 @@ if ($username) {
                     `border-radius:${config.rounded_corners == 1 ? '12px' : '0'}`,
                     `box-shadow:${config.drop_shadow == 1 ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'}`
                 ].join(';');
+                // Single quotes: this string lands in a double-quoted style attribute.
+                // A double-quoted font name closed that attribute and dropped colour.
+                const fontFamily = String(config.font_family || 'Roboto').replace(/['"\\]/g, '');
+                const textColor = hex6.test(config.text_color) ? config.text_color : '#FFFFFF';
                 const textStyles = [
-                    `font-family:"${config.font_family || 'Roboto'}",sans-serif`,
+                    `font-family:'${fontFamily}',sans-serif`,
                     `font-weight:${cssWeight}`,
                     `font-size:${config.font_size || 24}px`,
-                    `color:${config.text_color || '#FFFFFF'}`,
+                    `color:${textColor}`,
                     `text-align:${config.text_alignment || 'center'}`,
                     `text-shadow:${config.text_drop_shadow == 1 ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'}`
                 ].join(';');
@@ -479,11 +483,13 @@ if ($username) {
                     `border-radius:${config.rounded_corners == 1 ? '12px' : '0'}`,
                     `box-shadow:${config.drop_shadow == 1 ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'}`
                 ].join(';');
+                const fontFamily = String(config.font_family || 'Roboto').replace(/['"\\]/g, '');
+                const textColor = hex6.test(config.text_color) ? config.text_color : '#FFFFFF';
                 const textStyles = [
-                    `font-family:"${config.font_family || 'Roboto'}",sans-serif`,
+                    `font-family:'${fontFamily}',sans-serif`,
                     `font-weight:${cssWeight}`,
                     `font-size:${config.font_size || 24}px`,
-                    `color:${config.text_color || '#FFFFFF'}`,
+                    `color:${textColor}`,
                     `text-align:${config.text_alignment || 'center'}`,
                     `text-shadow:${config.text_drop_shadow == 1 ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'}`
                 ].join(';');
