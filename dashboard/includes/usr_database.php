@@ -701,6 +701,11 @@ try {
                 randomize TINYINT(1) DEFAULT 0,
                 PRIMARY KEY (category)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'twitch_alert_display' => "
+            CREATE TABLE IF NOT EXISTS twitch_alert_display (
+                id TINYINT NOT NULL PRIMARY KEY,
+                canvas VARCHAR(12) NOT NULL DEFAULT '1920x1080'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'joke_settings' => "
             CREATE TABLE IF NOT EXISTS joke_settings (
                 id INT(11) NOT NULL AUTO_INCREMENT,

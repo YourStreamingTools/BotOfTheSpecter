@@ -234,6 +234,19 @@ if (($_GET['ajax_action'] ?? '') === 'overlay_instances') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
+    if ($action === 'set_alert_canvas') {
+        $allowedCanvas = ['1280x720' => 1.5, '1920x1080' => 1, '2560x1440' => 0.75];
+        $canvas = $_POST['canvas'] ?? '1920x1080';
+        if (!isset($allowedCanvas[$canvas])) {
+            $canvas = '1920x1080';
+        }
+        $stmt = $db->prepare("INSERT INTO twitch_alert_display (id, canvas) VALUES (1, ?) ON DUPLICATE KEY UPDATE canvas = VALUES(canvas)");
+        $stmt->bind_param('s', $canvas);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => (bool) $ok, 'scale' => $allowedCanvas[$canvas]]);
+        exit;
+    }
     if ($action === 'save_alert') {
         $id = intval($_POST['id'] ?? 0);
         if ($id <= 0) {
@@ -522,6 +535,14 @@ $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-B
 $mediaBase = "https://media.botofthespecter.com/$username/";
 
 $browserSourceUrl = "https://overlay.botofthespecter.com/?code=" . urlencode($api_key);
+$alertCanvas = '1920x1080';
+$alertCanvasRes = @$db->query("SELECT canvas FROM twitch_alert_display WHERE id = 1");
+if ($alertCanvasRes && ($alertCanvasRow = $alertCanvasRes->fetch_assoc())) {
+    if (in_array($alertCanvasRow['canvas'], ['1280x720', '1920x1080', '2560x1440'], true)) {
+        $alertCanvas = $alertCanvasRow['canvas'];
+    }
+    $alertCanvasRes->free();
+}
 
 ob_start();
 ?>
@@ -643,9 +664,9 @@ ob_start();
                     <span class="alerts-mini-toggle-text"><?= t('alerts_autoplay') ?></span>
                 </label>
                 <select id="alerts-canvas-size" class="sp-input" title="<?= htmlspecialchars(t('makers_canvas_range')) ?>">
-                    <option value="1280x720">1280 &times; 720 (720p)</option>
-                    <option value="1920x1080" selected>1920 &times; 1080 (1080p)</option>
-                    <option value="2560x1440">2560 &times; 1440 (2K)</option>
+                    <option value="1280x720" <?= $alertCanvas === '1280x720' ? 'selected' : '' ?>>1280 &times; 720 (720p)</option>
+                    <option value="1920x1080" <?= $alertCanvas === '1920x1080' ? 'selected' : '' ?>>1920 &times; 1080 (1080p)</option>
+                    <option value="2560x1440" <?= $alertCanvas === '2560x1440' ? 'selected' : '' ?>>2560 &times; 1440 (2K)</option>
                 </select>
                 <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="alerts-pos-expand-btn" title="<?= htmlspecialchars(t('alerts_expand_editor')) ?>">
                     <i class="fas fa-expand"></i> <?= t('alerts_expand_editor') ?>
@@ -1283,6 +1304,7 @@ $(document).ready(function() {
     $('#alerts-canvas-size').on('change', function() {
         applyPreviewScale();
         repositionActiveBox();
+        $.post('', { action: 'set_alert_canvas', canvas: this.value }, null, 'json');
     });
     // Sample preview content for the legacy-themed categories (weather, deaths). The
     // walk-on sample is static markup; only weather/deaths need their card built here.
@@ -2123,7 +2145,7 @@ $(document).ready(function() {
     // The overlay reads alert configs once at page load, so any saved change
     // reloads every open Specter Alerts page (batched so a drag reloads once).
     var overlayRefreshTimer = null;
-    var overlayConfigActions = ['save_alert', 'set_alert_position', 'toggle_alert', 'set_category_randomize', 'create_variant', 'delete_variant', 'remove_alert_media'];
+    var overlayConfigActions = ['save_alert', 'set_alert_position', 'set_alert_canvas', 'toggle_alert', 'set_category_randomize', 'create_variant', 'delete_variant', 'remove_alert_media'];
     function queueOverlayRefresh() {
         clearTimeout(overlayRefreshTimer);
         overlayRefreshTimer = setTimeout(function() {
