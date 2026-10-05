@@ -17,7 +17,7 @@
    - `./config/discord.php` - Discord
    - `./config/streamelements.php`, `./config/streamlabs.php` - tipping platforms
    - `./config/openai.php`, `./config/ai.php` - AI services
-   - `./config/cloudflare.php`, `./config/object_storage.php` - infrastructure
+   - `./config/cloudflare.php` - infrastructure
    - `./config/admin_actions.php`, `./config/main.php`, `./config/ssh.php`, `./config/iplocate.php`, `./config/brandfetch.php`, `./config/project-time.php`
 2. **One service per file.** All Twitch settings go in `twitch.php` - don't split them across `twitch_oauth.php` and `twitch_api.php`. If you're adding a new service, create `{service}.php` and put everything for it there.
 3. **Include via `require_once`** with the right relative path (`/var/www/config/{name}.php` on server, `./config/{name}.php` in dev - see [paths.md](./paths.md)).

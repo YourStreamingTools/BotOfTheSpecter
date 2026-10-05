@@ -55,9 +55,8 @@ These were noted by the docs agents while reading the integration code. Not urge
 2. **GitHub `/github` webhook** doesn't verify HMAC; relies on admin-key only (github.md).
 3. **Kick webhook** verifies the wrong header name (`Kick-Event-Timestamp` vs documented `Kick-Event-Message-Timestamp`) - likely fail-open today (kick.md §9).
 4. **Kick `/v2/categories` path** is broken - `kick_get()` helper hardcodes a base that double-prefixes the path (kick.md §9).
-5. **Cloudflare R2 `getObjectUrl()`** in `./dashboard/persistent_storage.php` returns unsigned URLs (cloudflare.md §7).
-6. **StreamLabs WebSocket** has no auto-reconnect and no token refresh script (streamlabs.md §3–4).
-7. **CLAUDE.md correction**: `HYPERATE_API_KEY` is the per-application developer key, not per-user. The per-user value is `users.heartrate_code` in the DB.
+5. **StreamLabs WebSocket** has no auto-reconnect and no token refresh script (streamlabs.md §3–4).
+6. **CLAUDE.md correction**: `HYPERATE_API_KEY` is the per-application developer key, not per-user. The per-user value is `users.heartrate_code` in the DB.
 
 ## Maintenance
 

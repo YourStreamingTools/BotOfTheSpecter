@@ -10,41 +10,10 @@ require_once '/var/www/lib/require_auth_ajax.php';
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
-$billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include "/var/www/config/ssh.php";
 include '../includes/userdata.php';
 session_write_close();
 include '../includes/user_db.php';
-$is_subscribed = false;
-
-// Get user email from the profile data
-if (isset($email)) {
-    // First, get the client ID from the client table
-    $stmt = $billing_conn->prepare("SELECT id FROM client WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($row = $result->fetch_assoc()) {
-        $client_id = $row['id'];
-        // Check if the client has an active Persistent Storage Membership
-        $stmt = $billing_conn->prepare("
-            SELECT co.status FROM client_order co
-            WHERE co.client_id = ? 
-            AND co.title LIKE '%Persistent Storage%'
-            ORDER BY co.id DESC
-            LIMIT 1
-        ");
-        $stmt->bind_param("i", $client_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($row = $result->fetch_assoc()) {
-            $is_subscribed = ($row['status'] === 'active');
-        }
-    }
-    $stmt->close();
-}
-$billing_conn->close();
-
 // Function to get files from the storage server (same as in streaming.php)
 function getStorageFiles($server_host, $server_username, $server_password, $user_dir, $api_key, $recording_dir) {
     $files = [];
@@ -246,7 +215,6 @@ if ($storage_error) {
             echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
             echo '<td class="has-text-centered" style="vertical-align: middle;">';            echo '<a href="#" class="play-video action-icon" data-video-url="/api/play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="' . t('streaming_action_watch_video') . '"><i class="fas fa-play"></i></a> ';
             echo '<a href="/api/download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_download_video') . '"><i class="fas fa-download"></i></a> ';
-            if ($is_subscribed) {echo '<a class="upload-to-s3 action-icon" data-server="' . $selected_server . '" data-file="' . urlencode($file['name']) . '" title="' . t('streaming_action_upload_persistent') . '"><i class="fas fa-cloud-upload-alt"></i></a> ';}
             echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="' . t('streaming_action_edit_title') . '"><i class="fas fa-edit"></i></a> ';
             echo '<a href="/api/delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_delete_video') . '" onclick="return confirm(\'' . t('streaming_confirm_delete_file') . '\');"><i class="fas fa-trash"></i></a>';
             echo '</td>';
