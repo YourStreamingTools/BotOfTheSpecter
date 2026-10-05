@@ -531,26 +531,30 @@ if ($username) {
                 const palette = ['#7c5cbf', '#9070d8', '#fbbf24', '#3ecf8e', '#5cb8ff', '#f87171', '#ffffff'];
                 const intensityScale = { light: 0.5, medium: 1, heavy: 2 };
                 function ensureCanvas() {
-                    if (canvas) return;
-                    canvas = document.createElement('canvas');
-                    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight;
-                    document.body.appendChild(canvas);
-                    ctx = canvas.getContext('2d');
-                    window.addEventListener('resize', onResize);
+                    if (!canvas) {
+                        canvas = document.createElement('canvas');
+                        canvas.className = 'celebration-canvas';
+                        document.body.appendChild(canvas);
+                        ctx = canvas.getContext('2d');
+                        window.addEventListener('resize', fitCanvas);
+                    }
+                    fitCanvas();
                 }
-                function onResize() {
+                function fitCanvas() {
                     if (!canvas) return;
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight;
+                    canvas.width = Math.max(1, window.innerWidth);
+                    canvas.height = Math.max(1, window.innerHeight);
+                }
+                // Particle speeds were authored for a small preview. Scale them to this source.
+                function span() {
+                    return Math.max(1, Math.min(window.innerWidth, window.innerHeight) / 480);
                 }
                 function destroyCanvas() {
                     if (rafId) cancelAnimationFrame(rafId);
                     rafId = null;
                     if (canvas) {
                         canvas.remove();
-                        window.removeEventListener('resize', onResize);
+                        window.removeEventListener('resize', fitCanvas);
                     }
                     canvas = null; ctx = null; particles = [];
                 }
@@ -571,14 +575,16 @@ if ($username) {
                 }
                 function makeFirework() {
                     const W = canvas.width, H = canvas.height;
-                    const startX = W * (0.15 + Math.random() * 0.7);
-                    const targetY = H * (0.15 + Math.random() * 0.35);
+                    const s = span();
+                    const startX = W * (0.03 + Math.random() * 0.94);
+                    const targetY = H * (0.05 + Math.random() * 0.8);
                     const color = palette[Math.floor(Math.random() * palette.length)];
+                    const gravity = 0.18 * s;
                     return {
                         x: startX, y: H + 10,
-                        vy: -(Math.sqrt(2 * 0.18 * (H - targetY))),
-                        vx: (Math.random() - 0.5) * 0.6,
-                        gravity: 0.18,
+                        vy: -(Math.sqrt(2 * gravity * Math.max(1, H - targetY))),
+                        vx: (Math.random() - 0.5) * 0.8 * s,
+                        gravity: gravity,
                         exploded: false,
                         color: color,
                         dead: false,
@@ -589,11 +595,11 @@ if ($username) {
                                 this.vy += this.gravity;
                                 if (this.vy >= 0) {
                                     this.exploded = true;
-                                    const burst = 28 + Math.floor(Math.random() * 14);
+                                    const burst = Math.round(34 + Math.random() * 18);
                                     for (let i = 0; i < burst; i++) {
                                         const a = (i / burst) * Math.PI * 2;
-                                        const speed = 2 + Math.random() * 3;
-                                        particles.push(makeSpark(this.x, this.y, Math.cos(a) * speed, Math.sin(a) * speed, this.color));
+                                        const speed = (2.2 + Math.random() * 3.4) * s;
+                                        particles.push(makeSpark(this.x, this.y, Math.cos(a) * speed, Math.sin(a) * speed, this.color, 2.2 * s));
                                     }
                                     this.dead = true;
                                 }
@@ -601,51 +607,54 @@ if ($username) {
                         },
                         draw(c) {
                             c.fillStyle = this.color;
-                            c.beginPath(); c.arc(this.x, this.y, 2.5, 0, Math.PI * 2); c.fill();
+                            c.beginPath(); c.arc(this.x, this.y, 2.5 * s, 0, Math.PI * 2); c.fill();
                         }
                     };
                 }
-                function makeSpark(x, y, vx, vy, color) {
+                function makeSpark(x, y, vx, vy, color, radius) {
+                    const s = span();
                     return {
                         x, y, vx, vy, color,
-                        life: 1, gravity: 0.06, drag: 0.985,
+                        radius: radius || (2.2 * s),
+                        life: 1, gravity: 0.045 * s, drag: 0.988,
                         dead: false,
                         update() {
                             this.x += this.vx; this.y += this.vy;
                             this.vy += this.gravity;
                             this.vx *= this.drag; this.vy *= this.drag;
-                            this.life -= 0.012;
+                            this.life -= 0.01;
                             if (this.life <= 0) this.dead = true;
                         },
                         draw(c) {
                             c.globalAlpha = Math.max(0, this.life);
                             c.fillStyle = this.color;
-                            c.beginPath(); c.arc(this.x, this.y, 2.4, 0, Math.PI * 2); c.fill();
+                            c.beginPath(); c.arc(this.x, this.y, this.radius, 0, Math.PI * 2); c.fill();
                             c.globalAlpha = 1;
                         }
                     };
                 }
                 function makeConfetti() {
                     const W = canvas.width;
+                    const s = span();
                     const color = palette[Math.floor(Math.random() * palette.length)];
                     return {
                         x: Math.random() * W,
-                        y: -20 - Math.random() * 200,
-                        vx: (Math.random() - 0.5) * 1.4,
-                        vy: 1.5 + Math.random() * 2,
+                        y: -20 - Math.random() * (canvas.height * 0.35),
+                        vx: (Math.random() - 0.5) * 1.6 * s,
+                        vy: (1.4 + Math.random() * 2.2) * s,
                         rot: Math.random() * Math.PI * 2,
                         vrot: (Math.random() - 0.5) * 0.25,
-                        w: 6 + Math.random() * 5,
-                        h: 10 + Math.random() * 6,
+                        w: (7 + Math.random() * 6) * s,
+                        h: (12 + Math.random() * 8) * s,
                         sway: Math.random() * Math.PI * 2,
                         color: color,
                         dead: false,
                         update() {
                             this.sway += 0.04;
-                            this.x += this.vx + Math.sin(this.sway) * 0.6;
+                            this.x += this.vx + Math.sin(this.sway) * 0.8 * s;
                             this.y += this.vy;
                             this.rot += this.vrot;
-                            if (this.y > canvas.height + 30) this.dead = true;
+                            if (this.y > canvas.height + 40) this.dead = true;
                         },
                         draw(c) {
                             c.save();
@@ -659,21 +668,22 @@ if ($username) {
                 }
                 function makeBubble() {
                     const W = canvas.width, H = canvas.height;
-                    const r = 8 + Math.random() * 22;
+                    const s = span();
+                    const r = (16 + Math.random() * 42) * Math.min(s, 2.4);
                     return {
                         x: Math.random() * W,
                         y: H + r,
                         r: r,
-                        vy: -(0.6 + Math.random() * 1.2),
+                        vy: -(0.7 + Math.random() * 1.4) * s,
                         sway: Math.random() * Math.PI * 2,
                         life: 1,
                         dead: false,
                         update() {
                             this.sway += 0.02;
-                            this.x += Math.sin(this.sway) * 0.8;
+                            this.x += Math.sin(this.sway) * 1.1 * s;
                             this.y += this.vy;
                             if (this.y < -this.r) { this.dead = true; return; }
-                            if (this.y < canvas.height * 0.2) this.life -= 0.01;
+                            if (this.y < canvas.height * 0.15) this.life -= 0.008;
                             if (this.life <= 0) this.dead = true;
                         },
                         draw(c) {
@@ -699,14 +709,15 @@ if ($username) {
                     spawning = true;
                     if (rafId === null) rafId = requestAnimationFrame(loop);
                     const burst = () => {
+                        const width = canvas.width;
                         if (effect === 'fireworks') {
-                            const n = Math.round(2 * scale);
-                            for (let i = 0; i < Math.max(1, n); i++) particles.push(makeFirework());
+                            const n = Math.max(3, Math.round((width / 640) * scale));
+                            for (let i = 0; i < n; i++) particles.push(makeFirework());
                         } else if (effect === 'confetti') {
-                            const n = Math.round(6 * scale);
+                            const n = Math.max(10, Math.round((width / 80) * scale));
                             for (let i = 0; i < n; i++) particles.push(makeConfetti());
                         } else if (effect === 'bubbles') {
-                            const n = Math.round(3 * scale);
+                            const n = Math.max(4, Math.round((width / 380) * scale));
                             for (let i = 0; i < n; i++) particles.push(makeBubble());
                         }
                     };
