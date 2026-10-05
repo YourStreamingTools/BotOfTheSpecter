@@ -1210,7 +1210,7 @@ $(document).ready(function() {
     };
     // Enable/disable-only categories - selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
-    const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall'];
+    const simpleCategories = ['weather', 'deaths', 'walkons', 'watch_streak', 'discord_join', 'kofi', 'patreon', 'fourthwall', 'ad_break'];
     // Drag-to-place position editor
     // A NULL screen_position (no saved x/y) falls back to the per-category default.
     const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
@@ -1321,6 +1321,8 @@ $(document).ready(function() {
                  + '<div class="apd-game">Elden Ring</div>'
                  + '<div class="apd-count">42</div>'
                  + '</div>';
+        } else if (category === 'ad_break') {
+            html = '<div class="alerts-preview-ads"><div class="apa-title">Ads are playing</div><div class="apa-time">Back in 1:30</div></div>';
         } else {
             var genericLabels = {
                 'watch_streak': 'Watch Streak Alert',
@@ -1553,7 +1555,7 @@ $(document).ready(function() {
             $('#variant-reward-group').hide();
             $('#variant-bingo-group').show();
             $('#set-bingo-event').val(extractBingoEvent(condition) || '');
-        } else if (['follow', 'ad_break'].indexOf(category) !== -1) {
+        } else if (category === 'follow') {
             $('#variant-name-group').show();
             $('#variant-condition-group').hide();
             $('#variant-reward-group').hide();
@@ -1689,7 +1691,7 @@ $(document).ready(function() {
         $('#preview-box').hide();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
         $('#set-simple-enabled').prop('checked', a.enabled == 1);
-        // All three (weather, deaths, walk-ons) have a draggable position + sample
+        // Weather, deaths, walk-ons and ads have a draggable position + sample
         // preview; only the help note differs for walk-ons (mode is per-viewer).
         $('#simple-position-group').show();
         var isWalkon = a.alert_category === 'walkons';
