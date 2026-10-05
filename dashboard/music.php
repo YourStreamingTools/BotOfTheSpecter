@@ -14,6 +14,7 @@ require_once "/var/www/config/db_connect.php";
 include 'includes/userdata.php';
 include "includes/mod_access.php";
 include 'includes/user_db_connect.php'; // FAST SHELL: connection only, no bulk table load
+require_once __DIR__ . '/includes/music_meta.php';
 session_write_close();
 
 // Fetch the files from the local music directory with metadata
@@ -21,16 +22,16 @@ function getLocalMusicFiles() {
     $musicDir = '/var/www/cdn/music';
     $files = [];
     if (is_dir($musicDir)) {
-        $musicFiles = scandir($musicDir);
+        $musicFiles = array_values(array_filter(scandir($musicDir), fn($f) => str_ends_with($f, '.mp3')));
+        $meta = music_meta_annotate($musicDir, $musicFiles);
         foreach ($musicFiles as $file) {
-            if (str_ends_with($file, '.mp3')) {
-                $fullPath = $musicDir . '/' . $file;
-                $files[] = [
-                    'filename' => $file,
-                    'title' => pathinfo($file, PATHINFO_FILENAME),
-                    'size' => file_exists($fullPath) ? filesize($fullPath) : 0,
-                ];
-            }
+            $fullPath = $musicDir . '/' . $file;
+            $files[] = [
+                'filename' => $file,
+                'title' => $meta[$file]['title'],
+                'artist' => $meta[$file]['artist'],
+                'size' => file_exists($fullPath) ? filesize($fullPath) : 0,
+            ];
         }
     }
     usort($files, function($a, $b) {
@@ -43,16 +44,16 @@ function getLocalMusicFiles() {
 function getUserMusicFiles($dir) {
     $files = [];
     if (!is_dir($dir)) return $files;
-    $entries = scandir($dir);
+    $entries = array_values(array_filter(scandir($dir), fn($f) => str_ends_with($f, '.mp3')));
+    $meta = music_meta_annotate($dir, $entries, true); // private uploads live on local disk
     foreach ($entries as $f) {
-        if (str_ends_with($f, '.mp3')) {
-            $full = $dir . '/' . $f;
-            $files[] = [
-                'filename' => $f,
-                'title' => pathinfo($f, PATHINFO_FILENAME),
-                'size' => file_exists($full) ? filesize($full) : 0,
-            ];
-        }
+        $full = $dir . '/' . $f;
+        $files[] = [
+            'filename' => $f,
+            'title' => $meta[$f]['title'],
+            'artist' => $meta[$f]['artist'],
+            'size' => file_exists($full) ? filesize($full) : 0,
+        ];
     }
     usort($files, function($a, $b) { return strcasecmp($a['title'], $b['title']); });
     return $files;
@@ -438,6 +439,7 @@ ob_start();
                             <span class="icon is-small mr-1"><i class="fas fa-music"></i></span>
                             <?php echo t('music_title'); ?>
                         </th>
+                        <th><?php echo t('music_artist'); ?></th>
                         <th style="text-align:right;white-space:nowrap;"><?php echo t('music_actions'); ?></th>
                     </tr>
                 </thead>
@@ -447,6 +449,7 @@ ob_start();
                         <td style="text-align:center;"><span class="sp-skeleton-badge"></span></td>
                         <td style="text-align:center;"><span class="sp-skeleton-line w-40"></span></td>
                         <td><span class="sp-skeleton-line w-80"></span></td>
+                        <td><span class="sp-skeleton-line w-40"></span></td>
                         <td style="text-align:right;"><span class="sp-skeleton-line w-40"></span></td>
                     </tr>
                     <?php endfor; ?>
@@ -505,6 +508,7 @@ ob_start();
             currentSong: null,
             musicSource: <?php echo json_encode($music_source); ?>,
             excludedTracks: new Set(<?php echo json_encode(array_values($music_playlist_filter)); ?>),
+            trackMeta: {}, // fileKey -> { title, artist } from the list endpoint
         },
         // DOM elements cache
         elements: {},
@@ -534,6 +538,14 @@ ob_start();
                 filename = filename.replace(/^USER:/, '');
             }
             return filename.replace('.mp3', '').replace(/_/g, ' ');
+        },
+        songInfo(song) {
+            const meta = MusicPlayer.state.trackMeta[song];
+            if (meta) return { title: this.formatTitle(meta.title), artist: meta.artist || '' };
+            return { title: this.formatTitle(song), artist: '' };
+        },
+        nowPlayingLabel(title, artist) {
+            return title && artist ? `${title} — ${artist}` : title;
         },
         getEnabledIndices() {
             const source = MusicPlayer.state.musicSource || 'system';
@@ -655,8 +667,9 @@ ob_start();
             if (row.classList.contains('placeholder')) return false;
             if (!this.rowVisibleForSource(row, source)) return false;
             if (searchTerm) {
-                const title = row.getAttribute('data-title');
-                if (!title || !title.includes(searchTerm)) return false;
+                const title = row.getAttribute('data-title') || '';
+                const artist = row.getAttribute('data-artist') || '';
+                if (!title.includes(searchTerm) && !artist.includes(searchTerm)) return false;
             }
             return true;
         },
@@ -689,7 +702,7 @@ ob_start();
                     const tr = document.createElement('tr');
                     tr.className = 'playlist-row placeholder';
                     tr.style.color = 'var(--text-muted)';
-                    tr.innerHTML = `<td colspan="4" style="padding:1.25rem; text-align:center;">${<?php echo json_encode(t('music_no_tracks_for_source')); ?>}</td>`;
+                    tr.innerHTML = `<td colspan="5" style="padding:1.25rem; text-align:center;">${<?php echo json_encode(t('music_no_tracks_for_source')); ?>}</td>`;
                     tbody.prepend(tr);
                 }
             } else if (existingPlaceholder) {
@@ -745,14 +758,14 @@ ob_start();
         play(index) {
             if (index < 0 || index >= MusicPlayer.state.playlist.length) return;
             const song = MusicPlayer.state.playlist[index];
-            const title = Utils.formatTitle(song);
+            const { title, artist } = Utils.songInfo(song);
             MusicPlayer.state.currentIndex = index;
             MusicPlayer.state.currentSong = song;
-            DOM.updateNowPlaying(title, true);
+            DOM.updateNowPlaying(Utils.nowPlayingLabel(title, artist), true);
             DOM.highlightCurrentSong(index);
             const audio = MusicPlayer.elements.audioPlayer;
             // Build songData to broadcast to overlays (include public URL for user uploads)
-            let songData = { title };
+            let songData = { title, artist };
             if (typeof song === 'string' && song.startsWith('USER:')) {
                 const userFile = song.replace(/^USER:/, '');
                 audio.src = `/api/serve_user_music.php?file=${encodeURIComponent(userFile)}`;
@@ -901,7 +914,8 @@ ob_start();
                 MusicPlayer.state.volumeInitialized = true;
             }
             if (settings.now_playing) {
-                DOM.updateNowPlaying(settings.now_playing.title || settings.now_playing, true);
+                const np = settings.now_playing;
+                DOM.updateNowPlaying(np.title ? Utils.nowPlayingLabel(np.title, np.artist) : np, true);
             }
             if (typeof settings.repeat !== 'undefined') {
                 MusicPlayer.state.repeat = !!settings.repeat;
@@ -918,7 +932,7 @@ ob_start();
             MusicPlayer.elements.refreshBtn.classList.remove('sp-btn-loading');
             if (data && data.song) {
                 const title = data.song.title || data.song.file || data.song;
-                DOM.updateNowPlaying(title, true);
+                DOM.updateNowPlaying(Utils.nowPlayingLabel(title, data.song.artist), true);
                 
                 // Try to find and highlight the song in playlist
                 const songFile = data.song.file || data.song;
@@ -1067,11 +1081,12 @@ ob_start();
                 AudioPlayer.play(index);
             } else {
                 const song = MusicPlayer.state.playlist[index];
-                const title = Utils.formatTitle(song);
+                const { title, artist } = Utils.songInfo(song);
                 // Use file-based NOW_PLAYING for all tracks to avoid index mismatches
                 // between dashboard and overlay playlist ordering.
                 const songPayload = {
                     title: title,
+                    artist: artist,
                     file: song
                 };
                 if (typeof song === 'string' && song.startsWith('USER:')) {
@@ -1084,7 +1099,7 @@ ob_start();
                 if (MusicPlayer.socket && MusicPlayer.socket.connected) {
                     MusicPlayer.socket.emit('NOW_PLAYING', { song: songPayload });
                 }
-                DOM.updateNowPlaying(title, true);
+                DOM.updateNowPlaying(Utils.nowPlayingLabel(title, artist), true);
                 DOM.highlightCurrentSong(index);
             }
         },
@@ -1351,12 +1366,14 @@ ob_start();
         if (progEl) progEl.value = pct;
         if (hostEl) hostEl.setAttribute('aria-busy', 'false');
     }
-    function playlistRowHtml(index, fileKey, title, isUser, isEnabled) {
+    function playlistRowHtml(index, fileKey, title, artist, isUser, isEnabled) {
         const filteredClass = isEnabled ? '' : ' is-filtered-out';
         const userClass = isUser ? ' user-upload' : '';
         const safeKey = escapeHtml(fileKey);
         const safeTitle = escapeHtml(title);
         const safeTitleLower = escapeHtml(String(title).toLowerCase());
+        const safeArtist = escapeHtml(artist);
+        const safeArtistLower = escapeHtml(String(artist).toLowerCase());
         const safeFile = isUser ? escapeHtml(String(fileKey).replace(/^USER:/, '')) : '';
         const badge = isUser
             ? ' <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;">' + escapeHtml(MUSIC_I18N.yourUpload) + '</span>'
@@ -1368,7 +1385,7 @@ ob_start();
               '<button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="' + safeFile + '" title="' + escapeHtml(MUSIC_I18N.delete) + '">' +
               '<span class="icon is-small"><i class="fas fa-trash"></i></span></button></span>'
             : '';
-        return '<tr data-index="' + index + '" data-file="' + safeKey + '" data-title="' + safeTitleLower + '" class="playlist-row' + userClass + filteredClass + '" style="cursor:pointer;">' +
+        return '<tr data-index="' + index + '" data-file="' + safeKey + '" data-title="' + safeTitleLower + '" data-artist="' + safeArtistLower + '" class="playlist-row' + userClass + filteredClass + '" style="cursor:pointer;">' +
             '<td style="text-align:center;">' +
                 '<label class="checkbox" style="display:inline-flex;margin:0;" title="' + escapeHtml(MUSIC_I18N.include) + '">' +
                     '<input type="checkbox" class="playlist-filter-cb" data-file="' + safeKey + '"' + (isEnabled ? ' checked' : '') + '>' +
@@ -1378,6 +1395,7 @@ ob_start();
                 '<span class="now-playing-icon" style="display:none;"><i class="fas fa-play-circle" style="color:var(--green);"></i></span>' +
             '</td>' +
             '<td class="song-title">' + safeTitle + badge + '</td>' +
+            '<td class="song-artist">' + safeArtist + '</td>' +
             '<td style="text-align:right;white-space:nowrap;">' +
                 '<button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="' + index + '" title="' + escapeHtml(MUSIC_I18N.play) + '">' +
                     '<span class="icon is-small"><i class="fas fa-play"></i></span></button>' +
@@ -1394,19 +1412,25 @@ ob_start();
         const systemFiles = Array.isArray(data.system_files) ? data.system_files : [];
         let html = '';
         let index = 0;
+        const trackMeta = {};
         userFiles.forEach((fileData) => {
             const filename = fileData.filename || '';
             const title = fileData.title || filename.replace(/\.mp3$/i, '');
+            const artist = fileData.artist || '';
             const fileKey = 'USER:' + filename;
-            html += playlistRowHtml(index, fileKey, title, true, !excluded.has(fileKey));
+            trackMeta[fileKey] = { title, artist };
+            html += playlistRowHtml(index, fileKey, title, artist, true, !excluded.has(fileKey));
             index++;
         });
         systemFiles.forEach((fileData) => {
             const filename = fileData.filename || '';
             const title = fileData.title || filename.replace(/\.mp3$/i, '');
-            html += playlistRowHtml(index, filename, title, false, !excluded.has(filename));
+            const artist = fileData.artist || '';
+            trackMeta[filename] = { title, artist };
+            html += playlistRowHtml(index, filename, title, artist, false, !excluded.has(filename));
             index++;
         });
+        MusicPlayer.state.trackMeta = trackMeta;
         tbody.innerHTML = html;
         tbody.setAttribute('aria-busy', 'false');
         const countTag = document.getElementById('playlistCountTag');
